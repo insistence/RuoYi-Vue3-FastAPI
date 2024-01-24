@@ -33,6 +33,34 @@ class RedisConfig:
     DB = 2
 
 
+class UploadConfig:
+    """
+    上传配置
+    """
+    UPLOAD_PREFIX = '/profile'
+    UPLOAD_PATH = 'vf_admin/upload_path'
+    UPLOAD_MACHINE = 'A'
+    DEFAULT_ALLOWED_EXTENSION = [
+        # 图片
+        "bmp", "gif", "jpg", "jpeg", "png",
+        # word excel powerpoint
+        "doc", "docx", "xls", "xlsx", "ppt", "pptx", "html", "htm", "txt",
+        # 压缩文件
+        "rar", "zip", "gz", "bz2",
+        # 视频格式
+        "mp4", "avi", "rmvb",
+        # pdf
+        "pdf"
+    ]
+    DOWNLOAD_PATH = 'vf_admin/download_path'
+
+    def __init__(self):
+        if not os.path.exists(self.UPLOAD_PATH):
+            os.makedirs(self.UPLOAD_PATH)
+        if not os.path.exists(self.DOWNLOAD_PATH):
+            os.makedirs(self.DOWNLOAD_PATH)
+
+
 class CachePathConfig:
     """
     缓存目录配置

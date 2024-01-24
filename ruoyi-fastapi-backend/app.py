@@ -1,7 +1,8 @@
 from fastapi import FastAPI, Request
-import uvicorn
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import uvicorn
 from contextlib import asynccontextmanager
 from module_admin.controller.login_controller import loginController
 from module_admin.controller.captcha_controller import captchaController
@@ -19,6 +20,7 @@ from module_admin.controller.job_controller import jobController
 from module_admin.controller.server_controller import serverController
 from module_admin.controller.cache_controller import cacheController
 from module_admin.controller.common_controller import commonController
+from config.env import UploadConfig
 from config.get_redis import RedisUtil
 from config.get_db import init_create_table
 from config.get_scheduler import SchedulerUtil
@@ -46,8 +48,7 @@ app = FastAPI(
     title='RuoYi-FastAPI',
     description='RuoYi-FastAPI接口文档',
     version='1.0.0',
-    lifespan=lifespan,
-    root_path='/dev-api'
+    lifespan=lifespan
 )
 
 # 前端页面url
@@ -64,6 +65,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 实例化UploadConfig，确保应用启动时上传目录存在
+upload_config = UploadConfig()
+
+# 挂载静态文件路径
+app.mount(f"{upload_config.UPLOAD_PREFIX}", StaticFiles(directory=f"{upload_config.UPLOAD_PATH}"), name="profile")
 
 
 # 自定义token检验异常
@@ -109,4 +116,4 @@ for controller in controller_list:
     app.include_router(router=controller.get('router'), tags=controller.get('tags'))
 
 if __name__ == '__main__':
-    uvicorn.run(app='app:app', host="0.0.0.0", port=9099, reload=True)
+    uvicorn.run(app='app:app', host="0.0.0.0", port=9099, root_path='/dev-api', reload=True)

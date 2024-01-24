@@ -1,87 +1,53 @@
-from fastapi import APIRouter, Request
-from fastapi import Depends, File, Form, Query
-from sqlalchemy.orm import Session
-from config.env import CachePathConfig
-from config.get_db import get_db
+from fastapi import APIRouter
+from fastapi import Depends, File, Query
 from module_admin.service.login_service import LoginService
 from module_admin.service.common_service import *
-from module_admin.service.config_service import ConfigService
 from utils.response_util import *
 from utils.log_util import *
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
-from typing import Optional
+
+commonController = APIRouter(prefix='/common', dependencies=[Depends(LoginService.get_current_user)])
 
 
-commonController = APIRouter(prefix='/common')
-
-
-@commonController.post("/upload", dependencies=[Depends(LoginService.get_current_user), Depends(CheckUserInterfaceAuth('common'))])
-async def common_upload(request: Request, taskPath: str = Form(), uploadId: str = Form(), file: UploadFile = File(...)):
+@commonController.post("/upload")
+async def common_upload(request: Request, file: UploadFile = File(...)):
     try:
-        try:
-            os.makedirs(os.path.join(CachePathConfig.PATH, taskPath, uploadId))
-        except FileExistsError:
-            pass
-        CommonService.upload_service(CachePathConfig.PATH, taskPath, uploadId, file)
-        logger.info('上传成功')
-        return response_200(data={'filename': file.filename, 'path': f'/common/{CachePathConfig.PATHSTR}?taskPath={taskPath}&taskId={uploadId}&filename={file.filename}'}, message="上传成功")
+        upload_result = CommonService.upload_service(request, file)
+        if upload_result.is_success:
+            logger.info('上传成功')
+            return ResponseUtil.success(model_content=upload_result.result)
+        else:
+            logger.warning('上传失败')
+            return ResponseUtil.failure(msg=upload_result.message)
     except Exception as e:
         logger.exception(e)
-        return response_500(data="", message=str(e))
+        return ResponseUtil.error(msg=str(e))
 
 
-@commonController.post("/uploadForEditor", dependencies=[Depends(LoginService.get_current_user), Depends(CheckUserInterfaceAuth('common'))])
-async def editor_upload(request: Request, baseUrl: str = Form(), uploadId: str = Form(), taskPath: str = Form(), file: UploadFile = File(...)):
+@commonController.get("/download")
+async def common_download(request: Request, background_tasks: BackgroundTasks, file_name: str = Query(alias='fileName'), delete: bool = Query()):
     try:
-        try:
-            os.makedirs(os.path.join(CachePathConfig.PATH, taskPath, uploadId))
-        except FileExistsError:
-            pass
-        CommonService.upload_service(CachePathConfig.PATH, taskPath, uploadId, file)
-        logger.info('上传成功')
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(
-                {
-                    'errno': 0,
-                    'data': {
-                        'url': f'{baseUrl}/common/{CachePathConfig.PATHSTR}?taskPath={taskPath}&taskId={uploadId}&filename={file.filename}'
-                    },
-                }
-            )
-        )
+        download_result = CommonService.download_services(background_tasks, file_name, delete)
+        if download_result.is_success:
+            logger.info(download_result.message)
+            return ResponseUtil.streaming(data=download_result.result)
+        else:
+            logger.warning(download_result.message)
+            return ResponseUtil.failure(msg=download_result.message)
     except Exception as e:
         logger.exception(e)
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=jsonable_encoder(
-                {
-                    'errno': 1,
-                    'message': str(e),
-                }
-            )
-        )
+        return ResponseUtil.error(msg=str(e))
 
 
-@commonController.get(f"/{CachePathConfig.PATHSTR}")
-async def common_download(request: Request, task_path: str = Query(alias='taskPath'), task_id: str = Query(alias='taskId'), filename: str = Query()):
+@commonController.get("/download/resource")
+async def common_download(request: Request, resource: str = Query()):
     try:
-        def generate_file():
-            with open(os.path.join(CachePathConfig.PATH, task_path, task_id, filename), 'rb') as response_file:
-                yield from response_file
-        return streaming_response_200(data=generate_file())
+        download_resource_result = CommonService.download_resource_services(resource)
+        if download_resource_result.is_success:
+            logger.info(download_resource_result.message)
+            return ResponseUtil.streaming(data=download_resource_result.result)
+        else:
+            logger.warning(download_resource_result.message)
+            return ResponseUtil.failure(msg=download_resource_result.message)
     except Exception as e:
         logger.exception(e)
-        return response_500(data="", message=str(e))
-
-
-@commonController.get("/config/query/{config_key}")
-async def query_system_config(request: Request, config_key: str):
-    try:
-        # 获取全量数据
-        config_query_result = await ConfigService.query_config_list_from_cache_services(request.app.state.redis, config_key)
-        logger.info('获取成功')
-        return response_200(data=config_query_result, message="获取成功")
-    except Exception as e:
-        logger.exception(e)
-        return response_500(data="", message=str(e))
+        return ResponseUtil.error(msg=str(e))
