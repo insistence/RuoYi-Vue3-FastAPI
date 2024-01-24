@@ -87,7 +87,7 @@ class RoleService:
         :param page_object: 编辑角色对象
         :return: 编辑角色校验结果
         """
-        edit_role = page_object.model_dump(exclude_unset=True)
+        edit_role = page_object.model_dump(exclude_unset=True, exclude={'admin'})
         if page_object.type != 'status':
             del edit_role['menu_ids']
         if page_object.type == 'status':

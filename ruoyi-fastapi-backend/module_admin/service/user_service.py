@@ -66,7 +66,7 @@ class UserService:
         :param page_object: 编辑用户对象
         :return: 编辑用户校验结果
         """
-        edit_user = page_object.model_dump(exclude_unset=True)
+        edit_user = page_object.model_dump(exclude_unset=True, exclude={'admin'})
         if page_object.type != 'status' and page_object.type != 'avatar' and page_object.type != 'pwd':
             del edit_user['role_ids']
             del edit_user['post_ids']

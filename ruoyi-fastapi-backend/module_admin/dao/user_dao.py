@@ -175,7 +175,7 @@ class UserDao:
         :param user: 用户对象
         :return: 新增校验结果
         """
-        db_user = SysUser(**user.model_dump())
+        db_user = SysUser(**user.model_dump(exclude={'admin'}))
         db.add(db_user)
         db.flush()
 

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Request
 from fastapi import Depends, File, Query
 from config.get_db import get_db
+from config.env import UploadConfig
 from module_admin.service.login_service import LoginService
 from module_admin.service.user_service import *
 from module_admin.service.dept_service import DeptService
@@ -8,6 +9,7 @@ from utils.page_util import *
 from utils.response_util import *
 from utils.log_util import *
 from utils.common_util import bytes2file_response
+from utils.upload_util import UploadUtil
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.aspect.data_scope import GetDataScope
 from module_admin.annotation.log_annotation import log_decorator
@@ -166,18 +168,19 @@ async def query_detail_system_user(request: Request, user_id: Optional[Union[int
 @log_decorator(title='个人信息', business_type=2)
 async def change_system_user_profile_avatar(request: Request, avatarfile: bytes = File(), query_db: Session = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
-        dir_path = os.path.join(CachePathConfig.PATH, 'profile', 'avatar')
+        relative_path = f'avatar/{datetime.now().strftime("%Y")}/{datetime.now().strftime("%m")}/{datetime.now().strftime("%d")}'
+        dir_path = os.path.join(UploadConfig.UPLOAD_PATH, relative_path)
         try:
             os.makedirs(dir_path)
         except FileExistsError:
             pass
-        avatar_name = f'blob_{datetime.now().strftime("%Y%m%d%H%M%S")}.jpeg'
+        avatar_name = f'avatar_{datetime.now().strftime("%Y%m%d%H%M%S")}{UploadConfig.UPLOAD_MACHINE}{UploadUtil.generate_random_number()}.png'
         avatar_path = os.path.join(dir_path, avatar_name)
         with open(avatar_path, 'wb') as f:
             f.write(avatarfile)
         edit_user = EditUserModel(
             userId=current_user.user.user_id,
-            avatar=f'/common/{CachePathConfig.PATHSTR}?taskPath=profile&taskId=avatar&filename={avatar_name}',
+            avatar=f'{UploadConfig.UPLOAD_PREFIX}/{relative_path}/{avatar_name}',
             updateBy=current_user.user.user_name,
             updateTime=datetime.now(),
             type='avatar'

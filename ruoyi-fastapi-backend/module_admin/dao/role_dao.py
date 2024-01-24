@@ -115,7 +115,7 @@ class RoleDao:
         :param role: 角色对象
         :return:
         """
-        db_role = SysRole(**role.model_dump())
+        db_role = SysRole(**role.model_dump(exclude={'admin'}))
         db.add(db_role)
         db.flush()
 
