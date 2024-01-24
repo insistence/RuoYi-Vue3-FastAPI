@@ -1,8 +1,8 @@
 {
-  "name": "ruoyi",
-  "version": "3.8.7",
-  "description": "若依管理系统",
-  "author": "若依",
+  "name": "vfadmin",
+  "version": "1.0.0",
+  "description": "vfadmin管理系统",
+  "author": "insistence",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/y_project/RuoYi-Vue.git"
+    "url": "https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI.git"
   },
   "dependencies": {
     "@element-plus/icons-vue": "2.3.1",
