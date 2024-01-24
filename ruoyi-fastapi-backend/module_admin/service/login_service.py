@@ -222,14 +222,15 @@ class LoginService:
                 router_list_data = {}
                 if permission.menu_type == 'M':
                     router_list_data['name'] = permission.path.capitalize()
-                    router_list_data['path'] = f'/{permission.path}'
                     router_list_data['hidden'] = False if permission.visible == '0' else True
                     if permission.is_frame == 1:
                         router_list_data['redirect'] = 'noRedirect'
                     if permission.parent_id == 0:
                         router_list_data['component'] = 'Layout'
+                        router_list_data['path'] = f'/{permission.path}'
                     else:
                         router_list_data['component'] = 'ParentView'
+                        router_list_data['path'] = permission.path
                     if children:
                         router_list_data['alwaysShow'] = True
                         router_list_data['children'] = children
