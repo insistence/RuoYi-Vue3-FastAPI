@@ -141,7 +141,7 @@
       <el-dialog :title="title" v-model="open" width="820px" append-to-body>
          <el-form ref="jobRef" :model="form" :rules="rules" label-width="120px">
             <el-row>
-               <el-col :span="12">
+               <el-col :span="24">
                   <el-form-item label="任务名称" prop="jobName">
                      <el-input v-model="form.jobName" placeholder="请输入任务名称" />
                   </el-form-item>
@@ -151,6 +151,18 @@
                      <el-select v-model="form.jobGroup" placeholder="请选择">
                         <el-option
                            v-for="dict in sys_job_group"
+                           :key="dict.value"
+                           :label="dict.label"
+                           :value="dict.value"
+                        ></el-option>
+                     </el-select>
+                  </el-form-item>
+               </el-col>
+               <el-col :span="12">
+                  <el-form-item label="任务执行器" prop="jobGroup">
+                     <el-select v-model="form.jobExecutor" placeholder="请选择任务执行器">
+                        <el-option
+                           v-for="dict in sys_job_executor"
                            :key="dict.value"
                            :label="dict.label"
                            :value="dict.value"
@@ -176,6 +188,16 @@
                         </span>
                      </template>
                      <el-input v-model="form.invokeTarget" placeholder="请输入调用目标字符串" />
+                  </el-form-item>
+               </el-col>
+               <el-col :span="24">
+                  <el-form-item label="位置参数" prop="jobArgs">
+                  <el-input v-model="form.jobArgs" placeholder="请输入位置参数" />
+                  </el-form-item>
+               </el-col>
+               <el-col :span="24">
+                  <el-form-item label="关键字参数" prop="jobKwargs">
+                  <el-input v-model="form.jobKwargs" placeholder="请输入关键字参数" />
                   </el-form-item>
                </el-col>
                <el-col :span="24">
@@ -242,7 +264,7 @@
                </el-col>
                <el-col :span="12">
                   <el-form-item label="任务分组：">{{ jobGroupFormat(form) }}</el-form-item>
-                  <el-form-item label="创建时间：">{{ form.createTime }}</el-form-item>
+                  <el-form-item label="创建时间：">{{ parseTime(form.createTime) }}</el-form-item>
                </el-col>
                <el-col :span="12">
                   <el-form-item label="cron表达式：">{{ form.cronExpression }}</el-form-item>
@@ -250,8 +272,17 @@
                <el-col :span="12">
                   <el-form-item label="下次执行时间：">{{ parseTime(form.nextValidTime) }}</el-form-item>
                </el-col>
+               <el-col :span="12">
+                  <el-form-item label="任务执行器：">{{ jobExecutorFormat(form) }}</el-form-item>
+               </el-col>
                <el-col :span="24">
                   <el-form-item label="调用目标方法：">{{ form.invokeTarget }}</el-form-item>
+               </el-col>
+               <el-col :span="24">
+                  <el-form-item label="位置参数：">{{ form.jobArgs }}</el-form-item>
+               </el-col>
+               <el-col :span="24">
+                  <el-form-item label="关键字参数：">{{ form.jobKwargs }}</el-form-item>
                </el-col>
                <el-col :span="12">
                   <el-form-item label="任务状态：">
@@ -267,10 +298,10 @@
                </el-col>
                <el-col :span="12">
                   <el-form-item label="执行策略：">
-                     <div v-if="form.misfirePolicy == 0">默认策略</div>
-                     <div v-else-if="form.misfirePolicy == 1">立即执行</div>
-                     <div v-else-if="form.misfirePolicy == 2">执行一次</div>
-                     <div v-else-if="form.misfirePolicy == 3">放弃执行</div>
+                     <div v-if="form.misfirePolicy == '0'">默认策略</div>
+                     <div v-else-if="form.misfirePolicy == '1'">立即执行</div>
+                     <div v-else-if="form.misfirePolicy == '2'">执行一次</div>
+                     <div v-else-if="form.misfirePolicy == '3'">放弃执行</div>
                   </el-form-item>
                </el-col>
             </el-row>
@@ -289,7 +320,7 @@ import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus } f
 import Crontab from '@/components/Crontab'
 const router = useRouter();
 const { proxy } = getCurrentInstance();
-const { sys_job_group, sys_job_status } = proxy.useDict("sys_job_group", "sys_job_status");
+const { sys_job_group, sys_job_status, sys_job_executor } = proxy.useDict("sys_job_group", "sys_job_status", "sys_job_executor");
 
 const jobList = ref([]);
 const open = ref(false);
@@ -335,6 +366,10 @@ function getList() {
 function jobGroupFormat(row, column) {
   return proxy.selectDictLabel(sys_job_group.value, row.jobGroup);
 }
+/** 任务执行器名字典翻译 */
+function jobExecutorFormat(row, column) {
+  return proxy.selectDictLabel(sys_job_executor.value, row.jobExecutor);
+}
 /** 取消按钮 */
 function cancel() {
   open.value = false;
@@ -348,8 +383,8 @@ function reset() {
     jobGroup: undefined,
     invokeTarget: undefined,
     cronExpression: undefined,
-    misfirePolicy: 1,
-    concurrent: 1,
+    misfirePolicy: "1",
+    concurrent: "1",
     status: "0"
   };
   proxy.resetForm("jobRef");
