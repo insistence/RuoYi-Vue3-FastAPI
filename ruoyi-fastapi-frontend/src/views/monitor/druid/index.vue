@@ -1,6 +1,7 @@
 <template>
    <div>
-      <i-frame v-model:src="url"></i-frame>
+      <div>我是数据监控</div>
+      <!-- <i-frame v-model:src="url"></i-frame> -->
    </div>
 </template>
 
