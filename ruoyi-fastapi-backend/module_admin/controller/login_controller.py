@@ -29,7 +29,7 @@ async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = D
     except LoginException as e:
         return ResponseUtil.failure(msg=e.message)
     try:
-        access_token_expires = timedelta(minutes=JwtConfig.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(minutes=JwtConfig.jwt_expire_minutes)
         session_id = str(uuid.uuid4())
         access_token = LoginService.create_access_token(
             data={
@@ -42,10 +42,10 @@ async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = D
             expires_delta=access_token_expires
         )
         await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{session_id}", access_token,
-                                          ex=timedelta(minutes=JwtConfig.REDIS_TOKEN_EXPIRE_MINUTES))
+                                          ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
         # 此方法可实现同一账号同一时间只能登录一次
         # await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{result[0].user_id}", access_token,
-        #                                   ex=timedelta(minutes=JwtConfig.REDIS_TOKEN_EXPIRE_MINUTES))
+        #                                   ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
         logger.info('登录成功')
         # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
         request_from_swagger = request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
@@ -115,7 +115,7 @@ async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_d
 @loginController.post("/logout")
 async def logout(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
     try:
-        payload = jwt.decode(token, JwtConfig.SECRET_KEY, algorithms=[JwtConfig.ALGORITHM])
+        payload = jwt.decode(token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
         session_id: str = payload.get("session_id")
         await logout_services(request, session_id)
         logger.info('退出成功')

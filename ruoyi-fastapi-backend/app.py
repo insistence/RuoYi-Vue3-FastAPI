@@ -20,7 +20,7 @@ from module_admin.controller.job_controller import jobController
 from module_admin.controller.server_controller import serverController
 from module_admin.controller.cache_controller import cacheController
 from module_admin.controller.common_controller import commonController
-from config.env import UploadConfig
+from config.env import AppConfig, UploadConfig
 from config.get_redis import RedisUtil
 from config.get_db import init_create_table
 from config.get_scheduler import SchedulerUtil
@@ -31,23 +31,23 @@ from utils.common_util import worship
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("RuoYi-FastAPI开始启动")
+    logger.info(f"{AppConfig.app_name}开始启动")
     worship()
     await init_create_table()
     app.state.redis = await RedisUtil.create_redis_pool()
     await RedisUtil.init_sys_dict(app.state.redis)
     await RedisUtil.init_sys_config(app.state.redis)
     await SchedulerUtil.init_system_scheduler()
-    logger.info("RuoYi-FastAPI启动成功")
+    logger.info(f"{AppConfig.app_name}启动成功")
     yield
     await RedisUtil.close_redis_pool(app)
     await SchedulerUtil.close_system_scheduler()
 
 
 app = FastAPI(
-    title='RuoYi-FastAPI',
-    description='RuoYi-FastAPI接口文档',
-    version='1.0.0',
+    title=AppConfig.app_name,
+    description=f'{AppConfig.app_name}接口文档',
+    version=AppConfig.app_version,
     lifespan=lifespan
 )
 
@@ -66,11 +66,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 实例化UploadConfig，确保应用启动时上传目录存在
-upload_config = UploadConfig()
-
 # 挂载静态文件路径
-app.mount(f"{upload_config.UPLOAD_PREFIX}", StaticFiles(directory=f"{upload_config.UPLOAD_PATH}"), name="profile")
+app.mount(f"{UploadConfig.UPLOAD_PREFIX}", StaticFiles(directory=f"{UploadConfig.UPLOAD_PATH}"), name="profile")
 
 
 # 自定义token检验异常
@@ -116,4 +113,4 @@ for controller in controller_list:
     app.include_router(router=controller.get('router'), tags=controller.get('tags'))
 
 if __name__ == '__main__':
-    uvicorn.run(app='app:app', host="0.0.0.0", port=9099, root_path='/dev-api', reload=True)
+    uvicorn.run(app='app:app', host=AppConfig.app_host, port=AppConfig.app_port, root_path=AppConfig.app_root_path, reload=AppConfig.app_reload)

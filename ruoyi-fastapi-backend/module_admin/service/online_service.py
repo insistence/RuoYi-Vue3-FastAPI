@@ -25,7 +25,7 @@ class OnlineService:
         access_token_values_list = [await request.app.state.redis.get(key) for key in access_token_keys]
         online_info_list = []
         for item in access_token_values_list:
-            payload = jwt.decode(item, JwtConfig.SECRET_KEY, algorithms=[JwtConfig.ALGORITHM])
+            payload = jwt.decode(item, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
             online_dict = dict(
                 token_id=payload.get('session_id'),
                 user_name=payload.get('user_name'),
