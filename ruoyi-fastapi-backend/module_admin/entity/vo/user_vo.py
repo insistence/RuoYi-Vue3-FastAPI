@@ -124,8 +124,8 @@ class UserPageQueryModel(UserQueryModel):
     """
     用户管理分页查询模型
     """
-    page_num: int
-    page_size: int
+    page_num: int = 1
+    page_size: int = 10
 
 
 class AddUserModel(UserModel):
@@ -176,8 +176,8 @@ class UserRolePageQueryModel(UserRoleQueryModel):
     """
     用户角色关联管理分页查询模型
     """
-    page_num: int
-    page_size: int
+    page_num: int = 1
+    page_size: int = 10
 
 
 class SelectedRoleModel(RoleModel):
