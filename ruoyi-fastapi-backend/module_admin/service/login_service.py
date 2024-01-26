@@ -9,7 +9,7 @@ from module_admin.service.user_service import *
 from module_admin.entity.vo.login_vo import *
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.dao.login_dao import *
-from config.env import JwtConfig, RedisInitKeyConfig
+from config.env import AppConfig, JwtConfig, RedisInitKeyConfig
 from utils.common_util import CamelCaseUtil
 from utils.pwd_util import *
 from utils.response_util import *
@@ -60,8 +60,13 @@ class LoginService:
         if login_user.user_name == account_lock:
             logger.warning("账号已锁定，请稍后再试")
             raise LoginException(data="", message="账号已锁定，请稍后再试")
-        # 判断是否开启验证码，开启则验证，否则不验证
-        if login_user.captcha_enabled:
+        # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
+        request_from_swagger = request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
+        request_from_redoc = request.headers.get('referer').endswith('redoc') if request.headers.get('referer') else False
+        # 判断是否开启验证码，开启则验证，否则不验证（dev模式下来自API文档的登录请求不检验）
+        if not login_user.captcha_enabled or ((request_from_swagger or request_from_redoc) and AppConfig.app_env == 'dev'):
+            pass
+        else:
             await cls.__check_login_captcha(request, login_user)
         user = login_by_account(query_db, login_user.user_name)
         if not user:
