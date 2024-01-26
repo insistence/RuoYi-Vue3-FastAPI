@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from module_admin.entity.do.post_do import SysPost
 from module_admin.entity.vo.post_vo import *
+from utils.page_util import PageUtil
 
 
 class PostDao:
@@ -54,20 +55,22 @@ class PostDao:
         return post_info
 
     @classmethod
-    def get_post_list(cls, db: Session, query_object: PostModel):
+    def get_post_list(cls, db: Session, query_object: PostPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取岗位列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 岗位列表信息对象
         """
-        post_list = db.query(SysPost) \
+        query = db.query(SysPost) \
             .filter(SysPost.post_code.like(f'%{query_object.post_code}%') if query_object.post_code else True,
                     SysPost.post_name.like(f'%{query_object.post_name}%') if query_object.post_name else True,
                     SysPost.status == query_object.status if query_object.status else True
                     ) \
             .order_by(SysPost.post_sort) \
-            .distinct().all()
+            .distinct()
+        post_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return post_list
 

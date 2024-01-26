@@ -8,16 +8,17 @@ class PostService:
     岗位管理模块服务层
     """
     @classmethod
-    def get_post_list_services(cls, query_db: Session, query_object: PostModel):
+    def get_post_list_services(cls, query_db: Session, query_object: PostPageQueryModel, is_page: bool = False):
         """
         获取岗位列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 岗位列表信息对象
         """
-        post_list_result = PostDao.get_post_list(query_db, query_object)
+        post_list_result = PostDao.get_post_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(post_list_result)
+        return post_list_result
 
     @classmethod
     def add_post_services(cls, query_db: Session, page_object: PostModel):

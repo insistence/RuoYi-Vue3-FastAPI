@@ -18,11 +18,8 @@ postController = APIRouter(prefix='/system/post', dependencies=[Depends(LoginSer
 @postController.get("/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:post:list'))])
 async def get_system_post_list(request: Request, post_page_query: PostPageQueryModel = Depends(PostPageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        post_query = PostModel(**post_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        post_query_result = PostService.get_post_list_services(query_db, post_query)
-        # 分页操作
-        post_page_query_result = get_page_obj(post_query_result, post_page_query.page_num, post_page_query.page_size)
+        # 获取分页数据
+        post_page_query_result = PostService.get_post_list_services(query_db, post_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=post_page_query_result)
     except Exception as e:
@@ -98,9 +95,8 @@ async def query_detail_system_post(request: Request, post_id: int, query_db: Ses
 @log_decorator(title='岗位管理', business_type=5)
 async def export_system_post_list(request: Request, post_page_query: PostPageQueryModel = Depends(PostPageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        post_query = PostModel(**post_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        post_query_result = PostService.get_post_list_services(query_db, post_query)
+        post_query_result = PostService.get_post_list_services(query_db, post_page_query, is_page=False)
         post_export_result = PostService.export_post_list_services(post_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(post_export_result))
