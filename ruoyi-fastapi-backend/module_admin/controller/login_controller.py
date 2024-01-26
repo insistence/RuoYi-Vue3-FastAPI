@@ -2,10 +2,10 @@ from fastapi import APIRouter
 from module_admin.service.login_service import *
 from module_admin.entity.vo.login_vo import *
 from module_admin.dao.login_dao import *
-from config.env import JwtConfig, RedisInitKeyConfig
-from utils.response_util import *
-from utils.log_util import *
 from module_admin.annotation.log_annotation import log_decorator
+from config.env import JwtConfig, RedisInitKeyConfig
+from utils.response_util import ResponseUtil
+from utils.log_util import *
 from datetime import timedelta
 
 
@@ -88,13 +88,13 @@ async def get_sms_code(request: Request, user: ResetUserModel, query_db: Session
         sms_result = await get_sms_code_services(request, query_db, user)
         if sms_result.is_success:
             logger.info('获取成功')
-            return response_200(data=sms_result, message='获取成功')
+            return ResponseUtil.success(data=sms_result)
         else:
             logger.warning(sms_result.message)
-            return response_400(data='', message=sms_result.message)
+            return ResponseUtil.failure(msg=sms_result.message)
     except Exception as e:
         logger.exception(e)
-        return response_500(data="", message=str(e))
+        return ResponseUtil.error(msg=str(e))
 
 
 @loginController.post("/forgetPwd", response_model=CrudResponseModel)
@@ -103,13 +103,13 @@ async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_d
         forget_user_result = await forget_user_services(request, query_db, forget_user)
         if forget_user_result.is_success:
             logger.info(forget_user_result.message)
-            return response_200(data=forget_user_result, message=forget_user_result.message)
+            return ResponseUtil.success(data=forget_user_result, msg=forget_user_result.message)
         else:
             logger.warning(forget_user_result.message)
-            return response_400(data="", message=forget_user_result.message)
+            return ResponseUtil.failure(msg=forget_user_result.message)
     except Exception as e:
         logger.exception(e)
-        return response_500(data="", message=str(e))
+        return ResponseUtil.error(msg=str(e))
 
 
 @loginController.post("/logout")

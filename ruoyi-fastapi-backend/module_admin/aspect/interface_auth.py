@@ -1,7 +1,7 @@
 from fastapi import Depends
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.login_service import LoginService
-from utils.response_util import PermissionException
+from exceptions.exception import PermissionException
 
 
 class CheckUserInterfaceAuth:
