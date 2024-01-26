@@ -3,6 +3,7 @@ from module_admin.service.role_service import RoleService
 from module_admin.service.post_service import PostService
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.dao.user_dao import *
+from utils.page_util import PageResponseModel
 from utils.pwd_util import *
 from utils.common_util import *
 
@@ -13,18 +14,27 @@ class UserService:
     """
 
     @classmethod
-    def get_user_list_services(cls, query_db: Session, query_object: UserQueryModel, data_scope_sql: str):
+    def get_user_list_services(cls, query_db: Session, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False):
         """
         获取用户列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
+        :param is_page: 是否开启分页
         :return: 用户列表信息对象
         """
-        query_result = UserDao.get_user_list(query_db, query_object, data_scope_sql)
-        user_list_result = []
-        if query_result:
-            user_list_result = [{**CamelCaseUtil.transform_result(row[0]), 'dept': CamelCaseUtil.transform_result(row[1])} for row in query_result]
+        query_result = UserDao.get_user_list(query_db, query_object, data_scope_sql, is_page)
+        if is_page:
+            user_list_result = PageResponseModel(
+                **{
+                    **query_result.model_dump(by_alias=True),
+                    'rows': [{**row[0], 'dept': row[1]} for row in query_result.rows]
+                }
+            )
+        else:
+            user_list_result = []
+            if query_result:
+                user_list_result = [{**row[0], 'dept': row[1]} for row in query_result]
 
         return user_list_result
 

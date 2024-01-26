@@ -7,7 +7,7 @@ from module_admin.service.dept_service import DeptService, DeptModel
 from module_admin.service.user_service import UserService, UserRoleQueryModel, UserRolePageQueryModel, CrudUserRoleModel
 from utils.response_util import *
 from utils.log_util import *
-from utils.page_util import *
+from utils.page_util import PageResponseModel
 from utils.common_util import bytes2file_response
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.aspect.data_scope import GetDataScope
@@ -33,10 +33,7 @@ async def get_system_role_dept_tree(request: Request, role_id: int, query_db: Se
 @roleController.get("/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:role:list'))])
 async def get_system_role_list(request: Request, role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        role_query = RoleQueryModel(**role_page_query.model_dump(by_alias=True))
-        role_query_result = RoleService.get_role_list_services(query_db, role_query)
-        # 分页操作
-        role_page_query_result = get_page_obj(role_query_result, role_page_query.page_num, role_page_query.page_size)
+        role_page_query_result = RoleService.get_role_list_services(query_db, role_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=role_page_query_result)
     except Exception as e:
@@ -134,9 +131,8 @@ async def query_detail_system_role(request: Request, role_id: int, query_db: Ses
 @log_decorator(title='角色管理', business_type=5)
 async def export_system_role_list(request: Request, role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        role_query = RoleQueryModel(**role_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        role_query_result = RoleService.get_role_list_services(query_db, role_query)
+        role_query_result = RoleService.get_role_list_services(query_db, role_page_query, is_page=False)
         role_export_result = RoleService.export_role_list_services(role_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(role_export_result))
@@ -167,10 +163,7 @@ async def reset_system_role_status(request: Request, edit_role: AddRoleModel, qu
 @roleController.get("/authUser/allocatedList", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('common'))])
 async def get_system_allocated_user_list(request: Request, user_role: UserRolePageQueryModel = Depends(UserRolePageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        role_user_query = UserRoleQueryModel(**user_role.model_dump(by_alias=True))
-        role_user_allocated_query_result = RoleService.get_role_user_allocated_list_services(query_db, role_user_query)
-        # 分页操作
-        role_user_allocated_page_query_result = get_page_obj(role_user_allocated_query_result, user_role.page_num, user_role.page_size)
+        role_user_allocated_page_query_result = RoleService.get_role_user_allocated_list_services(query_db, user_role, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=role_user_allocated_page_query_result)
     except Exception as e:
@@ -181,10 +174,7 @@ async def get_system_allocated_user_list(request: Request, user_role: UserRolePa
 @roleController.get("/authUser/unallocatedList", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('common'))])
 async def get_system_unallocated_user_list(request: Request, user_role: UserRolePageQueryModel = Depends(UserRolePageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        role_user_query = UserRoleQueryModel(**user_role.model_dump(by_alias=True))
-        role_user_unallocated_query_result = RoleService.get_role_user_unallocated_list_services(query_db, role_user_query)
-        # 分页操作
-        role_user_unallocated_page_query_result = get_page_obj(role_user_unallocated_query_result, user_role.page_num, user_role.page_size)
+        role_user_unallocated_page_query_result = RoleService.get_role_user_unallocated_list_services(query_db, user_role, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=role_user_unallocated_page_query_result)
     except Exception as e:

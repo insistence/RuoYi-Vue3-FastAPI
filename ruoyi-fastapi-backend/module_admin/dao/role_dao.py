@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from module_admin.entity.do.role_do import SysRole, SysRoleMenu, SysRoleDept
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.vo.role_vo import *
+from utils.page_util import PageUtil
 from datetime import datetime, time
 
 
@@ -85,14 +86,15 @@ class RoleDao:
         return role_info
 
     @classmethod
-    def get_role_list(cls, db: Session, query_object: RoleQueryModel):
+    def get_role_list(cls, db: Session, query_object: RolePageQueryModel, is_page: bool = False):
         """
         根据查询参数获取角色列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 角色列表信息对象
         """
-        role_list = db.query(SysRole) \
+        query = db.query(SysRole) \
             .filter(SysRole.del_flag == 0,
                     SysRole.role_name.like(f'%{query_object.role_name}%') if query_object.role_name else True,
                     SysRole.role_key.like(f'%{query_object.role_key}%') if query_object.role_key else True,
@@ -103,7 +105,8 @@ class RoleDao:
                     if query_object.begin_time and query_object.end_time else True
                     ) \
             .order_by(SysRole.role_sort) \
-            .distinct().all()
+            .distinct()
+        role_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return role_list
 

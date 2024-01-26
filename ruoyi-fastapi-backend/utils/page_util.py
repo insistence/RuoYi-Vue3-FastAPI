@@ -1,30 +1,9 @@
 import math
 from typing import Optional, List
-
+from sqlalchemy.orm.query import Query
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
-
-
-class PageModel(BaseModel):
-    """
-    分页模型
-    """
-    offset: int
-    page_num: int
-    page_size: int
-    total: int
-    has_next: bool
-
-
-class PageObjectResponse(BaseModel):
-    """
-    用户管理列表分页查询返回模型
-    """
-    rows: List = []
-    page_num: int
-    page_size: int
-    total: int
-    has_next: bool
+from utils.common_util import CamelCaseUtil
 
 
 class PageResponseModel(BaseModel):
@@ -40,33 +19,64 @@ class PageResponseModel(BaseModel):
     has_next: Optional[bool] = None
 
 
-def get_page_info(offset: int, page_num: int, page_size: int, count: int):
+class PageUtil:
     """
-    根据分页参数获取分页信息
-    :param offset: 起始数据位置
-    :param page_num: 当前页码
-    :param page_size: 当前页面数据量
-    :param count: 数据总数
-    :return: 分页信息对象
+    分页工具类
     """
-    has_next = False
-    if offset >= count:
-        res_offset_1 = (page_num - 2) * page_size
-        if res_offset_1 < 0:
-            res_offset = 0
-            res_page_num = 1
+
+    @classmethod
+    def get_page_obj(cls, data_list: List, page_num: int, page_size: int):
+        """
+        输入数据列表data_list和分页信息，返回分页数据列表结果
+        :param data_list: 原始数据列表
+        :param page_num: 当前页码
+        :param page_size: 当前页面数据量
+        :return: 分页数据对象
+        """
+        # 计算起始索引和结束索引
+        start = (page_num - 1) * page_size
+        end = page_num * page_size
+
+        # 根据计算得到的起始索引和结束索引对数据列表进行切片
+        paginated_data = data_list[start:end]
+        has_next = True if math.ceil(len(data_list) / page_size) > page_num else False
+
+        result = PageResponseModel(
+            rows=paginated_data,
+            pageNum=page_num,
+            pageSize=page_size,
+            total=len(data_list),
+            hasNext=has_next
+        )
+
+        return result
+
+    @classmethod
+    def paginate(cls, query: Query, page_num: int, page_size: int, is_page: bool = False):
+        """
+        输入查询语句和分页信息，返回分页数据列表结果
+        :param query: sqlalchemy查询语句
+        :param page_num: 当前页码
+        :param page_size: 当前页面数据量
+        :param is_page: 是否开启分页
+        :return: 分页数据对象
+        """
+        if is_page:
+            total = query.count()
+            paginated_data = query.offset((page_num - 1) * page_size).limit(page_size).all()
+            has_next = True if math.ceil(len(paginated_data) / page_size) > page_num else False
+            result = PageResponseModel(
+                rows=CamelCaseUtil.transform_result(paginated_data),
+                pageNum=page_num,
+                pageSize=page_size,
+                total=total,
+                hasNext=has_next
+            )
         else:
-            res_offset = res_offset_1
-            res_page_num = page_num - 1
-    else:
-        res_offset = offset
-        if (res_offset + page_size) < count:
-            has_next = True
-        res_page_num = page_num
+            no_paginated_data = query.all()
+            result = CamelCaseUtil.transform_result(no_paginated_data)
 
-    result = dict(offset=res_offset, page_num=res_page_num, page_size=page_size, total=count, has_next=has_next)
-
-    return PageModel(**result)
+        return result
 
 
 def get_page_obj(data_list: List, page_num: int, page_size: int):
@@ -94,5 +104,3 @@ def get_page_obj(data_list: List, page_num: int, page_size: int):
     )
 
     return result
-
-

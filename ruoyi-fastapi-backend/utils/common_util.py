@@ -5,6 +5,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
+from sqlalchemy.engine.row import Row
 from typing import List
 from config.env import CachePathConfig
 
@@ -66,6 +67,9 @@ class CamelCaseUtil:
             return {cls.__to_camel_case(k): v for k, v in result.items()}
         # 如果是一组字典或其他类型的列表，遍历列表进行转换
         elif isinstance(result, list):
+            return [cls.transform_result(row) if isinstance(row, (dict, Row)) else cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) for row in result]
+        # 如果是sqlalchemy的Row实例，遍历Row进行转换
+        elif isinstance(result, Row):
             return [cls.transform_result(row) if isinstance(row, dict) else cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) for row in result]
         # 如果是其他类型，如模型实例，先转换为字典
         else:
