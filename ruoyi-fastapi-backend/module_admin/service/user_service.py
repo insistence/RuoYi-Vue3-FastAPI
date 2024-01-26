@@ -1,6 +1,6 @@
 from fastapi import UploadFile
 from module_admin.service.role_service import RoleService
-from module_admin.service.post_service import PostService
+from module_admin.service.post_service import PostService, PostPageQueryModel
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.dao.user_dao import *
 from utils.page_util import PageResponseModel
@@ -144,7 +144,7 @@ class UserService:
         :param user_id: 用户id
         :return: 用户id对应的信息
         """
-        posts = PostService.get_post_list_services(query_db, PostModel(**{}))
+        posts = PostService.get_post_list_services(query_db, PostPageQueryModel(**{}), is_page=False)
         roles = RoleService.get_role_select_option_services(query_db)
         if user_id != '':
             query_user = UserDao.get_user_detail_by_id(query_db, user_id=user_id)
