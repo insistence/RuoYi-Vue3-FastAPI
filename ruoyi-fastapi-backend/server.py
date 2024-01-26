@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from sub_applications.handle import handle_sub_applications
+from middlewares.handle import handle_middleware
+from exceptions.handle import handle_exception
 from module_admin.controller.login_controller import loginController
 from module_admin.controller.captcha_controller import captchaController
 from module_admin.controller.user_controller import userController
@@ -24,6 +27,7 @@ from utils.log_util import logger
 from utils.common_util import worship
 
 
+# 生命周期事件
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"{AppConfig.app_name}开始启动")
@@ -39,6 +43,7 @@ async def lifespan(app: FastAPI):
     await SchedulerUtil.close_system_scheduler()
 
 
+# 初始化FastAPI对象
 app = FastAPI(
     title=AppConfig.app_name,
     description=f'{AppConfig.app_name}接口文档',
@@ -46,7 +51,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# 挂载子应用
+handle_sub_applications(app)
+# 加载中间件处理方法
+handle_middleware(app)
+# 加载全局异常处理方法
+handle_exception(app)
 
+
+# 加载路由列表
 controller_list = [
     {'router': loginController, 'tags': ['登录模块']},
     {'router': captchaController, 'tags': ['验证码模块']},
