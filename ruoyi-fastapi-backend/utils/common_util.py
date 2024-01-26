@@ -67,10 +67,10 @@ class CamelCaseUtil:
             return {cls.__to_camel_case(k): v for k, v in result.items()}
         # 如果是一组字典或其他类型的列表，遍历列表进行转换
         elif isinstance(result, list):
-            return [cls.transform_result(row) if isinstance(row, (dict, Row)) else cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) for row in result]
+            return [cls.transform_result(row) if isinstance(row, (dict, Row)) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
         # 如果是sqlalchemy的Row实例，遍历Row进行转换
         elif isinstance(result, Row):
-            return [cls.transform_result(row) if isinstance(row, dict) else cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) for row in result]
+            return [cls.transform_result(row) if isinstance(row, dict) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
         # 如果是其他类型，如模型实例，先转换为字典
         else:
             return cls.transform_result({c.name: getattr(result, c.name) for c in result.__table__.columns})
