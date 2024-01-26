@@ -1,7 +1,7 @@
 from module_admin.dao.job_log_dao import *
-from module_admin.dao.dict_dao import DictDataDao
+from module_admin.service.dict_service import Request, DictDataService
 from module_admin.entity.vo.common_vo import CrudResponseModel
-from utils.common_util import export_list2excel, CamelCaseUtil
+from utils.common_util import export_list2excel
 
 
 class JobLogService:
@@ -10,16 +10,17 @@ class JobLogService:
     """
 
     @classmethod
-    def get_job_log_list_services(cls, query_db: Session, query_object: JobLogQueryModel):
+    def get_job_log_list_services(cls, query_db: Session, query_object: JobLogPageQueryModel, is_page: bool = False):
         """
         获取定时任务日志列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 定时任务日志列表信息对象
         """
-        job_log_list_result = JobLogDao.get_job_log_list(query_db, query_object)
+        job_log_list_result = JobLogDao.get_job_log_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(job_log_list_result)
+        return job_log_list_result
 
     @classmethod
     def add_job_log_services(cls, query_db: Session, page_object: JobLogModel):
@@ -79,10 +80,10 @@ class JobLogService:
         return CrudResponseModel(**result)
 
     @staticmethod
-    def export_job_log_list_services(query_db, job_log_list: List):
+    async def export_job_log_list_services(request: Request, job_log_list: List):
         """
         导出定时任务日志信息service
-        :param query_db: orm对象
+        :param request: Request对象
         :param job_log_list: 定时任务日志信息列表
         :return: 定时任务日志信息对应excel的二进制数据
         """
@@ -103,17 +104,22 @@ class JobLogService:
         }
 
         data = job_log_list
-        job_group_list = DictDataDao.query_dict_data_list(query_db, dict_type='sys_job_group')
-        job_group_option = [dict(label=item.dict_label, value=item.dict_value) for item in job_group_list]
+        job_group_list = await DictDataService.query_dict_data_list_from_cache_services(request.app.state.redis, dict_type='sys_job_group')
+        job_group_option = [dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in job_group_list]
         job_group_option_dict = {item.get('value'): item for item in job_group_option}
+        job_executor_list = await DictDataService.query_dict_data_list_from_cache_services(request.app.state.redis, dict_type='sys_job_executor')
+        job_executor_option = [dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in job_executor_list]
+        job_executor_option_dict = {item.get('value'): item for item in job_executor_option}
 
         for item in data:
             if item.get('status') == '0':
                 item['status'] = '正常'
             else:
                 item['status'] = '暂停'
-            if str(item.get('job_group')) in job_group_option_dict.keys():
-                item['job_group'] = job_group_option_dict.get(str(item.get('job_group'))).get('label')
+            if str(item.get('jobGroup')) in job_group_option_dict.keys():
+                item['jobGroup'] = job_group_option_dict.get(str(item.get('jobGroup'))).get('label')
+            if str(item.get('jobExecutor')) in job_executor_option_dict.keys():
+                item['jobExecutor'] = job_executor_option_dict.get(str(item.get('jobExecutor'))).get('label')
         new_data = [{mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in
                     data]
         binary_data = export_list2excel(new_data)

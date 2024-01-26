@@ -11,16 +11,17 @@ class JobService:
     """
 
     @classmethod
-    def get_job_list_services(cls, query_db: Session, query_object: JobModel):
+    def get_job_list_services(cls, query_db: Session, query_object: JobPageQueryModel, is_page: bool = False):
         """
         获取定时任务列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 定时任务列表信息对象
         """
-        job_list_result = JobDao.get_job_list(query_db, query_object)
+        job_list_result = JobDao.get_job_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(job_list_result)
+        return job_list_result
 
     @classmethod
     def add_job_services(cls, query_db: Session, page_object: JobModel):

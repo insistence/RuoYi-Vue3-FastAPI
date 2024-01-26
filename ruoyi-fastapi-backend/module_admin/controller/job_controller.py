@@ -18,11 +18,8 @@ jobController = APIRouter(prefix='/monitor', dependencies=[Depends(LoginService.
 @jobController.get("/job/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:list'))])
 async def get_system_job_list(request: Request, job_page_query: JobPageQueryModel = Depends(JobPageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        job_query = JobModel(**job_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        job_query_result = JobService.get_job_list_services(query_db, job_query)
-        # 分页操作
-        notice_page_query_result = get_page_obj(job_query_result, job_page_query.page_num, job_page_query.page_size)
+        # 获取分页数据
+        notice_page_query_result = JobService.get_job_list_services(query_db, job_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=notice_page_query_result)
     except Exception as e:
@@ -133,9 +130,8 @@ async def query_detail_system_job(request: Request, job_id: int, query_db: Sessi
 @log_decorator(title='定时任务管理', business_type=5)
 async def export_system_job_list(request: Request, job_page_query: JobPageQueryModel = Depends(JobPageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        job_query = JobModel(**job_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        job_query_result = JobService.get_job_list_services(query_db, job_query)
+        job_query_result = JobService.get_job_list_services(query_db, job_page_query, is_page=False)
         job_export_result = await JobService.export_job_list_services(request, job_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(job_export_result))
@@ -147,13 +143,10 @@ async def export_system_job_list(request: Request, job_page_query: JobPageQueryM
 @jobController.get("/jobLog/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:list'))])
 async def get_system_job_log_list(request: Request, job_log_page_query: JobLogPageQueryModel = Depends(JobLogPageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        job_log_query = JobLogQueryModel(**job_log_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        job_log_query_result = JobLogService.get_job_log_list_services(query_db, job_log_query)
-        # 分页操作
-        notice_page_query_result = get_page_obj(job_log_query_result, job_log_page_query.page_num, job_log_page_query.page_size)
+        # 获取分页数据
+        job_log_page_query_result = JobLogService.get_job_log_list_services(query_db, job_log_page_query, is_page=True)
         logger.info('获取成功')
-        return ResponseUtil.success(model_content=notice_page_query_result)
+        return ResponseUtil.success(model_content=job_log_page_query_result)
     except Exception as e:
         logger.exception(e)
         return ResponseUtil.error(msg=str(e))
@@ -196,10 +189,9 @@ async def clear_system_job_log(request: Request, query_db: Session = Depends(get
 @log_decorator(title='定时任务日志管理', business_type=5)
 async def export_system_job_log_list(request: Request, job_log_page_query: JobLogPageQueryModel = Depends(JobLogPageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        job_log_query = JobLogQueryModel(**job_log_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        job_log_query_result = JobLogService.get_job_log_list_services(query_db, job_log_query)
-        job_log_export_result = JobLogService.export_job_log_list_services(query_db, job_log_query_result)
+        job_log_query_result = JobLogService.get_job_log_list_services(query_db, job_log_page_query, is_page=False)
+        job_log_export_result = await JobLogService.export_job_log_list_services(request, job_log_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(job_log_export_result))
     except Exception as e:
