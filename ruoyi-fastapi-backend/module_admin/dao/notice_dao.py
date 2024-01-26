@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from module_admin.entity.do.notice_do import SysNotice
 from module_admin.entity.vo.notice_vo import *
+from utils.page_util import PageUtil
 from datetime import datetime, time
 
 
@@ -40,14 +41,15 @@ class NoticeDao:
         return notice_info
 
     @classmethod
-    def get_notice_list(cls, db: Session, query_object: NoticeQueryModel):
+    def get_notice_list(cls, db: Session, query_object: NoticePageQueryModel, is_page: bool = False):
         """
         根据查询参数获取通知公告列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 通知公告列表信息对象
         """
-        notice_list = db.query(SysNotice) \
+        query = db.query(SysNotice) \
             .filter(SysNotice.notice_title.like(f'%{query_object.notice_title}%') if query_object.notice_title else True,
                     SysNotice.update_by.like(f'%{query_object.update_by}%') if query_object.update_by else True,
                     SysNotice.notice_type == query_object.notice_type if query_object.notice_type else True,
@@ -56,7 +58,8 @@ class NoticeDao:
                         datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
                                       if query_object.begin_time and query_object.end_time else True
                     ) \
-            .distinct().all()
+            .distinct()
+        notice_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return notice_list
 
