@@ -17,11 +17,8 @@ logController = APIRouter(prefix='/monitor', dependencies=[Depends(LoginService.
 @logController.get("/operlog/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('monitor:operlog:list'))])
 async def get_system_operation_log_list(request: Request, operation_log_page_query: OperLogPageQueryModel = Depends(OperLogPageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        operation_log_query = OperLogQueryModel(**operation_log_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        operation_log_query_result = OperationLogService.get_operation_log_list_services(query_db, operation_log_query)
-        # 分页操作
-        operation_log_page_query_result = get_page_obj(operation_log_query_result, operation_log_page_query.page_num, operation_log_page_query.page_size)
+        # 获取分页数据
+        operation_log_page_query_result = OperationLogService.get_operation_log_list_services(query_db, operation_log_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=operation_log_page_query_result)
     except Exception as e:
@@ -66,9 +63,8 @@ async def delete_system_operation_log(request: Request, oper_ids: str, query_db:
 @log_decorator(title='操作日志管理', business_type=5)
 async def export_system_operation_log_list(request: Request, operation_log_page_query: OperLogPageQueryModel = Depends(OperLogPageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        operation_log_query = OperLogQueryModel(**operation_log_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        operation_log_query_result = OperationLogService.get_operation_log_list_services(query_db, operation_log_query)
+        operation_log_query_result = OperationLogService.get_operation_log_list_services(query_db, operation_log_page_query, is_page=False)
         operation_log_export_result = await OperationLogService.export_operation_log_list_services(request, operation_log_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(operation_log_export_result))
@@ -80,11 +76,8 @@ async def export_system_operation_log_list(request: Request, operation_log_page_
 @logController.get("/logininfor/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('monitor:logininfor:list'))])
 async def get_system_login_log_list(request: Request, login_log_page_query: LoginLogPageQueryModel = Depends(LoginLogPageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        login_log_query = LoginLogQueryModel(**login_log_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        login_log_query_result = LoginLogService.get_login_log_list_services(query_db, login_log_query)
-        # 分页操作
-        login_log_page_query_result = get_page_obj(login_log_query_result, login_log_page_query.page_num, login_log_page_query.page_size)
+        # 获取分页数据
+        login_log_page_query_result = LoginLogService.get_login_log_list_services(query_db, login_log_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=login_log_page_query_result)
     except Exception as e:
@@ -146,9 +139,8 @@ async def clear_system_login_log(request: Request, user_name: str, query_db: Ses
 @log_decorator(title='登录日志管理', business_type=5)
 async def export_system_login_log_list(request: Request, login_log_page_query: LoginLogPageQueryModel = Depends(LoginLogPageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        login_log_query = LoginLogQueryModel(**login_log_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        login_log_query_result = LoginLogService.get_login_log_list_services(query_db, login_log_query)
+        login_log_query_result = LoginLogService.get_login_log_list_services(query_db, login_log_page_query, is_page=False)
         login_log_export_result = LoginLogService.export_login_log_list_services(login_log_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(login_log_export_result))

@@ -10,16 +10,17 @@ class OperationLogService:
     """
 
     @classmethod
-    def get_operation_log_list_services(cls, query_db: Session, query_object: OperLogQueryModel):
+    def get_operation_log_list_services(cls, query_db: Session, query_object: OperLogPageQueryModel, is_page: bool = False):
         """
         获取操作日志列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 操作日志列表信息对象
         """
-        operation_log_list_result = OperationLogDao.get_operation_log_list(query_db, query_object)
+        operation_log_list_result = OperationLogDao.get_operation_log_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(operation_log_list_result)
+        return operation_log_list_result
 
     @classmethod
     def add_operation_log_services(cls, query_db: Session, page_object: OperLogModel):
@@ -131,16 +132,17 @@ class LoginLogService:
     """
 
     @classmethod
-    def get_login_log_list_services(cls, query_db: Session, query_object: LoginLogQueryModel):
+    def get_login_log_list_services(cls, query_db: Session, query_object: LoginLogPageQueryModel, is_page: bool = False):
         """
         获取登录日志列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 登录日志列表信息对象
         """
-        operation_log_list_result = LoginLogDao.get_login_log_list(query_db, query_object)
+        operation_log_list_result = LoginLogDao.get_login_log_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(operation_log_list_result)
+        return operation_log_list_result
 
     @classmethod
     def add_login_log_services(cls, query_db: Session, page_object: LogininforModel):

@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from module_admin.entity.do.log_do import SysOperLog, SysLogininfor
 from module_admin.entity.vo.log_vo import *
-from utils.time_format_util import object_format_datetime, list_format_datetime
+from utils.page_util import PageUtil
 from datetime import datetime, time
 
 
@@ -10,14 +10,15 @@ class OperationLogDao:
     操作日志管理模块数据库操作层
     """
     @classmethod
-    def get_operation_log_list(cls, db: Session, query_object: OperLogQueryModel):
+    def get_operation_log_list(cls, db: Session, query_object: OperLogPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取操作日志列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 操作日志列表信息对象
         """
-        operation_log_list = db.query(SysOperLog) \
+        query = db.query(SysOperLog) \
             .filter(SysOperLog.title.like(f'%{query_object.title}%') if query_object.title else True,
                     SysOperLog.oper_name.like(f'%{query_object.oper_name}%') if query_object.oper_name else True,
                     SysOperLog.business_type == query_object.business_type if query_object.business_type else True,
@@ -27,7 +28,8 @@ class OperationLogDao:
                         datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
                                 if query_object.begin_time and query_object.end_time else True
                     )\
-            .distinct().all()
+            .distinct()
+        operation_log_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return operation_log_list
 
@@ -74,14 +76,15 @@ class LoginLogDao:
     """
 
     @classmethod
-    def get_login_log_list(cls, db: Session, query_object: LoginLogQueryModel):
+    def get_login_log_list(cls, db: Session, query_object: LoginLogPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取登录日志列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 登录日志列表信息对象
         """
-        login_log_list = db.query(SysLogininfor) \
+        query = db.query(SysLogininfor) \
             .filter(SysLogininfor.ipaddr.like(f'%{query_object.ipaddr}%') if query_object.ipaddr else True,
                     SysLogininfor.user_name.like(f'%{query_object.user_name}%') if query_object.user_name else True,
                     SysLogininfor.status == query_object.status if query_object.status else True,
@@ -90,7 +93,8 @@ class LoginLogDao:
                         datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
                                 if query_object.begin_time and query_object.end_time else True
                     )\
-            .distinct().all()
+            .distinct()
+        login_log_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return login_log_list
 
