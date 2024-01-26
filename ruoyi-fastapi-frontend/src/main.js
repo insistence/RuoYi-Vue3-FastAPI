@@ -43,6 +43,7 @@ import ImagePreview from "@/components/ImagePreview"
 import TreeSelect from '@/components/TreeSelect'
 // 字典标签组件
 import DictTag from '@/components/DictTag'
+import 'ant-design-vue/dist/reset.css';
 
 const app = createApp(App)
 
