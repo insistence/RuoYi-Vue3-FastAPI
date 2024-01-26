@@ -37,8 +37,8 @@ class ConfigPageQueryModel(ConfigQueryModel):
     """
     参数配置管理分页查询模型
     """
-    page_num: int
-    page_size: int
+    page_num: int = 1
+    page_size: int = 10
 
 
 class DeleteConfigModel(BaseModel):
