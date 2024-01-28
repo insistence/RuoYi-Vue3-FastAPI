@@ -82,6 +82,21 @@ async def get_login_user_routers(request: Request, current_user: CurrentUserMode
         return ResponseUtil.error(msg=str(e))
 
 
+@loginController.post("/register", response_model=CrudResponseModel)
+async def register_user(request: Request, user_register: UserRegister, query_db: Session = Depends(get_db)):
+    try:
+        user_register_result = await register_user_services(request, query_db, user_register)
+        if user_register_result.is_success:
+            logger.info(user_register_result.message)
+            return ResponseUtil.success(data=user_register_result, msg=user_register_result.message)
+        else:
+            logger.warning(user_register_result.message)
+            return ResponseUtil.failure(msg=user_register_result.message)
+    except Exception as e:
+        logger.exception(e)
+        return ResponseUtil.error(msg=str(e))
+
+
 @loginController.post("/getSmsCode", response_model=SmsCode)
 async def get_sms_code(request: Request, user: ResetUserModel, query_db: Session = Depends(get_db)):
     try:

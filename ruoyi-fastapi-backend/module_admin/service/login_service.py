@@ -262,6 +262,41 @@ class LoginService:
         return router_list
 
 
+async def register_user_services(request: Request, query_db: Session, user_register: UserRegister):
+    """
+    用户注册services
+    :param request: Request对象
+    :param query_db: orm对象
+    :param user_register: 注册用户对象
+    :return: 注册结果
+    """
+    register_enabled = True if await request.app.state.redis.get(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.registerUser") == 'true' else False
+    captcha_enabled = True if await request.app.state.redis.get(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.captchaEnabled") == 'true' else False
+    if user_register.password == user_register.confirm_password:
+        if register_enabled:
+            if captcha_enabled:
+                captcha_value = await request.app.state.redis.get(f"{RedisInitKeyConfig.CAPTCHA_CODES.get('key')}:{user_register.uuid}")
+                if not captcha_value:
+                    logger.warning("验证码已失效")
+                    return CrudResponseModel(is_success=False, message='验证码已失效')
+                elif user_register.code != str(captcha_value):
+                    logger.warning("验证码错误")
+                    return CrudResponseModel(is_success=False, message='验证码错误')
+            add_user = AddUserModel(
+                userName=user_register.username,
+                nickName=user_register.username,
+                password=PwdUtil.get_password_hash(user_register.password)
+            )
+            result = UserService.add_user_services(query_db, add_user)
+            return result
+        else:
+            result = dict(is_success=False, message='注册程序已关闭，禁止注册')
+    else:
+        result = dict(is_success=False, message='两次输入的密码不一致')
+
+    return CrudResponseModel(**result)
+
+
 async def get_sms_code_services(request: Request, query_db: Session, user: ResetUserModel):
     """
     获取短信验证码service
