@@ -2,10 +2,10 @@ from fastapi import APIRouter
 from module_admin.service.login_service import *
 from module_admin.entity.vo.login_vo import *
 from module_admin.dao.login_dao import *
-from config.env import JwtConfig, RedisInitKeyConfig
-from utils.response_util import *
-from utils.log_util import *
 from module_admin.annotation.log_annotation import log_decorator
+from config.env import JwtConfig, RedisInitKeyConfig
+from utils.response_util import ResponseUtil
+from utils.log_util import *
 from datetime import timedelta
 
 
@@ -29,7 +29,7 @@ async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = D
     except LoginException as e:
         return ResponseUtil.failure(msg=e.message)
     try:
-        access_token_expires = timedelta(minutes=JwtConfig.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token_expires = timedelta(minutes=JwtConfig.jwt_expire_minutes)
         session_id = str(uuid.uuid4())
         access_token = LoginService.create_access_token(
             data={
@@ -42,10 +42,11 @@ async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = D
             expires_delta=access_token_expires
         )
         await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{session_id}", access_token,
-                                          ex=timedelta(minutes=JwtConfig.REDIS_TOKEN_EXPIRE_MINUTES))
+                                          ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
         # 此方法可实现同一账号同一时间只能登录一次
         # await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{result[0].user_id}", access_token,
-        #                                   ex=timedelta(minutes=JwtConfig.REDIS_TOKEN_EXPIRE_MINUTES))
+        #                                   ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
+        UserService.edit_user_services(query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status'))
         logger.info('登录成功')
         # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
         request_from_swagger = request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
@@ -82,42 +83,57 @@ async def get_login_user_routers(request: Request, current_user: CurrentUserMode
         return ResponseUtil.error(msg=str(e))
 
 
-@loginController.post("/getSmsCode", response_model=SmsCode)
-async def get_sms_code(request: Request, user: ResetUserModel, query_db: Session = Depends(get_db)):
+@loginController.post("/register", response_model=CrudResponseModel)
+async def register_user(request: Request, user_register: UserRegister, query_db: Session = Depends(get_db)):
     try:
-        sms_result = await get_sms_code_services(request, query_db, user)
-        if sms_result.is_success:
-            logger.info('获取成功')
-            return response_200(data=sms_result, message='获取成功')
+        user_register_result = await LoginService.register_user_services(request, query_db, user_register)
+        if user_register_result.is_success:
+            logger.info(user_register_result.message)
+            return ResponseUtil.success(data=user_register_result, msg=user_register_result.message)
         else:
-            logger.warning(sms_result.message)
-            return response_400(data='', message=sms_result.message)
+            logger.warning(user_register_result.message)
+            return ResponseUtil.failure(msg=user_register_result.message)
     except Exception as e:
         logger.exception(e)
-        return response_500(data="", message=str(e))
+        return ResponseUtil.error(msg=str(e))
 
 
-@loginController.post("/forgetPwd", response_model=CrudResponseModel)
-async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_db: Session = Depends(get_db)):
-    try:
-        forget_user_result = await forget_user_services(request, query_db, forget_user)
-        if forget_user_result.is_success:
-            logger.info(forget_user_result.message)
-            return response_200(data=forget_user_result, message=forget_user_result.message)
-        else:
-            logger.warning(forget_user_result.message)
-            return response_400(data="", message=forget_user_result.message)
-    except Exception as e:
-        logger.exception(e)
-        return response_500(data="", message=str(e))
+# @loginController.post("/getSmsCode", response_model=SmsCode)
+# async def get_sms_code(request: Request, user: ResetUserModel, query_db: Session = Depends(get_db)):
+#     try:
+#         sms_result = await LoginService.get_sms_code_services(request, query_db, user)
+#         if sms_result.is_success:
+#             logger.info('获取成功')
+#             return ResponseUtil.success(data=sms_result)
+#         else:
+#             logger.warning(sms_result.message)
+#             return ResponseUtil.failure(msg=sms_result.message)
+#     except Exception as e:
+#         logger.exception(e)
+#         return ResponseUtil.error(msg=str(e))
+#
+#
+# @loginController.post("/forgetPwd", response_model=CrudResponseModel)
+# async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_db: Session = Depends(get_db)):
+#     try:
+#         forget_user_result = await LoginService.forget_user_services(request, query_db, forget_user)
+#         if forget_user_result.is_success:
+#             logger.info(forget_user_result.message)
+#             return ResponseUtil.success(data=forget_user_result, msg=forget_user_result.message)
+#         else:
+#             logger.warning(forget_user_result.message)
+#             return ResponseUtil.failure(msg=forget_user_result.message)
+#     except Exception as e:
+#         logger.exception(e)
+#         return ResponseUtil.error(msg=str(e))
 
 
 @loginController.post("/logout")
 async def logout(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
     try:
-        payload = jwt.decode(token, JwtConfig.SECRET_KEY, algorithms=[JwtConfig.ALGORITHM])
+        payload = jwt.decode(token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
         session_id: str = payload.get("session_id")
-        await logout_services(request, session_id)
+        await LoginService.logout_services(request, session_id)
         logger.info('退出成功')
         return ResponseUtil.success(msg="退出成功")
     except Exception as e:

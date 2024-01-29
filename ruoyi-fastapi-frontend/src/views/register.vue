@@ -1,7 +1,7 @@
 <template>
   <div class="register">
     <el-form ref="registerRef" :model="registerForm" :rules="registerRules" class="register-form">
-      <h3 class="title">若依后台管理系统</h3>
+      <h3 class="title">vfadmin后台管理系统</h3>
       <el-form-item prop="username">
         <el-input 
           v-model="registerForm.username" 
@@ -70,7 +70,7 @@
     </el-form>
     <!--  底部  -->
     <div class="el-register-footer">
-      <span>Copyright © 2018-2023 ruoyi.vip All Rights Reserved.</span>
+      <span>Copyright © 2024 insistence.tech All Rights Reserved.</span>
     </div>
   </div>
 </template>

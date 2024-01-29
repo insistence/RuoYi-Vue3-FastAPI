@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from module_admin.entity.do.job_do import SysJob
 from module_admin.entity.vo.job_vo import *
+from utils.page_util import PageUtil
 
 
 class JobDao:
@@ -40,19 +41,21 @@ class JobDao:
         return job_info
 
     @classmethod
-    def get_job_list(cls, db: Session, query_object: JobModel):
+    def get_job_list(cls, db: Session, query_object: JobPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取定时任务列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 定时任务列表信息对象
         """
-        job_list = db.query(SysJob) \
+        query = db.query(SysJob) \
             .filter(SysJob.job_name.like(f'%{query_object.job_name}%') if query_object.job_name else True,
                     SysJob.job_group == query_object.job_group if query_object.job_group else True,
                     SysJob.status == query_object.status if query_object.status else True
                     ) \
-            .distinct().all()
+            .distinct()
+        job_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return job_list
 

@@ -1,7 +1,8 @@
-from module_admin.entity.vo.user_vo import UserInfoModel, UserRoleQueryModel
+from module_admin.entity.vo.user_vo import UserInfoModel, UserRolePageQueryModel
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.dao.user_dao import UserDao
 from module_admin.dao.role_dao import *
+from utils.page_util import PageResponseModel
 from utils.common_util import export_list2excel, CamelCaseUtil
 
 
@@ -38,16 +39,17 @@ class RoleService:
         return result
 
     @classmethod
-    def get_role_list_services(cls, query_db: Session, query_object: RoleQueryModel):
+    def get_role_list_services(cls, query_db: Session, query_object: RolePageQueryModel, is_page: bool = False):
         """
         获取角色列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 角色列表信息对象
         """
-        role_list_result = RoleDao.get_role_list(query_db, query_object)
+        role_list_result = RoleDao.get_role_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(role_list_result)
+        return role_list_result
 
     @classmethod
     def add_role_services(cls, query_db: Session, page_object: AddRoleModel):
@@ -230,27 +232,39 @@ class RoleService:
         return binary_data
 
     @classmethod
-    def get_role_user_allocated_list_services(cls, query_db: Session, page_object: UserRoleQueryModel):
+    def get_role_user_allocated_list_services(cls, query_db: Session, page_object: UserRolePageQueryModel, is_page: bool = False):
         """
         根据角色id获取已分配用户列表
         :param query_db: orm对象
         :param page_object: 用户关联角色对象
+        :param is_page: 是否开启分页
         :return: 已分配用户列表
         """
-        query_user_list = UserDao.get_user_role_allocated_list_by_role_id(query_db, page_object)
-        allocated_list = [UserInfoModel(**CamelCaseUtil.transform_result(row)) for row in query_user_list]
+        query_user_list = UserDao.get_user_role_allocated_list_by_role_id(query_db, page_object, is_page)
+        allocated_list = PageResponseModel(
+            **{
+                **query_user_list.model_dump(by_alias=True),
+                'rows': [UserInfoModel(**row) for row in query_user_list.rows]
+            }
+        )
 
         return allocated_list
 
     @classmethod
-    def get_role_user_unallocated_list_services(cls, query_db: Session, page_object: UserRoleQueryModel):
+    def get_role_user_unallocated_list_services(cls, query_db: Session, page_object: UserRolePageQueryModel, is_page: bool = False):
         """
         根据角色id获取未分配用户列表
         :param query_db: orm对象
         :param page_object: 用户关联角色对象
+        :param is_page: 是否开启分页
         :return: 未分配用户列表
         """
-        query_user_list = UserDao.get_user_role_unallocated_list_by_role_id(query_db, page_object)
-        unallocated_list = [UserInfoModel(**CamelCaseUtil.transform_result(row)) for row in query_user_list]
+        query_user_list = UserDao.get_user_role_unallocated_list_by_role_id(query_db, page_object, is_page)
+        unallocated_list = PageResponseModel(
+            **{
+                **query_user_list.model_dump(by_alias=True),
+                'rows': [UserInfoModel(**row) for row in query_user_list.rows]
+            }
+        )
 
         return unallocated_list

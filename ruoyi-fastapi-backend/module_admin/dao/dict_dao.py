@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from module_admin.entity.do.dict_do import SysDictType, SysDictData
 from module_admin.entity.vo.dict_vo import *
 from utils.time_format_util import list_format_datetime
+from utils.page_util import PageUtil
 from datetime import datetime, time
 
 
@@ -52,14 +53,15 @@ class DictTypeDao:
         return list_format_datetime(dict_type_info)
 
     @classmethod
-    def get_dict_type_list(cls, db: Session, query_object: DictTypeQueryModel):
+    def get_dict_type_list(cls, db: Session, query_object: DictTypePageQueryModel, is_page: bool = False):
         """
         根据查询参数获取字典类型列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 字典类型列表信息对象
         """
-        dict_type_list = db.query(SysDictType) \
+        query = db.query(SysDictType) \
             .filter(SysDictType.dict_name.like(f'%{query_object.dict_name}%') if query_object.dict_name else True,
                     SysDictType.dict_type.like(f'%{query_object.dict_type}%') if query_object.dict_type else True,
                     SysDictType.status == query_object.status if query_object.status else True,
@@ -68,7 +70,8 @@ class DictTypeDao:
                         datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
                     if query_object.begin_time and query_object.end_time else True
                     ) \
-            .distinct().all()
+            .distinct()
+        dict_type_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return dict_type_list
 
@@ -147,20 +150,22 @@ class DictDataDao:
         return dict_data_info
 
     @classmethod
-    def get_dict_data_list(cls, db: Session, query_object: DictDataModel):
+    def get_dict_data_list(cls, db: Session, query_object: DictDataPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取字典数据列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 字典数据列表信息对象
         """
-        dict_data_list = db.query(SysDictData) \
+        query = db.query(SysDictData) \
             .filter(SysDictData.dict_type == query_object.dict_type if query_object.dict_type else True,
                     SysDictData.dict_label.like(f'%{query_object.dict_label}%') if query_object.dict_label else True,
                     SysDictData.status == query_object.status if query_object.status else True
                     ) \
             .order_by(SysDictData.dict_sort) \
-            .distinct().all()
+            .distinct()
+        dict_data_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return dict_data_list
 

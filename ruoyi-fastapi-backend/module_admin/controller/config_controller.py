@@ -17,11 +17,8 @@ configController = APIRouter(prefix='/system/config', dependencies=[Depends(Logi
 @configController.get("/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:config:list'))])
 async def get_system_config_list(request: Request, config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        config_query = ConfigQueryModel(**config_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        config_query_result = ConfigService.get_config_list_services(query_db, config_query)
-        # 分页操作
-        config_page_query_result = get_page_obj(config_query_result, config_page_query.page_num, config_page_query.page_size)
+        # 获取分页数据
+        config_page_query_result = ConfigService.get_config_list_services(query_db, config_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=config_page_query_result)
     except Exception as e:
@@ -125,9 +122,8 @@ async def query_system_config(request: Request, config_key: str):
 @log_decorator(title='参数管理', business_type=5)
 async def export_system_config_list(request: Request, config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        config_query = ConfigQueryModel(**config_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        config_query_result = ConfigService.get_config_list_services(query_db, config_query)
+        config_query_result = ConfigService.get_config_list_services(query_db, config_page_query, is_page=False)
         config_export_result = ConfigService.export_config_list_services(config_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(config_export_result))

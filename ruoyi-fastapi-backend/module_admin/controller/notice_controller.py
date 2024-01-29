@@ -16,11 +16,8 @@ noticeController = APIRouter(prefix='/system/notice', dependencies=[Depends(Logi
 @noticeController.get("/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:notice:list'))])
 async def get_system_notice_list(request: Request, notice_page_query: NoticePageQueryModel = Depends(NoticePageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        notice_query = NoticeQueryModel(**notice_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        notice_query_result = NoticeService.get_notice_list_services(query_db, notice_query)
-        # 分页操作
-        notice_page_query_result = get_page_obj(notice_query_result, notice_page_query.page_num, notice_page_query.page_size)
+        # 获取分页数据
+        notice_page_query_result = NoticeService.get_notice_list_services(query_db, notice_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=notice_page_query_result)
     except Exception as e:

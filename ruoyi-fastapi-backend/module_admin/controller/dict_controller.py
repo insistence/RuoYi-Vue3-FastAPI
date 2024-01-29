@@ -5,7 +5,7 @@ from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.dict_service import *
 from utils.response_util import *
 from utils.log_util import *
-from utils.page_util import *
+from utils.page_util import PageResponseModel
 from utils.common_util import bytes2file_response
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.annotation.log_annotation import log_decorator
@@ -17,11 +17,8 @@ dictController = APIRouter(prefix='/system/dict', dependencies=[Depends(LoginSer
 @dictController.get("/type/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:dict:list'))])
 async def get_system_dict_type_list(request: Request, dict_type_page_query: DictTypePageQueryModel = Depends(DictTypePageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        dict_type_query = DictTypeQueryModel(**dict_type_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        dict_type_query_result = DictTypeService.get_dict_type_list_services(query_db, dict_type_query)
-        # 分页操作
-        dict_type_page_query_result = get_page_obj(dict_type_query_result, dict_type_page_query.page_num, dict_type_page_query.page_size)
+        # 获取分页数据
+        dict_type_page_query_result = DictTypeService.get_dict_type_list_services(query_db, dict_type_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=dict_type_page_query_result)
     except Exception as e:
@@ -101,7 +98,7 @@ async def delete_system_dict_type(request: Request, dict_ids: str, query_db: Ses
 @dictController.get("/type/optionselect", response_model=List[DictTypeModel], dependencies=[Depends(CheckUserInterfaceAuth('system:dict:query'))])
 async def query_system_dict_type_options(request: Request, query_db: Session = Depends(get_db)):
     try:
-        dict_type_query_result = DictTypeService.get_dict_type_list_services(query_db, DictTypeQueryModel(**dict()))
+        dict_type_query_result = DictTypeService.get_dict_type_list_services(query_db, DictTypePageQueryModel(**dict()), is_page=False)
         logger.info(f'获取成功')
         return ResponseUtil.success(data=dict_type_query_result)
     except Exception as e:
@@ -124,9 +121,8 @@ async def query_detail_system_dict_type(request: Request, dict_id: int, query_db
 @log_decorator(title='字典管理', business_type=5)
 async def export_system_dict_type_list(request: Request, dict_type_page_query: DictTypePageQueryModel = Depends(DictTypePageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        dict_type_query = DictTypeQueryModel(**dict_type_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        dict_type_query_result = DictTypeService.get_dict_type_list_services(query_db, dict_type_query)
+        dict_type_query_result = DictTypeService.get_dict_type_list_services(query_db, dict_type_page_query, is_page=False)
         dict_type_export_result = DictTypeService.export_dict_type_list_services(dict_type_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(dict_type_export_result))
@@ -150,11 +146,8 @@ async def query_system_dict_type_data(request: Request, dict_type: str, query_db
 @dictController.get("/data/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:dict:list'))])
 async def get_system_dict_data_list(request: Request, dict_data_page_query: DictDataPageQueryModel = Depends(DictDataPageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
-        dict_data_query = DictDataModel(**dict_data_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        dict_data_query_result = DictDataService.get_dict_data_list_services(query_db, dict_data_query)
-        # 分页操作
-        dict_data_page_query_result = get_page_obj(dict_data_query_result, dict_data_page_query.page_num, dict_data_page_query.page_size)
+        # 获取分页数据
+        dict_data_page_query_result = DictDataService.get_dict_data_list_services(query_db, dict_data_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=dict_data_page_query_result)
     except Exception as e:
@@ -230,9 +223,8 @@ async def query_detail_system_dict_data(request: Request, dict_code: int, query_
 @log_decorator(title='字典管理', business_type=5)
 async def export_system_dict_data_list(request: Request, dict_data_page_query: DictDataPageQueryModel = Depends(DictDataPageQueryModel.as_form), query_db: Session = Depends(get_db)):
     try:
-        dict_data_query = DictDataModel(**dict_data_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        dict_data_query_result = DictDataService.get_dict_data_list_services(query_db, dict_data_query)
+        dict_data_query_result = DictDataService.get_dict_data_list_services(query_db, dict_data_page_query, is_page=False)
         dict_data_export_result = DictDataService.export_dict_data_list_services(dict_data_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(dict_data_export_result))

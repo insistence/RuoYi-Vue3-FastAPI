@@ -11,16 +11,17 @@ class ConfigService:
     """
 
     @classmethod
-    def get_config_list_services(cls, query_db: Session, query_object: ConfigQueryModel):
+    def get_config_list_services(cls, query_db: Session, query_object: ConfigPageQueryModel, is_page: bool = False):
         """
         获取参数配置列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 参数配置列表信息对象
         """
-        config_list_result = ConfigDao.get_config_list(query_db, query_object)
+        config_list_result = ConfigDao.get_config_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(config_list_result)
+        return config_list_result
 
     @classmethod
     async def init_cache_sys_config_services(cls, query_db: Session, redis):
@@ -35,10 +36,10 @@ class ConfigService:
         # 删除匹配的键
         if keys:
             await redis.delete(*keys)
-        config_all = ConfigDao.get_config_list(query_db, ConfigQueryModel(**dict()))
+        config_all = ConfigDao.get_config_list(query_db, ConfigPageQueryModel(**dict()), is_page=False)
         for config_obj in config_all:
-            if config_obj.config_type == 'Y':
-                await redis.set(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_obj.config_key}", config_obj.config_value)
+            if config_obj.get('configType') == 'Y':
+                await redis.set(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_obj.get('configKey')}", config_obj.get('configValue'))
 
     @classmethod
     async def query_config_list_from_cache_services(cls, redis, config_key: str):

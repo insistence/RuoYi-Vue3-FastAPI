@@ -5,7 +5,7 @@ from config.env import UploadConfig
 from module_admin.service.login_service import LoginService
 from module_admin.service.user_service import *
 from module_admin.service.dept_service import DeptService
-from utils.page_util import *
+from utils.page_util import PageResponseModel
 from utils.response_util import *
 from utils.log_util import *
 from utils.common_util import bytes2file_response
@@ -32,11 +32,8 @@ async def get_system_dept_tree(request: Request, query_db: Session = Depends(get
 @userController.get("/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:user:list'))])
 async def get_system_user_list(request: Request, user_page_query: UserPageQueryModel = Depends(UserPageQueryModel.as_query), query_db: Session = Depends(get_db), data_scope_sql: str = Depends(GetDataScope('SysUser'))):
     try:
-        user_query = UserQueryModel(**user_page_query.model_dump(by_alias=True))
-        # 获取全量数据
-        user_query_result = UserService.get_user_list_services(query_db, user_query, data_scope_sql)
-        # 分页操作
-        user_page_query_result = get_page_obj(user_query_result, user_page_query.page_num, user_page_query.page_size)
+        # 获取分页数据
+        user_page_query_result = UserService.get_user_list_services(query_db, user_page_query, data_scope_sql, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=user_page_query_result)
     except Exception as e:
@@ -272,9 +269,8 @@ async def export_system_user_template(request: Request, query_db: Session = Depe
 @log_decorator(title='用户管理', business_type=5)
 async def export_system_user_list(request: Request, user_page_query: UserPageQueryModel = Depends(UserPageQueryModel.as_form), query_db: Session = Depends(get_db), data_scope_sql: str = Depends(GetDataScope('SysUser'))):
     try:
-        user_query = UserQueryModel(**user_page_query.model_dump(by_alias=True))
         # 获取全量数据
-        user_query_result = UserService.get_user_list_services(query_db, user_query, data_scope_sql)
+        user_query_result = UserService.get_user_list_services(query_db, user_page_query, data_scope_sql, is_page=False)
         user_export_result = UserService.export_user_list_services(user_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(user_export_result))

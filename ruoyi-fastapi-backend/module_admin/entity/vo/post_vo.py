@@ -37,8 +37,8 @@ class PostPageQueryModel(PostQueryModel):
     """
     岗位管理分页查询模型
     """
-    page_num: int
-    page_size: int
+    page_num: int = 1
+    page_size: int = 10
 
 
 class DeletePostModel(BaseModel):

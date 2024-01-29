@@ -4,8 +4,8 @@ from sqlalchemy.orm import sessionmaker
 from urllib.parse import quote_plus
 from config.env import DataBaseConfig
 
-SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{DataBaseConfig.USERNAME}:{quote_plus(DataBaseConfig.PASSWORD)}@" \
-                          f"{DataBaseConfig.HOST}:{DataBaseConfig.PORT}/{DataBaseConfig.DB}"
+SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@" \
+                          f"{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, echo=True

@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from module_admin.entity.do.config_do import SysConfig
 from module_admin.entity.vo.config_vo import *
+from utils.page_util import PageUtil
 from datetime import datetime, time
 
 
@@ -39,14 +40,15 @@ class ConfigDao:
         return config_info
 
     @classmethod
-    def get_config_list(cls, db: Session, query_object: ConfigQueryModel):
+    def get_config_list(cls, db: Session, query_object: ConfigPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取参数配置列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 参数配置列表信息对象
         """
-        config_list = db.query(SysConfig) \
+        query = db.query(SysConfig) \
             .filter(SysConfig.config_name.like(f'%{query_object.config_name}%') if query_object.config_name else True,
                     SysConfig.config_key.like(f'%{query_object.config_key}%') if query_object.config_key else True,
                     SysConfig.config_type == query_object.config_type if query_object.config_type else True,
@@ -55,7 +57,8 @@ class ConfigDao:
                         datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
                     if query_object.begin_time and query_object.end_time else True
                     ) \
-            .distinct().all()
+            .distinct()
+        config_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return config_list
 

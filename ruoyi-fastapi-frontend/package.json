@@ -16,9 +16,12 @@
     "url": "https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI.git"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
+    "@antv/g2plot": "^2.4.31",
     "@element-plus/icons-vue": "2.3.1",
     "@vueup/vue-quill": "1.2.0",
     "@vueuse/core": "10.6.1",
+    "ant-design-vue": "^4.1.1",
     "axios": "0.27.2",
     "echarts": "5.4.3",
     "element-plus": "2.4.3",
@@ -35,11 +38,12 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "4.5.0",
     "@vue/compiler-sfc": "3.3.9",
+    "less": "^4.2.0",
     "sass": "1.69.5",
     "unplugin-auto-import": "0.17.1",
+    "unplugin-vue-setup-extend-plus": "1.0.0",
     "vite": "5.0.4",
     "vite-plugin-compression": "0.5.1",
-    "vite-plugin-svg-icons": "2.0.1",
-    "unplugin-vue-setup-extend-plus": "1.0.0"
+    "vite-plugin-svg-icons": "2.0.1"
   }
 }

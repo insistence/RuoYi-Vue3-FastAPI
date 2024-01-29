@@ -9,16 +9,17 @@ class NoticeService:
     """
 
     @classmethod
-    def get_notice_list_services(cls, query_db: Session, query_object: NoticeQueryModel):
+    def get_notice_list_services(cls, query_db: Session, query_object: NoticePageQueryModel, is_page: bool = True):
         """
         获取通知公告列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 通知公告列表信息对象
         """
-        notice_list_result = NoticeDao.get_notice_list(query_db, query_object)
+        notice_list_result = NoticeDao.get_notice_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(notice_list_result)
+        return notice_list_result
 
     @classmethod
     def add_notice_services(cls, query_db: Session, page_object: NoticeModel):

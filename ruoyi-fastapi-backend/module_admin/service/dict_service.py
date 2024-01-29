@@ -12,16 +12,17 @@ class DictTypeService:
     """
 
     @classmethod
-    def get_dict_type_list_services(cls, query_db: Session, query_object: DictTypeQueryModel):
+    def get_dict_type_list_services(cls, query_db: Session, query_object: DictTypePageQueryModel, is_page: bool = False):
         """
         获取字典类型列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 字典类型列表信息对象
         """
-        dict_type_list_result = DictTypeDao.get_dict_type_list(query_db, query_object)
+        dict_type_list_result = DictTypeDao.get_dict_type_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(dict_type_list_result)
+        return dict_type_list_result
 
     @classmethod
     async def add_dict_type_services(cls, request: Request, query_db: Session, page_object: DictTypeModel):
@@ -172,16 +173,17 @@ class DictDataService:
     """
 
     @classmethod
-    def get_dict_data_list_services(cls, query_db: Session, query_object: DictDataModel):
+    def get_dict_data_list_services(cls, query_db: Session, query_object: DictDataPageQueryModel, is_page: bool = False):
         """
         获取字典数据列表信息service
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
         :return: 字典数据列表信息对象
         """
-        dict_data_list_result = DictDataDao.get_dict_data_list(query_db, query_object)
+        dict_data_list_result = DictDataDao.get_dict_data_list(query_db, query_object, is_page)
 
-        return CamelCaseUtil.transform_result(dict_data_list_result)
+        return dict_data_list_result
 
     @classmethod
     def query_dict_data_list_services(cls, query_db: Session, dict_type: str):

@@ -58,8 +58,8 @@ class DictTypePageQueryModel(DictTypeQueryModel):
     """
     字典类型管理分页查询模型
     """
-    page_num: int
-    page_size: int
+    page_num: int = 1
+    page_size: int = 10
 
 
 class DeleteDictTypeModel(BaseModel):
@@ -71,7 +71,7 @@ class DeleteDictTypeModel(BaseModel):
     dict_ids: str
 
 
-class DictDataQueryModel(DictTypeModel):
+class DictDataQueryModel(DictDataModel):
     """
     字典数据管理不分页查询模型
     """
@@ -85,8 +85,8 @@ class DictDataPageQueryModel(DictDataQueryModel):
     """
     字典数据管理分页查询模型
     """
-    page_num: int
-    page_size: int
+    page_num: int = 1
+    page_size: int = 10
 
 
 class DeleteDictDataModel(BaseModel):

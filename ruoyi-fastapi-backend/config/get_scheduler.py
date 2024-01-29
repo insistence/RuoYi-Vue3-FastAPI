@@ -70,11 +70,11 @@ job_stores = {
     'sqlalchemy': SQLAlchemyJobStore(url=SQLALCHEMY_DATABASE_URL, engine=engine),
     'redis': RedisJobStore(
         **dict(
-            host=RedisConfig.HOST,
-            port=RedisConfig.PORT,
-            username=RedisConfig.USERNAME,
-            password=RedisConfig.PASSWORD,
-            db=RedisConfig.DB
+            host=RedisConfig.redis_host,
+            port=RedisConfig.redis_port,
+            username=RedisConfig.redis_username,
+            password=RedisConfig.redis_password,
+            db=RedisConfig.redis_database
         )
     )
 }
