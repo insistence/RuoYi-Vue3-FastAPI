@@ -261,98 +261,104 @@ class LoginService:
 
         return router_list
 
-
-async def register_user_services(request: Request, query_db: Session, user_register: UserRegister):
-    """
-    用户注册services
-    :param request: Request对象
-    :param query_db: orm对象
-    :param user_register: 注册用户对象
-    :return: 注册结果
-    """
-    register_enabled = True if await request.app.state.redis.get(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.registerUser") == 'true' else False
-    captcha_enabled = True if await request.app.state.redis.get(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.captchaEnabled") == 'true' else False
-    if user_register.password == user_register.confirm_password:
-        if register_enabled:
-            if captcha_enabled:
-                captcha_value = await request.app.state.redis.get(f"{RedisInitKeyConfig.CAPTCHA_CODES.get('key')}:{user_register.uuid}")
-                if not captcha_value:
-                    logger.warning("验证码已失效")
-                    return CrudResponseModel(is_success=False, message='验证码已失效')
-                elif user_register.code != str(captcha_value):
-                    logger.warning("验证码错误")
-                    return CrudResponseModel(is_success=False, message='验证码错误')
-            add_user = AddUserModel(
-                userName=user_register.username,
-                nickName=user_register.username,
-                password=PwdUtil.get_password_hash(user_register.password)
-            )
-            result = UserService.add_user_services(query_db, add_user)
-            return result
+    @classmethod
+    async def register_user_services(cls, request: Request, query_db: Session, user_register: UserRegister):
+        """
+        用户注册services
+        :param request: Request对象
+        :param query_db: orm对象
+        :param user_register: 注册用户对象
+        :return: 注册结果
+        """
+        register_enabled = True if await request.app.state.redis.get(
+            f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.registerUser") == 'true' else False
+        captcha_enabled = True if await request.app.state.redis.get(
+            f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.captchaEnabled") == 'true' else False
+        if user_register.password == user_register.confirm_password:
+            if register_enabled:
+                if captcha_enabled:
+                    captcha_value = await request.app.state.redis.get(
+                        f"{RedisInitKeyConfig.CAPTCHA_CODES.get('key')}:{user_register.uuid}")
+                    if not captcha_value:
+                        logger.warning("验证码已失效")
+                        return CrudResponseModel(is_success=False, message='验证码已失效')
+                    elif user_register.code != str(captcha_value):
+                        logger.warning("验证码错误")
+                        return CrudResponseModel(is_success=False, message='验证码错误')
+                add_user = AddUserModel(
+                    userName=user_register.username,
+                    nickName=user_register.username,
+                    password=PwdUtil.get_password_hash(user_register.password)
+                )
+                result = UserService.add_user_services(query_db, add_user)
+                return result
+            else:
+                result = dict(is_success=False, message='注册程序已关闭，禁止注册')
         else:
-            result = dict(is_success=False, message='注册程序已关闭，禁止注册')
-    else:
-        result = dict(is_success=False, message='两次输入的密码不一致')
+            result = dict(is_success=False, message='两次输入的密码不一致')
 
-    return CrudResponseModel(**result)
+        return CrudResponseModel(**result)
 
+    @classmethod
+    async def get_sms_code_services(cls, request: Request, query_db: Session, user: ResetUserModel):
+        """
+        获取短信验证码service
+        :param request: Request对象
+        :param query_db: orm对象
+        :param user: 用户对象
+        :return: 短信验证码对象
+        """
+        redis_sms_result = await request.app.state.redis.get(
+            f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{user.session_id}")
+        if redis_sms_result:
+            return SmsCode(**dict(is_success=False, sms_code='', session_id='', message='短信验证码仍在有效期内'))
+        is_user = UserDao.get_user_by_name(query_db, user.user_name)
+        if is_user:
+            sms_code = str(random.randint(100000, 999999))
+            session_id = str(uuid.uuid4())
+            await request.app.state.redis.set(f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{session_id}", sms_code,
+                                              ex=timedelta(minutes=2))
+            # 此处模拟调用短信服务
+            message_service(sms_code)
 
-async def get_sms_code_services(request: Request, query_db: Session, user: ResetUserModel):
-    """
-    获取短信验证码service
-    :param request: Request对象
-    :param query_db: orm对象
-    :param user: 用户对象
-    :return: 短信验证码对象
-    """
-    redis_sms_result = await request.app.state.redis.get(f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{user.session_id}")
-    if redis_sms_result:
-        return SmsCode(**dict(is_success=False, sms_code='', session_id='', message='短信验证码仍在有效期内'))
-    is_user = UserDao.get_user_by_name(query_db, user.user_name)
-    if is_user:
-        sms_code = str(random.randint(100000, 999999))
-        session_id = str(uuid.uuid4())
-        await request.app.state.redis.set(f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{session_id}", sms_code, ex=timedelta(minutes=2))
-        # 此处模拟调用短信服务
-        message_service(sms_code)
+            return SmsCode(**dict(is_success=True, sms_code=sms_code, session_id=session_id, message='获取成功'))
 
-        return SmsCode(**dict(is_success=True, sms_code=sms_code, session_id=session_id, message='获取成功'))
+        return SmsCode(**dict(is_success=False, sms_code='', session_id='', message='用户不存在'))
 
-    return SmsCode(**dict(is_success=False, sms_code='', session_id='', message='用户不存在'))
+    @classmethod
+    async def forget_user_services(cls, request: Request, query_db: Session, forget_user: ResetUserModel):
+        """
+        用户忘记密码services
+        :param request: Request对象
+        :param query_db: orm对象
+        :param forget_user: 重置用户对象
+        :return: 重置结果
+        """
+        redis_sms_result = await request.app.state.redis.get(
+            f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{forget_user.session_id}")
+        if forget_user.sms_code == redis_sms_result:
+            forget_user.password = PwdUtil.get_password_hash(forget_user.password)
+            forget_user.user_id = UserDao.get_user_by_name(query_db, forget_user.user_name).user_id
+            edit_result = UserService.reset_user_services(query_db, forget_user)
+            result = edit_result.dict()
+        elif not redis_sms_result:
+            result = dict(is_success=False, message='短信验证码已过期')
+        else:
+            await request.app.state.redis.delete(f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{forget_user.session_id}")
+            result = dict(is_success=False, message='短信验证码不正确')
 
+        return CrudResponseModel(**result)
 
-async def forget_user_services(request: Request, query_db: Session, forget_user: ResetUserModel):
-    """
-    用户忘记密码services
-    :param request: Request对象
-    :param query_db: orm对象
-    :param forget_user: 重置用户对象
-    :return: 重置结果
-    """
-    redis_sms_result = await request.app.state.redis.get(f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{forget_user.session_id}")
-    if forget_user.sms_code == redis_sms_result:
-        forget_user.password = PwdUtil.get_password_hash(forget_user.password)
-        forget_user.user_id = UserDao.get_user_by_name(query_db, forget_user.user_name).user_id
-        edit_result = UserService.reset_user_services(query_db, forget_user)
-        result = edit_result.dict()
-    elif not redis_sms_result:
-        result = dict(is_success=False, message='短信验证码已过期')
-    else:
-        await request.app.state.redis.delete(f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{forget_user.session_id}")
-        result = dict(is_success=False, message='短信验证码不正确')
+    @classmethod
+    async def logout_services(cls, request: Request, session_id: str):
+        """
+        退出登录services
+        :param request: Request对象
+        :param session_id: 会话编号
+        :return: 退出登录结果
+        """
+        await request.app.state.redis.delete(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{session_id}")
+        # await request.app.state.redis.delete(f'{current_user.user.user_id}_access_token')
+        # await request.app.state.redis.delete(f'{current_user.user.user_id}_session_id')
 
-    return CrudResponseModel(**result)
-
-
-async def logout_services(request: Request, session_id: str):
-    """
-    退出登录services
-    :param request: Request对象
-    :param session_id: 会话编号
-    :return: 退出登录结果
-    """
-    await request.app.state.redis.delete(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{session_id}")
-    # await request.app.state.redis.delete(f'{current_user.user.user_id}_access_token')
-    # await request.app.state.redis.delete(f'{current_user.user.user_id}_session_id')
-
-    return True
+        return True
