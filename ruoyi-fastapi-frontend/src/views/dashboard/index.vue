@@ -169,6 +169,7 @@ import {
   ListItemMeta,
   Avatar,
 } from "ant-design-vue";
+import 'ant-design-vue/dist/reset.css';
 
 export default {
   components: {
@@ -251,7 +252,7 @@ const projectNotice = [
     title: "Bootstrap",
     logo: "https://gw.alipayobjects.com/zos/rmsportal/siCrBXXhmvTQGWPNLBow.png",
     description:
-      "............................凛冬将至.........................",
+      "凛冬将至",
     updatedAt: "6 年前",
     member: "高逼格设计天团",
     href: "",
@@ -639,6 +640,7 @@ onBeforeUnmount(() => {
   }
   .projectItemContent {
     display: flex;
+    flex-basis: 100%;
     height: 20px;
     margin-top: 8px;
     overflow: hidden;
