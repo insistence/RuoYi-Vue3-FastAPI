@@ -1,0 +1,15 @@
+APScheduler==3.10.4
+DateTime==5.4
+fastapi[all]==0.109.0
+loguru==0.7.2
+openpyxl==3.1.2
+pandas==2.1.4
+passlib[bcrypt]==1.7.4
+Pillow==10.2.0
+psutil==5.9.7
+PyMySQL==1.1.0
+python-jose[cryptography]==3.3.0
+redis==5.0.1
+requests==2.31.0
+SQLAlchemy==2.0.25
+user-agents==2.2.0
