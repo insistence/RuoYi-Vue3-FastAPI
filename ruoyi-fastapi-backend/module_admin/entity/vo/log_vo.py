@@ -51,6 +51,8 @@ class OperLogQueryModel(OperLogModel):
     """
     操作日志管理不分页查询模型
     """
+    order_by_column: Optional[str] = None
+    is_asc: Optional[str] = None
     begin_time: Optional[str] = None
     end_time: Optional[str] = None
 
@@ -78,6 +80,8 @@ class LoginLogQueryModel(LogininforModel):
     """
     登录日志管理不分页查询模型
     """
+    order_by_column: Optional[str] = None
+    is_asc: Optional[str] = None
     begin_time: Optional[str] = None
     end_time: Optional[str] = None
 

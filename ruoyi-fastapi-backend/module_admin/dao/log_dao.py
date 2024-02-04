@@ -1,7 +1,9 @@
+from sqlalchemy import asc, desc
 from sqlalchemy.orm import Session
 from module_admin.entity.do.log_do import SysOperLog, SysLogininfor
 from module_admin.entity.vo.log_vo import *
 from utils.page_util import PageUtil
+from utils.common_util import CamelCaseUtil
 from datetime import datetime, time
 
 
@@ -18,6 +20,12 @@ class OperationLogDao:
         :param is_page: 是否开启分页
         :return: 操作日志列表信息对象
         """
+        if query_object.is_asc == 'ascending':
+            order_by_column = asc(getattr(SysOperLog, CamelCaseUtil.camel_to_snake(query_object.order_by_column), None))
+        elif query_object.is_asc == 'descending':
+            order_by_column = desc(getattr(SysOperLog, CamelCaseUtil.camel_to_snake(query_object.order_by_column), None))
+        else:
+            order_by_column = desc(SysOperLog.oper_time)
         query = db.query(SysOperLog) \
             .filter(SysOperLog.title.like(f'%{query_object.title}%') if query_object.title else True,
                     SysOperLog.oper_name.like(f'%{query_object.oper_name}%') if query_object.oper_name else True,
@@ -28,7 +36,7 @@ class OperationLogDao:
                         datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
                                 if query_object.begin_time and query_object.end_time else True
                     )\
-            .distinct()
+            .distinct().order_by(order_by_column)
         operation_log_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return operation_log_list
@@ -84,6 +92,12 @@ class LoginLogDao:
         :param is_page: 是否开启分页
         :return: 登录日志列表信息对象
         """
+        if query_object.is_asc == 'ascending':
+            order_by_column = asc(getattr(SysLogininfor, CamelCaseUtil.camel_to_snake(query_object.order_by_column), None))
+        elif query_object.is_asc == 'descending':
+            order_by_column = desc(getattr(SysLogininfor, CamelCaseUtil.camel_to_snake(query_object.order_by_column), None))
+        else:
+            order_by_column = desc(SysLogininfor.login_time)
         query = db.query(SysLogininfor) \
             .filter(SysLogininfor.ipaddr.like(f'%{query_object.ipaddr}%') if query_object.ipaddr else True,
                     SysLogininfor.user_name.like(f'%{query_object.user_name}%') if query_object.user_name else True,
@@ -93,7 +107,7 @@ class LoginLogDao:
                         datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
                                 if query_object.begin_time and query_object.end_time else True
                     )\
-            .distinct()
+            .distinct().order_by(order_by_column)
         login_log_list = PageUtil.paginate(query, query_object.page_num, query_object.page_size, is_page)
 
         return login_log_list
