@@ -1,6 +1,7 @@
 import pandas as pd
 import io
 import os
+import re
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
@@ -39,10 +40,21 @@ def worship():
 
 class CamelCaseUtil:
     """
-    下划线形式(snake_case)转换为小驼峰形式(camelCase)工具方法
+    小驼峰形式(camelCase)与下划线形式(snake_case)互相转换工具方法
     """
     @classmethod
-    def __to_camel_case(cls, snake_str):
+    def camel_to_snake(cls, camel_str):
+        """
+        小驼峰形式字符串(camelCase)转换为下划线形式字符串(snake_case)
+        :param camel_str: 小驼峰形式字符串
+        :return: 下划线形式字符串
+        """
+        # 在大写字母前添加一个下划线，然后将整个字符串转为小写
+        words = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', camel_str)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', words).lower()
+
+    @classmethod
+    def snake_to_camel(cls, snake_str):
         """
         下划线形式字符串(snake_case)转换为小驼峰形式字符串(camelCase)
         :param snake_str: 下划线形式字符串
@@ -64,7 +76,7 @@ class CamelCaseUtil:
             return result
         # 如果是字典，直接转换键
         elif isinstance(result, dict):
-            return {cls.__to_camel_case(k): v for k, v in result.items()}
+            return {cls.snake_to_camel(k): v for k, v in result.items()}
         # 如果是一组字典或其他类型的列表，遍历列表进行转换
         elif isinstance(result, list):
             return [cls.transform_result(row) if isinstance(row, (dict, Row)) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
