@@ -63,7 +63,7 @@ async def edit_system_job(request: Request, edit_job: EditJobModel, query_db: Se
         return ResponseUtil.error(msg=str(e))
 
 
-@jobController.put("/job/changeStatus", dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:edit'))])
+@jobController.put("/job/changeStatus", dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:changeStatus'))])
 @log_decorator(title='定时任务管理', business_type=2)
 async def edit_system_job(request: Request, edit_job: EditJobModel, query_db: Session = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
