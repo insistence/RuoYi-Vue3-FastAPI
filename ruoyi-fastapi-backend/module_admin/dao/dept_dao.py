@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from module_admin.entity.do.dept_do import SysDept
+from module_admin.entity.do.role_do import SysRoleDept
 from module_admin.entity.vo.dept_vo import *
 from utils.time_format_util import list_format_datetime
 

@@ -12,7 +12,7 @@ from module_admin.annotation.log_annotation import log_decorator
 menuController = APIRouter(prefix='/system/menu', dependencies=[Depends(LoginService.get_current_user)])
 
 
-@menuController.get("/treeselect", dependencies=[Depends(CheckUserInterfaceAuth('common'))])
+@menuController.get("/treeselect")
 async def get_system_menu_tree(request: Request, query_db: Session = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         menu_query_result = MenuService.get_menu_tree_services(query_db, current_user)
@@ -23,7 +23,7 @@ async def get_system_menu_tree(request: Request, query_db: Session = Depends(get
         return ResponseUtil.error(msg=str(e))
 
 
-@menuController.get("/roleMenuTreeselect/{role_id}", dependencies=[Depends(CheckUserInterfaceAuth('common'))])
+@menuController.get("/roleMenuTreeselect/{role_id}")
 async def get_system_role_menu_tree(request: Request, role_id: int, query_db: Session = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         role_menu_query_result = MenuService.get_role_menu_tree_services(query_db, role_id, current_user)

@@ -62,7 +62,7 @@ async def edit_system_config(request: Request, edit_config: ConfigModel, query_d
         return ResponseUtil.error(msg=str(e))
 
 
-@configController.delete("/refreshCache", dependencies=[Depends(CheckUserInterfaceAuth('system:config:edit'))])
+@configController.delete("/refreshCache", dependencies=[Depends(CheckUserInterfaceAuth('system:config:remove'))])
 @log_decorator(title='参数管理', business_type=2)
 async def refresh_system_config(request: Request, query_db: Session = Depends(get_db)):
     try:
