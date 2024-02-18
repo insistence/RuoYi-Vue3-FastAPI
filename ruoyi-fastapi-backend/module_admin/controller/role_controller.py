@@ -17,7 +17,7 @@ from module_admin.annotation.log_annotation import log_decorator
 roleController = APIRouter(prefix='/system/role', dependencies=[Depends(LoginService.get_current_user)])
 
 
-@roleController.get("/deptTree/{role_id}", dependencies=[Depends(CheckUserInterfaceAuth('common'))])
+@roleController.get("/deptTree/{role_id}", dependencies=[Depends(CheckUserInterfaceAuth('system:role:query'))])
 async def get_system_role_dept_tree(request: Request, role_id: int, query_db: Session = Depends(get_db), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     try:
         dept_query_result = DeptService.get_dept_tree_services(query_db, DeptModel(**{}), data_scope_sql)
@@ -160,7 +160,7 @@ async def reset_system_role_status(request: Request, edit_role: AddRoleModel, qu
         return ResponseUtil.error(msg=str(e))
 
 
-@roleController.get("/authUser/allocatedList", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('common'))])
+@roleController.get("/authUser/allocatedList", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:role:list'))])
 async def get_system_allocated_user_list(request: Request, user_role: UserRolePageQueryModel = Depends(UserRolePageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
         role_user_allocated_page_query_result = RoleService.get_role_user_allocated_list_services(query_db, user_role, is_page=True)
@@ -171,7 +171,7 @@ async def get_system_allocated_user_list(request: Request, user_role: UserRolePa
         return ResponseUtil.error(msg=str(e))
 
 
-@roleController.get("/authUser/unallocatedList", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('common'))])
+@roleController.get("/authUser/unallocatedList", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:role:list'))])
 async def get_system_unallocated_user_list(request: Request, user_role: UserRolePageQueryModel = Depends(UserRolePageQueryModel.as_query), query_db: Session = Depends(get_db)):
     try:
         role_user_unallocated_page_query_result = RoleService.get_role_user_unallocated_list_services(query_db, user_role, is_page=True)
