@@ -70,7 +70,7 @@ async def export_system_operation_log_list(request: Request, operation_log_page_
         return ResponseUtil.streaming(data=bytes2file_response(operation_log_export_result))
     except Exception as e:
         logger.exception(e)
-        return response_500(data="", message=str(e))
+        return ResponseUtil.error(msg=str(e))
 
 
 @logController.get("/logininfor/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('monitor:logininfor:list'))])
