@@ -1,7 +1,7 @@
 from sqlalchemy import and_, or_, desc, func
 from sqlalchemy.orm import Session
 from module_admin.entity.do.user_do import SysUser, SysUserRole, SysUserPost
-from module_admin.entity.do.role_do import SysRole, SysRoleMenu
+from module_admin.entity.do.role_do import SysRole, SysRoleDept, SysRoleMenu
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.post_do import SysPost
 from module_admin.entity.do.menu_do import SysMenu
