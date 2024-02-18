@@ -13,7 +13,7 @@ from module_admin.annotation.log_annotation import log_decorator
 deptController = APIRouter(prefix='/system/dept', dependencies=[Depends(LoginService.get_current_user)])
 
 
-@deptController.get("/list/exclude/{dept_id}", response_model=List[DeptModel], dependencies=[Depends(CheckUserInterfaceAuth('common'))])
+@deptController.get("/list/exclude/{dept_id}", response_model=List[DeptModel], dependencies=[Depends(CheckUserInterfaceAuth('system:dept:list'))])
 async def get_system_dept_tree_for_edit_option(request: Request, dept_id: int, query_db: Session = Depends(get_db), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     try:
         dept_query = DeptModel(deptId=dept_id)
