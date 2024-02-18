@@ -62,7 +62,7 @@ async def edit_system_dict_type(request: Request, edit_dict_type: DictTypeModel,
         return ResponseUtil.error(msg=str(e))
 
 
-@dictController.delete("/type/refreshCache", dependencies=[Depends(CheckUserInterfaceAuth('system:dict:edit'))])
+@dictController.delete("/type/refreshCache", dependencies=[Depends(CheckUserInterfaceAuth('system:dict:remove'))])
 @log_decorator(title='字典管理', business_type=2)
 async def refresh_system_dict(request: Request, query_db: Session = Depends(get_db)):
     try:
@@ -95,7 +95,7 @@ async def delete_system_dict_type(request: Request, dict_ids: str, query_db: Ses
         return ResponseUtil.error(msg=str(e))
 
 
-@dictController.get("/type/optionselect", response_model=List[DictTypeModel], dependencies=[Depends(CheckUserInterfaceAuth('system:dict:query'))])
+@dictController.get("/type/optionselect", response_model=List[DictTypeModel])
 async def query_system_dict_type_options(request: Request, query_db: Session = Depends(get_db)):
     try:
         dict_type_query_result = DictTypeService.get_dict_type_list_services(query_db, DictTypePageQueryModel(**dict()), is_page=False)
@@ -131,7 +131,7 @@ async def export_system_dict_type_list(request: Request, dict_type_page_query: D
         return ResponseUtil.error(msg=str(e))
 
 
-@dictController.get("/data/type/{dict_type}", dependencies=[Depends(CheckUserInterfaceAuth('system:dict:list'))])
+@dictController.get("/data/type/{dict_type}")
 async def query_system_dict_type_data(request: Request, dict_type: str, query_db: Session = Depends(get_db)):
     try:
         # 获取全量数据
