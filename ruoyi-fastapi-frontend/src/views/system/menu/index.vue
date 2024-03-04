@@ -152,8 +152,8 @@
                         </span>
                      </template>
                      <el-radio-group v-model="form.isFrame">
-                        <el-radio label="0">是</el-radio>
-                        <el-radio label="1">否</el-radio>
+                        <el-radio :label="0">是</el-radio>
+                        <el-radio :label="1">否</el-radio>
                      </el-radio-group>
                   </el-form-item>
                </el-col>
@@ -220,8 +220,8 @@
                         </span>
                      </template>
                      <el-radio-group v-model="form.isCache">
-                        <el-radio label="0">缓存</el-radio>
-                        <el-radio label="1">不缓存</el-radio>
+                        <el-radio :label="0">缓存</el-radio>
+                        <el-radio :label="1">不缓存</el-radio>
                      </el-radio-group>
                   </el-form-item>
                </el-col>

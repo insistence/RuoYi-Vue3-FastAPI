@@ -56,6 +56,7 @@ class LoginService:
         :param login_user: 登录用户对象
         :return: 校验结果
         """
+        await cls.__check_login_ip(request)
         account_lock = await request.app.state.redis.get(
             f"{RedisInitKeyConfig.ACCOUNT_LOCK.get('key')}:{login_user.user_name}")
         if login_user.user_name == account_lock:
@@ -99,6 +100,21 @@ class LoginService:
         await request.app.state.redis.delete(
             f"{RedisInitKeyConfig.PASSWORD_ERROR_COUNT.get('key')}:{login_user.user_name}")
         return user
+
+    @classmethod
+    async def __check_login_ip(cls, request: Request):
+        """
+        校验用户登录ip是否在黑名单内
+        :param request: Request对象
+        :return: 校验结果
+        """
+        black_ip_value = await request.app.state.redis.get(
+            f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.login.blackIPList")
+        black_ip_list = black_ip_value.split(',') if black_ip_value else []
+        if request.headers.get('X-Forwarded-For') in black_ip_list:
+            logger.warning("当前IP禁止登录")
+            raise LoginException(data="", message="当前IP禁止登录")
+        return True
 
     @classmethod
     async def __check_login_captcha(cls, request: Request, login_user: UserLogin):
@@ -229,13 +245,15 @@ class LoginService:
                 if permission.menu_type == 'M':
                     router_list_data['name'] = permission.path.capitalize()
                     router_list_data['hidden'] = False if permission.visible == '0' else True
-                    if permission.is_frame == 1:
-                        router_list_data['redirect'] = 'noRedirect'
                     if permission.parent_id == 0:
                         router_list_data['component'] = 'Layout'
                         router_list_data['path'] = f'/{permission.path}'
                     else:
                         router_list_data['component'] = 'ParentView'
+                        router_list_data['path'] = permission.path
+                    if permission.is_frame == 1:
+                        router_list_data['redirect'] = 'noRedirect'
+                    else:
                         router_list_data['path'] = permission.path
                     if children:
                         router_list_data['alwaysShow'] = True
