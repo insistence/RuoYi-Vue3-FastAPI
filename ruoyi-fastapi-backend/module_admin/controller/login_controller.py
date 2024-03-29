@@ -131,7 +131,7 @@ async def register_user(request: Request, user_register: UserRegister, query_db:
 @loginController.post("/logout")
 async def logout(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
     try:
-        payload = jwt.decode(token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
+        payload = jwt.decode(token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False})
         session_id: str = payload.get("session_id")
         await LoginService.logout_services(request, session_id)
         logger.info('退出成功')
