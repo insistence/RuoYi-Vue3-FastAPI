@@ -91,8 +91,12 @@ def log_decorator(title: str, business_type: int, log_type: Optional[str] = 'ope
                 login_log = {}
                 if log_type == 'login':
                     user_agent_info = parse(user_agent)
-                    browser = f'{user_agent_info.browser.family} {user_agent_info.browser.version[0]}'
-                    system_os = f'{user_agent_info.os.family} {user_agent_info.os.version[0]}'
+                    browser = f'{user_agent_info.browser.family}'
+                    system_os = f'{user_agent_info.os.family}'
+                    if user_agent_info.browser.version != ():
+                        browser += f' {user_agent_info.browser.version[0]}'
+                    if user_agent_info.os.version != ():
+                        system_os += f' {user_agent_info.os.version[0]}'
                     login_log = dict(
                         ipaddr=oper_ip,
                         loginLocation=oper_location,
