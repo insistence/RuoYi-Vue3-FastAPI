@@ -38,6 +38,7 @@ class DataBaseSettings(BaseSettings):
     db_username: str = 'root'
     db_password: str = 'mysqlroot'
     db_database: str = 'ruoyi-fastapi'
+    db_echo: bool = True
 
 
 class RedisSettings(BaseSettings):
