@@ -17,6 +17,8 @@ class AppSettings(BaseSettings):
     app_port: int = 9099
     app_version: str = '1.0.0'
     app_reload: bool = True
+    app_ip_location_query: bool = True
+    app_same_time_login: bool = True
 
 
 class JwtSettings(BaseSettings):
@@ -38,6 +40,7 @@ class DataBaseSettings(BaseSettings):
     db_username: str = 'root'
     db_password: str = 'mysqlroot'
     db_database: str = 'ruoyi-fastapi'
+    db_echo: bool = True
 
 
 class RedisSettings(BaseSettings):
