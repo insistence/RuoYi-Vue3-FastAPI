@@ -18,6 +18,7 @@ class AppSettings(BaseSettings):
     app_version: str = '1.0.0'
     app_reload: bool = True
     app_ip_location_query: bool = True
+    app_same_time_login: bool = True
 
 
 class JwtSettings(BaseSettings):

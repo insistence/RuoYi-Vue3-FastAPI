@@ -41,11 +41,13 @@ async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = D
             },
             expires_delta=access_token_expires
         )
-        await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{session_id}", access_token,
-                                          ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
-        # 此方法可实现同一账号同一时间只能登录一次
-        # await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{result[0].user_id}", access_token,
-        #                                   ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
+        if AppConfig.app_same_time_login:
+            await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{session_id}", access_token,
+                                              ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
+        else:
+            # 此方法可实现同一账号同一时间只能登录一次
+            await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{result[0].user_id}", access_token,
+                                              ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
         UserService.edit_user_services(query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status'))
         logger.info('登录成功')
         # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
