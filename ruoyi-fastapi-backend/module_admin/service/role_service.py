@@ -131,7 +131,7 @@ class RoleService:
         :param page_object: 角色数据权限对象
         :return: 分配角色数据权限结果
         """
-        edit_role = page_object.model_dump(exclude_unset=True)
+        edit_role = page_object.model_dump(exclude_unset=True, exclude={'admin'})
         del edit_role['dept_ids']
         role_info = cls.role_detail_services(query_db, edit_role.get('role_id'))
         if role_info:
