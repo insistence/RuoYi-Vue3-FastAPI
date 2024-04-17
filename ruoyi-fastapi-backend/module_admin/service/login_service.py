@@ -271,6 +271,7 @@ class LoginService:
                 elif permission.menu_type == 'C':
                     router_list_data['name'] = permission.path.capitalize()
                     router_list_data['path'] = permission.path
+                    router_list_data['query'] = permission.query
                     router_list_data['hidden'] = False if permission.visible == '0' else True
                     router_list_data['component'] = permission.component
                     router_list_data['meta'] = {
