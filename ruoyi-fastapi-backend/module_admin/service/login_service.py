@@ -229,7 +229,7 @@ class LoginService:
         :return: 当前用户路由信息对象
         """
         query_user = UserDao.get_user_by_id(query_db, user_id=user_id)
-        user_router_menu = [row for row in query_user.get('user_menu_info') if row.menu_type in ['M', 'C']]
+        user_router_menu = sorted([row for row in query_user.get('user_menu_info') if row.menu_type in ['M', 'C']], key=lambda x: x.order_num)
         user_router = cls.__generate_user_router_menu(0, user_router_menu)
         return user_router
 
