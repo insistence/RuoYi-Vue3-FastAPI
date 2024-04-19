@@ -72,6 +72,7 @@ class JobService:
                 if query_job:
                     SchedulerUtil.remove_scheduler_job(job_id=edit_job.get('job_id'))
                 if edit_job.get('status') == '0':
+                    job_info = cls.job_detail_services(query_db, edit_job.get('job_id'))
                     SchedulerUtil.add_scheduler_job(job_info=job_info)
                 query_db.commit()
                 result = dict(is_success=True, message='更新成功')
