@@ -206,7 +206,7 @@ class UserService:
         :param page_object: 重置用户对象
         :return: 重置用户校验结果
         """
-        reset_user = page_object.model_dump(exclude_unset=True)
+        reset_user = page_object.model_dump(exclude_unset=True, exclude={'admin'})
         if page_object.old_password:
             user = UserDao.get_user_detail_by_id(query_db, user_id=page_object.user_id).get('user_basic_info')
             if not PwdUtil.verify_password(page_object.old_password, user.password):
