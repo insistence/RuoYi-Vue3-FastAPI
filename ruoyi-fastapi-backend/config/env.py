@@ -41,6 +41,10 @@ class DataBaseSettings(BaseSettings):
     db_password: str = 'mysqlroot'
     db_database: str = 'ruoyi-fastapi'
     db_echo: bool = True
+    db_max_overflow: int = 10
+    db_pool_size: int = 50
+    db_pool_recycle: int = 3600
+    db_pool_timeout: int = 30
 
 
 class RedisSettings(BaseSettings):
