@@ -1,4 +1,4 @@
-from functools import wraps
+from functools import wraps, lru_cache
 from fastapi import Request
 from fastapi.responses import JSONResponse, ORJSONResponse, UJSONResponse
 import inspect
@@ -52,21 +52,7 @@ def log_decorator(title: str, business_type: int, log_type: Optional[str] = 'ope
             oper_ip = request.headers.get("X-Forwarded-For")
             oper_location = '内网IP'
             if AppConfig.app_ip_location_query:
-                try:
-                    if oper_ip != '127.0.0.1' and oper_ip != 'localhost':
-                        ip_result = requests.get(f'https://qifu-api.baidubce.com/ip/geo/v1/district?ip={oper_ip}')
-                        if ip_result.status_code == 200:
-                            prov = ip_result.json().get('data').get('prov')
-                            city = ip_result.json().get('data').get('city')
-                            if prov or city:
-                                oper_location = f'{prov}-{city}'
-                            else:
-                                oper_location = '未知'
-                        else:
-                            oper_location = '未知'
-                except Exception as e:
-                    oper_location = '未知'
-                    print(e)
+                oper_location = get_ip_location(oper_ip)
             # 根据不同的请求类型使用不同的方法获取请求参数
             content_type = request.headers.get("Content-Type")
             if content_type and ("multipart/form-data" in content_type or 'application/x-www-form-urlencoded' in content_type):
@@ -175,3 +161,26 @@ def log_decorator(title: str, business_type: int, log_type: Optional[str] = 'ope
         return wrapper
 
     return decorator
+
+
+@lru_cache()
+def get_ip_location(oper_ip: str):
+    """
+    查询ip归属区域
+    :param oper_ip: 需要查询的ip
+    :return: ip归属区域
+    """
+    oper_location = '内网IP'
+    try:
+        if oper_ip != '127.0.0.1' and oper_ip != 'localhost':
+            oper_location = '未知'
+            ip_result = requests.get(f'https://qifu-api.baidubce.com/ip/geo/v1/district?ip={oper_ip}')
+            if ip_result.status_code == 200:
+                prov = ip_result.json().get('data').get('prov')
+                city = ip_result.json().get('data').get('city')
+                if prov or city:
+                    oper_location = f'{prov}-{city}'
+    except Exception as e:
+        oper_location = '未知'
+        print(e)
+    return oper_location
