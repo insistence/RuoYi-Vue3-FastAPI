@@ -217,12 +217,12 @@ async def change_system_user_profile_info(request: Request, user_info: UserInfoM
 
 @userController.put("/profile/updatePwd")
 @log_decorator(title='个人信息', business_type=2)
-async def reset_system_user_password(request: Request, old_password: str = Query(alias='oldPassword'), new_password: str = Query(alias='newPassword'), query_db: Session = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
+async def reset_system_user_password(request: Request, reset_password: ResetPasswordModel = Depends(ResetPasswordModel.as_query), query_db: Session = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         reset_user = ResetUserModel(
             userId=current_user.user.user_id,
-            oldPassword=old_password,
-            password=PwdUtil.get_password_hash(new_password),
+            oldPassword=reset_password.old_password,
+            password=PwdUtil.get_password_hash(reset_password.new_password),
             updateBy=current_user.user.user_name,
             updateTime=datetime.now()
         )

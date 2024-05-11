@@ -1,6 +1,8 @@
-from pydantic import BaseModel, ConfigDict
+import re
+from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
 from typing import Optional
+from exceptions.exception import ModelValidatorException
 
 
 class UserLogin(BaseModel):
@@ -22,6 +24,14 @@ class UserRegister(BaseModel):
     confirm_password: str
     code: Optional[str] = None
     uuid: Optional[str] = None
+
+    @model_validator(mode='after')
+    def check_password(self) -> 'UserRegister':
+        pattern = r'''^[^<>"'|\\]+$'''
+        if self.password is None or re.match(pattern, self.password):
+            return self
+        else:
+            raise ModelValidatorException(message="密码不能包含非法字符：< > \" ' \\ |")
 
 
 class Token(BaseModel):

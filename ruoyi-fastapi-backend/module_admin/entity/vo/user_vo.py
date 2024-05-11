@@ -1,3 +1,4 @@
+import re
 from pydantic import BaseModel, ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
 from typing import Union, Optional, List
@@ -6,6 +7,7 @@ from module_admin.entity.vo.role_vo import RoleModel
 from module_admin.entity.vo.dept_vo import DeptModel
 from module_admin.entity.vo.post_vo import PostModel
 from module_admin.annotation.pydantic_annotation import as_query, as_form
+from exceptions.exception import ModelValidatorException
 
 
 class TokenData(BaseModel):
@@ -41,6 +43,14 @@ class UserModel(BaseModel):
     update_time: Optional[datetime] = None
     remark: Optional[str] = None
     admin: Optional[bool] = False
+
+    @model_validator(mode='after')
+    def check_password(self) -> 'UserModel':
+        pattern = r'''^[^<>"'|\\]+$'''
+        if self.password is None or re.match(pattern, self.password):
+            return self
+        else:
+            raise ModelValidatorException(message="密码不能包含非法字符：< > \" ' \\ |")
 
     @model_validator(mode='after')
     def check_admin(self) -> 'UserModel':
@@ -142,6 +152,25 @@ class EditUserModel(AddUserModel):
     编辑用户模型
     """
     role: Optional[List] = []
+
+
+@as_query
+class ResetPasswordModel(BaseModel):
+    """
+    重置密码模型
+    """
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    old_password: Optional[str] = None
+    new_password: Optional[str] = None
+
+    @model_validator(mode='after')
+    def check_new_password(self) -> 'ResetPasswordModel':
+        pattern = r'''^[^<>"'|\\]+$'''
+        if self.new_password is None or re.match(pattern, self.new_password):
+            return self
+        else:
+            raise ModelValidatorException(message="密码不能包含非法字符：< > \" ' \\ |")
 
 
 class ResetUserModel(UserModel):
