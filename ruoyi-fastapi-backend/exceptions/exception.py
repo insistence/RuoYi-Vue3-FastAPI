@@ -26,3 +26,13 @@ class PermissionException(Exception):
     def __init__(self, data: str = None, message: str = None):
         self.data = data
         self.message = message
+
+
+class ModelValidatorException(Exception):
+    """
+    自定义模型校验异常ModelValidatorException
+    """
+
+    def __init__(self, data: str = None, message: str = None):
+        self.data = data
+        self.message = message

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
-from exceptions.exception import AuthException, PermissionException
+from exceptions.exception import AuthException, PermissionException, ModelValidatorException
 from utils.response_util import ResponseUtil, JSONResponse, jsonable_encoder
 
 
@@ -17,6 +17,11 @@ def handle_exception(app: FastAPI):
     @app.exception_handler(PermissionException)
     async def permission_exception_handler(request: Request, exc: PermissionException):
         return ResponseUtil.forbidden(data=exc.data, msg=exc.message)
+
+    # 自定义模型检验异常
+    @app.exception_handler(ModelValidatorException)
+    async def model_validator_exception_handler(request: Request, exc: ModelValidatorException):
+        return ResponseUtil.failure(data=exc.data, msg=exc.message)
 
     # 处理其他http请求异常
     @app.exception_handler(HTTPException)

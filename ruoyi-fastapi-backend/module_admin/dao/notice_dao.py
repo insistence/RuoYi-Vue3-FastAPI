@@ -51,7 +51,7 @@ class NoticeDao:
         """
         query = db.query(SysNotice) \
             .filter(SysNotice.notice_title.like(f'%{query_object.notice_title}%') if query_object.notice_title else True,
-                    SysNotice.update_by.like(f'%{query_object.update_by}%') if query_object.update_by else True,
+                    SysNotice.create_by.like(f'%{query_object.create_by}%') if query_object.create_by else True,
                     SysNotice.notice_type == query_object.notice_type if query_object.notice_type else True,
                     SysNotice.create_time.between(
                         datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
