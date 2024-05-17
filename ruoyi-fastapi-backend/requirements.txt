@@ -1,4 +1,5 @@
 APScheduler==3.10.4
+asyncmy==0.2.9
 DateTime==5.4
 fastapi[all]==0.109.1
 loguru==0.7.2
