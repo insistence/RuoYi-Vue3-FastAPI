@@ -92,7 +92,7 @@ class UserService:
                     return CrudResponseModel(**result)
             try:
                 await UserDao.edit_user_dao(query_db, edit_user)
-                if page_object.type != 'status' and page_object.type != 'avatar':
+                if page_object.type != 'status' and page_object.type != 'avatar' and page_object.type != 'pwd':
                     await UserDao.delete_user_role_dao(query_db, UserRoleModel(userId=page_object.user_id))
                     await UserDao.delete_user_post_dao(query_db, UserPostModel(userId=page_object.user_id))
                     if page_object.role_ids:
