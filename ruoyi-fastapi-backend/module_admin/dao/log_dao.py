@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from module_admin.entity.do.log_do import SysOperLog, SysLogininfor
 from module_admin.entity.vo.log_vo import *
 from utils.page_util import PageUtil
-from utils.common_util import CamelCaseUtil
+from utils.common_util import SnakeCaseUtil
 from datetime import datetime, time
 
 
@@ -22,10 +22,10 @@ class OperationLogDao:
         :return: 操作日志列表信息对象
         """
         if query_object.is_asc == 'ascending':
-            order_by_column = asc(getattr(SysOperLog, CamelCaseUtil.camel_to_snake(query_object.order_by_column), None))
+            order_by_column = asc(getattr(SysOperLog, SnakeCaseUtil.camel_to_snake(query_object.order_by_column), None))
         elif query_object.is_asc == 'descending':
             order_by_column = desc(
-                getattr(SysOperLog, CamelCaseUtil.camel_to_snake(query_object.order_by_column), None))
+                getattr(SysOperLog, SnakeCaseUtil.camel_to_snake(query_object.order_by_column), None))
         else:
             order_by_column = desc(SysOperLog.oper_time)
         query = select(SysOperLog) \
@@ -98,10 +98,10 @@ class LoginLogDao:
         """
         if query_object.is_asc == 'ascending':
             order_by_column = asc(
-                getattr(SysLogininfor, CamelCaseUtil.camel_to_snake(query_object.order_by_column), None))
+                getattr(SysLogininfor, SnakeCaseUtil.camel_to_snake(query_object.order_by_column), None))
         elif query_object.is_asc == 'descending':
             order_by_column = desc(
-                getattr(SysLogininfor, CamelCaseUtil.camel_to_snake(query_object.order_by_column), None))
+                getattr(SysLogininfor, SnakeCaseUtil.camel_to_snake(query_object.order_by_column), None))
         else:
             order_by_column = desc(SysLogininfor.login_time)
         query = select(SysLogininfor) \
