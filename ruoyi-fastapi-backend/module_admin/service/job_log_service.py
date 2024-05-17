@@ -10,7 +10,7 @@ class JobLogService:
     """
 
     @classmethod
-    def get_job_log_list_services(cls, query_db: Session, query_object: JobLogPageQueryModel, is_page: bool = False):
+    async def get_job_log_list_services(cls, query_db: AsyncSession, query_object: JobLogPageQueryModel, is_page: bool = False):
         """
         获取定时任务日志列表信息service
         :param query_db: orm对象
@@ -18,7 +18,7 @@ class JobLogService:
         :param is_page: 是否开启分页
         :return: 定时任务日志列表信息对象
         """
-        job_log_list_result = JobLogDao.get_job_log_list(query_db, query_object, is_page)
+        job_log_list_result = await JobLogDao.get_job_log_list(query_db, query_object, is_page)
 
         return job_log_list_result
 
@@ -41,7 +41,7 @@ class JobLogService:
         return CrudResponseModel(**result)
 
     @classmethod
-    def delete_job_log_services(cls, query_db: Session, page_object: DeleteJobLogModel):
+    async def delete_job_log_services(cls, query_db: AsyncSession, page_object: DeleteJobLogModel):
         """
         删除定时任务日志信息service
         :param query_db: orm对象
@@ -52,29 +52,29 @@ class JobLogService:
             job_log_id_list = page_object.job_log_ids.split(',')
             try:
                 for job_log_id in job_log_id_list:
-                    JobLogDao.delete_job_log_dao(query_db, JobLogModel(jobLogId=job_log_id))
-                query_db.commit()
+                    await JobLogDao.delete_job_log_dao(query_db, JobLogModel(jobLogId=job_log_id))
+                await query_db.commit()
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='传入定时任务日志id为空')
         return CrudResponseModel(**result)
 
     @classmethod
-    def clear_job_log_services(cls, query_db: Session):
+    async def clear_job_log_services(cls, query_db: AsyncSession):
         """
         清除定时任务日志信息service
         :param query_db: orm对象
         :return: 清除定时任务日志校验结果
         """
         try:
-            JobLogDao.clear_job_log_dao(query_db)
-            query_db.commit()
+            await JobLogDao.clear_job_log_dao(query_db)
+            await query_db.commit()
             result = dict(is_success=True, message='清除成功')
         except Exception as e:
-            query_db.rollback()
+            await query_db.rollback()
             raise e
 
         return CrudResponseModel(**result)

@@ -1,6 +1,7 @@
 import math
 from typing import Optional, List
-from sqlalchemy.orm.query import Query
+from sqlalchemy import Select, select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from utils.common_util import CamelCaseUtil
@@ -52,9 +53,10 @@ class PageUtil:
         return result
 
     @classmethod
-    def paginate(cls, query: Query, page_num: int, page_size: int, is_page: bool = False):
+    async def paginate(cls, db: AsyncSession, query: Select, page_num: int, page_size: int, is_page: bool = False):
         """
         输入查询语句和分页信息，返回分页数据列表结果
+        :param db: orm对象
         :param query: sqlalchemy查询语句
         :param page_num: 当前页码
         :param page_size: 当前页面数据量
@@ -62,8 +64,14 @@ class PageUtil:
         :return: 分页数据对象
         """
         if is_page:
-            total = query.count()
-            paginated_data = query.offset((page_num - 1) * page_size).limit(page_size).all()
+            total = (await db.execute(select(func.count('*')).select_from(query.subquery()))).scalar()
+            query_result = (await db.execute(query.offset((page_num - 1) * page_size).limit(page_size)))
+            paginated_data = []
+            for row in query_result:
+                if row and len(row) == 1:
+                    paginated_data.append(row[0])
+                else:
+                    paginated_data.append(row)
             has_next = True if math.ceil(len(paginated_data) / page_size) > page_num else False
             result = PageResponseModel(
                 rows=CamelCaseUtil.transform_result(paginated_data),
@@ -73,7 +81,13 @@ class PageUtil:
                 hasNext=has_next
             )
         else:
-            no_paginated_data = query.all()
+            query_result = await db.execute(query)
+            no_paginated_data = []
+            for row in query_result:
+                if row and len(row) == 1:
+                    no_paginated_data.append(row[0])
+                else:
+                    no_paginated_data.append(row)
             result = CamelCaseUtil.transform_result(no_paginated_data)
 
         return result

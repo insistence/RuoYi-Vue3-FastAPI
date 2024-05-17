@@ -14,7 +14,7 @@ loginController = APIRouter()
 
 @loginController.post("/login", response_model=Token)
 @log_decorator(title='用户登录', business_type=0, log_type='login')
-async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = Depends(), query_db: Session = Depends(get_db)):
+async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = Depends(), query_db: AsyncSession = Depends(get_db)):
     captcha_enabled = True if await request.app.state.redis.get(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.captchaEnabled") == 'true' else False
     user = UserLogin(
         userName=form_data.username,
@@ -31,7 +31,7 @@ async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = D
     try:
         access_token_expires = timedelta(minutes=JwtConfig.jwt_expire_minutes)
         session_id = str(uuid.uuid4())
-        access_token = LoginService.create_access_token(
+        access_token = await LoginService.create_access_token(
             data={
                 "user_id": str(result[0].user_id),
                 "user_name": result[0].user_name,
@@ -48,7 +48,7 @@ async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = D
             # 此方法可实现同一账号同一时间只能登录一次
             await request.app.state.redis.set(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{result[0].user_id}", access_token,
                                               ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes))
-        UserService.edit_user_services(query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status'))
+        await UserService.edit_user_services(query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status'))
         logger.info('登录成功')
         # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
         request_from_swagger = request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
@@ -75,7 +75,7 @@ async def get_login_user_info(request: Request, current_user: CurrentUserModel =
 
 
 @loginController.get("/getRouters")
-async def get_login_user_routers(request: Request, current_user: CurrentUserModel = Depends(LoginService.get_current_user), query_db: Session = Depends(get_db)):
+async def get_login_user_routers(request: Request, current_user: CurrentUserModel = Depends(LoginService.get_current_user), query_db: AsyncSession = Depends(get_db)):
     try:
         logger.info('获取成功')
         user_routers = await LoginService.get_current_user_routers(current_user.user.user_id, query_db)
@@ -86,7 +86,7 @@ async def get_login_user_routers(request: Request, current_user: CurrentUserMode
 
 
 @loginController.post("/register", response_model=CrudResponseModel)
-async def register_user(request: Request, user_register: UserRegister, query_db: Session = Depends(get_db)):
+async def register_user(request: Request, user_register: UserRegister, query_db: AsyncSession = Depends(get_db)):
     try:
         user_register_result = await LoginService.register_user_services(request, query_db, user_register)
         if user_register_result.is_success:
@@ -101,7 +101,7 @@ async def register_user(request: Request, user_register: UserRegister, query_db:
 
 
 # @loginController.post("/getSmsCode", response_model=SmsCode)
-# async def get_sms_code(request: Request, user: ResetUserModel, query_db: Session = Depends(get_db)):
+# async def get_sms_code(request: Request, user: ResetUserModel, query_db: AsyncSession = Depends(get_db)):
 #     try:
 #         sms_result = await LoginService.get_sms_code_services(request, query_db, user)
 #         if sms_result.is_success:
@@ -116,7 +116,7 @@ async def register_user(request: Request, user_register: UserRegister, query_db:
 #
 #
 # @loginController.post("/forgetPwd", response_model=CrudResponseModel)
-# async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_db: Session = Depends(get_db)):
+# async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_db: AsyncSession = Depends(get_db)):
 #     try:
 #         forget_user_result = await LoginService.forget_user_services(request, query_db, forget_user)
 #         if forget_user_result.is_success:

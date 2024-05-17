@@ -40,19 +40,8 @@ def worship():
 
 class CamelCaseUtil:
     """
-    小驼峰形式(camelCase)与下划线形式(snake_case)互相转换工具方法
+    下划线形式(snake_case)转小驼峰形式(camelCase)工具方法
     """
-    @classmethod
-    def camel_to_snake(cls, camel_str):
-        """
-        小驼峰形式字符串(camelCase)转换为下划线形式字符串(snake_case)
-        :param camel_str: 小驼峰形式字符串
-        :return: 下划线形式字符串
-        """
-        # 在大写字母前添加一个下划线，然后将整个字符串转为小写
-        words = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', camel_str)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', words).lower()
-
     @classmethod
     def snake_to_camel(cls, snake_str):
         """
@@ -77,6 +66,44 @@ class CamelCaseUtil:
         # 如果是字典，直接转换键
         elif isinstance(result, dict):
             return {cls.snake_to_camel(k): v for k, v in result.items()}
+        # 如果是一组字典或其他类型的列表，遍历列表进行转换
+        elif isinstance(result, list):
+            return [cls.transform_result(row) if isinstance(row, (dict, Row)) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
+        # 如果是sqlalchemy的Row实例，遍历Row进行转换
+        elif isinstance(result, Row):
+            return [cls.transform_result(row) if isinstance(row, dict) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
+        # 如果是其他类型，如模型实例，先转换为字典
+        else:
+            return cls.transform_result({c.name: getattr(result, c.name) for c in result.__table__.columns})
+
+
+class SnakeCaseUtil:
+    """
+    小驼峰形式(camelCase)转下划线形式(snake_case)工具方法
+    """
+    @classmethod
+    def camel_to_snake(cls, camel_str):
+        """
+        小驼峰形式字符串(camelCase)转换为下划线形式字符串(snake_case)
+        :param camel_str: 小驼峰形式字符串
+        :return: 下划线形式字符串
+        """
+        # 在大写字母前添加一个下划线，然后将整个字符串转为小写
+        words = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', camel_str)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', words).lower()
+
+    @classmethod
+    def transform_result(cls, result):
+        """
+        针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
+        :param result: 输入数据
+        :return: 小驼峰形式结果
+        """
+        if result is None:
+            return result
+        # 如果是字典，直接转换键
+        elif isinstance(result, dict):
+            return {cls.camel_to_snake(k): v for k, v in result.items()}
         # 如果是一组字典或其他类型的列表，遍历列表进行转换
         elif isinstance(result, list):
             return [cls.transform_result(row) if isinstance(row, (dict, Row)) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]

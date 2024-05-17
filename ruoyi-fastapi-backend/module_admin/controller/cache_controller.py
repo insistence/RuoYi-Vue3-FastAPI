@@ -26,7 +26,7 @@ async def get_monitor_cache_info(request: Request):
 async def get_monitor_cache_name(request: Request):
     try:
         # 获取全量数据
-        cache_name_list_result = CacheService.get_cache_monitor_cache_name_services()
+        cache_name_list_result = await CacheService.get_cache_monitor_cache_name_services()
         logger.info('获取成功')
         return ResponseUtil.success(data=cache_name_list_result)
     except Exception as e:

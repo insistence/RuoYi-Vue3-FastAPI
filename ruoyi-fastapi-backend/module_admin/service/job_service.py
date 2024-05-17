@@ -11,7 +11,7 @@ class JobService:
     """
 
     @classmethod
-    def get_job_list_services(cls, query_db: Session, query_object: JobPageQueryModel, is_page: bool = False):
+    async def get_job_list_services(cls, query_db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False):
         """
         获取定时任务列表信息service
         :param query_db: orm对象
@@ -19,37 +19,37 @@ class JobService:
         :param is_page: 是否开启分页
         :return: 定时任务列表信息对象
         """
-        job_list_result = JobDao.get_job_list(query_db, query_object, is_page)
+        job_list_result = await JobDao.get_job_list(query_db, query_object, is_page)
 
         return job_list_result
 
     @classmethod
-    def add_job_services(cls, query_db: Session, page_object: JobModel):
+    async def add_job_services(cls, query_db: AsyncSession, page_object: JobModel):
         """
         新增定时任务信息service
         :param query_db: orm对象
         :param page_object: 新增定时任务对象
         :return: 新增定时任务校验结果
         """
-        job = JobDao.get_job_detail_by_info(query_db, page_object)
+        job = await JobDao.get_job_detail_by_info(query_db, page_object)
         if job:
             result = dict(is_success=False, message='定时任务已存在')
         else:
             try:
-                JobDao.add_job_dao(query_db, page_object)
-                job_info = JobDao.get_job_detail_by_info(query_db, page_object)
+                await JobDao.add_job_dao(query_db, page_object)
+                job_info = await JobDao.get_job_detail_by_info(query_db, page_object)
                 if job_info.status == '0':
                     SchedulerUtil.add_scheduler_job(job_info=job_info)
-                query_db.commit()
+                await query_db.commit()
                 result = dict(is_success=True, message='新增成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
 
         return CrudResponseModel(**result)
 
     @classmethod
-    def edit_job_services(cls, query_db: Session, page_object: EditJobModel):
+    async def edit_job_services(cls, query_db: AsyncSession, page_object: EditJobModel):
         """
         编辑定时任务信息service
         :param query_db: orm对象
@@ -59,25 +59,25 @@ class JobService:
         edit_job = page_object.model_dump(exclude_unset=True)
         if page_object.type == 'status':
             del edit_job['type']
-        job_info = cls.job_detail_services(query_db, edit_job.get('job_id'))
+        job_info = await cls.job_detail_services(query_db, edit_job.get('job_id'))
         if job_info:
             if page_object.type != 'status' and (job_info.job_name != page_object.job_name or job_info.job_group != page_object.job_group or job_info.invoke_target != page_object.invoke_target or job_info.cron_expression != page_object.cron_expression):
-                job = JobDao.get_job_detail_by_info(query_db, page_object)
+                job = await JobDao.get_job_detail_by_info(query_db, page_object)
                 if job:
                     result = dict(is_success=False, message='定时任务已存在')
                     return CrudResponseModel(**result)
             try:
-                JobDao.edit_job_dao(query_db, edit_job)
+                await JobDao.edit_job_dao(query_db, edit_job)
                 query_job = SchedulerUtil.get_scheduler_job(job_id=edit_job.get('job_id'))
                 if query_job:
                     SchedulerUtil.remove_scheduler_job(job_id=edit_job.get('job_id'))
                 if edit_job.get('status') == '0':
-                    job_info = cls.job_detail_services(query_db, edit_job.get('job_id'))
+                    job_info = await cls.job_detail_services(query_db, edit_job.get('job_id'))
                     SchedulerUtil.add_scheduler_job(job_info=job_info)
-                query_db.commit()
+                await query_db.commit()
                 result = dict(is_success=True, message='更新成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='定时任务不存在')
@@ -85,7 +85,7 @@ class JobService:
         return CrudResponseModel(**result)
 
     @classmethod
-    def execute_job_once_services(cls, query_db: Session, page_object: JobModel):
+    async def execute_job_once_services(cls, query_db: AsyncSession, page_object: JobModel):
         """
         执行一次定时任务service
         :param query_db: orm对象
@@ -95,7 +95,7 @@ class JobService:
         query_job = SchedulerUtil.get_scheduler_job(job_id=page_object.job_id)
         if query_job:
             SchedulerUtil.remove_scheduler_job(job_id=page_object.job_id)
-        job_info = cls.job_detail_services(query_db, page_object.job_id)
+        job_info = await cls.job_detail_services(query_db, page_object.job_id)
         if job_info:
             SchedulerUtil.execute_scheduler_job_once(job_info=job_info)
             result = dict(is_success=True, message='执行成功')
@@ -105,7 +105,7 @@ class JobService:
         return CrudResponseModel(**result)
 
     @classmethod
-    def delete_job_services(cls, query_db: Session, page_object: DeleteJobModel):
+    async def delete_job_services(cls, query_db: AsyncSession, page_object: DeleteJobModel):
         """
         删除定时任务信息service
         :param query_db: orm对象
@@ -116,25 +116,25 @@ class JobService:
             job_id_list = page_object.job_ids.split(',')
             try:
                 for job_id in job_id_list:
-                    JobDao.delete_job_dao(query_db, JobModel(jobId=job_id))
-                query_db.commit()
+                    await JobDao.delete_job_dao(query_db, JobModel(jobId=job_id))
+                await query_db.commit()
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='传入定时任务id为空')
         return CrudResponseModel(**result)
 
     @classmethod
-    def job_detail_services(cls, query_db: Session, job_id: int):
+    async def job_detail_services(cls, query_db: AsyncSession, job_id: int):
         """
         获取定时任务详细信息service
         :param query_db: orm对象
         :param job_id: 定时任务id
         :return: 定时任务id对应的信息
         """
-        job = JobDao.get_job_detail_by_id(query_db, job_id=job_id)
+        job = await JobDao.get_job_detail_by_id(query_db, job_id=job_id)
         result = JobModel(**CamelCaseUtil.transform_result(job))
 
         return result

@@ -131,7 +131,7 @@ def log_decorator(title: str, business_type: int, log_type: Optional[str] = 'ope
                     login_log['status'] = str(status)
                     login_log['msg'] = result_dict.get('msg')
 
-                    LoginLogService.add_login_log_services(query_db, LogininforModel(**login_log))
+                    await LoginLogService.add_login_log_services(query_db, LogininforModel(**login_log))
             else:
                 current_user = await LoginService.get_current_user(request, token, query_db)
                 oper_name = current_user.user.user_name
@@ -154,7 +154,7 @@ def log_decorator(title: str, business_type: int, log_type: Optional[str] = 'ope
                     operTime=oper_time,
                     costTime=int(cost_time)
                 )
-                OperationLogService.add_operation_log_services(query_db, operation_log)
+                await OperationLogService.add_operation_log_services(query_db, operation_log)
 
             return result
 

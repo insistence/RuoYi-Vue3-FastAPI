@@ -11,7 +11,7 @@ class CaptchaService:
     """
 
     @classmethod
-    def create_captcha_image_service(cls):
+    async def create_captcha_image_service(cls):
         # 创建空白图像
         image = Image.new('RGB', (160, 60), color='#EAEAEA')
 

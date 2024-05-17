@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi import Depends
 from config.get_db import get_db
-from module_admin.service.login_service import LoginService, Session
+from module_admin.service.login_service import LoginService, AsyncSession
 from module_admin.service.online_service import *
 from utils.response_util import *
 from utils.log_util import *
@@ -27,7 +27,7 @@ async def get_monitor_online_list(request: Request, online_page_query: OnlineQue
 
 @onlineController.delete("/{token_ids}", dependencies=[Depends(CheckUserInterfaceAuth('monitor:online:forceLogout'))])
 @log_decorator(title='在线用户', business_type=7)
-async def delete_monitor_online(request: Request, token_ids: str, query_db: Session = Depends(get_db)):
+async def delete_monitor_online(request: Request, token_ids: str, query_db: AsyncSession = Depends(get_db)):
     try:
         delete_online = DeleteOnlineModel(tokenIds=token_ids)
         delete_online_result = await OnlineService.delete_online_services(request, delete_online)

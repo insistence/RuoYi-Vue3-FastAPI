@@ -48,7 +48,7 @@ class LoginService:
     登录模块服务层
     """
     @classmethod
-    async def authenticate_user(cls, request: Request, query_db: Session, login_user: UserLogin):
+    async def authenticate_user(cls, request: Request, query_db: AsyncSession, login_user: UserLogin):
         """
         根据用户名密码校验用户登录
         :param request: Request对象
@@ -70,7 +70,8 @@ class LoginService:
             pass
         else:
             await cls.__check_login_captcha(request, login_user)
-        user = login_by_account(query_db, login_user.user_name)
+        user = await login_by_account(query_db, login_user.user_name)
+        print(user)
         if not user:
             logger.warning("用户不存在")
             raise LoginException(data="", message="用户不存在")
@@ -135,7 +136,7 @@ class LoginService:
         return True
 
     @classmethod
-    def create_access_token(cls, data: dict, expires_delta: Union[timedelta, None] = None):
+    async def create_access_token(cls, data: dict, expires_delta: Union[timedelta, None] = None):
         """
         根据登录信息创建当前用户token
         :param data: 登录信息
@@ -153,7 +154,7 @@ class LoginService:
 
     @classmethod
     async def get_current_user(cls, request: Request = Request, token: str = Depends(oauth2_scheme),
-                               query_db: Session = Depends(get_db)):
+                               query_db: AsyncSession = Depends(get_db)):
         """
         根据token获取当前用户信息
         :param request: Request对象
@@ -178,7 +179,7 @@ class LoginService:
         except JWTError:
             logger.warning("用户token已失效，请重新登录")
             raise AuthException(data="", message="用户token已失效，请重新登录")
-        query_user = UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
+        query_user = await UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
         if query_user.get('user_basic_info') is None:
             logger.warning("用户token不合法")
             raise AuthException(data="", message="用户token不合法")
@@ -221,14 +222,14 @@ class LoginService:
             raise AuthException(data="", message="用户token已失效，请重新登录")
 
     @classmethod
-    async def get_current_user_routers(cls, user_id: int, query_db: Session):
+    async def get_current_user_routers(cls, user_id: int, query_db: AsyncSession):
         """
         根据用户id获取当前用户路由信息
         :param user_id: 用户id
         :param query_db: orm对象
         :return: 当前用户路由信息对象
         """
-        query_user = UserDao.get_user_by_id(query_db, user_id=user_id)
+        query_user = await UserDao.get_user_by_id(query_db, user_id=user_id)
         user_router_menu = sorted([row for row in query_user.get('user_menu_info') if row.menu_type in ['M', 'C']], key=lambda x: x.order_num)
         user_router = cls.__generate_user_router_menu(0, user_router_menu)
         return user_router
@@ -285,7 +286,7 @@ class LoginService:
         return router_list
 
     @classmethod
-    async def register_user_services(cls, request: Request, query_db: Session, user_register: UserRegister):
+    async def register_user_services(cls, request: Request, query_db: AsyncSession, user_register: UserRegister):
         """
         用户注册services
         :param request: Request对象
@@ -313,7 +314,7 @@ class LoginService:
                     nickName=user_register.username,
                     password=PwdUtil.get_password_hash(user_register.password)
                 )
-                result = UserService.add_user_services(query_db, add_user)
+                result = await UserService.add_user_services(query_db, add_user)
                 return result
             else:
                 result = dict(is_success=False, message='注册程序已关闭，禁止注册')
@@ -323,7 +324,7 @@ class LoginService:
         return CrudResponseModel(**result)
 
     @classmethod
-    async def get_sms_code_services(cls, request: Request, query_db: Session, user: ResetUserModel):
+    async def get_sms_code_services(cls, request: Request, query_db: AsyncSession, user: ResetUserModel):
         """
         获取短信验证码service
         :param request: Request对象
@@ -335,7 +336,7 @@ class LoginService:
             f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{user.session_id}")
         if redis_sms_result:
             return SmsCode(**dict(is_success=False, sms_code='', session_id='', message='短信验证码仍在有效期内'))
-        is_user = UserDao.get_user_by_name(query_db, user.user_name)
+        is_user = await UserDao.get_user_by_name(query_db, user.user_name)
         if is_user:
             sms_code = str(random.randint(100000, 999999))
             session_id = str(uuid.uuid4())
@@ -349,7 +350,7 @@ class LoginService:
         return SmsCode(**dict(is_success=False, sms_code='', session_id='', message='用户不存在'))
 
     @classmethod
-    async def forget_user_services(cls, request: Request, query_db: Session, forget_user: ResetUserModel):
+    async def forget_user_services(cls, request: Request, query_db: AsyncSession, forget_user: ResetUserModel):
         """
         用户忘记密码services
         :param request: Request对象
@@ -361,8 +362,8 @@ class LoginService:
             f"{RedisInitKeyConfig.SMS_CODE.get('key')}:{forget_user.session_id}")
         if forget_user.sms_code == redis_sms_result:
             forget_user.password = PwdUtil.get_password_hash(forget_user.password)
-            forget_user.user_id = UserDao.get_user_by_name(query_db, forget_user.user_name).user_id
-            edit_result = UserService.reset_user_services(query_db, forget_user)
+            forget_user.user_id = (await UserDao.get_user_by_name(query_db, forget_user.user_name)).user_id
+            edit_result = await UserService.reset_user_services(query_db, forget_user)
             result = edit_result.dict()
         elif not redis_sms_result:
             result = dict(is_success=False, message='短信验证码已过期')

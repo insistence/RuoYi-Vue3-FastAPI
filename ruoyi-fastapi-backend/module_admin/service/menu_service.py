@@ -12,20 +12,20 @@ class MenuService:
     """
 
     @classmethod
-    def get_menu_tree_services(cls, query_db: Session, current_user: Optional[CurrentUserModel] = None):
+    async def get_menu_tree_services(cls, query_db: AsyncSession, current_user: Optional[CurrentUserModel] = None):
         """
         获取菜单树信息service
         :param query_db: orm对象
         :param current_user: 当前用户对象
         :return: 菜单树信息对象
         """
-        menu_list_result = MenuDao.get_menu_list_for_tree(query_db, current_user.user.user_id, current_user.user.role)
+        menu_list_result = await MenuDao.get_menu_list_for_tree(query_db, current_user.user.user_id, current_user.user.role)
         menu_tree_result = cls.list_to_tree(menu_list_result)
 
         return menu_tree_result
 
     @classmethod
-    def get_role_menu_tree_services(cls, query_db: Session, role_id: int, current_user: Optional[CurrentUserModel] = None):
+    async def get_role_menu_tree_services(cls, query_db: AsyncSession, role_id: int, current_user: Optional[CurrentUserModel] = None):
         """
         根据角色id获取菜单树信息service
         :param query_db: orm对象
@@ -33,9 +33,9 @@ class MenuService:
         :param current_user: 当前用户对象
         :return: 当前角色id的菜单树信息对象
         """
-        menu_list_result = MenuDao.get_menu_list_for_tree(query_db, current_user.user.user_id, current_user.user.role)
+        menu_list_result = await MenuDao.get_menu_list_for_tree(query_db, current_user.user.user_id, current_user.user.role)
         menu_tree_result = cls.list_to_tree(menu_list_result)
-        role_menu_list = RoleDao.get_role_menu_dao(query_db, role_id)
+        role_menu_list = await RoleDao.get_role_menu_dao(query_db, role_id)
         checked_keys = [row.menu_id for row in role_menu_list]
         result = RoleMenuQueryModel(
             menus=menu_tree_result,
@@ -45,7 +45,7 @@ class MenuService:
         return result
 
     @classmethod
-    def get_menu_list_services(cls, query_db: Session, page_object: MenuQueryModel, current_user: Optional[CurrentUserModel] = None):
+    async def get_menu_list_services(cls, query_db: AsyncSession, page_object: MenuQueryModel, current_user: Optional[CurrentUserModel] = None):
         """
         获取菜单列表信息service
         :param query_db: orm对象
@@ -53,34 +53,34 @@ class MenuService:
         :param current_user: 当前用户对象
         :return: 菜单列表信息对象
         """
-        menu_list_result = MenuDao.get_menu_list(query_db, page_object, current_user.user.user_id, current_user.user.role)
+        menu_list_result = await MenuDao.get_menu_list(query_db, page_object, current_user.user.user_id, current_user.user.role)
 
         return CamelCaseUtil.transform_result(menu_list_result)
 
     @classmethod
-    def add_menu_services(cls, query_db: Session, page_object: MenuModel):
+    async def add_menu_services(cls, query_db: AsyncSession, page_object: MenuModel):
         """
         新增菜单信息service
         :param query_db: orm对象
         :param page_object: 新增菜单对象
         :return: 新增菜单校验结果
         """
-        menu = MenuDao.get_menu_detail_by_info(query_db, MenuModel(parentId=page_object.parent_id, menuName=page_object.menu_name, menuType=page_object.menu_type))
+        menu = await MenuDao.get_menu_detail_by_info(query_db, MenuModel(parentId=page_object.parent_id, menuName=page_object.menu_name, menuType=page_object.menu_type))
         if menu:
             result = dict(is_success=False, message='同一目录下不允许存在同名同类型的菜单')
         else:
             try:
-                MenuDao.add_menu_dao(query_db, page_object)
-                query_db.commit()
+                await MenuDao.add_menu_dao(query_db, page_object)
+                await query_db.commit()
                 result = dict(is_success=True, message='新增成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
 
         return CrudResponseModel(**result)
 
     @classmethod
-    def edit_menu_services(cls, query_db: Session, page_object: MenuModel):
+    async def edit_menu_services(cls, query_db: AsyncSession, page_object: MenuModel):
         """
         编辑菜单信息service
         :param query_db: orm对象
@@ -88,19 +88,19 @@ class MenuService:
         :return: 编辑菜单校验结果
         """
         edit_menu = page_object.model_dump(exclude_unset=True)
-        menu_info = cls.menu_detail_services(query_db, edit_menu.get('menu_id'))
+        menu_info = await cls.menu_detail_services(query_db, edit_menu.get('menu_id'))
         if menu_info:
             if menu_info.parent_id != page_object.parent_id or menu_info.menu_name != page_object.menu_name or menu_info.menu_type != page_object.menu_type:
-                menu = MenuDao.get_menu_detail_by_info(query_db, MenuModel(parentId=page_object.parent_id, menuName=page_object.menu_name, menuType=page_object.menu_type))
+                menu = await MenuDao.get_menu_detail_by_info(query_db, MenuModel(parentId=page_object.parent_id, menuName=page_object.menu_name, menuType=page_object.menu_type))
                 if menu:
                     result = dict(is_success=False, message='同一目录下不允许存在同名同类型的菜单')
                     return CrudResponseModel(**result)
             try:
-                MenuDao.edit_menu_dao(query_db, edit_menu)
-                query_db.commit()
+                await MenuDao.edit_menu_dao(query_db, edit_menu)
+                await query_db.commit()
                 result = dict(is_success=True, message='更新成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='菜单不存在')
@@ -108,7 +108,7 @@ class MenuService:
         return CrudResponseModel(**result)
 
     @classmethod
-    def delete_menu_services(cls, query_db: Session, page_object: DeleteMenuModel):
+    async def delete_menu_services(cls, query_db: AsyncSession, page_object: DeleteMenuModel):
         """
         删除菜单信息service
         :param query_db: orm对象
@@ -119,25 +119,25 @@ class MenuService:
             menu_id_list = page_object.menu_ids.split(',')
             try:
                 for menu_id in menu_id_list:
-                    MenuDao.delete_menu_dao(query_db, MenuModel(menuId=menu_id))
-                query_db.commit()
+                    await MenuDao.delete_menu_dao(query_db, MenuModel(menuId=menu_id))
+                await query_db.commit()
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='传入菜单id为空')
         return CrudResponseModel(**result)
 
     @classmethod
-    def menu_detail_services(cls, query_db: Session, menu_id: int):
+    async def menu_detail_services(cls, query_db: AsyncSession, menu_id: int):
         """
         获取菜单详细信息service
         :param query_db: orm对象
         :param menu_id: 菜单id
         :return: 菜单id对应的信息
         """
-        menu = MenuDao.get_menu_detail_by_id(query_db, menu_id=menu_id)
+        menu = await MenuDao.get_menu_detail_by_id(query_db, menu_id=menu_id)
         result = MenuModel(**CamelCaseUtil.transform_result(menu))
 
         return result

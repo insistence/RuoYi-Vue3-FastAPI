@@ -12,7 +12,7 @@ class DictTypeService:
     """
 
     @classmethod
-    def get_dict_type_list_services(cls, query_db: Session, query_object: DictTypePageQueryModel, is_page: bool = False):
+    async def get_dict_type_list_services(cls, query_db: AsyncSession, query_object: DictTypePageQueryModel, is_page: bool = False):
         """
         获取字典类型列表信息service
         :param query_db: orm对象
@@ -20,12 +20,12 @@ class DictTypeService:
         :param is_page: 是否开启分页
         :return: 字典类型列表信息对象
         """
-        dict_type_list_result = DictTypeDao.get_dict_type_list(query_db, query_object, is_page)
+        dict_type_list_result = await DictTypeDao.get_dict_type_list(query_db, query_object, is_page)
 
         return dict_type_list_result
 
     @classmethod
-    async def add_dict_type_services(cls, request: Request, query_db: Session, page_object: DictTypeModel):
+    async def add_dict_type_services(cls, request: Request, query_db: AsyncSession, page_object: DictTypeModel):
         """
         新增字典类型信息service
         :param request: Request对象
@@ -33,23 +33,23 @@ class DictTypeService:
         :param page_object: 新增岗位对象
         :return: 新增字典类型校验结果
         """
-        dict_type = DictTypeDao.get_dict_type_detail_by_info(query_db, DictTypeModel(dictType=page_object.dict_type))
+        dict_type = await DictTypeDao.get_dict_type_detail_by_info(query_db, DictTypeModel(dictType=page_object.dict_type))
         if dict_type:
             result = dict(is_success=False, message='字典类型已存在')
         else:
             try:
-                DictTypeDao.add_dict_type_dao(query_db, page_object)
-                query_db.commit()
+                await DictTypeDao.add_dict_type_dao(query_db, page_object)
+                await query_db.commit()
                 await DictDataService.init_cache_sys_dict_services(query_db, request.app.state.redis)
                 result = dict(is_success=True, message='新增成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
 
         return CrudResponseModel(**result)
 
     @classmethod
-    async def edit_dict_type_services(cls, request: Request, query_db: Session, page_object: DictTypeModel):
+    async def edit_dict_type_services(cls, request: Request, query_db: AsyncSession, page_object: DictTypeModel):
         """
         编辑字典类型信息service
         :param request: Request对象
@@ -58,26 +58,26 @@ class DictTypeService:
         :return: 编辑字典类型校验结果
         """
         edit_dict_type = page_object.model_dump(exclude_unset=True)
-        dict_type_info = cls.dict_type_detail_services(query_db, edit_dict_type.get('dict_id'))
+        dict_type_info = await cls.dict_type_detail_services(query_db, edit_dict_type.get('dict_id'))
         if dict_type_info:
             if dict_type_info.dict_type != page_object.dict_type or dict_type_info.dict_name != page_object.dict_name:
-                dict_type = DictTypeDao.get_dict_type_detail_by_info(query_db, DictTypeModel(dictType=page_object.dict_type))
+                dict_type = await DictTypeDao.get_dict_type_detail_by_info(query_db, DictTypeModel(dictType=page_object.dict_type))
                 if dict_type:
                     result = dict(is_success=False, message='字典类型已存在')
                     return CrudResponseModel(**result)
             try:
                 if dict_type_info.dict_type != page_object.dict_type:
-                    query_dict_data = DictDataModel(dictType=dict_type_info.dict_type)
-                    dict_data_list = DictDataDao.get_dict_data_list(query_db, query_dict_data)
+                    query_dict_data = await DictDataModel(dictType=dict_type_info.dict_type)
+                    dict_data_list = await DictDataDao.get_dict_data_list(query_db, query_dict_data)
                     for dict_data in dict_data_list:
                         edit_dict_data = DictDataModel(dictCode=dict_data.dict_code, dictType=page_object.dict_type, updateBy=page_object.update_by).model_dump(exclude_unset=True)
-                        DictDataDao.edit_dict_data_dao(query_db, edit_dict_data)
-                DictTypeDao.edit_dict_type_dao(query_db, edit_dict_type)
-                query_db.commit()
+                        await DictDataDao.edit_dict_data_dao(query_db, edit_dict_data)
+                await DictTypeDao.edit_dict_type_dao(query_db, edit_dict_type)
+                await query_db.commit()
                 await DictDataService.init_cache_sys_dict_services(query_db, request.app.state.redis)
                 result = dict(is_success=True, message='更新成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='字典类型不存在')
@@ -85,7 +85,7 @@ class DictTypeService:
         return CrudResponseModel(**result)
 
     @classmethod
-    async def delete_dict_type_services(cls, request: Request, query_db: Session, page_object: DeleteDictTypeModel):
+    async def delete_dict_type_services(cls, request: Request, query_db: AsyncSession, page_object: DeleteDictTypeModel):
         """
         删除字典类型信息service
         :param request: Request对象
@@ -97,32 +97,32 @@ class DictTypeService:
             dict_id_list = page_object.dict_ids.split(',')
             try:
                 for dict_id in dict_id_list:
-                    DictTypeDao.delete_dict_type_dao(query_db, DictTypeModel(dictId=dict_id))
-                query_db.commit()
+                    await DictTypeDao.delete_dict_type_dao(query_db, DictTypeModel(dictId=dict_id))
+                await query_db.commit()
                 await DictDataService.init_cache_sys_dict_services(query_db, request.app.state.redis)
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='传入字典类型id为空')
         return CrudResponseModel(**result)
 
     @classmethod
-    def dict_type_detail_services(cls, query_db: Session, dict_id: int):
+    async def dict_type_detail_services(cls, query_db: AsyncSession, dict_id: int):
         """
         获取字典类型详细信息service
         :param query_db: orm对象
         :param dict_id: 字典类型id
         :return: 字典类型id对应的信息
         """
-        dict_type = DictTypeDao.get_dict_type_detail_by_id(query_db, dict_id=dict_id)
+        dict_type = await DictTypeDao.get_dict_type_detail_by_id(query_db, dict_id=dict_id)
         result = DictTypeModel(**CamelCaseUtil.transform_result(dict_type))
 
         return result
 
     @staticmethod
-    def export_dict_type_list_services(dict_type_list: List):
+    async def export_dict_type_list_services(dict_type_list: List):
         """
         导出字典类型信息service
         :param dict_type_list: 字典信息列表
@@ -154,7 +154,7 @@ class DictTypeService:
         return binary_data
 
     @classmethod
-    async def refresh_sys_dict_services(cls, request: Request, query_db: Session):
+    async def refresh_sys_dict_services(cls, request: Request, query_db: AsyncSession):
         """
         刷新字典缓存信息service
         :param request: Request对象
@@ -173,7 +173,7 @@ class DictDataService:
     """
 
     @classmethod
-    def get_dict_data_list_services(cls, query_db: Session, query_object: DictDataPageQueryModel, is_page: bool = False):
+    async def get_dict_data_list_services(cls, query_db: AsyncSession, query_object: DictDataPageQueryModel, is_page: bool = False):
         """
         获取字典数据列表信息service
         :param query_db: orm对象
@@ -181,24 +181,24 @@ class DictDataService:
         :param is_page: 是否开启分页
         :return: 字典数据列表信息对象
         """
-        dict_data_list_result = DictDataDao.get_dict_data_list(query_db, query_object, is_page)
+        dict_data_list_result = await DictDataDao.get_dict_data_list(query_db, query_object, is_page)
 
         return dict_data_list_result
 
     @classmethod
-    def query_dict_data_list_services(cls, query_db: Session, dict_type: str):
+    async def query_dict_data_list_services(cls, query_db: AsyncSession, dict_type: str):
         """
         获取字典数据列表信息service
         :param query_db: orm对象
         :param dict_type: 字典类型
         :return: 字典数据列表信息对象
         """
-        dict_data_list_result = DictDataDao.query_dict_data_list(query_db, dict_type)
+        dict_data_list_result = await DictDataDao.query_dict_data_list(query_db, dict_type)
 
         return dict_data_list_result
 
     @classmethod
-    async def init_cache_sys_dict_services(cls, query_db: Session, redis):
+    async def init_cache_sys_dict_services(cls, query_db: AsyncSession, redis):
         """
         应用初始化：获取所有字典类型对应的字典数据信息并缓存service
         :param query_db: orm对象
@@ -210,10 +210,10 @@ class DictDataService:
         # 删除匹配的键
         if keys:
             await redis.delete(*keys)
-        dict_type_all = DictTypeDao.get_all_dict_type(query_db)
+        dict_type_all = await DictTypeDao.get_all_dict_type(query_db)
         for dict_type_obj in [item for item in dict_type_all if item.status == '0']:
             dict_type = dict_type_obj.dict_type
-            dict_data_list = DictDataDao.query_dict_data_list(query_db, dict_type)
+            dict_data_list = await DictDataDao.query_dict_data_list(query_db, dict_type)
             dict_data = [CamelCaseUtil.transform_result(row) for row in dict_data_list if row]
             await redis.set(f"{RedisInitKeyConfig.SYS_DICT.get('key')}:{dict_type}", json.dumps(dict_data, ensure_ascii=False, default=str))
 
@@ -233,7 +233,7 @@ class DictDataService:
         return CamelCaseUtil.transform_result(result)
 
     @classmethod
-    async def add_dict_data_services(cls, request: Request, query_db: Session, page_object: DictDataModel):
+    async def add_dict_data_services(cls, request: Request, query_db: AsyncSession, page_object: DictDataModel):
         """
         新增字典数据信息service
         :param request: Request对象
@@ -241,23 +241,23 @@ class DictDataService:
         :param page_object: 新增岗位对象
         :return: 新增字典数据校验结果
         """
-        dict_data = DictDataDao.get_dict_data_detail_by_info(query_db, page_object)
+        dict_data = await DictDataDao.get_dict_data_detail_by_info(query_db, page_object)
         if dict_data:
             result = dict(is_success=False, message='字典数据已存在')
         else:
             try:
-                DictDataDao.add_dict_data_dao(query_db, page_object)
-                query_db.commit()
+                await DictDataDao.add_dict_data_dao(query_db, page_object)
+                await query_db.commit()
                 await cls.init_cache_sys_dict_services(query_db, request.app.state.redis)
                 result = dict(is_success=True, message='新增成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
 
         return CrudResponseModel(**result)
 
     @classmethod
-    async def edit_dict_data_services(cls, request: Request, query_db: Session, page_object: DictDataModel):
+    async def edit_dict_data_services(cls, request: Request, query_db: AsyncSession, page_object: DictDataModel):
         """
         编辑字典数据信息service
         :param request: Request对象
@@ -266,20 +266,20 @@ class DictDataService:
         :return: 编辑字典数据校验结果
         """
         edit_data_type = page_object.model_dump(exclude_unset=True)
-        dict_data_info = cls.dict_data_detail_services(query_db, edit_data_type.get('dict_code'))
+        dict_data_info = await cls.dict_data_detail_services(query_db, edit_data_type.get('dict_code'))
         if dict_data_info:
             if dict_data_info.dict_type != page_object.dict_type or dict_data_info.dict_label != page_object.dict_label or dict_data_info.dict_value != page_object.dict_value:
-                dict_data = DictDataDao.get_dict_data_detail_by_info(query_db, page_object)
+                dict_data = await DictDataDao.get_dict_data_detail_by_info(query_db, page_object)
                 if dict_data:
                     result = dict(is_success=False, message='字典数据已存在')
                     return CrudResponseModel(**result)
             try:
-                DictDataDao.edit_dict_data_dao(query_db, edit_data_type)
-                query_db.commit()
+                await DictDataDao.edit_dict_data_dao(query_db, edit_data_type)
+                await query_db.commit()
                 await cls.init_cache_sys_dict_services(query_db, request.app.state.redis)
                 result = dict(is_success=True, message='更新成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='字典数据不存在')
@@ -287,7 +287,7 @@ class DictDataService:
         return CrudResponseModel(**result)
 
     @classmethod
-    async def delete_dict_data_services(cls, request: Request, query_db: Session, page_object: DeleteDictDataModel):
+    async def delete_dict_data_services(cls, request: Request, query_db: AsyncSession, page_object: DeleteDictDataModel):
         """
         删除字典数据信息service
         :param request: Request对象
@@ -299,32 +299,32 @@ class DictDataService:
             dict_code_list = page_object.dict_codes.split(',')
             try:
                 for dict_code in dict_code_list:
-                    DictDataDao.delete_dict_data_dao(query_db, DictDataModel(dictCode=dict_code))
-                query_db.commit()
+                    await DictDataDao.delete_dict_data_dao(query_db, DictDataModel(dictCode=dict_code))
+                await query_db.commit()
                 await cls.init_cache_sys_dict_services(query_db, request.app.state.redis)
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='传入字典数据id为空')
         return CrudResponseModel(**result)
 
     @classmethod
-    def dict_data_detail_services(cls, query_db: Session, dict_code: int):
+    async def dict_data_detail_services(cls, query_db: AsyncSession, dict_code: int):
         """
         获取字典数据详细信息service
         :param query_db: orm对象
         :param dict_code: 字典数据id
         :return: 字典数据id对应的信息
         """
-        dict_data = DictDataDao.get_dict_data_detail_by_id(query_db, dict_code=dict_code)
+        dict_data = await DictDataDao.get_dict_data_detail_by_id(query_db, dict_code=dict_code)
         result = DictDataModel(**CamelCaseUtil.transform_result(dict_data))
 
         return result
 
     @staticmethod
-    def export_dict_data_list_services(dict_data_list: List):
+    async def export_dict_data_list_services(dict_data_list: List):
         """
         导出字典数据信息service
         :param dict_data_list: 字典数据信息列表

@@ -15,10 +15,10 @@ configController = APIRouter(prefix='/system/config', dependencies=[Depends(Logi
 
 
 @configController.get("/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:config:list'))])
-async def get_system_config_list(request: Request, config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_query), query_db: Session = Depends(get_db)):
+async def get_system_config_list(request: Request, config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_query), query_db: AsyncSession = Depends(get_db)):
     try:
         # 获取分页数据
-        config_page_query_result = ConfigService.get_config_list_services(query_db, config_page_query, is_page=True)
+        config_page_query_result = await ConfigService.get_config_list_services(query_db, config_page_query, is_page=True)
         logger.info('获取成功')
         return ResponseUtil.success(model_content=config_page_query_result)
     except Exception as e:
@@ -28,7 +28,7 @@ async def get_system_config_list(request: Request, config_page_query: ConfigPage
 
 @configController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:config:add'))])
 @log_decorator(title='参数管理', business_type=1)
-async def add_system_config(request: Request, add_config: ConfigModel, query_db: Session = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
+async def add_system_config(request: Request, add_config: ConfigModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_config.create_by = current_user.user.user_name
         add_config.update_by = current_user.user.user_name
@@ -46,7 +46,7 @@ async def add_system_config(request: Request, add_config: ConfigModel, query_db:
 
 @configController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:config:edit'))])
 @log_decorator(title='参数管理', business_type=2)
-async def edit_system_config(request: Request, edit_config: ConfigModel, query_db: Session = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
+async def edit_system_config(request: Request, edit_config: ConfigModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         edit_config.update_by = current_user.user.user_name
         edit_config.update_time = datetime.now()
@@ -64,7 +64,7 @@ async def edit_system_config(request: Request, edit_config: ConfigModel, query_d
 
 @configController.delete("/refreshCache", dependencies=[Depends(CheckUserInterfaceAuth('system:config:remove'))])
 @log_decorator(title='参数管理', business_type=2)
-async def refresh_system_config(request: Request, query_db: Session = Depends(get_db)):
+async def refresh_system_config(request: Request, query_db: AsyncSession = Depends(get_db)):
     try:
         refresh_config_result = await ConfigService.refresh_sys_config_services(request, query_db)
         if refresh_config_result.is_success:
@@ -80,7 +80,7 @@ async def refresh_system_config(request: Request, query_db: Session = Depends(ge
 
 @configController.delete("/{config_ids}", dependencies=[Depends(CheckUserInterfaceAuth('system:config:remove'))])
 @log_decorator(title='参数管理', business_type=3)
-async def delete_system_config(request: Request, config_ids: str, query_db: Session = Depends(get_db)):
+async def delete_system_config(request: Request, config_ids: str, query_db: AsyncSession = Depends(get_db)):
     try:
         delete_config = DeleteConfigModel(configIds=config_ids)
         delete_config_result = await ConfigService.delete_config_services(request, query_db, delete_config)
@@ -96,9 +96,9 @@ async def delete_system_config(request: Request, config_ids: str, query_db: Sess
 
 
 @configController.get("/{config_id}", response_model=ConfigModel, dependencies=[Depends(CheckUserInterfaceAuth('system:config:query'))])
-async def query_detail_system_config(request: Request, config_id: int, query_db: Session = Depends(get_db)):
+async def query_detail_system_config(request: Request, config_id: int, query_db: AsyncSession = Depends(get_db)):
     try:
-        config_detail_result = ConfigService.config_detail_services(query_db, config_id)
+        config_detail_result = await ConfigService.config_detail_services(query_db, config_id)
         logger.info(f'获取config_id为{config_id}的信息成功')
         return ResponseUtil.success(data=config_detail_result)
     except Exception as e:
@@ -120,11 +120,11 @@ async def query_system_config(request: Request, config_key: str):
 
 @configController.post("/export", dependencies=[Depends(CheckUserInterfaceAuth('system:config:export'))])
 @log_decorator(title='参数管理', business_type=5)
-async def export_system_config_list(request: Request, config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_form), query_db: Session = Depends(get_db)):
+async def export_system_config_list(request: Request, config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_form), query_db: AsyncSession = Depends(get_db)):
     try:
         # 获取全量数据
-        config_query_result = ConfigService.get_config_list_services(query_db, config_page_query, is_page=False)
-        config_export_result = ConfigService.export_config_list_services(config_query_result)
+        config_query_result = await ConfigService.get_config_list_services(query_db, config_page_query, is_page=False)
+        config_export_result = await ConfigService.export_config_list_services(config_query_result)
         logger.info('导出成功')
         return ResponseUtil.streaming(data=bytes2file_response(config_export_result))
     except Exception as e:

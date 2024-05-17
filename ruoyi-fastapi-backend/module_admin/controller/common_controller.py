@@ -11,7 +11,7 @@ commonController = APIRouter(prefix='/common', dependencies=[Depends(LoginServic
 @commonController.post("/upload")
 async def common_upload(request: Request, file: UploadFile = File(...)):
     try:
-        upload_result = CommonService.upload_service(request, file)
+        upload_result = await CommonService.upload_service(request, file)
         if upload_result.is_success:
             logger.info('上传成功')
             return ResponseUtil.success(model_content=upload_result.result)
@@ -26,7 +26,7 @@ async def common_upload(request: Request, file: UploadFile = File(...)):
 @commonController.get("/download")
 async def common_download(request: Request, background_tasks: BackgroundTasks, file_name: str = Query(alias='fileName'), delete: bool = Query()):
     try:
-        download_result = CommonService.download_services(background_tasks, file_name, delete)
+        download_result = await CommonService.download_services(background_tasks, file_name, delete)
         if download_result.is_success:
             logger.info(download_result.message)
             return ResponseUtil.streaming(data=download_result.result)
@@ -41,7 +41,7 @@ async def common_download(request: Request, background_tasks: BackgroundTasks, f
 @commonController.get("/download/resource")
 async def common_download(request: Request, resource: str = Query()):
     try:
-        download_resource_result = CommonService.download_resource_services(resource)
+        download_resource_result = await CommonService.download_resource_services(resource)
         if download_resource_result.is_success:
             logger.info(download_resource_result.message)
             return ResponseUtil.streaming(data=download_resource_result.result)
