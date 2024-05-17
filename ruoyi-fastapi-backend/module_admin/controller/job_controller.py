@@ -152,6 +152,22 @@ async def get_system_job_log_list(request: Request, job_log_page_query: JobLogPa
         return ResponseUtil.error(msg=str(e))
 
 
+@jobController.delete("/jobLog/clean", dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:remove'))])
+@log_decorator(title='定时任务日志管理', business_type=9)
+async def clear_system_job_log(request: Request, query_db: AsyncSession = Depends(get_db)):
+    try:
+        clear_job_log_result = await JobLogService.clear_job_log_services(query_db)
+        if clear_job_log_result.is_success:
+            logger.info(clear_job_log_result.message)
+            return ResponseUtil.success(msg=clear_job_log_result.message)
+        else:
+            logger.warning(clear_job_log_result.message)
+            return ResponseUtil.failure(msg=clear_job_log_result.message)
+    except Exception as e:
+        logger.exception(e)
+        return ResponseUtil.error(msg=str(e))
+
+
 @jobController.delete("/jobLog/{job_log_ids}", dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:remove'))])
 @log_decorator(title='定时任务日志管理', business_type=3)
 async def delete_system_job_log(request: Request, job_log_ids: str, query_db: AsyncSession = Depends(get_db)):
@@ -164,22 +180,6 @@ async def delete_system_job_log(request: Request, job_log_ids: str, query_db: As
         else:
             logger.warning(delete_job_log_result.message)
             return ResponseUtil.failure(msg=delete_job_log_result.message)
-    except Exception as e:
-        logger.exception(e)
-        return ResponseUtil.error(msg=str(e))
-
-
-@jobController.delete("/jobLog/clean", dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:remove'))])
-@log_decorator(title='定时任务日志管理', business_type=9)
-async def clear_system_job_log(request: Request, query_db: AsyncSession = Depends(get_db)):
-    try:
-        clear_job_log_result = await JobLogService.clear_job_log_services(query_db)
-        if clear_job_log_result.is_success:
-            logger.info(clear_job_log_result.message)
-            return ResponseUtil.success(msg=clear_job_log_result.message)
-        else:
-            logger.warning(clear_job_log_result.message)
-            return ResponseUtil.failure(msg=clear_job_log_result.message)
     except Exception as e:
         logger.exception(e)
         return ResponseUtil.error(msg=str(e))
