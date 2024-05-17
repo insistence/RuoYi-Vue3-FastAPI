@@ -4,6 +4,7 @@ from config.env import RedisInitKeyConfig
 from config.get_redis import RedisUtil
 from module_admin.entity.vo.common_vo import CrudResponseModel
 
+
 class CacheService:
     """
     缓存监控模块服务层
@@ -30,7 +31,7 @@ class CacheService:
         return result
 
     @classmethod
-    def get_cache_monitor_cache_name_services(cls):
+    async def get_cache_monitor_cache_name_services(cls):
         """
         获取缓存名称列表信息service
         :return: 缓存名称列表信息

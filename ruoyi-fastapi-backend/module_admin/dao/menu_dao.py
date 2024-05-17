@@ -1,5 +1,5 @@
-from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy import select, update, delete, and_
+from sqlalchemy.ext.asyncio import AsyncSession
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.user_do import SysUser, SysUserRole
 from module_admin.entity.do.role_do import SysRole, SysRoleMenu
@@ -12,37 +12,39 @@ class MenuDao:
     """
 
     @classmethod
-    def get_menu_detail_by_id(cls, db: Session, menu_id: int):
+    async def get_menu_detail_by_id(cls, db: AsyncSession, menu_id: int):
         """
         根据菜单id获取菜单详细信息
         :param db: orm对象
         :param menu_id: 菜单id
         :return: 菜单信息对象
         """
-        menu_info = db.query(SysMenu) \
-            .filter(SysMenu.menu_id == menu_id) \
-            .first()
+        menu_info = (await db.execute(
+            select(SysMenu)
+                .where(SysMenu.menu_id == menu_id)
+        )).scalars().first()
 
         return menu_info
 
     @classmethod
-    def get_menu_detail_by_info(cls, db: Session, menu: MenuModel):
+    async def get_menu_detail_by_info(cls, db: AsyncSession, menu: MenuModel):
         """
         根据菜单参数获取菜单信息
         :param db: orm对象
         :param menu: 菜单参数对象
         :return: 菜单信息对象
         """
-        menu_info = db.query(SysMenu) \
-            .filter(SysMenu.parent_id == menu.parent_id if menu.parent_id else True,
-                    SysMenu.menu_name == menu.menu_name if menu.menu_name else True,
-                    SysMenu.menu_type == menu.menu_type if menu.menu_type else True) \
-            .first()
+        menu_info = (await db.execute(
+            select(SysMenu)
+                .where(SysMenu.parent_id == menu.parent_id if menu.parent_id else True,
+                       SysMenu.menu_name == menu.menu_name if menu.menu_name else True,
+                       SysMenu.menu_type == menu.menu_type if menu.menu_type else True)
+        )).scalars().first()
 
         return menu_info
 
     @classmethod
-    def get_menu_list_for_tree(cls, db: Session, user_id: int, role: list):
+    async def get_menu_list_for_tree(cls, db: AsyncSession, user_id: int, role: list):
         """
         根据角色信息获取所有在用菜单列表信息
         :param db: orm对象
@@ -52,25 +54,31 @@ class MenuDao:
         """
         role_id_list = [item.role_id for item in role]
         if 1 in role_id_list:
-            menu_query_all = db.query(SysMenu) \
-                .filter(SysMenu.status == 0) \
-                .order_by(SysMenu.order_num) \
-                .distinct().all()
+            menu_query_all = (await db.execute(
+                select(SysMenu)
+                    .where(SysMenu.status == 0)
+                    .order_by(SysMenu.order_num)
+                    .distinct()
+            )).scalars().all()
         else:
-            menu_query_all = db.query(SysMenu).select_from(SysUser) \
-                .filter(SysUser.status == 0, SysUser.del_flag == 0, SysUser.user_id == user_id) \
-                .outerjoin(SysUserRole, SysUser.user_id == SysUserRole.user_id) \
-                .outerjoin(SysRole,
-                           and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == 0, SysRole.del_flag == 0)) \
-                .outerjoin(SysRoleMenu, SysRole.role_id == SysRoleMenu.role_id) \
-                .join(SysMenu, and_(SysRoleMenu.menu_id == SysMenu.menu_id, SysMenu.status == 0,)) \
-                .order_by(SysMenu.order_num) \
-                .distinct().all()
+            menu_query_all = (await db.execute(
+                select(SysMenu)
+                    .select_from(SysUser)
+                    .where(SysUser.status == 0, SysUser.del_flag == 0, SysUser.user_id == user_id)
+                    .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
+                    .join(SysRole,
+                          and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == 0, SysRole.del_flag == 0),
+                          isouter=True)
+                    .join(SysRoleMenu, SysRole.role_id == SysRoleMenu.role_id, isouter=True)
+                    .join(SysMenu, and_(SysRoleMenu.menu_id == SysMenu.menu_id, SysMenu.status == 0))
+                    .order_by(SysMenu.order_num)
+                    .distinct()
+            )).scalars().all()
 
         return menu_query_all
 
     @classmethod
-    def get_menu_list(cls, db: Session, page_object: MenuQueryModel, user_id: int, role: list):
+    async def get_menu_list(cls, db: AsyncSession, page_object: MenuQueryModel, user_id: int, role: list):
         """
         根据查询参数获取菜单列表信息
         :param db: orm对象
@@ -81,30 +89,36 @@ class MenuDao:
         """
         role_id_list = [item.role_id for item in role]
         if 1 in role_id_list:
-            menu_query_all = db.query(SysMenu) \
-                .filter(SysMenu.status == page_object.status if page_object.status else True,
-                        SysMenu.menu_name.like(
-                            f'%{page_object.menu_name}%') if page_object.menu_name else True) \
-                .order_by(SysMenu.order_num) \
-                .distinct().all()
+            menu_query_all = (await db.execute(
+                select(SysMenu)
+                    .where(SysMenu.status == page_object.status if page_object.status else True,
+                           SysMenu.menu_name.like(
+                               f'%{page_object.menu_name}%') if page_object.menu_name else True)
+                    .order_by(SysMenu.order_num)
+                    .distinct()
+            )).scalars().all()
         else:
-            menu_query_all = db.query(SysMenu).select_from(SysUser) \
-                .filter(SysUser.status == 0, SysUser.del_flag == 0, SysUser.user_id == user_id) \
-                .outerjoin(SysUserRole, SysUser.user_id == SysUserRole.user_id) \
-                .outerjoin(SysRole,
-                           and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == 0, SysRole.del_flag == 0)) \
-                .outerjoin(SysRoleMenu, SysRole.role_id == SysRoleMenu.role_id) \
-                .join(SysMenu, and_(SysRoleMenu.menu_id == SysMenu.menu_id,
-                                    SysMenu.status == page_object.status if page_object.status else True,
-                                    SysMenu.menu_name.like(
-                                        f'%{page_object.menu_name}%') if page_object.menu_name else True)) \
-                .order_by(SysMenu.order_num) \
-                .distinct().all()
+            menu_query_all = (await db.execute(
+                select(SysMenu)
+                    .select_from(SysUser)
+                    .where(SysUser.status == 0, SysUser.del_flag == 0, SysUser.user_id == user_id)
+                    .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
+                    .join(SysRole,
+                          and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == 0, SysRole.del_flag == 0),
+                          isouter=True)
+                    .join(SysRoleMenu, SysRole.role_id == SysRoleMenu.role_id, isouter=True)
+                    .join(SysMenu, and_(SysRoleMenu.menu_id == SysMenu.menu_id,
+                                        SysMenu.status == page_object.status if page_object.status else True,
+                                        SysMenu.menu_name.like(
+                                            f'%{page_object.menu_name}%') if page_object.menu_name else True))
+                    .order_by(SysMenu.order_num)
+                    .distinct()
+            )).scalars().all()
 
         return menu_query_all
 
     @classmethod
-    def add_menu_dao(cls, db: Session, menu: MenuModel):
+    async def add_menu_dao(cls, db: AsyncSession, menu: MenuModel):
         """
         新增菜单数据库操作
         :param db: orm对象
@@ -113,30 +127,32 @@ class MenuDao:
         """
         db_menu = SysMenu(**menu.model_dump())
         db.add(db_menu)
-        db.flush()
+        await db.flush()
 
         return db_menu
 
     @classmethod
-    def edit_menu_dao(cls, db: Session, menu: dict):
+    async def edit_menu_dao(cls, db: AsyncSession, menu: dict):
         """
         编辑菜单数据库操作
         :param db: orm对象
         :param menu: 需要更新的菜单字典
         :return:
         """
-        db.query(SysMenu) \
-            .filter(SysMenu.menu_id == menu.get('menu_id')) \
-            .update(menu)
+        await db.execute(
+            update(SysMenu),
+            [menu]
+        )
 
     @classmethod
-    def delete_menu_dao(cls, db: Session, menu: MenuModel):
+    async def delete_menu_dao(cls, db: AsyncSession, menu: MenuModel):
         """
         删除菜单数据库操作
         :param db: orm对象
         :param menu: 菜单对象
         :return:
         """
-        db.query(SysMenu) \
-            .filter(SysMenu.menu_id == menu.menu_id) \
-            .delete()
+        await db.execute(
+            delete(SysMenu)
+                .where(SysMenu.menu_id.in_([menu.menu_id]))
+        )

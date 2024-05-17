@@ -13,7 +13,7 @@ class ServerService:
     """
 
     @staticmethod
-    def get_server_monitor_info():
+    async def get_server_monitor_info():
         # CPU信息
         # 获取CPU总核心数
         cpu_num = psutil.cpu_count(logical=True)

@@ -8,7 +8,7 @@ class PostService:
     岗位管理模块服务层
     """
     @classmethod
-    def get_post_list_services(cls, query_db: Session, query_object: PostPageQueryModel, is_page: bool = False):
+    async def get_post_list_services(cls, query_db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False):
         """
         获取岗位列表信息service
         :param query_db: orm对象
@@ -16,34 +16,34 @@ class PostService:
         :param is_page: 是否开启分页
         :return: 岗位列表信息对象
         """
-        post_list_result = PostDao.get_post_list(query_db, query_object, is_page)
+        post_list_result = await PostDao.get_post_list(query_db, query_object, is_page)
 
         return post_list_result
 
     @classmethod
-    def add_post_services(cls, query_db: Session, page_object: PostModel):
+    async def add_post_services(cls, query_db: AsyncSession, page_object: PostModel):
         """
         新增岗位信息service
         :param query_db: orm对象
         :param page_object: 新增岗位对象
         :return: 新增岗位校验结果
         """
-        post = PostDao.get_post_detail_by_info(query_db, PostModel(postName=page_object.post_name))
+        post = await PostDao.get_post_detail_by_info(query_db, PostModel(postName=page_object.post_name))
         if post:
             result = dict(is_success=False, message='岗位名称已存在')
         else:
             try:
-                PostDao.add_post_dao(query_db, page_object)
-                query_db.commit()
+                await PostDao.add_post_dao(query_db, page_object)
+                await query_db.commit()
                 result = dict(is_success=True, message='新增成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
 
         return CrudResponseModel(**result)
 
     @classmethod
-    def edit_post_services(cls, query_db: Session, page_object: PostModel):
+    async def edit_post_services(cls, query_db: AsyncSession, page_object: PostModel):
         """
         编辑岗位信息service
         :param query_db: orm对象
@@ -51,19 +51,19 @@ class PostService:
         :return: 编辑岗位校验结果
         """
         edit_post = page_object.model_dump(exclude_unset=True)
-        post_info = cls.post_detail_services(query_db, edit_post.get('post_id'))
+        post_info = await cls.post_detail_services(query_db, edit_post.get('post_id'))
         if post_info:
             if post_info.post_name != page_object.post_name:
-                post = PostDao.get_post_detail_by_info(query_db, PostModel(postName=page_object.post_name))
+                post = await PostDao.get_post_detail_by_info(query_db, PostModel(postName=page_object.post_name))
                 if post:
                     result = dict(is_success=False, message='岗位名称已存在')
                     return CrudResponseModel(**result)
             try:
-                PostDao.edit_post_dao(query_db, edit_post)
-                query_db.commit()
+                await PostDao.edit_post_dao(query_db, edit_post)
+                await query_db.commit()
                 result = dict(is_success=True, message='更新成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='岗位不存在')
@@ -71,7 +71,7 @@ class PostService:
         return CrudResponseModel(**result)
 
     @classmethod
-    def delete_post_services(cls, query_db: Session, page_object: DeletePostModel):
+    async def delete_post_services(cls, query_db: AsyncSession, page_object: DeletePostModel):
         """
         删除岗位信息service
         :param query_db: orm对象
@@ -82,31 +82,31 @@ class PostService:
             post_id_list = page_object.post_ids.split(',')
             try:
                 for post_id in post_id_list:
-                    PostDao.delete_post_dao(query_db, PostModel(postId=post_id))
-                query_db.commit()
+                    await PostDao.delete_post_dao(query_db, PostModel(postId=post_id))
+                await query_db.commit()
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='传入岗位id为空')
         return CrudResponseModel(**result)
 
     @classmethod
-    def post_detail_services(cls, query_db: Session, post_id: int):
+    async def post_detail_services(cls, query_db: AsyncSession, post_id: int):
         """
         获取岗位详细信息service
         :param query_db: orm对象
         :param post_id: 岗位id
         :return: 岗位id对应的信息
         """
-        post = PostDao.get_post_detail_by_id(query_db, post_id=post_id)
+        post = await PostDao.get_post_detail_by_id(query_db, post_id=post_id)
         result = PostModel(**CamelCaseUtil.transform_result(post))
 
         return result
 
     @staticmethod
-    def export_post_list_services(post_list: List):
+    async def export_post_list_services(post_list: List):
         """
         导出岗位信息service
         :param post_list: 岗位信息列表

@@ -10,7 +10,7 @@ class OperationLogService:
     """
 
     @classmethod
-    def get_operation_log_list_services(cls, query_db: Session, query_object: OperLogPageQueryModel, is_page: bool = False):
+    async def get_operation_log_list_services(cls, query_db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False):
         """
         获取操作日志列表信息service
         :param query_db: orm对象
@@ -18,12 +18,12 @@ class OperationLogService:
         :param is_page: 是否开启分页
         :return: 操作日志列表信息对象
         """
-        operation_log_list_result = OperationLogDao.get_operation_log_list(query_db, query_object, is_page)
+        operation_log_list_result = await OperationLogDao.get_operation_log_list(query_db, query_object, is_page)
 
         return operation_log_list_result
 
     @classmethod
-    def add_operation_log_services(cls, query_db: Session, page_object: OperLogModel):
+    async def add_operation_log_services(cls, query_db: AsyncSession, page_object: OperLogModel):
         """
         新增操作日志service
         :param query_db: orm对象
@@ -31,17 +31,17 @@ class OperationLogService:
         :return: 新增操作日志校验结果
         """
         try:
-            OperationLogDao.add_operation_log_dao(query_db, page_object)
-            query_db.commit()
+            await OperationLogDao.add_operation_log_dao(query_db, page_object)
+            await query_db.commit()
             result = dict(is_success=True, message='新增成功')
         except Exception as e:
-            query_db.rollback()
+            await query_db.rollback()
             result = dict(is_success=False, message=str(e))
 
         return CrudResponseModel(**result)
 
     @classmethod
-    def delete_operation_log_services(cls, query_db: Session, page_object: DeleteOperLogModel):
+    async def delete_operation_log_services(cls, query_db: AsyncSession, page_object: DeleteOperLogModel):
         """
         删除操作日志信息service
         :param query_db: orm对象
@@ -52,29 +52,29 @@ class OperationLogService:
             oper_id_list = page_object.oper_ids.split(',')
             try:
                 for oper_id in oper_id_list:
-                    OperationLogDao.delete_operation_log_dao(query_db, OperLogModel(operId=oper_id))
-                query_db.commit()
+                    await OperationLogDao.delete_operation_log_dao(query_db, OperLogModel(operId=oper_id))
+                await query_db.commit()
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='传入操作日志id为空')
         return CrudResponseModel(**result)
 
     @classmethod
-    def clear_operation_log_services(cls, query_db: Session):
+    async def clear_operation_log_services(cls, query_db: AsyncSession):
         """
         清除操作日志信息service
         :param query_db: orm对象
         :return: 清除操作日志校验结果
         """
         try:
-            OperationLogDao.clear_operation_log_dao(query_db)
-            query_db.commit()
+            await OperationLogDao.clear_operation_log_dao(query_db)
+            await query_db.commit()
             result = dict(is_success=True, message='清除成功')
         except Exception as e:
-            query_db.rollback()
+            await query_db.rollback()
             raise e
 
         return CrudResponseModel(**result)
@@ -132,7 +132,7 @@ class LoginLogService:
     """
 
     @classmethod
-    def get_login_log_list_services(cls, query_db: Session, query_object: LoginLogPageQueryModel, is_page: bool = False):
+    async def get_login_log_list_services(cls, query_db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False):
         """
         获取登录日志列表信息service
         :param query_db: orm对象
@@ -140,12 +140,12 @@ class LoginLogService:
         :param is_page: 是否开启分页
         :return: 登录日志列表信息对象
         """
-        operation_log_list_result = LoginLogDao.get_login_log_list(query_db, query_object, is_page)
+        operation_log_list_result = await LoginLogDao.get_login_log_list(query_db, query_object, is_page)
 
         return operation_log_list_result
 
     @classmethod
-    def add_login_log_services(cls, query_db: Session, page_object: LogininforModel):
+    async def add_login_log_services(cls, query_db: AsyncSession, page_object: LogininforModel):
         """
         新增登录日志service
         :param query_db: orm对象
@@ -153,17 +153,17 @@ class LoginLogService:
         :return: 新增登录日志校验结果
         """
         try:
-            LoginLogDao.add_login_log_dao(query_db, page_object)
-            query_db.commit()
+            await LoginLogDao.add_login_log_dao(query_db, page_object)
+            await query_db.commit()
             result = dict(is_success=True, message='新增成功')
         except Exception as e:
-            query_db.rollback()
+            await query_db.rollback()
             result = dict(is_success=False, message=str(e))
 
         return CrudResponseModel(**result)
 
     @classmethod
-    def delete_login_log_services(cls, query_db: Session, page_object: DeleteLoginLogModel):
+    async def delete_login_log_services(cls, query_db: AsyncSession, page_object: DeleteLoginLogModel):
         """
         删除操作日志信息service
         :param query_db: orm对象
@@ -174,29 +174,29 @@ class LoginLogService:
             info_id_list = page_object.info_ids.split(',')
             try:
                 for info_id in info_id_list:
-                    LoginLogDao.delete_login_log_dao(query_db, LogininforModel(infoId=info_id))
-                query_db.commit()
+                    await LoginLogDao.delete_login_log_dao(query_db, LogininforModel(infoId=info_id))
+                await query_db.commit()
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
-                query_db.rollback()
+                await query_db.rollback()
                 raise e
         else:
             result = dict(is_success=False, message='传入登录日志id为空')
         return CrudResponseModel(**result)
 
     @classmethod
-    def clear_login_log_services(cls, query_db: Session):
+    async def clear_login_log_services(cls, query_db: AsyncSession):
         """
         清除操作日志信息service
         :param query_db: orm对象
         :return: 清除操作日志校验结果
         """
         try:
-            LoginLogDao.clear_login_log_dao(query_db)
-            query_db.commit()
+            await LoginLogDao.clear_login_log_dao(query_db)
+            await query_db.commit()
             result = dict(is_success=True, message='清除成功')
         except Exception as e:
-            query_db.rollback()
+            await query_db.rollback()
             raise e
 
         return CrudResponseModel(**result)
@@ -212,7 +212,7 @@ class LoginLogService:
         return CrudResponseModel(**result)
 
     @staticmethod
-    def export_login_log_list_services(login_log_list: List):
+    async def export_login_log_list_services(login_log_list: List):
         """
         导出登录日志信息service
         :param login_log_list: 登录日志信息列表
