@@ -41,7 +41,9 @@ async def get_system_dept_list(request: Request, dept_query: DeptQueryModel = De
 async def add_system_dept(request: Request, add_dept: DeptModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_dept.create_by = current_user.user.user_name
+        add_dept.create_time = datetime.now()
         add_dept.update_by = current_user.user.user_name
+        add_dept.update_time = datetime.now()
         add_dept_result = await DeptService.add_dept_services(query_db, add_dept)
         if add_dept_result.is_success:
             logger.info(add_dept_result.message)

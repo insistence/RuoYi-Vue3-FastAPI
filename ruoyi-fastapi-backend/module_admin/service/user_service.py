@@ -275,7 +275,9 @@ class UserService:
                     sex=row['sex'],
                     status=row['status'],
                     createBy=current_user.user.user_name,
-                    updateBy=current_user.user.user_name
+                    createTime=datetime.now(),
+                    updateBy=current_user.user.user_name,
+                    updateTime=datetime.now()
                 )
                 user_info = await UserDao.get_user_by_info(query_db, UserModel(userName=row['user_name']))
                 if user_info:
@@ -289,7 +291,8 @@ class UserService:
                             phonenumber=str(row['phonenumber']),
                             sex=row['sex'],
                             status=row['status'],
-                            updateBy=current_user.user.user_name
+                            updateBy=current_user.user.user_name,
+                            updateTime=datetime.now()
                         ).model_dump(exclude_unset=True)
                         await UserDao.edit_user_dao(query_db, edit_user)
                     else:

@@ -32,7 +32,9 @@ async def get_system_job_list(request: Request, job_page_query: JobPageQueryMode
 async def add_system_job(request: Request, add_job: JobModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_job.create_by = current_user.user.user_name
+        add_job.create_time = datetime.now()
         add_job.update_by = current_user.user.user_name
+        add_job.update_time = datetime.now()
         add_job_result = await JobService.add_job_services(query_db, add_job)
         if add_job_result.is_success:
             logger.info(add_job_result.message)
