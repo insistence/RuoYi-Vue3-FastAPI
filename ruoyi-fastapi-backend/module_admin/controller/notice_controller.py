@@ -30,7 +30,9 @@ async def get_system_notice_list(request: Request, notice_page_query: NoticePage
 async def add_system_notice(request: Request, add_notice: NoticeModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_notice.create_by = current_user.user.user_name
+        add_notice.create_time = datetime.now()
         add_notice.update_by = current_user.user.user_name
+        add_notice.update_time = datetime.now()
         add_notice_result = await NoticeService.add_notice_services(query_db, add_notice)
         if add_notice_result.is_success:
             logger.info(add_notice_result.message)

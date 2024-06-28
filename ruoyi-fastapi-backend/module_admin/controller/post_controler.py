@@ -32,7 +32,9 @@ async def get_system_post_list(request: Request, post_page_query: PostPageQueryM
 async def add_system_post(request: Request, add_post: PostModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_post.create_by = current_user.user.user_name
+        add_post.create_time = datetime.now()
         add_post.update_by = current_user.user.user_name
+        add_post.update_time = datetime.now()
         add_post_result = await PostService.add_post_services(query_db, add_post)
         if add_post_result.is_success:
             logger.info(add_post_result.message)

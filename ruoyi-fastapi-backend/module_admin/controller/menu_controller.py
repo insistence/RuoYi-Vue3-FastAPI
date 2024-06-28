@@ -50,7 +50,9 @@ async def get_system_menu_list(request: Request, menu_query: MenuQueryModel = De
 async def add_system_menu(request: Request, add_menu: MenuModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_menu.create_by = current_user.user.user_name
+        add_menu.create_time = datetime.now()
         add_menu.update_by = current_user.user.user_name
+        add_menu.update_time = datetime.now()
         add_menu_result = await MenuService.add_menu_services(query_db, add_menu)
         if add_menu_result.is_success:
             logger.info(add_menu_result.message)

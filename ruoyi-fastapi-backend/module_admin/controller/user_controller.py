@@ -47,7 +47,9 @@ async def add_system_user(request: Request, add_user: AddUserModel, query_db: As
     try:
         add_user.password = PwdUtil.get_password_hash(add_user.password)
         add_user.create_by = current_user.user.user_name
+        add_user.create_time = datetime.now()
         add_user.update_by = current_user.user.user_name
+        add_user.update_time = datetime.now()
         add_user_result = await UserService.add_user_services(query_db, add_user)
         if add_user_result.is_success:
             logger.info(add_user_result.message)

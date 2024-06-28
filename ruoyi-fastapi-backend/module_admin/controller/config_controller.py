@@ -31,7 +31,9 @@ async def get_system_config_list(request: Request, config_page_query: ConfigPage
 async def add_system_config(request: Request, add_config: ConfigModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_config.create_by = current_user.user.user_name
+        add_config.create_time = datetime.now()
         add_config.update_by = current_user.user.user_name
+        add_config.update_time = datetime.now()
         add_config_result = await ConfigService.add_config_services(request, query_db, add_config)
         if add_config_result.is_success:
             logger.info(add_config_result.message)
