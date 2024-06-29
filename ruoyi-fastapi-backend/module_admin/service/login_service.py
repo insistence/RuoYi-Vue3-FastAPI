@@ -475,9 +475,9 @@ class RouterUtil:
         component = 'Layout'
         if menu.component and not cls.is_menu_frame(menu):
             component = menu.component
-        elif menu.component and menu.parent_id != 0 and cls.is_inner_link(menu):
+        elif (menu.component is None or menu.component == '') and menu.parent_id != 0 and cls.is_inner_link(menu):
             component = 'InnerLink'
-        elif menu.component and cls.is_parent_view(menu):
+        elif (menu.component is None or menu.component == '') and cls.is_parent_view(menu):
             component = 'ParentView'
         return component
 
