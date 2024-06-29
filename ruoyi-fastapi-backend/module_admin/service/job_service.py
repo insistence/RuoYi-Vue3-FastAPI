@@ -117,6 +117,9 @@ class JobService:
             try:
                 for job_id in job_id_list:
                     await JobDao.delete_job_dao(query_db, JobModel(jobId=job_id))
+                    query_job = SchedulerUtil.get_scheduler_job(job_id=job_id)
+                    if query_job:
+                        SchedulerUtil.remove_scheduler_job(job_id=job_id)
                 await query_db.commit()
                 result = dict(is_success=True, message='删除成功')
             except Exception as e:
