@@ -7,15 +7,17 @@ import json
 import time
 from datetime import datetime
 import requests
+import warnings
 from user_agents import parse
-from typing import Optional
+from typing import Optional, Union, Literal
 from module_admin.service.login_service import LoginService
 from module_admin.service.log_service import OperationLogService, LoginLogService
 from module_admin.entity.vo.log_vo import OperLogModel, LogininforModel
 from config.env import AppConfig
+from config.enums import BusinessType
 
 
-def log_decorator(title: str, business_type: int, log_type: Optional[str] = 'operation'):
+def log_decorator(title: str, business_type: Union[Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], BusinessType], log_type: Optional[Literal['login', 'operation']] = 'operation'):
     """
     日志装饰器
     :param log_type: 日志类型（login表示登录日志，为空表示为操作日志）
@@ -23,6 +25,12 @@ def log_decorator(title: str, business_type: int, log_type: Optional[str] = 'ope
     :param business_type: 业务类型（0其它 1新增 2修改 3删除 4授权 5导出 6导入 7强退 8生成代码 9清空数据）
     :return:
     """
+    warnings.simplefilter('always', category=DeprecationWarning)
+    if isinstance(business_type, BusinessType):
+        business_type = business_type.value
+    else:
+        warnings.warn('@log_decorator的business_type参数未来版本将不再支持int类型，请使用BusinessType枚举类型', category=DeprecationWarning, stacklevel=2)
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):

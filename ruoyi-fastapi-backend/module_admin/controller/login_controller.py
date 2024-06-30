@@ -4,6 +4,7 @@ from module_admin.entity.vo.login_vo import *
 from module_admin.dao.login_dao import *
 from module_admin.annotation.log_annotation import log_decorator
 from config.env import JwtConfig, RedisInitKeyConfig
+from config.enums import BusinessType
 from utils.response_util import ResponseUtil
 from utils.log_util import *
 from datetime import timedelta
@@ -13,7 +14,7 @@ loginController = APIRouter()
 
 
 @loginController.post("/login", response_model=Token)
-@log_decorator(title='用户登录', business_type=0, log_type='login')
+@log_decorator(title='用户登录', business_type=BusinessType.OTHER, log_type='login')
 async def login(request: Request, form_data: CustomOAuth2PasswordRequestForm = Depends(), query_db: AsyncSession = Depends(get_db)):
     captcha_enabled = True if await request.app.state.redis.get(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.captchaEnabled") == 'true' else False
     user = UserLogin(

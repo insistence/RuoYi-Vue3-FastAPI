@@ -3,11 +3,12 @@ from fastapi import Depends
 from config.get_db import get_db
 from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.dept_service import *
-from utils.response_util import *
-from utils.log_util import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.aspect.data_scope import GetDataScope
 from module_admin.annotation.log_annotation import log_decorator
+from config.enums import BusinessType
+from utils.response_util import *
+from utils.log_util import *
 
 
 deptController = APIRouter(prefix='/system/dept', dependencies=[Depends(LoginService.get_current_user)])
@@ -37,7 +38,7 @@ async def get_system_dept_list(request: Request, dept_query: DeptQueryModel = De
 
 
 @deptController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:dept:add'))])
-@log_decorator(title='部门管理', business_type=1)
+@log_decorator(title='部门管理', business_type=BusinessType.INSERT)
 async def add_system_dept(request: Request, add_dept: DeptModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_dept.create_by = current_user.user.user_name
@@ -57,7 +58,7 @@ async def add_system_dept(request: Request, add_dept: DeptModel, query_db: Async
 
 
 @deptController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:dept:edit'))])
-@log_decorator(title='部门管理', business_type=2)
+@log_decorator(title='部门管理', business_type=BusinessType.UPDATE)
 async def edit_system_dept(request: Request, edit_dept: DeptModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         edit_dept.update_by = current_user.user.user_name
@@ -75,7 +76,7 @@ async def edit_system_dept(request: Request, edit_dept: DeptModel, query_db: Asy
 
 
 @deptController.delete("/{dept_ids}", dependencies=[Depends(CheckUserInterfaceAuth('system:dept:remove'))])
-@log_decorator(title='部门管理', business_type=3)
+@log_decorator(title='部门管理', business_type=BusinessType.DELETE)
 async def delete_system_dept(request: Request, dept_ids: str, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         delete_dept = DeleteDeptModel(deptIds=dept_ids)

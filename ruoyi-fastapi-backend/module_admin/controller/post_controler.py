@@ -4,12 +4,13 @@ from config.get_db import get_db
 from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.post_service import *
 from module_admin.entity.vo.post_vo import *
+from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
+from module_admin.annotation.log_annotation import log_decorator
+from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
 from utils.page_util import *
 from utils.common_util import bytes2file_response
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
-from module_admin.annotation.log_annotation import log_decorator
 
 
 postController = APIRouter(prefix='/system/post', dependencies=[Depends(LoginService.get_current_user)])
@@ -28,7 +29,7 @@ async def get_system_post_list(request: Request, post_page_query: PostPageQueryM
 
 
 @postController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:post:add'))])
-@log_decorator(title='岗位管理', business_type=1)
+@log_decorator(title='岗位管理', business_type=BusinessType.INSERT)
 async def add_system_post(request: Request, add_post: PostModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_post.create_by = current_user.user.user_name
@@ -48,7 +49,7 @@ async def add_system_post(request: Request, add_post: PostModel, query_db: Async
 
 
 @postController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:post:edit'))])
-@log_decorator(title='岗位管理', business_type=2)
+@log_decorator(title='岗位管理', business_type=BusinessType.UPDATE)
 async def edit_system_post(request: Request, edit_post: PostModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         edit_post.update_by = current_user.user.user_name
@@ -66,7 +67,7 @@ async def edit_system_post(request: Request, edit_post: PostModel, query_db: Asy
 
 
 @postController.delete("/{post_ids}", dependencies=[Depends(CheckUserInterfaceAuth('system:post:remove'))])
-@log_decorator(title='岗位管理', business_type=3)
+@log_decorator(title='岗位管理', business_type=BusinessType.DELETE)
 async def delete_system_post(request: Request, post_ids: str, query_db: AsyncSession = Depends(get_db)):
     try:
         delete_post = DeletePostModel(postIds=post_ids)
@@ -94,7 +95,7 @@ async def query_detail_system_post(request: Request, post_id: int, query_db: Asy
 
 
 @postController.post("/export", dependencies=[Depends(CheckUserInterfaceAuth('system:post:export'))])
-@log_decorator(title='岗位管理', business_type=5)
+@log_decorator(title='岗位管理', business_type=BusinessType.EXPORT)
 async def export_system_post_list(request: Request, post_page_query: PostPageQueryModel = Depends(PostPageQueryModel.as_form), query_db: AsyncSession = Depends(get_db)):
     try:
         # 获取全量数据

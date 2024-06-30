@@ -3,11 +3,12 @@ from fastapi import Depends
 from config.get_db import get_db
 from module_admin.service.login_service import LoginService, AsyncSession
 from module_admin.service.online_service import *
+from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
+from module_admin.annotation.log_annotation import log_decorator
+from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
 from utils.page_util import *
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
-from module_admin.annotation.log_annotation import log_decorator
 
 
 onlineController = APIRouter(prefix='/monitor/online', dependencies=[Depends(LoginService.get_current_user)])
@@ -26,7 +27,7 @@ async def get_monitor_online_list(request: Request, online_page_query: OnlineQue
 
 
 @onlineController.delete("/{token_ids}", dependencies=[Depends(CheckUserInterfaceAuth('monitor:online:forceLogout'))])
-@log_decorator(title='在线用户', business_type=7)
+@log_decorator(title='在线用户', business_type=BusinessType.FORCE)
 async def delete_monitor_online(request: Request, token_ids: str, query_db: AsyncSession = Depends(get_db)):
     try:
         delete_online = DeleteOnlineModel(tokenIds=token_ids)

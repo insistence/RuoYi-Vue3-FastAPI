@@ -3,11 +3,12 @@ from fastapi import Depends
 from config.get_db import get_db
 from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.notice_service import *
+from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
+from module_admin.annotation.log_annotation import log_decorator
+from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
 from utils.page_util import *
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
-from module_admin.annotation.log_annotation import log_decorator
 
 
 noticeController = APIRouter(prefix='/system/notice', dependencies=[Depends(LoginService.get_current_user)])
@@ -26,7 +27,7 @@ async def get_system_notice_list(request: Request, notice_page_query: NoticePage
 
 
 @noticeController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:notice:add'))])
-@log_decorator(title='通知公告管理', business_type=1)
+@log_decorator(title='通知公告管理', business_type=BusinessType.INSERT)
 async def add_system_notice(request: Request, add_notice: NoticeModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_notice.create_by = current_user.user.user_name
@@ -46,7 +47,7 @@ async def add_system_notice(request: Request, add_notice: NoticeModel, query_db:
 
 
 @noticeController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:notice:edit'))])
-@log_decorator(title='通知公告管理', business_type=2)
+@log_decorator(title='通知公告管理', business_type=BusinessType.UPDATE)
 async def edit_system_notice(request: Request, edit_notice: NoticeModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         edit_notice.update_by = current_user.user.user_name
@@ -64,7 +65,7 @@ async def edit_system_notice(request: Request, edit_notice: NoticeModel, query_d
 
 
 @noticeController.delete("/{notice_ids}", dependencies=[Depends(CheckUserInterfaceAuth('system:notice:remove'))])
-@log_decorator(title='通知公告管理', business_type=3)
+@log_decorator(title='通知公告管理', business_type=BusinessType.DELETE)
 async def delete_system_notice(request: Request, notice_ids: str, query_db: AsyncSession = Depends(get_db)):
     try:
         delete_notice = DeleteNoticeModel(noticeIds=notice_ids)

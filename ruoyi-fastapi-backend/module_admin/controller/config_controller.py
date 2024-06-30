@@ -3,12 +3,13 @@ from fastapi import Depends
 from config.get_db import get_db
 from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.config_service import *
+from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
+from module_admin.annotation.log_annotation import log_decorator
+from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
 from utils.page_util import *
 from utils.common_util import bytes2file_response
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
-from module_admin.annotation.log_annotation import log_decorator
 
 
 configController = APIRouter(prefix='/system/config', dependencies=[Depends(LoginService.get_current_user)])
@@ -27,7 +28,7 @@ async def get_system_config_list(request: Request, config_page_query: ConfigPage
 
 
 @configController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:config:add'))])
-@log_decorator(title='参数管理', business_type=1)
+@log_decorator(title='参数管理', business_type=BusinessType.INSERT)
 async def add_system_config(request: Request, add_config: ConfigModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_config.create_by = current_user.user.user_name
@@ -47,7 +48,7 @@ async def add_system_config(request: Request, add_config: ConfigModel, query_db:
 
 
 @configController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:config:edit'))])
-@log_decorator(title='参数管理', business_type=2)
+@log_decorator(title='参数管理', business_type=BusinessType.UPDATE)
 async def edit_system_config(request: Request, edit_config: ConfigModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         edit_config.update_by = current_user.user.user_name
@@ -65,7 +66,7 @@ async def edit_system_config(request: Request, edit_config: ConfigModel, query_d
 
 
 @configController.delete("/refreshCache", dependencies=[Depends(CheckUserInterfaceAuth('system:config:remove'))])
-@log_decorator(title='参数管理', business_type=2)
+@log_decorator(title='参数管理', business_type=BusinessType.UPDATE)
 async def refresh_system_config(request: Request, query_db: AsyncSession = Depends(get_db)):
     try:
         refresh_config_result = await ConfigService.refresh_sys_config_services(request, query_db)
@@ -81,7 +82,7 @@ async def refresh_system_config(request: Request, query_db: AsyncSession = Depen
 
 
 @configController.delete("/{config_ids}", dependencies=[Depends(CheckUserInterfaceAuth('system:config:remove'))])
-@log_decorator(title='参数管理', business_type=3)
+@log_decorator(title='参数管理', business_type=BusinessType.DELETE)
 async def delete_system_config(request: Request, config_ids: str, query_db: AsyncSession = Depends(get_db)):
     try:
         delete_config = DeleteConfigModel(configIds=config_ids)
@@ -121,7 +122,7 @@ async def query_system_config(request: Request, config_key: str):
 
 
 @configController.post("/export", dependencies=[Depends(CheckUserInterfaceAuth('system:config:export'))])
-@log_decorator(title='参数管理', business_type=5)
+@log_decorator(title='参数管理', business_type=BusinessType.EXPORT)
 async def export_system_config_list(request: Request, config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_form), query_db: AsyncSession = Depends(get_db)):
     try:
         # 获取全量数据

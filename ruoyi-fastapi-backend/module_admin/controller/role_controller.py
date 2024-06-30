@@ -5,13 +5,14 @@ from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.role_service import *
 from module_admin.service.dept_service import DeptService, DeptModel
 from module_admin.service.user_service import UserService, UserRoleQueryModel, UserRolePageQueryModel, CrudUserRoleModel
+from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
+from module_admin.aspect.data_scope import GetDataScope
+from module_admin.annotation.log_annotation import log_decorator
+from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
 from utils.page_util import PageResponseModel
 from utils.common_util import bytes2file_response
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
-from module_admin.aspect.data_scope import GetDataScope
-from module_admin.annotation.log_annotation import log_decorator
 
 
 roleController = APIRouter(prefix='/system/role', dependencies=[Depends(LoginService.get_current_user)])
@@ -42,7 +43,7 @@ async def get_system_role_list(request: Request, role_page_query: RolePageQueryM
     
     
 @roleController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:role:add'))])
-@log_decorator(title='角色管理', business_type=1)
+@log_decorator(title='角色管理', business_type=BusinessType.INSERT)
 async def add_system_role(request: Request, add_role: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         add_role.create_by = current_user.user.user_name
@@ -62,7 +63,7 @@ async def add_system_role(request: Request, add_role: AddRoleModel, query_db: As
     
     
 @roleController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
-@log_decorator(title='角色管理', business_type=2)
+@log_decorator(title='角色管理', business_type=BusinessType.UPDATE)
 async def edit_system_role(request: Request, edit_role: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         edit_role.update_by = current_user.user.user_name
@@ -80,7 +81,7 @@ async def edit_system_role(request: Request, edit_role: AddRoleModel, query_db: 
 
 
 @roleController.put("/dataScope", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
-@log_decorator(title='角色管理', business_type=4)
+@log_decorator(title='角色管理', business_type=BusinessType.GRANT)
 async def edit_system_role_datascope(request: Request, role_data_scope: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         role_data_scope.update_by = current_user.user.user_name
@@ -98,7 +99,7 @@ async def edit_system_role_datascope(request: Request, role_data_scope: AddRoleM
     
     
 @roleController.delete("/{role_ids}", dependencies=[Depends(CheckUserInterfaceAuth('system:role:remove'))])
-@log_decorator(title='角色管理', business_type=3)
+@log_decorator(title='角色管理', business_type=BusinessType.DELETE)
 async def delete_system_role(request: Request, role_ids: str, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         delete_role = DeleteRoleModel(
@@ -130,7 +131,7 @@ async def query_detail_system_role(request: Request, role_id: int, query_db: Asy
 
 
 @roleController.post("/export", dependencies=[Depends(CheckUserInterfaceAuth('system:role:export'))])
-@log_decorator(title='角色管理', business_type=5)
+@log_decorator(title='角色管理', business_type=BusinessType.EXPORT)
 async def export_system_role_list(request: Request, role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_form), query_db: AsyncSession = Depends(get_db)):
     try:
         # 获取全量数据
@@ -144,7 +145,7 @@ async def export_system_role_list(request: Request, role_page_query: RolePageQue
 
 
 @roleController.put("/changeStatus", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
-@log_decorator(title='角色管理', business_type=2)
+@log_decorator(title='角色管理', business_type=BusinessType.UPDATE)
 async def reset_system_role_status(request: Request, edit_role: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
         edit_role.update_by = current_user.user.user_name
@@ -185,7 +186,7 @@ async def get_system_unallocated_user_list(request: Request, user_role: UserRole
 
 
 @roleController.put("/authUser/selectAll", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
-@log_decorator(title='角色管理', business_type=4)
+@log_decorator(title='角色管理', business_type=BusinessType.GRANT)
 async def add_system_role_user(request: Request, add_role_user: CrudUserRoleModel = Depends(CrudUserRoleModel.as_query), query_db: AsyncSession = Depends(get_db)):
     try:
         add_role_user_result = await UserService.add_user_role_services(query_db, add_role_user)
@@ -201,7 +202,7 @@ async def add_system_role_user(request: Request, add_role_user: CrudUserRoleMode
 
 
 @roleController.put("/authUser/cancel", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
-@log_decorator(title='角色管理', business_type=4)
+@log_decorator(title='角色管理', business_type=BusinessType.GRANT)
 async def cancel_system_role_user(request: Request, cancel_user_role: CrudUserRoleModel, query_db: AsyncSession = Depends(get_db)):
     try:
         cancel_user_role_result = await UserService.delete_user_role_services(query_db, cancel_user_role)
@@ -217,7 +218,7 @@ async def cancel_system_role_user(request: Request, cancel_user_role: CrudUserRo
 
 
 @roleController.put("/authUser/cancelAll", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
-@log_decorator(title='角色管理', business_type=4)
+@log_decorator(title='角色管理', business_type=BusinessType.GRANT)
 async def batch_cancel_system_role_user(request: Request, batch_cancel_user_role: CrudUserRoleModel = Depends(CrudUserRoleModel.as_query), query_db: AsyncSession = Depends(get_db)):
     try:
         batch_cancel_user_role_result = await UserService.delete_user_role_services(query_db, batch_cancel_user_role)
