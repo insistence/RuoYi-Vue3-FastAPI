@@ -70,7 +70,7 @@ class JobDao:
         """
         job_list = (await db.execute(
             select(SysJob)
-                .where(SysJob.status == 0)
+                .where(SysJob.status == '0')
                 .distinct()
         )).scalars().all()
 
