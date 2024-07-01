@@ -56,7 +56,7 @@ class MenuDao:
         if 1 in role_id_list:
             menu_query_all = (await db.execute(
                 select(SysMenu)
-                    .where(SysMenu.status == 0)
+                    .where(SysMenu.status == '0')
                     .order_by(SysMenu.order_num)
                     .distinct()
             )).scalars().all()
@@ -64,13 +64,13 @@ class MenuDao:
             menu_query_all = (await db.execute(
                 select(SysMenu)
                     .select_from(SysUser)
-                    .where(SysUser.status == 0, SysUser.del_flag == 0, SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
                     .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                     .join(SysRole,
-                          and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == 0, SysRole.del_flag == 0),
+                          and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'),
                           isouter=True)
                     .join(SysRoleMenu, SysRole.role_id == SysRoleMenu.role_id, isouter=True)
-                    .join(SysMenu, and_(SysRoleMenu.menu_id == SysMenu.menu_id, SysMenu.status == 0))
+                    .join(SysMenu, and_(SysRoleMenu.menu_id == SysMenu.menu_id, SysMenu.status == '0'))
                     .order_by(SysMenu.order_num)
                     .distinct()
             )).scalars().all()
@@ -101,10 +101,10 @@ class MenuDao:
             menu_query_all = (await db.execute(
                 select(SysMenu)
                     .select_from(SysUser)
-                    .where(SysUser.status == 0, SysUser.del_flag == 0, SysUser.user_id == user_id)
+                    .where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
                     .join(SysUserRole, SysUser.user_id == SysUserRole.user_id, isouter=True)
                     .join(SysRole,
-                          and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == 0, SysRole.del_flag == 0),
+                          and_(SysUserRole.role_id == SysRole.role_id, SysRole.status == '0', SysRole.del_flag == '0'),
                           isouter=True)
                     .join(SysRoleMenu, SysRole.role_id == SysRoleMenu.role_id, isouter=True)
                     .join(SysMenu, and_(SysRoleMenu.menu_id == SysMenu.menu_id,
