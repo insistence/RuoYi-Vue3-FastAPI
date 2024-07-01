@@ -21,7 +21,7 @@ class PostDao:
         post_info = (await db.execute(
             select(SysPost)
                 .where(SysPost.post_id == post_id,
-                       SysPost.status == 0)
+                       SysPost.status == '0')
         )).scalars().first()
 
         return post_info
