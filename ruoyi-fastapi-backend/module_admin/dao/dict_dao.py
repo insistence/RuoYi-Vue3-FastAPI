@@ -186,8 +186,8 @@ class DictDataDao:
         dict_data_list = (await db.execute(
             select(SysDictData)
                 .select_from(SysDictType)
-                .where(SysDictType.dict_type == dict_type if dict_type else True, SysDictType.status == 0)
-                .join(SysDictData, and_(SysDictType.dict_type == SysDictData.dict_type, SysDictData.status == 0), isouter=True)
+                .where(SysDictType.dict_type == dict_type if dict_type else True, SysDictType.status == '0')
+                .join(SysDictData, and_(SysDictType.dict_type == SysDictData.dict_type, SysDictData.status == '0'), isouter=True)
                 .order_by(SysDictData.dict_sort)
                 .distinct()
         )).scalars().all()
@@ -202,7 +202,7 @@ class DictDataDao:
         :param dict_data: 字典数据对象
         :return:
         """
-        db_data_type = SysDictData(**dict_data.dict())
+        db_data_type = SysDictData(**dict_data.model_dump())
         db.add(db_data_type)
         await db.flush()
 
