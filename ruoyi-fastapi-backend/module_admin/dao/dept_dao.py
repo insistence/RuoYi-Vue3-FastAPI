@@ -22,8 +22,8 @@ class DeptDao:
         dept_info = (await db.execute(
             select(SysDept)
                 .where(SysDept.dept_id == dept_id,
-                       SysDept.status == 0,
-                       SysDept.del_flag == 0)
+                       SysDept.status == '0',
+                       SysDept.del_flag == '0')
         )).scalars().first()
 
         return dept_info
@@ -39,7 +39,7 @@ class DeptDao:
         dept_info = (await db.execute(
             select(SysDept)
                 .where(SysDept.dept_id == dept_id,
-                       SysDept.del_flag == 0)
+                       SysDept.del_flag == '0')
         )).scalars().first()
 
         return dept_info
@@ -55,7 +55,7 @@ class DeptDao:
         dept_info = (await db.execute(
             select(SysDept)
                 .where(SysDept.dept_id == dept_id,
-                       SysDept.del_flag == 0)
+                       SysDept.del_flag == '0')
         )).scalars().first()
 
         return dept_info
@@ -89,7 +89,7 @@ class DeptDao:
             select(SysDept)
                 .where(SysDept.dept_id != dept_info.dept_id,
                        SysDept.parent_id != dept_info.dept_id,
-                       SysDept.del_flag == 0, SysDept.status == 0,
+                       SysDept.del_flag == '0', SysDept.status == '0',
                        eval(data_scope_sql))
                 .order_by(SysDept.order_num)
                 .distinct()
@@ -108,7 +108,7 @@ class DeptDao:
         dept_result = (await db.execute(
             select(SysDept)
                 .where(SysDept.parent_id == dept_id,
-                       SysDept.del_flag == 0)
+                       SysDept.del_flag == '0')
         )).scalars().all()
 
         return list_format_datetime(dept_result)
@@ -122,7 +122,7 @@ class DeptDao:
         """
         ancestors = (await db.execute(
             select(SysDept.ancestors)
-                .where(SysDept.del_flag == 0)
+                .where(SysDept.del_flag == '0')
         )).scalars().all()
 
         return ancestors
@@ -138,8 +138,8 @@ class DeptDao:
         """
         dept_result = (await db.execute(
             select(SysDept)
-                .where(SysDept.status == 0,
-                       SysDept.del_flag == 0,
+                .where(SysDept.status == '0',
+                       SysDept.del_flag == '0',
                        SysDept.dept_name.like(f'%{dept_info.dept_name}%') if dept_info.dept_name else True,
                        eval(data_scope_sql))
                 .order_by(SysDept.order_num)
@@ -159,7 +159,7 @@ class DeptDao:
         """
         dept_result = (await db.execute(
             select(SysDept)
-                .where(SysDept.del_flag == 0,
+                .where(SysDept.del_flag == '0',
                        SysDept.status == page_object.status if page_object.status else True,
                        SysDept.dept_name.like(f'%{page_object.dept_name}%') if page_object.dept_name else True,
                        eval(data_scope_sql))
