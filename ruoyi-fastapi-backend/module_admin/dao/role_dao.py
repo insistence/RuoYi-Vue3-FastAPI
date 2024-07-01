@@ -22,7 +22,7 @@ class RoleDao:
         """
         query_role_info = (await db.execute(
             select(SysRole)
-                .where(SysRole.status == 0, SysRole.del_flag == 0, SysRole.role_name == role_name)
+                .where(SysRole.status == '0', SysRole.del_flag == '0', SysRole.role_name == role_name)
                 .order_by(desc(SysRole.create_time))
                 .distinct()
         )).scalars().first()
@@ -39,7 +39,7 @@ class RoleDao:
         """
         query_role_info = (await db.execute(
             select(SysRole)
-                .where(SysRole.del_flag == 0,
+                .where(SysRole.del_flag == '0',
                        SysRole.role_name == role.role_name if role.role_name else True,
                        SysRole.role_key == role.role_key if role.role_key else True)
                 .order_by(desc(SysRole.create_time))
@@ -59,8 +59,8 @@ class RoleDao:
         role_info = (await db.execute(
             select(SysRole)
                 .where(SysRole.role_id == role_id,
-                       SysRole.status == 0,
-                       SysRole.del_flag == 0)
+                       SysRole.status == '0',
+                       SysRole.del_flag == '0')
         )).scalars().first()
 
         return role_info
@@ -75,7 +75,7 @@ class RoleDao:
         """
         query_role_info = (await db.execute(
             select(SysRole)
-                .where(SysRole.del_flag == 0, SysRole.role_id == role_id)
+                .where(SysRole.del_flag == '0', SysRole.role_id == role_id)
                 .distinct()
         )).scalars().first()
 
@@ -90,7 +90,7 @@ class RoleDao:
         """
         role_info = (await db.execute(
             select(SysRole)
-                .where(SysRole.role_id != 1, SysRole.status == 0, SysRole.del_flag == 0)
+                .where(SysRole.role_id != 1, SysRole.status == '0', SysRole.del_flag == '0')
         )).scalars().all()
 
         return role_info
@@ -105,7 +105,7 @@ class RoleDao:
         :return: 角色列表信息对象
         """
         query = select(SysRole) \
-            .where(SysRole.del_flag == 0,
+            .where(SysRole.del_flag == '0',
                    SysRole.role_name.like(f'%{query_object.role_name}%') if query_object.role_name else True,
                    SysRole.role_key.like(f'%{query_object.role_key}%') if query_object.role_key else True,
                    SysRole.status == query_object.status if query_object.status else True,
