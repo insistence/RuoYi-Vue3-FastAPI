@@ -14,7 +14,7 @@ async def login_by_account(db: AsyncSession, user_name: str):
     user = (await db.execute(
         select(SysUser, SysDept)
             .where(SysUser.user_name == user_name, SysUser.del_flag == '0')
-            .join(SysDept, and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == 0, SysDept.del_flag == 0), isouter=True)
+            .join(SysDept, and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == '0'), isouter=True)
             .distinct()
     )).first()
 
