@@ -73,7 +73,6 @@ class LoginService:
         else:
             await cls.__check_login_captcha(request, login_user)
         user = await login_by_account(query_db, login_user.user_name)
-        print(user)
         if not user:
             logger.warning("用户不存在")
             raise LoginException(data="", message="用户不存在")
