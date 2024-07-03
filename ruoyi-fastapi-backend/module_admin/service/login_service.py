@@ -10,6 +10,7 @@ from module_admin.entity.vo.login_vo import *
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.dao.login_dao import *
 from exceptions.exception import LoginException, AuthException
+from config.constant import CommonConstant, MenuConstant
 from config.env import AppConfig, JwtConfig, RedisInitKeyConfig
 from config.get_db import get_db
 from utils.common_util import CamelCaseUtil
@@ -231,7 +232,7 @@ class LoginService:
         :return: 当前用户路由信息对象
         """
         query_user = await UserDao.get_user_by_id(query_db, user_id=user_id)
-        user_router_menu = sorted([row for row in query_user.get('user_menu_info') if row.menu_type in ['M', 'C']], key=lambda x: x.order_num)
+        user_router_menu = sorted([row for row in query_user.get('user_menu_info') if row.menu_type in [MenuConstant.TYPE_DIR, MenuConstant.TYPE_MENU]], key=lambda x: x.order_num)
         menus = cls.__generate_menus(0, user_router_menu)
         user_router = cls.__generate_user_router_menu(menus)
         return [router.model_dump(exclude_unset=True, by_alias=True) for router in user_router]
@@ -278,7 +279,7 @@ class LoginService:
                 )
             )
             c_menus = permission.children
-            if c_menus and permission.menu_type == 'M':
+            if c_menus and permission.menu_type == MenuConstant.TYPE_DIR:
                 router.always_show = True
                 router.redirect = 'noRedirect'
                 router.children = cls.__generate_user_router_menu(c_menus)
@@ -309,7 +310,7 @@ class LoginService:
                 router_path = RouterUtil.inner_link_replace_each(permission.path)
                 children = RouterModel(
                     path=router_path,
-                    component='InnerLink',
+                    component=MenuConstant.INNER_LINK,
                     name=router_path.capitalize(),
                     meta=MetaModel(
                         title=permission.menu_name,
@@ -457,7 +458,7 @@ class RouterUtil:
         if menu.parent_id != 0 and cls.is_inner_link(menu):
             router_path = cls.inner_link_replace_each(router_path)
         # 非外链并且是一级目录（类型为目录）
-        if menu.parent_id == 0 and menu.menu_type == 'M' and menu.is_frame == 1:
+        if menu.parent_id == 0 and menu.menu_type == MenuConstant.TYPE_DIR and menu.is_frame == MenuConstant.NO_FRAME:
             router_path = f'/{menu.path}'
         # 非外链并且是一级目录（类型为菜单）
         elif cls.is_menu_frame(menu):
@@ -471,13 +472,13 @@ class RouterUtil:
         :param menu: 菜单数对象
         :return: 组件信息
         """
-        component = 'Layout'
+        component = MenuConstant.LAYOUT
         if menu.component and not cls.is_menu_frame(menu):
             component = menu.component
         elif (menu.component is None or menu.component == '') and menu.parent_id != 0 and cls.is_inner_link(menu):
-            component = 'InnerLink'
+            component = MenuConstant.INNER_LINK
         elif (menu.component is None or menu.component == '') and cls.is_parent_view(menu):
-            component = 'ParentView'
+            component = MenuConstant.PARENT_VIEW
         return component
 
     @classmethod
@@ -487,7 +488,7 @@ class RouterUtil:
         :param menu: 菜单数对象
         :return: 是否为菜单内部跳转
         """
-        return menu.parent_id == 0 and menu.menu_type == 'C' and menu.is_frame == 1
+        return menu.parent_id == 0 and menu.menu_type == MenuConstant.TYPE_MENU and menu.is_frame == MenuConstant.NO_FRAME
 
     @classmethod
     def is_inner_link(cls, menu: MenuTreeModel):
@@ -496,7 +497,7 @@ class RouterUtil:
         :param menu: 菜单数对象
         :return: 是否为内链组件
         """
-        return menu.is_frame == 1 and cls.is_http(menu.path)
+        return menu.is_frame == MenuConstant.NO_FRAME and cls.is_http(menu.path)
 
     @classmethod
     def is_parent_view(cls, menu: MenuTreeModel):
@@ -505,7 +506,7 @@ class RouterUtil:
         :param menu: 菜单数对象
         :return: 是否为parent_view组件
         """
-        return menu.parent_id != 0 and menu.menu_type == 'M'
+        return menu.parent_id != 0 and menu.menu_type == MenuConstant.TYPE_DIR
 
     @classmethod
     def is_http(cls, link: str):
@@ -514,7 +515,7 @@ class RouterUtil:
         :param link: 链接
         :return: 是否为http(s)://开头
         """
-        return link.startswith('http://') or link.startswith('https://')
+        return link.startswith(CommonConstant.HTTP) or link.startswith(CommonConstant.HTTPS)
 
     @classmethod
     def inner_link_replace_each(cls, path: str):
@@ -523,7 +524,7 @@ class RouterUtil:
         :param path: 内链域名
         :return: 替换后的内链域名
         """
-        old_values = ["http://", "https://", "www.", ".", ":"]
+        old_values = [CommonConstant.HTTP, CommonConstant.HTTPS, CommonConstant.WWW, ".", ":"]
         new_values = ["", "", "", "/", "/"]
         for old, new in zip(old_values, new_values):
             path = path.replace(old, new)

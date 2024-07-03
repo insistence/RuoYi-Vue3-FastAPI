@@ -4,6 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from typing import Any, Dict, Optional
 from pydantic import BaseModel
 from datetime import datetime
+from config.constant import HttpStatusConstant
 
 
 class ResponseUtil:
@@ -24,7 +25,7 @@ class ResponseUtil:
         :return: 成功响应结果
         """
         result = {
-            'code': 200,
+            'code': HttpStatusConstant.SUCCESS,
             'msg': msg
         }
 
@@ -57,7 +58,7 @@ class ResponseUtil:
         :return: 失败响应结果
         """
         result = {
-            'code': 601,
+            'code': HttpStatusConstant.WARN,
             'msg': msg
         }
 
@@ -90,7 +91,7 @@ class ResponseUtil:
         :return: 未认证响应结果
         """
         result = {
-            'code': 401,
+            'code': HttpStatusConstant.UNAUTHORIZED,
             'msg': msg
         }
 
@@ -123,7 +124,7 @@ class ResponseUtil:
         :return: 未认证响应结果
         """
         result = {
-            'code': 403,
+            'code': HttpStatusConstant.FORBIDDEN,
             'msg': msg
         }
 
@@ -156,7 +157,7 @@ class ResponseUtil:
         :return: 错误响应结果
         """
         result = {
-            'code': 500,
+            'code': HttpStatusConstant.ERROR,
             'msg': msg
         }
 
