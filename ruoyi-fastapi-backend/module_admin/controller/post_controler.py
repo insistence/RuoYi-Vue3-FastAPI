@@ -5,6 +5,7 @@ from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.post_service import *
 from module_admin.entity.vo.post_vo import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
+from module_admin.annotation.check_annotation import ValidateFields
 from module_admin.annotation.log_annotation import log_decorator
 from config.enums import BusinessType
 from utils.response_util import *
@@ -29,6 +30,7 @@ async def get_system_post_list(request: Request, post_page_query: PostPageQueryM
 
 
 @postController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:post:add'))])
+@ValidateFields(validate_model='add_post')
 @log_decorator(title='岗位管理', business_type=BusinessType.INSERT)
 async def add_system_post(request: Request, add_post: PostModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -49,6 +51,7 @@ async def add_system_post(request: Request, add_post: PostModel, query_db: Async
 
 
 @postController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:post:edit'))])
+@ValidateFields(validate_model='edit_post')
 @log_decorator(title='岗位管理', business_type=BusinessType.UPDATE)
 async def edit_system_post(request: Request, edit_post: PostModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:

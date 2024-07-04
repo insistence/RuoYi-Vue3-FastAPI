@@ -37,6 +37,11 @@ class PostModel(BaseModel):
     def get_post_sort(self):
         return self.post_sort
 
+    def validate_fields(self):
+        self.get_post_code()
+        self.get_post_name()
+        self.get_post_sort()
+
 
 class PostQueryModel(PostModel):
     """
