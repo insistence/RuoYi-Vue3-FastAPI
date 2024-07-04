@@ -1,9 +1,56 @@
 import re
 from functools import wraps
-from typing import Optional
-from pydantic import BaseModel
+from typing import Literal, Optional
+from pydantic import (
+    BaseModel,
+    Field,
+    AnyUrl,
+    AnyHttpUrl,
+    HttpUrl,
+    AnyWebsocketUrl,
+    WebsocketUrl,
+    FileUrl,
+    FtpUrl,
+    PostgresDsn,
+    CockroachDsn,
+    AmqpDsn,
+    RedisDsn,
+    MongoDsn,
+    KafkaDsn,
+    NatsDsn,
+    MySQLDsn,
+    MariaDBDsn,
+    ClickHouseDsn,
+    EmailStr,
+    NameEmail,
+    IPvAnyAddress,
+    ValidationError
+)
 from exceptions.exception import FieldValidatorException
 from utils.string_util import StringUtil
+
+
+class NetWorkAnnotationModel(BaseModel):
+    any_url: Optional[AnyUrl] = Field(default=None, description='接受任何URL类型')
+    any_http_url: Optional[AnyHttpUrl] = Field(default=None, description='接受任何http或https URL的类型')
+    http_url: Optional[HttpUrl] = Field(default=None, description='接受任何最大长度2083 & http或https URL的类型')
+    any_websocket_url: Optional[AnyWebsocketUrl] = Field(default=None, description='接受任何ws或wss URL的类型')
+    websocket_url: Optional[WebsocketUrl] = Field(default=None, description='接受任何最大长度 2083 & ws或wss URL的类型')
+    file_url: Optional[FileUrl] = Field(default=None, description='接受任何文件URL的类型')
+    ftp_url: Optional[FtpUrl] = Field(default=None, description='接受ftp URL的类型')
+    postgres_dsn: Optional[PostgresDsn] = Field(default=None, description='接受任何Postgres DSN的类型')
+    cockroach_dsn: Optional[CockroachDsn] = Field(default=None, description='接受任何Cockroach DSN的类型')
+    amqp_dsn: Optional[AmqpDsn] = Field(default=None, description='接受任何AMQP DSN的类型')
+    redis_dsn: Optional[RedisDsn] = Field(default=None, description='接受任何Redis DSN的类型')
+    mongo_dsn: Optional[MongoDsn] = Field(default=None, description='接受任何MongoDB DSN的类型')
+    kafka_dsn: Optional[KafkaDsn] = Field(default=None, description='接受任何Kafka DSN的类型')
+    nats_dsn: Optional[NatsDsn] = Field(default=None, description='接受任何NATS DSN的类型')
+    mysql_dsn: Optional[MySQLDsn] = Field(default=None, description='接受任何MySQL DSN的类型')
+    mariadb_dsn: Optional[MariaDBDsn] = Field(default=None, description='接受任何MariaDB DSN的类型')
+    clickhouse_dsn: Optional[ClickHouseDsn] = Field(default=None, description='接受任何ClickHouse DSN的类型')
+    email_str: Optional[EmailStr] = Field(default=None, description='验证电子邮件地址')
+    name_email: Optional[NameEmail] = Field(default=None, description='验证RFC 5322指定的名称和电子邮件地址组合')
+    ipv_any_address: Optional[IPvAnyAddress] = Field(default=None, description='验证IPv4或IPv6地址')
 
 
 class ValidateFields:
@@ -29,6 +76,83 @@ class ValidateFields:
                 if validate_function is not None and callable(validate_function):
                     validate_function()
             return await func(*args, **kwargs)
+        return wrapper
+
+
+class NetWork:
+    """
+    字段网络类型校验装饰器
+    """
+    def __init__(
+            self,
+            field_name: str,
+            field_type: Literal['AnyUrl', 'AnyHttpUrl', 'HttpUrl', 'AnyWebsocketUrl', 'WebsocketUrl', 'FileUrl',
+                                'FtpUrl', 'PostgresDsn', 'CockroachDsn', 'AmqpDsn', 'RedisDsn', 'MongoDsn', 'KafkaDsn',
+                                'NatsDsn', 'MySQLDsn', 'MariaDBDsn', 'ClickHouseDsn', 'EmailStr', 'NameEmail',
+                                'IPvAnyAddress'],
+            message: Optional[str] = None
+    ):
+        """
+        字段网络类型校验装饰器
+        :param field_name: 需要校验的字段名称
+        :param field_type: 需要校验的字段类型
+        :param message: 校验失败的提示信息
+        :return:
+        """
+        self.field_name = field_name
+        self.field_type = field_type
+        self.message = message
+
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            check_model = args[0]
+            if isinstance(check_model, BaseModel):
+                field_value = getattr(check_model, self.field_name)
+                try:
+                    if self.field_type == 'AnyUrl':
+                        NetWorkAnnotationModel(any_url=field_value)
+                    elif self.field_type == 'AnyHttpUrl':
+                        NetWorkAnnotationModel(any_http_url=field_value)
+                    elif self.field_type == 'HttpUrl':
+                        NetWorkAnnotationModel(http_url=field_value)
+                    elif self.field_type == 'AnyWebsocketUrl':
+                        NetWorkAnnotationModel(any_websocket_url=field_value)
+                    elif self.field_type == 'WebsocketUrl':
+                        NetWorkAnnotationModel(websocket_url=field_value)
+                    elif self.field_type == 'FileUrl':
+                        NetWorkAnnotationModel(file_url=field_value)
+                    elif self.field_type == 'FtpUrl':
+                        NetWorkAnnotationModel(ftp_url=field_value)
+                    elif self.field_type == 'PostgresDsn':
+                        NetWorkAnnotationModel(postgres_dsn=field_value)
+                    elif self.field_type == 'CockroachDsn':
+                        NetWorkAnnotationModel(cockroach_dsn=field_value)
+                    elif self.field_type == 'AmqpDsn':
+                        NetWorkAnnotationModel(amqp_dsn=field_value)
+                    elif self.field_type == 'RedisDsn':
+                        NetWorkAnnotationModel(redis_dsn=field_value)
+                    elif self.field_type == 'MongoDsn':
+                        NetWorkAnnotationModel(mongo_dsn=field_value)
+                    elif self.field_type == 'KafkaDsn':
+                        NetWorkAnnotationModel(kafka_dsn=field_value)
+                    elif self.field_type == 'NatsDsn':
+                        NetWorkAnnotationModel(nats_dsn=field_value)
+                    elif self.field_type == 'MySQLDsn':
+                        NetWorkAnnotationModel(mysql_dsn=field_value)
+                    elif self.field_type == 'MariaDBDsn':
+                        NetWorkAnnotationModel(mariadb_dsn=field_value)
+                    elif self.field_type == 'ClickHouseDsn':
+                        NetWorkAnnotationModel(clickhouse_dsn=field_value)
+                    elif self.field_type == 'EmailStr':
+                        NetWorkAnnotationModel(email_str=field_value)
+                    elif self.field_type == 'NameEmail':
+                        NetWorkAnnotationModel(name_email=field_value)
+                    elif self.field_type == 'IPvAnyAddress':
+                        NetWorkAnnotationModel(ipv_any_address=field_value)
+                except (ValidationError, ValueError):
+                    raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}不是正确的{self.field_type}类型')
+            return func(*args, **kwargs)
         return wrapper
 
 
