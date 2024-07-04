@@ -1,6 +1,33 @@
+from functools import wraps
 from typing import Optional
 from pydantic import BaseModel
 from exceptions.exception import FieldValidatorException
+
+
+class ValidateFields:
+    """
+    字段校验装饰器
+    """
+    def __init__(self, validate_model: str, validate_function: str = 'validate_fields'):
+        """
+        字段校验装饰器
+        :param validate_model: 需要校验的pydantic模型在函数中的名称
+        :param validate_function: pydantic模型中定义的校验函数名称
+        :return:
+        """
+        self.validate_model = validate_model
+        self.validate_function = validate_function
+
+    def __call__(self, func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            check_model = kwargs.get(self.validate_model)
+            if isinstance(check_model, BaseModel) and hasattr(check_model, self.validate_function):
+                validate_function = getattr(check_model, self.validate_function, None)
+                if validate_function is not None and callable(validate_function):
+                    validate_function()
+            return await func(*args, **kwargs)
+        return wrapper
 
 
 class NotBlank:
@@ -18,6 +45,7 @@ class NotBlank:
         self.message = message
 
     def __call__(self, func):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             check_model = args[0]
             if isinstance(check_model, BaseModel):
@@ -57,6 +85,7 @@ class Size:
         self.message = message
 
     def __call__(self, func):
+        @wraps(func)
         def wrapper(*args, **kwargs):
             check_model = args[0]
             if isinstance(check_model, BaseModel):
