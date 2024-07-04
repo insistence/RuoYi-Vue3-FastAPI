@@ -1,7 +1,9 @@
+import re
 from functools import wraps
 from typing import Optional
 from pydantic import BaseModel
 from exceptions.exception import FieldValidatorException
+from utils.string_util import StringUtil
 
 
 class ValidateFields:
@@ -104,5 +106,35 @@ class Size:
                         raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}长度不能小于{self.min_length}')
                     elif self.max_length is not None and len(field_value) > self.max_length:
                         raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}长度不能大于{self.max_length}')
+            return func(*args, **kwargs)
+        return wrapper
+
+
+class Xss:
+    """
+    字段Xss校验装饰器
+    """
+    HTML_PATTERN = '<(\S*?)[^>]*>.*?|<.*? />'
+
+    def __init__(self, field_name: str, message: Optional[str] = None):
+        """
+        字段Xss校验装饰器
+        :param field_name: 需要校验的字段名称
+        :param message: 校验失败的提示信息
+        :return:
+        """
+        self.field_name = field_name
+        self.message = message
+
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            check_model = args[0]
+            if isinstance(check_model, BaseModel):
+                field_value = getattr(check_model, self.field_name)
+                if not StringUtil.is_blank(field_value):
+                    pattern = re.compile(self.HTML_PATTERN)
+                    if pattern.search(field_value):
+                        raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}不能包含脚本字符')
             return func(*args, **kwargs)
         return wrapper
