@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
-from exceptions.exception import AuthException, PermissionException, ModelValidatorException
+from exceptions.exception import AuthException, PermissionException, ModelValidatorException, FieldValidatorException
 from utils.response_util import ResponseUtil, JSONResponse, jsonable_encoder
 
 
@@ -21,6 +21,11 @@ def handle_exception(app: FastAPI):
     # 自定义模型检验异常
     @app.exception_handler(ModelValidatorException)
     async def model_validator_exception_handler(request: Request, exc: ModelValidatorException):
+        return ResponseUtil.failure(data=exc.data, msg=exc.message)
+
+    # 自定义模型检验异常
+    @app.exception_handler(FieldValidatorException)
+    async def field_validator_exception_handler(request: Request, exc: FieldValidatorException):
         return ResponseUtil.failure(data=exc.data, msg=exc.message)
 
     # 处理其他http请求异常
