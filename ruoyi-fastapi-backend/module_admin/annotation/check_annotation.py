@@ -58,6 +58,34 @@ class NotBlank:
         return wrapper
 
 
+class Pattern:
+    """
+    字段正则校验装饰器
+    """
+    def __init__(self, field_name: str, regexp: str, message: Optional[str] = None):
+        """
+        字段正则校验装饰器
+        :param field_name: 需要校验的字段名称
+        :param regexp: 正则表达式
+        :param message: 校验失败的提示信息
+        :return:
+        """
+        self.field_name = field_name
+        self.regexp = regexp
+        self.message = message
+
+    def __call__(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            check_model = args[0]
+            if isinstance(check_model, BaseModel):
+                field_value = getattr(check_model, self.field_name)
+                if isinstance(field_value, str) and not re.match(self.regexp, field_value):
+                    raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}格式不正确')
+            return func(*args, **kwargs)
+        return wrapper
+
+
 class Size:
     """
     字段大小校验装饰器
