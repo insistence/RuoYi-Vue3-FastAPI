@@ -1,6 +1,6 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Literal
 from datetime import datetime
 from module_admin.annotation.pydantic_annotation import as_query, as_form
 
@@ -11,23 +11,23 @@ class OperLogModel(BaseModel):
     """
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    oper_id: Optional[int] = None
-    title: Optional[str] = None
-    business_type: Optional[int] = None
-    method: Optional[str] = None
-    request_method: Optional[str] = None
-    operator_type: Optional[int] = None
-    oper_name: Optional[str] = None
-    dept_name: Optional[str] = None
-    oper_url: Optional[str] = None
-    oper_ip: Optional[str] = None
-    oper_location: Optional[str] = None
-    oper_param: Optional[str] = None
-    json_result: Optional[str] = None
-    status: Optional[int] = None
-    error_msg: Optional[str] = None
-    oper_time: Optional[datetime] = None
-    cost_time: Optional[int] = None
+    oper_id: Optional[int] = Field(default=None, description='日志主键')
+    title: Optional[str] = Field(default=None, description='模块标题')
+    business_type: Optional[Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']] = Field(default=None, description='业务类型（0其它 1新增 2修改 3删除 4授权 5导出 6导入 7强退 8生成代码 9清空数据）')
+    method: Optional[str] = Field(default=None, description='方法名称')
+    request_method: Optional[str] = Field(default=None, description='请求方式')
+    operator_type: Optional[Literal[0, 1, 2]] = Field(default=None, description='操作类别（0其它 1后台用户 2手机端用户）')
+    oper_name: Optional[str] = Field(default=None, description='操作人员')
+    dept_name: Optional[str] = Field(default=None, description='部门名称')
+    oper_url: Optional[str] = Field(default=None, description='请求URL')
+    oper_ip: Optional[str] = Field(default=None, description='主机地址')
+    oper_location: Optional[str] = Field(default=None, description='操作地点')
+    oper_param: Optional[str] = Field(default=None, description='请求参数')
+    json_result: Optional[str] = Field(default=None, description='返回参数')
+    status: Optional[Literal[0, 1, '0', '1']] = Field(default=None, description='操作状态（0正常 1异常）')
+    error_msg: Optional[str] = Field(default=None, description='错误消息')
+    oper_time: Optional[datetime] = Field(default=None, description='操作时间')
+    cost_time: Optional[int] = Field(default=None, description='消耗时间')
 
 
 class LogininforModel(BaseModel):
@@ -36,25 +36,25 @@ class LogininforModel(BaseModel):
     """
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    info_id: Optional[int] = None
-    user_name: Optional[str] = None
-    ipaddr: Optional[str] = None
-    login_location: Optional[str] = None
-    browser: Optional[str] = None
-    os: Optional[str] = None
-    status: Optional[str] = None
-    msg: Optional[str] = None
-    login_time: Optional[datetime] = None
+    info_id: Optional[int] = Field(default=None, description='访问ID')
+    user_name: Optional[str] = Field(default=None, description='用户账号')
+    ipaddr: Optional[str] = Field(default=None, description='登录IP地址')
+    login_location: Optional[str] = Field(default=None, description='登录地点')
+    browser: Optional[str] = Field(default=None, description='浏览器类型')
+    os: Optional[str] = Field(default=None, description='操作系统')
+    status: Optional[Literal['0', '1']] = Field(default=None, description='登录状态（0成功 1失败）')
+    msg: Optional[str] = Field(default=None, description='提示消息')
+    login_time: Optional[datetime] = Field(default=None, description='访问时间')
 
 
 class OperLogQueryModel(OperLogModel):
     """
     操作日志管理不分页查询模型
     """
-    order_by_column: Optional[str] = None
-    is_asc: Optional[str] = None
-    begin_time: Optional[str] = None
-    end_time: Optional[str] = None
+    order_by_column: Optional[str] = Field(default=None, description='排序的字段名称')
+    is_asc: Optional[Literal['ascending', 'descending']] = Field(default=None, description='排序方式（ascending升序 descending降序）')
+    begin_time: Optional[str] = Field(default=None, description='开始时间')
+    end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
 @as_query
@@ -63,8 +63,8 @@ class OperLogPageQueryModel(OperLogQueryModel):
     """
     操作日志管理分页查询模型
     """
-    page_num: int = 1
-    page_size: int = 10
+    page_num: int = Field(default=1, description='当前页码')
+    page_size: int = Field(default=10, description='每页记录数')
 
 
 class DeleteOperLogModel(BaseModel):
@@ -73,17 +73,17 @@ class DeleteOperLogModel(BaseModel):
     """
     model_config = ConfigDict(alias_generator=to_camel)
 
-    oper_ids: str
+    oper_ids: str = Field(description='需要删除的日志主键')
 
 
 class LoginLogQueryModel(LogininforModel):
     """
     登录日志管理不分页查询模型
     """
-    order_by_column: Optional[str] = None
-    is_asc: Optional[str] = None
-    begin_time: Optional[str] = None
-    end_time: Optional[str] = None
+    order_by_column: Optional[str] = Field(default=None, description='排序的字段名称')
+    is_asc: Optional[Literal['ascending', 'descending']] = Field(default=None, description='排序方式（ascending升序 descending降序）')
+    begin_time: Optional[str] = Field(default=None, description='开始时间')
+    end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
 
@@ -93,8 +93,8 @@ class LoginLogPageQueryModel(LoginLogQueryModel):
     """
     登录日志管理分页查询模型
     """
-    page_num: int = 1
-    page_size: int = 10
+    page_num: int = Field(default=1, description='当前页码')
+    page_size: int = Field(default=10, description='每页记录数')
 
 
 class DeleteLoginLogModel(BaseModel):
@@ -103,7 +103,7 @@ class DeleteLoginLogModel(BaseModel):
     """
     model_config = ConfigDict(alias_generator=to_camel)
 
-    info_ids: str
+    info_ids: str = Field(description='需要删除的访问ID')
 
 
 class UnlockUser(BaseModel):
@@ -112,4 +112,4 @@ class UnlockUser(BaseModel):
     """
     model_config = ConfigDict(alias_generator=to_camel)
 
-    user_name: str
+    user_name: str = Field(description='用户名称')
