@@ -5,8 +5,8 @@ from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.post_service import *
 from module_admin.entity.vo.post_vo import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
-from module_admin.annotation.check_annotation import ValidateFields
 from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *

@@ -70,9 +70,9 @@ class ValidateFields:
     def __call__(self, func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            check_model = kwargs.get(self.validate_model)
-            if isinstance(check_model, BaseModel) and hasattr(check_model, self.validate_function):
-                validate_function = getattr(check_model, self.validate_function, None)
+            validate_model = kwargs.get(self.validate_model)
+            if isinstance(validate_model, BaseModel) and hasattr(validate_model, self.validate_function):
+                validate_function = getattr(validate_model, self.validate_function, None)
                 if validate_function is not None and callable(validate_function):
                     validate_function()
             return await func(*args, **kwargs)
@@ -106,9 +106,9 @@ class NetWork:
     def __call__(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            check_model = args[0]
-            if isinstance(check_model, BaseModel):
-                field_value = getattr(check_model, self.field_name)
+            validate_model = args[0]
+            if isinstance(validate_model, BaseModel):
+                field_value = getattr(validate_model, self.field_name)
                 try:
                     if self.field_type == 'AnyUrl':
                         NetWorkAnnotationModel(any_url=field_value)
@@ -173,9 +173,9 @@ class NotBlank:
     def __call__(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            check_model = args[0]
-            if isinstance(check_model, BaseModel):
-                field_value = getattr(check_model, self.field_name)
+            validate_model = args[0]
+            if isinstance(validate_model, BaseModel):
+                field_value = getattr(validate_model, self.field_name)
                 if field_value is None or field_value == '' or field_value == [] or field_value == () or field_value == {}:
                     raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}不能为空')
             return func(*args, **kwargs)
@@ -201,9 +201,9 @@ class Pattern:
     def __call__(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            check_model = args[0]
-            if isinstance(check_model, BaseModel):
-                field_value = getattr(check_model, self.field_name)
+            validate_model = args[0]
+            if isinstance(validate_model, BaseModel):
+                field_value = getattr(validate_model, self.field_name)
                 if isinstance(field_value, str) and not re.match(self.regexp, field_value):
                     raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}格式不正确')
             return func(*args, **kwargs)
@@ -241,9 +241,9 @@ class Size:
     def __call__(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            check_model = args[0]
-            if isinstance(check_model, BaseModel):
-                field_value = getattr(check_model, self.field_name)
+            validate_model = args[0]
+            if isinstance(validate_model, BaseModel):
+                field_value = getattr(validate_model, self.field_name)
                 if isinstance(field_value, float):
                     if self.gt is not None and field_value <= self.gt:
                         raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}必须大于{self.gt}')
@@ -281,9 +281,9 @@ class Xss:
     def __call__(self, func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            check_model = args[0]
-            if isinstance(check_model, BaseModel):
-                field_value = getattr(check_model, self.field_name)
+            validate_model = args[0]
+            if isinstance(validate_model, BaseModel):
+                field_value = getattr(validate_model, self.field_name)
                 if not StringUtil.is_blank(field_value):
                     pattern = re.compile(self.HTML_PATTERN)
                     if pattern.search(field_value):

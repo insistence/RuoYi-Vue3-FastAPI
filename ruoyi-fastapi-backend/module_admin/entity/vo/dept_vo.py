@@ -2,8 +2,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from typing import Union, Optional, List, Literal
 from datetime import datetime
-from module_admin.annotation.check_annotation import NetWork, NotBlank, Size
 from module_admin.annotation.pydantic_annotation import as_query
+from module_admin.annotation.validate_annotation import NetWork, NotBlank, Size
 
 
 class DeptModel(BaseModel):
