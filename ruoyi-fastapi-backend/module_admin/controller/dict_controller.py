@@ -5,6 +5,7 @@ from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.dict_service import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
@@ -28,6 +29,7 @@ async def get_system_dict_type_list(request: Request, dict_type_page_query: Dict
 
 
 @dictController.post("/type", dependencies=[Depends(CheckUserInterfaceAuth('system:dict:add'))])
+@ValidateFields(validate_model='add_dict_type')
 @log_decorator(title='字典管理', business_type=BusinessType.INSERT)
 async def add_system_dict_type(request: Request, add_dict_type: DictTypeModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -48,6 +50,7 @@ async def add_system_dict_type(request: Request, add_dict_type: DictTypeModel, q
 
 
 @dictController.put("/type", dependencies=[Depends(CheckUserInterfaceAuth('system:dict:edit'))])
+@ValidateFields(validate_model='edit_dict_type')
 @log_decorator(title='字典管理', business_type=BusinessType.UPDATE)
 async def edit_system_dict_type(request: Request, edit_dict_type: DictTypeModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -159,6 +162,7 @@ async def get_system_dict_data_list(request: Request, dict_data_page_query: Dict
 
 
 @dictController.post("/data", dependencies=[Depends(CheckUserInterfaceAuth('system:dict:add'))])
+@ValidateFields(validate_model='add_dict_data')
 @log_decorator(title='字典管理', business_type=BusinessType.INSERT)
 async def add_system_dict_data(request: Request, add_dict_data: DictDataModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -179,6 +183,7 @@ async def add_system_dict_data(request: Request, add_dict_data: DictDataModel, q
 
 
 @dictController.put("/data", dependencies=[Depends(CheckUserInterfaceAuth('system:dict:edit'))])
+@ValidateFields(validate_model='edit_dict_data')
 @log_decorator(title='字典管理', business_type=BusinessType.UPDATE)
 async def edit_system_dict_data(request: Request, edit_dict_data: DictDataModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
