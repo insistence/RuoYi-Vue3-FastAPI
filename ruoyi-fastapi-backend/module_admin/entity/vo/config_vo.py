@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from typing import Union, Optional, List
+from typing import Union, Optional, List, Literal
 from datetime import datetime
 from module_admin.annotation.pydantic_annotation import as_query, as_form
 from module_admin.annotation.validate_annotation import NotBlank, Size
@@ -16,7 +16,7 @@ class ConfigModel(BaseModel):
     config_name: Optional[str] = Field(default=None, description='参数名称')
     config_key: Optional[str] = Field(default=None, description='参数键名')
     config_value: Optional[str] = Field(default=None, description='参数键值')
-    config_type: Optional[str] = Field(default=None, description='系统内置（Y是 N否）')
+    config_type: Optional[Literal['Y', 'N']] = Field(default=None, description='系统内置（Y是 N否）')
     create_by: Optional[str] = Field(default=None, description='创建者')
     create_time: Optional[datetime] = Field(default=None, description='创建时间')
     update_by: Optional[str] = Field(default=None, description='更新者')
