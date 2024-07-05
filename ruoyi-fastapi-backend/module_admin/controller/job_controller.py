@@ -6,6 +6,7 @@ from module_admin.service.job_service import *
 from module_admin.service.job_log_service import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
@@ -29,6 +30,7 @@ async def get_system_job_list(request: Request, job_page_query: JobPageQueryMode
 
 
 @jobController.post("/job", dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:add'))])
+@ValidateFields(validate_model='add_job')
 @log_decorator(title='定时任务管理', business_type=BusinessType.INSERT)
 async def add_system_job(request: Request, add_job: JobModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -49,6 +51,7 @@ async def add_system_job(request: Request, add_job: JobModel, query_db: AsyncSes
 
 
 @jobController.put("/job", dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:edit'))])
+@ValidateFields(validate_model='edit_job')
 @log_decorator(title='定时任务管理', business_type=BusinessType.UPDATE)
 async def edit_system_job(request: Request, edit_job: EditJobModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
