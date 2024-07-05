@@ -6,6 +6,7 @@ from module_admin.service.dept_service import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.aspect.data_scope import GetDataScope
 from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
@@ -38,6 +39,7 @@ async def get_system_dept_list(request: Request, dept_query: DeptQueryModel = De
 
 
 @deptController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:dept:add'))])
+@ValidateFields(validate_model='add_dept')
 @log_decorator(title='部门管理', business_type=BusinessType.INSERT)
 async def add_system_dept(request: Request, add_dept: DeptModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -58,6 +60,7 @@ async def add_system_dept(request: Request, add_dept: DeptModel, query_db: Async
 
 
 @deptController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:dept:edit'))])
+@ValidateFields(validate_model='edit_dept')
 @log_decorator(title='部门管理', business_type=BusinessType.UPDATE)
 async def edit_system_dept(request: Request, edit_dept: DeptModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
