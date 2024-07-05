@@ -5,6 +5,7 @@ from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.notice_service import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
@@ -27,6 +28,7 @@ async def get_system_notice_list(request: Request, notice_page_query: NoticePage
 
 
 @noticeController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:notice:add'))])
+@ValidateFields(validate_model='add_notice')
 @log_decorator(title='通知公告管理', business_type=BusinessType.INSERT)
 async def add_system_notice(request: Request, add_notice: NoticeModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -47,6 +49,7 @@ async def add_system_notice(request: Request, add_notice: NoticeModel, query_db:
 
 
 @noticeController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:notice:edit'))])
+@ValidateFields(validate_model='edit_notice')
 @log_decorator(title='通知公告管理', business_type=BusinessType.UPDATE)
 async def edit_system_notice(request: Request, edit_notice: NoticeModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
