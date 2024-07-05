@@ -5,6 +5,7 @@ from module_admin.service.login_service import LoginService, CurrentUserModel
 from module_admin.service.config_service import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
@@ -28,6 +29,7 @@ async def get_system_config_list(request: Request, config_page_query: ConfigPage
 
 
 @configController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:config:add'))])
+@ValidateFields(validate_model='add_config')
 @log_decorator(title='参数管理', business_type=BusinessType.INSERT)
 async def add_system_config(request: Request, add_config: ConfigModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -48,6 +50,7 @@ async def add_system_config(request: Request, add_config: ConfigModel, query_db:
 
 
 @configController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:config:edit'))])
+@ValidateFields(validate_model='edit_config')
 @log_decorator(title='参数管理', business_type=BusinessType.UPDATE)
 async def edit_system_config(request: Request, edit_config: ConfigModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
