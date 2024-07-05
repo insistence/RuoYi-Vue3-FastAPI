@@ -8,6 +8,7 @@ from module_admin.service.dept_service import DeptService
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.aspect.data_scope import GetDataScope
 from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.page_util import PageResponseModel
 from utils.response_util import *
@@ -43,6 +44,7 @@ async def get_system_user_list(request: Request, user_page_query: UserPageQueryM
 
 
 @userController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:user:add'))])
+@ValidateFields(validate_model='add_user')
 @log_decorator(title='用户管理', business_type=BusinessType.INSERT)
 async def add_system_user(request: Request, add_user: AddUserModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -64,6 +66,7 @@ async def add_system_user(request: Request, add_user: AddUserModel, query_db: As
 
 
 @userController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:user:edit'))])
+@ValidateFields(validate_model='edit_user')
 @log_decorator(title='用户管理', business_type=BusinessType.UPDATE)
 async def edit_system_user(request: Request, edit_user: EditUserModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
