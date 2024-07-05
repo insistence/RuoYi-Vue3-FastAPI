@@ -5,6 +5,7 @@ from module_admin.service.login_service import LoginService
 from module_admin.service.menu_service import *
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.response_util import *
 from utils.log_util import *
@@ -47,6 +48,7 @@ async def get_system_menu_list(request: Request, menu_query: MenuQueryModel = De
 
 
 @menuController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:menu:add'))])
+@ValidateFields(validate_model='add_menu')
 @log_decorator(title='菜单管理', business_type=BusinessType.INSERT)
 async def add_system_menu(request: Request, add_menu: MenuModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
@@ -67,6 +69,7 @@ async def add_system_menu(request: Request, add_menu: MenuModel, query_db: Async
 
 
 @menuController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:menu:edit'))])
+@ValidateFields(validate_model='edit_menu')
 @log_decorator(title='菜单管理', business_type=BusinessType.UPDATE)
 async def edit_system_menu(request: Request, edit_menu: MenuModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
     try:
