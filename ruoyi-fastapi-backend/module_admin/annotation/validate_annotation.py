@@ -72,7 +72,7 @@ class ValidateFields:
         async def wrapper(*args, **kwargs):
             validate_model = kwargs.get(self.validate_model)
             if isinstance(validate_model, BaseModel) and hasattr(validate_model, self.validate_function):
-                validate_function = getattr(validate_model, self.validate_function, None)
+                validate_function = getattr(validate_model, self.validate_function)
                 if validate_function is not None and callable(validate_function):
                     validate_function()
             return await func(*args, **kwargs)
@@ -107,51 +107,52 @@ class NetWork:
         @wraps(func)
         def wrapper(*args, **kwargs):
             validate_model = args[0]
-            if isinstance(validate_model, BaseModel):
+            if isinstance(validate_model, BaseModel) and hasattr(validate_model, self.field_name):
                 field_value = getattr(validate_model, self.field_name)
-                try:
-                    if self.field_type == 'AnyUrl':
-                        NetWorkAnnotationModel(any_url=field_value)
-                    elif self.field_type == 'AnyHttpUrl':
-                        NetWorkAnnotationModel(any_http_url=field_value)
-                    elif self.field_type == 'HttpUrl':
-                        NetWorkAnnotationModel(http_url=field_value)
-                    elif self.field_type == 'AnyWebsocketUrl':
-                        NetWorkAnnotationModel(any_websocket_url=field_value)
-                    elif self.field_type == 'WebsocketUrl':
-                        NetWorkAnnotationModel(websocket_url=field_value)
-                    elif self.field_type == 'FileUrl':
-                        NetWorkAnnotationModel(file_url=field_value)
-                    elif self.field_type == 'FtpUrl':
-                        NetWorkAnnotationModel(ftp_url=field_value)
-                    elif self.field_type == 'PostgresDsn':
-                        NetWorkAnnotationModel(postgres_dsn=field_value)
-                    elif self.field_type == 'CockroachDsn':
-                        NetWorkAnnotationModel(cockroach_dsn=field_value)
-                    elif self.field_type == 'AmqpDsn':
-                        NetWorkAnnotationModel(amqp_dsn=field_value)
-                    elif self.field_type == 'RedisDsn':
-                        NetWorkAnnotationModel(redis_dsn=field_value)
-                    elif self.field_type == 'MongoDsn':
-                        NetWorkAnnotationModel(mongo_dsn=field_value)
-                    elif self.field_type == 'KafkaDsn':
-                        NetWorkAnnotationModel(kafka_dsn=field_value)
-                    elif self.field_type == 'NatsDsn':
-                        NetWorkAnnotationModel(nats_dsn=field_value)
-                    elif self.field_type == 'MySQLDsn':
-                        NetWorkAnnotationModel(mysql_dsn=field_value)
-                    elif self.field_type == 'MariaDBDsn':
-                        NetWorkAnnotationModel(mariadb_dsn=field_value)
-                    elif self.field_type == 'ClickHouseDsn':
-                        NetWorkAnnotationModel(clickhouse_dsn=field_value)
-                    elif self.field_type == 'EmailStr':
-                        NetWorkAnnotationModel(email_str=field_value)
-                    elif self.field_type == 'NameEmail':
-                        NetWorkAnnotationModel(name_email=field_value)
-                    elif self.field_type == 'IPvAnyAddress':
-                        NetWorkAnnotationModel(ipv_any_address=field_value)
-                except (ValidationError, ValueError):
-                    raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}不是正确的{self.field_type}类型')
+                if field_value:
+                    try:
+                        if self.field_type == 'AnyUrl':
+                            NetWorkAnnotationModel(any_url=field_value)
+                        elif self.field_type == 'AnyHttpUrl':
+                            NetWorkAnnotationModel(any_http_url=field_value)
+                        elif self.field_type == 'HttpUrl':
+                            NetWorkAnnotationModel(http_url=field_value)
+                        elif self.field_type == 'AnyWebsocketUrl':
+                            NetWorkAnnotationModel(any_websocket_url=field_value)
+                        elif self.field_type == 'WebsocketUrl':
+                            NetWorkAnnotationModel(websocket_url=field_value)
+                        elif self.field_type == 'FileUrl':
+                            NetWorkAnnotationModel(file_url=field_value)
+                        elif self.field_type == 'FtpUrl':
+                            NetWorkAnnotationModel(ftp_url=field_value)
+                        elif self.field_type == 'PostgresDsn':
+                            NetWorkAnnotationModel(postgres_dsn=field_value)
+                        elif self.field_type == 'CockroachDsn':
+                            NetWorkAnnotationModel(cockroach_dsn=field_value)
+                        elif self.field_type == 'AmqpDsn':
+                            NetWorkAnnotationModel(amqp_dsn=field_value)
+                        elif self.field_type == 'RedisDsn':
+                            NetWorkAnnotationModel(redis_dsn=field_value)
+                        elif self.field_type == 'MongoDsn':
+                            NetWorkAnnotationModel(mongo_dsn=field_value)
+                        elif self.field_type == 'KafkaDsn':
+                            NetWorkAnnotationModel(kafka_dsn=field_value)
+                        elif self.field_type == 'NatsDsn':
+                            NetWorkAnnotationModel(nats_dsn=field_value)
+                        elif self.field_type == 'MySQLDsn':
+                            NetWorkAnnotationModel(mysql_dsn=field_value)
+                        elif self.field_type == 'MariaDBDsn':
+                            NetWorkAnnotationModel(mariadb_dsn=field_value)
+                        elif self.field_type == 'ClickHouseDsn':
+                            NetWorkAnnotationModel(clickhouse_dsn=field_value)
+                        elif self.field_type == 'EmailStr':
+                            NetWorkAnnotationModel(email_str=field_value)
+                        elif self.field_type == 'NameEmail':
+                            NetWorkAnnotationModel(name_email=field_value)
+                        elif self.field_type == 'IPvAnyAddress':
+                            NetWorkAnnotationModel(ipv_any_address=field_value)
+                    except (ValidationError, ValueError):
+                        raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}不是正确的{self.field_type}类型')
             return func(*args, **kwargs)
         return wrapper
 
@@ -174,7 +175,7 @@ class NotBlank:
         @wraps(func)
         def wrapper(*args, **kwargs):
             validate_model = args[0]
-            if isinstance(validate_model, BaseModel):
+            if isinstance(validate_model, BaseModel) and hasattr(validate_model, self.field_name):
                 field_value = getattr(validate_model, self.field_name)
                 if field_value is None or field_value == '' or field_value == [] or field_value == () or field_value == {}:
                     raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}不能为空')
@@ -202,7 +203,7 @@ class Pattern:
         @wraps(func)
         def wrapper(*args, **kwargs):
             validate_model = args[0]
-            if isinstance(validate_model, BaseModel):
+            if isinstance(validate_model, BaseModel) and hasattr(validate_model, self.field_name):
                 field_value = getattr(validate_model, self.field_name)
                 if isinstance(field_value, str) and not re.match(self.regexp, field_value):
                     raise FieldValidatorException(message=self.message if self.message else f'{self.field_name}格式不正确')
@@ -242,7 +243,7 @@ class Size:
         @wraps(func)
         def wrapper(*args, **kwargs):
             validate_model = args[0]
-            if isinstance(validate_model, BaseModel):
+            if isinstance(validate_model, BaseModel) and hasattr(validate_model, self.field_name):
                 field_value = getattr(validate_model, self.field_name)
                 if isinstance(field_value, float):
                     if self.gt is not None and field_value <= self.gt:
@@ -282,7 +283,7 @@ class Xss:
         @wraps(func)
         def wrapper(*args, **kwargs):
             validate_model = args[0]
-            if isinstance(validate_model, BaseModel):
+            if isinstance(validate_model, BaseModel) and hasattr(validate_model, self.field_name):
                 field_value = getattr(validate_model, self.field_name)
                 if not StringUtil.is_blank(field_value):
                     pattern = re.compile(self.HTML_PATTERN)
