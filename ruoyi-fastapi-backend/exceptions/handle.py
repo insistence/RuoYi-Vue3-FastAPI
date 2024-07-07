@@ -24,7 +24,7 @@ def handle_exception(app: FastAPI):
     async def model_validator_exception_handler(request: Request, exc: ModelValidatorException):
         return ResponseUtil.failure(data=exc.data, msg=exc.message)
 
-    # 自定义模型检验异常
+    # 自定义字段检验异常
     @app.exception_handler(FieldValidationError)
     async def field_validation_error_handler(request: Request, exc: FieldValidationError):
         return ResponseUtil.failure(msg=exc.message)

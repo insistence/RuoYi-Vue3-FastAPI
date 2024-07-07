@@ -36,13 +36,3 @@ class ModelValidatorException(Exception):
     def __init__(self, data: str = None, message: str = None):
         self.data = data
         self.message = message
-
-
-class FieldValidatorException(Exception):
-    """
-    自定义字段校验异常FieldValidatorException
-    """
-
-    def __init__(self, data: str = None, message: str = None):
-        self.data = data
-        self.message = message
