@@ -67,8 +67,8 @@ class DictTypeService:
                     return CrudResponseModel(**result)
             try:
                 if dict_type_info.dict_type != page_object.dict_type:
-                    query_dict_data = await DictDataModel(dictType=dict_type_info.dict_type)
-                    dict_data_list = await DictDataDao.get_dict_data_list(query_db, query_dict_data)
+                    query_dict_data = DictDataPageQueryModel(dictType=dict_type_info.dict_type)
+                    dict_data_list = await DictDataDao.get_dict_data_list(query_db, query_dict_data, is_page=False)
                     for dict_data in dict_data_list:
                         edit_dict_data = DictDataModel(dictCode=dict_data.dict_code, dictType=page_object.dict_type, updateBy=page_object.update_by).model_dump(exclude_unset=True)
                         await DictDataDao.edit_dict_data_dao(query_db, edit_dict_data)
