@@ -1,9 +1,9 @@
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+from pydantic_validation_decorator import NotBlank, Size
 from typing import Union, Optional, List, Literal
 from datetime import datetime
 from module_admin.annotation.pydantic_annotation import as_query, as_form
-from module_admin.annotation.validate_annotation import NotBlank, Size
 
 
 class PostModel(BaseModel):

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 from fastapi import Depends, File, Query
+from pydantic_validation_decorator import ValidateFields
 from config.get_db import get_db
 from config.env import UploadConfig
 from module_admin.service.login_service import LoginService
@@ -8,7 +9,6 @@ from module_admin.service.dept_service import DeptService
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.aspect.data_scope import GetDataScope
 from module_admin.annotation.log_annotation import log_decorator
-from module_admin.annotation.validate_annotation import ValidateFields
 from config.enums import BusinessType
 from utils.page_util import PageResponseModel
 from utils.response_util import *

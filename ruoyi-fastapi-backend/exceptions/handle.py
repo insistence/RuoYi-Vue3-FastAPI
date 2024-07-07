@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
-from exceptions.exception import AuthException, PermissionException, ModelValidatorException, FieldValidatorException
+from pydantic_validation_decorator import FieldValidationError
+from exceptions.exception import AuthException, PermissionException, ModelValidatorException
 from utils.response_util import ResponseUtil, JSONResponse, jsonable_encoder
 
 
@@ -24,9 +25,9 @@ def handle_exception(app: FastAPI):
         return ResponseUtil.failure(data=exc.data, msg=exc.message)
 
     # 自定义模型检验异常
-    @app.exception_handler(FieldValidatorException)
-    async def field_validator_exception_handler(request: Request, exc: FieldValidatorException):
-        return ResponseUtil.failure(data=exc.data, msg=exc.message)
+    @app.exception_handler(FieldValidationError)
+    async def field_validation_error_handler(request: Request, exc: FieldValidationError):
+        return ResponseUtil.failure(msg=exc.message)
 
     # 处理其他http请求异常
     @app.exception_handler(HTTPException)

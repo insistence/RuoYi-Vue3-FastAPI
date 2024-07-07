@@ -1,9 +1,9 @@
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+from pydantic_validation_decorator import Network, NotBlank, Size
 from typing import Union, Optional, List, Literal
 from datetime import datetime
 from module_admin.annotation.pydantic_annotation import as_query
-from module_admin.annotation.validate_annotation import NetWork, NotBlank, Size
 
 
 class DeptModel(BaseModel):
@@ -40,7 +40,7 @@ class DeptModel(BaseModel):
     def get_phone(self):
         return self.phone
 
-    @NetWork(field_name='email', field_type='EmailStr', message='邮箱格式不正确')
+    @Network(field_name='email', field_type='EmailStr', message='邮箱格式不正确')
     @Size(field_name='email', min_length=0, max_length=50, message='邮箱长度不能超过50个字符')
     def get_email(self):
         return self.email

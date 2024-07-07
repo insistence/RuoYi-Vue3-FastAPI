@@ -1,13 +1,13 @@
 import re
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from pydantic.alias_generators import to_camel
+from pydantic_validation_decorator import Network, NotBlank, Size, Xss
 from typing import Union, Optional, List, Literal
 from datetime import datetime
 from module_admin.entity.vo.role_vo import RoleModel
 from module_admin.entity.vo.dept_vo import DeptModel
 from module_admin.entity.vo.post_vo import PostModel
 from module_admin.annotation.pydantic_annotation import as_query, as_form
-from module_admin.annotation.validate_annotation import NetWork, NotBlank, Size, Xss
 from exceptions.exception import ModelValidatorException
 
 
@@ -72,7 +72,7 @@ class UserModel(BaseModel):
     def get_nick_name(self):
         return self.nick_name
 
-    @NetWork(field_name='email', field_type='EmailStr', message='邮箱格式不正确')
+    @Network(field_name='email', field_type='EmailStr', message='邮箱格式不正确')
     @Size(field_name='email', min_length=0, max_length=50, message='邮箱长度不能超过50个字符')
     def get_email(self):
         return self.email
