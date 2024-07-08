@@ -4,12 +4,16 @@ class CommonConstant:
     WWW: www主域
     HTTP: http请求
     HTTPS: https请求
+    YES: 是否为系统默认（是）
+    NO: 是否为系统默认（否）
     UNIQUE: 校验是否唯一的返回标识（是）
     NOT_UNIQUE: 校验是否唯一的返回标识（否）
     """
     WWW = 'www.'
     HTTP = 'http://'
     HTTPS = 'https://'
+    YES = 'Y'
+    NO = 'N'
     UNIQUE = True
     NOT_UNIQUE = False
 
