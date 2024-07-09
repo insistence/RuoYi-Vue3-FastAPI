@@ -1,6 +1,7 @@
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from module_admin.entity.do.post_do import SysPost
+from module_admin.entity.do.user_do import SysUserPost
 from module_admin.entity.vo.post_vo import *
 from utils.page_util import PageUtil
 
@@ -116,3 +117,19 @@ class PostDao:
             delete(SysPost)
                 .where(SysPost.post_id.in_([post.post_id]))
         )
+
+    @classmethod
+    async def count_user_post_dao(cls, db: AsyncSession, post_id: int):
+        """
+        根据岗位id查询岗位关联的用户数量
+        :param db: orm对象
+        :param post_id: 岗位id
+        :return: 岗位关联的用户数量
+        """
+        user_post_count = (await db.execute(
+            select(func.count('*'))
+                .select_from(SysUserPost)
+                .where(SysUserPost.post_id == post_id)
+        )).scalar()
+
+        return user_post_count
