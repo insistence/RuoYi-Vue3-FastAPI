@@ -42,7 +42,10 @@ class UserDao:
         """
         query_user_info = (await db.execute(
             select(SysUser)
-                .where(SysUser.del_flag == '0', SysUser.user_name == user.user_name)
+                .where(SysUser.del_flag == '0',
+                       SysUser.user_name == user.user_name if user.user_name else True,
+                       SysUser.phonenumber == user.phonenumber if user.phonenumber else True,
+                       SysUser.email == user.email if user.email else True)
                 .order_by(desc(SysUser.create_time))
                 .distinct()
         )).scalars().first()
@@ -190,6 +193,7 @@ class UserDao:
                    or_(SysUser.dept_id == query_object.dept_id, SysUser.dept_id.in_(
                        select(SysDept.dept_id).where(func.find_in_set(query_object.dept_id, SysDept.ancestors))
                    )) if query_object.dept_id else True,
+                   SysUser.user_id == query_object.user_id if query_object.user_id is not None else True,
                    SysUser.user_name.like(f'%{query_object.user_name}%') if query_object.user_name else True,
                    SysUser.nick_name.like(f'%{query_object.nick_name}%') if query_object.nick_name else True,
                    SysUser.email.like(f'%{query_object.email}%') if query_object.email else True,
