@@ -36,9 +36,9 @@ class NoticeDao:
         """
         notice_info = (await db.execute(
             select(SysNotice)
-                .where(SysNotice.notice_title == notice.notice_title if notice.notice_title else True,
-                       SysNotice.notice_type == notice.notice_type if notice.notice_type else True,
-                       SysNotice.notice_content == notice.notice_content if notice.notice_content else True)
+                .where(SysNotice.notice_title == notice.notice_title,
+                       SysNotice.notice_type == notice.notice_type,
+                       SysNotice.notice_content == notice.notice_content)
         )).scalars().first()
 
         return notice_info
