@@ -38,7 +38,8 @@ class MenuService:
         """
         menu_list_result = await MenuDao.get_menu_list_for_tree(query_db, current_user.user.user_id, current_user.user.role)
         menu_tree_result = cls.list_to_tree(menu_list_result)
-        role_menu_list = await RoleDao.get_role_menu_dao(query_db, role_id)
+        role = await RoleDao.get_role_detail_by_id(query_db, role_id)
+        role_menu_list = await RoleDao.get_role_menu_dao(query_db, role)
         checked_keys = [row.menu_id for row in role_menu_list]
         result = RoleMenuQueryModel(
             menus=menu_tree_result,

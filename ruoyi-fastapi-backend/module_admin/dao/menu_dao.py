@@ -168,7 +168,7 @@ class MenuDao:
         menu_count = (await db.execute(
             select(func.count('*'))
                 .select_from(SysMenu)
-                .where(SysMenu.menu_id == menu_id)
+                .where(SysMenu.parent_id == menu_id)
         )).scalar()
 
         return menu_count

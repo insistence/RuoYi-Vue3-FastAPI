@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from module_admin.entity.do.user_do import SysUser, SysUserRole
 from module_admin.entity.do.role_do import SysRole, SysRoleMenu, SysRoleDept
 from module_admin.entity.do.dept_do import SysDept
+from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.vo.role_vo import *
 from utils.page_util import PageUtil
 from datetime import datetime, time
@@ -169,17 +170,24 @@ class RoleDao:
         )
 
     @classmethod
-    async def get_role_menu_dao(cls, db: AsyncSession, role_id: int):
+    async def get_role_menu_dao(cls, db: AsyncSession, role: RoleModel):
         """
         根据角色id获取角色菜单关联列表信息
         :param db: orm对象
-        :param role_id: 角色id
+        :param role: 角色对象
         :return: 角色菜单关联列表信息
         """
         role_menu_query_all = (await db.execute(
-            select(SysRoleMenu)
-                .where(SysRoleMenu.role_id == role_id)
-                .distinct()
+            select(SysMenu)
+                .join(SysRoleMenu, SysRoleMenu.menu_id == SysMenu.menu_id)
+                .where(SysRoleMenu.role_id == role.role_id,
+                       ~SysMenu.menu_id.in_(
+                           select(SysMenu.parent_id)
+                               .select_from(SysMenu)
+                               .join(SysRoleMenu,
+                                     and_(SysRoleMenu.menu_id == SysMenu.menu_id, SysRoleMenu.role_id == role.role_id))
+                       ) if role.menu_check_strictly else True)
+                .order_by(SysMenu.parent_id, SysMenu.order_num)
         )).scalars().all()
 
         return role_menu_query_all

@@ -88,14 +88,14 @@ class DeptDao:
         dept_result = (await db.execute(
             select(SysDept)
                 .where(SysDept.dept_id != dept_info.dept_id,
-                       SysDept.parent_id != dept_info.dept_id,
+                       ~SysDept.dept_id.in_(select(SysDept.dept_id).where(func.find_in_set(dept_info.dept_id, SysDept.ancestors))),
                        SysDept.del_flag == '0', SysDept.status == '0',
                        eval(data_scope_sql))
                 .order_by(SysDept.order_num)
                 .distinct()
         )).scalars().all()
 
-        return list_format_datetime(dept_result)
+        return dept_result
 
     @classmethod
     async def get_children_dept(cls, db: AsyncSession, dept_id: int):
