@@ -1,4 +1,4 @@
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.role_do import SysRoleDept

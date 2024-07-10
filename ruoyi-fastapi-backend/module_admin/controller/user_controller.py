@@ -76,9 +76,9 @@ async def delete_system_user(request: Request, user_ids: str, query_db: AsyncSes
 
         return ResponseUtil.failure(msg='当前登录用户不能删除')
     for user_id in user_id_list:
+        await UserService.check_user_allowed_services(UserModel(userId=int(user_id)))
         if not current_user.user.admin:
-            await UserService.check_user_allowed_services(UserModel(userId=int(user_id)))
-        await UserService.check_user_data_scope_services(query_db, int(user_id), data_scope_sql)
+            await UserService.check_user_data_scope_services(query_db, int(user_id), data_scope_sql)
     delete_user = DeleteUserModel(
         userIds=user_ids,
         updateBy=current_user.user.user_name,

@@ -1,5 +1,6 @@
-from sqlalchemy import select, update, delete, desc, func
+from sqlalchemy import select, update, delete, desc, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from module_admin.entity.do.user_do import SysUser, SysUserRole
 from module_admin.entity.do.role_do import SysRole, SysRoleMenu, SysRoleDept
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.vo.role_vo import *
@@ -96,15 +97,19 @@ class RoleDao:
         return role_info
 
     @classmethod
-    async def get_role_list(cls, db: AsyncSession, query_object: RolePageQueryModel, is_page: bool = False):
+    async def get_role_list(cls, db: AsyncSession, query_object: RolePageQueryModel, data_scope_sql: str, is_page: bool = False):
         """
         根据查询参数获取角色列表信息
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param data_scope_sql: 数据权限对应的查询sql语句
         :param is_page: 是否开启分页
         :return: 角色列表信息对象
         """
-        query = select(SysRole) \
+        role_query = (select(SysRole, SysUser.user_id, SysDept.dept_id)
+            .join(SysUserRole, SysUserRole.role_id == SysRole.role_id, isouter=True)
+            .join(SysUser, SysUser.user_id == SysUserRole.user_id, isouter=True)
+            .join(SysDept, SysDept.dept_id == SysUser.dept_id, isouter=True)
             .where(SysRole.del_flag == '0',
                    SysRole.role_name.like(f'%{query_object.role_name}%') if query_object.role_name else True,
                    SysRole.role_key.like(f'%{query_object.role_key}%') if query_object.role_key else True,
@@ -112,9 +117,12 @@ class RoleDao:
                    SysRole.create_time.between(
                        datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
                        datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
-                   if query_object.begin_time and query_object.end_time else True) \
-            .order_by(SysRole.role_sort) \
-            .distinct()
+                   if query_object.begin_time and query_object.end_time else True)
+            .order_by(SysRole.role_sort)).subquery()
+        query = select(SysRole) \
+            .select_from(role_query) \
+            .join(SysRole, SysRole.role_id == role_query.columns.role_id) \
+            .where(eval(data_scope_sql)).distinct()
         role_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
 
         return role_list
@@ -201,18 +209,23 @@ class RoleDao:
         )
 
     @classmethod
-    async def get_role_dept_dao(cls, db: AsyncSession, role_id: int):
+    async def get_role_dept_dao(cls, db: AsyncSession, role: RoleModel):
         """
         根据角色id获取角色部门关联列表信息
         :param db: orm对象
-        :param role_id: 角色id
+        :param role: 角色对象
         :return: 角色部门关联列表信息
         """
         role_dept_query_all = (await db.execute(
-            select(SysRoleDept)
-                .where(SysRoleDept.role_id == role_id,
-                       ~select(SysDept).where(func.find_in_set(SysRoleDept.dept_id, SysDept.ancestors)).exists())
-                .distinct()
+            select(SysDept)
+                .join(SysRoleDept, SysRoleDept.dept_id == SysDept.dept_id)
+                .where(SysRoleDept.role_id == role.role_id,
+                       ~SysDept.dept_id.in_(
+                           select(SysDept.parent_id)
+                               .select_from(SysDept)
+                               .join(SysRoleDept, and_(SysRoleDept.dept_id == SysDept.dept_id, SysRoleDept.role_id == role.role_id))
+                       ) if role.dept_check_strictly else True)
+                .order_by(SysDept.parent_id, SysDept.order_num)
         )).scalars().all()
 
         return role_dept_query_all
@@ -240,3 +253,19 @@ class RoleDao:
             delete(SysRoleDept)
                 .where(SysRoleDept.role_id.in_([role_dept.role_id]))
         )
+
+    @classmethod
+    async def count_user_role_dao(cls, db: AsyncSession, role_id: int):
+        """
+        根据角色id查询角色关联用户数量
+        :param db: orm对象
+        :param role_id: 角色id
+        :return: 角色关联用户数量
+        """
+        user_count = (await db.execute(
+            select(func.count('*'))
+                .select_from(SysUserRole)
+                .where(SysUserRole.role_id == role_id)
+        )).scalar()
+
+        return user_count

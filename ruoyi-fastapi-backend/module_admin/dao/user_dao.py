@@ -277,46 +277,56 @@ class UserDao:
         return allocated_role_list
 
     @classmethod
-    async def get_user_role_allocated_list_by_role_id(cls, db: AsyncSession, query_object: UserRolePageQueryModel,
-                                                      is_page: bool = False):
+    async def get_user_role_allocated_list_by_role_id(cls, db: AsyncSession, query_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False):
         """
         根据角色id获取已分配的用户列表信息
         :param db: orm对象
         :param query_object: 用户角色查询对象
+        :param data_scope_sql: 数据权限对应的查询sql语句
         :param is_page: 是否开启分页
         :return: 角色已分配的用户列表信息
         """
         query = select(SysUser) \
+            .join(SysDept, SysDept.dept_id == SysUser.dept_id, isouter=True) \
+            .join(SysUserRole, SysUserRole.user_id == SysUser.user_id, isouter=True) \
+            .join(SysRole, SysRole.role_id == SysUserRole.role_id, isouter=True) \
             .where(SysUser.del_flag == '0',
-                   SysUser.user_id != 1,
                    SysUser.user_name == query_object.user_name if query_object.user_name else True,
                    SysUser.phonenumber == query_object.phonenumber if query_object.phonenumber else True,
-                   SysUser.user_id.in_(
-                       select(SysUserRole.user_id).where(SysUserRole.role_id == query_object.role_id)
-                   )) \
+                   SysRole.role_id == query_object.role_id,
+                   eval(data_scope_sql)) \
             .distinct()
         allocated_user_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
 
         return allocated_user_list
 
     @classmethod
-    async def get_user_role_unallocated_list_by_role_id(cls, db: AsyncSession, query_object: UserRolePageQueryModel,
-                                                        is_page: bool = False):
+    async def get_user_role_unallocated_list_by_role_id(cls, db: AsyncSession, query_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False):
         """
         根据角色id获取未分配的用户列表信息
         :param db: orm对象
         :param query_object: 用户角色查询对象
+        :param data_scope_sql: 数据权限对应的查询sql语句
         :param is_page: 是否开启分页
         :return: 角色未分配的用户列表信息
         """
         query = select(SysUser) \
+            .join(SysDept, SysDept.dept_id == SysUser.dept_id, isouter=True) \
+            .join(SysUserRole, SysUserRole.user_id == SysUser.user_id, isouter=True) \
+            .join(SysRole, SysRole.role_id == SysUserRole.role_id, isouter=True) \
             .where(SysUser.del_flag == '0',
-                   SysUser.user_id != 1,
                    SysUser.user_name == query_object.user_name if query_object.user_name else True,
                    SysUser.phonenumber == query_object.phonenumber if query_object.phonenumber else True,
+                   or_(SysRole.role_id != query_object.role_id, SysRole.role_id is None),
                    ~SysUser.user_id.in_(
-                       select(SysUserRole.user_id).where(SysUserRole.role_id == query_object.role_id)
-                   )) \
+                       select(SysUser.user_id)
+                           .select_from(SysUser)
+                           .join(SysUserRole,
+                                 and_(SysUserRole.user_id == SysUser.user_id,
+                                      SysUserRole.role_id == query_object.role_id)
+                                 )
+                   ),
+                   eval(data_scope_sql)) \
             .distinct()
         unallocated_user_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size,
                                                         is_page)
