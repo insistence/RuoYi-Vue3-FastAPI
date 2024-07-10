@@ -9,7 +9,7 @@ from module_admin.service.user_service import *
 from module_admin.entity.vo.login_vo import *
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.dao.login_dao import *
-from exceptions.exception import LoginException, AuthException
+from exceptions.exception import LoginException, AuthException, ServiceException
 from config.constant import CommonConstant, MenuConstant
 from config.env import AppConfig, JwtConfig, RedisInitKeyConfig
 from config.get_db import get_db
@@ -344,11 +344,9 @@ class LoginService:
                     captcha_value = await request.app.state.redis.get(
                         f"{RedisInitKeyConfig.CAPTCHA_CODES.get('key')}:{user_register.uuid}")
                     if not captcha_value:
-                        logger.warning("验证码已失效")
-                        return CrudResponseModel(is_success=False, message='验证码已失效')
+                        raise ServiceException(message='验证码已失效')
                     elif user_register.code != str(captcha_value):
-                        logger.warning("验证码错误")
-                        return CrudResponseModel(is_success=False, message='验证码错误')
+                        raise ServiceException(message='验证码错误')
                 add_user = AddUserModel(
                     userName=user_register.username,
                     nickName=user_register.username,
@@ -357,11 +355,9 @@ class LoginService:
                 result = await UserService.add_user_services(query_db, add_user)
                 return result
             else:
-                result = dict(is_success=False, message='注册程序已关闭，禁止注册')
+                raise ServiceException(message='注册程序已关闭，禁止注册')
         else:
-            result = dict(is_success=False, message='两次输入的密码不一致')
-
-        return CrudResponseModel(**result)
+            raise ServiceException(message='两次输入的密码不一致')
 
     @classmethod
     async def get_sms_code_services(cls, request: Request, query_db: AsyncSession, user: ResetUserModel):
