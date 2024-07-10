@@ -4,6 +4,7 @@ from fastapi import UploadFile
 from datetime import datetime
 from config.env import UploadConfig
 from module_admin.entity.vo.common_vo import *
+from exceptions.exception import ServiceException
 from utils.upload_util import UploadUtil
 
 
@@ -21,7 +22,7 @@ class CommonService:
         :return: 上传结果
         """
         if not UploadUtil.check_file_extension(file):
-            result = dict(is_success=False, message='文件类型不合法')
+            raise ServiceException(message='文件类型不合法')
         else:
             relative_path = f'upload/{datetime.now().strftime("%Y")}/{datetime.now().strftime("%m")}/{datetime.now().strftime("%d")}'
             dir_path = os.path.join(UploadConfig.UPLOAD_PATH, relative_path)
@@ -36,7 +37,7 @@ class CommonService:
                 for chunk in iter(lambda: file.file.read(1024 * 1024 * 10), b''):
                     f.write(chunk)
 
-            result = dict(
+            return CrudResponseModel(
                 is_success=True,
                 result=UploadResponseModel(
                     fileName=f'{UploadConfig.UPLOAD_PREFIX}/{relative_path}/{filename}',
@@ -46,8 +47,6 @@ class CommonService:
                 ),
                 message='上传成功'
             )
-
-        return CrudResponseModel(**result)
 
     @classmethod
     async def download_services(cls, background_tasks: BackgroundTasks, file_name, delete: bool):
@@ -60,14 +59,13 @@ class CommonService:
         """
         filepath = os.path.join(UploadConfig.DOWNLOAD_PATH, file_name)
         if '..' in file_name:
-            result = dict(is_success=False, message='文件名称不合法')
+            raise ServiceException(message='文件名称不合法')
         elif not UploadUtil.check_file_exists(filepath):
-            result = dict(is_success=False, message='文件不存在')
+            raise ServiceException(message='文件不存在')
         else:
-            result = dict(is_success=True, result=UploadUtil.generate_file(filepath), message='下载成功')
             if delete:
                 background_tasks.add_task(UploadUtil.delete_file, filepath)
-        return CrudResponseModel(**result)
+            return CrudResponseModel(is_success=True, result=UploadUtil.generate_file(filepath), message='下载成功')
 
     @classmethod
     async def download_resource_services(cls, resource: str):
@@ -79,9 +77,8 @@ class CommonService:
         filepath = os.path.join(resource.replace(UploadConfig.UPLOAD_PREFIX, UploadConfig.UPLOAD_PATH))
         filename = resource.rsplit("/", 1)[-1]
         if '..' in filename or not UploadUtil.check_file_timestamp(filename) or not UploadUtil.check_file_machine(filename) or not UploadUtil.check_file_random_code(filename):
-            result = dict(is_success=False, message='文件名称不合法')
+            raise ServiceException(message='文件名称不合法')
         elif not UploadUtil.check_file_exists(filepath):
-            result = dict(is_success=False, message='文件不存在')
+            raise ServiceException(message='文件不存在')
         else:
-            result = dict(is_success=True, result=UploadUtil.generate_file(filepath), message='下载成功')
-        return CrudResponseModel(**result)
+            return CrudResponseModel(is_success=True, result=UploadUtil.generate_file(filepath), message='下载成功')

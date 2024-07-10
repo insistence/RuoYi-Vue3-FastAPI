@@ -10,44 +10,23 @@ commonController = APIRouter(prefix='/common', dependencies=[Depends(LoginServic
 
 @commonController.post("/upload")
 async def common_upload(request: Request, file: UploadFile = File(...)):
-    try:
-        upload_result = await CommonService.upload_service(request, file)
-        if upload_result.is_success:
-            logger.info('上传成功')
-            return ResponseUtil.success(model_content=upload_result.result)
-        else:
-            logger.warning('上传失败')
-            return ResponseUtil.failure(msg=upload_result.message)
-    except Exception as e:
-        logger.exception(e)
-        return ResponseUtil.error(msg=str(e))
+    upload_result = await CommonService.upload_service(request, file)
+    logger.info('上传成功')
+
+    return ResponseUtil.success(model_content=upload_result.result)
 
 
 @commonController.get("/download")
 async def common_download(request: Request, background_tasks: BackgroundTasks, file_name: str = Query(alias='fileName'), delete: bool = Query()):
-    try:
-        download_result = await CommonService.download_services(background_tasks, file_name, delete)
-        if download_result.is_success:
-            logger.info(download_result.message)
-            return ResponseUtil.streaming(data=download_result.result)
-        else:
-            logger.warning(download_result.message)
-            return ResponseUtil.failure(msg=download_result.message)
-    except Exception as e:
-        logger.exception(e)
-        return ResponseUtil.error(msg=str(e))
+    download_result = await CommonService.download_services(background_tasks, file_name, delete)
+    logger.info(download_result.message)
+
+    return ResponseUtil.streaming(data=download_result.result)
 
 
 @commonController.get("/download/resource")
 async def common_download(request: Request, resource: str = Query()):
-    try:
-        download_resource_result = await CommonService.download_resource_services(resource)
-        if download_resource_result.is_success:
-            logger.info(download_resource_result.message)
-            return ResponseUtil.streaming(data=download_resource_result.result)
-        else:
-            logger.warning(download_resource_result.message)
-            return ResponseUtil.failure(msg=download_resource_result.message)
-    except Exception as e:
-        logger.exception(e)
-        return ResponseUtil.error(msg=str(e))
+    download_resource_result = await CommonService.download_resource_services(resource)
+    logger.info(download_resource_result.message)
+
+    return ResponseUtil.streaming(data=download_resource_result.result)
