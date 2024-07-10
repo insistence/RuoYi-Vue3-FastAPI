@@ -1,4 +1,4 @@
-from sqlalchemy import select, update, delete, and_
+from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from module_admin.entity.do.dict_do import SysDictType, SysDictData
 from module_admin.entity.vo.dict_vo import *
@@ -149,9 +149,9 @@ class DictDataDao:
         """
         dict_data_info = (await db.execute(
             select(SysDictData)
-                .where(SysDictData.dict_type == dict_data.dict_type if dict_data.dict_type else True,
-                       SysDictData.dict_label == dict_data.dict_label if dict_data.dict_label else True,
-                       SysDictData.dict_value == dict_data.dict_value if dict_data.dict_value else True)
+                .where(SysDictData.dict_type == dict_data.dict_type,
+                       SysDictData.dict_label == dict_data.dict_label,
+                       SysDictData.dict_value == dict_data.dict_value)
         )).scalars().first()
 
         return dict_data_info
@@ -233,3 +233,19 @@ class DictDataDao:
             delete(SysDictData)
                 .where(SysDictData.dict_code.in_([dict_data.dict_code]))
         )
+
+    @classmethod
+    async def count_dict_data_dao(cls, db: AsyncSession, dict_type: str):
+        """
+        根据字典类型查询字典类型关联的字典数据数量
+        :param db: orm对象
+        :param dict_type: 字典类型
+        :return: 字典类型关联的字典数据数量
+        """
+        dict_data_count = (await db.execute(
+            select(func.count('*'))
+                .select_from(SysDictData)
+                .where(SysDictData.dict_type == dict_type)
+        )).scalar()
+
+        return dict_data_count
