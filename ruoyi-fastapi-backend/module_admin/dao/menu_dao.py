@@ -1,4 +1,4 @@
-from sqlalchemy import select, update, delete, and_
+from sqlalchemy import select, update, delete, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.user_do import SysUser, SysUserRole
@@ -156,3 +156,35 @@ class MenuDao:
             delete(SysMenu)
                 .where(SysMenu.menu_id.in_([menu.menu_id]))
         )
+
+    @classmethod
+    async def has_child_by_menu_id_dao(cls, db: AsyncSession, menu_id: int):
+        """
+        根据菜单id查询菜单关联子菜单的数量
+        :param db: orm对象
+        :param menu_id: 菜单id
+        :return: 菜单关联子菜单的数量
+        """
+        menu_count = (await db.execute(
+            select(func.count('*'))
+                .select_from(SysMenu)
+                .where(SysMenu.menu_id == menu_id)
+        )).scalar()
+
+        return menu_count
+
+    @classmethod
+    async def check_menu_exist_role_dao(cls, db: AsyncSession, menu_id: int):
+        """
+        根据菜单id查询菜单关联角色数量
+        :param db: orm对象
+        :param menu_id: 菜单id
+        :return: 菜单关联角色数量
+        """
+        role_count = (await db.execute(
+            select(func.count('*'))
+                .select_from(SysRoleMenu)
+                .where(SysRoleMenu.menu_id == menu_id)
+        )).scalar()
+
+        return role_count
