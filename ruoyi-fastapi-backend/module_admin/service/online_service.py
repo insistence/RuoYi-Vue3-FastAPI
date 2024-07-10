@@ -3,6 +3,7 @@ from jose import jwt
 from config.env import JwtConfig, RedisInitKeyConfig
 from module_admin.entity.vo.online_vo import *
 from module_admin.entity.vo.common_vo import CrudResponseModel
+from exceptions.exception import ServiceException
 from utils.common_util import CamelCaseUtil
 
 
@@ -65,7 +66,6 @@ class OnlineService:
             token_id_list = page_object.token_ids.split(',')
             for token_id in token_id_list:
                 await request.app.state.redis.delete(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{token_id}")
-            result = dict(is_success=True, message='强退成功')
+            return CrudResponseModel(is_success=True, message='强退成功')
         else:
-            result = dict(is_success=False, message='传入session_id为空')
-        return CrudResponseModel(**result)
+            raise ServiceException(message='传入session_id为空')
