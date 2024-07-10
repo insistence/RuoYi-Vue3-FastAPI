@@ -87,9 +87,8 @@ class CacheService:
         cache_keys = await request.app.state.redis.keys(f"{cache_name}*")
         if cache_keys:
             await request.app.state.redis.delete(*cache_keys)
-        result = dict(is_success=True, message=f"{cache_name}对应键值清除成功")
 
-        return CrudResponseModel(**result)
+        return CrudResponseModel(is_success=True, message=f"{cache_name}对应键值清除成功")
 
     @classmethod
     async def clear_cache_monitor_cache_key_services(cls, request: Request, cache_key: str):
@@ -102,9 +101,8 @@ class CacheService:
         cache_keys = await request.app.state.redis.keys(f"*{cache_key}")
         if cache_keys:
             await request.app.state.redis.delete(*cache_keys)
-        result = dict(is_success=True, message=f"{cache_key}清除成功")
 
-        return CrudResponseModel(**result)
+        return CrudResponseModel(is_success=True, message=f"{cache_key}清除成功")
 
     @classmethod
     async def clear_cache_monitor_all_services(cls, request: Request):
@@ -117,8 +115,7 @@ class CacheService:
         if cache_keys:
             await request.app.state.redis.delete(*cache_keys)
 
-        result = dict(is_success=True, message="所有缓存清除成功")
         await RedisUtil.init_sys_dict(request.app.state.redis)
         await RedisUtil.init_sys_config(request.app.state.redis)
 
-        return CrudResponseModel(**result)
+        return CrudResponseModel(is_success=True, message="所有缓存清除成功")
