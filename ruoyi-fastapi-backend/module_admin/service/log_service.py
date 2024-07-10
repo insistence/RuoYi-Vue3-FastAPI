@@ -1,6 +1,7 @@
 from module_admin.dao.log_dao import *
 from module_admin.service.dict_service import Request, DictDataService
 from module_admin.entity.vo.common_vo import CrudResponseModel
+from exceptions.exception import ServiceException
 from utils.common_util import export_list2excel, CamelCaseUtil
 
 
@@ -33,12 +34,10 @@ class OperationLogService:
         try:
             await OperationLogDao.add_operation_log_dao(query_db, page_object)
             await query_db.commit()
-            result = dict(is_success=True, message='新增成功')
+            return CrudResponseModel(is_success=True, message='新增成功')
         except Exception as e:
             await query_db.rollback()
-            result = dict(is_success=False, message=str(e))
-
-        return CrudResponseModel(**result)
+            raise e
 
     @classmethod
     async def delete_operation_log_services(cls, query_db: AsyncSession, page_object: DeleteOperLogModel):
@@ -54,13 +53,12 @@ class OperationLogService:
                 for oper_id in oper_id_list:
                     await OperationLogDao.delete_operation_log_dao(query_db, OperLogModel(operId=oper_id))
                 await query_db.commit()
-                result = dict(is_success=True, message='删除成功')
+                return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()
                 raise e
         else:
-            result = dict(is_success=False, message='传入操作日志id为空')
-        return CrudResponseModel(**result)
+            raise ServiceException(message='传入操作日志id为空')
 
     @classmethod
     async def clear_operation_log_services(cls, query_db: AsyncSession):
@@ -72,12 +70,10 @@ class OperationLogService:
         try:
             await OperationLogDao.clear_operation_log_dao(query_db)
             await query_db.commit()
-            result = dict(is_success=True, message='清除成功')
+            return CrudResponseModel(is_success=True, message='清除成功')
         except Exception as e:
             await query_db.rollback()
             raise e
-
-        return CrudResponseModel(**result)
 
     @classmethod
     async def export_operation_log_list_services(cls, request: Request, operation_log_list: List):
@@ -155,12 +151,10 @@ class LoginLogService:
         try:
             await LoginLogDao.add_login_log_dao(query_db, page_object)
             await query_db.commit()
-            result = dict(is_success=True, message='新增成功')
+            return CrudResponseModel(is_success=True, message='新增成功')
         except Exception as e:
             await query_db.rollback()
-            result = dict(is_success=False, message=str(e))
-
-        return CrudResponseModel(**result)
+            raise e
 
     @classmethod
     async def delete_login_log_services(cls, query_db: AsyncSession, page_object: DeleteLoginLogModel):
@@ -176,13 +170,12 @@ class LoginLogService:
                 for info_id in info_id_list:
                     await LoginLogDao.delete_login_log_dao(query_db, LogininforModel(infoId=info_id))
                 await query_db.commit()
-                result = dict(is_success=True, message='删除成功')
+                return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()
                 raise e
         else:
-            result = dict(is_success=False, message='传入登录日志id为空')
-        return CrudResponseModel(**result)
+            raise ServiceException(message='传入登录日志id为空')
 
     @classmethod
     async def clear_login_log_services(cls, query_db: AsyncSession):
@@ -194,22 +187,19 @@ class LoginLogService:
         try:
             await LoginLogDao.clear_login_log_dao(query_db)
             await query_db.commit()
-            result = dict(is_success=True, message='清除成功')
+            return CrudResponseModel(is_success=True, message='清除成功')
         except Exception as e:
             await query_db.rollback()
             raise e
-
-        return CrudResponseModel(**result)
 
     @classmethod
     async def unlock_user_services(cls, request: Request, unlock_user: UnlockUser):
         locked_user = await request.app.state.redis.get(f"account_lock:{unlock_user.user_name}")
         if locked_user:
             await request.app.state.redis.delete(f"account_lock:{unlock_user.user_name}")
-            result = dict(is_success=True, message='解锁成功')
+            return CrudResponseModel(is_success=True, message='解锁成功')
         else:
-            result = dict(is_success=False, message='该用户未锁定')
-        return CrudResponseModel(**result)
+            raise ServiceException(message='该用户未锁定')
 
     @staticmethod
     async def export_login_log_list_services(login_log_list: List):
