@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from pydantic_validation_decorator import FieldValidationError
-from exceptions.exception import AuthException, LoginException, PermissionException, ServiceException, ModelValidatorException
+from exceptions.exception import AuthException, LoginException, PermissionException, ServiceException, ServiceWarning, ModelValidatorException
 from utils.log_util import logger
 from utils.response_util import ResponseUtil, JSONResponse, jsonable_encoder
 
@@ -28,6 +28,12 @@ def handle_exception(app: FastAPI):
     # 自定义服务异常
     @app.exception_handler(ServiceException)
     async def service_exception_handler(request: Request, exc: ServiceException):
+        logger.warning(exc.message)
+        return ResponseUtil.error(data=exc.data, msg=exc.message)
+
+    # 自定义服务警告
+    @app.exception_handler(ServiceWarning)
+    async def service_warning_handler(request: Request, exc: ServiceWarning):
         logger.warning(exc.message)
         return ResponseUtil.failure(data=exc.data, msg=exc.message)
 
