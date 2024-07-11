@@ -4,7 +4,7 @@ from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.dao.role_dao import RoleDao
 from module_admin.dao.menu_dao import *
 from config.constant import CommonConstant, MenuConstant
-from exceptions.exception import ServiceException
+from exceptions.exception import ServiceException, ServiceWarning
 from utils.common_util import CamelCaseUtil
 from utils.string_util import StringUtil
 
@@ -137,9 +137,9 @@ class MenuService:
             try:
                 for menu_id in menu_id_list:
                     if (await MenuDao.has_child_by_menu_id_dao(query_db, int(menu_id))) > 0:
-                        raise ServiceException(message='存在子菜单,不允许删除')
+                        raise ServiceWarning(message='存在子菜单,不允许删除')
                     elif (await MenuDao.check_menu_exist_role_dao(query_db, int(menu_id))) > 0:
-                        raise ServiceException(message='菜单已分配,不允许删除')
+                        raise ServiceWarning(message='菜单已分配,不允许删除')
                     await MenuDao.delete_menu_dao(query_db, MenuModel(menuId=menu_id))
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='删除成功')

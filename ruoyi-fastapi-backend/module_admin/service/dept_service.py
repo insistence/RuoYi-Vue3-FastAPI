@@ -1,7 +1,7 @@
 from module_admin.dao.dept_dao import *
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from config.constant import CommonConstant
-from exceptions.exception import ServiceException
+from exceptions.exception import ServiceException, ServiceWarning
 from utils.common_util import CamelCaseUtil
 
 
@@ -147,9 +147,9 @@ class DeptService:
             try:
                 for dept_id in dept_id_list:
                     if (await DeptDao.count_children_dept_dao(query_db, int(dept_id))) > 0:
-                        raise ServiceException(message='存在下级部门,不允许删除')
+                        raise ServiceWarning(message='存在下级部门,不允许删除')
                     elif (await DeptDao.count_dept_user_dao(query_db, int(dept_id))) > 0:
-                        raise ServiceException(message='部门存在用户,不允许删除')
+                        raise ServiceWarning(message='部门存在用户,不允许删除')
 
                     await DeptDao.delete_dept_dao(query_db, DeptModel(deptId=dept_id))
                 await query_db.commit()
