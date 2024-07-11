@@ -1,5 +1,7 @@
 from module_admin.dao.dept_dao import *
 from module_admin.entity.vo.common_vo import CrudResponseModel
+from config.constant import CommonConstant
+from exceptions.exception import ServiceException
 from utils.common_util import CamelCaseUtil
 
 
@@ -50,6 +52,35 @@ class DeptService:
         return CamelCaseUtil.transform_result(dept_list_result)
 
     @classmethod
+    async def check_dept_data_scope_services(cls, query_db: AsyncSession, dept_id: int, data_scope_sql: str):
+        """
+        校验部门是否有数据权限service
+        :param query_db: orm对象
+        :param dept_id: 部门id
+        :param data_scope_sql: 数据权限对应的查询sql语句
+        :return: 校验结果
+        """
+        depts = await DeptDao.get_dept_list(query_db, DeptModel(deptId=dept_id), data_scope_sql)
+        if depts:
+            return CrudResponseModel(is_success=True, message='校验通过')
+        else:
+            raise ServiceException(message='没有权限访问部门数据')
+
+    @classmethod
+    async def check_dept_name_unique_services(cls, query_db: AsyncSession, page_object: DeptModel):
+        """
+        校验部门名称是否唯一service
+        :param query_db: orm对象
+        :param page_object: 部门对象
+        :return: 校验结果
+        """
+        dept_id = -1 if page_object.dept_id is None else page_object.dept_id
+        dept = await DeptDao.get_dept_detail_by_info(query_db, DeptModel(deptName=page_object.dept_name, parentId=page_object.parent_id))
+        if dept and dept.dept_id != dept_id:
+            return CommonConstant.NOT_UNIQUE
+        return CommonConstant.UNIQUE
+
+    @classmethod
     async def add_dept_services(cls, query_db: AsyncSession, page_object: DeptModel):
         """
         新增部门信息service
@@ -57,25 +88,19 @@ class DeptService:
         :param page_object: 新增部门对象
         :return: 新增部门校验结果
         """
+        if not await cls.check_dept_name_unique_services(query_db, page_object):
+            raise ServiceException(message=f'新增部门{page_object.dept_name}失败，部门名称已存在')
         parent_info = await DeptDao.get_dept_by_id(query_db, page_object.parent_id)
-        if parent_info:
-            page_object.ancestors = f'{parent_info.ancestors},{page_object.parent_id}'
-        else:
-            page_object.ancestors = '0'
-        dept = await DeptDao.get_dept_detail_by_info(query_db, DeptModel(parentId=page_object.parent_id,
-                                                                         deptName=page_object.dept_name))
-        if dept:
-            result = dict(is_success=False, message='同一部门下不允许存在同名的部门')
-        else:
-            try:
-                await DeptDao.add_dept_dao(query_db, page_object)
-                await query_db.commit()
-                result = dict(is_success=True, message='新增成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
-
-        return CrudResponseModel(**result)
+        if parent_info.status != CommonConstant.DEPT_NORMAL:
+            raise ServiceException(message=f'部门{parent_info.dept_name}停用，不允许新增')
+        page_object.ancestors = f'{parent_info.ancestors},{page_object.parent_id}'
+        try:
+            await DeptDao.add_dept_dao(query_db, page_object)
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='新增成功')
+        except Exception as e:
+            await query_db.rollback()
+            raise e
 
     @classmethod
     async def edit_dept_services(cls, query_db: AsyncSession, page_object: DeptModel):
@@ -85,37 +110,29 @@ class DeptService:
         :param page_object: 编辑部门对象
         :return: 编辑部门校验结果
         """
-        parent_info = await DeptDao.get_dept_by_id(query_db, page_object.parent_id)
-        if parent_info:
-            page_object.ancestors = f'{parent_info.ancestors},{page_object.parent_id}'
-        else:
-            page_object.ancestors = '0'
-        edit_dept = page_object.model_dump(exclude_unset=True)
-        dept_info = await cls.dept_detail_services(query_db, edit_dept.get('dept_id'))
-        if dept_info:
-            if dept_info.parent_id != page_object.parent_id or dept_info.dept_name != page_object.dept_name:
-                dept = await DeptDao.get_dept_detail_by_info(query_db, DeptModel(parentId=page_object.parent_id,
-                                                                                 deptName=page_object.dept_name))
-                if dept:
-                    result = dict(is_success=False, message='同一部门下不允许存在同名的部门')
-                    return CrudResponseModel(**result)
-            try:
-                await DeptDao.edit_dept_dao(query_db, edit_dept)
-                await cls.update_children_info(query_db, DeptModel(deptId=page_object.dept_id,
-                                                                   ancestors=page_object.ancestors,
-                                                                   updateBy=page_object.update_by,
-                                                                   updateTime=page_object.update_time
-                                                                   )
-                                               )
-                await query_db.commit()
-                result = dict(is_success=True, message='更新成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
-        else:
-            result = dict(is_success=False, message='部门不存在')
-
-        return CrudResponseModel(**result)
+        if not await cls.check_dept_name_unique_services(query_db, page_object):
+            raise ServiceException(message=f'修改部门{page_object.dept_name}失败，部门名称已存在')
+        elif page_object.dept_id == page_object.parent_id:
+            raise ServiceException(message=f'修改部门{page_object.dept_name}失败，上级部门不能是自己')
+        elif page_object.status == CommonConstant.DEPT_DISABLE and (await DeptDao.count_normal_children_dept_dao(query_db, page_object.dept_id)) > 0:
+            raise ServiceException(message=f'修改部门{page_object.dept_name}失败，该部门包含未停用的子部门')
+        new_parent_dept = await DeptDao.get_dept_by_id(query_db, page_object.parent_id)
+        old_dept = await DeptDao.get_dept_by_id(query_db, page_object.dept_id)
+        try:
+            if new_parent_dept and old_dept:
+                new_ancestors = f'{new_parent_dept.ancestors},{new_parent_dept.dept_id}'
+                old_ancestors = old_dept.ancestors
+                page_object.ancestors = new_ancestors
+                await cls.update_dept_children(query_db, page_object.dept_id, new_ancestors, old_ancestors)
+            edit_dept = page_object.model_dump(exclude_unset=True)
+            await DeptDao.edit_dept_dao(query_db, edit_dept)
+            if page_object.status == CommonConstant.DEPT_NORMAL and page_object.ancestors and page_object.ancestors != 0:
+                await cls.update_parent_dept_status_normal(query_db, page_object)
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='更新成功')
+        except Exception as e:
+            await query_db.rollback()
+            raise e
 
     @classmethod
     async def delete_dept_services(cls, query_db: AsyncSession, page_object: DeleteDeptModel):
@@ -127,24 +144,21 @@ class DeptService:
         """
         if page_object.dept_ids.split(','):
             dept_id_list = page_object.dept_ids.split(',')
-            ancestors = await DeptDao.get_dept_all_ancestors(query_db)
             try:
                 for dept_id in dept_id_list:
-                    for ancestor in ancestors:
-                        if dept_id in ancestor[0]:
-                            result = dict(is_success=False, message='该部门下有子部门，不允许删除')
-
-                            return CrudResponseModel(**result)
+                    if (await DeptDao.count_children_dept_dao(query_db, int(dept_id))) > 0:
+                        raise ServiceException(message='存在下级部门,不允许删除')
+                    elif (await DeptDao.count_dept_user_dao(query_db, int(dept_id))) > 0:
+                        raise ServiceException(message='部门存在用户,不允许删除')
 
                     await DeptDao.delete_dept_dao(query_db, DeptModel(deptId=dept_id))
                 await query_db.commit()
-                result = dict(is_success=True, message='删除成功')
+                return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()
                 raise e
         else:
-            result = dict(is_success=False, message='传入部门id为空')
-        return CrudResponseModel(**result)
+            raise ServiceException(message='传入部门id为空')
 
     @classmethod
     async def dept_detail_services(cls, query_db: AsyncSession, dept_id: int):
@@ -155,7 +169,10 @@ class DeptService:
         :return: 部门id对应的信息
         """
         dept = await DeptDao.get_dept_detail_by_id(query_db, dept_id=dept_id)
-        result = DeptModel(**CamelCaseUtil.transform_result(dept))
+        if dept:
+            result = DeptModel(**CamelCaseUtil.transform_result(dept))
+        else:
+            result = DeptModel(**dict())
 
         return result
 
@@ -189,26 +206,44 @@ class DeptService:
         return container
 
     @classmethod
-    async def update_children_info(cls, query_db, page_object):
+    async def replace_first(cls, original_str: str, old_str: str, new_str: str):
         """
-        工具方法：递归更新子部门信息
+        工具方法：替换字符串
+        :param original_str: 需要替换的原始字符串
+        :param old_str: 用于匹配的字符串
+        :param new_str: 替换的字符串
+        :return: 替换后的字符串
+        """
+        if original_str.startswith(old_str):
+            return original_str.replace(old_str, new_str, 1)
+        else:
+            return original_str
+
+    @classmethod
+    async def update_parent_dept_status_normal(cls, query_db: AsyncSession, dept: DeptModel):
+        """
+        更新父部门状态为正常
         :param query_db: orm对象
-        :param page_object: 编辑部门对象
+        :param dept: 部门对象
         :return:
         """
-        children_info = await DeptDao.get_children_dept(query_db, page_object.dept_id)
-        if children_info:
-            for child in children_info:
-                child.ancestors = f'{page_object.ancestors},{page_object.dept_id}'
-                await DeptDao.edit_dept_dao(query_db,
-                                            dict(dept_id=child.dept_id,
-                                                 ancestors=child.ancestors,
-                                                 update_by=page_object.update_by,
-                                                 update_time=page_object.update_time
-                                                 )
-                                            )
-                await cls.update_children_info(query_db, DeptModel(dept_id=child.dept_id,
-                                                                   ancestors=child.ancestors,
-                                                                   update_by=page_object.update_by,
-                                                                   update_time=page_object.update_time
-                                                                   ))
+        dept_id_list = dept.ancestors.split(',')
+        await DeptDao.update_dept_status_normal_dao(query_db, dept_id_list)
+
+    @classmethod
+    async def update_dept_children(cls, query_db: AsyncSession, dept_id: int, new_ancestors: str, old_ancestors: str):
+        """
+        更新子部门信息
+        :param query_db: orm对象
+        :param dept_id: 部门id
+        :param new_ancestors: 新的祖先
+        :param old_ancestors: 旧的祖先
+        :return:
+        """
+        children = await DeptDao.get_children_dept_dao(query_db, dept_id)
+        update_children = []
+        for child in children:
+            child_ancestors = await cls.replace_first(child.ancestors, old_ancestors, new_ancestors)
+            update_children.append({'dept_id': child.dept_id, 'ancestors': child_ancestors})
+        if children:
+            await DeptDao.update_dept_children_dao(query_db, update_children)

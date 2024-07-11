@@ -6,6 +6,8 @@ class CommonConstant:
     HTTPS: https请求
     YES: 是否为系统默认（是）
     NO: 是否为系统默认（否）
+    DEPT_NORMAL: 部门正常状态
+    DEPT_DISABLE: 部门停用状态
     UNIQUE: 校验是否唯一的返回标识（是）
     NOT_UNIQUE: 校验是否唯一的返回标识（否）
     """
@@ -14,6 +16,8 @@ class CommonConstant:
     HTTPS = 'https://'
     YES = 'Y'
     NO = 'N'
+    DEPT_NORMAL = '0'
+    DEPT_DISABLE = '1'
     UNIQUE = True
     NOT_UNIQUE = False
 
