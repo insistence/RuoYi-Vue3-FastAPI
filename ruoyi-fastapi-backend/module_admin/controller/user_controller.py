@@ -5,6 +5,7 @@ from config.get_db import get_db
 from config.env import UploadConfig
 from module_admin.service.login_service import LoginService
 from module_admin.service.user_service import *
+from module_admin.service.role_service import RoleService
 from module_admin.service.dept_service import DeptService
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.aspect.data_scope import GetDataScope
@@ -40,7 +41,13 @@ async def get_system_user_list(request: Request, user_page_query: UserPageQueryM
 @userController.post("", dependencies=[Depends(CheckUserInterfaceAuth('system:user:add'))])
 @ValidateFields(validate_model='add_user')
 @log_decorator(title='用户管理', business_type=BusinessType.INSERT)
-async def add_system_user(request: Request, add_user: AddUserModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
+async def add_system_user(request: Request, add_user: AddUserModel, query_db: AsyncSession = Depends(get_db),
+                          current_user: CurrentUserModel = Depends(LoginService.get_current_user),
+                          dept_data_scope_sql: str = Depends(GetDataScope('SysDept')),
+                          role_data_scope_sql: str = Depends(GetDataScope('SysDept'))):
+    if not current_user.user.admin:
+        await DeptService.check_dept_data_scope_services(query_db, add_user.dept_id, dept_data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, ','.join(add_user.role_ids), role_data_scope_sql)
     add_user.password = PwdUtil.get_password_hash(add_user.password)
     add_user.create_by = current_user.user.user_name
     add_user.create_time = datetime.now()
@@ -55,10 +62,16 @@ async def add_system_user(request: Request, add_user: AddUserModel, query_db: As
 @userController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:user:edit'))])
 @ValidateFields(validate_model='edit_user')
 @log_decorator(title='用户管理', business_type=BusinessType.UPDATE)
-async def edit_system_user(request: Request, edit_user: EditUserModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysUser'))):
+async def edit_system_user(request: Request, edit_user: EditUserModel, query_db: AsyncSession = Depends(get_db),
+                           current_user: CurrentUserModel = Depends(LoginService.get_current_user),
+                           user_data_scope_sql: str = Depends(GetDataScope('SysUser')),
+                           dept_data_scope_sql: str = Depends(GetDataScope('SysDept')),
+                           role_data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     await UserService.check_user_allowed_services(edit_user)
     if not current_user.user.admin:
-        await UserService.check_user_data_scope_services(query_db, edit_user.user_id, data_scope_sql)
+        await UserService.check_user_data_scope_services(query_db, edit_user.user_id, user_data_scope_sql)
+        await DeptService.check_dept_data_scope_services(query_db, edit_user.dept_id, dept_data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, ','.join(edit_user.role_ids), role_data_scope_sql)
     edit_user.update_by = current_user.user.user_name
     edit_user.update_time = datetime.now()
     edit_user_result = await UserService.edit_user_services(query_db, edit_user)
@@ -138,7 +151,9 @@ async def query_detail_system_user(request: Request, query_db: AsyncSession = De
 
 @userController.get("/{user_id}", response_model=UserDetailModel, dependencies=[Depends(CheckUserInterfaceAuth('system:user:query'))])
 @userController.get("/", response_model=UserDetailModel, dependencies=[Depends(CheckUserInterfaceAuth('system:user:query'))])
-async def query_detail_system_user(request: Request, user_id: Optional[Union[int, str]] = '', query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
+async def query_detail_system_user(request: Request, user_id: Optional[Union[int, str]] = '', query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysUser'))):
+    if user_id and not current_user.user.admin:
+        await UserService.check_user_data_scope_services(query_db, user_id, data_scope_sql)
     detail_user_result = await UserService.user_detail_services(query_db, user_id)
     logger.info(f'获取user_id为{user_id}的信息成功')
 
@@ -214,8 +229,13 @@ async def reset_system_user_password(request: Request, reset_password: ResetPass
 
 @userController.post("/importData", dependencies=[Depends(CheckUserInterfaceAuth('system:user:import'))])
 @log_decorator(title='用户管理', business_type=BusinessType.IMPORT)
-async def batch_import_system_user(request: Request, file: UploadFile = File(...), update_support: bool = Query(alias='updateSupport'), query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
-    batch_import_result = await UserService.batch_import_user_services(query_db, file, update_support, current_user)
+async def batch_import_system_user(request: Request, file: UploadFile = File(...),
+                                   update_support: bool = Query(alias='updateSupport'),
+                                   query_db: AsyncSession = Depends(get_db),
+                                   current_user: CurrentUserModel = Depends(LoginService.get_current_user),
+                                   user_data_scope_sql: str = Depends(GetDataScope('SysUser')),
+                                   dept_data_scope_sql: str = Depends(GetDataScope('SysDept'))):
+    batch_import_result = await UserService.batch_import_user_services(request, query_db, file, update_support, current_user, user_data_scope_sql, dept_data_scope_sql)
     logger.info(batch_import_result.message)
 
     return ResponseUtil.success(msg=batch_import_result.message)
@@ -251,9 +271,14 @@ async def get_system_allocated_role_list(request: Request, user_id: int, query_d
 
 @userController.put("/authRole", response_model=UserRoleResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:user:edit'))])
 @log_decorator(title='用户管理', business_type=BusinessType.GRANT)
-async def update_system_role_user(request: Request, user_id: int = Query(alias='userId'), role_ids: str = Query(alias='roleIds'), query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysUser'))):
+async def update_system_role_user(request: Request, user_id: int = Query(alias='userId'), role_ids: str = Query(alias='roleIds'),
+                                  query_db: AsyncSession = Depends(get_db),
+                                  current_user: CurrentUserModel = Depends(LoginService.get_current_user),
+                                  user_data_scope_sql: str = Depends(GetDataScope('SysUser')),
+                                  role_data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     if not current_user.user.admin:
-        await UserService.check_user_data_scope_services(query_db, user_id, data_scope_sql)
+        await UserService.check_user_data_scope_services(query_db, user_id, user_data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, role_ids, role_data_scope_sql)
     add_user_role_result = await UserService.add_user_role_services(query_db, CrudUserRoleModel(userId=user_id, roleIds=role_ids))
     logger.info(add_user_role_result.message)
 

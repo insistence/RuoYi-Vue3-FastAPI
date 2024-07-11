@@ -1,6 +1,8 @@
-from fastapi import UploadFile
+from fastapi import Request, UploadFile
 from module_admin.service.role_service import RoleService
+from module_admin.service.dept_service import DeptService
 from module_admin.service.post_service import PostService, PostPageQueryModel
+from module_admin.service.config_service import ConfigService
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.dao.user_dao import *
 from config.constant import CommonConstant
@@ -298,13 +300,16 @@ class UserService:
             raise e
 
     @classmethod
-    async def batch_import_user_services(cls, query_db: AsyncSession, file: UploadFile, update_support: bool, current_user: CurrentUserModel):
+    async def batch_import_user_services(cls, request: Request, query_db: AsyncSession, file: UploadFile, update_support: bool, current_user: CurrentUserModel, user_data_scope_sql: str, dept_data_scope_sql: str):
         """
         批量导入用户service
+        :param request: Request对象
         :param query_db: orm对象
         :param file: 用户导入文件对象
         :param update_support: 用户存在时是否更新
         :param current_user: 当前用户对象
+        :param user_data_scope_sql: 用户数据权限sql
+        :param dept_data_scope_sql: 部门数据权限sql
         :return: 批量导入用户结果
         """
         header_dict = {
@@ -338,7 +343,7 @@ class UserService:
                 add_user = UserModel(
                     deptId=row['dept_id'],
                     userName=row['user_name'],
-                    password=PwdUtil.get_password_hash('123456'),
+                    password=PwdUtil.get_password_hash(await ConfigService.query_config_list_from_cache_services(request.app.state.redis, 'sys.user.initPassword')),
                     nickName=row['nick_name'],
                     email=row['email'],
                     phonenumber=str(row['phonenumber']),
@@ -352,7 +357,7 @@ class UserService:
                 user_info = await UserDao.get_user_by_info(query_db, UserModel(userName=row['user_name']))
                 if user_info:
                     if update_support:
-                        edit_user = UserModel(
+                        edit_user_model = UserModel(
                             userId=user_info.user_id,
                             deptId=row['dept_id'],
                             userName=row['user_name'],
@@ -363,11 +368,20 @@ class UserService:
                             status=row['status'],
                             updateBy=current_user.user.user_name,
                             updateTime=datetime.now()
-                        ).model_dump(exclude_unset=True)
+                        )
+                        edit_user_model.validate_fields()
+                        await cls.check_user_allowed_services(edit_user_model)
+                        if not current_user.user.admin:
+                            await cls.check_user_data_scope_services(query_db, edit_user_model.user_id, user_data_scope_sql)
+                            await DeptService.check_dept_data_scope_services(query_db, edit_user_model.dept_id, dept_data_scope_sql)
+                        edit_user = edit_user_model.model_dump(exclude_unset=True)
                         await UserDao.edit_user_dao(query_db, edit_user)
                     else:
                         add_error_result.append(f"{count}.用户账号{row['user_name']}已存在")
                 else:
+                    add_user.validate_fields()
+                    if not current_user.user.admin:
+                        await DeptService.check_dept_data_scope_services(query_db, add_user.dept_id, dept_data_scope_sql)
                     await UserDao.add_user_dao(query_db, add_user)
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='\n'.join(add_error_result))
