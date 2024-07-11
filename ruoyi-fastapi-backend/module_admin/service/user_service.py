@@ -1,15 +1,39 @@
+import io
+import pandas as pd
+from datetime import datetime
 from fastapi import Request, UploadFile
-from module_admin.service.role_service import RoleService
-from module_admin.service.dept_service import DeptService
-from module_admin.service.post_service import PostService, PostPageQueryModel
-from module_admin.service.config_service import ConfigService
-from module_admin.entity.vo.common_vo import CrudResponseModel
-from module_admin.dao.user_dao import *
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List, Union
 from config.constant import CommonConstant
 from exceptions.exception import ServiceException
+from module_admin.dao.user_dao import UserDao
+from module_admin.entity.vo.common_vo import CrudResponseModel
+from module_admin.entity.vo.post_vo import PostPageQueryModel
+from module_admin.entity.vo.user_vo import (
+    AddUserModel,
+    CrudUserRoleModel,
+    CurrentUserModel,
+    DeleteUserModel,
+    EditUserModel,
+    ResetUserModel,
+    SelectedRoleModel,
+    UserDetailModel,
+    UserInfoModel,
+    UserModel,
+    UserPageQueryModel,
+    UserPostModel,
+    UserProfileModel,
+    UserRoleModel,
+    UserRoleQueryModel,
+    UserRoleResponseModel,
+)
+from module_admin.service.config_service import ConfigService
+from module_admin.service.dept_service import DeptService
+from module_admin.service.post_service import PostService
+from module_admin.service.role_service import RoleService
+from utils.common_util import CamelCaseUtil, export_list2excel, get_excel_template
 from utils.page_util import PageResponseModel
-from utils.pwd_util import *
-from utils.common_util import *
+from utils.pwd_util import PwdUtil
 
 
 class UserService:
@@ -18,7 +42,9 @@ class UserService:
     """
 
     @classmethod
-    async def get_user_list_services(cls, query_db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False):
+    async def get_user_list_services(
+        cls, query_db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False
+    ):
         """
         获取用户列表信息service
         :param query_db: orm对象
@@ -32,7 +58,7 @@ class UserService:
             user_list_result = PageResponseModel(
                 **{
                     **query_result.model_dump(by_alias=True),
-                    'rows': [{**row[0], 'dept': row[1]} for row in query_result.rows]
+                    'rows': [{**row[0], 'dept': row[1]} for row in query_result.rows],
                 }
             )
         else:
@@ -173,10 +199,14 @@ class UserService:
                     await UserDao.delete_user_post_dao(query_db, UserPostModel(userId=page_object.user_id))
                     if page_object.role_ids:
                         for role in page_object.role_ids:
-                            await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=page_object.user_id, roleId=role))
+                            await UserDao.add_user_role_dao(
+                                query_db, UserRoleModel(userId=page_object.user_id, roleId=role)
+                            )
                     if page_object.post_ids:
                         for post in page_object.post_ids:
-                            await UserDao.add_user_post_dao(query_db, UserPostModel(userId=page_object.user_id, postId=post))
+                            await UserDao.add_user_post_dao(
+                                query_db, UserPostModel(userId=page_object.user_id, postId=post)
+                            )
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='更新成功')
             except Exception as e:
@@ -197,7 +227,9 @@ class UserService:
             user_id_list = page_object.user_ids.split(',')
             try:
                 for user_id in user_id_list:
-                    user_id_dict = dict(userId=user_id, updateBy=page_object.update_by, updateTime=page_object.update_time)
+                    user_id_dict = dict(
+                        userId=user_id, updateBy=page_object.update_by, updateTime=page_object.update_time
+                    )
                     await UserDao.delete_user_role_dao(query_db, UserRoleModel(**user_id_dict))
                     await UserDao.delete_user_post_dao(query_db, UserPostModel(**user_id_dict))
                     await UserDao.delete_user_dao(query_db, UserModel(**user_id_dict))
@@ -232,18 +264,15 @@ class UserService:
                     postIds=post_ids,
                     roleIds=role_ids,
                     dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
-                    role=CamelCaseUtil.transform_result(query_user.get('user_role_info'))
+                    role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
                 ),
                 postIds=post_ids_list,
                 posts=posts,
                 roleIds=role_ids_list,
-                roles=roles
+                roles=roles,
             )
 
-        return UserDetailModel(
-            posts=posts,
-            roles=roles
-        )
+        return UserDetailModel(posts=posts, roles=roles)
 
     @classmethod
     async def user_profile_services(cls, query_db: AsyncSession, user_id: int):
@@ -265,10 +294,10 @@ class UserService:
                 postIds=post_ids,
                 roleIds=role_ids,
                 dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
-                role=CamelCaseUtil.transform_result(query_user.get('user_role_info'))
+                role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
             ),
             postGroup=post_group,
-            roleGroup=role_group
+            roleGroup=role_group,
         )
 
     @classmethod
@@ -300,7 +329,16 @@ class UserService:
             raise e
 
     @classmethod
-    async def batch_import_user_services(cls, request: Request, query_db: AsyncSession, file: UploadFile, update_support: bool, current_user: CurrentUserModel, user_data_scope_sql: str, dept_data_scope_sql: str):
+    async def batch_import_user_services(
+        cls,
+        request: Request,
+        query_db: AsyncSession,
+        file: UploadFile,
+        update_support: bool,
+        current_user: CurrentUserModel,
+        user_data_scope_sql: str,
+        dept_data_scope_sql: str,
+    ):
         """
         批量导入用户service
         :param request: Request对象
@@ -313,13 +351,13 @@ class UserService:
         :return: 批量导入用户结果
         """
         header_dict = {
-            "部门编号": "dept_id",
-            "登录名称": "user_name",
-            "用户名称": "nick_name",
-            "用户邮箱": "email",
-            "手机号码": "phonenumber",
-            "用户性别": "sex",
-            "帐号状态": "status"
+            '部门编号': 'dept_id',
+            '登录名称': 'user_name',
+            '用户名称': 'nick_name',
+            '用户邮箱': 'email',
+            '手机号码': 'phonenumber',
+            '用户性别': 'sex',
+            '帐号状态': 'status',
         }
         contents = await file.read()
         df = pd.read_excel(io.BytesIO(contents))
@@ -343,7 +381,11 @@ class UserService:
                 add_user = UserModel(
                     deptId=row['dept_id'],
                     userName=row['user_name'],
-                    password=PwdUtil.get_password_hash(await ConfigService.query_config_list_from_cache_services(request.app.state.redis, 'sys.user.initPassword')),
+                    password=PwdUtil.get_password_hash(
+                        await ConfigService.query_config_list_from_cache_services(
+                            request.app.state.redis, 'sys.user.initPassword'
+                        )
+                    ),
                     nickName=row['nick_name'],
                     email=row['email'],
                     phonenumber=str(row['phonenumber']),
@@ -352,7 +394,7 @@ class UserService:
                     createBy=current_user.user.user_name,
                     createTime=datetime.now(),
                     updateBy=current_user.user.user_name,
-                    updateTime=datetime.now()
+                    updateTime=datetime.now(),
                 )
                 user_info = await UserDao.get_user_by_info(query_db, UserModel(userName=row['user_name']))
                 if user_info:
@@ -367,13 +409,17 @@ class UserService:
                             sex=row['sex'],
                             status=row['status'],
                             updateBy=current_user.user.user_name,
-                            updateTime=datetime.now()
+                            updateTime=datetime.now(),
                         )
                         edit_user_model.validate_fields()
                         await cls.check_user_allowed_services(edit_user_model)
                         if not current_user.user.admin:
-                            await cls.check_user_data_scope_services(query_db, edit_user_model.user_id, user_data_scope_sql)
-                            await DeptService.check_dept_data_scope_services(query_db, edit_user_model.dept_id, dept_data_scope_sql)
+                            await cls.check_user_data_scope_services(
+                                query_db, edit_user_model.user_id, user_data_scope_sql
+                            )
+                            await DeptService.check_dept_data_scope_services(
+                                query_db, edit_user_model.dept_id, dept_data_scope_sql
+                            )
                         edit_user = edit_user_model.model_dump(exclude_unset=True)
                         await UserDao.edit_user_dao(query_db, edit_user)
                     else:
@@ -381,7 +427,9 @@ class UserService:
                 else:
                     add_user.validate_fields()
                     if not current_user.user.admin:
-                        await DeptService.check_dept_data_scope_services(query_db, add_user.dept_id, dept_data_scope_sql)
+                        await DeptService.check_dept_data_scope_services(
+                            query_db, add_user.dept_id, dept_data_scope_sql
+                        )
                     await UserDao.add_user_dao(query_db, add_user)
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='\n'.join(add_error_result))
@@ -395,10 +443,12 @@ class UserService:
         获取用户导入模板service
         :return: 用户导入模板excel的二进制数据
         """
-        header_list = ["部门编号", "登录名称", "用户名称", "用户邮箱", "手机号码", "用户性别", "帐号状态"]
-        selector_header_list = ["用户性别", "帐号状态"]
-        option_list = [{"用户性别": ["男", "女", "未知"]}, {"帐号状态": ["正常", "停用"]}]
-        binary_data = get_excel_template(header_list=header_list, selector_header_list=selector_header_list, option_list=option_list)
+        header_list = ['部门编号', '登录名称', '用户名称', '用户邮箱', '手机号码', '用户性别', '帐号状态']
+        selector_header_list = ['用户性别', '帐号状态']
+        option_list = [{'用户性别': ['男', '女', '未知']}, {'帐号状态': ['正常', '停用']}]
+        binary_data = get_excel_template(
+            header_list=header_list, selector_header_list=selector_header_list, option_list=option_list
+        )
 
         return binary_data
 
@@ -411,19 +461,19 @@ class UserService:
         """
         # 创建一个映射字典，将英文键映射到中文键
         mapping_dict = {
-            "userId": "用户编号",
-            "userName": "用户名称",
-            "nickName": "用户昵称",
-            "deptName": "部门",
-            "email": "邮箱地址",
-            "phonenumber": "手机号码",
-            "sex": "性别",
-            "status": "状态",
-            "createBy": "创建者",
-            "createTime": "创建时间",
-            "updateBy": "更新者",
-            "updateTime": "更新时间",
-            "remark": "备注",
+            'userId': '用户编号',
+            'userName': '用户名称',
+            'nickName': '用户昵称',
+            'deptName': '部门',
+            'email': '邮箱地址',
+            'phonenumber': '手机号码',
+            'sex': '性别',
+            'status': '状态',
+            'createBy': '创建者',
+            'createTime': '创建时间',
+            'updateBy': '更新者',
+            'updateTime': '更新时间',
+            'remark': '备注',
         }
 
         data = user_list
@@ -439,7 +489,9 @@ class UserService:
                 item['sex'] = '女'
             else:
                 item['sex'] = '未知'
-        new_data = [{mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data]
+        new_data = [
+            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
+        ]
         binary_data = export_list2excel(new_data)
 
         return binary_data
@@ -460,17 +512,16 @@ class UserService:
             postIds=post_ids,
             roleIds=role_ids,
             dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
-            role=CamelCaseUtil.transform_result(query_user.get('user_role_info'))
+            role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
         )
-        query_role_list = [SelectedRoleModel(**row) for row in await RoleService.get_role_select_option_services(query_db)]
+        query_role_list = [
+            SelectedRoleModel(**row) for row in await RoleService.get_role_select_option_services(query_db)
+        ]
         for model_a in query_role_list:
             for model_b in user.role:
                 if model_a.role_id == model_b.role_id:
                     model_a.flag = True
-        result = UserRoleResponseModel(
-            roles=query_role_list,
-            user=user
-        )
+        result = UserRoleResponseModel(roles=query_role_list, user=user)
 
         return result
 
@@ -486,11 +537,15 @@ class UserService:
             role_id_list = page_object.role_ids.split(',')
             try:
                 for role_id in role_id_list:
-                    user_role = await cls.detail_user_role_services(query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id))
+                    user_role = await cls.detail_user_role_services(
+                        query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id)
+                    )
                     if user_role:
                         continue
                     else:
-                        await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id))
+                        await UserDao.add_user_role_dao(
+                            query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id)
+                        )
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='分配成功')
             except Exception as e:
@@ -508,11 +563,15 @@ class UserService:
             user_id_list = page_object.user_ids.split(',')
             try:
                 for user_id in user_id_list:
-                    user_role = await cls.detail_user_role_services(query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id))
+                    user_role = await cls.detail_user_role_services(
+                        query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id)
+                    )
                     if user_role:
                         continue
                     else:
-                        await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id))
+                        await UserDao.add_user_role_dao(
+                            query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id)
+                        )
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='新增成功')
             except Exception as e:
@@ -532,7 +591,9 @@ class UserService:
         if (page_object.user_id and page_object.role_id) or (page_object.user_ids and page_object.role_id):
             if page_object.user_id and page_object.role_id:
                 try:
-                    await UserDao.delete_user_role_by_user_and_role_dao(query_db, UserRoleModel(userId=page_object.user_id, roleId=page_object.role_id))
+                    await UserDao.delete_user_role_by_user_and_role_dao(
+                        query_db, UserRoleModel(userId=page_object.user_id, roleId=page_object.role_id)
+                    )
                     await query_db.commit()
                     return CrudResponseModel(is_success=True, message='删除成功')
                 except Exception as e:
@@ -542,7 +603,9 @@ class UserService:
                 user_id_list = page_object.user_ids.split(',')
                 try:
                     for user_id in user_id_list:
-                        await UserDao.delete_user_role_by_user_and_role_dao(query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id))
+                        await UserDao.delete_user_role_by_user_and_role_dao(
+                            query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id)
+                        )
                     await query_db.commit()
                     return CrudResponseModel(is_success=True, message='删除成功')
                 except Exception as e:

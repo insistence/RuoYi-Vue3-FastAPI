@@ -1,20 +1,21 @@
 import re
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from datetime import datetime
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import Network, NotBlank, Size, Xss
-from typing import Union, Optional, List, Literal
-from datetime import datetime
-from module_admin.entity.vo.role_vo import RoleModel
+from typing import List, Literal, Optional, Union
+from exceptions.exception import ModelValidatorException
+from module_admin.annotation.pydantic_annotation import as_form, as_query
 from module_admin.entity.vo.dept_vo import DeptModel
 from module_admin.entity.vo.post_vo import PostModel
-from module_admin.annotation.pydantic_annotation import as_query, as_form
-from exceptions.exception import ModelValidatorException
+from module_admin.entity.vo.role_vo import RoleModel
 
 
 class TokenData(BaseModel):
     """
     token解析结果
     """
+
     user_id: Union[int, None] = Field(default=None, description='用户ID')
 
 
@@ -22,6 +23,7 @@ class UserModel(BaseModel):
     """
     用户表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     user_id: Optional[int] = Field(default=None, description='用户ID')
@@ -47,11 +49,11 @@ class UserModel(BaseModel):
 
     @model_validator(mode='after')
     def check_password(self) -> 'UserModel':
-        pattern = r'''^[^<>"'|\\]+$'''
+        pattern = r"""^[^<>"'|\\]+$"""
         if self.password is None or re.match(pattern, self.password):
             return self
         else:
-            raise ModelValidatorException(message="密码不能包含非法字符：< > \" ' \\ |")
+            raise ModelValidatorException(message='密码不能包含非法字符：< > " \' \\ |')
 
     @model_validator(mode='after')
     def check_admin(self) -> 'UserModel':
@@ -92,6 +94,7 @@ class UserRoleModel(BaseModel):
     """
     用户和角色关联表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     user_id: Optional[int] = Field(default=None, description='用户ID')
@@ -102,6 +105,7 @@ class UserPostModel(BaseModel):
     """
     用户与岗位关联表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     user_id: Optional[int] = Field(default=None, description='用户ID')
@@ -127,6 +131,7 @@ class UserDetailModel(BaseModel):
     """
     获取用户详情信息响应模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     data: Optional[Union[UserInfoModel, None]] = Field(default=None, description='用户信息')
@@ -140,6 +145,7 @@ class UserProfileModel(BaseModel):
     """
     获取个人信息响应模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     data: Union[UserInfoModel, None] = Field(description='用户信息')
@@ -151,6 +157,7 @@ class UserQueryModel(UserModel):
     """
     用户管理不分页查询模型
     """
+
     begin_time: Optional[str] = Field(default=None, description='开始时间')
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
@@ -161,6 +168,7 @@ class UserPageQueryModel(UserQueryModel):
     """
     用户管理分页查询模型
     """
+
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=10, description='每页记录数')
 
@@ -169,6 +177,7 @@ class AddUserModel(UserModel):
     """
     新增用户模型
     """
+
     role_ids: Optional[List] = Field(default=[], description='角色ID信息')
     post_ids: Optional[List] = Field(default=[], description='岗位ID信息')
     type: Optional[str] = Field(default=None, description='操作类型')
@@ -178,6 +187,7 @@ class EditUserModel(AddUserModel):
     """
     编辑用户模型
     """
+
     role: Optional[List] = Field(default=[], description='角色信息')
 
 
@@ -186,6 +196,7 @@ class ResetPasswordModel(BaseModel):
     """
     重置密码模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     old_password: Optional[str] = Field(default=None, description='旧密码')
@@ -193,17 +204,18 @@ class ResetPasswordModel(BaseModel):
 
     @model_validator(mode='after')
     def check_new_password(self) -> 'ResetPasswordModel':
-        pattern = r'''^[^<>"'|\\]+$'''
+        pattern = r"""^[^<>"'|\\]+$"""
         if self.new_password is None or re.match(pattern, self.new_password):
             return self
         else:
-            raise ModelValidatorException(message="密码不能包含非法字符：< > \" ' \\ |")
+            raise ModelValidatorException(message='密码不能包含非法字符：< > " \' \\ |')
 
 
 class ResetUserModel(UserModel):
     """
     重置用户密码模型
     """
+
     old_password: Optional[str] = Field(default=None, description='旧密码')
     sms_code: Optional[str] = Field(default=None, description='验证码')
     session_id: Optional[str] = Field(default=None, description='会话id')
@@ -213,6 +225,7 @@ class DeleteUserModel(BaseModel):
     """
     删除用户模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     user_ids: str = Field(description='需要删除的用户ID')
@@ -224,6 +237,7 @@ class UserRoleQueryModel(UserModel):
     """
     用户角色关联管理不分页查询模型
     """
+
     role_id: Optional[int] = Field(default=None, description='角色ID')
 
 
@@ -232,6 +246,7 @@ class UserRolePageQueryModel(UserRoleQueryModel):
     """
     用户角色关联管理分页查询模型
     """
+
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=10, description='每页记录数')
 
@@ -240,6 +255,7 @@ class SelectedRoleModel(RoleModel):
     """
     是否选择角色模型
     """
+
     flag: Optional[bool] = Field(default=False, description='选择标识')
 
 
@@ -247,6 +263,7 @@ class UserRoleResponseModel(BaseModel):
     """
     用户角色关联管理列表返回模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     roles: List[Union[SelectedRoleModel, None]] = Field(default=[], description='角色信息')
@@ -258,6 +275,7 @@ class CrudUserRoleModel(BaseModel):
     """
     新增、删除用户关联角色及角色关联用户模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     user_id: Optional[int] = Field(default=None, description='用户ID')
