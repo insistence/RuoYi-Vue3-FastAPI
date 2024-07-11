@@ -30,7 +30,7 @@ async def get_system_role_dept_tree(request: Request, role_id: int, query_db: As
     
     
 @roleController.get("/list", response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:role:list'))])
-async def get_system_role_list(request: Request, role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_query), query_db: AsyncSession = Depends(get_db), data_scope_sql: str = Depends(GetDataScope('role_query.columns'))):
+async def get_system_role_list(request: Request, role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_query), query_db: AsyncSession = Depends(get_db), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     role_page_query_result = await RoleService.get_role_list_services(query_db, role_page_query, data_scope_sql, is_page=True)
     logger.info('获取成功')
 
@@ -54,10 +54,10 @@ async def add_system_role(request: Request, add_role: AddRoleModel, query_db: As
 @roleController.put("", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
 @ValidateFields(validate_model='edit_role')
 @log_decorator(title='角色管理', business_type=BusinessType.UPDATE)
-async def edit_system_role(request: Request, edit_role: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('role_query'))):
+async def edit_system_role(request: Request, edit_role: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     await RoleService.check_role_allowed_services(edit_role)
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, edit_role.role_id, data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, str(edit_role.role_id), data_scope_sql)
     edit_role.update_by = current_user.user.user_name
     edit_role.update_time = datetime.now()
     edit_role_result = await RoleService.edit_role_services(query_db, edit_role)
@@ -68,10 +68,10 @@ async def edit_system_role(request: Request, edit_role: AddRoleModel, query_db: 
 
 @roleController.put("/dataScope", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
 @log_decorator(title='角色管理', business_type=BusinessType.GRANT)
-async def edit_system_role_datascope(request: Request, role_data_scope: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('role_query'))):
+async def edit_system_role_datascope(request: Request, role_data_scope: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     await RoleService.check_role_allowed_services(role_data_scope)
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, role_data_scope.role_id, data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, str(role_data_scope.role_id), data_scope_sql)
     edit_role = AddRoleModel(
         roleId=role_data_scope.role_id,
         dataScope=role_data_scope.data_scope,
@@ -88,12 +88,12 @@ async def edit_system_role_datascope(request: Request, role_data_scope: AddRoleM
     
 @roleController.delete("/{role_ids}", dependencies=[Depends(CheckUserInterfaceAuth('system:role:remove'))])
 @log_decorator(title='角色管理', business_type=BusinessType.DELETE)
-async def delete_system_role(request: Request, role_ids: str, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('role_query'))):
+async def delete_system_role(request: Request, role_ids: str, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     role_id_list = role_ids.split(',')
     for role_id in role_id_list:
         await RoleService.check_role_allowed_services(RoleModel(roleId=int(role_id)))
         if not current_user.user.admin:
-            await RoleService.check_role_data_scope_services(query_db, int(role_id), data_scope_sql)
+            await RoleService.check_role_data_scope_services(query_db, role_id, data_scope_sql)
     delete_role = DeleteRoleModel(
         roleIds=role_ids,
         updateBy=current_user.user.user_name,
@@ -106,9 +106,9 @@ async def delete_system_role(request: Request, role_ids: str, query_db: AsyncSes
     
     
 @roleController.get("/{role_id}", response_model=RoleModel, dependencies=[Depends(CheckUserInterfaceAuth('system:role:query'))])
-async def query_detail_system_role(request: Request, role_id: int, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('role_query'))):
+async def query_detail_system_role(request: Request, role_id: int, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, role_id, data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, str(role_id), data_scope_sql)
     role_detail_result = await RoleService.role_detail_services(query_db, role_id)
     logger.info(f'获取role_id为{role_id}的信息成功')
 
@@ -117,7 +117,7 @@ async def query_detail_system_role(request: Request, role_id: int, query_db: Asy
 
 @roleController.post("/export", dependencies=[Depends(CheckUserInterfaceAuth('system:role:export'))])
 @log_decorator(title='角色管理', business_type=BusinessType.EXPORT)
-async def export_system_role_list(request: Request, role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_form), query_db: AsyncSession = Depends(get_db), data_scope_sql: str = Depends(GetDataScope('role_query'))):
+async def export_system_role_list(request: Request, role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_form), query_db: AsyncSession = Depends(get_db), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     # 获取全量数据
     role_query_result = await RoleService.get_role_list_services(query_db, role_page_query, data_scope_sql, is_page=False)
     role_export_result = await RoleService.export_role_list_services(role_query_result)
@@ -128,10 +128,10 @@ async def export_system_role_list(request: Request, role_page_query: RolePageQue
 
 @roleController.put("/changeStatus", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
 @log_decorator(title='角色管理', business_type=BusinessType.UPDATE)
-async def reset_system_role_status(request: Request, change_role: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('role_query'))):
+async def reset_system_role_status(request: Request, change_role: AddRoleModel, query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     await RoleService.check_role_allowed_services(change_role)
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, change_role.role_id, data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, str(change_role.role_id), data_scope_sql)
     edit_role = AddRoleModel(
         roleId=change_role.role_id,
         status=change_role.status,
@@ -163,9 +163,9 @@ async def get_system_unallocated_user_list(request: Request, user_role: UserRole
 
 @roleController.put("/authUser/selectAll", dependencies=[Depends(CheckUserInterfaceAuth('system:role:edit'))])
 @log_decorator(title='角色管理', business_type=BusinessType.GRANT)
-async def add_system_role_user(request: Request, add_role_user: CrudUserRoleModel = Depends(CrudUserRoleModel.as_query), query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('role_query'))):
+async def add_system_role_user(request: Request, add_role_user: CrudUserRoleModel = Depends(CrudUserRoleModel.as_query), query_db: AsyncSession = Depends(get_db), current_user: CurrentUserModel = Depends(LoginService.get_current_user), data_scope_sql: str = Depends(GetDataScope('SysDept'))):
     if not current_user.user.admin:
-        await RoleService.check_role_data_scope_services(query_db, add_role_user.role_id, data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, str(add_role_user.role_id), data_scope_sql)
     add_role_user_result = await UserService.add_user_role_services(query_db, add_role_user)
     logger.info(add_role_user_result.message)
 

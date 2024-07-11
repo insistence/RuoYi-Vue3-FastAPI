@@ -107,10 +107,10 @@ class RoleDao:
         :param is_page: 是否开启分页
         :return: 角色列表信息对象
         """
-        role_query = (select(SysRole, SysUser.user_id, SysDept.dept_id)
-            .join(SysUserRole, SysUserRole.role_id == SysRole.role_id, isouter=True)
-            .join(SysUser, SysUser.user_id == SysUserRole.user_id, isouter=True)
-            .join(SysDept, SysDept.dept_id == SysUser.dept_id, isouter=True)
+        query = select(SysRole) \
+            .join(SysUserRole, SysUserRole.role_id == SysRole.role_id, isouter=True) \
+            .join(SysUser, SysUser.user_id == SysUserRole.user_id, isouter=True) \
+            .join(SysDept, SysDept.dept_id == SysUser.dept_id, isouter=True) \
             .where(SysRole.del_flag == '0',
                    SysRole.role_name.like(f'%{query_object.role_name}%') if query_object.role_name else True,
                    SysRole.role_key.like(f'%{query_object.role_key}%') if query_object.role_key else True,
@@ -118,12 +118,10 @@ class RoleDao:
                    SysRole.create_time.between(
                        datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
                        datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
-                   if query_object.begin_time and query_object.end_time else True)
-            .order_by(SysRole.role_sort)).subquery()
-        query = select(SysRole) \
-            .select_from(role_query) \
-            .join(SysRole, SysRole.role_id == role_query.columns.role_id) \
-            .where(eval(data_scope_sql)).distinct()
+                   if query_object.begin_time and query_object.end_time else True,
+                   eval(data_scope_sql)) \
+            .order_by(SysRole.role_sort) \
+            .distinct()
         role_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
 
         return role_list
