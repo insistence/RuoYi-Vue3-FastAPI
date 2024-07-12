@@ -1,10 +1,9 @@
-from fastapi import Request, BackgroundTasks
 import os
-from fastapi import UploadFile
 from datetime import datetime
+from fastapi import BackgroundTasks, Request, UploadFile
 from config.env import UploadConfig
-from module_admin.entity.vo.common_vo import *
 from exceptions.exception import ServiceException
+from module_admin.entity.vo.common_vo import CrudResponseModel, UploadResponseModel
 from utils.upload_util import UploadUtil
 
 
@@ -43,9 +42,9 @@ class CommonService:
                     fileName=f'{UploadConfig.UPLOAD_PREFIX}/{relative_path}/{filename}',
                     newFileName=filename,
                     originalFilename=file.filename,
-                    url=f'{request.base_url}{UploadConfig.UPLOAD_PREFIX[1:]}/{relative_path}/{filename}'
+                    url=f'{request.base_url}{UploadConfig.UPLOAD_PREFIX[1:]}/{relative_path}/{filename}',
                 ),
-                message='上传成功'
+                message='上传成功',
             )
 
     @classmethod
@@ -75,8 +74,13 @@ class CommonService:
         :return: 上传结果
         """
         filepath = os.path.join(resource.replace(UploadConfig.UPLOAD_PREFIX, UploadConfig.UPLOAD_PATH))
-        filename = resource.rsplit("/", 1)[-1]
-        if '..' in filename or not UploadUtil.check_file_timestamp(filename) or not UploadUtil.check_file_machine(filename) or not UploadUtil.check_file_random_code(filename):
+        filename = resource.rsplit('/', 1)[-1]
+        if (
+            '..' in filename
+            or not UploadUtil.check_file_timestamp(filename)
+            or not UploadUtil.check_file_machine(filename)
+            or not UploadUtil.check_file_random_code(filename)
+        ):
             raise ServiceException(message='文件名称不合法')
         elif not UploadUtil.check_file_exists(filepath):
             raise ServiceException(message='文件不存在')
