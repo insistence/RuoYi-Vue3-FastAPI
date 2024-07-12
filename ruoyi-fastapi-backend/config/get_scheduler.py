@@ -1,20 +1,21 @@
 import json
+from apscheduler.events import EVENT_ALL
+from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.redis import RedisJobStore
-from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.triggers.cron import CronTrigger
-from apscheduler.events import EVENT_ALL
+from datetime import datetime, timedelta
 from sqlalchemy.engine import create_engine
 from sqlalchemy.orm import sessionmaker
-from datetime import datetime, timedelta
-from config.database import quote_plus, AsyncSessionLocal
+from config.database import AsyncSessionLocal, quote_plus
 from config.env import DataBaseConfig, RedisConfig
-from module_admin.service.job_log_service import JobLogService, JobLogModel
 from module_admin.dao.job_dao import JobDao
+from module_admin.entity.vo.job_vo import JobLogModel
+from module_admin.service.job_log_service import JobLogService
 from utils.log_util import logger
-import module_task
+import module_task  # noqa: F401
 
 
 # 重写Cron定时
@@ -48,8 +49,17 @@ class MyCronTrigger(CronTrigger):
         else:
             day_of_week = None
         year = values[6] if len(values) == 7 else None
-        return cls(second=second, minute=minute, hour=hour, day=day, month=month, week=week,
-                   day_of_week=day_of_week, year=year, timezone=timezone)
+        return cls(
+            second=second,
+            minute=minute,
+            hour=hour,
+            day=day,
+            month=month,
+            week=week,
+            day_of_week=day_of_week,
+            year=year,
+            timezone=timezone,
+        )
 
     @classmethod
     def __find_recent_workday(cls, day):
@@ -67,15 +77,17 @@ class MyCronTrigger(CronTrigger):
                     diff += 1
 
 
-SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@" \
-                          f"{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}"
+SQLALCHEMY_DATABASE_URL = (
+    f'mysql+pymysql://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
+    f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
+)
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     echo=DataBaseConfig.db_echo,
     max_overflow=DataBaseConfig.db_max_overflow,
     pool_size=DataBaseConfig.db_pool_size,
     pool_recycle=DataBaseConfig.db_pool_recycle,
-    pool_timeout=DataBaseConfig.db_pool_timeout
+    pool_timeout=DataBaseConfig.db_pool_timeout,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 job_stores = {
@@ -87,18 +99,12 @@ job_stores = {
             port=RedisConfig.redis_port,
             username=RedisConfig.redis_username,
             password=RedisConfig.redis_password,
-            db=RedisConfig.redis_database
+            db=RedisConfig.redis_database,
         )
-    )
+    ),
 }
-executors = {
-    'default': ThreadPoolExecutor(20),
-    'processpool': ProcessPoolExecutor(5)
-}
-job_defaults = {
-    'coalesce': False,
-    'max_instance': 1
-}
+executors = {'default': ThreadPoolExecutor(20), 'processpool': ProcessPoolExecutor(5)}
+job_defaults = {'coalesce': False, 'max_instance': 1}
 scheduler = BackgroundScheduler()
 scheduler.configure(jobstores=job_stores, executors=executors, job_defaults=job_defaults)
 
@@ -114,7 +120,7 @@ class SchedulerUtil:
         应用启动时初始化定时任务
         :return:
         """
-        logger.info("开始启动定时任务...")
+        logger.info('开始启动定时任务...')
         scheduler.start()
         async with AsyncSessionLocal() as session:
             job_list = await JobDao.get_job_list_for_scheduler(session)
@@ -124,7 +130,7 @@ class SchedulerUtil:
                     cls.remove_scheduler_job(job_id=str(item.job_id))
                 cls.add_scheduler_job(item)
         scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
-        logger.info("系统初始定时任务加载成功")
+        logger.info('系统初始定时任务加载成功')
 
     @classmethod
     async def close_system_scheduler(cls):
@@ -133,7 +139,7 @@ class SchedulerUtil:
         :return:
         """
         scheduler.shutdown()
-        logger.info("关闭定时任务成功")
+        logger.info('关闭定时任务成功')
 
     @classmethod
     def get_scheduler_job(cls, job_id):
@@ -164,7 +170,7 @@ class SchedulerUtil:
             coalesce=True if job_info.misfire_policy == '2' else False,
             max_instances=3 if job_info.concurrent == '0' else 1,
             jobstore=job_info.job_group,
-            executor=job_info.job_executor
+            executor=job_info.job_executor,
         )
 
     @classmethod
@@ -186,7 +192,7 @@ class SchedulerUtil:
             coalesce=True if job_info.misfire_policy == '2' else False,
             max_instances=3 if job_info.concurrent == '0' else 1,
             jobstore=job_info.job_group,
-            executor=job_info.job_executor
+            executor=job_info.job_executor,
         )
 
     @classmethod
@@ -239,7 +245,7 @@ class SchedulerUtil:
                 jobMessage=job_message,
                 status=status,
                 exceptionInfo=exception_info,
-                createTime=datetime.now()
+                createTime=datetime.now(),
             )
             session = SessionLocal()
             JobLogService.add_job_log_services(session, job_log)

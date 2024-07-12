@@ -15,6 +15,7 @@ class BusinessType(Enum):
     GENCODE: 生成代码
     CLEAN: 清空数据
     """
+
     OTHER = 0
     INSERT = 1
     UPDATE = 2

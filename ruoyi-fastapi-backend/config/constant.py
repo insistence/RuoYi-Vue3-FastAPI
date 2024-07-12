@@ -11,6 +11,7 @@ class CommonConstant:
     UNIQUE: 校验是否唯一的返回标识（是）
     NOT_UNIQUE: 校验是否唯一的返回标识（否）
     """
+
     WWW = 'www.'
     HTTP = 'http://'
     HTTPS = 'https://'
@@ -43,6 +44,7 @@ class HttpStatusConstant:
     NOT_IMPLEMENTED: 接口未实现
     WARN: 系统警告消息
     """
+
     SUCCESS = 200
     CREATED = 201
     ACCEPTED = 202
@@ -74,6 +76,7 @@ class MenuConstant:
     PARENT_VIEW: ParentView组件标识
     INNER_LINK: InnerLink组件标识
     """
+
     TYPE_DIR = 'M'
     TYPE_MENU = 'C'
     TYPE_BUTTON = 'F'

@@ -1,4 +1,4 @@
-from config.database import *
+from config.database import async_engine, AsyncSessionLocal, Base
 from utils.log_util import logger
 
 
@@ -16,7 +16,7 @@ async def init_create_table():
     应用启动时初始化数据库连接
     :return:
     """
-    logger.info("初始化数据库连接...")
+    logger.info('初始化数据库连接...')
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info("数据库连接成功")
+    logger.info('数据库连接成功')
