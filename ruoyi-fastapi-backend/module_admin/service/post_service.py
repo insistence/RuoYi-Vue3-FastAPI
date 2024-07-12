@@ -1,16 +1,22 @@
-from module_admin.dao.post_dao import *
-from module_admin.entity.vo.common_vo import CrudResponseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 from config.constant import CommonConstant
 from exceptions.exception import ServiceException
-from utils.common_util import export_list2excel, CamelCaseUtil
+from module_admin.dao.post_dao import PostDao
+from module_admin.entity.vo.common_vo import CrudResponseModel
+from module_admin.entity.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
+from utils.common_util import CamelCaseUtil, export_list2excel
 
 
 class PostService:
     """
     岗位管理模块服务层
     """
+
     @classmethod
-    async def get_post_list_services(cls, query_db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False):
+    async def get_post_list_services(
+        cls, query_db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False
+    ):
         """
         获取岗位列表信息service
         :param query_db: orm对象
@@ -146,16 +152,16 @@ class PostService:
         """
         # 创建一个映射字典，将英文键映射到中文键
         mapping_dict = {
-            "postId": "岗位编号",
-            "postCode": "岗位编码",
-            "postName": "岗位名称",
-            "postSort": "显示顺序",
-            "status": "状态",
-            "createBy": "创建者",
-            "createTime": "创建时间",
-            "updateBy": "更新者",
-            "updateTime": "更新时间",
-            "remark": "备注",
+            'postId': '岗位编号',
+            'postCode': '岗位编码',
+            'postName': '岗位名称',
+            'postSort': '显示顺序',
+            'status': '状态',
+            'createBy': '创建者',
+            'createTime': '创建时间',
+            'updateBy': '更新者',
+            'updateTime': '更新时间',
+            'remark': '备注',
         }
 
         data = post_list
@@ -165,7 +171,9 @@ class PostService:
                 item['status'] = '正常'
             else:
                 item['status'] = '停用'
-        new_data = [{mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data]
+        new_data = [
+            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
+        ]
         binary_data = export_list2excel(new_data)
 
         return binary_data

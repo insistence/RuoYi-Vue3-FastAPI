@@ -1,15 +1,16 @@
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
-from typing import Union, Optional, List, Literal
-from datetime import datetime
-from module_admin.annotation.pydantic_annotation import as_query, as_form
+from typing import Literal, Optional
+from module_admin.annotation.pydantic_annotation import as_form, as_query
 
 
 class PostModel(BaseModel):
     """
     岗位信息表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     post_id: Optional[int] = Field(default=None, description='岗位ID')
@@ -47,6 +48,7 @@ class PostQueryModel(PostModel):
     """
     岗位管理不分页查询模型
     """
+
     begin_time: Optional[str] = Field(default=None, description='开始时间')
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
@@ -57,6 +59,7 @@ class PostPageQueryModel(PostQueryModel):
     """
     岗位管理分页查询模型
     """
+
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=10, description='每页记录数')
 
@@ -65,6 +68,7 @@ class DeletePostModel(BaseModel):
     """
     删除岗位模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     post_ids: str = Field(description='需要删除的岗位ID')

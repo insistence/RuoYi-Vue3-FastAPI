@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from config.database import Base
 from datetime import datetime
+from sqlalchemy import Column, DateTime, Integer, String
+from config.database import Base
 
 
 class SysPost(Base):
     """
     岗位信息表
     """
+
     __tablename__ = 'sys_post'
 
     post_id = Column(Integer, primary_key=True, autoincrement=True, comment='岗位ID')
