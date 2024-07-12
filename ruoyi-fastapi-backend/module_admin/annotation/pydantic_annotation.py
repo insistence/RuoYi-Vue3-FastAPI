@@ -1,9 +1,8 @@
 import inspect
-from typing import Type
-
-from fastapi import Query, Form
+from fastapi import Form, Query
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
+from typing import Type
 
 
 def as_query(cls: Type[BaseModel]):
@@ -21,7 +20,7 @@ def as_query(cls: Type[BaseModel]):
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
                     default=Query(model_field.default),
-                    annotation=model_field.annotation
+                    annotation=model_field.annotation,
                 )
             )
         else:
@@ -30,7 +29,7 @@ def as_query(cls: Type[BaseModel]):
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
                     default=Query(...),
-                    annotation=model_field.annotation
+                    annotation=model_field.annotation,
                 )
             )
 
@@ -59,7 +58,7 @@ def as_form(cls: Type[BaseModel]):
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
                     default=Form(model_field.default),
-                    annotation=model_field.annotation
+                    annotation=model_field.annotation,
                 )
             )
         else:
@@ -68,7 +67,7 @@ def as_form(cls: Type[BaseModel]):
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
                     default=Form(...),
-                    annotation=model_field.annotation
+                    annotation=model_field.annotation,
                 )
             )
 

@@ -1,23 +1,27 @@
-from functools import wraps, lru_cache
+import inspect
+import json
+import os
+import requests
+import time
+import warnings
+from datetime import datetime
 from fastapi import Request
 from fastapi.responses import JSONResponse, ORJSONResponse, UJSONResponse
-import inspect
-import os
-import json
-import time
-from datetime import datetime
-import requests
-import warnings
+from functools import lru_cache, wraps
+from typing import Literal, Optional, Union
 from user_agents import parse
-from typing import Optional, Union, Literal
+from module_admin.entity.vo.log_vo import LogininforModel, OperLogModel
+from module_admin.service.log_service import LoginLogService, OperationLogService
 from module_admin.service.login_service import LoginService
-from module_admin.service.log_service import OperationLogService, LoginLogService
-from module_admin.entity.vo.log_vo import OperLogModel, LogininforModel
-from config.env import AppConfig
 from config.enums import BusinessType
+from config.env import AppConfig
 
 
-def log_decorator(title: str, business_type: Union[Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], BusinessType], log_type: Optional[Literal['login', 'operation']] = 'operation'):
+def log_decorator(
+    title: str,
+    business_type: Union[Literal[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], BusinessType],
+    log_type: Optional[Literal['login', 'operation']] = 'operation',
+):
     """
     日志装饰器
     :param log_type: 日志类型（login表示登录日志，为空表示为操作日志）
@@ -29,7 +33,11 @@ def log_decorator(title: str, business_type: Union[Literal[0, 1, 2, 3, 4, 5, 6, 
     if isinstance(business_type, BusinessType):
         business_type = business_type.value
     else:
-        warnings.warn('@log_decorator的business_type参数未来版本将不再支持int类型，请使用BusinessType枚举类型', category=DeprecationWarning, stacklevel=2)
+        warnings.warn(
+            '@log_decorator的business_type参数未来版本将不再支持int类型，请使用BusinessType枚举类型',
+            category=DeprecationWarning,
+            stacklevel=2,
+        )
 
     def decorator(func):
         @wraps(func)
@@ -50,22 +58,24 @@ def log_decorator(title: str, business_type: Union[Literal[0, 1, 2, 3, 4, 5, 6, 
             request_method = request.method
             operator_type = 0
             user_agent = request.headers.get('User-Agent')
-            if "Windows" in user_agent or "Macintosh" in user_agent or "Linux" in user_agent:
+            if 'Windows' in user_agent or 'Macintosh' in user_agent or 'Linux' in user_agent:
                 operator_type = 1
-            if "Mobile" in user_agent or "Android" in user_agent or "iPhone" in user_agent:
+            if 'Mobile' in user_agent or 'Android' in user_agent or 'iPhone' in user_agent:
                 operator_type = 2
             # 获取请求的url
             oper_url = request.url.path
             # 获取请求的ip及ip归属区域
-            oper_ip = request.headers.get("X-Forwarded-For")
+            oper_ip = request.headers.get('X-Forwarded-For')
             oper_location = '内网IP'
             if AppConfig.app_ip_location_query:
                 oper_location = get_ip_location(oper_ip)
             # 根据不同的请求类型使用不同的方法获取请求参数
-            content_type = request.headers.get("Content-Type")
-            if content_type and ("multipart/form-data" in content_type or 'application/x-www-form-urlencoded' in content_type):
+            content_type = request.headers.get('Content-Type')
+            if content_type and (
+                'multipart/form-data' in content_type or 'application/x-www-form-urlencoded' in content_type
+            ):
                 payload = await request.form()
-                oper_param = "\n".join([f"{key}: {value}" for key, value in payload.items()])
+                oper_param = '\n'.join([f'{key}: {value}' for key, value in payload.items()])
             else:
                 payload = await request.body()
                 # 通过 request.path_params 直接访问路径参数
@@ -97,7 +107,7 @@ def log_decorator(title: str, business_type: Union[Literal[0, 1, 2, 3, 4, 5, 6, 
                     loginLocation=oper_location,
                     browser=browser,
                     os=system_os,
-                    loginTime=oper_time.strftime('%Y-%m-%d %H:%M:%S')
+                    loginTime=oper_time.strftime('%Y-%m-%d %H:%M:%S'),
                 )
                 kwargs['form_data'].login_info = login_log
             # 调用原始函数
@@ -105,10 +115,18 @@ def log_decorator(title: str, business_type: Union[Literal[0, 1, 2, 3, 4, 5, 6, 
             # 获取请求耗时
             cost_time = float(time.time() - start_time) * 100
             # 判断请求是否来自api文档
-            request_from_swagger = request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
-            request_from_redoc = request.headers.get('referer').endswith('redoc') if request.headers.get('referer') else False
+            request_from_swagger = (
+                request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
+            )
+            request_from_redoc = (
+                request.headers.get('referer').endswith('redoc') if request.headers.get('referer') else False
+            )
             # 根据响应结果的类型使用不同的方法获取响应结果参数
-            if isinstance(result, JSONResponse) or isinstance(result, ORJSONResponse) or isinstance(result, UJSONResponse):
+            if (
+                isinstance(result, JSONResponse)
+                or isinstance(result, ORJSONResponse)
+                or isinstance(result, UJSONResponse)
+            ):
                 result_dict = json.loads(str(result.body, 'utf-8'))
             else:
                 if request_from_swagger or request_from_redoc:
@@ -160,7 +178,7 @@ def log_decorator(title: str, business_type: Union[Literal[0, 1, 2, 3, 4, 5, 6, 
                     status=status,
                     errorMsg=error_msg,
                     operTime=oper_time,
-                    costTime=int(cost_time)
+                    costTime=int(cost_time),
                 )
                 await OperationLogService.add_operation_log_services(query_db, operation_log)
 
