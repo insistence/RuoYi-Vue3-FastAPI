@@ -1,7 +1,7 @@
 import re
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
-from typing import Optional, List, Union
+from typing import List, Optional, Union
 from exceptions.exception import ModelValidatorException
 from module_admin.entity.vo.menu_vo import MenuModel
 
@@ -28,11 +28,11 @@ class UserRegister(BaseModel):
 
     @model_validator(mode='after')
     def check_password(self) -> 'UserRegister':
-        pattern = r'''^[^<>"'|\\]+$'''
+        pattern = r"""^[^<>"'|\\]+$"""
         if self.password is None or re.match(pattern, self.password):
             return self
         else:
-            raise ModelValidatorException(message="密码不能包含非法字符：< > \" ' \\ |")
+            raise ModelValidatorException(message='密码不能包含非法字符：< > " \' \\ |')
 
 
 class Token(BaseModel):
@@ -75,9 +75,13 @@ class RouterModel(BaseModel):
     name: Optional[str] = Field(default=None, description='路由名称')
     path: Optional[str] = Field(default=None, description='路由地址')
     hidden: Optional[bool] = Field(default=None, description='是否隐藏路由，当设置 true 的时候该路由不会再侧边栏出现')
-    redirect: Optional[str] = Field(default=None, description='重定向地址，当设置 noRedirect 的时候该路由在面包屑导航中不可被点击')
+    redirect: Optional[str] = Field(
+        default=None, description='重定向地址，当设置 noRedirect 的时候该路由在面包屑导航中不可被点击'
+    )
     component: Optional[str] = Field(default=None, description='组件地址')
     query: Optional[str] = Field(default=None, description='路由参数：如 {"id": 1, "name": "ry"}')
-    always_show: Optional[bool] = Field(default=None, description='当你一个路由下面的children声明的路由大于1个时，自动会变成嵌套的模式--如组件页面')
+    always_show: Optional[bool] = Field(
+        default=None, description='当你一个路由下面的children声明的路由大于1个时，自动会变成嵌套的模式--如组件页面'
+    )
     meta: Optional[MetaModel] = Field(default=None, description='其他元素')
     children: Optional[Union[List['RouterModel'], None]] = Field(default=None, description='子路由')
