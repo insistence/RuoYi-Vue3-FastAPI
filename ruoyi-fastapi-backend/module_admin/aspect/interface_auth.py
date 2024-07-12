@@ -1,8 +1,8 @@
 from fastapi import Depends
-from typing import Union, List
+from typing import List, Union
+from exceptions.exception import PermissionException
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.login_service import LoginService
-from exceptions.exception import PermissionException
 
 
 class CheckUserInterfaceAuth:
@@ -11,6 +11,7 @@ class CheckUserInterfaceAuth:
     :param perm: 权限标识
     :param is_strict: 当传入的权限标识是list类型时，是否开启严格模式，开启表示会校验列表中的每一个权限标识，所有的校验结果都需要为True才会通过
     """
+
     def __init__(self, perm: Union[str, List], is_strict: bool = False):
         self.perm = perm
         self.is_strict = is_strict
@@ -29,7 +30,7 @@ class CheckUserInterfaceAuth:
             else:
                 if any([perm_str in user_auth_list for perm_str in self.perm]):
                     return True
-        raise PermissionException(data="", message="该用户无此接口权限")
+        raise PermissionException(data='', message='该用户无此接口权限')
 
 
 class CheckRoleInterfaceAuth:
@@ -38,6 +39,7 @@ class CheckRoleInterfaceAuth:
     :param role_key: 角色标识
     :param is_strict: 当传入的角色标识是list类型时，是否开启严格模式，开启表示会校验列表中的每一个角色标识，所有的校验结果都需要为True才会通过
     """
+
     def __init__(self, role_key: Union[str, List], is_strict: bool = False):
         self.role_key = role_key
         self.is_strict = is_strict
@@ -55,5 +57,4 @@ class CheckRoleInterfaceAuth:
             else:
                 if any([role_key_str in user_role_key_list for role_key_str in self.role_key]):
                     return True
-        raise PermissionException(data="", message="该用户无此接口权限")
-
+        raise PermissionException(data='', message='该用户无此接口权限')
