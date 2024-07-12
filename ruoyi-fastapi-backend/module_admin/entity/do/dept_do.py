@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from config.database import Base
 from datetime import datetime
+from sqlalchemy import Column, DateTime, Integer, String
+from config.database import Base
 
 
 class SysDept(Base):
     """
     部门表
     """
+
     __tablename__ = 'sys_dept'
 
     dept_id = Column(Integer, primary_key=True, autoincrement=True, comment='部门id')

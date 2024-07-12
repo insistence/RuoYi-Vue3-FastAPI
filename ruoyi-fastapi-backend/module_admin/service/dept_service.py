@@ -1,7 +1,9 @@
-from module_admin.dao.dept_dao import *
-from module_admin.entity.vo.common_vo import CrudResponseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 from config.constant import CommonConstant
 from exceptions.exception import ServiceException, ServiceWarning
+from module_admin.dao.dept_dao import DeptDao
+from module_admin.entity.vo.common_vo import CrudResponseModel
+from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel
 from utils.common_util import CamelCaseUtil
 
 
@@ -25,8 +27,9 @@ class DeptService:
         return dept_tree_result
 
     @classmethod
-    async def get_dept_for_edit_option_services(cls, query_db: AsyncSession, page_object: DeptModel,
-                                                data_scope_sql: str):
+    async def get_dept_for_edit_option_services(
+        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str
+    ):
         """
         获取部门编辑部门树信息service
         :param query_db: orm对象
@@ -75,7 +78,9 @@ class DeptService:
         :return: 校验结果
         """
         dept_id = -1 if page_object.dept_id is None else page_object.dept_id
-        dept = await DeptDao.get_dept_detail_by_info(query_db, DeptModel(deptName=page_object.dept_name, parentId=page_object.parent_id))
+        dept = await DeptDao.get_dept_detail_by_info(
+            query_db, DeptModel(deptName=page_object.dept_name, parentId=page_object.parent_id)
+        )
         if dept and dept.dept_id != dept_id:
             return CommonConstant.NOT_UNIQUE
         return CommonConstant.UNIQUE
@@ -114,7 +119,10 @@ class DeptService:
             raise ServiceException(message=f'修改部门{page_object.dept_name}失败，部门名称已存在')
         elif page_object.dept_id == page_object.parent_id:
             raise ServiceException(message=f'修改部门{page_object.dept_name}失败，上级部门不能是自己')
-        elif page_object.status == CommonConstant.DEPT_DISABLE and (await DeptDao.count_normal_children_dept_dao(query_db, page_object.dept_id)) > 0:
+        elif (
+            page_object.status == CommonConstant.DEPT_DISABLE
+            and (await DeptDao.count_normal_children_dept_dao(query_db, page_object.dept_id)) > 0
+        ):
             raise ServiceException(message=f'修改部门{page_object.dept_name}失败，该部门包含未停用的子部门')
         new_parent_dept = await DeptDao.get_dept_by_id(query_db, page_object.parent_id)
         old_dept = await DeptDao.get_dept_by_id(query_db, page_object.dept_id)
@@ -126,7 +134,11 @@ class DeptService:
                 await cls.update_dept_children(query_db, page_object.dept_id, new_ancestors, old_ancestors)
             edit_dept = page_object.model_dump(exclude_unset=True)
             await DeptDao.edit_dept_dao(query_db, edit_dept)
-            if page_object.status == CommonConstant.DEPT_NORMAL and page_object.ancestors and page_object.ancestors != 0:
+            if (
+                page_object.status == CommonConstant.DEPT_NORMAL
+                and page_object.ancestors
+                and page_object.ancestors != 0
+            ):
                 await cls.update_parent_dept_status_normal(query_db, page_object)
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='更新成功')
@@ -183,8 +195,9 @@ class DeptService:
         :param permission_list: 部门列表信息
         :return: 部门树形嵌套数据
         """
-        permission_list = [dict(id=item.dept_id, label=item.dept_name, parentId=item.parent_id) for item in
-                           permission_list]
+        permission_list = [
+            dict(id=item.dept_id, label=item.dept_name, parentId=item.parent_id) for item in permission_list
+        ]
         # 转成id为key的字典
         mapping: dict = dict(zip([i['id'] for i in permission_list], permission_list))
 

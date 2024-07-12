@@ -1,8 +1,8 @@
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import Network, NotBlank, Size
-from typing import Union, Optional, List, Literal
-from datetime import datetime
+from typing import Literal, Optional
 from module_admin.annotation.pydantic_annotation import as_query
 
 
@@ -10,6 +10,7 @@ class DeptModel(BaseModel):
     """
     部门表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     dept_id: Optional[int] = Field(default=None, description='部门id')
@@ -57,6 +58,7 @@ class DeptQueryModel(DeptModel):
     """
     部门管理不分页查询模型
     """
+
     begin_time: Optional[str] = Field(default=None, description='开始时间')
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
@@ -65,6 +67,7 @@ class DeleteDeptModel(BaseModel):
     """
     删除部门模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     dept_ids: str = Field(default=None, description='需要删除的部门id')
