@@ -1,9 +1,9 @@
-from fastapi import status
-from fastapi.responses import JSONResponse, Response, StreamingResponse
-from fastapi.encoders import jsonable_encoder
-from typing import Any, Dict, Optional
-from pydantic import BaseModel
 from datetime import datetime
+from fastapi import status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+from pydantic import BaseModel
+from typing import Any, Dict, Optional
 from config.constant import HttpStatusConstant
 
 
@@ -13,8 +13,14 @@ class ResponseUtil:
     """
 
     @classmethod
-    def success(cls, msg: str = '操作成功', data: Optional[Any] = None, rows: Optional[Any] = None,
-                dict_content: Optional[Dict] = None, model_content: Optional[BaseModel] = None) -> Response:
+    def success(
+        cls,
+        msg: str = '操作成功',
+        data: Optional[Any] = None,
+        rows: Optional[Any] = None,
+        dict_content: Optional[Dict] = None,
+        model_content: Optional[BaseModel] = None,
+    ) -> Response:
         """
         成功响应方法
         :param msg: 可选，自定义成功响应信息
@@ -24,10 +30,7 @@ class ResponseUtil:
         :param model_content: 可选，BaseModel类型，成功响应结果中自定义属性的值
         :return: 成功响应结果
         """
-        result = {
-            'code': HttpStatusConstant.SUCCESS,
-            'msg': msg
-        }
+        result = {'code': HttpStatusConstant.SUCCESS, 'msg': msg}
 
         if data is not None:
             result['data'] = data
@@ -40,14 +43,17 @@ class ResponseUtil:
 
         result.update({'success': True, 'time': datetime.now()})
 
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(result)
-        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
 
     @classmethod
-    def failure(cls, msg: str = '操作失败', data: Optional[Any] = None, rows: Optional[Any] = None,
-                dict_content: Optional[Dict] = None, model_content: Optional[BaseModel] = None) -> Response:
+    def failure(
+        cls,
+        msg: str = '操作失败',
+        data: Optional[Any] = None,
+        rows: Optional[Any] = None,
+        dict_content: Optional[Dict] = None,
+        model_content: Optional[BaseModel] = None,
+    ) -> Response:
         """
         失败响应方法
         :param msg: 可选，自定义失败响应信息
@@ -57,10 +63,7 @@ class ResponseUtil:
         :param model_content: 可选，BaseModel类型，失败响应结果中自定义属性的值
         :return: 失败响应结果
         """
-        result = {
-            'code': HttpStatusConstant.WARN,
-            'msg': msg
-        }
+        result = {'code': HttpStatusConstant.WARN, 'msg': msg}
 
         if data is not None:
             result['data'] = data
@@ -73,14 +76,17 @@ class ResponseUtil:
 
         result.update({'success': False, 'time': datetime.now()})
 
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(result)
-        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
 
     @classmethod
-    def unauthorized(cls, msg: str = '登录信息已过期，访问系统资源失败', data: Optional[Any] = None, rows: Optional[Any] = None,
-                     dict_content: Optional[Dict] = None, model_content: Optional[BaseModel] = None) -> Response:
+    def unauthorized(
+        cls,
+        msg: str = '登录信息已过期，访问系统资源失败',
+        data: Optional[Any] = None,
+        rows: Optional[Any] = None,
+        dict_content: Optional[Dict] = None,
+        model_content: Optional[BaseModel] = None,
+    ) -> Response:
         """
         未认证响应方法
         :param msg: 可选，自定义未认证响应信息
@@ -90,10 +96,7 @@ class ResponseUtil:
         :param model_content: 可选，BaseModel类型，未认证响应结果中自定义属性的值
         :return: 未认证响应结果
         """
-        result = {
-            'code': HttpStatusConstant.UNAUTHORIZED,
-            'msg': msg
-        }
+        result = {'code': HttpStatusConstant.UNAUTHORIZED, 'msg': msg}
 
         if data is not None:
             result['data'] = data
@@ -106,14 +109,17 @@ class ResponseUtil:
 
         result.update({'success': False, 'time': datetime.now()})
 
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(result)
-        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
 
     @classmethod
-    def forbidden(cls, msg: str = '该用户无此接口权限', data: Optional[Any] = None, rows: Optional[Any] = None,
-                  dict_content: Optional[Dict] = None, model_content: Optional[BaseModel] = None) -> Response:
+    def forbidden(
+        cls,
+        msg: str = '该用户无此接口权限',
+        data: Optional[Any] = None,
+        rows: Optional[Any] = None,
+        dict_content: Optional[Dict] = None,
+        model_content: Optional[BaseModel] = None,
+    ) -> Response:
         """
         未认证响应方法
         :param msg: 可选，自定义未认证响应信息
@@ -123,10 +129,7 @@ class ResponseUtil:
         :param model_content: 可选，BaseModel类型，未认证响应结果中自定义属性的值
         :return: 未认证响应结果
         """
-        result = {
-            'code': HttpStatusConstant.FORBIDDEN,
-            'msg': msg
-        }
+        result = {'code': HttpStatusConstant.FORBIDDEN, 'msg': msg}
 
         if data is not None:
             result['data'] = data
@@ -139,14 +142,17 @@ class ResponseUtil:
 
         result.update({'success': False, 'time': datetime.now()})
 
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(result)
-        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
 
     @classmethod
-    def error(cls, msg: str = '接口异常', data: Optional[Any] = None, rows: Optional[Any] = None,
-              dict_content: Optional[Dict] = None, model_content: Optional[BaseModel] = None) -> Response:
+    def error(
+        cls,
+        msg: str = '接口异常',
+        data: Optional[Any] = None,
+        rows: Optional[Any] = None,
+        dict_content: Optional[Dict] = None,
+        model_content: Optional[BaseModel] = None,
+    ) -> Response:
         """
         错误响应方法
         :param msg: 可选，自定义错误响应信息
@@ -156,10 +162,7 @@ class ResponseUtil:
         :param model_content: 可选，BaseModel类型，错误响应结果中自定义属性的值
         :return: 错误响应结果
         """
-        result = {
-            'code': HttpStatusConstant.ERROR,
-            'msg': msg
-        }
+        result = {'code': HttpStatusConstant.ERROR, 'msg': msg}
 
         if data is not None:
             result['data'] = data
@@ -172,10 +175,7 @@ class ResponseUtil:
 
         result.update({'success': False, 'time': datetime.now()})
 
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=jsonable_encoder(result)
-        )
+        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
 
     @classmethod
     def streaming(cls, *, data: Any = None):
@@ -184,7 +184,4 @@ class ResponseUtil:
         :param data: 流式传输的内容
         :return: 流式响应结果
         """
-        return StreamingResponse(
-            status_code=status.HTTP_200_OK,
-            content=data
-        )
+        return StreamingResponse(status_code=status.HTTP_200_OK, content=data)

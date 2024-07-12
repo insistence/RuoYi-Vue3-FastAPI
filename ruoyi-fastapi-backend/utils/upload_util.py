@@ -1,7 +1,7 @@
-import random
 import os
-from fastapi import UploadFile
+import random
 from datetime import datetime
+from fastapi import UploadFile
 from config.env import UploadConfig
 
 
@@ -62,7 +62,7 @@ class UploadUtil:
         """
         校验文件随机码是否合法
         """
-        valid_code_list = [f"{i:03}" for i in range(1, 999)]
+        valid_code_list = [f'{i:03}' for i in range(1, 999)]
         if filename.rsplit('.', 1)[0][-3:] in valid_code_list:
             return True
         return False
