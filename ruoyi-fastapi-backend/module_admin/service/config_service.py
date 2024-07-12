@@ -1,10 +1,13 @@
 from fastapi import Request
-from module_admin.dao.config_dao import *
-from module_admin.entity.vo.common_vo import CrudResponseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 from config.constant import CommonConstant
 from config.env import RedisInitKeyConfig
 from exceptions.exception import ServiceException
-from utils.common_util import export_list2excel, CamelCaseUtil
+from module_admin.dao.config_dao import ConfigDao
+from module_admin.entity.vo.common_vo import CrudResponseModel
+from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
+from utils.common_util import CamelCaseUtil, export_list2excel
 
 
 class ConfigService:
@@ -13,7 +16,9 @@ class ConfigService:
     """
 
     @classmethod
-    async def get_config_list_services(cls, query_db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False):
+    async def get_config_list_services(
+        cls, query_db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False
+    ):
         """
         获取参数配置列表信息service
         :param query_db: orm对象
@@ -40,7 +45,10 @@ class ConfigService:
             await redis.delete(*keys)
         config_all = await ConfigDao.get_config_list(query_db, ConfigPageQueryModel(**dict()), is_page=False)
         for config_obj in config_all:
-            await redis.set(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_obj.get('configKey')}", config_obj.get('configValue'))
+            await redis.set(
+                f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_obj.get('configKey')}",
+                config_obj.get('configValue'),
+            )
 
     @classmethod
     async def query_config_list_from_cache_services(cls, redis, config_key: str):
@@ -83,7 +91,9 @@ class ConfigService:
             try:
                 await ConfigDao.add_config_dao(query_db, page_object)
                 await query_db.commit()
-                await request.app.state.redis.set(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{page_object.config_key}", page_object.config_value)
+                await request.app.state.redis.set(
+                    f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{page_object.config_key}", page_object.config_value
+                )
                 return CrudResponseModel(is_success=True, message='新增成功')
             except Exception as e:
                 await query_db.rollback()
@@ -108,8 +118,12 @@ class ConfigService:
                     await ConfigDao.edit_config_dao(query_db, edit_config)
                     await query_db.commit()
                     if config_info.config_key != page_object.config_key:
-                        await request.app.state.redis.delete(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_info.config_key}")
-                    await request.app.state.redis.set(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{page_object.config_key}", page_object.config_value)
+                        await request.app.state.redis.delete(
+                            f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_info.config_key}"
+                        )
+                    await request.app.state.redis.set(
+                        f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{page_object.config_key}", page_object.config_value
+                    )
                     return CrudResponseModel(is_success=True, message='更新成功')
                 except Exception as e:
                     await query_db.rollback()
@@ -136,7 +150,9 @@ class ConfigService:
                         raise ServiceException(message=f'内置参数{config_info.config_key}不能删除')
                     else:
                         await ConfigDao.delete_config_dao(query_db, ConfigModel(configId=int(config_id)))
-                        delete_config_key_list.append(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_info.config_key}")
+                        delete_config_key_list.append(
+                            f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_info.config_key}"
+                        )
                 await query_db.commit()
                 if delete_config_key_list:
                     await request.app.state.redis.delete(*delete_config_key_list)
@@ -172,16 +188,16 @@ class ConfigService:
         """
         # 创建一个映射字典，将英文键映射到中文键
         mapping_dict = {
-            "configId": "参数主键",
-            "configName": "参数名称",
-            "configKey": "参数键名",
-            "configValue": "参数键值",
-            "configType": "系统内置",
-            "createBy": "创建者",
-            "createTime": "创建时间",
-            "updateBy": "更新者",
-            "updateTime": "更新时间",
-            "remark": "备注",
+            'configId': '参数主键',
+            'configName': '参数名称',
+            'configKey': '参数键名',
+            'configValue': '参数键值',
+            'configType': '系统内置',
+            'createBy': '创建者',
+            'createTime': '创建时间',
+            'updateBy': '更新者',
+            'updateTime': '更新时间',
+            'remark': '备注',
         }
 
         data = config_list
@@ -191,7 +207,9 @@ class ConfigService:
                 item['configType'] = '是'
             else:
                 item['configType'] = '否'
-        new_data = [{mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data]
+        new_data = [
+            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
+        ]
         binary_data = export_list2excel(new_data)
 
         return binary_data

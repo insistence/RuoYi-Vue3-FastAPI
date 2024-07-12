@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from config.database import Base
 from datetime import datetime
+from sqlalchemy import Column, DateTime, Integer, String
+from config.database import Base
 
 
 class SysConfig(Base):
     """
     参数配置表
     """
+
     __tablename__ = 'sys_config'
 
     config_id = Column(Integer, primary_key=True, autoincrement=True, comment='参数主键')
