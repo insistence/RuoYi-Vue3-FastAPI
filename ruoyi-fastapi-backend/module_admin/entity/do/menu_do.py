@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from config.database import Base
 from datetime import datetime
+from sqlalchemy import Column, DateTime, Integer, String
+from config.database import Base
 
 
 class SysMenu(Base):
     """
     菜单权限表
     """
+
     __tablename__ = 'sys_menu'
 
     menu_id = Column(Integer, primary_key=True, autoincrement=True, comment='菜单ID')

@@ -1,10 +1,13 @@
-from module_admin.entity.vo.user_vo import CurrentUserModel
-from module_admin.entity.vo.role_vo import RoleMenuQueryModel
-from module_admin.entity.vo.common_vo import CrudResponseModel
-from module_admin.dao.role_dao import RoleDao
-from module_admin.dao.menu_dao import *
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 from config.constant import CommonConstant, MenuConstant
 from exceptions.exception import ServiceException, ServiceWarning
+from module_admin.dao.menu_dao import MenuDao
+from module_admin.dao.role_dao import RoleDao
+from module_admin.entity.vo.common_vo import CrudResponseModel
+from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuQueryModel, MenuModel
+from module_admin.entity.vo.role_vo import RoleMenuQueryModel
+from module_admin.entity.vo.user_vo import CurrentUserModel
 from utils.common_util import CamelCaseUtil
 from utils.string_util import StringUtil
 
@@ -22,13 +25,17 @@ class MenuService:
         :param current_user: 当前用户对象
         :return: 菜单树信息对象
         """
-        menu_list_result = await MenuDao.get_menu_list_for_tree(query_db, current_user.user.user_id, current_user.user.role)
+        menu_list_result = await MenuDao.get_menu_list_for_tree(
+            query_db, current_user.user.user_id, current_user.user.role
+        )
         menu_tree_result = cls.list_to_tree(menu_list_result)
 
         return menu_tree_result
 
     @classmethod
-    async def get_role_menu_tree_services(cls, query_db: AsyncSession, role_id: int, current_user: Optional[CurrentUserModel] = None):
+    async def get_role_menu_tree_services(
+        cls, query_db: AsyncSession, role_id: int, current_user: Optional[CurrentUserModel] = None
+    ):
         """
         根据角色id获取菜单树信息service
         :param query_db: orm对象
@@ -36,20 +43,21 @@ class MenuService:
         :param current_user: 当前用户对象
         :return: 当前角色id的菜单树信息对象
         """
-        menu_list_result = await MenuDao.get_menu_list_for_tree(query_db, current_user.user.user_id, current_user.user.role)
+        menu_list_result = await MenuDao.get_menu_list_for_tree(
+            query_db, current_user.user.user_id, current_user.user.role
+        )
         menu_tree_result = cls.list_to_tree(menu_list_result)
         role = await RoleDao.get_role_detail_by_id(query_db, role_id)
         role_menu_list = await RoleDao.get_role_menu_dao(query_db, role)
         checked_keys = [row.menu_id for row in role_menu_list]
-        result = RoleMenuQueryModel(
-            menus=menu_tree_result,
-            checkedKeys=checked_keys
-        )
+        result = RoleMenuQueryModel(menus=menu_tree_result, checkedKeys=checked_keys)
 
         return result
 
     @classmethod
-    async def get_menu_list_services(cls, query_db: AsyncSession, page_object: MenuQueryModel, current_user: Optional[CurrentUserModel] = None):
+    async def get_menu_list_services(
+        cls, query_db: AsyncSession, page_object: MenuQueryModel, current_user: Optional[CurrentUserModel] = None
+    ):
         """
         获取菜单列表信息service
         :param query_db: orm对象
@@ -57,7 +65,9 @@ class MenuService:
         :param current_user: 当前用户对象
         :return: 菜单列表信息对象
         """
-        menu_list_result = await MenuDao.get_menu_list(query_db, page_object, current_user.user.user_id, current_user.user.role)
+        menu_list_result = await MenuDao.get_menu_list(
+            query_db, page_object, current_user.user.user_id, current_user.user.role
+        )
 
         return CamelCaseUtil.transform_result(menu_list_result)
 
@@ -172,7 +182,9 @@ class MenuService:
         :param permission_list: 菜单列表信息
         :return: 菜单树形嵌套数据
         """
-        permission_list = [dict(id=item.menu_id, label=item.menu_name, parentId=item.parent_id) for item in permission_list]
+        permission_list = [
+            dict(id=item.menu_id, label=item.menu_name, parentId=item.parent_id) for item in permission_list
+        ]
         # 转成id为key的字典
         mapping: dict = dict(zip([i['id'] for i in permission_list], permission_list))
 
