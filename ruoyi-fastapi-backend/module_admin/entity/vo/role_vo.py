@@ -1,22 +1,26 @@
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
-from typing import Union, Optional, List, Literal
-from datetime import datetime
-from module_admin.annotation.pydantic_annotation import as_query, as_form
+from typing import List, Literal, Optional, Union
+from module_admin.annotation.pydantic_annotation import as_form, as_query
 
 
 class RoleModel(BaseModel):
     """
     角色表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     role_id: Optional[int] = Field(default=None, description='角色ID')
     role_name: Optional[str] = Field(default=None, description='角色名称')
     role_key: Optional[str] = Field(default=None, description='角色权限字符串')
     role_sort: Optional[int] = Field(default=None, description='显示顺序')
-    data_scope: Optional[Literal['1', '2', '3', '4', '5']] = Field(default=None, description='数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限）')
+    data_scope: Optional[Literal['1', '2', '3', '4', '5']] = Field(
+        default=None,
+        description='数据范围（1：全部数据权限 2：自定数据权限 3：本部门数据权限 4：本部门及以下数据权限 5：仅本人数据权限）',
+    )
     menu_check_strictly: Optional[Union[int, bool]] = Field(default=None, description='菜单树选择项是否关联显示')
     dept_check_strictly: Optional[Union[int, bool]] = Field(default=None, description='部门树选择项是否关联显示')
     status: Optional[Literal['0', '1']] = Field(default=None, description='角色状态（0正常 1停用）')
@@ -73,6 +77,7 @@ class RoleMenuModel(BaseModel):
     """
     角色和菜单关联表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     role_id: Optional[int] = Field(default=None, description='角色ID')
@@ -83,6 +88,7 @@ class RoleDeptModel(BaseModel):
     """
     角色和部门关联表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     role_id: Optional[int] = Field(default=None, description='角色ID')
@@ -93,6 +99,7 @@ class RoleQueryModel(RoleModel):
     """
     角色管理不分页查询模型
     """
+
     begin_time: Optional[str] = Field(default=None, description='开始时间')
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
@@ -103,6 +110,7 @@ class RolePageQueryModel(RoleQueryModel):
     """
     角色管理分页查询模型
     """
+
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=10, description='每页记录数')
 
@@ -111,6 +119,7 @@ class RoleMenuQueryModel(BaseModel):
     """
     角色菜单查询模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     menus: List = Field(default=[], description='菜单信息')
@@ -121,6 +130,7 @@ class RoleDeptQueryModel(BaseModel):
     """
     角色部门查询模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     depts: List = Field(default=[], description='部门信息')
@@ -131,6 +141,7 @@ class AddRoleModel(RoleModel):
     """
     新增角色模型
     """
+
     dept_ids: List = Field(default=[], description='部门ID信息')
     menu_ids: List = Field(default=[], description='菜单ID信息')
     type: Optional[str] = Field(default=None, description='操作类型')
@@ -140,6 +151,7 @@ class DeleteRoleModel(BaseModel):
     """
     删除角色模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     role_ids: str = Field(description='需要删除的菜单ID')
