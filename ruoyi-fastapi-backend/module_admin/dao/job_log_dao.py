@@ -1,10 +1,10 @@
-from sqlalchemy import select, delete
+from datetime import datetime, time
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from module_admin.entity.do.job_do import SysJobLog
-from module_admin.entity.vo.job_vo import *
+from module_admin.entity.vo.job_vo import JobLogModel, JobLogPageQueryModel
 from utils.page_util import PageUtil
-from datetime import datetime, time
 
 
 class JobLogDao:
@@ -21,15 +21,21 @@ class JobLogDao:
         :param is_page: 是否开启分页
         :return: 定时任务日志列表信息对象
         """
-        query = select(SysJobLog) \
-            .where(SysJobLog.job_name.like(f'%{query_object.job_name}%') if query_object.job_name else True,
-                   SysJobLog.job_group == query_object.job_group if query_object.job_group else True,
-                   SysJobLog.status == query_object.status if query_object.status else True,
-                   SysJobLog.create_time.between(
-                       datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
-                       datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)))
-                   if query_object.begin_time and query_object.end_time else True) \
+        query = (
+            select(SysJobLog)
+            .where(
+                SysJobLog.job_name.like(f'%{query_object.job_name}%') if query_object.job_name else True,
+                SysJobLog.job_group == query_object.job_group if query_object.job_group else True,
+                SysJobLog.status == query_object.status if query_object.status else True,
+                SysJobLog.create_time.between(
+                    datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
+                    datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),
+                )
+                if query_object.begin_time and query_object.end_time
+                else True,
+            )
             .distinct()
+        )
         job_log_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
 
         return job_log_list
@@ -56,10 +62,7 @@ class JobLogDao:
         :param job_log: 定时任务日志对象
         :return:
         """
-        await db.execute(
-            delete(SysJobLog)
-                .where(SysJobLog.job_log_id.in_([job_log.job_log_id]))
-        )
+        await db.execute(delete(SysJobLog).where(SysJobLog.job_log_id.in_([job_log.job_log_id])))
 
     @classmethod
     async def clear_job_log_dao(cls, db: AsyncSession):
@@ -68,6 +71,4 @@ class JobLogDao:
         :param db: orm对象
         :return:
         """
-        await db.execute(
-            delete(SysJobLog)
-        )
+        await db.execute(delete(SysJobLog))

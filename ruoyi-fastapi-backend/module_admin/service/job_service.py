@@ -1,8 +1,12 @@
-from module_admin.dao.job_dao import *
-from module_admin.service.dict_service import Request, DictDataService
-from module_admin.entity.vo.common_vo import CrudResponseModel
-from utils.common_util import export_list2excel, CamelCaseUtil
+from fastapi import Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 from config.get_scheduler import SchedulerUtil
+from module_admin.dao.job_dao import JobDao
+from module_admin.entity.vo.common_vo import CrudResponseModel
+from module_admin.entity.vo.job_vo import DeleteJobModel, EditJobModel, JobModel, JobPageQueryModel
+from module_admin.service.dict_service import DictDataService
+from utils.common_util import CamelCaseUtil, export_list2excel
 
 
 class JobService:
@@ -11,7 +15,9 @@ class JobService:
     """
 
     @classmethod
-    async def get_job_list_services(cls, query_db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False):
+    async def get_job_list_services(
+        cls, query_db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False
+    ):
         """
         获取定时任务列表信息service
         :param query_db: orm对象
@@ -61,7 +67,12 @@ class JobService:
             del edit_job['type']
         job_info = await cls.job_detail_services(query_db, edit_job.get('job_id'))
         if job_info:
-            if page_object.type != 'status' and (job_info.job_name != page_object.job_name or job_info.job_group != page_object.job_group or job_info.invoke_target != page_object.invoke_target or job_info.cron_expression != page_object.cron_expression):
+            if page_object.type != 'status' and (
+                job_info.job_name != page_object.job_name
+                or job_info.job_group != page_object.job_group
+                or job_info.invoke_target != page_object.invoke_target
+                or job_info.cron_expression != page_object.cron_expression
+            ):
                 job = await JobDao.get_job_detail_by_info(query_db, page_object)
                 if job:
                     result = dict(is_success=False, message='定时任务已存在')
@@ -152,30 +163,36 @@ class JobService:
         """
         # 创建一个映射字典，将英文键映射到中文键
         mapping_dict = {
-            "jobId": "任务编码",
-            "jobName": "任务名称",
-            "jobGroup": "任务组名",
-            "jobExecutor": "任务执行器",
-            "invokeTarget": "调用目标字符串",
-            "jobArgs": "位置参数",
-            "jobKwargs": "关键字参数",
-            "cronExpression": "cron执行表达式",
-            "misfirePolicy": "计划执行错误策略",
-            "concurrent": "是否并发执行",
-            "status": "状态",
-            "createBy": "创建者",
-            "createTime": "创建时间",
-            "updateBy": "更新者",
-            "updateTime": "更新时间",
-            "remark": "备注",
+            'jobId': '任务编码',
+            'jobName': '任务名称',
+            'jobGroup': '任务组名',
+            'jobExecutor': '任务执行器',
+            'invokeTarget': '调用目标字符串',
+            'jobArgs': '位置参数',
+            'jobKwargs': '关键字参数',
+            'cronExpression': 'cron执行表达式',
+            'misfirePolicy': '计划执行错误策略',
+            'concurrent': '是否并发执行',
+            'status': '状态',
+            'createBy': '创建者',
+            'createTime': '创建时间',
+            'updateBy': '更新者',
+            'updateTime': '更新时间',
+            'remark': '备注',
         }
 
         data = job_list
-        job_group_list = await DictDataService.query_dict_data_list_from_cache_services(request.app.state.redis, dict_type='sys_job_group')
+        job_group_list = await DictDataService.query_dict_data_list_from_cache_services(
+            request.app.state.redis, dict_type='sys_job_group'
+        )
         job_group_option = [dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in job_group_list]
         job_group_option_dict = {item.get('value'): item for item in job_group_option}
-        job_executor_list = await DictDataService.query_dict_data_list_from_cache_services(request.app.state.redis, dict_type='sys_job_executor')
-        job_executor_option = [dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in job_executor_list]
+        job_executor_list = await DictDataService.query_dict_data_list_from_cache_services(
+            request.app.state.redis, dict_type='sys_job_executor'
+        )
+        job_executor_option = [
+            dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in job_executor_list
+        ]
         job_executor_option_dict = {item.get('value'): item for item in job_executor_option}
 
         for item in data:
@@ -197,7 +214,9 @@ class JobService:
                 item['concurrent'] = '允许'
             else:
                 item['concurrent'] = '禁止'
-        new_data = [{mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data]
+        new_data = [
+            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
+        ]
         binary_data = export_list2excel(new_data)
 
         return binary_data
