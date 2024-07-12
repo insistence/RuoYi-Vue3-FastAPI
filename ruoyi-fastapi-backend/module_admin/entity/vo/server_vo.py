@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from typing import Optional, List
+from typing import List, Optional
 
 
 class CpuInfo(BaseModel):
@@ -57,6 +57,7 @@ class ServerMonitorModel(BaseModel):
     """
     服务监控对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     cpu: Optional[CpuInfo] = Field(description='CPU相关信息')

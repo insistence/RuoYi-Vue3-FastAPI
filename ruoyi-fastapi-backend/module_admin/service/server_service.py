@@ -1,10 +1,10 @@
-import psutil
-from utils.common_util import bytes2human
-import platform
-import socket
 import os
+import platform
+import psutil
+import socket
 import time
-from module_admin.entity.vo.server_vo import *
+from module_admin.entity.vo.server_vo import CpuInfo, MemoryInfo, PyInfo, ServerMonitorModel, SysFiles, SysInfo
+from utils.common_util import bytes2human
 
 
 class ServerService:
@@ -40,7 +40,9 @@ class ServerService:
         computer_name = platform.node()
         os_arch = platform.machine()
         user_dir = os.path.abspath(os.getcwd())
-        sys = SysInfo(computerIp=computer_ip, computerName=computer_name, osArch=os_arch, osName=os_name, userDir=user_dir)
+        sys = SysInfo(
+            computerIp=computer_ip, computerName=computer_name, osArch=os_arch, osName=os_name, userDir=user_dir
+        )
 
         # python解释器信息
         current_pid = os.getpid()
@@ -49,14 +51,14 @@ class ServerService:
         python_version = platform.python_version()
         python_home = current_process.exe()
         start_time_stamp = current_process.create_time()
-        start_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(start_time_stamp))
+        start_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time_stamp))
         current_time_stamp = time.time()
         difference = current_time_stamp - start_time_stamp
         # 将时间差转换为天、小时和分钟数
         days = int(difference // (24 * 60 * 60))  # 每天的秒数
         hours = int((difference % (24 * 60 * 60)) // (60 * 60))  # 每小时的秒数
         minutes = int((difference % (60 * 60)) // 60)  # 每分钟的秒数
-        run_time = f"{days}天{hours}小时{minutes}分钟"
+        run_time = f'{days}天{hours}小时{minutes}分钟'
         # 获取当前Python程序的pid
         pid = os.getpid()
         # 获取该进程的内存信息
@@ -70,7 +72,7 @@ class ServerService:
             total=bytes2human(memory_info.available),
             used=bytes2human(current_process_memory_info.rss),
             free=bytes2human(memory_info.available - current_process_memory_info.rss),
-            usage=round((current_process_memory_info.rss / memory_info.available) * 100, 2)
+            usage=round((current_process_memory_info.rss / memory_info.available) * 100, 2),
         )
 
         # 磁盘信息
@@ -81,11 +83,11 @@ class ServerService:
             disk_data = SysFiles(
                 dirName=i.device,
                 sysTypeName=i.fstype,
-                typeName="本地固定磁盘（" + i.mountpoint.replace('\\', '') + "）",
+                typeName='本地固定磁盘（' + i.mountpoint.replace('\\', '') + '）',
                 total=bytes2human(o.total),
                 used=bytes2human(o.used),
                 free=bytes2human(o.free),
-                usage=f'{psutil.disk_usage(i.device).percent}%'
+                usage=f'{psutil.disk_usage(i.device).percent}%',
             )
             sys_files.append(disk_data)
 
