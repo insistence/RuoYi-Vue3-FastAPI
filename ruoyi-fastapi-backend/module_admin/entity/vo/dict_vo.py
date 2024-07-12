@@ -1,15 +1,16 @@
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Pattern, Size
-from typing import Union, Optional, List, Literal
-from datetime import datetime
-from module_admin.annotation.pydantic_annotation import as_query, as_form
+from typing import Literal, Optional
+from module_admin.annotation.pydantic_annotation import as_form, as_query
 
 
 class DictTypeModel(BaseModel):
     """
     字典类型表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     dict_id: Optional[int] = Field(default=None, description='字典主键')
@@ -29,7 +30,11 @@ class DictTypeModel(BaseModel):
 
     @NotBlank(field_name='dict_type', message='字典类型不能为空')
     @Size(field_name='dict_type', min_length=0, max_length=100, message='字典类型类型长度不能超过100个字符')
-    @Pattern(field_name='dict_type', regexp='^[a-z][a-z0-9_]*$', message='字典类型必须以字母开头，且只能为（小写字母，数字，下滑线）')
+    @Pattern(
+        field_name='dict_type',
+        regexp='^[a-z][a-z0-9_]*$',
+        message='字典类型必须以字母开头，且只能为（小写字母，数字，下滑线）',
+    )
     def get_dict_type(self):
         return self.dict_type
 
@@ -42,6 +47,7 @@ class DictDataModel(BaseModel):
     """
     字典数据表对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     dict_code: Optional[int] = Field(default=None, description='字典编码')
@@ -89,6 +95,7 @@ class DictTypeQueryModel(DictTypeModel):
     """
     字典类型管理不分页查询模型
     """
+
     begin_time: Optional[str] = Field(default=None, description='开始时间')
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
@@ -99,6 +106,7 @@ class DictTypePageQueryModel(DictTypeQueryModel):
     """
     字典类型管理分页查询模型
     """
+
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=10, description='每页记录数')
 
@@ -107,6 +115,7 @@ class DeleteDictTypeModel(BaseModel):
     """
     删除字典类型模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     dict_ids: str = Field(description='需要删除的字典主键')
@@ -116,6 +125,7 @@ class DictDataQueryModel(DictDataModel):
     """
     字典数据管理不分页查询模型
     """
+
     begin_time: Optional[str] = Field(default=None, description='开始时间')
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
@@ -126,6 +136,7 @@ class DictDataPageQueryModel(DictDataQueryModel):
     """
     字典数据管理分页查询模型
     """
+
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=10, description='每页记录数')
 
@@ -134,6 +145,7 @@ class DeleteDictDataModel(BaseModel):
     """
     删除字典数据模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     dict_codes: str = Field(description='需要删除的字典编码')
