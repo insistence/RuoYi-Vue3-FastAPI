@@ -1,8 +1,20 @@
-from module_admin.dao.log_dao import *
-from module_admin.service.dict_service import Request, DictDataService
-from module_admin.entity.vo.common_vo import CrudResponseModel
+from fastapi import Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import List
 from exceptions.exception import ServiceException
-from utils.common_util import export_list2excel, CamelCaseUtil
+from module_admin.dao.log_dao import LoginLogDao, OperationLogDao
+from module_admin.entity.vo.common_vo import CrudResponseModel
+from module_admin.entity.vo.log_vo import (
+    DeleteLoginLogModel,
+    DeleteOperLogModel,
+    LogininforModel,
+    LoginLogPageQueryModel,
+    OperLogModel,
+    OperLogPageQueryModel,
+    UnlockUser,
+)
+from module_admin.service.dict_service import DictDataService
+from utils.common_util import export_list2excel
 
 
 class OperationLogService:
@@ -11,7 +23,9 @@ class OperationLogService:
     """
 
     @classmethod
-    async def get_operation_log_list_services(cls, query_db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False):
+    async def get_operation_log_list_services(
+        cls, query_db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False
+    ):
         """
         获取操作日志列表信息service
         :param query_db: orm对象
@@ -85,27 +99,31 @@ class OperationLogService:
         """
         # 创建一个映射字典，将英文键映射到中文键
         mapping_dict = {
-            "operId": "日志编号",
-            "title": "系统模块",
-            "businessType": "操作类型",
-            "method": "方法名称",
-            "requestMethod": "请求方式",
-            "operName": "操作人员",
-            "deptName": "部门名称",
-            "operUrl": "请求URL",
-            "operIp": "操作地址",
-            "operLocation": "操作地点",
-            "operParam": "请求参数",
-            "jsonResult": "返回参数",
-            "status": "操作状态",
-            "error_msg": "错误消息",
-            "operTime": "操作日期",
-            "costTime": "消耗时间（毫秒）"
+            'operId': '日志编号',
+            'title': '系统模块',
+            'businessType': '操作类型',
+            'method': '方法名称',
+            'requestMethod': '请求方式',
+            'operName': '操作人员',
+            'deptName': '部门名称',
+            'operUrl': '请求URL',
+            'operIp': '操作地址',
+            'operLocation': '操作地点',
+            'operParam': '请求参数',
+            'jsonResult': '返回参数',
+            'status': '操作状态',
+            'error_msg': '错误消息',
+            'operTime': '操作日期',
+            'costTime': '消耗时间（毫秒）',
         }
 
         data = operation_log_list
-        operation_type_list = await DictDataService.query_dict_data_list_from_cache_services(request.app.state.redis, dict_type='sys_oper_type')
-        operation_type_option = [dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in operation_type_list]
+        operation_type_list = await DictDataService.query_dict_data_list_from_cache_services(
+            request.app.state.redis, dict_type='sys_oper_type'
+        )
+        operation_type_option = [
+            dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in operation_type_list
+        ]
         operation_type_option_dict = {item.get('value'): item for item in operation_type_option}
 
         for item in data:
@@ -116,7 +134,9 @@ class OperationLogService:
             if str(item.get('businessType')) in operation_type_option_dict.keys():
                 item['businessType'] = operation_type_option_dict.get(str(item.get('businessType'))).get('label')
 
-        new_data = [{mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data]
+        new_data = [
+            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
+        ]
         binary_data = export_list2excel(new_data)
 
         return binary_data
@@ -128,7 +148,9 @@ class LoginLogService:
     """
 
     @classmethod
-    async def get_login_log_list_services(cls, query_db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False):
+    async def get_login_log_list_services(
+        cls, query_db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False
+    ):
         """
         获取登录日志列表信息service
         :param query_db: orm对象
@@ -194,9 +216,9 @@ class LoginLogService:
 
     @classmethod
     async def unlock_user_services(cls, request: Request, unlock_user: UnlockUser):
-        locked_user = await request.app.state.redis.get(f"account_lock:{unlock_user.user_name}")
+        locked_user = await request.app.state.redis.get(f'account_lock:{unlock_user.user_name}')
         if locked_user:
-            await request.app.state.redis.delete(f"account_lock:{unlock_user.user_name}")
+            await request.app.state.redis.delete(f'account_lock:{unlock_user.user_name}')
             return CrudResponseModel(is_success=True, message='解锁成功')
         else:
             raise ServiceException(message='该用户未锁定')
@@ -210,15 +232,15 @@ class LoginLogService:
         """
         # 创建一个映射字典，将英文键映射到中文键
         mapping_dict = {
-            "infoId": "访问编号",
-            "userName": "用户名称",
-            "ipaddr": "登录地址",
-            "loginLocation": "登录地点",
-            "browser": "浏览器",
-            "os": "操作系统",
-            "status": "登录状态",
-            "msg": "操作信息",
-            "loginTime": "登录日期"
+            'infoId': '访问编号',
+            'userName': '用户名称',
+            'ipaddr': '登录地址',
+            'loginLocation': '登录地点',
+            'browser': '浏览器',
+            'os': '操作系统',
+            'status': '登录状态',
+            'msg': '操作信息',
+            'loginTime': '登录日期',
         }
 
         data = login_log_list
@@ -228,7 +250,9 @@ class LoginLogService:
                 item['status'] = '成功'
             else:
                 item['status'] = '失败'
-        new_data = [{mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data]
+        new_data = [
+            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
+        ]
         binary_data = export_list2excel(new_data)
 
         return binary_data
