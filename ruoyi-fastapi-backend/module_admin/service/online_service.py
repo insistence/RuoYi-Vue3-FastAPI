@@ -1,9 +1,9 @@
 from fastapi import Request
 from jose import jwt
 from config.env import JwtConfig, RedisInitKeyConfig
-from module_admin.entity.vo.online_vo import *
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from exceptions.exception import ServiceException
+from module_admin.entity.vo.common_vo import CrudResponseModel
+from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
 from utils.common_util import CamelCaseUtil
 
 
@@ -35,7 +35,7 @@ class OnlineService:
                 login_location=payload.get('login_info').get('loginLocation'),
                 browser=payload.get('login_info').get('browser'),
                 os=payload.get('login_info').get('os'),
-                login_time=payload.get('login_info').get('loginTime')
+                login_time=payload.get('login_info').get('loginTime'),
             )
             if query_object.user_name and not query_object.ipaddr:
                 if query_object.user_name == payload.get('login_info').get('ipaddr'):
@@ -46,7 +46,9 @@ class OnlineService:
                     online_info_list = [online_dict]
                     break
             elif query_object.user_name and query_object.ipaddr:
-                if query_object.user_name == payload.get('user_name') and query_object.ipaddr == payload.get('login_info').get('ipaddr'):
+                if query_object.user_name == payload.get('user_name') and query_object.ipaddr == payload.get(
+                    'login_info'
+                ).get('ipaddr'):
                     online_info_list = [online_dict]
                     break
             else:
