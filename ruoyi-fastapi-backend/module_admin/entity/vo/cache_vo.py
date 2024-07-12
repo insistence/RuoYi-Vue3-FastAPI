@@ -1,12 +1,13 @@
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from typing import Optional, List, Any
+from typing import Any, List, Optional
 
 
 class CacheMonitorModel(BaseModel):
     """
     缓存监控信息对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     command_stats: Optional[List] = Field(default=[], description='命令统计')
@@ -18,6 +19,7 @@ class CacheInfoModel(BaseModel):
     """
     缓存监控对象对应pydantic模型
     """
+
     model_config = ConfigDict(alias_generator=to_camel)
 
     cache_key: Optional[str] = Field(default=None, description='缓存键名')
