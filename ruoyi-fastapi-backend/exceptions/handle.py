@@ -48,7 +48,7 @@ def handle_exception(app: FastAPI):
     # 自定义服务异常
     @app.exception_handler(ServiceException)
     async def service_exception_handler(request: Request, exc: ServiceException):
-        logger.warning(exc.message)
+        logger.error(exc.message)
         return ResponseUtil.error(data=exc.data, msg=exc.message)
 
     # 自定义服务警告
