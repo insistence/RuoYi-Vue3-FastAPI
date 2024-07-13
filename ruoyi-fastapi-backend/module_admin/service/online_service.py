@@ -16,6 +16,7 @@ class OnlineService:
     async def get_online_list_services(cls, request: Request, query_object: OnlineQueryModel):
         """
         获取在线用户表信息service
+
         :param request: Request对象
         :param query_object: 查询参数对象
         :return: 在线用户列表信息
@@ -60,6 +61,7 @@ class OnlineService:
     async def delete_online_services(cls, request: Request, page_object: DeleteOnlineModel):
         """
         强退在线用户信息service
+
         :param request: Request对象
         :param page_object: 强退在线用户对象
         :return: 强退在线用户校验结果

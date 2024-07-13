@@ -28,6 +28,7 @@ class OperationLogService:
     ):
         """
         获取操作日志列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -41,6 +42,7 @@ class OperationLogService:
     async def add_operation_log_services(cls, query_db: AsyncSession, page_object: OperLogModel):
         """
         新增操作日志service
+
         :param query_db: orm对象
         :param page_object: 新增操作日志对象
         :return: 新增操作日志校验结果
@@ -57,6 +59,7 @@ class OperationLogService:
     async def delete_operation_log_services(cls, query_db: AsyncSession, page_object: DeleteOperLogModel):
         """
         删除操作日志信息service
+
         :param query_db: orm对象
         :param page_object: 删除操作日志对象
         :return: 删除操作日志校验结果
@@ -78,6 +81,7 @@ class OperationLogService:
     async def clear_operation_log_services(cls, query_db: AsyncSession):
         """
         清除操作日志信息service
+
         :param query_db: orm对象
         :return: 清除操作日志校验结果
         """
@@ -93,6 +97,7 @@ class OperationLogService:
     async def export_operation_log_list_services(cls, request: Request, operation_log_list: List):
         """
         导出操作日志信息service
+
         :param request: Request对象
         :param operation_log_list: 操作日志信息列表
         :return: 操作日志信息对应excel的二进制数据
@@ -153,6 +158,7 @@ class LoginLogService:
     ):
         """
         获取登录日志列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -166,6 +172,7 @@ class LoginLogService:
     async def add_login_log_services(cls, query_db: AsyncSession, page_object: LogininforModel):
         """
         新增登录日志service
+
         :param query_db: orm对象
         :param page_object: 新增登录日志对象
         :return: 新增登录日志校验结果
@@ -182,6 +189,7 @@ class LoginLogService:
     async def delete_login_log_services(cls, query_db: AsyncSession, page_object: DeleteLoginLogModel):
         """
         删除操作日志信息service
+
         :param query_db: orm对象
         :param page_object: 删除操作日志对象
         :return: 删除操作日志校验结果
@@ -203,6 +211,7 @@ class LoginLogService:
     async def clear_login_log_services(cls, query_db: AsyncSession):
         """
         清除操作日志信息service
+
         :param query_db: orm对象
         :return: 清除操作日志校验结果
         """
@@ -227,6 +236,7 @@ class LoginLogService:
     async def export_login_log_list_services(login_log_list: List):
         """
         导出登录日志信息service
+
         :param login_log_list: 登录日志信息列表
         :return: 登录日志信息对应excel的二进制数据
         """

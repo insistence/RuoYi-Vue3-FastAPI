@@ -29,6 +29,7 @@ def list_format_datetime(lst):
 def format_datetime_dict_list(dicts):
     """
     递归遍历嵌套字典，并将 datetime 值转换为字符串格式
+
     :param dicts: 输入一个嵌套字典的列表
     :return: 对目标列表中所有字典的datetime类型的属性格式化
     """

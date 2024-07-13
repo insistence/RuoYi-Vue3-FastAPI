@@ -118,6 +118,7 @@ class SchedulerUtil:
     async def init_system_scheduler(cls):
         """
         应用启动时初始化定时任务
+
         :return:
         """
         logger.info('开始启动定时任务...')
@@ -136,6 +137,7 @@ class SchedulerUtil:
     async def close_system_scheduler(cls):
         """
         应用关闭时关闭定时任务
+
         :return:
         """
         scheduler.shutdown()
@@ -145,6 +147,7 @@ class SchedulerUtil:
     def get_scheduler_job(cls, job_id):
         """
         根据任务id获取任务对象
+
         :param job_id: 任务id
         :return: 任务对象
         """
@@ -156,6 +159,7 @@ class SchedulerUtil:
     def add_scheduler_job(cls, job_info):
         """
         根据输入的任务对象信息添加任务
+
         :param job_info: 任务对象信息
         :return:
         """
@@ -177,6 +181,7 @@ class SchedulerUtil:
     def execute_scheduler_job_once(cls, job_info):
         """
         根据输入的任务对象执行一次任务
+
         :param job_info: 任务对象信息
         :return:
         """
@@ -199,6 +204,7 @@ class SchedulerUtil:
     def remove_scheduler_job(cls, job_id):
         """
         根据任务id移除任务
+
         :param job_id: 任务id
         :return:
         """

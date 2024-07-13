@@ -47,6 +47,7 @@ class UserService:
     ):
         """
         获取用户列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -72,6 +73,7 @@ class UserService:
     async def check_user_allowed_services(cls, check_user: UserModel):
         """
         校验用户是否允许操作service
+
         :param check_user: 用户信息
         :return: 校验结果
         """
@@ -84,6 +86,7 @@ class UserService:
     async def check_user_data_scope_services(cls, query_db: AsyncSession, user_id: int, data_scope_sql: str):
         """
         校验用户数据权限service
+
         :param query_db: orm对象
         :param user_id: 用户id
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -99,6 +102,7 @@ class UserService:
     async def check_user_name_unique_services(cls, query_db: AsyncSession, page_object: UserModel):
         """
         校验用户名是否唯一service
+
         :param query_db: orm对象
         :param page_object: 用户对象
         :return: 校验结果
@@ -113,6 +117,7 @@ class UserService:
     async def check_phonenumber_unique_services(cls, query_db: AsyncSession, page_object: UserModel):
         """
         校验用户手机号是否唯一service
+
         :param query_db: orm对象
         :param page_object: 用户对象
         :return: 校验结果
@@ -127,6 +132,7 @@ class UserService:
     async def check_email_unique_services(cls, query_db: AsyncSession, page_object: UserModel):
         """
         校验用户邮箱是否唯一service
+
         :param query_db: orm对象
         :param page_object: 用户对象
         :return: 校验结果
@@ -141,6 +147,7 @@ class UserService:
     async def add_user_services(cls, query_db: AsyncSession, page_object: AddUserModel):
         """
         新增用户信息service
+
         :param query_db: orm对象
         :param page_object: 新增用户对象
         :return: 新增用户校验结果
@@ -172,6 +179,7 @@ class UserService:
     async def edit_user_services(cls, query_db: AsyncSession, page_object: EditUserModel):
         """
         编辑用户信息service
+
         :param query_db: orm对象
         :param page_object: 编辑用户对象
         :return: 编辑用户校验结果
@@ -219,6 +227,7 @@ class UserService:
     async def delete_user_services(cls, query_db: AsyncSession, page_object: DeleteUserModel):
         """
         删除用户信息service
+
         :param query_db: orm对象
         :param page_object: 删除用户对象
         :return: 删除用户校验结果
@@ -245,6 +254,7 @@ class UserService:
     async def user_detail_services(cls, query_db: AsyncSession, user_id: Union[int, str]):
         """
         获取用户详细信息service
+
         :param query_db: orm对象
         :param user_id: 用户id
         :return: 用户id对应的信息
@@ -277,7 +287,8 @@ class UserService:
     @classmethod
     async def user_profile_services(cls, query_db: AsyncSession, user_id: int):
         """
-        获取用户详细信息service
+        获取用户个人详细信息service
+
         :param query_db: orm对象
         :param user_id: 用户id
         :return: 用户id对应的信息
@@ -304,6 +315,7 @@ class UserService:
     async def reset_user_services(cls, query_db: AsyncSession, page_object: ResetUserModel):
         """
         重置用户密码service
+
         :param query_db: orm对象
         :param page_object: 重置用户对象
         :return: 重置用户校验结果
@@ -341,6 +353,7 @@ class UserService:
     ):
         """
         批量导入用户service
+
         :param request: Request对象
         :param query_db: orm对象
         :param file: 用户导入文件对象
@@ -441,6 +454,7 @@ class UserService:
     async def get_user_import_template_services():
         """
         获取用户导入模板service
+
         :return: 用户导入模板excel的二进制数据
         """
         header_list = ['部门编号', '登录名称', '用户名称', '用户邮箱', '手机号码', '用户性别', '帐号状态']
@@ -456,6 +470,7 @@ class UserService:
     async def export_user_list_services(user_list: List):
         """
         导出用户信息service
+
         :param user_list: 用户信息列表
         :return: 用户信息对应excel的二进制数据
         """
@@ -500,6 +515,7 @@ class UserService:
     async def get_user_role_allocated_list_services(cls, query_db: AsyncSession, page_object: UserRoleQueryModel):
         """
         根据用户id获取已分配角色列表
+
         :param query_db: orm对象
         :param page_object: 用户关联角色对象
         :return: 已分配角色列表
@@ -529,6 +545,7 @@ class UserService:
     async def add_user_role_services(cls, query_db: AsyncSession, page_object: CrudUserRoleModel):
         """
         新增用户关联角色信息service
+
         :param query_db: orm对象
         :param page_object: 新增用户关联角色对象
         :return: 新增用户关联角色校验结果
@@ -584,6 +601,7 @@ class UserService:
     async def delete_user_role_services(cls, query_db: AsyncSession, page_object: CrudUserRoleModel):
         """
         删除用户关联角色信息service
+
         :param query_db: orm对象
         :param page_object: 删除用户关联角色对象
         :return: 删除用户关联角色校验结果
@@ -620,6 +638,7 @@ class UserService:
     async def detail_user_role_services(cls, query_db: AsyncSession, page_object: UserRoleModel):
         """
         获取用户关联角色详细信息service
+
         :param query_db: orm对象
         :param page_object: 用户关联角色对象
         :return: 用户关联角色详细信息

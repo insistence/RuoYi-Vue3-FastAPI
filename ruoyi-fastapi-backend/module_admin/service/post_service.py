@@ -19,6 +19,7 @@ class PostService:
     ):
         """
         获取岗位列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -32,6 +33,7 @@ class PostService:
     async def check_post_name_unique_services(cls, query_db: AsyncSession, page_object: PostModel):
         """
         检查岗位名称是否唯一service
+
         :param query_db: orm对象
         :param page_object: 岗位对象
         :return: 校验结果
@@ -46,6 +48,7 @@ class PostService:
     async def check_post_code_unique_services(cls, query_db: AsyncSession, page_object: PostModel):
         """
         检查岗位编码是否唯一service
+
         :param query_db: orm对象
         :param page_object: 岗位对象
         :return: 校验结果
@@ -60,6 +63,7 @@ class PostService:
     async def add_post_services(cls, query_db: AsyncSession, page_object: PostModel):
         """
         新增岗位信息service
+
         :param query_db: orm对象
         :param page_object: 新增岗位对象
         :return: 新增岗位校验结果
@@ -81,6 +85,7 @@ class PostService:
     async def edit_post_services(cls, query_db: AsyncSession, page_object: PostModel):
         """
         编辑岗位信息service
+
         :param query_db: orm对象
         :param page_object: 编辑岗位对象
         :return: 编辑岗位校验结果
@@ -107,6 +112,7 @@ class PostService:
     async def delete_post_services(cls, query_db: AsyncSession, page_object: DeletePostModel):
         """
         删除岗位信息service
+
         :param query_db: orm对象
         :param page_object: 删除岗位对象
         :return: 删除岗位校验结果
@@ -131,6 +137,7 @@ class PostService:
     async def post_detail_services(cls, query_db: AsyncSession, post_id: int):
         """
         获取岗位详细信息service
+
         :param query_db: orm对象
         :param post_id: 岗位id
         :return: 岗位id对应的信息
@@ -147,6 +154,7 @@ class PostService:
     async def export_post_list_services(post_list: List):
         """
         导出岗位信息service
+
         :param post_list: 岗位信息列表
         :return: 岗位信息对应excel的二进制数据
         """

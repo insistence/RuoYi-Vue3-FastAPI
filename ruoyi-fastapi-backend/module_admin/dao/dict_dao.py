@@ -16,6 +16,7 @@ class DictTypeDao:
     async def get_dict_type_detail_by_id(cls, db: AsyncSession, dict_id: int):
         """
         根据字典类型id获取字典类型详细信息
+
         :param db: orm对象
         :param dict_id: 字典类型id
         :return: 字典类型信息对象
@@ -28,6 +29,7 @@ class DictTypeDao:
     async def get_dict_type_detail_by_info(cls, db: AsyncSession, dict_type: DictTypeModel):
         """
         根据字典类型参数获取字典类型信息
+
         :param db: orm对象
         :param dict_type: 字典类型参数对象
         :return: 字典类型信息对象
@@ -51,6 +53,7 @@ class DictTypeDao:
     async def get_all_dict_type(cls, db: AsyncSession):
         """
         获取所有的字典类型信息
+
         :param db: orm对象
         :return: 字典类型信息列表对象
         """
@@ -62,6 +65,7 @@ class DictTypeDao:
     async def get_dict_type_list(cls, db: AsyncSession, query_object: DictTypePageQueryModel, is_page: bool = False):
         """
         根据查询参数获取字典类型列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -90,6 +94,7 @@ class DictTypeDao:
     async def add_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel):
         """
         新增字典类型数据库操作
+
         :param db: orm对象
         :param dict_type: 字典类型对象
         :return:
@@ -104,6 +109,7 @@ class DictTypeDao:
     async def edit_dict_type_dao(cls, db: AsyncSession, dict_type: dict):
         """
         编辑字典类型数据库操作
+
         :param db: orm对象
         :param dict_type: 需要更新的字典类型字典
         :return:
@@ -114,6 +120,7 @@ class DictTypeDao:
     async def delete_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel):
         """
         删除字典类型数据库操作
+
         :param db: orm对象
         :param dict_type: 字典类型对象
         :return:
@@ -130,6 +137,7 @@ class DictDataDao:
     async def get_dict_data_detail_by_id(cls, db: AsyncSession, dict_code: int):
         """
         根据字典数据id获取字典数据详细信息
+
         :param db: orm对象
         :param dict_code: 字典数据id
         :return: 字典数据信息对象
@@ -144,6 +152,7 @@ class DictDataDao:
     async def get_dict_data_detail_by_info(cls, db: AsyncSession, dict_data: DictDataModel):
         """
         根据字典数据参数获取字典数据信息
+
         :param db: orm对象
         :param dict_data: 字典数据参数对象
         :return: 字典数据信息对象
@@ -168,6 +177,7 @@ class DictDataDao:
     async def get_dict_data_list(cls, db: AsyncSession, query_object: DictDataPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取字典数据列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -191,6 +201,7 @@ class DictDataDao:
     async def query_dict_data_list(cls, db: AsyncSession, dict_type: str):
         """
         根据查询参数获取字典数据列表信息
+
         :param db: orm对象
         :param dict_type: 字典类型
         :return: 字典数据列表信息对象
@@ -220,6 +231,7 @@ class DictDataDao:
     async def add_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel):
         """
         新增字典数据数据库操作
+
         :param db: orm对象
         :param dict_data: 字典数据对象
         :return:
@@ -234,6 +246,7 @@ class DictDataDao:
     async def edit_dict_data_dao(cls, db: AsyncSession, dict_data: dict):
         """
         编辑字典数据数据库操作
+
         :param db: orm对象
         :param dict_data: 需要更新的字典数据字典
         :return:
@@ -244,6 +257,7 @@ class DictDataDao:
     async def delete_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel):
         """
         删除字典数据数据库操作
+
         :param db: orm对象
         :param dict_data: 字典数据对象
         :return:
@@ -254,6 +268,7 @@ class DictDataDao:
     async def count_dict_data_dao(cls, db: AsyncSession, dict_type: str):
         """
         根据字典类型查询字典类型关联的字典数据数量
+
         :param db: orm对象
         :param dict_type: 字典类型
         :return: 字典类型关联的字典数据数量

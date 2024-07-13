@@ -26,6 +26,7 @@ class UserDao:
     async def get_user_by_name(cls, db: AsyncSession, user_name: str):
         """
         根据用户名获取用户信息
+
         :param db: orm对象
         :param user_name: 用户名
         :return: 当前用户名的用户信息对象
@@ -49,6 +50,7 @@ class UserDao:
     async def get_user_by_info(cls, db: AsyncSession, user: UserModel):
         """
         根据用户参数获取用户信息
+
         :param db: orm对象
         :param user: 用户参数
         :return: 当前用户参数的用户信息对象
@@ -77,6 +79,7 @@ class UserDao:
     async def get_user_by_id(cls, db: AsyncSession, user_id: int):
         """
         根据user_id获取用户信息
+
         :param db: orm对象
         :param user_id: 用户id
         :return: 当前user_id的用户信息对象
@@ -183,6 +186,7 @@ class UserDao:
     async def get_user_detail_by_id(cls, db: AsyncSession, user_id: int):
         """
         根据user_id获取用户详细信息
+
         :param db: orm对象
         :param user_id: 用户id
         :return: 当前user_id的用户信息对象
@@ -275,6 +279,7 @@ class UserDao:
     ):
         """
         根据查询参数获取用户列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -323,6 +328,7 @@ class UserDao:
     async def add_user_dao(cls, db: AsyncSession, user: UserModel):
         """
         新增用户数据库操作
+
         :param db: orm对象
         :param user: 用户对象
         :return: 新增校验结果
@@ -337,6 +343,7 @@ class UserDao:
     async def edit_user_dao(cls, db: AsyncSession, user: dict):
         """
         编辑用户数据库操作
+
         :param db: orm对象
         :param user: 需要更新的用户字典
         :return: 编辑校验结果
@@ -347,6 +354,7 @@ class UserDao:
     async def delete_user_dao(cls, db: AsyncSession, user: UserModel):
         """
         删除用户数据库操作
+
         :param db: orm对象
         :param user: 用户对象
         :return:
@@ -361,6 +369,7 @@ class UserDao:
     async def get_user_role_allocated_list_by_user_id(cls, db: AsyncSession, query_object: UserRoleQueryModel):
         """
         根据用户id获取用户已分配的角色列表信息数据库操作
+
         :param db: orm对象
         :param query_object: 用户角色查询对象
         :return: 用户已分配的角色列表信息
@@ -393,6 +402,7 @@ class UserDao:
     ):
         """
         根据角色id获取已分配的用户列表信息
+
         :param db: orm对象
         :param query_object: 用户角色查询对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -423,6 +433,7 @@ class UserDao:
     ):
         """
         根据角色id获取未分配的用户列表信息
+
         :param db: orm对象
         :param query_object: 用户角色查询对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -461,6 +472,7 @@ class UserDao:
     async def add_user_role_dao(cls, db: AsyncSession, user_role: UserRoleModel):
         """
         新增用户角色关联信息数据库操作
+
         :param db: orm对象
         :param user_role: 用户角色关联对象
         :return:
@@ -472,6 +484,7 @@ class UserDao:
     async def delete_user_role_dao(cls, db: AsyncSession, user_role: UserRoleModel):
         """
         删除用户角色关联信息数据库操作
+
         :param db: orm对象
         :param user_role: 用户角色关联对象
         :return:
@@ -482,6 +495,7 @@ class UserDao:
     async def delete_user_role_by_user_and_role_dao(cls, db: AsyncSession, user_role: UserRoleModel):
         """
         根据用户id及角色id删除用户角色关联信息数据库操作
+
         :param db: orm对象
         :param user_role: 用户角色关联对象
         :return:
@@ -497,6 +511,7 @@ class UserDao:
     async def get_user_role_detail(cls, db: AsyncSession, user_role: UserRoleModel):
         """
         根据用户角色关联获取用户角色关联详细信息
+
         :param db: orm对象
         :param user_role: 用户角色关联对象
         :return: 用户角色关联信息
@@ -519,6 +534,7 @@ class UserDao:
     async def add_user_post_dao(cls, db: AsyncSession, user_post: UserPostModel):
         """
         新增用户岗位关联信息数据库操作
+
         :param db: orm对象
         :param user_post: 用户岗位关联对象
         :return:
@@ -530,6 +546,7 @@ class UserDao:
     async def delete_user_post_dao(cls, db: AsyncSession, user_post: UserPostModel):
         """
         删除用户岗位关联信息数据库操作
+
         :param db: orm对象
         :param user_post: 用户岗位关联对象
         :return:

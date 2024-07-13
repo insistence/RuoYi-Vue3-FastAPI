@@ -30,6 +30,7 @@ class PageUtil:
     def get_page_obj(cls, data_list: List, page_num: int, page_size: int):
         """
         输入数据列表data_list和分页信息，返回分页数据列表结果
+
         :param data_list: 原始数据列表
         :param page_num: 当前页码
         :param page_size: 当前页面数据量
@@ -53,6 +54,7 @@ class PageUtil:
     async def paginate(cls, db: AsyncSession, query: Select, page_num: int, page_size: int, is_page: bool = False):
         """
         输入查询语句和分页信息，返回分页数据列表结果
+
         :param db: orm对象
         :param query: sqlalchemy查询语句
         :param page_num: 当前页码
@@ -93,6 +95,7 @@ class PageUtil:
 def get_page_obj(data_list: List, page_num: int, page_size: int):
     """
     输入数据列表data_list和分页信息，返回分页数据列表结果
+
     :param data_list: 原始数据列表
     :param page_num: 当前页码
     :param page_size: 当前页面数据量

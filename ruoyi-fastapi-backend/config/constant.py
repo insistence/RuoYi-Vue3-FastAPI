@@ -1,6 +1,7 @@
 class CommonConstant:
     """
     常用常量
+
     WWW: www主域
     HTTP: http请求
     HTTPS: https请求
@@ -26,6 +27,7 @@ class CommonConstant:
 class HttpStatusConstant:
     """
     返回状态码
+
     SUCCESS: 操作成功
     CREATED: 对象创建成功
     ACCEPTED: 请求已经被接受
@@ -67,6 +69,7 @@ class HttpStatusConstant:
 class MenuConstant:
     """
     菜单常量
+
     TYPE_DIR: 菜单类型（目录）
     TYPE_MENU: 菜单类型（菜单）
     TYPE_BUTTON: 菜单类型（按钮）

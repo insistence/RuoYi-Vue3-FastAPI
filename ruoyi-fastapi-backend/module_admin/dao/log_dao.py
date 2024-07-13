@@ -16,6 +16,7 @@ class OperationLogDao:
     async def get_operation_log_list(cls, db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取操作日志列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -54,6 +55,7 @@ class OperationLogDao:
     async def add_operation_log_dao(cls, db: AsyncSession, operation_log: OperLogModel):
         """
         新增操作日志数据库操作
+
         :param db: orm对象
         :param operation_log: 操作日志对象
         :return: 新增校验结果
@@ -68,6 +70,7 @@ class OperationLogDao:
     async def delete_operation_log_dao(cls, db: AsyncSession, operation_log: OperLogModel):
         """
         删除操作日志数据库操作
+
         :param db: orm对象
         :param operation_log: 操作日志对象
         :return:
@@ -78,6 +81,7 @@ class OperationLogDao:
     async def clear_operation_log_dao(cls, db: AsyncSession):
         """
         清除操作日志数据库操作
+
         :param db: orm对象
         :return:
         """
@@ -93,6 +97,7 @@ class LoginLogDao:
     async def get_login_log_list(cls, db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取登录日志列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -132,6 +137,7 @@ class LoginLogDao:
     async def add_login_log_dao(cls, db: AsyncSession, login_log: LogininforModel):
         """
         新增登录日志数据库操作
+
         :param db: orm对象
         :param login_log: 登录日志对象
         :return: 新增校验结果
@@ -146,6 +152,7 @@ class LoginLogDao:
     async def delete_login_log_dao(cls, db: AsyncSession, login_log: LogininforModel):
         """
         删除登录日志数据库操作
+
         :param db: orm对象
         :param login_log: 登录日志对象
         :return:
@@ -156,6 +163,7 @@ class LoginLogDao:
     async def clear_login_log_dao(cls, db: AsyncSession):
         """
         清除登录日志数据库操作
+
         :param db: orm对象
         :return:
         """

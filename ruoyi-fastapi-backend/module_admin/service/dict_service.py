@@ -29,6 +29,7 @@ class DictTypeService:
     ):
         """
         获取字典类型列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -42,6 +43,7 @@ class DictTypeService:
     async def check_dict_type_unique_services(cls, query_db: AsyncSession, page_object: DictTypeModel):
         """
         校验字典类型称是否唯一service
+
         :param query_db: orm对象
         :param page_object: 字典类型对象
         :return: 校验结果
@@ -58,6 +60,7 @@ class DictTypeService:
     async def add_dict_type_services(cls, request: Request, query_db: AsyncSession, page_object: DictTypeModel):
         """
         新增字典类型信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 新增岗位对象
@@ -83,6 +86,7 @@ class DictTypeService:
     async def edit_dict_type_services(cls, request: Request, query_db: AsyncSession, page_object: DictTypeModel):
         """
         编辑字典类型信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 编辑字典类型对象
@@ -126,6 +130,7 @@ class DictTypeService:
     ):
         """
         删除字典类型信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 删除字典类型对象
@@ -155,6 +160,7 @@ class DictTypeService:
     async def dict_type_detail_services(cls, query_db: AsyncSession, dict_id: int):
         """
         获取字典类型详细信息service
+
         :param query_db: orm对象
         :param dict_id: 字典类型id
         :return: 字典类型id对应的信息
@@ -171,6 +177,7 @@ class DictTypeService:
     async def export_dict_type_list_services(dict_type_list: List):
         """
         导出字典类型信息service
+
         :param dict_type_list: 字典信息列表
         :return: 字典信息对应excel的二进制数据
         """
@@ -205,6 +212,7 @@ class DictTypeService:
     async def refresh_sys_dict_services(cls, request: Request, query_db: AsyncSession):
         """
         刷新字典缓存信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :return: 刷新字典缓存校验结果
@@ -226,6 +234,7 @@ class DictDataService:
     ):
         """
         获取字典数据列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -239,6 +248,7 @@ class DictDataService:
     async def query_dict_data_list_services(cls, query_db: AsyncSession, dict_type: str):
         """
         获取字典数据列表信息service
+
         :param query_db: orm对象
         :param dict_type: 字典类型
         :return: 字典数据列表信息对象
@@ -251,6 +261,7 @@ class DictDataService:
     async def init_cache_sys_dict_services(cls, query_db: AsyncSession, redis):
         """
         应用初始化：获取所有字典类型对应的字典数据信息并缓存service
+
         :param query_db: orm对象
         :param redis: redis对象
         :return:
@@ -274,6 +285,7 @@ class DictDataService:
     async def query_dict_data_list_from_cache_services(cls, redis, dict_type: str):
         """
         从缓存获取字典数据列表信息service
+
         :param redis: redis对象
         :param dict_type: 字典类型
         :return: 字典数据列表信息对象
@@ -289,6 +301,7 @@ class DictDataService:
     async def check_dict_data_unique_services(cls, query_db: AsyncSession, page_object: DictDataModel):
         """
         校验字典数据是否唯一service
+
         :param query_db: orm对象
         :param page_object: 字典数据对象
         :return: 校验结果
@@ -303,6 +316,7 @@ class DictDataService:
     async def add_dict_data_services(cls, request: Request, query_db: AsyncSession, page_object: DictDataModel):
         """
         新增字典数据信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 新增岗位对象
@@ -330,6 +344,7 @@ class DictDataService:
     async def edit_dict_data_services(cls, request: Request, query_db: AsyncSession, page_object: DictDataModel):
         """
         编辑字典数据信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 编辑字典数据对象
@@ -364,6 +379,7 @@ class DictDataService:
     ):
         """
         删除字典数据信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 删除字典数据对象
@@ -395,6 +411,7 @@ class DictDataService:
     async def dict_data_detail_services(cls, query_db: AsyncSession, dict_code: int):
         """
         获取字典数据详细信息service
+
         :param query_db: orm对象
         :param dict_code: 字典数据id
         :return: 字典数据id对应的信息
@@ -411,6 +428,7 @@ class DictDataService:
     async def export_dict_data_list_services(dict_data_list: List):
         """
         导出字典数据信息service
+
         :param dict_data_list: 字典数据信息列表
         :return: 字典数据信息对应excel的二进制数据
         """

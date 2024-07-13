@@ -15,6 +15,7 @@ class ConfigDao:
     async def get_config_detail_by_id(cls, db: AsyncSession, config_id: int):
         """
         根据参数配置id获取参数配置详细信息
+
         :param db: orm对象
         :param config_id: 参数配置id
         :return: 参数配置信息对象
@@ -27,6 +28,7 @@ class ConfigDao:
     async def get_config_detail_by_info(cls, db: AsyncSession, config: ConfigModel):
         """
         根据参数配置参数获取参数配置信息
+
         :param db: orm对象
         :param config: 参数配置参数对象
         :return: 参数配置信息对象
@@ -50,6 +52,7 @@ class ConfigDao:
     async def get_config_list(cls, db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取参数配置列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -78,6 +81,7 @@ class ConfigDao:
     async def add_config_dao(cls, db: AsyncSession, config: ConfigModel):
         """
         新增参数配置数据库操作
+
         :param db: orm对象
         :param config: 参数配置对象
         :return:
@@ -92,6 +96,7 @@ class ConfigDao:
     async def edit_config_dao(cls, db: AsyncSession, config: dict):
         """
         编辑参数配置数据库操作
+
         :param db: orm对象
         :param config: 需要更新的参数配置字典
         :return:
@@ -102,6 +107,7 @@ class ConfigDao:
     async def delete_config_dao(cls, db: AsyncSession, config: ConfigModel):
         """
         删除参数配置数据库操作
+
         :param db: orm对象
         :param config: 参数配置对象
         :return:

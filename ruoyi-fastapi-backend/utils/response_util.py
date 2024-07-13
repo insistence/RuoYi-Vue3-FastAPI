@@ -23,6 +23,7 @@ class ResponseUtil:
     ) -> Response:
         """
         成功响应方法
+
         :param msg: 可选，自定义成功响应信息
         :param data: 可选，成功响应结果中属性为data的值
         :param rows: 可选，成功响应结果中属性为rows的值
@@ -56,6 +57,7 @@ class ResponseUtil:
     ) -> Response:
         """
         失败响应方法
+
         :param msg: 可选，自定义失败响应信息
         :param data: 可选，失败响应结果中属性为data的值
         :param rows: 可选，失败响应结果中属性为rows的值
@@ -89,6 +91,7 @@ class ResponseUtil:
     ) -> Response:
         """
         未认证响应方法
+
         :param msg: 可选，自定义未认证响应信息
         :param data: 可选，未认证响应结果中属性为data的值
         :param rows: 可选，未认证响应结果中属性为rows的值
@@ -121,13 +124,14 @@ class ResponseUtil:
         model_content: Optional[BaseModel] = None,
     ) -> Response:
         """
-        未认证响应方法
-        :param msg: 可选，自定义未认证响应信息
-        :param data: 可选，未认证响应结果中属性为data的值
-        :param rows: 可选，未认证响应结果中属性为rows的值
-        :param dict_content: 可选，dict类型，未认证响应结果中自定义属性的值
-        :param model_content: 可选，BaseModel类型，未认证响应结果中自定义属性的值
-        :return: 未认证响应结果
+        未授权响应方法
+
+        :param msg: 可选，自定义未授权响应信息
+        :param data: 可选，未授权响应结果中属性为data的值
+        :param rows: 可选，未授权响应结果中属性为rows的值
+        :param dict_content: 可选，dict类型，未授权响应结果中自定义属性的值
+        :param model_content: 可选，BaseModel类型，未授权响应结果中自定义属性的值
+        :return: 未授权响应结果
         """
         result = {'code': HttpStatusConstant.FORBIDDEN, 'msg': msg}
 
@@ -155,6 +159,7 @@ class ResponseUtil:
     ) -> Response:
         """
         错误响应方法
+
         :param msg: 可选，自定义错误响应信息
         :param data: 可选，错误响应结果中属性为data的值
         :param rows: 可选，错误响应结果中属性为rows的值
@@ -181,6 +186,7 @@ class ResponseUtil:
     def streaming(cls, *, data: Any = None):
         """
         流式响应方法
+
         :param data: 流式传输的内容
         :return: 流式响应结果
         """

@@ -14,6 +14,7 @@ class CacheService:
     async def get_cache_monitor_statistical_info_services(cls, request: Request):
         """
         获取缓存监控信息service
+
         :param request: Request对象
         :return: 缓存监控信息
         """
@@ -31,6 +32,7 @@ class CacheService:
     async def get_cache_monitor_cache_name_services(cls):
         """
         获取缓存名称列表信息service
+
         :return: 缓存名称列表信息
         """
         name_list = []
@@ -51,6 +53,7 @@ class CacheService:
     async def get_cache_monitor_cache_key_services(cls, request: Request, cache_name: str):
         """
         获取缓存键名列表信息service
+
         :param request: Request对象
         :param cache_name: 缓存名称
         :return: 缓存键名列表信息
@@ -64,6 +67,7 @@ class CacheService:
     async def get_cache_monitor_cache_value_services(cls, request: Request, cache_name: str, cache_key: str):
         """
         获取缓存内容信息service
+
         :param request: Request对象
         :param cache_name: 缓存名称
         :param cache_key: 缓存键名
@@ -77,6 +81,7 @@ class CacheService:
     async def clear_cache_monitor_cache_name_services(cls, request: Request, cache_name: str):
         """
         清除缓存名称对应所有键值service
+
         :param request: Request对象
         :param cache_name: 缓存名称
         :return: 操作缓存响应信息
@@ -91,6 +96,7 @@ class CacheService:
     async def clear_cache_monitor_cache_key_services(cls, request: Request, cache_key: str):
         """
         清除缓存名称对应所有键值service
+
         :param request: Request对象
         :param cache_key: 缓存键名
         :return: 操作缓存响应信息
@@ -105,6 +111,7 @@ class CacheService:
     async def clear_cache_monitor_all_services(cls, request: Request):
         """
         清除所有缓存service
+
         :param request: Request对象
         :return: 操作缓存响应信息
         """

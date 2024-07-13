@@ -16,6 +16,7 @@ class RedisUtil:
     async def create_redis_pool(cls) -> aioredis.Redis:
         """
         应用启动时初始化redis连接
+
         :return: Redis连接对象
         """
         logger.info('开始连接redis...')
@@ -46,6 +47,7 @@ class RedisUtil:
     async def close_redis_pool(cls, app):
         """
         应用关闭时关闭redis连接
+
         :param app: fastapi对象
         :return:
         """
@@ -56,6 +58,7 @@ class RedisUtil:
     async def init_sys_dict(cls, redis):
         """
         应用启动时缓存字典表
+
         :param redis: redis对象
         :return:
         """
@@ -66,6 +69,7 @@ class RedisUtil:
     async def init_sys_config(cls, redis):
         """
         应用启动时缓存参数配置表
+
         :param redis: redis对象
         :return:
         """

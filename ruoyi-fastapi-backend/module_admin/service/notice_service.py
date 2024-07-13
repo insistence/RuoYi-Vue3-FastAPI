@@ -18,6 +18,7 @@ class NoticeService:
     ):
         """
         获取通知公告列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -31,6 +32,7 @@ class NoticeService:
     async def check_notice_unique_services(cls, query_db: AsyncSession, page_object: NoticeModel):
         """
         校验通知公告是否存在service
+
         :param query_db: orm对象
         :param page_object: 通知公告对象
         :return: 校验结果
@@ -45,6 +47,7 @@ class NoticeService:
     async def add_notice_services(cls, query_db: AsyncSession, page_object: NoticeModel):
         """
         新增通知公告信息service
+
         :param query_db: orm对象
         :param page_object: 新增通知公告对象
         :return: 新增通知公告校验结果
@@ -64,6 +67,7 @@ class NoticeService:
     async def edit_notice_services(cls, query_db: AsyncSession, page_object: NoticeModel):
         """
         编辑通知公告信息service
+
         :param query_db: orm对象
         :param page_object: 编辑通知公告对象
         :return: 编辑通知公告校验结果
@@ -88,6 +92,7 @@ class NoticeService:
     async def delete_notice_services(cls, query_db: AsyncSession, page_object: DeleteNoticeModel):
         """
         删除通知公告信息service
+
         :param query_db: orm对象
         :param page_object: 删除通知公告对象
         :return: 删除通知公告校验结果
@@ -109,6 +114,7 @@ class NoticeService:
     async def notice_detail_services(cls, query_db: AsyncSession, notice_id: int):
         """
         获取通知公告详细信息service
+
         :param query_db: orm对象
         :param notice_id: 通知公告id
         :return: 通知公告id对应的信息

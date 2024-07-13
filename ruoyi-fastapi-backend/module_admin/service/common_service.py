@@ -16,6 +16,7 @@ class CommonService:
     async def upload_service(cls, request: Request, file: UploadFile):
         """
         通用上传service
+
         :param request: Request对象
         :param file: 上传文件对象
         :return: 上传结果
@@ -51,6 +52,7 @@ class CommonService:
     async def download_services(cls, background_tasks: BackgroundTasks, file_name, delete: bool):
         """
         下载下载目录文件service
+
         :param background_tasks: 后台任务对象
         :param file_name: 下载的文件名称
         :param delete: 是否在下载完成后删除文件
@@ -70,6 +72,7 @@ class CommonService:
     async def download_resource_services(cls, resource: str):
         """
         下载上传目录文件service
+
         :param resource: 下载的文件名称
         :return: 上传结果
         """

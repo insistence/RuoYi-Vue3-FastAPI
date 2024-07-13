@@ -15,6 +15,7 @@ class MenuDao:
     async def get_menu_detail_by_id(cls, db: AsyncSession, menu_id: int):
         """
         根据菜单id获取菜单详细信息
+
         :param db: orm对象
         :param menu_id: 菜单id
         :return: 菜单信息对象
@@ -27,6 +28,7 @@ class MenuDao:
     async def get_menu_detail_by_info(cls, db: AsyncSession, menu: MenuModel):
         """
         根据菜单参数获取菜单信息
+
         :param db: orm对象
         :param menu: 菜单参数对象
         :return: 菜单信息对象
@@ -51,6 +53,7 @@ class MenuDao:
     async def get_menu_list_for_tree(cls, db: AsyncSession, user_id: int, role: list):
         """
         根据角色信息获取所有在用菜单列表信息
+
         :param db: orm对象
         :param user_id: 用户id
         :param role: 用户角色列表信息
@@ -94,6 +97,7 @@ class MenuDao:
     async def get_menu_list(cls, db: AsyncSession, page_object: MenuQueryModel, user_id: int, role: list):
         """
         根据查询参数获取菜单列表信息
+
         :param db: orm对象
         :param page_object: 不分页查询参数对象
         :param user_id: 用户id
@@ -155,6 +159,7 @@ class MenuDao:
     async def add_menu_dao(cls, db: AsyncSession, menu: MenuModel):
         """
         新增菜单数据库操作
+
         :param db: orm对象
         :param menu: 菜单对象
         :return:
@@ -169,6 +174,7 @@ class MenuDao:
     async def edit_menu_dao(cls, db: AsyncSession, menu: dict):
         """
         编辑菜单数据库操作
+
         :param db: orm对象
         :param menu: 需要更新的菜单字典
         :return:
@@ -179,6 +185,7 @@ class MenuDao:
     async def delete_menu_dao(cls, db: AsyncSession, menu: MenuModel):
         """
         删除菜单数据库操作
+
         :param db: orm对象
         :param menu: 菜单对象
         :return:
@@ -189,6 +196,7 @@ class MenuDao:
     async def has_child_by_menu_id_dao(cls, db: AsyncSession, menu_id: int):
         """
         根据菜单id查询菜单关联子菜单的数量
+
         :param db: orm对象
         :param menu_id: 菜单id
         :return: 菜单关联子菜单的数量
@@ -203,6 +211,7 @@ class MenuDao:
     async def check_menu_exist_role_dao(cls, db: AsyncSession, menu_id: int):
         """
         根据菜单id查询菜单关联角色数量
+
         :param db: orm对象
         :param menu_id: 菜单id
         :return: 菜单关联角色数量

@@ -18,6 +18,7 @@ class RoleDao:
     async def get_role_by_name(cls, db: AsyncSession, role_name: str):
         """
         根据角色名获取在用角色信息
+
         :param db: orm对象
         :param role_name: 角色名
         :return: 当前角色名的角色信息对象
@@ -41,6 +42,7 @@ class RoleDao:
     async def get_role_by_info(cls, db: AsyncSession, role: RoleModel):
         """
         根据角色参数获取角色信息
+
         :param db: orm对象
         :param role: 角色参数
         :return: 当前角色参数的角色信息对象
@@ -68,6 +70,7 @@ class RoleDao:
     async def get_role_by_id(cls, db: AsyncSession, role_id: int):
         """
         根据角色id获取在用角色信息
+
         :param db: orm对象
         :param role_id: 角色id
         :return: 当前角色id的角色信息对象
@@ -88,6 +91,7 @@ class RoleDao:
     async def get_role_detail_by_id(cls, db: AsyncSession, role_id: int):
         """
         根据role_id获取角色详细信息
+
         :param db: orm对象
         :param role_id: 角色id
         :return: 当前role_id的角色信息对象
@@ -104,6 +108,7 @@ class RoleDao:
     async def get_role_select_option_dao(cls, db: AsyncSession):
         """
         获取编辑页面对应的在用角色列表信息
+
         :param db: orm对象
         :return: 角色列表信息
         """
@@ -125,6 +130,7 @@ class RoleDao:
     ):
         """
         根据查询参数获取角色列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -160,6 +166,7 @@ class RoleDao:
     async def add_role_dao(cls, db: AsyncSession, role: RoleModel):
         """
         新增角色数据库操作
+
         :param db: orm对象
         :param role: 角色对象
         :return:
@@ -174,6 +181,7 @@ class RoleDao:
     async def edit_role_dao(cls, db: AsyncSession, role: dict):
         """
         编辑角色数据库操作
+
         :param db: orm对象
         :param role: 需要更新的角色字典
         :return:
@@ -184,6 +192,7 @@ class RoleDao:
     async def delete_role_dao(cls, db: AsyncSession, role: RoleModel):
         """
         删除角色数据库操作
+
         :param db: orm对象
         :param role: 角色对象
         :return:
@@ -198,6 +207,7 @@ class RoleDao:
     async def get_role_menu_dao(cls, db: AsyncSession, role: RoleModel):
         """
         根据角色id获取角色菜单关联列表信息
+
         :param db: orm对象
         :param role: 角色对象
         :return: 角色菜单关联列表信息
@@ -233,6 +243,7 @@ class RoleDao:
     async def add_role_menu_dao(cls, db: AsyncSession, role_menu: RoleMenuModel):
         """
         新增角色菜单关联信息数据库操作
+
         :param db: orm对象
         :param role_menu: 用户角色菜单关联对象
         :return:
@@ -244,6 +255,7 @@ class RoleDao:
     async def delete_role_menu_dao(cls, db: AsyncSession, role_menu: RoleMenuModel):
         """
         删除角色菜单关联信息数据库操作
+
         :param db: orm对象
         :param role_menu: 角色菜单关联对象
         :return:
@@ -254,6 +266,7 @@ class RoleDao:
     async def get_role_dept_dao(cls, db: AsyncSession, role: RoleModel):
         """
         根据角色id获取角色部门关联列表信息
+
         :param db: orm对象
         :param role: 角色对象
         :return: 角色部门关联列表信息
@@ -289,6 +302,7 @@ class RoleDao:
     async def add_role_dept_dao(cls, db: AsyncSession, role_dept: RoleDeptModel):
         """
         新增角色部门关联信息数据库操作
+
         :param db: orm对象
         :param role_dept: 用户角色部门关联对象
         :return:
@@ -300,6 +314,7 @@ class RoleDao:
     async def delete_role_dept_dao(cls, db: AsyncSession, role_dept: RoleDeptModel):
         """
         删除角色部门关联信息数据库操作
+
         :param db: orm对象
         :param role_dept: 角色部门关联对象
         :return:
@@ -310,6 +325,7 @@ class RoleDao:
     async def count_user_role_dao(cls, db: AsyncSession, role_id: int):
         """
         根据角色id查询角色关联用户数量
+
         :param db: orm对象
         :param role_id: 角色id
         :return: 角色关联用户数量

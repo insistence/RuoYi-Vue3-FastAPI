@@ -64,6 +64,7 @@ class LoginService:
     async def authenticate_user(cls, request: Request, query_db: AsyncSession, login_user: UserLogin):
         """
         根据用户名密码校验用户登录
+
         :param request: Request对象
         :param query_db: orm对象
         :param login_user: 登录用户对象
@@ -132,6 +133,7 @@ class LoginService:
     async def __check_login_ip(cls, request: Request):
         """
         校验用户登录ip是否在黑名单内
+
         :param request: Request对象
         :return: 校验结果
         """
@@ -148,6 +150,7 @@ class LoginService:
     async def __check_login_captcha(cls, request: Request, login_user: UserLogin):
         """
         校验用户登录验证码
+
         :param request: Request对象
         :param login_user: 登录用户对象
         :return: 校验结果
@@ -167,6 +170,7 @@ class LoginService:
     async def create_access_token(cls, data: dict, expires_delta: Union[timedelta, None] = None):
         """
         根据登录信息创建当前用户token
+
         :param data: 登录信息
         :param expires_delta: token有效期
         :return: token
@@ -186,6 +190,7 @@ class LoginService:
     ):
         """
         根据token获取当前用户信息
+
         :param request: Request对象
         :param token: 用户token
         :param query_db: orm对象
@@ -264,6 +269,7 @@ class LoginService:
     async def get_current_user_routers(cls, user_id: int, query_db: AsyncSession):
         """
         根据用户id获取当前用户路由信息
+
         :param user_id: 用户id
         :param query_db: orm对象
         :return: 当前用户路由信息对象
@@ -285,6 +291,7 @@ class LoginService:
     def __generate_menus(cls, pid: int, permission_list: List[SysMenu]):
         """
         工具方法：根据菜单信息生成菜单信息树形嵌套数据
+
         :param pid: 菜单id
         :param permission_list: 菜单列表信息
         :return: 菜单信息树形嵌套数据
@@ -304,6 +311,7 @@ class LoginService:
     def __generate_user_router_menu(cls, permission_list: List[MenuTreeModel]):
         """
         工具方法：根据菜单树信息生成路由信息树形嵌套数据
+
         :param permission_list: 菜单树列表信息
         :return: 路由信息树形嵌套数据
         """
@@ -370,6 +378,7 @@ class LoginService:
     async def register_user_services(cls, request: Request, query_db: AsyncSession, user_register: UserRegister):
         """
         用户注册services
+
         :param request: Request对象
         :param query_db: orm对象
         :param user_register: 注册用户对象
@@ -415,6 +424,7 @@ class LoginService:
     async def get_sms_code_services(cls, request: Request, query_db: AsyncSession, user: ResetUserModel):
         """
         获取短信验证码service
+
         :param request: Request对象
         :param query_db: orm对象
         :param user: 用户对象
@@ -443,6 +453,7 @@ class LoginService:
     async def forget_user_services(cls, request: Request, query_db: AsyncSession, forget_user: ResetUserModel):
         """
         用户忘记密码services
+
         :param request: Request对象
         :param query_db: orm对象
         :param forget_user: 重置用户对象
@@ -468,6 +479,7 @@ class LoginService:
     async def logout_services(cls, request: Request, session_id: str):
         """
         退出登录services
+
         :param request: Request对象
         :param session_id: 会话编号
         :return: 退出登录结果
@@ -488,6 +500,7 @@ class RouterUtil:
     def get_router_name(cls, menu: MenuTreeModel):
         """
         获取路由名称
+
         :param menu: 菜单数对象
         :return: 路由名称
         """
@@ -501,6 +514,7 @@ class RouterUtil:
     def get_router_path(cls, menu: MenuTreeModel):
         """
         获取路由地址
+
         :param menu: 菜单数对象
         :return: 路由地址
         """
@@ -520,6 +534,7 @@ class RouterUtil:
     def get_component(cls, menu: MenuTreeModel):
         """
         获取组件信息
+
         :param menu: 菜单数对象
         :return: 组件信息
         """
@@ -536,6 +551,7 @@ class RouterUtil:
     def is_menu_frame(cls, menu: MenuTreeModel):
         """
         判断是否为菜单内部跳转
+
         :param menu: 菜单数对象
         :return: 是否为菜单内部跳转
         """
@@ -547,6 +563,7 @@ class RouterUtil:
     def is_inner_link(cls, menu: MenuTreeModel):
         """
         判断是否为内链组件
+
         :param menu: 菜单数对象
         :return: 是否为内链组件
         """
@@ -556,6 +573,7 @@ class RouterUtil:
     def is_parent_view(cls, menu: MenuTreeModel):
         """
         判断是否为parent_view组件
+
         :param menu: 菜单数对象
         :return: 是否为parent_view组件
         """
@@ -565,6 +583,7 @@ class RouterUtil:
     def is_http(cls, link: str):
         """
         判断是否为http(s)://开头
+
         :param link: 链接
         :return: 是否为http(s)://开头
         """
@@ -574,6 +593,7 @@ class RouterUtil:
     def inner_link_replace_each(cls, path: str):
         """
         内链域名特殊字符替换
+
         :param path: 内链域名
         :return: 替换后的内链域名
         """

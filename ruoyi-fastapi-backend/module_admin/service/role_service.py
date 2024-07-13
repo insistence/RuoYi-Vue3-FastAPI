@@ -28,6 +28,7 @@ class RoleService:
     async def get_role_select_option_services(cls, query_db: AsyncSession):
         """
         获取角色列表不分页信息service
+
         :param query_db: orm对象
         :return: 角色列表不分页信息对象
         """
@@ -39,6 +40,7 @@ class RoleService:
     async def get_role_dept_tree_services(cls, query_db: AsyncSession, role_id: int):
         """
         根据角色id获取部门树信息service
+
         :param query_db: orm对象
         :param role_id: 角色id
         :return: 当前角色id的部门树信息对象
@@ -56,6 +58,7 @@ class RoleService:
     ):
         """
         获取角色列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -70,6 +73,7 @@ class RoleService:
     async def check_role_allowed_services(cls, check_role: RoleModel):
         """
         校验角色是否允许操作service
+
         :param check_role: 角色信息
         :return: 校验结果
         """
@@ -82,6 +86,7 @@ class RoleService:
     async def check_role_data_scope_services(cls, query_db: AsyncSession, role_ids: str, data_scope_sql: str):
         """
         校验角色是否有数据权限service
+
         :param query_db: orm对象
         :param role_ids: 角色id
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -100,6 +105,7 @@ class RoleService:
     async def check_role_name_unique_services(cls, query_db: AsyncSession, page_object: RoleModel):
         """
         校验角色名称是否唯一service
+
         :param query_db: orm对象
         :param page_object: 角色对象
         :return: 校验结果
@@ -114,6 +120,7 @@ class RoleService:
     async def check_role_key_unique_services(cls, query_db: AsyncSession, page_object: RoleModel):
         """
         校验角色权限字符是否唯一service
+
         :param query_db: orm对象
         :param page_object: 角色对象
         :return: 校验结果
@@ -128,6 +135,7 @@ class RoleService:
     async def add_role_services(cls, query_db: AsyncSession, page_object: AddRoleModel):
         """
         新增角色信息service
+
         :param query_db: orm对象
         :param page_object: 新增角色对象
         :return: 新增角色校验结果
@@ -154,6 +162,7 @@ class RoleService:
     async def edit_role_services(cls, query_db: AsyncSession, page_object: AddRoleModel):
         """
         编辑角色信息service
+
         :param query_db: orm对象
         :param page_object: 编辑角色对象
         :return: 编辑角色校验结果
@@ -191,6 +200,7 @@ class RoleService:
     async def role_datascope_services(cls, query_db: AsyncSession, page_object: AddRoleModel):
         """
         分配角色数据权限service
+
         :param query_db: orm对象
         :param page_object: 角色数据权限对象
         :return: 分配角色数据权限结果
@@ -218,6 +228,7 @@ class RoleService:
     async def delete_role_services(cls, query_db: AsyncSession, page_object: DeleteRoleModel):
         """
         删除角色信息service
+
         :param query_db: orm对象
         :param page_object: 删除角色对象
         :return: 删除角色校验结果
@@ -247,6 +258,7 @@ class RoleService:
     async def role_detail_services(cls, query_db: AsyncSession, role_id: int):
         """
         获取角色详细信息service
+
         :param query_db: orm对象
         :param role_id: 角色id
         :return: 角色id对应的信息
@@ -263,6 +275,7 @@ class RoleService:
     async def export_role_list_services(role_list: List):
         """
         导出角色列表信息service
+
         :param role_list: 角色信息列表
         :return: 角色列表信息对象
         """
@@ -300,6 +313,7 @@ class RoleService:
     ):
         """
         根据角色id获取已分配用户列表
+
         :param query_db: orm对象
         :param page_object: 用户关联角色对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -324,6 +338,7 @@ class RoleService:
     ):
         """
         根据角色id获取未分配用户列表
+
         :param query_db: orm对象
         :param page_object: 用户关联角色对象
         :param data_scope_sql: 数据权限对应的查询sql语句

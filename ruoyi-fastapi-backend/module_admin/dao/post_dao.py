@@ -15,6 +15,7 @@ class PostDao:
     async def get_post_by_id(cls, db: AsyncSession, post_id: int):
         """
         根据岗位id获取在用岗位详细信息
+
         :param db: orm对象
         :param post_id: 岗位id
         :return: 在用岗位信息对象
@@ -31,6 +32,7 @@ class PostDao:
     async def get_post_detail_by_id(cls, db: AsyncSession, post_id: int):
         """
         根据岗位id获取岗位详细信息
+
         :param db: orm对象
         :param post_id: 岗位id
         :return: 岗位信息对象
@@ -43,6 +45,7 @@ class PostDao:
     async def get_post_detail_by_info(cls, db: AsyncSession, post: PostModel):
         """
         根据岗位参数获取岗位信息
+
         :param db: orm对象
         :param post: 岗位参数对象
         :return: 岗位信息对象
@@ -67,6 +70,7 @@ class PostDao:
     async def get_post_list(cls, db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取岗位列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -90,6 +94,7 @@ class PostDao:
     async def add_post_dao(cls, db: AsyncSession, post: PostModel):
         """
         新增岗位数据库操作
+
         :param db: orm对象
         :param post: 岗位对象
         :return:
@@ -104,6 +109,7 @@ class PostDao:
     async def edit_post_dao(cls, db: AsyncSession, post: dict):
         """
         编辑岗位数据库操作
+
         :param db: orm对象
         :param post: 需要更新的岗位字典
         :return:
@@ -114,6 +120,7 @@ class PostDao:
     async def delete_post_dao(cls, db: AsyncSession, post: PostModel):
         """
         删除岗位数据库操作
+
         :param db: orm对象
         :param post: 岗位对象
         :return:
@@ -124,6 +131,7 @@ class PostDao:
     async def count_user_post_dao(cls, db: AsyncSession, post_id: int):
         """
         根据岗位id查询岗位关联的用户数量
+
         :param db: orm对象
         :param post_id: 岗位id
         :return: 岗位关联的用户数量

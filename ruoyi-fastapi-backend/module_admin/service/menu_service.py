@@ -21,6 +21,7 @@ class MenuService:
     async def get_menu_tree_services(cls, query_db: AsyncSession, current_user: Optional[CurrentUserModel] = None):
         """
         获取菜单树信息service
+
         :param query_db: orm对象
         :param current_user: 当前用户对象
         :return: 菜单树信息对象
@@ -38,6 +39,7 @@ class MenuService:
     ):
         """
         根据角色id获取菜单树信息service
+
         :param query_db: orm对象
         :param role_id: 角色id
         :param current_user: 当前用户对象
@@ -60,6 +62,7 @@ class MenuService:
     ):
         """
         获取菜单列表信息service
+
         :param query_db: orm对象
         :param page_object: 分页查询参数对象
         :param current_user: 当前用户对象
@@ -75,6 +78,7 @@ class MenuService:
     async def check_menu_name_unique_services(cls, query_db: AsyncSession, page_object: MenuModel):
         """
         校验菜单名称是否唯一service
+
         :param query_db: orm对象
         :param page_object: 菜单对象
         :return: 校验结果
@@ -89,6 +93,7 @@ class MenuService:
     async def add_menu_services(cls, query_db: AsyncSession, page_object: MenuModel):
         """
         新增菜单信息service
+
         :param query_db: orm对象
         :param page_object: 新增菜单对象
         :return: 新增菜单校验结果
@@ -110,6 +115,7 @@ class MenuService:
     async def edit_menu_services(cls, query_db: AsyncSession, page_object: MenuModel):
         """
         编辑菜单信息service
+
         :param query_db: orm对象
         :param page_object: 编辑部门对象
         :return: 编辑菜单校验结果
@@ -138,6 +144,7 @@ class MenuService:
     async def delete_menu_services(cls, query_db: AsyncSession, page_object: DeleteMenuModel):
         """
         删除菜单信息service
+
         :param query_db: orm对象
         :param page_object: 删除菜单对象
         :return: 删除菜单校验结果
@@ -163,6 +170,7 @@ class MenuService:
     async def menu_detail_services(cls, query_db: AsyncSession, menu_id: int):
         """
         获取菜单详细信息service
+
         :param query_db: orm对象
         :param menu_id: 菜单id
         :return: 菜单id对应的信息
@@ -179,6 +187,7 @@ class MenuService:
     def list_to_tree(cls, permission_list: list) -> list:
         """
         工具方法：根据菜单列表信息生成树形嵌套数据
+
         :param permission_list: 菜单列表信息
         :return: 菜单树形嵌套数据
         """

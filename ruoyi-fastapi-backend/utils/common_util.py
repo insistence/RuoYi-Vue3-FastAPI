@@ -33,7 +33,7 @@ def worship():
 //      ========`-.____`-.___\_____/___.-`____.-'========         //
 //                           `=---='                              //
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^        //
-//             佛祖保佑       永不宕机      永无BUG                //
+//             佛祖保佑       永不宕机      永无BUG                 //
 ////////////////////////////////////////////////////////////////////
     """)
 
@@ -47,6 +47,7 @@ class CamelCaseUtil:
     def snake_to_camel(cls, snake_str):
         """
         下划线形式字符串(snake_case)转换为小驼峰形式字符串(camelCase)
+
         :param snake_str: 下划线形式字符串
         :return: 小驼峰形式字符串
         """
@@ -59,6 +60,7 @@ class CamelCaseUtil:
     def transform_result(cls, result):
         """
         针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
+
         :param result: 输入数据
         :return: 小驼峰形式结果
         """
@@ -101,6 +103,7 @@ class SnakeCaseUtil:
     def camel_to_snake(cls, camel_str):
         """
         小驼峰形式字符串(camelCase)转换为下划线形式字符串(snake_case)
+
         :param camel_str: 小驼峰形式字符串
         :return: 下划线形式字符串
         """
@@ -112,6 +115,7 @@ class SnakeCaseUtil:
     def transform_result(cls, result):
         """
         针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
+
         :param result: 输入数据
         :return: 小驼峰形式结果
         """
@@ -172,6 +176,7 @@ def bytes2file_response(bytes_info):
 def export_list2excel(list_data: List):
     """
     工具方法：将需要导出的list数据转化为对应excel的二进制数据
+
     :param list_data: 数据列表
     :return: 字典信息对应excel的二进制数据
     """
@@ -186,6 +191,7 @@ def export_list2excel(list_data: List):
 def get_excel_template(header_list: List, selector_header_list: List, option_list: List[dict]):
     """
     工具方法：将需要导出的list数据转化为对应excel的二进制数据
+
     :param header_list: 表头数据列表
     :param selector_header_list: 需要设置为选择器格式的表头数据列表
     :param option_list: 选择器格式的表头预设的选项列表
@@ -246,6 +252,7 @@ def get_excel_template(header_list: List, selector_header_list: List, option_lis
 def get_filepath_from_url(url: str):
     """
     工具方法：根据请求参数获取文件路径
+
     :param url: 请求参数中的url参数
     :return: 文件路径
     """

@@ -21,6 +21,7 @@ class ConfigService:
     ):
         """
         获取参数配置列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -34,6 +35,7 @@ class ConfigService:
     async def init_cache_sys_config_services(cls, query_db: AsyncSession, redis):
         """
         应用初始化：获取所有参数配置对应的键值对信息并缓存service
+
         :param query_db: orm对象
         :param redis: redis对象
         :return:
@@ -54,6 +56,7 @@ class ConfigService:
     async def query_config_list_from_cache_services(cls, redis, config_key: str):
         """
         从缓存获取参数键名对应值service
+
         :param redis: redis对象
         :param config_key: 参数键名
         :return: 参数键名对应值
@@ -66,6 +69,7 @@ class ConfigService:
     async def check_config_key_unique_services(cls, query_db: AsyncSession, page_object: ConfigModel):
         """
         校验参数键名是否唯一service
+
         :param query_db: orm对象
         :param page_object: 参数配置对象
         :return: 校验结果
@@ -80,6 +84,7 @@ class ConfigService:
     async def add_config_services(cls, request: Request, query_db: AsyncSession, page_object: ConfigModel):
         """
         新增参数配置信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 新增参数配置对象
@@ -103,6 +108,7 @@ class ConfigService:
     async def edit_config_services(cls, request: Request, query_db: AsyncSession, page_object: ConfigModel):
         """
         编辑参数配置信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 编辑参数配置对象
@@ -135,6 +141,7 @@ class ConfigService:
     async def delete_config_services(cls, request: Request, query_db: AsyncSession, page_object: DeleteConfigModel):
         """
         删除参数配置信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :param page_object: 删除参数配置对象
@@ -167,6 +174,7 @@ class ConfigService:
     async def config_detail_services(cls, query_db: AsyncSession, config_id: int):
         """
         获取参数配置详细信息service
+
         :param query_db: orm对象
         :param config_id: 参数配置id
         :return: 参数配置id对应的信息
@@ -183,6 +191,7 @@ class ConfigService:
     async def export_config_list_services(config_list: List):
         """
         导出参数配置信息service
+
         :param config_list: 参数配置信息列表
         :return: 参数配置信息对应excel的二进制数据
         """
@@ -218,6 +227,7 @@ class ConfigService:
     async def refresh_sys_config_services(cls, request: Request, query_db: AsyncSession):
         """
         刷新字典缓存信息service
+
         :param request: Request对象
         :param query_db: orm对象
         :return: 刷新字典缓存校验结果

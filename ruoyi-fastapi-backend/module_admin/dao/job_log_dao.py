@@ -16,6 +16,7 @@ class JobLogDao:
     async def get_job_log_list(cls, db: AsyncSession, query_object: JobLogPageQueryModel, is_page: bool = False):
         """
         根据查询参数获取定时任务日志列表信息
+
         :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -44,6 +45,7 @@ class JobLogDao:
     def add_job_log_dao(cls, db: Session, job_log: JobLogModel):
         """
         新增定时任务日志数据库操作
+
         :param db: orm对象
         :param job_log: 定时任务日志对象
         :return:
@@ -58,6 +60,7 @@ class JobLogDao:
     async def delete_job_log_dao(cls, db: AsyncSession, job_log: JobLogModel):
         """
         删除定时任务日志数据库操作
+
         :param db: orm对象
         :param job_log: 定时任务日志对象
         :return:
@@ -68,6 +71,7 @@ class JobLogDao:
     async def clear_job_log_dao(cls, db: AsyncSession):
         """
         清除定时任务日志数据库操作
+
         :param db: orm对象
         :return:
         """

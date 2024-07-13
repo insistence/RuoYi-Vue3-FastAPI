@@ -16,6 +16,7 @@ class DeptService:
     async def get_dept_tree_services(cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str):
         """
         获取部门树信息service
+
         :param query_db: orm对象
         :param page_object: 查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -32,6 +33,7 @@ class DeptService:
     ):
         """
         获取部门编辑部门树信息service
+
         :param query_db: orm对象
         :param page_object: 查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -45,6 +47,7 @@ class DeptService:
     async def get_dept_list_services(cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str):
         """
         获取部门列表信息service
+
         :param query_db: orm对象
         :param page_object: 分页查询参数对象
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -58,6 +61,7 @@ class DeptService:
     async def check_dept_data_scope_services(cls, query_db: AsyncSession, dept_id: int, data_scope_sql: str):
         """
         校验部门是否有数据权限service
+
         :param query_db: orm对象
         :param dept_id: 部门id
         :param data_scope_sql: 数据权限对应的查询sql语句
@@ -73,6 +77,7 @@ class DeptService:
     async def check_dept_name_unique_services(cls, query_db: AsyncSession, page_object: DeptModel):
         """
         校验部门名称是否唯一service
+
         :param query_db: orm对象
         :param page_object: 部门对象
         :return: 校验结果
@@ -89,6 +94,7 @@ class DeptService:
     async def add_dept_services(cls, query_db: AsyncSession, page_object: DeptModel):
         """
         新增部门信息service
+
         :param query_db: orm对象
         :param page_object: 新增部门对象
         :return: 新增部门校验结果
@@ -111,6 +117,7 @@ class DeptService:
     async def edit_dept_services(cls, query_db: AsyncSession, page_object: DeptModel):
         """
         编辑部门信息service
+
         :param query_db: orm对象
         :param page_object: 编辑部门对象
         :return: 编辑部门校验结果
@@ -150,6 +157,7 @@ class DeptService:
     async def delete_dept_services(cls, query_db: AsyncSession, page_object: DeleteDeptModel):
         """
         删除部门信息service
+
         :param query_db: orm对象
         :param page_object: 删除部门对象
         :return: 删除部门校验结果
@@ -176,6 +184,7 @@ class DeptService:
     async def dept_detail_services(cls, query_db: AsyncSession, dept_id: int):
         """
         获取部门详细信息service
+
         :param query_db: orm对象
         :param dept_id: 部门id
         :return: 部门id对应的信息
@@ -192,6 +201,7 @@ class DeptService:
     def list_to_tree(cls, permission_list: list) -> list:
         """
         工具方法：根据部门列表信息生成树形嵌套数据
+
         :param permission_list: 部门列表信息
         :return: 部门树形嵌套数据
         """
@@ -222,6 +232,7 @@ class DeptService:
     async def replace_first(cls, original_str: str, old_str: str, new_str: str):
         """
         工具方法：替换字符串
+
         :param original_str: 需要替换的原始字符串
         :param old_str: 用于匹配的字符串
         :param new_str: 替换的字符串
@@ -236,6 +247,7 @@ class DeptService:
     async def update_parent_dept_status_normal(cls, query_db: AsyncSession, dept: DeptModel):
         """
         更新父部门状态为正常
+
         :param query_db: orm对象
         :param dept: 部门对象
         :return:
@@ -247,6 +259,7 @@ class DeptService:
     async def update_dept_children(cls, query_db: AsyncSession, dept_id: int, new_ancestors: str, old_ancestors: str):
         """
         更新子部门信息
+
         :param query_db: orm对象
         :param dept_id: 部门id
         :param new_ancestors: 新的祖先

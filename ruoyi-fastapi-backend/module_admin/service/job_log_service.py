@@ -20,6 +20,7 @@ class JobLogService:
     ):
         """
         获取定时任务日志列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -33,6 +34,7 @@ class JobLogService:
     def add_job_log_services(cls, query_db: Session, page_object: JobLogModel):
         """
         新增定时任务日志信息service
+
         :param query_db: orm对象
         :param page_object: 新增定时任务日志对象
         :return: 新增定时任务日志校验结果
@@ -51,6 +53,7 @@ class JobLogService:
     async def delete_job_log_services(cls, query_db: AsyncSession, page_object: DeleteJobLogModel):
         """
         删除定时任务日志信息service
+
         :param query_db: orm对象
         :param page_object: 删除定时任务日志对象
         :return: 删除定时任务日志校验结果
@@ -73,6 +76,7 @@ class JobLogService:
     async def clear_job_log_services(cls, query_db: AsyncSession):
         """
         清除定时任务日志信息service
+
         :param query_db: orm对象
         :return: 清除定时任务日志校验结果
         """
@@ -90,6 +94,7 @@ class JobLogService:
     async def export_job_log_list_services(request: Request, job_log_list: List):
         """
         导出定时任务日志信息service
+
         :param request: Request对象
         :param job_log_list: 定时任务日志信息列表
         :return: 定时任务日志信息对应excel的二进制数据

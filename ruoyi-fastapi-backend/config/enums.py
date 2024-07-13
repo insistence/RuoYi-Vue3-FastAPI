@@ -4,6 +4,7 @@ from enum import Enum
 class BusinessType(Enum):
     """
     业务操作类型
+
     OTHER: 其它
     INSERT: 新增
     UPDATE: 修改

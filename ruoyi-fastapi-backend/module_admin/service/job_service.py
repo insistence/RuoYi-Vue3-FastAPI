@@ -20,6 +20,7 @@ class JobService:
     ):
         """
         获取定时任务列表信息service
+
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
@@ -33,6 +34,7 @@ class JobService:
     async def add_job_services(cls, query_db: AsyncSession, page_object: JobModel):
         """
         新增定时任务信息service
+
         :param query_db: orm对象
         :param page_object: 新增定时任务对象
         :return: 新增定时任务校验结果
@@ -58,6 +60,7 @@ class JobService:
     async def edit_job_services(cls, query_db: AsyncSession, page_object: EditJobModel):
         """
         编辑定时任务信息service
+
         :param query_db: orm对象
         :param page_object: 编辑定时任务对象
         :return: 编辑定时任务校验结果
@@ -99,6 +102,7 @@ class JobService:
     async def execute_job_once_services(cls, query_db: AsyncSession, page_object: JobModel):
         """
         执行一次定时任务service
+
         :param query_db: orm对象
         :param page_object: 定时任务对象
         :return: 执行一次定时任务结果
@@ -119,6 +123,7 @@ class JobService:
     async def delete_job_services(cls, query_db: AsyncSession, page_object: DeleteJobModel):
         """
         删除定时任务信息service
+
         :param query_db: orm对象
         :param page_object: 删除定时任务对象
         :return: 删除定时任务校验结果
@@ -144,6 +149,7 @@ class JobService:
     async def job_detail_services(cls, query_db: AsyncSession, job_id: int):
         """
         获取定时任务详细信息service
+
         :param query_db: orm对象
         :param job_id: 定时任务id
         :return: 定时任务id对应的信息
@@ -157,6 +163,7 @@ class JobService:
     async def export_job_list_services(request: Request, job_list: List):
         """
         导出定时任务信息service
+
         :param request: Request对象
         :param job_list: 定时任务信息列表
         :return: 定时任务信息对应excel的二进制数据
