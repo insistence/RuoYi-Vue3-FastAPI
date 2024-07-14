@@ -1,3 +1,4 @@
+from typing import List
 from config.constant import CommonConstant
 
 
@@ -44,3 +45,57 @@ class StringUtil:
         :return: 是否为http(s)://开头
         """
         return link.startswith(CommonConstant.HTTP) or link.startswith(CommonConstant.HTTPS)
+
+    @classmethod
+    def contains_ignore_case(cls, search_str: str, compare_str: str):
+        """
+        查找指定字符串是否包含指定字符串同时串忽略大小写
+
+        :param search_str: 查找的字符串
+        :param compare_str: 比对的字符串
+        :return: 查找结果
+        """
+        if compare_str and search_str:
+            return compare_str.lower() in search_str.lower()
+        return False
+
+    @classmethod
+    def contains_any_ignore_case(cls, search_str: str, compare_str_list: List[str]):
+        """
+        查找指定字符串是否包含指定字符串列表中的任意一个字符串同时串忽略大小写
+
+        :param search_str: 查找的字符串
+        :param compare_str_list: 比对的字符串列表
+        :return: 查找结果
+        """
+        if search_str and compare_str_list:
+            for compare_str in compare_str_list:
+                return cls.contains_ignore_case(search_str, compare_str)
+        return False
+
+    @classmethod
+    def startswith_case(cls, search_str: str, compare_str: str):
+        """
+        查找指定字符串是否以指定字符串开头
+
+        :param search_str: 查找的字符串
+        :param compare_str: 比对的字符串
+        :return: 查找结果
+        """
+        if compare_str and search_str:
+            return search_str.startswith(compare_str)
+        return False
+
+    @classmethod
+    def startswith_any_case(cls, search_str: str, compare_str_list: List[str]):
+        """
+        查找指定字符串是否以指定字符串列表中的任意一个字符串开头
+
+        :param search_str: 查找的字符串
+        :param compare_str_list: 比对的字符串列表
+        :return: 查找结果
+        """
+        if search_str and compare_str_list:
+            for compare_str in compare_str_list:
+                return cls.startswith_case(search_str, compare_str)
+        return False

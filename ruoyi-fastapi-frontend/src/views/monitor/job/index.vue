@@ -385,7 +385,7 @@ function reset() {
     cronExpression: undefined,
     misfirePolicy: "1",
     concurrent: "1",
-    status: "0"
+    status: "1"
   };
   proxy.resetForm("jobRef");
 }

@@ -5,6 +5,9 @@ class CommonConstant:
     WWW: www主域
     HTTP: http请求
     HTTPS: https请求
+    LOOKUP_RMI: RMI远程方法调用
+    LOOKUP_LDAP: LDAP远程方法调用
+    LOOKUP_LDAPS: LDAPS远程方法调用
     YES: 是否为系统默认（是）
     NO: 是否为系统默认（否）
     DEPT_NORMAL: 部门正常状态
@@ -16,6 +19,9 @@ class CommonConstant:
     WWW = 'www.'
     HTTP = 'http://'
     HTTPS = 'https://'
+    LOOKUP_RMI = 'rmi:'
+    LOOKUP_LDAP = 'ldap:'
+    LOOKUP_LDAPS = 'ldaps:'
     YES = 'Y'
     NO = 'N'
     DEPT_NORMAL = '0'
@@ -64,6 +70,27 @@ class HttpStatusConstant:
     ERROR = 500
     NOT_IMPLEMENTED = 501
     WARN = 601
+
+
+class JobConstant:
+    """
+    定时任务常量
+
+    JOB_ERROR_LIST: 定时任务禁止调用模块列表
+    JOB_WHITE_LIST: 定时任务允许调用模块列表
+    """
+
+    JOB_ERROR_LIST = [
+        'app',
+        'config',
+        'exceptions',
+        'middlewares',
+        'module_admin',
+        'server',
+        'sub_applications',
+        'utils',
+    ]
+    JOB_WHITE_LIST = ['module_task']
 
 
 class MenuConstant:

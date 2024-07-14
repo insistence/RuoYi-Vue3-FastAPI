@@ -36,10 +36,13 @@ class JobDao:
             (
                 await db.execute(
                     select(SysJob).where(
-                        SysJob.job_name == job.job_name if job.job_name else True,
-                        SysJob.job_group == job.job_group if job.job_group else True,
-                        SysJob.invoke_target == job.invoke_target if job.invoke_target else True,
-                        SysJob.cron_expression == job.cron_expression if job.cron_expression else True,
+                        SysJob.job_name == job.job_name,
+                        SysJob.job_group == job.job_group,
+                        SysJob.job_executor == job.job_executor,
+                        SysJob.invoke_target == job.invoke_target,
+                        SysJob.job_args == job.job_args,
+                        SysJob.job_kwargs == job.job_kwargs,
+                        SysJob.cron_expression == job.cron_expression,
                     )
                 )
             )
