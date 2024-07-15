@@ -92,14 +92,16 @@ class RoleService:
         :param data_scope_sql: 数据权限对应的查询sql语句
         :return: 校验结果
         """
-        for role_id in role_ids.split(','):
-            roles = await RoleDao.get_role_list(
-                query_db, RolePageQueryModel(roleId=int(role_id)), data_scope_sql, is_page=False
-            )
-            if roles:
-                return CrudResponseModel(is_success=True, message='校验通过')
-            else:
-                raise ServiceException(message='没有权限访问角色数据')
+        role_id_list = role_ids.split(',')
+        if role_id_list:
+            for role_id in role_id_list:
+                roles = await RoleDao.get_role_list(
+                    query_db, RolePageQueryModel(roleId=int(role_id)), data_scope_sql, is_page=False
+                )
+                if roles:
+                    return CrudResponseModel(is_success=True, message='校验通过')
+                else:
+                    raise ServiceException(message='没有权限访问角色数据')
 
     @classmethod
     async def check_role_name_unique_services(cls, query_db: AsyncSession, page_object: RoleModel):

@@ -101,9 +101,10 @@ async def delete_system_dept(
     data_scope_sql: str = Depends(GetDataScope('SysDept')),
 ):
     dept_id_list = dept_ids.split(',')
-    for dept_id in dept_id_list:
-        if not current_user.user.admin:
-            await DeptService.check_dept_data_scope_services(query_db, int(dept_id), data_scope_sql)
+    if dept_id_list:
+        for dept_id in dept_id_list:
+            if not current_user.user.admin:
+                await DeptService.check_dept_data_scope_services(query_db, int(dept_id), data_scope_sql)
     delete_dept = DeleteDeptModel(deptIds=dept_ids)
     delete_dept.update_by = current_user.user.user_name
     delete_dept.update_time = datetime.now()

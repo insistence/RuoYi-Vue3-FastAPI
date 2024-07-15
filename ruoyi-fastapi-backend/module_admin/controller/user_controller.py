@@ -83,7 +83,9 @@ async def add_system_user(
 ):
     if not current_user.user.admin:
         await DeptService.check_dept_data_scope_services(query_db, add_user.dept_id, dept_data_scope_sql)
-        await RoleService.check_role_data_scope_services(query_db, ','.join([str(item) for item in add_user.role_ids]), role_data_scope_sql)
+        await RoleService.check_role_data_scope_services(
+            query_db, ','.join([str(item) for item in add_user.role_ids]), role_data_scope_sql
+        )
     add_user.password = PwdUtil.get_password_hash(add_user.password)
     add_user.create_by = current_user.user.user_name
     add_user.create_time = datetime.now()
@@ -111,7 +113,9 @@ async def edit_system_user(
     if not current_user.user.admin:
         await UserService.check_user_data_scope_services(query_db, edit_user.user_id, user_data_scope_sql)
         await DeptService.check_dept_data_scope_services(query_db, edit_user.dept_id, dept_data_scope_sql)
-        await RoleService.check_role_data_scope_services(query_db, ','.join([str(item) for item in edit_user.role_ids]), role_data_scope_sql)
+        await RoleService.check_role_data_scope_services(
+            query_db, ','.join([str(item) for item in edit_user.role_ids]), role_data_scope_sql
+        )
     edit_user.update_by = current_user.user.user_name
     edit_user.update_time = datetime.now()
     edit_user_result = await UserService.edit_user_services(query_db, edit_user)
@@ -130,14 +134,15 @@ async def delete_system_user(
     data_scope_sql: str = Depends(GetDataScope('SysUser')),
 ):
     user_id_list = user_ids.split(',')
-    if current_user.user.user_id in user_id_list:
-        logger.warning('当前登录用户不能删除')
+    if user_id_list:
+        if current_user.user.user_id in user_id_list:
+            logger.warning('当前登录用户不能删除')
 
-        return ResponseUtil.failure(msg='当前登录用户不能删除')
-    for user_id in user_id_list:
-        await UserService.check_user_allowed_services(UserModel(userId=int(user_id)))
-        if not current_user.user.admin:
-            await UserService.check_user_data_scope_services(query_db, int(user_id), data_scope_sql)
+            return ResponseUtil.failure(msg='当前登录用户不能删除')
+        for user_id in user_id_list:
+            await UserService.check_user_allowed_services(UserModel(userId=int(user_id)))
+            if not current_user.user.admin:
+                await UserService.check_user_data_scope_services(query_db, int(user_id), data_scope_sql)
     delete_user = DeleteUserModel(userIds=user_ids, updateBy=current_user.user.user_name, updateTime=datetime.now())
     delete_user_result = await UserService.delete_user_services(query_db, delete_user)
     logger.info(delete_user_result.message)

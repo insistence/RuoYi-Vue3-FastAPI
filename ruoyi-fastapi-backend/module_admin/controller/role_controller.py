@@ -131,10 +131,11 @@ async def delete_system_role(
     data_scope_sql: str = Depends(GetDataScope('SysDept')),
 ):
     role_id_list = role_ids.split(',')
-    for role_id in role_id_list:
-        await RoleService.check_role_allowed_services(RoleModel(roleId=int(role_id)))
-        if not current_user.user.admin:
-            await RoleService.check_role_data_scope_services(query_db, role_id, data_scope_sql)
+    if role_id_list:
+        for role_id in role_id_list:
+            await RoleService.check_role_allowed_services(RoleModel(roleId=int(role_id)))
+            if not current_user.user.admin:
+                await RoleService.check_role_data_scope_services(query_db, role_id, data_scope_sql)
     delete_role = DeleteRoleModel(roleIds=role_ids, updateBy=current_user.user.user_name, updateTime=datetime.now())
     delete_role_result = await RoleService.delete_role_services(query_db, delete_role)
     logger.info(delete_role_result.message)
