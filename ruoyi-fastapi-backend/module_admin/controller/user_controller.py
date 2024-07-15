@@ -83,7 +83,7 @@ async def add_system_user(
 ):
     if not current_user.user.admin:
         await DeptService.check_dept_data_scope_services(query_db, add_user.dept_id, dept_data_scope_sql)
-        await RoleService.check_role_data_scope_services(query_db, ','.join(add_user.role_ids), role_data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, ','.join([str(item) for item in add_user.role_ids]), role_data_scope_sql)
     add_user.password = PwdUtil.get_password_hash(add_user.password)
     add_user.create_by = current_user.user.user_name
     add_user.create_time = datetime.now()
@@ -111,7 +111,7 @@ async def edit_system_user(
     if not current_user.user.admin:
         await UserService.check_user_data_scope_services(query_db, edit_user.user_id, user_data_scope_sql)
         await DeptService.check_dept_data_scope_services(query_db, edit_user.dept_id, dept_data_scope_sql)
-        await RoleService.check_role_data_scope_services(query_db, ','.join(edit_user.role_ids), role_data_scope_sql)
+        await RoleService.check_role_data_scope_services(query_db, ','.join([str(item) for item in edit_user.role_ids]), role_data_scope_sql)
     edit_user.update_by = current_user.user.user_name
     edit_user.update_time = datetime.now()
     edit_user_result = await UserService.edit_user_services(query_db, edit_user)
