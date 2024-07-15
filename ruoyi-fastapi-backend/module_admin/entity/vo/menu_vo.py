@@ -20,6 +20,7 @@ class MenuModel(BaseModel):
     path: Optional[str] = Field(default=None, description='路由地址')
     component: Optional[str] = Field(default=None, description='组件路径')
     query: Optional[str] = Field(default=None, description='路由参数')
+    route_name: Optional[str] = Field(default=None, description='路由名称')
     is_frame: Optional[Literal[0, 1]] = Field(default=None, description='是否为外链（0是 1否）')
     is_cache: Optional[Literal[0, 1]] = Field(default=None, description='是否缓存（0缓存 1不缓存）')
     menu_type: Optional[Literal['M', 'C', 'F']] = Field(default=None, description='菜单类型（M目录 C菜单 F按钮）')
