@@ -130,7 +130,7 @@ async def delete_system_role(
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
     data_scope_sql: str = Depends(GetDataScope('SysDept')),
 ):
-    role_id_list = role_ids.split(',')
+    role_id_list = role_ids.split(',') if role_ids else []
     if role_id_list:
         for role_id in role_id_list:
             await RoleService.check_role_allowed_services(RoleModel(roleId=int(role_id)))

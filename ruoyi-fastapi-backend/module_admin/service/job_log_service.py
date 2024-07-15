@@ -58,7 +58,7 @@ class JobLogService:
         :param page_object: 删除定时任务日志对象
         :return: 删除定时任务日志校验结果
         """
-        if page_object.job_log_ids.split(','):
+        if page_object.job_log_ids:
             job_log_id_list = page_object.job_log_ids.split(',')
             try:
                 for job_log_id in job_log_id_list:

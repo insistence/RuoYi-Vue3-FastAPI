@@ -136,7 +136,7 @@ class DictTypeService:
         :param page_object: 删除字典类型对象
         :return: 删除字典类型校验结果
         """
-        if page_object.dict_ids.split(','):
+        if page_object.dict_ids:
             dict_id_list = page_object.dict_ids.split(',')
             try:
                 delete_dict_type_list = []
@@ -385,7 +385,7 @@ class DictDataService:
         :param page_object: 删除字典数据对象
         :return: 删除字典数据校验结果
         """
-        if page_object.dict_codes.split(','):
+        if page_object.dict_codes:
             dict_code_list = page_object.dict_codes.split(',')
             try:
                 delete_dict_type_list = []

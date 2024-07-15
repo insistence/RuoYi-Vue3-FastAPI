@@ -117,7 +117,7 @@ class PostService:
         :param page_object: 删除岗位对象
         :return: 删除岗位校验结果
         """
-        if page_object.post_ids.split(','):
+        if page_object.post_ids:
             post_id_list = page_object.post_ids.split(',')
             try:
                 for post_id in post_id_list:

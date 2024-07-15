@@ -133,7 +133,7 @@ async def delete_system_user(
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
     data_scope_sql: str = Depends(GetDataScope('SysUser')),
 ):
-    user_id_list = user_ids.split(',')
+    user_id_list = user_ids.split(',') if user_ids else []
     if user_id_list:
         if current_user.user.user_id in user_id_list:
             logger.warning('当前登录用户不能删除')

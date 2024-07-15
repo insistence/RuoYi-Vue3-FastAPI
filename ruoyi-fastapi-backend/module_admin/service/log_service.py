@@ -64,7 +64,7 @@ class OperationLogService:
         :param page_object: 删除操作日志对象
         :return: 删除操作日志校验结果
         """
-        if page_object.oper_ids.split(','):
+        if page_object.oper_ids:
             oper_id_list = page_object.oper_ids.split(',')
             try:
                 for oper_id in oper_id_list:
@@ -194,7 +194,7 @@ class LoginLogService:
         :param page_object: 删除操作日志对象
         :return: 删除操作日志校验结果
         """
-        if page_object.info_ids.split(','):
+        if page_object.info_ids:
             info_id_list = page_object.info_ids.split(',')
             try:
                 for info_id in info_id_list:

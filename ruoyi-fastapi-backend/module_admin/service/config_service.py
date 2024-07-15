@@ -147,7 +147,7 @@ class ConfigService:
         :param page_object: 删除参数配置对象
         :return: 删除参数配置校验结果
         """
-        if page_object.config_ids.split(','):
+        if page_object.config_ids:
             config_id_list = page_object.config_ids.split(',')
             try:
                 delete_config_key_list = []

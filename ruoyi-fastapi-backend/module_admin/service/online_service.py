@@ -66,7 +66,7 @@ class OnlineService:
         :param page_object: 强退在线用户对象
         :return: 强退在线用户校验结果
         """
-        if page_object.token_ids.split(','):
+        if page_object.token_ids:
             token_id_list = page_object.token_ids.split(',')
             for token_id in token_id_list:
                 await request.app.state.redis.delete(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{token_id}")

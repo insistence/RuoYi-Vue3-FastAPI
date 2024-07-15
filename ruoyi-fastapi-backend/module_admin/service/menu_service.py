@@ -149,7 +149,7 @@ class MenuService:
         :param page_object: 删除菜单对象
         :return: 删除菜单校验结果
         """
-        if page_object.menu_ids.split(','):
+        if page_object.menu_ids:
             menu_id_list = page_object.menu_ids.split(',')
             try:
                 for menu_id in menu_id_list:

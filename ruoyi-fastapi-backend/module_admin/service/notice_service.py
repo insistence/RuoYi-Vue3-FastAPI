@@ -97,7 +97,7 @@ class NoticeService:
         :param page_object: 删除通知公告对象
         :return: 删除通知公告校验结果
         """
-        if page_object.notice_ids.split(','):
+        if page_object.notice_ids:
             notice_id_list = page_object.notice_ids.split(',')
             try:
                 for notice_id in notice_id_list:

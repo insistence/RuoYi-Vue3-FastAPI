@@ -171,7 +171,7 @@ class JobService:
         :param page_object: 删除定时任务对象
         :return: 删除定时任务校验结果
         """
-        if page_object.job_ids.split(','):
+        if page_object.job_ids:
             job_id_list = page_object.job_ids.split(',')
             try:
                 for job_id in job_id_list:

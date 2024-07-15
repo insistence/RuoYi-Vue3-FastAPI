@@ -100,7 +100,7 @@ async def delete_system_dept(
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
     data_scope_sql: str = Depends(GetDataScope('SysDept')),
 ):
-    dept_id_list = dept_ids.split(',')
+    dept_id_list = dept_ids.split(',') if dept_ids else []
     if dept_id_list:
         for dept_id in dept_id_list:
             if not current_user.user.admin:

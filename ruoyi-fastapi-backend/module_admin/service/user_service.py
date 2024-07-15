@@ -232,7 +232,7 @@ class UserService:
         :param page_object: 删除用户对象
         :return: 删除用户校验结果
         """
-        if page_object.user_ids.split(','):
+        if page_object.user_ids:
             user_id_list = page_object.user_ids.split(',')
             try:
                 for user_id in user_id_list:

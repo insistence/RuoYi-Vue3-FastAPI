@@ -162,7 +162,7 @@ class DeptService:
         :param page_object: 删除部门对象
         :return: 删除部门校验结果
         """
-        if page_object.dept_ids.split(','):
+        if page_object.dept_ids:
             dept_id_list = page_object.dept_ids.split(',')
             try:
                 for dept_id in dept_id_list:
