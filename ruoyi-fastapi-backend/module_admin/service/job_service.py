@@ -9,6 +9,7 @@ from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.job_vo import DeleteJobModel, EditJobModel, JobModel, JobPageQueryModel
 from module_admin.service.dict_service import DictDataService
 from utils.common_util import CamelCaseUtil, export_list2excel
+from utils.cron_util import CronUtil
 from utils.string_util import StringUtil
 
 
@@ -57,10 +58,8 @@ class JobService:
         :param page_object: 新增定时任务对象
         :return: 新增定时任务校验结果
         """
-        if not SchedulerUtil.validate_cron_expression(page_object.cron_expression):
+        if not CronUtil.validate_cron_expression(page_object.cron_expression):
             raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，Cron表达式不正确')
-        elif not await cls.check_job_unique_services(query_db, page_object):
-            raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，定时任务已存在')
         elif StringUtil.contains_ignore_case(page_object.invoke_target, CommonConstant.LOOKUP_RMI):
             raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，目标字符串不允许rmi调用')
         elif StringUtil.contains_any_ignore_case(
@@ -75,6 +74,8 @@ class JobService:
             raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，目标字符串存在违规')
         elif not StringUtil.startswith_any_case(page_object.invoke_target, JobConstant.JOB_WHITE_LIST):
             raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，目标字符串不在白名单内')
+        elif not await cls.check_job_unique_services(query_db, page_object):
+            raise ServiceException(message=f'新增定时任务{page_object.job_name}失败，定时任务已存在')
         else:
             try:
                 add_job = await JobDao.add_job_dao(query_db, page_object)
@@ -104,10 +105,8 @@ class JobService:
         job_info = await cls.job_detail_services(query_db, page_object.job_id)
         if job_info:
             if page_object.type != 'status':
-                if not SchedulerUtil.validate_cron_expression(page_object.cron_expression):
+                if not CronUtil.validate_cron_expression(page_object.cron_expression):
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，Cron表达式不正确')
-                elif not await cls.check_job_unique_services(query_db, page_object):
-                    raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，定时任务已存在')
                 elif StringUtil.contains_ignore_case(page_object.invoke_target, CommonConstant.LOOKUP_RMI):
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，目标字符串不允许rmi调用')
                 elif StringUtil.contains_any_ignore_case(
@@ -126,6 +125,8 @@ class JobService:
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，目标字符串存在违规')
                 elif not StringUtil.startswith_any_case(page_object.invoke_target, JobConstant.JOB_WHITE_LIST):
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，目标字符串不在白名单内')
+                elif not await cls.check_job_unique_services(query_db, page_object):
+                    raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，定时任务已存在')
             try:
                 await JobDao.edit_job_dao(query_db, edit_job)
                 query_job = SchedulerUtil.get_scheduler_job(job_id=edit_job.get('job_id'))
