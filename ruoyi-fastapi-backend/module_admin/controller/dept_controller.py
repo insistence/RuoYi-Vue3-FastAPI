@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from config.enums import BusinessType
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.data_scope import GetDataScope
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptQueryModel
@@ -54,7 +54,7 @@ async def get_system_dept_list(
 
 @deptController.post('', dependencies=[Depends(CheckUserInterfaceAuth('system:dept:add'))])
 @ValidateFields(validate_model='add_dept')
-@log_decorator(title='部门管理', business_type=BusinessType.INSERT)
+@Log(title='部门管理', business_type=BusinessType.INSERT)
 async def add_system_dept(
     request: Request,
     add_dept: DeptModel,
@@ -73,7 +73,7 @@ async def add_system_dept(
 
 @deptController.put('', dependencies=[Depends(CheckUserInterfaceAuth('system:dept:edit'))])
 @ValidateFields(validate_model='edit_dept')
-@log_decorator(title='部门管理', business_type=BusinessType.UPDATE)
+@Log(title='部门管理', business_type=BusinessType.UPDATE)
 async def edit_system_dept(
     request: Request,
     edit_dept: DeptModel,
@@ -92,7 +92,7 @@ async def edit_system_dept(
 
 
 @deptController.delete('/{dept_ids}', dependencies=[Depends(CheckUserInterfaceAuth('system:dept:remove'))])
-@log_decorator(title='部门管理', business_type=BusinessType.DELETE)
+@Log(title='部门管理', business_type=BusinessType.DELETE)
 async def delete_system_dept(
     request: Request,
     dept_ids: str,

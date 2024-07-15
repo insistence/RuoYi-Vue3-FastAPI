@@ -4,7 +4,7 @@ from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -36,7 +36,7 @@ async def get_system_config_list(
 
 @configController.post('', dependencies=[Depends(CheckUserInterfaceAuth('system:config:add'))])
 @ValidateFields(validate_model='add_config')
-@log_decorator(title='参数管理', business_type=BusinessType.INSERT)
+@Log(title='参数管理', business_type=BusinessType.INSERT)
 async def add_system_config(
     request: Request,
     add_config: ConfigModel,
@@ -55,7 +55,7 @@ async def add_system_config(
 
 @configController.put('', dependencies=[Depends(CheckUserInterfaceAuth('system:config:edit'))])
 @ValidateFields(validate_model='edit_config')
-@log_decorator(title='参数管理', business_type=BusinessType.UPDATE)
+@Log(title='参数管理', business_type=BusinessType.UPDATE)
 async def edit_system_config(
     request: Request,
     edit_config: ConfigModel,
@@ -71,7 +71,7 @@ async def edit_system_config(
 
 
 @configController.delete('/refreshCache', dependencies=[Depends(CheckUserInterfaceAuth('system:config:remove'))])
-@log_decorator(title='参数管理', business_type=BusinessType.UPDATE)
+@Log(title='参数管理', business_type=BusinessType.UPDATE)
 async def refresh_system_config(request: Request, query_db: AsyncSession = Depends(get_db)):
     refresh_config_result = await ConfigService.refresh_sys_config_services(request, query_db)
     logger.info(refresh_config_result.message)
@@ -80,7 +80,7 @@ async def refresh_system_config(request: Request, query_db: AsyncSession = Depen
 
 
 @configController.delete('/{config_ids}', dependencies=[Depends(CheckUserInterfaceAuth('system:config:remove'))])
-@log_decorator(title='参数管理', business_type=BusinessType.DELETE)
+@Log(title='参数管理', business_type=BusinessType.DELETE)
 async def delete_system_config(request: Request, config_ids: str, query_db: AsyncSession = Depends(get_db)):
     delete_config = DeleteConfigModel(configIds=config_ids)
     delete_config_result = await ConfigService.delete_config_services(request, query_db, delete_config)
@@ -109,7 +109,7 @@ async def query_system_config(request: Request, config_key: str):
 
 
 @configController.post('/export', dependencies=[Depends(CheckUserInterfaceAuth('system:config:export'))])
-@log_decorator(title='参数管理', business_type=BusinessType.EXPORT)
+@Log(title='参数管理', business_type=BusinessType.EXPORT)
 async def export_system_config_list(
     request: Request,
     config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_form),

@@ -4,7 +4,7 @@ from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.job_vo import (
     DeleteJobLogModel,
@@ -44,7 +44,7 @@ async def get_system_job_list(
 
 @jobController.post('/job', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:add'))])
 @ValidateFields(validate_model='add_job')
-@log_decorator(title='定时任务管理', business_type=BusinessType.INSERT)
+@Log(title='定时任务', business_type=BusinessType.INSERT)
 async def add_system_job(
     request: Request,
     add_job: JobModel,
@@ -63,7 +63,7 @@ async def add_system_job(
 
 @jobController.put('/job', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:edit'))])
 @ValidateFields(validate_model='edit_job')
-@log_decorator(title='定时任务管理', business_type=BusinessType.UPDATE)
+@Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def edit_system_job(
     request: Request,
     edit_job: EditJobModel,
@@ -79,7 +79,7 @@ async def edit_system_job(
 
 
 @jobController.put('/job/changeStatus', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:changeStatus'))])
-@log_decorator(title='定时任务管理', business_type=BusinessType.UPDATE)
+@Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def change_system_job_status(
     request: Request,
     change_job: EditJobModel,
@@ -100,7 +100,7 @@ async def change_system_job_status(
 
 
 @jobController.put('/job/run', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:changeStatus'))])
-@log_decorator(title='定时任务管理', business_type=BusinessType.UPDATE)
+@Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def execute_system_job(request: Request, execute_job: JobModel, query_db: AsyncSession = Depends(get_db)):
     execute_job_result = await JobService.execute_job_once_services(query_db, execute_job)
     logger.info(execute_job_result.message)
@@ -109,7 +109,7 @@ async def execute_system_job(request: Request, execute_job: JobModel, query_db: 
 
 
 @jobController.delete('/job/{job_ids}', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:remove'))])
-@log_decorator(title='定时任务管理', business_type=BusinessType.DELETE)
+@Log(title='定时任务', business_type=BusinessType.DELETE)
 async def delete_system_job(request: Request, job_ids: str, query_db: AsyncSession = Depends(get_db)):
     delete_job = DeleteJobModel(jobIds=job_ids)
     delete_job_result = await JobService.delete_job_services(query_db, delete_job)
@@ -129,7 +129,7 @@ async def query_detail_system_job(request: Request, job_id: int, query_db: Async
 
 
 @jobController.post('/job/export', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:export'))])
-@log_decorator(title='定时任务管理', business_type=BusinessType.EXPORT)
+@Log(title='定时任务', business_type=BusinessType.EXPORT)
 async def export_system_job_list(
     request: Request,
     job_page_query: JobPageQueryModel = Depends(JobPageQueryModel.as_form),
@@ -161,7 +161,7 @@ async def get_system_job_log_list(
 
 
 @jobController.delete('/jobLog/clean', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:remove'))])
-@log_decorator(title='定时任务日志管理', business_type=BusinessType.CLEAN)
+@Log(title='定时任务调度日志', business_type=BusinessType.CLEAN)
 async def clear_system_job_log(request: Request, query_db: AsyncSession = Depends(get_db)):
     clear_job_log_result = await JobLogService.clear_job_log_services(query_db)
     logger.info(clear_job_log_result.message)
@@ -170,7 +170,7 @@ async def clear_system_job_log(request: Request, query_db: AsyncSession = Depend
 
 
 @jobController.delete('/jobLog/{job_log_ids}', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:remove'))])
-@log_decorator(title='定时任务日志管理', business_type=BusinessType.DELETE)
+@Log(title='定时任务调度日志', business_type=BusinessType.DELETE)
 async def delete_system_job_log(request: Request, job_log_ids: str, query_db: AsyncSession = Depends(get_db)):
     delete_job_log = DeleteJobLogModel(jobLogIds=job_log_ids)
     delete_job_log_result = await JobLogService.delete_job_log_services(query_db, delete_job_log)
@@ -180,7 +180,7 @@ async def delete_system_job_log(request: Request, job_log_ids: str, query_db: As
 
 
 @jobController.post('/jobLog/export', dependencies=[Depends(CheckUserInterfaceAuth('monitor:job:export'))])
-@log_decorator(title='定时任务日志管理', business_type=BusinessType.EXPORT)
+@Log(title='定时任务调度日志', business_type=BusinessType.EXPORT)
 async def export_system_job_log_list(
     request: Request,
     job_log_page_query: JobLogPageQueryModel = Depends(JobLogPageQueryModel.as_form),

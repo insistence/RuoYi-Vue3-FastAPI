@@ -6,7 +6,7 @@ from typing import Optional, Union
 from pydantic_validation_decorator import ValidateFields
 from config.get_db import get_db
 from config.env import UploadConfig
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.data_scope import GetDataScope
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.dept_vo import DeptModel
@@ -72,7 +72,7 @@ async def get_system_user_list(
 
 @userController.post('', dependencies=[Depends(CheckUserInterfaceAuth('system:user:add'))])
 @ValidateFields(validate_model='add_user')
-@log_decorator(title='用户管理', business_type=BusinessType.INSERT)
+@Log(title='用户管理', business_type=BusinessType.INSERT)
 async def add_system_user(
     request: Request,
     add_user: AddUserModel,
@@ -97,7 +97,7 @@ async def add_system_user(
 
 @userController.put('', dependencies=[Depends(CheckUserInterfaceAuth('system:user:edit'))])
 @ValidateFields(validate_model='edit_user')
-@log_decorator(title='用户管理', business_type=BusinessType.UPDATE)
+@Log(title='用户管理', business_type=BusinessType.UPDATE)
 async def edit_system_user(
     request: Request,
     edit_user: EditUserModel,
@@ -121,7 +121,7 @@ async def edit_system_user(
 
 
 @userController.delete('/{user_ids}', dependencies=[Depends(CheckUserInterfaceAuth('system:user:remove'))])
-@log_decorator(title='用户管理', business_type=BusinessType.DELETE)
+@Log(title='用户管理', business_type=BusinessType.DELETE)
 async def delete_system_user(
     request: Request,
     user_ids: str,
@@ -146,7 +146,7 @@ async def delete_system_user(
 
 
 @userController.put('/resetPwd', dependencies=[Depends(CheckUserInterfaceAuth('system:user:resetPwd'))])
-@log_decorator(title='用户管理', business_type=BusinessType.UPDATE)
+@Log(title='用户管理', business_type=BusinessType.UPDATE)
 async def reset_system_user_pwd(
     request: Request,
     reset_user: EditUserModel,
@@ -171,7 +171,7 @@ async def reset_system_user_pwd(
 
 
 @userController.put('/changeStatus', dependencies=[Depends(CheckUserInterfaceAuth('system:user:edit'))])
-@log_decorator(title='用户管理', business_type=BusinessType.UPDATE)
+@Log(title='用户管理', business_type=BusinessType.UPDATE)
 async def change_system_user_status(
     request: Request,
     change_user: EditUserModel,
@@ -229,7 +229,7 @@ async def query_detail_system_user(
 
 
 @userController.post('/profile/avatar')
-@log_decorator(title='个人信息', business_type=BusinessType.UPDATE)
+@Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def change_system_user_profile_avatar(
     request: Request,
     avatarfile: bytes = File(),
@@ -264,7 +264,7 @@ async def change_system_user_profile_avatar(
 
 
 @userController.put('/profile')
-@log_decorator(title='个人信息', business_type=BusinessType.UPDATE)
+@Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def change_system_user_profile_info(
     request: Request,
     user_info: UserInfoModel,
@@ -288,7 +288,7 @@ async def change_system_user_profile_info(
 
 
 @userController.put('/profile/updatePwd')
-@log_decorator(title='个人信息', business_type=BusinessType.UPDATE)
+@Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def reset_system_user_password(
     request: Request,
     reset_password: ResetPasswordModel = Depends(ResetPasswordModel.as_query),
@@ -309,7 +309,7 @@ async def reset_system_user_password(
 
 
 @userController.post('/importData', dependencies=[Depends(CheckUserInterfaceAuth('system:user:import'))])
-@log_decorator(title='用户管理', business_type=BusinessType.IMPORT)
+@Log(title='用户管理', business_type=BusinessType.IMPORT)
 async def batch_import_system_user(
     request: Request,
     file: UploadFile = File(...),
@@ -336,7 +336,7 @@ async def export_system_user_template(request: Request, query_db: AsyncSession =
 
 
 @userController.post('/export', dependencies=[Depends(CheckUserInterfaceAuth('system:user:export'))])
-@log_decorator(title='用户管理', business_type=BusinessType.EXPORT)
+@Log(title='用户管理', business_type=BusinessType.EXPORT)
 async def export_system_user_list(
     request: Request,
     user_page_query: UserPageQueryModel = Depends(UserPageQueryModel.as_form),
@@ -373,7 +373,7 @@ async def get_system_allocated_role_list(request: Request, user_id: int, query_d
     response_model=UserRoleResponseModel,
     dependencies=[Depends(CheckUserInterfaceAuth('system:user:edit'))],
 )
-@log_decorator(title='用户管理', business_type=BusinessType.GRANT)
+@Log(title='用户管理', business_type=BusinessType.GRANT)
 async def update_system_role_user(
     request: Request,
     user_id: int = Query(alias='userId'),

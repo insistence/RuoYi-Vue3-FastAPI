@@ -4,7 +4,7 @@ from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.service.login_service import LoginService
 from module_admin.service.post_service import PostService
@@ -36,7 +36,7 @@ async def get_system_post_list(
 
 @postController.post('', dependencies=[Depends(CheckUserInterfaceAuth('system:post:add'))])
 @ValidateFields(validate_model='add_post')
-@log_decorator(title='岗位管理', business_type=BusinessType.INSERT)
+@Log(title='岗位管理', business_type=BusinessType.INSERT)
 async def add_system_post(
     request: Request,
     add_post: PostModel,
@@ -55,7 +55,7 @@ async def add_system_post(
 
 @postController.put('', dependencies=[Depends(CheckUserInterfaceAuth('system:post:edit'))])
 @ValidateFields(validate_model='edit_post')
-@log_decorator(title='岗位管理', business_type=BusinessType.UPDATE)
+@Log(title='岗位管理', business_type=BusinessType.UPDATE)
 async def edit_system_post(
     request: Request,
     edit_post: PostModel,
@@ -71,7 +71,7 @@ async def edit_system_post(
 
 
 @postController.delete('/{post_ids}', dependencies=[Depends(CheckUserInterfaceAuth('system:post:remove'))])
-@log_decorator(title='岗位管理', business_type=BusinessType.DELETE)
+@Log(title='岗位管理', business_type=BusinessType.DELETE)
 async def delete_system_post(request: Request, post_ids: str, query_db: AsyncSession = Depends(get_db)):
     delete_post = DeletePostModel(postIds=post_ids)
     delete_post_result = await PostService.delete_post_services(query_db, delete_post)
@@ -91,7 +91,7 @@ async def query_detail_system_post(request: Request, post_id: int, query_db: Asy
 
 
 @postController.post('/export', dependencies=[Depends(CheckUserInterfaceAuth('system:post:export'))])
-@log_decorator(title='岗位管理', business_type=BusinessType.EXPORT)
+@Log(title='岗位管理', business_type=BusinessType.EXPORT)
 async def export_system_post_list(
     request: Request,
     post_page_query: PostPageQueryModel = Depends(PostPageQueryModel.as_form),

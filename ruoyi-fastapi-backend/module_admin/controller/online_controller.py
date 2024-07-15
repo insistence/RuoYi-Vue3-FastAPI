@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
 from module_admin.service.login_service import LoginService
@@ -31,7 +31,7 @@ async def get_monitor_online_list(
 
 
 @onlineController.delete('/{token_ids}', dependencies=[Depends(CheckUserInterfaceAuth('monitor:online:forceLogout'))])
-@log_decorator(title='在线用户', business_type=BusinessType.FORCE)
+@Log(title='在线用户', business_type=BusinessType.FORCE)
 async def delete_monitor_online(request: Request, token_ids: str, query_db: AsyncSession = Depends(get_db)):
     delete_online = DeleteOnlineModel(tokenIds=token_ids)
     delete_online_result = await OnlineService.delete_online_services(request, delete_online)

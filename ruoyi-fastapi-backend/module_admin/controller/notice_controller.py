@@ -4,7 +4,7 @@ from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.notice_vo import DeleteNoticeModel, NoticeModel, NoticePageQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -35,7 +35,7 @@ async def get_system_notice_list(
 
 @noticeController.post('', dependencies=[Depends(CheckUserInterfaceAuth('system:notice:add'))])
 @ValidateFields(validate_model='add_notice')
-@log_decorator(title='通知公告管理', business_type=BusinessType.INSERT)
+@Log(title='通知公告', business_type=BusinessType.INSERT)
 async def add_system_notice(
     request: Request,
     add_notice: NoticeModel,
@@ -54,7 +54,7 @@ async def add_system_notice(
 
 @noticeController.put('', dependencies=[Depends(CheckUserInterfaceAuth('system:notice:edit'))])
 @ValidateFields(validate_model='edit_notice')
-@log_decorator(title='通知公告管理', business_type=BusinessType.UPDATE)
+@Log(title='通知公告', business_type=BusinessType.UPDATE)
 async def edit_system_notice(
     request: Request,
     edit_notice: NoticeModel,
@@ -70,7 +70,7 @@ async def edit_system_notice(
 
 
 @noticeController.delete('/{notice_ids}', dependencies=[Depends(CheckUserInterfaceAuth('system:notice:remove'))])
-@log_decorator(title='通知公告管理', business_type=BusinessType.DELETE)
+@Log(title='通知公告', business_type=BusinessType.DELETE)
 async def delete_system_notice(request: Request, notice_ids: str, query_db: AsyncSession = Depends(get_db)):
     delete_notice = DeleteNoticeModel(noticeIds=notice_ids)
     delete_notice_result = await NoticeService.delete_notice_services(query_db, delete_notice)

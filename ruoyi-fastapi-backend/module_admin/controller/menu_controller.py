@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from config.enums import BusinessType
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -60,7 +60,7 @@ async def get_system_menu_list(
 
 @menuController.post('', dependencies=[Depends(CheckUserInterfaceAuth('system:menu:add'))])
 @ValidateFields(validate_model='add_menu')
-@log_decorator(title='菜单管理', business_type=BusinessType.INSERT)
+@Log(title='菜单管理', business_type=BusinessType.INSERT)
 async def add_system_menu(
     request: Request,
     add_menu: MenuModel,
@@ -79,7 +79,7 @@ async def add_system_menu(
 
 @menuController.put('', dependencies=[Depends(CheckUserInterfaceAuth('system:menu:edit'))])
 @ValidateFields(validate_model='edit_menu')
-@log_decorator(title='菜单管理', business_type=BusinessType.UPDATE)
+@Log(title='菜单管理', business_type=BusinessType.UPDATE)
 async def edit_system_menu(
     request: Request,
     edit_menu: MenuModel,
@@ -95,7 +95,7 @@ async def edit_system_menu(
 
 
 @menuController.delete('/{menu_ids}', dependencies=[Depends(CheckUserInterfaceAuth('system:menu:remove'))])
-@log_decorator(title='菜单管理', business_type=BusinessType.DELETE)
+@Log(title='菜单管理', business_type=BusinessType.DELETE)
 async def delete_system_menu(request: Request, menu_ids: str, query_db: AsyncSession = Depends(get_db)):
     delete_menu = DeleteMenuModel(menuIds=menu_ids)
     delete_menu_result = await MenuService.delete_menu_services(query_db, delete_menu)

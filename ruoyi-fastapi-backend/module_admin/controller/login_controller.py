@@ -7,7 +7,7 @@ from typing import Optional
 from config.enums import BusinessType
 from config.env import AppConfig, JwtConfig, RedisInitKeyConfig
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import log_decorator
+from module_admin.annotation.log_annotation import Log
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.login_vo import UserLogin, UserRegister, Token
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
@@ -21,7 +21,7 @@ loginController = APIRouter()
 
 
 @loginController.post('/login', response_model=Token)
-@log_decorator(title='用户登录', business_type=BusinessType.OTHER, log_type='login')
+@Log(title='用户登录', business_type=BusinessType.OTHER, log_type='login')
 async def login(
     request: Request, form_data: CustomOAuth2PasswordRequestForm = Depends(), query_db: AsyncSession = Depends(get_db)
 ):
