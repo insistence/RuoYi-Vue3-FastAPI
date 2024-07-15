@@ -40,7 +40,7 @@ class CronUtil:
         if (
             second_or_minute == '*'
             or ('-' in second_or_minute and cls.__valid_range(second_or_minute, 0, 59))
-            or ('/' in second_or_minute and cls.__valid_sum(second_or_minute, 0, 58, 1, 59))
+            or ('/' in second_or_minute and cls.__valid_sum(second_or_minute, 0, 58, 1, 59, 59))
             or re.match(r'^(?:[0-5]?\d|59)(?:,[0-5]?\d|59)*$', second_or_minute)
         ):
             return True
@@ -109,8 +109,8 @@ class CronUtil:
         if (
             week in ['*', '?']
             or ('-' in week and cls.__valid_range(week, 1, 7))
-            or re.match(r'^[1-7]#[1-4]$', week)
-            or re.match(r'^[1-7]L$', week)
+            or ('#' in week and re.match(r'^[1-7]#[1-4]$', week))
+            or ('L' in week and re.match(r'^[1-7]L$', week))
             or re.match(r'^[1-7](?:(,[1-7]))*$', week)
         ):
             return True
@@ -130,8 +130,8 @@ class CronUtil:
             year == '*'
             or ('-' in year and cls.__valid_range(year, current_year, 2099))
             or ('/' in year and cls.__valid_sum(year, current_year, 2098, 1, 2099 - current_year, 2099))
-            or re.match(r'^[1-7]#[1-4]$', year)
-            or re.match(r'^[1-7]L$', year)
+            or ('#' in year and re.match(r'^[1-7]#[1-4]$', year))
+            or ('L' in year and re.match(r'^[1-7]L$', year))
             or (
                 (len(year) == 4 or ',' in year)
                 and all(int(item) in future_years and current_year <= int(item) <= 2099 for item in year.split(','))
