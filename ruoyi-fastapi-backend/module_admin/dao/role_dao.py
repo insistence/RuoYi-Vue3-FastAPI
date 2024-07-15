@@ -144,6 +144,7 @@ class RoleDao:
             .join(SysDept, SysDept.dept_id == SysUser.dept_id, isouter=True)
             .where(
                 SysRole.del_flag == '0',
+                SysRole.role_id == query_object.role_id if query_object.role_id is not None else True,
                 SysRole.role_name.like(f'%{query_object.role_name}%') if query_object.role_name else True,
                 SysRole.role_key.like(f'%{query_object.role_key}%') if query_object.role_key else True,
                 SysRole.status == query_object.status if query_object.status else True,

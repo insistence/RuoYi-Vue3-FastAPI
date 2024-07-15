@@ -161,6 +161,7 @@ class DeptDao:
                     select(SysDept)
                     .where(
                         SysDept.del_flag == '0',
+                        SysDept.dept_id == page_object.dept_id if page_object.dept_id is not None else True,
                         SysDept.status == page_object.status if page_object.status else True,
                         SysDept.dept_name.like(f'%{page_object.dept_name}%') if page_object.dept_name else True,
                         eval(data_scope_sql),
