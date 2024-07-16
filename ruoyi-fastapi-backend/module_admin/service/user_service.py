@@ -333,6 +333,7 @@ class UserService:
             del reset_user['sms_code']
             del reset_user['session_id']
         try:
+            reset_user['password'] = PwdUtil.get_password_hash(page_object.password)
             await UserDao.edit_user_dao(query_db, reset_user)
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='重置成功')
@@ -553,16 +554,9 @@ class UserService:
         if page_object.user_id and page_object.role_ids:
             role_id_list = page_object.role_ids.split(',')
             try:
+                await UserDao.delete_user_role_by_user_and_role_dao(query_db, UserRoleModel(userId=page_object.user_id))
                 for role_id in role_id_list:
-                    user_role = await cls.detail_user_role_services(
-                        query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id)
-                    )
-                    if user_role:
-                        continue
-                    else:
-                        await UserDao.add_user_role_dao(
-                            query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id)
-                        )
+                    await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id))
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='分配成功')
             except Exception as e:

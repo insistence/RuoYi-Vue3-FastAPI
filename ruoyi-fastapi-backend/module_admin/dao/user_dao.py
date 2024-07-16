@@ -449,7 +449,7 @@ class UserDao:
                 SysUser.del_flag == '0',
                 SysUser.user_name == query_object.user_name if query_object.user_name else True,
                 SysUser.phonenumber == query_object.phonenumber if query_object.phonenumber else True,
-                or_(SysRole.role_id != query_object.role_id, SysRole.role_id is None),
+                or_(SysRole.role_id != query_object.role_id, SysRole.role_id.is_(None)),
                 ~SysUser.user_id.in_(
                     select(SysUser.user_id)
                     .select_from(SysUser)
@@ -502,7 +502,7 @@ class UserDao:
         """
         await db.execute(
             delete(SysUserRole).where(
-                SysUserRole.user_id.in_([user_role.user_id]),
+                SysUserRole.user_id == user_role.user_id if user_role.user_id else True,
                 SysUserRole.role_id == user_role.role_id if user_role.role_id else True,
             )
         )

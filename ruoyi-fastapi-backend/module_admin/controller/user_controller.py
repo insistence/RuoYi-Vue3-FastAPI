@@ -303,7 +303,7 @@ async def reset_system_user_password(
     reset_user = ResetUserModel(
         userId=current_user.user.user_id,
         oldPassword=reset_password.old_password,
-        password=PwdUtil.get_password_hash(reset_password.new_password),
+        password=reset_password.new_password,
         updateBy=current_user.user.user_name,
         updateTime=datetime.now(),
     )
