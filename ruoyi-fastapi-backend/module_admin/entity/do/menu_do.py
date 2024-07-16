@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from config.database import Base
 from datetime import datetime
+from sqlalchemy import Column, DateTime, Integer, String
+from config.database import Base
 
 
 class SysMenu(Base):
     """
     菜单权限表
     """
+
     __tablename__ = 'sys_menu'
 
     menu_id = Column(Integer, primary_key=True, autoincrement=True, comment='菜单ID')
@@ -16,6 +17,7 @@ class SysMenu(Base):
     path = Column(String(200), nullable=True, default='', comment='路由地址')
     component = Column(String(255), nullable=True, default=None, comment='组件路径')
     query = Column(String(255), nullable=True, default=None, comment='路由参数')
+    route_name = Column(String(50), nullable=True, default='', comment='路由名称')
     is_frame = Column(Integer, default=1, comment='是否为外链（0是 1否）')
     is_cache = Column(Integer, default=0, comment='是否缓存（0缓存 1不缓存）')
     menu_type = Column(String(1), nullable=True, default='', comment='菜单类型（M目录 C菜单 F按钮）')

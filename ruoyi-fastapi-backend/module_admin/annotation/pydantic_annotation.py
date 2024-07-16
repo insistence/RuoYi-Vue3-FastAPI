@@ -1,9 +1,8 @@
 import inspect
-from typing import Type
-
-from fastapi import Query, Form
+from fastapi import Form, Query
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
+from typing import Type
 
 
 def as_query(cls: Type[BaseModel]):
@@ -20,8 +19,8 @@ def as_query(cls: Type[BaseModel]):
                 inspect.Parameter(
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
-                    default=Query(model_field.default),
-                    annotation=model_field.annotation
+                    default=Query(default=model_field.default, description=model_field.description),
+                    annotation=model_field.annotation,
                 )
             )
         else:
@@ -29,8 +28,8 @@ def as_query(cls: Type[BaseModel]):
                 inspect.Parameter(
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
-                    default=Query(...),
-                    annotation=model_field.annotation
+                    default=Query(..., description=model_field.description),
+                    annotation=model_field.annotation,
                 )
             )
 
@@ -58,8 +57,8 @@ def as_form(cls: Type[BaseModel]):
                 inspect.Parameter(
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
-                    default=Form(model_field.default),
-                    annotation=model_field.annotation
+                    default=Form(default=model_field.default, description=model_field.description),
+                    annotation=model_field.annotation,
                 )
             )
         else:
@@ -67,8 +66,8 @@ def as_form(cls: Type[BaseModel]):
                 inspect.Parameter(
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
-                    default=Form(...),
-                    annotation=model_field.annotation
+                    default=Form(..., description=model_field.description),
+                    annotation=model_field.annotation,
                 )
             )
 

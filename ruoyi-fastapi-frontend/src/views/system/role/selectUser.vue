@@ -7,7 +7,7 @@
                v-model="queryParams.userName"
                placeholder="请输入用户名称"
                clearable
-               style="width: 200px"
+               style="width: 180px"
                @keyup.enter="handleQuery"
             />
          </el-form-item>
@@ -16,7 +16,7 @@
                v-model="queryParams.phonenumber"
                placeholder="请输入手机号码"
                clearable
-               style="width: 200px"
+               style="width: 180px"
                @keyup.enter="handleQuery"
             />
          </el-form-item>
@@ -127,10 +127,8 @@ function handleSelectUser() {
   }
   authUserSelectAll({ roleId: roleId, userIds: uIds }).then(res => {
     proxy.$modal.msgSuccess(res.msg);
-    if (res.code === 200) {
-      visible.value = false;
-      emit("ok");
-    }
+    visible.value = false;
+    emit("ok");
   });
 }
 

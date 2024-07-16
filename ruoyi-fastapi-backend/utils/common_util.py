@@ -1,6 +1,6 @@
-import pandas as pd
 import io
 import os
+import pandas as pd
 import re
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill
@@ -33,7 +33,7 @@ def worship():
 //      ========`-.____`-.___\_____/___.-`____.-'========         //
 //                           `=---='                              //
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^        //
-//             佛祖保佑       永不宕机      永无BUG                  //
+//             佛祖保佑       永不宕机      永无BUG                 //
 ////////////////////////////////////////////////////////////////////
     """)
 
@@ -42,10 +42,12 @@ class CamelCaseUtil:
     """
     下划线形式(snake_case)转小驼峰形式(camelCase)工具方法
     """
+
     @classmethod
     def snake_to_camel(cls, snake_str):
         """
         下划线形式字符串(snake_case)转换为小驼峰形式字符串(camelCase)
+
         :param snake_str: 下划线形式字符串
         :return: 小驼峰形式字符串
         """
@@ -58,6 +60,7 @@ class CamelCaseUtil:
     def transform_result(cls, result):
         """
         针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
+
         :param result: 输入数据
         :return: 小驼峰形式结果
         """
@@ -68,10 +71,24 @@ class CamelCaseUtil:
             return {cls.snake_to_camel(k): v for k, v in result.items()}
         # 如果是一组字典或其他类型的列表，遍历列表进行转换
         elif isinstance(result, list):
-            return [cls.transform_result(row) if isinstance(row, (dict, Row)) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
+            return [
+                cls.transform_result(row)
+                if isinstance(row, (dict, Row))
+                else (
+                    cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row
+                )
+                for row in result
+            ]
         # 如果是sqlalchemy的Row实例，遍历Row进行转换
         elif isinstance(result, Row):
-            return [cls.transform_result(row) if isinstance(row, dict) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
+            return [
+                cls.transform_result(row)
+                if isinstance(row, dict)
+                else (
+                    cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row
+                )
+                for row in result
+            ]
         # 如果是其他类型，如模型实例，先转换为字典
         else:
             return cls.transform_result({c.name: getattr(result, c.name) for c in result.__table__.columns})
@@ -81,10 +98,12 @@ class SnakeCaseUtil:
     """
     小驼峰形式(camelCase)转下划线形式(snake_case)工具方法
     """
+
     @classmethod
     def camel_to_snake(cls, camel_str):
         """
         小驼峰形式字符串(camelCase)转换为下划线形式字符串(snake_case)
+
         :param camel_str: 小驼峰形式字符串
         :return: 下划线形式字符串
         """
@@ -96,6 +115,7 @@ class SnakeCaseUtil:
     def transform_result(cls, result):
         """
         针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
+
         :param result: 输入数据
         :return: 小驼峰形式结果
         """
@@ -106,16 +126,30 @@ class SnakeCaseUtil:
             return {cls.camel_to_snake(k): v for k, v in result.items()}
         # 如果是一组字典或其他类型的列表，遍历列表进行转换
         elif isinstance(result, list):
-            return [cls.transform_result(row) if isinstance(row, (dict, Row)) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
+            return [
+                cls.transform_result(row)
+                if isinstance(row, (dict, Row))
+                else (
+                    cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row
+                )
+                for row in result
+            ]
         # 如果是sqlalchemy的Row实例，遍历Row进行转换
         elif isinstance(result, Row):
-            return [cls.transform_result(row) if isinstance(row, dict) else (cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row) for row in result]
+            return [
+                cls.transform_result(row)
+                if isinstance(row, dict)
+                else (
+                    cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row
+                )
+                for row in result
+            ]
         # 如果是其他类型，如模型实例，先转换为字典
         else:
             return cls.transform_result({c.name: getattr(result, c.name) for c in result.__table__.columns})
 
 
-def bytes2human(n, format_str="%(value).1f%(symbol)s"):
+def bytes2human(n, format_str='%(value).1f%(symbol)s'):
     """Used by various scripts. See:
     http://goo.gl/zeJZl
 
@@ -142,6 +176,7 @@ def bytes2file_response(bytes_info):
 def export_list2excel(list_data: List):
     """
     工具方法：将需要导出的list数据转化为对应excel的二进制数据
+
     :param list_data: 数据列表
     :return: 字典信息对应excel的二进制数据
     """
@@ -156,6 +191,7 @@ def export_list2excel(list_data: List):
 def get_excel_template(header_list: List, selector_header_list: List, option_list: List[dict]):
     """
     工具方法：将需要导出的list数据转化为对应excel的二进制数据
+
     :param header_list: 表头数据列表
     :param selector_header_list: 需要设置为选择器格式的表头数据列表
     :param option_list: 选择器格式的表头预设的选项列表
@@ -170,7 +206,7 @@ def get_excel_template(header_list: List, selector_header_list: List, option_lis
     headers = header_list
 
     # 设置表头背景样式为灰色，前景色为白色
-    header_fill = PatternFill(start_color="ababab", end_color="ababab", fill_type="solid")
+    header_fill = PatternFill(start_color='ababab', end_color='ababab', fill_type='solid')
 
     # 将表头写入第一行
     for col_num, header in enumerate(headers, 1):
@@ -194,10 +230,11 @@ def get_excel_template(header_list: List, selector_header_list: List, option_lis
         for option in options:
             if option.get(selector_header):
                 header_option = option.get(selector_header)
-        dv = DataValidation(type="list", formula1=f'"{",".join(header_option)}"')
+        dv = DataValidation(type='list', formula1=f'"{",".join(header_option)}"')
         # 设置数据有效性规则的起始单元格和结束单元格
         dv.add(
-            f'{get_column_letter(column_selector_header_index)}2:{get_column_letter(column_selector_header_index)}1048576')
+            f'{get_column_letter(column_selector_header_index)}2:{get_column_letter(column_selector_header_index)}1048576'
+        )
         # 添加数据有效性规则到工作表
         ws.add_data_validation(dv)
 
@@ -215,13 +252,14 @@ def get_excel_template(header_list: List, selector_header_list: List, option_lis
 def get_filepath_from_url(url: str):
     """
     工具方法：根据请求参数获取文件路径
+
     :param url: 请求参数中的url参数
     :return: 文件路径
     """
-    file_info = url.split("?")[1].split("&")
-    task_id = file_info[0].split("=")[1]
-    file_name = file_info[1].split("=")[1]
-    task_path = file_info[2].split("=")[1]
+    file_info = url.split('?')[1].split('&')
+    task_id = file_info[0].split('=')[1]
+    file_name = file_info[1].split('=')[1]
+    task_path = file_info[2].split('=')[1]
     filepath = os.path.join(CachePathConfig.PATH, task_path, task_id, file_name)
 
     return filepath

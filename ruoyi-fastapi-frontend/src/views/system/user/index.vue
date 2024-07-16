@@ -243,7 +243,7 @@
                         <el-radio
                            v-for="dict in sys_normal_disable"
                            :key="dict.value"
-                           :label="dict.value"
+                           :value="dict.value"
                         >{{ dict.label }}</el-radio>
                      </el-radio-group>
                   </el-form-item>
@@ -583,7 +583,7 @@ function handleUpdate(row) {
     form.value.roleIds = response.roleIds;
     open.value = true;
     title.value = "修改用户";
-    form.password = "";
+    form.value.password = undefined;
   });
 };
 /** 提交按钮 */

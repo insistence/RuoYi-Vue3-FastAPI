@@ -1,8 +1,8 @@
-from PIL import Image, ImageDraw, ImageFont
+import base64
 import io
 import os
 import random
-import base64
+from PIL import Image, ImageDraw, ImageFont
 
 
 class CaptchaService:
@@ -35,7 +35,7 @@ class CaptchaService:
         else:
             result = num1 * num2
         # 绘制文本
-        text = f"{num1} {operational_character} {num2} = ?"
+        text = f'{num1} {operational_character} {num2} = ?'
         draw.text((25, 15), text, fill='blue', font=font)
 
         # 将图像数据保存到内存中

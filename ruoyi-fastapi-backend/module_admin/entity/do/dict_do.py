@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime, UniqueConstraint
-from config.database import Base
 from datetime import datetime
+from sqlalchemy import Column, DateTime, Integer, String, UniqueConstraint
+from config.database import Base
 
 
 class SysDictType(Base):
     """
     字典类型表
     """
+
     __tablename__ = 'sys_dict_type'
 
     dict_id = Column(Integer, primary_key=True, autoincrement=True, comment='字典主键')
@@ -19,15 +20,14 @@ class SysDictType(Base):
     update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
     remark = Column(String(500), nullable=True, default='', comment='备注')
 
-    __table_args__ = (
-        UniqueConstraint('dict_type', name='uq_sys_dict_type_dict_type'),
-    )
+    __table_args__ = (UniqueConstraint('dict_type', name='uq_sys_dict_type_dict_type'),)
 
 
 class SysDictData(Base):
     """
     字典数据表
     """
+
     __tablename__ = 'sys_dict_data'
 
     dict_code = Column(Integer, primary_key=True, autoincrement=True, comment='字典编码')

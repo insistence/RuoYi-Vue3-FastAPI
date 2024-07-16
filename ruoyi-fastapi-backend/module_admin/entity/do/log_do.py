@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, BigInteger, Index
-from config.database import Base
 from datetime import datetime
+from sqlalchemy import BigInteger, Column, DateTime, Index, Integer, String
+from config.database import Base
 
 
 class SysLogininfor(Base):
     """
     系统访问记录
     """
+
     __tablename__ = 'sys_logininfor'
 
     info_id = Column(Integer, primary_key=True, autoincrement=True, comment='访问ID')
@@ -15,7 +16,9 @@ class SysLogininfor(Base):
     login_location = Column(String(255, collation='utf8_general_ci'), nullable=True, default='', comment='登录地点')
     browser = Column(String(50, collation='utf8_general_ci'), nullable=True, default='', comment='浏览器类型')
     os = Column(String(50, collation='utf8_general_ci'), nullable=True, default='', comment='操作系统')
-    status = Column(String(1, collation='utf8_general_ci'), nullable=True, default='0', comment='登录状态（0成功 1失败）')
+    status = Column(
+        String(1, collation='utf8_general_ci'), nullable=True, default='0', comment='登录状态（0成功 1失败）'
+    )
     msg = Column(String(255, collation='utf8_general_ci'), nullable=True, default='', comment='提示消息')
     login_time = Column(DateTime, nullable=True, default=datetime.now(), comment='访问时间')
 
@@ -27,6 +30,7 @@ class SysOperLog(Base):
     """
     操作日志记录
     """
+
     __tablename__ = 'sys_oper_log'
 
     oper_id = Column(BigInteger, primary_key=True, autoincrement=True, comment='日志主键')

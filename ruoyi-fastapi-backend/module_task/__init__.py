@@ -1,1 +1,1 @@
-from . import scheduler_test
+from . import scheduler_test  # noqa: F401

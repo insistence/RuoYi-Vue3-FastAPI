@@ -1,12 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime
-from config.database import Base
 from datetime import datetime
+from sqlalchemy import Column, DateTime, Integer, String
+from config.database import Base
 
 
 class SysUser(Base):
     """
     用户信息表
     """
+
     __tablename__ = 'sys_user'
 
     user_id = Column(Integer, primary_key=True, autoincrement=True, comment='用户ID')
@@ -34,6 +35,7 @@ class SysUserRole(Base):
     """
     用户和角色关联表
     """
+
     __tablename__ = 'sys_user_role'
 
     user_id = Column(Integer, primary_key=True, nullable=False, comment='用户ID')
@@ -44,6 +46,7 @@ class SysUserPost(Base):
     """
     用户与岗位关联表
     """
+
     __tablename__ = 'sys_user_post'
 
     user_id = Column(Integer, primary_key=True, nullable=False, comment='用户ID')
