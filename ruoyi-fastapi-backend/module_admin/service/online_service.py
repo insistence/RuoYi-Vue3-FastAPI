@@ -1,6 +1,7 @@
 from fastapi import Request
 from jose import jwt
-from config.env import JwtConfig, RedisInitKeyConfig
+from config.enums import RedisInitKeyConfig
+from config.env import JwtConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
@@ -21,7 +22,7 @@ class OnlineService:
         :param query_object: 查询参数对象
         :return: 在线用户列表信息
         """
-        access_token_keys = await request.app.state.redis.keys(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}*")
+        access_token_keys = await request.app.state.redis.keys(f"{RedisInitKeyConfig.ACCESS_TOKEN.key}*")
         if not access_token_keys:
             access_token_keys = []
         access_token_values_list = [await request.app.state.redis.get(key) for key in access_token_keys]
@@ -69,7 +70,7 @@ class OnlineService:
         if page_object.token_ids:
             token_id_list = page_object.token_ids.split(',')
             for token_id in token_id_list:
-                await request.app.state.redis.delete(f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{token_id}")
+                await request.app.state.redis.delete(f"{RedisInitKeyConfig.ACCESS_TOKEN.key}:{token_id}")
             return CrudResponseModel(is_success=True, message='强退成功')
         else:
             raise ServiceException(message='传入session_id为空')

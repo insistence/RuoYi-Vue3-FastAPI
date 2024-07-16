@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, Request
 from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-from config.enums import BusinessType
-from config.env import AppConfig, JwtConfig, RedisInitKeyConfig
+from config.enums import BusinessType, RedisInitKeyConfig
+from config.env import AppConfig, JwtConfig
 from config.get_db import get_db
 from module_admin.annotation.log_annotation import Log
 from module_admin.entity.vo.common_vo import CrudResponseModel
@@ -27,7 +27,7 @@ async def login(
 ):
     captcha_enabled = (
         True
-        if await request.app.state.redis.get(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:sys.account.captchaEnabled")
+        if await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled')
         == 'true'
         else False
     )
@@ -54,14 +54,14 @@ async def login(
     )
     if AppConfig.app_same_time_login:
         await request.app.state.redis.set(
-            f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{session_id}",
+            f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{session_id}',
             access_token,
             ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
         )
     else:
         # 此方法可实现同一账号同一时间只能登录一次
         await request.app.state.redis.set(
-            f"{RedisInitKeyConfig.ACCESS_TOKEN.get('key')}:{result[0].user_id}",
+            f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{result[0].user_id}',
             access_token,
             ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
         )

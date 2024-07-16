@@ -2,7 +2,7 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from config.constant import CommonConstant
-from config.env import RedisInitKeyConfig
+from config.enums import RedisInitKeyConfig
 from exceptions.exception import ServiceException
 from module_admin.dao.config_dao import ConfigDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
@@ -41,14 +41,14 @@ class ConfigService:
         :return:
         """
         # 获取以sys_config:开头的键列表
-        keys = await redis.keys(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:*")
+        keys = await redis.keys(f'{RedisInitKeyConfig.SYS_CONFIG.key}:*')
         # 删除匹配的键
         if keys:
             await redis.delete(*keys)
         config_all = await ConfigDao.get_config_list(query_db, ConfigPageQueryModel(**dict()), is_page=False)
         for config_obj in config_all:
             await redis.set(
-                f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_obj.get('configKey')}",
+                f"{RedisInitKeyConfig.SYS_CONFIG.key}:{config_obj.get('configKey')}",
                 config_obj.get('configValue'),
             )
 
@@ -61,7 +61,7 @@ class ConfigService:
         :param config_key: 参数键名
         :return: 参数键名对应值
         """
-        result = await redis.get(f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_key}")
+        result = await redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_key}')
 
         return result
 
@@ -97,7 +97,7 @@ class ConfigService:
                 await ConfigDao.add_config_dao(query_db, page_object)
                 await query_db.commit()
                 await request.app.state.redis.set(
-                    f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{page_object.config_key}", page_object.config_value
+                    f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
                 )
                 return CrudResponseModel(is_success=True, message='新增成功')
             except Exception as e:
@@ -125,10 +125,10 @@ class ConfigService:
                     await query_db.commit()
                     if config_info.config_key != page_object.config_key:
                         await request.app.state.redis.delete(
-                            f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_info.config_key}"
+                            f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_info.config_key}'
                         )
                     await request.app.state.redis.set(
-                        f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{page_object.config_key}", page_object.config_value
+                        f'{RedisInitKeyConfig.SYS_CONFIG.key}:{page_object.config_key}', page_object.config_value
                     )
                     return CrudResponseModel(is_success=True, message='更新成功')
                 except Exception as e:
@@ -157,9 +157,7 @@ class ConfigService:
                         raise ServiceException(message=f'内置参数{config_info.config_key}不能删除')
                     else:
                         await ConfigDao.delete_config_dao(query_db, ConfigModel(configId=int(config_id)))
-                        delete_config_key_list.append(
-                            f"{RedisInitKeyConfig.SYS_CONFIG.get('key')}:{config_info.config_key}"
-                        )
+                        delete_config_key_list.append(f'{RedisInitKeyConfig.SYS_CONFIG.key}:{config_info.config_key}')
                 await query_db.commit()
                 if delete_config_key_list:
                     await request.app.state.redis.delete(*delete_config_key_list)

@@ -1,5 +1,5 @@
 from fastapi import Request
-from config.env import RedisInitKeyConfig
+from config.enums import RedisInitKeyConfig
 from config.get_redis import RedisUtil
 from module_admin.entity.vo.cache_vo import CacheInfoModel, CacheMonitorModel
 from module_admin.entity.vo.common_vo import CrudResponseModel
@@ -36,16 +36,15 @@ class CacheService:
         :return: 缓存名称列表信息
         """
         name_list = []
-        for attr_name in dir(RedisInitKeyConfig):
-            if not attr_name.startswith('__') and isinstance(getattr(RedisInitKeyConfig, attr_name), dict):
-                name_list.append(
-                    CacheInfoModel(
-                        cacheKey='',
-                        cacheName=getattr(RedisInitKeyConfig, attr_name).get('key'),
-                        cacheValue='',
-                        remark=getattr(RedisInitKeyConfig, attr_name).get('remark'),
-                    )
+        for key_config in RedisInitKeyConfig:
+            name_list.append(
+                CacheInfoModel(
+                    cacheKey='',
+                    cacheName=key_config.key,
+                    cacheValue='',
+                    remark=key_config.remark,
                 )
+            )
 
         return name_list
 
