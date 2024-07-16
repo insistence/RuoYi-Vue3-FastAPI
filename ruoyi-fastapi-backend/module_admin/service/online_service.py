@@ -1,5 +1,5 @@
+import jwt
 from fastapi import Request
-from jose import jwt
 from config.enums import RedisInitKeyConfig
 from config.env import JwtConfig
 from exceptions.exception import ServiceException

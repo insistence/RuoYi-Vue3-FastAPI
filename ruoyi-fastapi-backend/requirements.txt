@@ -9,8 +9,8 @@ passlib[bcrypt]==1.7.4
 Pillow==10.4.0
 psutil==6.0.0
 pydantic-validation-decorator==0.1.2
+PyJWT[crypto]==2.8.0
 PyMySQL==1.1.1
-python-jose[cryptography]==3.3.0
 redis==5.0.7
 requests==2.32.3
 SQLAlchemy[asyncio]==2.0.31

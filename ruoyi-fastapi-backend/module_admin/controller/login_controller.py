@@ -1,7 +1,7 @@
+import jwt
 import uuid
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Request
-from jose import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from config.enums import BusinessType, RedisInitKeyConfig

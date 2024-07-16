@@ -1,9 +1,10 @@
+import jwt
 import random
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import Depends, Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jose import JWTError, jwt
+from jwt.exceptions import InvalidTokenError
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, List, Optional, Union
 from config.constant import CommonConstant, MenuConstant
@@ -172,9 +173,9 @@ class LoginService:
         """
         to_encode = data.copy()
         if expires_delta:
-            expire = datetime.utcnow() + expires_delta
+            expire = datetime.now(timezone.utc) + expires_delta
         else:
-            expire = datetime.utcnow() + timedelta(minutes=30)
+            expire = datetime.now(timezone.utc) + timedelta(minutes=30)
         to_encode.update({'exp': expire})
         encoded_jwt = jwt.encode(to_encode, JwtConfig.jwt_secret_key, algorithm=JwtConfig.jwt_algorithm)
         return encoded_jwt
@@ -201,11 +202,11 @@ class LoginService:
             payload = jwt.decode(token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
             user_id: str = payload.get('user_id')
             session_id: str = payload.get('session_id')
-            if user_id is None:
+            if not user_id:
                 logger.warning('用户token不合法')
                 raise AuthException(data='', message='用户token不合法')
             token_data = TokenData(user_id=int(user_id))
-        except JWTError:
+        except InvalidTokenError:
             logger.warning('用户token已失效，请重新登录')
             raise AuthException(data='', message='用户token已失效，请重新登录')
         query_user = await UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
