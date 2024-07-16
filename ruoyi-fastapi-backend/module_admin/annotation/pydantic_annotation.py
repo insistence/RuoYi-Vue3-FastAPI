@@ -19,7 +19,7 @@ def as_query(cls: Type[BaseModel]):
                 inspect.Parameter(
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
-                    default=Query(model_field.default),
+                    default=Query(default=model_field.default, description=model_field.description),
                     annotation=model_field.annotation,
                 )
             )
@@ -28,7 +28,7 @@ def as_query(cls: Type[BaseModel]):
                 inspect.Parameter(
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
-                    default=Query(...),
+                    default=Query(..., description=model_field.description),
                     annotation=model_field.annotation,
                 )
             )
@@ -57,7 +57,7 @@ def as_form(cls: Type[BaseModel]):
                 inspect.Parameter(
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
-                    default=Form(model_field.default),
+                    default=Form(default=model_field.default, description=model_field.description),
                     annotation=model_field.annotation,
                 )
             )
@@ -66,7 +66,7 @@ def as_form(cls: Type[BaseModel]):
                 inspect.Parameter(
                     model_field.alias,
                     inspect.Parameter.POSITIONAL_ONLY,
-                    default=Form(...),
+                    default=Form(..., description=model_field.description),
                     annotation=model_field.annotation,
                 )
             )
