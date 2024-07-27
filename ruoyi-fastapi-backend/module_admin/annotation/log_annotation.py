@@ -15,6 +15,8 @@ from module_admin.service.log_service import LoginLogService, OperationLogServic
 from module_admin.service.login_service import LoginService
 from config.enums import BusinessType
 from config.env import AppConfig
+from exceptions.exception import LoginException, ServiceException, ServiceWarning
+from utils.response_util import ResponseUtil
 
 
 class Log:
@@ -111,8 +113,17 @@ class Log:
                     loginTime=oper_time.strftime('%Y-%m-%d %H:%M:%S'),
                 )
                 kwargs['form_data'].login_info = login_log
-            # 调用原始函数
-            result = await func(*args, **kwargs)
+            try:
+                # 调用原始函数
+                result = await func(*args, **kwargs)
+            except LoginException as e:
+                result = ResponseUtil.failure(data=e.data, msg=e.message)
+            except ServiceException as e:
+                result = ResponseUtil.error(data=e.data, msg=e.message)
+            except ServiceWarning as e:
+                result = ResponseUtil.failure(data=e.data, msg=e.message)
+            except Exception as e:
+                result = ResponseUtil.error(msg=str(e))
             # 获取请求耗时
             cost_time = float(time.time() - start_time) * 100
             # 判断请求是否来自api文档
@@ -281,8 +292,17 @@ def log_decorator(
                     loginTime=oper_time.strftime('%Y-%m-%d %H:%M:%S'),
                 )
                 kwargs['form_data'].login_info = login_log
-            # 调用原始函数
-            result = await func(*args, **kwargs)
+            try:
+                # 调用原始函数
+                result = await func(*args, **kwargs)
+            except LoginException as e:
+                result = ResponseUtil.failure(data=e.data, msg=e.message)
+            except ServiceException as e:
+                result = ResponseUtil.error(data=e.data, msg=e.message)
+            except ServiceWarning as e:
+                result = ResponseUtil.failure(data=e.data, msg=e.message)
+            except Exception as e:
+                result = ResponseUtil.error(msg=str(e))
             # 获取请求耗时
             cost_time = float(time.time() - start_time) * 100
             # 判断请求是否来自api文档
