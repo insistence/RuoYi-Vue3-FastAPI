@@ -76,7 +76,7 @@ class JobConstant:
     """
     定时任务常量
 
-    JOB_ERROR_LIST: 定时任务禁止调用模块列表
+    JOB_ERROR_LIST: 定时任务禁止调用模块及违规字符串列表
     JOB_WHITE_LIST: 定时任务允许调用模块列表
     """
 
@@ -84,11 +84,46 @@ class JobConstant:
         'app',
         'config',
         'exceptions',
+        'import ',
         'middlewares',
         'module_admin',
+        'open(',
+        'os.',
         'server',
         'sub_applications',
+        'subprocess.',
+        'sys.',
         'utils',
+        'while ',
+        '__import__',
+        '"',
+        "'",
+        ',',
+        '?',
+        ':',
+        ';',
+        '/',
+        '|',
+        '+',
+        '-',
+        '=',
+        '~',
+        '!',
+        '#',
+        '$',
+        '%',
+        '^',
+        '&',
+        '*',
+        '<',
+        '>',
+        '(',
+        ')',
+        '[',
+        ']',
+        '{',
+        '}',
+        ' ',
     ]
     JOB_WHITE_LIST = ['module_task']
 
