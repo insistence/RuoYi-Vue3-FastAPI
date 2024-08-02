@@ -71,7 +71,7 @@ class PageUtil:
                     paginated_data.append(row[0])
                 else:
                     paginated_data.append(row)
-            has_next = True if math.ceil(len(paginated_data) / page_size) > page_num else False
+            has_next = math.ceil(total / page_size) > page_num
             result = PageResponseModel(
                 rows=CamelCaseUtil.transform_result(paginated_data),
                 pageNum=page_num,
