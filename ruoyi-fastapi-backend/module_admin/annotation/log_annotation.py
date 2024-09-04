@@ -16,6 +16,7 @@ from module_admin.service.login_service import LoginService
 from config.enums import BusinessType
 from config.env import AppConfig
 from exceptions.exception import LoginException, ServiceException, ServiceWarning
+from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
 
@@ -116,13 +117,14 @@ class Log:
             try:
                 # 调用原始函数
                 result = await func(*args, **kwargs)
-            except LoginException as e:
+            except (LoginException, ServiceWarning) as e:
+                logger.warning(e.message)
                 result = ResponseUtil.failure(data=e.data, msg=e.message)
             except ServiceException as e:
+                logger.error(e.message)
                 result = ResponseUtil.error(data=e.data, msg=e.message)
-            except ServiceWarning as e:
-                result = ResponseUtil.failure(data=e.data, msg=e.message)
             except Exception as e:
+                logger.exception(e)
                 result = ResponseUtil.error(msg=str(e))
             # 获取请求耗时
             cost_time = float(time.time() - start_time) * 100
@@ -295,13 +297,14 @@ def log_decorator(
             try:
                 # 调用原始函数
                 result = await func(*args, **kwargs)
-            except LoginException as e:
+            except (LoginException, ServiceWarning) as e:
+                logger.warning(e.message)
                 result = ResponseUtil.failure(data=e.data, msg=e.message)
             except ServiceException as e:
+                logger.error(e.message)
                 result = ResponseUtil.error(data=e.data, msg=e.message)
-            except ServiceWarning as e:
-                result = ResponseUtil.failure(data=e.data, msg=e.message)
             except Exception as e:
+                logger.exception(e)
                 result = ResponseUtil.error(msg=str(e))
             # 获取请求耗时
             cost_time = float(time.time() - start_time) * 100
