@@ -22,7 +22,7 @@ class OnlineService:
         :param query_object: 查询参数对象
         :return: 在线用户列表信息
         """
-        access_token_keys = await request.app.state.redis.keys(f"{RedisInitKeyConfig.ACCESS_TOKEN.key}*")
+        access_token_keys = await request.app.state.redis.keys(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}*')
         if not access_token_keys:
             access_token_keys = []
         access_token_values_list = [await request.app.state.redis.get(key) for key in access_token_keys]
@@ -40,11 +40,11 @@ class OnlineService:
                 login_time=payload.get('login_info').get('loginTime'),
             )
             if query_object.user_name and not query_object.ipaddr:
-                if query_object.user_name == payload.get('login_info').get('ipaddr'):
+                if query_object.user_name == payload.get('user_name'):
                     online_info_list = [online_dict]
                     break
             elif not query_object.user_name and query_object.ipaddr:
-                if query_object.ipaddr == payload.get('ipaddr'):
+                if query_object.ipaddr == payload.get('login_info').get('ipaddr'):
                     online_info_list = [online_dict]
                     break
             elif query_object.user_name and query_object.ipaddr:
@@ -70,7 +70,7 @@ class OnlineService:
         if page_object.token_ids:
             token_id_list = page_object.token_ids.split(',')
             for token_id in token_id_list:
-                await request.app.state.redis.delete(f"{RedisInitKeyConfig.ACCESS_TOKEN.key}:{token_id}")
+                await request.app.state.redis.delete(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{token_id}')
             return CrudResponseModel(is_success=True, message='强退成功')
         else:
             raise ServiceException(message='传入session_id为空')
