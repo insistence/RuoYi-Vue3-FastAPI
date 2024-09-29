@@ -2,11 +2,12 @@ import request from '@/utils/request'
 
 // 登录方法
 export function login(username, password, code, uuid) {
-  const data = new FormData();
-  data.append("username", username);
-  data.append("password", password);
-  data.append("code", code);
-  data.append("uuid", uuid);
+  const data = {
+    username,
+    password,
+    code,
+    uuid
+  }
   return request({
     url: '/login',
     headers: {
