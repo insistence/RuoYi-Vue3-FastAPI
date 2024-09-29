@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -42,7 +42,7 @@ async def get_system_dept_tree_for_edit_option(
 )
 async def get_system_dept_list(
     request: Request,
-    dept_query: DeptQueryModel = Depends(DeptQueryModel.as_query),
+    dept_query: DeptQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
     data_scope_sql: str = Depends(GetDataScope('SysDept')),
 ):

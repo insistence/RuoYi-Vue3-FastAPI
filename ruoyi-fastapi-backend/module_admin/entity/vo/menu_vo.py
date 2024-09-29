@@ -3,7 +3,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
 from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class MenuModel(BaseModel):
@@ -68,7 +67,6 @@ class MenuModel(BaseModel):
         self.get_perms()
 
 
-@as_query
 class MenuQueryModel(MenuModel):
     """
     菜单管理不分页查询模型

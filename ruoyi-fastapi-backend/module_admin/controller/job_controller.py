@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
@@ -32,7 +32,7 @@ jobController = APIRouter(prefix='/monitor', dependencies=[Depends(LoginService.
 )
 async def get_system_job_list(
     request: Request,
-    job_page_query: JobPageQueryModel = Depends(JobPageQueryModel.as_query),
+    job_page_query: JobPageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据
@@ -132,7 +132,7 @@ async def query_detail_system_job(request: Request, job_id: int, query_db: Async
 @Log(title='定时任务', business_type=BusinessType.EXPORT)
 async def export_system_job_list(
     request: Request,
-    job_page_query: JobPageQueryModel = Depends(JobPageQueryModel.as_form),
+    job_page_query: JobPageQueryModel = Form(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取全量数据
@@ -148,7 +148,7 @@ async def export_system_job_list(
 )
 async def get_system_job_log_list(
     request: Request,
-    job_log_page_query: JobLogPageQueryModel = Depends(JobLogPageQueryModel.as_query),
+    job_log_page_query: JobLogPageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据
@@ -183,7 +183,7 @@ async def delete_system_job_log(request: Request, job_log_ids: str, query_db: As
 @Log(title='定时任务调度日志', business_type=BusinessType.EXPORT)
 async def export_system_job_log_list(
     request: Request,
-    job_log_page_query: JobLogPageQueryModel = Depends(JobLogPageQueryModel.as_form),
+    job_log_page_query: JobLogPageQueryModel = Form(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取全量数据

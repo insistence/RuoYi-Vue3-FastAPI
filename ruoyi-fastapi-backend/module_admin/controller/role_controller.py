@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
@@ -43,7 +43,7 @@ async def get_system_role_dept_tree(
 )
 async def get_system_role_list(
     request: Request,
-    role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_query),
+    role_page_query: RolePageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
     data_scope_sql: str = Depends(GetDataScope('SysDept')),
 ):
@@ -165,7 +165,7 @@ async def query_detail_system_role(
 @Log(title='角色管理', business_type=BusinessType.EXPORT)
 async def export_system_role_list(
     request: Request,
-    role_page_query: RolePageQueryModel = Depends(RolePageQueryModel.as_form),
+    role_page_query: RolePageQueryModel = Form(),
     query_db: AsyncSession = Depends(get_db),
     data_scope_sql: str = Depends(GetDataScope('SysDept')),
 ):
@@ -211,7 +211,7 @@ async def reset_system_role_status(
 )
 async def get_system_allocated_user_list(
     request: Request,
-    user_role: UserRolePageQueryModel = Depends(UserRolePageQueryModel.as_query),
+    user_role: UserRolePageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
     data_scope_sql: str = Depends(GetDataScope('SysUser')),
 ):
@@ -230,7 +230,7 @@ async def get_system_allocated_user_list(
 )
 async def get_system_unallocated_user_list(
     request: Request,
-    user_role: UserRolePageQueryModel = Depends(UserRolePageQueryModel.as_query),
+    user_role: UserRolePageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
     data_scope_sql: str = Depends(GetDataScope('SysUser')),
 ):
@@ -246,7 +246,7 @@ async def get_system_unallocated_user_list(
 @Log(title='角色管理', business_type=BusinessType.GRANT)
 async def add_system_role_user(
     request: Request,
-    add_role_user: CrudUserRoleModel = Depends(CrudUserRoleModel.as_query),
+    add_role_user: CrudUserRoleModel = Query(),
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
     data_scope_sql: str = Depends(GetDataScope('SysDept')),
@@ -274,7 +274,7 @@ async def cancel_system_role_user(
 @Log(title='角色管理', business_type=BusinessType.GRANT)
 async def batch_cancel_system_role_user(
     request: Request,
-    batch_cancel_user_role: CrudUserRoleModel = Depends(CrudUserRoleModel.as_query),
+    batch_cancel_user_role: CrudUserRoleModel = Query(),
     query_db: AsyncSession = Depends(get_db),
 ):
     batch_cancel_user_role_result = await UserService.delete_user_role_services(query_db, batch_cancel_user_role)
