@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -48,7 +48,7 @@ async def get_system_role_menu_tree(
 )
 async def get_system_menu_list(
     request: Request,
-    menu_query: MenuQueryModel = Depends(MenuQueryModel.as_query),
+    menu_query: MenuQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
 ):

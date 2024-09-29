@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
 from config.get_db import get_db
@@ -29,7 +29,7 @@ logController = APIRouter(prefix='/monitor', dependencies=[Depends(LoginService.
 )
 async def get_system_operation_log_list(
     request: Request,
-    operation_log_page_query: OperLogPageQueryModel = Depends(OperLogPageQueryModel.as_query),
+    operation_log_page_query: OperLogPageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据
@@ -66,7 +66,7 @@ async def delete_system_operation_log(request: Request, oper_ids: str, query_db:
 @Log(title='操作日志', business_type=BusinessType.EXPORT)
 async def export_system_operation_log_list(
     request: Request,
-    operation_log_page_query: OperLogPageQueryModel = Depends(OperLogPageQueryModel.as_form),
+    operation_log_page_query: OperLogPageQueryModel = Form(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取全量数据
@@ -88,7 +88,7 @@ async def export_system_operation_log_list(
 )
 async def get_system_login_log_list(
     request: Request,
-    login_log_page_query: LoginLogPageQueryModel = Depends(LoginLogPageQueryModel.as_query),
+    login_log_page_query: LoginLogPageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据
@@ -137,7 +137,7 @@ async def unlock_system_user(request: Request, user_name: str, query_db: AsyncSe
 @Log(title='登录日志', business_type=BusinessType.EXPORT)
 async def export_system_login_log_list(
     request: Request,
-    login_log_page_query: LoginLogPageQueryModel = Depends(LoginLogPageQueryModel.as_form),
+    login_log_page_query: LoginLogPageQueryModel = Form(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取全量数据

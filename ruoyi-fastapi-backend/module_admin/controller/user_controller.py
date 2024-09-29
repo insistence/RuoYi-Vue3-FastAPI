@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, Union
 from pydantic_validation_decorator import ValidateFields
@@ -57,7 +57,7 @@ async def get_system_dept_tree(
 )
 async def get_system_user_list(
     request: Request,
-    user_page_query: UserPageQueryModel = Depends(UserPageQueryModel.as_query),
+    user_page_query: UserPageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
     data_scope_sql: str = Depends(GetDataScope('SysUser')),
 ):
@@ -296,7 +296,7 @@ async def change_system_user_profile_info(
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def reset_system_user_password(
     request: Request,
-    reset_password: ResetPasswordModel = Depends(ResetPasswordModel.as_query),
+    reset_password: ResetPasswordModel = Query(),
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
 ):
@@ -344,7 +344,7 @@ async def export_system_user_template(request: Request, query_db: AsyncSession =
 @Log(title='用户管理', business_type=BusinessType.EXPORT)
 async def export_system_user_list(
     request: Request,
-    user_page_query: UserPageQueryModel = Depends(UserPageQueryModel.as_form),
+    user_page_query: UserPageQueryModel = Form(),
     query_db: AsyncSession = Depends(get_db),
     data_scope_sql: str = Depends(GetDataScope('SysUser')),
 ):

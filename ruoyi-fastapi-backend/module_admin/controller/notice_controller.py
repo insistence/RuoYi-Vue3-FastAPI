@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
@@ -23,7 +23,7 @@ noticeController = APIRouter(prefix='/system/notice', dependencies=[Depends(Logi
 )
 async def get_system_notice_list(
     request: Request,
-    notice_page_query: NoticePageQueryModel = Depends(NoticePageQueryModel.as_query),
+    notice_page_query: NoticePageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据

@@ -3,7 +3,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
 from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_form, as_query
 
 
 class JobModel(BaseModel):
@@ -77,8 +76,6 @@ class JobQueryModel(JobModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
-@as_form
 class JobPageQueryModel(JobQueryModel):
     """
     定时任务管理分页查询模型
@@ -115,8 +112,6 @@ class JobLogQueryModel(JobLogModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
-@as_form
 class JobLogPageQueryModel(JobLogQueryModel):
     """
     定时任务日志管理分页查询模型

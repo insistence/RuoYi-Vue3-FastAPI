@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Form, Query, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
@@ -24,7 +24,7 @@ configController = APIRouter(prefix='/system/config', dependencies=[Depends(Logi
 )
 async def get_system_config_list(
     request: Request,
-    config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_query),
+    config_page_query: ConfigPageQueryModel = Query(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据
@@ -112,7 +112,7 @@ async def query_system_config(request: Request, config_key: str):
 @Log(title='参数管理', business_type=BusinessType.EXPORT)
 async def export_system_config_list(
     request: Request,
-    config_page_query: ConfigPageQueryModel = Depends(ConfigPageQueryModel.as_form),
+    config_page_query: ConfigPageQueryModel = Form(),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取全量数据
