@@ -72,6 +72,7 @@ class NoticeDao:
                 if query_object.begin_time and query_object.end_time
                 else True,
             )
+            .order_by(SysNotice.notice_id)
             .distinct()
         )
         notice_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)

@@ -318,6 +318,7 @@ class UserDao:
                 and_(SysUser.dept_id == SysDept.dept_id, SysDept.status == '0', SysDept.del_flag == '0'),
                 isouter=True,
             )
+            .order_by(SysUser.user_id)
             .distinct()
         )
         user_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)

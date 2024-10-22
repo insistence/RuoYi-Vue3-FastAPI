@@ -1,5 +1,5 @@
 from datetime import datetime, time
-from sqlalchemy import delete, select
+from sqlalchemy import delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 from module_admin.entity.do.job_do import SysJobLog
@@ -35,6 +35,7 @@ class JobLogDao:
                 if query_object.begin_time and query_object.end_time
                 else True,
             )
+            .order_by(desc(SysJobLog.create_time))
             .distinct()
         )
         job_log_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
