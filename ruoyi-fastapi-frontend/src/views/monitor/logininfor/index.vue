@@ -218,7 +218,7 @@ function handleUnlock() {
 function handleExport() {
   proxy.download("monitor/logininfor/export", {
     ...queryParams.value,
-  }, `config_${new Date().getTime()}.xlsx`);
+  }, `logininfor_${new Date().getTime()}.xlsx`);
 }
 
 getList();
