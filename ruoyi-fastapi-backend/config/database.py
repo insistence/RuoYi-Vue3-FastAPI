@@ -9,6 +9,11 @@ ASYNC_SQLALCHEMY_DATABASE_URL = (
     f'mysql+asyncmy://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
     f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
 )
+if DataBaseConfig.db_type == 'postgresql':
+    ASYNC_SQLALCHEMY_DATABASE_URL = (
+        f'postgresql+asyncpg://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
+        f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
+    )
 
 async_engine = create_async_engine(
     ASYNC_SQLALCHEMY_DATABASE_URL,

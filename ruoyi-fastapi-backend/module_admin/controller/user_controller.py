@@ -2,9 +2,10 @@ import os
 from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 from pydantic_validation_decorator import ValidateFields
 from config.get_db import get_db
+from config.enums import BusinessType
 from config.env import UploadConfig
 from module_admin.annotation.log_annotation import Log
 from module_admin.aspect.data_scope import GetDataScope
@@ -30,7 +31,6 @@ from module_admin.service.login_service import LoginService
 from module_admin.service.user_service import UserService
 from module_admin.service.role_service import RoleService
 from module_admin.service.dept_service import DeptService
-from config.enums import BusinessType
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.page_util import PageResponseModel
@@ -220,7 +220,7 @@ async def query_detail_system_user_profile(
 )
 async def query_detail_system_user(
     request: Request,
-    user_id: Optional[Union[int, str]] = '',
+    user_id: Optional[Union[int, Literal['']]] = '',
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
     data_scope_sql: str = Depends(GetDataScope('SysUser')),
