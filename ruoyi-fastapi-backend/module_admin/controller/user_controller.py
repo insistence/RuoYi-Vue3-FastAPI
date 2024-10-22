@@ -57,7 +57,7 @@ async def get_system_dept_tree(
 )
 async def get_system_user_list(
     request: Request,
-    user_page_query: UserPageQueryModel = Query(),
+    user_page_query: UserPageQueryModel = Depends(UserPageQueryModel.as_query),
     query_db: AsyncSession = Depends(get_db),
     data_scope_sql: str = Depends(GetDataScope('SysUser')),
 ):
@@ -296,7 +296,7 @@ async def change_system_user_profile_info(
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def reset_system_user_password(
     request: Request,
-    reset_password: ResetPasswordModel = Query(),
+    reset_password: ResetPasswordModel = Depends(ResetPasswordModel.as_query),
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
 ):

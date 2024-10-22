@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi import APIRouter, Depends, Form, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -32,7 +32,7 @@ dictController = APIRouter(prefix='/system/dict', dependencies=[Depends(LoginSer
 )
 async def get_system_dict_type_list(
     request: Request,
-    dict_type_page_query: DictTypePageQueryModel = Query(),
+    dict_type_page_query: DictTypePageQueryModel = Depends(DictTypePageQueryModel.as_query),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据
@@ -152,7 +152,7 @@ async def query_system_dict_type_data(request: Request, dict_type: str, query_db
 )
 async def get_system_dict_data_list(
     request: Request,
-    dict_data_page_query: DictDataPageQueryModel = Query(),
+    dict_data_page_query: DictDataPageQueryModel = Depends(DictDataPageQueryModel.as_query),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据

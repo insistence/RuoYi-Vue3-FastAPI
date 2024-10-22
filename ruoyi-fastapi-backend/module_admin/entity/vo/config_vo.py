@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
 from typing import Literal, Optional
+from module_admin.annotation.pydantic_annotation import as_query
 
 
 class ConfigModel(BaseModel):
@@ -53,6 +54,7 @@ class ConfigQueryModel(ConfigModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
+@as_query
 class ConfigPageQueryModel(ConfigQueryModel):
     """
     参数配置管理分页查询模型

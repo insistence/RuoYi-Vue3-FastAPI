@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Pattern, Size
 from typing import Literal, Optional
+from module_admin.annotation.pydantic_annotation import as_query
 
 
 class DictTypeModel(BaseModel):
@@ -99,6 +100,7 @@ class DictTypeQueryModel(DictTypeModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
+@as_query
 class DictTypePageQueryModel(DictTypeQueryModel):
     """
     字典类型管理分页查询模型
@@ -127,6 +129,7 @@ class DictDataQueryModel(DictDataModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
+@as_query
 class DictDataPageQueryModel(DictDataQueryModel):
     """
     字典数据管理分页查询模型

@@ -1,5 +1,5 @@
 from datetime import datetime
-from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi import APIRouter, Depends, Form, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
@@ -24,7 +24,7 @@ postController = APIRouter(prefix='/system/post', dependencies=[Depends(LoginSer
 )
 async def get_system_post_list(
     request: Request,
-    post_page_query: PostPageQueryModel = Query(),
+    post_page_query: PostPageQueryModel = Depends(PostPageQueryModel.as_query),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据

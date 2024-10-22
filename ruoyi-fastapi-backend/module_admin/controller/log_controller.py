@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, Query, Request
+from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from config.enums import BusinessType
 from config.get_db import get_db
@@ -29,7 +29,7 @@ logController = APIRouter(prefix='/monitor', dependencies=[Depends(LoginService.
 )
 async def get_system_operation_log_list(
     request: Request,
-    operation_log_page_query: OperLogPageQueryModel = Query(),
+    operation_log_page_query: OperLogPageQueryModel = Depends(OperLogPageQueryModel.as_query),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据
@@ -88,7 +88,7 @@ async def export_system_operation_log_list(
 )
 async def get_system_login_log_list(
     request: Request,
-    login_log_page_query: LoginLogPageQueryModel = Query(),
+    login_log_page_query: LoginLogPageQueryModel = Depends(LoginLogPageQueryModel.as_query),
     query_db: AsyncSession = Depends(get_db),
 ):
     # 获取分页数据
