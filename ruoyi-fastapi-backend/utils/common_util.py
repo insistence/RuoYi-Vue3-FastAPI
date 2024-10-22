@@ -7,7 +7,8 @@ from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy.engine.row import Row
-from typing import List
+from typing import Any, Dict, List, Literal, Union
+from config.database import Base
 from config.env import CachePathConfig
 
 
@@ -38,13 +39,71 @@ def worship():
     """)
 
 
+class SqlalchemyUtil:
+    """
+    sqlalchemy工具类
+    """
+
+    @classmethod
+    def base_to_dict(
+        cls, obj: Union[Base, Dict], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ):
+        """
+        将sqlalchemy模型对象转换为字典
+
+        :param obj: sqlalchemy模型对象或普通字典
+        :param transform_case: 转换得到的结果形式，可选的有'no_case'(不转换)、'snake_to_camel'(下划线转小驼峰)、'camel_to_snake'(小驼峰转下划线)，默认为'no_case'
+        :return: 字典结果
+        """
+        if isinstance(obj, Base):
+            base_dict = obj.__dict__.copy()
+            base_dict.pop('_sa_instance_state', None)
+        elif isinstance(obj, dict):
+            base_dict = obj.copy()
+        if transform_case == 'snake_to_camel':
+            return {CamelCaseUtil.snake_to_camel(k): v for k, v in base_dict.items()}
+        elif transform_case == 'camel_to_snake':
+            return {SnakeCaseUtil.camel_to_snake(k): v for k, v in base_dict.items()}
+
+        return base_dict
+
+    @classmethod
+    def serialize_result(
+        cls, result: Any, transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ):
+        """
+        将sqlalchemy查询结果序列化
+
+        :param result: sqlalchemy查询结果
+        :param transform_case: 转换得到的结果形式，可选的有'no_case'(不转换)、'snake_to_camel'(下划线转小驼峰)、'camel_to_snake'(小驼峰转下划线)，默认为'no_case'
+        :return: 序列化结果
+        """
+        if isinstance(result, (Base, dict)):
+            return cls.base_to_dict(result, transform_case)
+        elif isinstance(result, list):
+            return [cls.serialize_result(row, transform_case) for row in result]
+        elif isinstance(result, Row):
+            if all([isinstance(row, Base) for row in result]):
+                return [cls.base_to_dict(row, transform_case) for row in result]
+            elif any([isinstance(row, Base) for row in result]):
+                return [cls.serialize_result(row, transform_case) for row in result]
+            else:
+                result_dict = result._asdict()
+                if transform_case == 'snake_to_camel':
+                    return {CamelCaseUtil.snake_to_camel(k): v for k, v in result_dict.items()}
+                elif transform_case == 'camel_to_snake':
+                    return {SnakeCaseUtil.camel_to_snake(k): v for k, v in result_dict.items()}
+                return result_dict
+        return result
+
+
 class CamelCaseUtil:
     """
     下划线形式(snake_case)转小驼峰形式(camelCase)工具方法
     """
 
     @classmethod
-    def snake_to_camel(cls, snake_str):
+    def snake_to_camel(cls, snake_str: str):
         """
         下划线形式字符串(snake_case)转换为小驼峰形式字符串(camelCase)
 
@@ -57,41 +116,14 @@ class CamelCaseUtil:
         return words[0] + ''.join(word.capitalize() for word in words[1:])
 
     @classmethod
-    def transform_result(cls, result):
+    def transform_result(cls, result: Any):
         """
         针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
 
         :param result: 输入数据
         :return: 小驼峰形式结果
         """
-        if result is None:
-            return result
-        # 如果是字典，直接转换键
-        elif isinstance(result, dict):
-            return {cls.snake_to_camel(k): v for k, v in result.items()}
-        # 如果是一组字典或其他类型的列表，遍历列表进行转换
-        elif isinstance(result, list):
-            return [
-                cls.transform_result(row)
-                if isinstance(row, (dict, Row))
-                else (
-                    cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row
-                )
-                for row in result
-            ]
-        # 如果是sqlalchemy的Row实例，遍历Row进行转换
-        elif isinstance(result, Row):
-            return [
-                cls.transform_result(row)
-                if isinstance(row, dict)
-                else (
-                    cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row
-                )
-                for row in result
-            ]
-        # 如果是其他类型，如模型实例，先转换为字典
-        else:
-            return cls.transform_result({c.name: getattr(result, c.name) for c in result.__table__.columns})
+        return SqlalchemyUtil.serialize_result(result=result, transform_case='snake_to_camel')
 
 
 class SnakeCaseUtil:
@@ -100,7 +132,7 @@ class SnakeCaseUtil:
     """
 
     @classmethod
-    def camel_to_snake(cls, camel_str):
+    def camel_to_snake(cls, camel_str: str):
         """
         小驼峰形式字符串(camelCase)转换为下划线形式字符串(snake_case)
 
@@ -112,41 +144,14 @@ class SnakeCaseUtil:
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', words).lower()
 
     @classmethod
-    def transform_result(cls, result):
+    def transform_result(cls, result: Any):
         """
         针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
 
         :param result: 输入数据
         :return: 小驼峰形式结果
         """
-        if result is None:
-            return result
-        # 如果是字典，直接转换键
-        elif isinstance(result, dict):
-            return {cls.camel_to_snake(k): v for k, v in result.items()}
-        # 如果是一组字典或其他类型的列表，遍历列表进行转换
-        elif isinstance(result, list):
-            return [
-                cls.transform_result(row)
-                if isinstance(row, (dict, Row))
-                else (
-                    cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row
-                )
-                for row in result
-            ]
-        # 如果是sqlalchemy的Row实例，遍历Row进行转换
-        elif isinstance(result, Row):
-            return [
-                cls.transform_result(row)
-                if isinstance(row, dict)
-                else (
-                    cls.transform_result({c.name: getattr(row, c.name) for c in row.__table__.columns}) if row else row
-                )
-                for row in result
-            ]
-        # 如果是其他类型，如模型实例，先转换为字典
-        else:
-            return cls.transform_result({c.name: getattr(result, c.name) for c in result.__table__.columns})
+        return SqlalchemyUtil.serialize_result(result=result, transform_case='camel_to_snake')
 
 
 def bytes2human(n, format_str='%(value).1f%(symbol)s'):

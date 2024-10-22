@@ -253,7 +253,7 @@ class DeptService:
         :return:
         """
         dept_id_list = dept.ancestors.split(',')
-        await DeptDao.update_dept_status_normal_dao(query_db, dept_id_list)
+        await DeptDao.update_dept_status_normal_dao(query_db, list(map(int, dept_id_list)))
 
     @classmethod
     async def update_dept_children(cls, query_db: AsyncSession, dept_id: int, new_ancestors: str, old_ancestors: str):

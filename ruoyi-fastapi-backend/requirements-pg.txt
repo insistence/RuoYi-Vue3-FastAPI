@@ -1,0 +1,17 @@
+APScheduler==3.10.4
+asyncpg==0.30.0
+DateTime==5.5
+fastapi[all]==0.115.0
+loguru==0.7.2
+openpyxl==3.1.5
+pandas==2.2.2
+passlib[bcrypt]==1.7.4
+Pillow==10.4.0
+psutil==6.0.0
+pydantic-validation-decorator==0.1.4
+PyJWT[crypto]==2.8.0
+psycopg2==2.9.10
+redis==5.0.7
+requests==2.32.3
+SQLAlchemy[asyncio]==2.0.31
+user-agents==2.2.0

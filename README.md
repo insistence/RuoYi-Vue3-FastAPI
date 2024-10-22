@@ -1,12 +1,12 @@
 <p align="center">
 	<img alt="logo" src="https://oscimg.oschina.net/oscnet/up-d3d0a9303e11d522a06cd263f3079027715.png">
 </p>
-<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">RuoYi-Vue3-FastAPI v1.4.0</h1>
+<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">RuoYi-Vue3-FastAPI v1.5.0</h1>
 <h4 align="center">基于RuoYi-Vue3+FastAPI前后端分离的快速开发框架</h4>
 <p align="center">
 	<a href="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/stargazers"><img src="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/badge/star.svg?theme=dark"></a>
     <a href="https://github.com/insistence/RuoYi-Vue3-FastAPI"><img src="https://img.shields.io/github/stars/insistence/RuoYi-Vue3-FastAPI?style=social"></a>
-	<a href="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI"><img src="https://img.shields.io/badge/RuoYiVue3FastAPI-v1.4.0-brightgreen.svg"></a>
+	<a href="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI"><img src="https://img.shields.io/badge/RuoYiVue3FastAPI-v1.5.0-brightgreen.svg"></a>
 	<a href="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/blob/master/LICENSE"><img src="https://img.shields.io/github/license/mashape/apistatus.svg"></a>
     <img src="https://img.shields.io/badge/python-≥3.9-blue">
     <img src="https://img.shields.io/badge/MySQL-≥5.7-blue">
@@ -17,7 +17,7 @@
 RuoYi-Vue3-FastAPI是一套全部开源的快速开发平台，毫无保留给个人及企业免费使用。
 
 * 前端采用Vue3、Element Plus，基于<u>[RuoYi-Vue3](https://github.com/yangzongzhuan/RuoYi-Vue3)</u>前端项目修改。
-* 后端采用FastAPI、sqlalchemy、MySQL、Redis、OAuth2 & Jwt。
+* 后端采用FastAPI、sqlalchemy、MySQL（PostgreSQL）、Redis、OAuth2 & Jwt。
 * 权限认证使用OAuth2 & Jwt，支持多终端认证系统。
 * 支持加载动态权限菜单，多方式轻松权限控制。
 * Vue2版本：
@@ -127,15 +127,17 @@ npm run dev 或 yarn dev
 # 进入后端目录
 cd ruoyi-fastapi-backend
 
-# 安装项目依赖环境
+# 如果使用的是MySQL数据库，请执行以下命令安装项目依赖环境
 pip3 install -r requirements.txt
+# 如果使用的是PostgreSQL数据库，请执行以下命令安装项目依赖环境
+pip3 install -r requirements-pg.txt
 
 # 配置环境
 在.env.dev文件中配置开发环境的数据库和redis
 
 # 运行sql文件
 1.新建数据库ruoyi-fastapi(默认，可修改)
-2.使用命令或数据库连接工具运行sql文件夹下的ruoyi-fastapi.sql
+2.如果使用的是MySQL数据库，使用命令或数据库连接工具运行sql文件夹下的ruoyi-fastapi.sql；如果使用的是PostgreSQL数据库，使用命令或数据库连接工具运行sql文件夹下的ruoyi-fastapi-pg.sql
 
 # 运行后端
 python3 app.py --env=dev

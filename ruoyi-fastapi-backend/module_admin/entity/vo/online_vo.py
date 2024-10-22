@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from typing import Optional
+from module_admin.annotation.pydantic_annotation import as_query
 
 
 class OnlineModel(BaseModel):
@@ -21,6 +22,7 @@ class OnlineModel(BaseModel):
     login_time: Optional[datetime] = Field(default=None, description='登录时间')
 
 
+@as_query
 class OnlineQueryModel(OnlineModel):
     """
     岗位管理不分页查询模型

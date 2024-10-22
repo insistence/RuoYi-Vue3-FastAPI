@@ -69,6 +69,7 @@ class JobDao:
                 SysJob.job_group == query_object.job_group if query_object.job_group else True,
                 SysJob.status == query_object.status if query_object.status else True,
             )
+            .order_by(SysJob.job_id)
             .distinct()
         )
         job_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
