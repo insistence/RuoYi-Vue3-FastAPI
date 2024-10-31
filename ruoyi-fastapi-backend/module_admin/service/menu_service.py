@@ -99,9 +99,9 @@ class MenuService:
         :return: 新增菜单校验结果
         """
         if not await cls.check_menu_name_unique_services(query_db, page_object):
-            raise ServiceException(message=f'新增菜单{page_object.post_name}失败，菜单名称已存在')
+            raise ServiceException(message=f'新增菜单{page_object.menu_name}失败，菜单名称已存在')
         elif page_object.is_frame == MenuConstant.YES_FRAME and not StringUtil.is_http(page_object.path):
-            raise ServiceException(message=f'新增菜单{page_object.post_name}失败，地址必须以http(s)://开头')
+            raise ServiceException(message=f'新增菜单{page_object.menu_name}失败，地址必须以http(s)://开头')
         else:
             try:
                 await MenuDao.add_menu_dao(query_db, page_object)
@@ -124,11 +124,11 @@ class MenuService:
         menu_info = await cls.menu_detail_services(query_db, page_object.menu_id)
         if menu_info.menu_id:
             if not await cls.check_menu_name_unique_services(query_db, page_object):
-                raise ServiceException(message=f'修改菜单{page_object.post_name}失败，菜单名称已存在')
+                raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，菜单名称已存在')
             elif page_object.is_frame == MenuConstant.YES_FRAME and not StringUtil.is_http(page_object.path):
-                raise ServiceException(message=f'修改菜单{page_object.post_name}失败，地址必须以http(s)://开头')
+                raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，地址必须以http(s)://开头')
             elif page_object.menu_id == page_object.parent_id:
-                raise ServiceException(message=f'修改菜单{page_object.post_name}失败，上级菜单不能选择自己')
+                raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，上级菜单不能选择自己')
             else:
                 try:
                     await MenuDao.edit_menu_dao(query_db, edit_menu)
