@@ -159,7 +159,20 @@
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="任务执行器" prop="jobGroup">
+                  <el-form-item prop="jobGroup">
+                     <template #label>
+                        <span>
+                           任务执行器
+                           <el-tooltip placement="top">
+                              <template #content>
+                                 <div>
+                                    调用方法为异步函数时此选项无效
+                                 </div>
+                              </template>
+                              <el-icon><question-filled /></el-icon>
+                           </el-tooltip>
+                        </span>
+                     </template>
                      <el-select v-model="form.jobExecutor" placeholder="请选择任务执行器">
                         <el-option
                            v-for="dict in sys_job_executor"
@@ -178,9 +191,7 @@
                            <el-tooltip placement="top">
                               <template #content>
                                  <div>
-                                    Bean调用示例：ryTask.ryParams('ry')
-                                    <br />Class类调用示例：com.ruoyi.quartz.task.RyTask.ryParams('ry')
-                                    <br />参数说明：支持字符串，布尔类型，长整型，浮点型，整型
+                                    调用示例：module_task.scheduler_test.job
                                  </div>
                               </template>
                               <el-icon><question-filled /></el-icon>
