@@ -1,11 +1,13 @@
 import json
 from apscheduler.events import EVENT_ALL
-from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.executors.asyncio import AsyncIOExecutor
+from apscheduler.executors.pool import ProcessPoolExecutor
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from asyncio import iscoroutinefunction
 from datetime import datetime, timedelta
 from sqlalchemy.engine import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -109,9 +111,9 @@ job_stores = {
         )
     ),
 }
-executors = {'default': ThreadPoolExecutor(20), 'processpool': ProcessPoolExecutor(5)}
+executors = {'default': AsyncIOExecutor(), 'processpool': ProcessPoolExecutor(5)}
 job_defaults = {'coalesce': False, 'max_instance': 1}
-scheduler = BackgroundScheduler()
+scheduler = AsyncIOScheduler()
 scheduler.configure(jobstores=job_stores, executors=executors, job_defaults=job_defaults)
 
 
@@ -132,9 +134,7 @@ class SchedulerUtil:
         async with AsyncSessionLocal() as session:
             job_list = await JobDao.get_job_list_for_scheduler(session)
             for item in job_list:
-                query_job = cls.get_scheduler_job(job_id=str(item.job_id))
-                if query_job:
-                    cls.remove_scheduler_job(job_id=str(item.job_id))
+                cls.remove_scheduler_job(job_id=str(item.job_id))
                 cls.add_scheduler_job(item)
         scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
         logger.info('系统初始定时任务加载成功')
@@ -169,6 +169,10 @@ class SchedulerUtil:
         :param job_info: 任务对象信息
         :return:
         """
+        job_func = eval(job_info.invoke_target)
+        job_executor = job_info.job_executor
+        if iscoroutinefunction(job_func):
+            job_executor = 'default'
         scheduler.add_job(
             func=eval(job_info.invoke_target),
             trigger=MyCronTrigger.from_crontab(job_info.cron_expression),
@@ -180,7 +184,7 @@ class SchedulerUtil:
             coalesce=True if job_info.misfire_policy == '2' else False,
             max_instances=3 if job_info.concurrent == '0' else 1,
             jobstore=job_info.job_group,
-            executor=job_info.job_executor,
+            executor=job_executor,
         )
 
     @classmethod
@@ -191,6 +195,10 @@ class SchedulerUtil:
         :param job_info: 任务对象信息
         :return:
         """
+        job_func = eval(job_info.invoke_target)
+        job_executor = job_info.job_executor
+        if iscoroutinefunction(job_func):
+            job_executor = 'default'
         scheduler.add_job(
             func=eval(job_info.invoke_target),
             trigger='date',
@@ -203,7 +211,7 @@ class SchedulerUtil:
             coalesce=True if job_info.misfire_policy == '2' else False,
             max_instances=3 if job_info.concurrent == '0' else 1,
             jobstore=job_info.job_group,
-            executor=job_info.job_executor,
+            executor=job_executor,
         )
 
     @classmethod
@@ -214,7 +222,9 @@ class SchedulerUtil:
         :param job_id: 任务id
         :return:
         """
-        scheduler.remove_job(job_id=str(job_id))
+        query_job = cls.get_scheduler_job(job_id=job_id)
+        if query_job:
+            scheduler.remove_job(job_id=str(job_id))
 
     @classmethod
     def scheduler_event_listener(cls, event):
