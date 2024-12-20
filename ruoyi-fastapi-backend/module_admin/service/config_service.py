@@ -7,7 +7,8 @@ from exceptions.exception import ServiceException
 from module_admin.dao.config_dao import ConfigDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
-from utils.common_util import CamelCaseUtil, export_list2excel
+from utils.common_util import CamelCaseUtil
+from utils.excel_util import ExcelUtil
 
 
 class ConfigService:
@@ -207,17 +208,12 @@ class ConfigService:
             'remark': '备注',
         }
 
-        data = config_list
-
-        for item in data:
+        for item in config_list:
             if item.get('configType') == 'Y':
                 item['configType'] = '是'
             else:
                 item['configType'] = '否'
-        new_data = [
-            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
-        ]
-        binary_data = export_list2excel(new_data)
+        binary_data = ExcelUtil.export_list2excel(config_list, mapping_dict)
 
         return binary_data
 

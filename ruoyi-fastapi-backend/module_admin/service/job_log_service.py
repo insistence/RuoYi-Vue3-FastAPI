@@ -6,7 +6,7 @@ from module_admin.dao.job_log_dao import JobLogDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.job_vo import DeleteJobLogModel, JobLogModel, JobLogPageQueryModel
 from module_admin.service.dict_service import DictDataService
-from utils.common_util import export_list2excel
+from utils.excel_util import ExcelUtil
 
 
 class JobLogService:
@@ -115,7 +115,6 @@ class JobLogService:
             'createTime': '创建时间',
         }
 
-        data = job_log_list
         job_group_list = await DictDataService.query_dict_data_list_from_cache_services(
             request.app.state.redis, dict_type='sys_job_group'
         )
@@ -129,7 +128,7 @@ class JobLogService:
         ]
         job_executor_option_dict = {item.get('value'): item for item in job_executor_option}
 
-        for item in data:
+        for item in job_log_list:
             if item.get('status') == '0':
                 item['status'] = '正常'
             else:
@@ -138,9 +137,6 @@ class JobLogService:
                 item['jobGroup'] = job_group_option_dict.get(str(item.get('jobGroup'))).get('label')
             if str(item.get('jobExecutor')) in job_executor_option_dict.keys():
                 item['jobExecutor'] = job_executor_option_dict.get(str(item.get('jobExecutor'))).get('label')
-        new_data = [
-            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
-        ]
-        binary_data = export_list2excel(new_data)
+        binary_data = ExcelUtil.export_list2excel(job_log_list, mapping_dict)
 
         return binary_data

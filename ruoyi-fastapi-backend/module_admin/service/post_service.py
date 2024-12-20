@@ -5,7 +5,8 @@ from exceptions.exception import ServiceException
 from module_admin.dao.post_dao import PostDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
-from utils.common_util import CamelCaseUtil, export_list2excel
+from utils.common_util import CamelCaseUtil
+from utils.excel_util import ExcelUtil
 
 
 class PostService:
@@ -172,16 +173,11 @@ class PostService:
             'remark': '备注',
         }
 
-        data = post_list
-
-        for item in data:
+        for item in post_list:
             if item.get('status') == '0':
                 item['status'] = '正常'
             else:
                 item['status'] = '停用'
-        new_data = [
-            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
-        ]
-        binary_data = export_list2excel(new_data)
+        binary_data = ExcelUtil.export_list2excel(post_list, mapping_dict)
 
         return binary_data
