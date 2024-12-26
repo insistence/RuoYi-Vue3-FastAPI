@@ -54,7 +54,8 @@ class RedisJobStore(BaseRedisJobStore):
         self.pickle_protocol = pickle_protocol
         self.jobs_key = jobs_key
         self.run_times_key = run_times_key
-        if not cluster:
+        self.__cluster = cluster
+        if not self.__cluster:
             self.redis = Redis(db=int(db), **connect_args)
         else:
             self.startup_nodes = create_cluster_nodes(connect_args.get('host'))
@@ -64,6 +65,12 @@ class RedisJobStore(BaseRedisJobStore):
                 password=connect_args.get('password'),
                 decode_responses=connect_args.get('decode_responses', True),
             )
+
+    def shutdown(self):
+        if not self.__cluster:
+            self.redis.connection_pool.disconnect()
+        else:
+            self.redis.disconnect_connection_pools()
 
 # 重写Cron定时
 class MyCronTrigger(CronTrigger):

@@ -109,6 +109,15 @@ class UploadSettings:
         if not os.path.exists(self.DOWNLOAD_PATH):
             os.makedirs(self.DOWNLOAD_PATH)
 
+class SwaggerStaticConf:
+    STATIC_URL = '/help'
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    STATIC_DIR = 'static'
+    STATIC_ROOT = os.path.join(BASE_DIR, STATIC_DIR)
+
+    def __init__(self):
+        pass
+
 
 class CachePathConfig:
     """
@@ -167,6 +176,13 @@ class GetConfig:
         # 实例上传配置
         return UploadSettings()
 
+    @lru_cache()
+    def get_swagger_config(self):
+        """
+        获取swagger静态文件配置
+        """
+        return SwaggerStaticConf()
+
     @staticmethod
     def parse_cli_args():
         """
@@ -206,3 +222,5 @@ DataBaseConfig = get_config.get_database_config()
 RedisConfig = get_config.get_redis_config()
 # 上传配置
 UploadConfig = get_config.get_upload_config()
+# Swagger静态文件配置
+SwaggerStaticConfig = get_config.get_swagger_config()

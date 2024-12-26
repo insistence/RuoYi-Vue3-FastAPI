@@ -25,6 +25,7 @@ from module_admin.controller.user_controller import userController
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
 from utils.log_util import logger
+from module_admin.docs.docs import custom_api_docs
 
 
 # 生命周期事件
@@ -49,6 +50,8 @@ app = FastAPI(
     description=f'{AppConfig.app_name}接口文档',
     version=AppConfig.app_version,
     lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None
 )
 
 # 挂载子应用
@@ -57,7 +60,8 @@ handle_sub_applications(app)
 handle_middleware(app)
 # 加载全局异常处理方法
 handle_exception(app)
-
+# 配置接口文档静态资源
+custom_api_docs(app)
 
 # 加载路由列表
 controller_list = [
