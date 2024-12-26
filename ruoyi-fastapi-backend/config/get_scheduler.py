@@ -3,7 +3,8 @@ from apscheduler.events import EVENT_ALL
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.executors.pool import ProcessPoolExecutor
 from apscheduler.jobstores.memory import MemoryJobStore
-from apscheduler.jobstores.redis import RedisJobStore
+from apscheduler.jobstores.redis import RedisJobStore as BaseRedisJobStore
+from apscheduler.jobstores.base import BaseJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -20,6 +21,49 @@ from module_admin.service.job_log_service import JobLogService
 from utils.log_util import logger
 import module_task  # noqa: F401
 
+try:
+    import cPickle as pickle
+except ImportError:  # pragma: nocover
+    import pickle
+
+try:
+    from redis import Redis
+    from redis.cluster import RedisCluster, ClusterNode
+except ImportError:  # pragma: nocover
+    raise ImportError('RedisJobStore requires redis installed')
+
+
+def create_cluster_nodes(node_string):
+    nodes = []
+    for node in node_string.split(','):
+        host, port = node.split(':')
+        nodes.append(ClusterNode(host=host, port=int(port)))
+    return nodes
+
+class RedisJobStore(BaseRedisJobStore):
+    def __init__(self, db=0, jobs_key='apscheduler.jobs', run_times_key='apscheduler.run_times',
+                 pickle_protocol=pickle.HIGHEST_PROTOCOL, cluster=False, **connect_args):
+        super(BaseJobStore, self).__init__()
+
+        if db is None:
+            raise ValueError('The "db" parameter must not be empty')
+        if not jobs_key:
+            raise ValueError('The "jobs_key" parameter must not be empty')
+        if not run_times_key:
+            raise ValueError('The "run_times_key" parameter must not be empty')
+        self.pickle_protocol = pickle_protocol
+        self.jobs_key = jobs_key
+        self.run_times_key = run_times_key
+        if not cluster:
+            self.redis = Redis(db=int(db), **connect_args)
+        else:
+            self.startup_nodes = create_cluster_nodes(connect_args.get('host'))
+            self.redis = RedisCluster(
+                startup_nodes=self.startup_nodes,
+                username=connect_args.get('username'),
+                password=connect_args.get('password'),
+                decode_responses=connect_args.get('decode_responses', True),
+            )
 
 # 重写Cron定时
 class MyCronTrigger(CronTrigger):
@@ -103,6 +147,7 @@ job_stores = {
     'sqlalchemy': SQLAlchemyJobStore(url=SQLALCHEMY_DATABASE_URL, engine=engine),
     'redis': RedisJobStore(
         **dict(
+            cluster=RedisConfig.redis_cluster,
             host=RedisConfig.redis_host,
             port=RedisConfig.redis_port,
             username=RedisConfig.redis_username,

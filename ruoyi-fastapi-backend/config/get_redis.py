@@ -1,10 +1,40 @@
 from redis import asyncio as aioredis
+from redis.cluster import ClusterNode
 from redis.exceptions import AuthenticationError, TimeoutError, RedisError
 from config.database import AsyncSessionLocal
 from config.env import RedisConfig
 from module_admin.service.config_service import ConfigService
 from module_admin.service.dict_service import DictDataService
 from utils.log_util import logger
+
+
+def create_cluster_nodes(node_string):
+    """
+    创建集群节点列表。
+
+    根据传入的节点字符串，生成一个包含多个ClusterNode对象的列表。
+    节点字符串的格式为"host1:port1,host2:port2,...",每个节点的主机名和端口号用冒号分隔，
+    不同节点之间用逗号分隔。
+
+    参数:
+    - node_string (str): 节点字符串，格式为"host1:port1,host2:port2,..."
+
+    返回:
+    - list: 包含多个ClusterNode对象的列表，每个ClusterNode对象表示一个集群节点。
+    """
+    # 初始化节点列表
+    nodes = []
+
+    # 遍历节点字符串，生成ClusterNode对象，并添加到节点列表中
+    for node in node_string.split(','):
+        # 分割节点字符串，获取主机名和端口号
+        host, port = node.split(':')
+
+        # 将主机名和端口号转换为ClusterNode对象，并添加到节点列表中
+        nodes.append(ClusterNode(host=host, port=int(port)))
+
+    # 返回节点列表
+    return nodes
 
 
 class RedisUtil:
@@ -20,15 +50,28 @@ class RedisUtil:
         :return: Redis连接对象
         """
         logger.info('开始连接redis...')
-        redis = await aioredis.from_url(
-            url=f'redis://{RedisConfig.redis_host}',
-            port=RedisConfig.redis_port,
-            username=RedisConfig.redis_username,
-            password=RedisConfig.redis_password,
-            db=RedisConfig.redis_database,
-            encoding='utf-8',
-            decode_responses=True,
-        )
+        if RedisConfig.redis_cluster:
+            logger.info(f'redis集群模式,集群地址：{RedisConfig.redis_host}')
+            # 创建 ClusterNode 实例列表
+            startup_nodes = create_cluster_nodes(RedisConfig.redis_host)
+            redis = await aioredis.RedisCluster(
+                startup_nodes=startup_nodes,
+                username=RedisConfig.redis_username,
+                password=RedisConfig.redis_password,
+                encoding='utf-8',
+                decode_responses=True,
+            )
+        else:
+            logger.info(f'redis单机模式,单机地址：{RedisConfig.redis_host}:{RedisConfig.redis_port}')
+            redis = await aioredis.from_url(
+                url=f'redis://{RedisConfig.redis_host}',
+                port=RedisConfig.redis_port,
+                username=RedisConfig.redis_username,
+                password=RedisConfig.redis_password,
+                db=RedisConfig.redis_database,
+                encoding='utf-8',
+                decode_responses=True,
+            )
         try:
             connection = await redis.ping()
             if connection:
