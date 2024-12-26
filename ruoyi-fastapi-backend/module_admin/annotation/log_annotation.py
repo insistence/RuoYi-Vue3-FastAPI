@@ -51,7 +51,7 @@ class Log:
             # 获取项目根路径
             project_root = os.getcwd()
             # 处理文件路径，去除项目根路径部分
-            relative_path = os.path.relpath(file_path, start=project_root)[0:-2].replace('\\', '.')
+            relative_path = os.path.relpath(file_path, start=project_root)[0:-2].replace('\\', '.').replace('/', '.')
             # 获取当前被装饰函数所在路径
             func_path = f'{relative_path}{func.__name__}()'
             # 获取上下文信息
