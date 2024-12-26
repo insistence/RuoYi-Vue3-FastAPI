@@ -135,7 +135,7 @@ async def delete_system_user(
 ):
     user_id_list = user_ids.split(',') if user_ids else []
     if user_id_list:
-        if current_user.user.user_id in user_id_list:
+        if current_user.user.user_id in list(map(int, user_id_list)):
             logger.warning('当前登录用户不能删除')
 
             return ResponseUtil.failure(msg='当前登录用户不能删除')
