@@ -96,6 +96,5 @@ class StringUtil:
         :return: 查找结果
         """
         if search_str and compare_str_list:
-            for compare_str in compare_str_list:
-                return cls.startswith_case(search_str, compare_str)
+            return any([cls.startswith_case(search_str, compare_str) for compare_str in compare_str_list])
         return False
