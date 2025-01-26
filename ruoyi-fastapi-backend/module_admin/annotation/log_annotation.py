@@ -7,7 +7,8 @@ from datetime import datetime
 from fastapi import Request
 from fastapi.responses import JSONResponse, ORJSONResponse, UJSONResponse
 from functools import lru_cache, wraps
-from typing import Literal, Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any, Callable, Literal, Optional
 from user_agents import parse
 from config.enums import BusinessType
 from config.env import AppConfig
@@ -55,9 +56,11 @@ class Log:
             # 获取当前被装饰函数所在路径
             func_path = f'{relative_path}{func.__name__}()'
             # 获取上下文信息
-            request: Request = kwargs.get('request')
+            request_name_list = get_function_parameters_name_by_type(func, Request)
+            request = get_function_parameters_value_by_name(func, request_name_list[0], *args, **kwargs)
             token = request.headers.get('Authorization')
-            query_db = kwargs.get('query_db')
+            session_name_list = get_function_parameters_name_by_type(func, AsyncSession)
+            query_db = get_function_parameters_value_by_name(func, session_name_list[0], *args, **kwargs)
             request_method = request.method
             operator_type = 0
             user_agent = request.headers.get('User-Agent')
@@ -222,3 +225,37 @@ def get_ip_location(oper_ip: str):
         oper_location = '未知'
         print(e)
     return oper_location
+
+
+def get_function_parameters_name_by_type(func: Callable, param_type: Any):
+    """
+    获取函数指定类型的参数名称
+
+    :param func: 函数
+    :param arg_type: 参数类型
+    :return: 函数指定类型的参数名称
+    """
+    # 获取函数的参数信息
+    parameters = inspect.signature(func).parameters
+    # 找到指定类型的参数名称
+    parameters_name_list = []
+    for name, param in parameters.items():
+        if param.annotation == param_type:
+            parameters_name_list.append(name)
+    return parameters_name_list
+
+
+def get_function_parameters_value_by_name(func: Callable, name: str, *args, **kwargs):
+    """
+    获取函数指定参数的值
+
+    :param func: 函数
+    :param name: 参数名
+    :return: 参数值
+    """
+    # 获取参数值
+    bound_parameters = inspect.signature(func).bind(*args, **kwargs)
+    bound_parameters.apply_defaults()
+    parameters_value = bound_parameters.arguments.get(name)
+
+    return parameters_value
