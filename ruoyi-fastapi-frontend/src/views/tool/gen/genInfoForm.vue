@@ -91,11 +91,13 @@
               <el-icon><question-filled /></el-icon>
             </el-tooltip>
           </template>
-          <tree-select
-            v-model:value="info.parentMenuId"
-            :options="menuOptions"
-            :objMap="{ value: 'menuId', label: 'menuName', children: 'children' }"
+          <el-tree-select
+            v-model="info.parentMenuId"
+            :data="menuOptions"
+            :props="{ value: 'menuId', label: 'menuName', children: 'children' }"
+            value-key="menuId"
             placeholder="请选择系统菜单"
+            check-strictly
           />
         </el-form-item>
       </el-col>
@@ -258,15 +260,18 @@ const rules = ref({
   businessName: [{ required: true, message: "请输入生成业务名", trigger: "blur" }],
   functionName: [{ required: true, message: "请输入生成功能名", trigger: "blur" }]
 });
+
 function subSelectChange(value) {
   props.info.subTableFkName = "";
 }
+
 function tplSelectChange(value) {
   if (value !== "sub") {
     props.info.subTableName = "";
     props.info.subTableFkName = "";
   }
 }
+
 function setSubTableColumns(value) {
   for (var item in props.tables) {
     const name = props.tables[item].tableName;
@@ -276,12 +281,17 @@ function setSubTableColumns(value) {
     }
   }
 }
+
 /** 查询菜单下拉树结构 */
 function getMenuTreeselect() {
   listMenu().then(response => {
     menuOptions.value = proxy.handleTree(response.data, "menuId");
   });
 }
+
+onMounted(() => {
+  getMenuTreeselect();
+})
 
 watch(() => props.info.subTableName, val => {
   setSubTableColumns(val);
@@ -293,5 +303,4 @@ watch(() => props.info.tplWebType, val => {
   }
 });
 
-getMenuTreeselect();
 </script>

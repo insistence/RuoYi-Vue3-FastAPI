@@ -1,0 +1,40 @@
+from datetime import datetime
+from sqlalchemy import Column, DateTime, Integer, String
+{% if table.sub %}
+from sqlalchemy.orm import relationship
+{% endif %}
+from config.database import Base
+
+
+class {{ ClassName }}(Base):
+    """
+    {{ functionName }}表
+    """
+
+    __tablename__ = '{{ tableName }}'
+
+    {% for column in columns %}
+    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required %}nullable=True{% else %}nullable=False{% endif %}, comment='{{ column.column_comment }}')
+    {% endfor %}
+
+    {% if table.sub %}
+    {{ table.sub_table.business_name }} = relationship('{{ table.sub_table.class_name }}', back_populates='{{ businessName }}')
+    {% endif %}
+
+
+{% if table.sub %}
+class {{ table.sub_table.class_name }}(Base):
+    """
+    {{ table.sub_table.function_name }}表
+    """
+
+    __tablename__ = '{{ table.sub_table.table_name }}'
+
+    {% for column in table.sub_table.columns %}
+    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required %}nullable=True{% else %}nullable=False{% endif %}, comment='{{ column.column_comment }}')
+    {% endfor %}
+
+    {% if table.sub %}
+    {{ businessName }} = relationship('{{ ClassName }}', back_populates='{{ table.sub_table.business_name }}')
+    {% endif %}
+{% endif %}

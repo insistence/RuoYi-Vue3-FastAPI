@@ -24,22 +24,24 @@
             min-width="10%"
             :show-overflow-tooltip="true"
           />
-          <el-table-column label="Java类型" min-width="11%">
+          <el-table-column label="Python类型" min-width="11%">
             <template #default="scope">
-              <el-select v-model="scope.row.javaType">
-                <el-option label="Long" value="Long" />
-                <el-option label="String" value="String" />
-                <el-option label="Integer" value="Integer" />
-                <el-option label="Double" value="Double" />
-                <el-option label="BigDecimal" value="BigDecimal" />
-                <el-option label="Date" value="Date" />
-                <el-option label="Boolean" value="Boolean" />
+              <el-select v-model="scope.row.pythonType">
+                <el-option label="str" value="str" />
+                <el-option label="int" value="int" />
+                <el-option label="float" value="float" />
+                <el-option label="Decimal" value="Decimal" />
+                <el-option label="date" value="date" />
+                <el-option label="time" value="time" />
+                <el-option label="datetime" value="datetime" />
+                <el-option label="bytes" value="bytes" />
+                <el-option label="dict" value="dict" />
               </el-select>
             </template>
           </el-table-column>
-          <el-table-column label="java属性" min-width="10%">
+          <el-table-column label="Python属性" min-width="10%">
             <template #default="scope">
-              <el-input v-model="scope.row.javaField"></el-input>
+              <el-input v-model="scope.row.pythonField"></el-input>
             </template>
           </el-table-column>
 
@@ -168,6 +170,7 @@ function submitForm() {
     }
   });
 }
+
 function getFormPromise(form) {
   return new Promise(resolve => {
     form.validate(res => {
@@ -175,6 +178,7 @@ function getFormPromise(form) {
     });
   });
 }
+
 function close() {
   const obj = { path: "/tool/gen", query: { t: Date.now(), pageNum: route.query.pageNum } };
   proxy.$tab.closeOpenPage(obj);

@@ -913,8 +913,8 @@ create table gen_table_column (
     column_name varchar(200),
     column_comment varchar(500),
     column_type varchar(100),
-    java_type varchar(500),
-    java_field varchar(200),
+    python_type varchar(500),
+    python_field varchar(200),
     is_pk char(1),
     is_increment char(1),
     is_required char(1),
@@ -937,8 +937,8 @@ comment on column gen_table_column.table_id is '归属表编号';
 comment on column gen_table_column.column_name is '列名称';
 comment on column gen_table_column.column_comment is '列描述';
 comment on column gen_table_column.column_type is '列类型';
-comment on column gen_table_column.java_type is 'JAVA类型';
-comment on column gen_table_column.java_field is 'JAVA字段名';
+comment on column gen_table_column.python_type is 'PYTHON类型';
+comment on column gen_table_column.python_field is 'PYTHON字段名';
 comment on column gen_table_column.is_pk is '是否主键（1是）';
 comment on column gen_table_column.is_increment is '是否自增（1是）';
 comment on column gen_table_column.is_required is '是否必填（1是）';
