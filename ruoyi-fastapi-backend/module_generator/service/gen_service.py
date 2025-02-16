@@ -19,14 +19,13 @@ from module_generator.entity.vo.gen_vo import (
 )
 from module_generator.dao.gen_dao import GenTableColumnDao, GenTableDao
 from utils.common_util import CamelCaseUtil
-from utils.excel_util import ExcelUtil
 from utils.gen_util import GenUtils
 from utils.template_util import TemplateInitializer, TemplateUtils
 
 
 class GenTableService:
     """
-    岗位管理模块服务层
+    代码生成业务表服务层
     """
 
     @classmethod
@@ -34,12 +33,12 @@ class GenTableService:
         cls, query_db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
     ):
         """
-        获取代码生成列表信息service
+        获取代码生成业务表列表信息service
 
         :param query_db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
-        :return: 代码生成列表信息对象
+        :return: 代码生成业务列表信息对象
         """
         gen_table_list_result = await GenTableDao.get_gen_table_list(query_db, query_object, is_page)
 
@@ -64,11 +63,10 @@ class GenTableService:
     @classmethod
     async def get_gen_db_table_list_by_name_services(cls, query_db: AsyncSession, table_names: List[str]):
         """
-        获取数据库列表信息service
+        根据表名称组获取数据库列表信息service
 
         :param query_db: orm对象
-        :param query_object: 查询参数对象
-        :param is_page: 是否开启分页
+        :param table_names: 表名称组
         :return: 数据库列表信息对象
         """
         gen_db_table_list_result = await GenTableDao.get_gen_db_table_list_by_names(query_db, table_names)
@@ -79,6 +77,14 @@ class GenTableService:
     async def import_gen_table_services(
         cls, query_db: AsyncSession, gen_table_list: List[GenTableModel], current_user: CurrentUserModel
     ):
+        """
+        导入表结构service
+
+        :param query_db: orm对象
+        :param gen_table_list: 导入表列表
+        :param current_user: 当前用户信息对象
+        :return: 导入结果
+        """
         try:
             for table in gen_table_list:
                 table_name = table.table_name
@@ -102,11 +108,11 @@ class GenTableService:
     @classmethod
     async def edit_gen_table_services(cls, query_db: AsyncSession, page_object: EditGenTableModel):
         """
-        编辑岗位信息service
+        编辑业务表信息service
 
         :param query_db: orm对象
-        :param page_object: 编辑岗位对象
-        :return: 编辑岗位校验结果
+        :param page_object: 编辑业务表对象
+        :return: 编辑业务表校验结果
         """
         edit_gen_table = page_object.model_dump(exclude_unset=True, by_alias=True)
         gen_table_info = await cls.get_gen_table_by_id_services(query_db, page_object.table_id)
@@ -129,11 +135,11 @@ class GenTableService:
     @classmethod
     async def delete_gen_table_services(cls, query_db: AsyncSession, page_object: DeleteGenTableModel):
         """
-        删除岗位信息service
+        删除业务表信息service
 
         :param query_db: orm对象
-        :param page_object: 删除岗位对象
-        :return: 删除岗位校验结果
+        :param page_object: 删除业务表对象
+        :return: 删除业务表校验结果
         """
         if page_object.table_ids:
             table_id_list = page_object.table_ids.split(',')
@@ -154,25 +160,24 @@ class GenTableService:
     @classmethod
     async def get_gen_table_by_id_services(cls, query_db: AsyncSession, table_id: int):
         """
-        获取需要生成的表格详细信息service
+        获取需要生成的业务表详细信息service
 
         :param query_db: orm对象
-        :param table_id: 需要生成的表格id
-        :return: 需要生成的表格id对应的信息
+        :param table_id: 需要生成的业务表id
+        :return: 需要生成的业务表id对应的信息
         """
         gen_table = await GenTableDao.get_gen_table_by_id(query_db, table_id)
-        result = await cls.set_table_from_options(GenTableModel(**CamelCaseUtil.transform_result(gen_table)))
+        await cls.set_table_from_options(GenTableModel(**CamelCaseUtil.transform_result(gen_table)))
 
-        return result
+        return gen_table
 
     @classmethod
     async def get_gen_table_all_services(cls, query_db: AsyncSession):
         """
-        获取需要生成的表格详细信息service
+        获取所有业务表信息service
 
         :param query_db: orm对象
-        :param table_id: 需要生成的表格id
-        :return: 需要生成的表格id对应的信息
+        :return: 所有业务表信息
         """
         gen_table_all = await GenTableDao.get_gen_table_all(query_db)
         result = [GenTableModel(**gen_table) for gen_table in CamelCaseUtil.transform_result(gen_table_all)]
@@ -225,7 +230,7 @@ class GenTableService:
         预览代码service
 
         :param query_db: orm对象
-        :param table_id: 表格id
+        :param table_id: 业务表id
         :return: 预览数据列表
         """
         gen_table = GenTableModel(
@@ -248,7 +253,7 @@ class GenTableService:
         生成代码至指定路径service
 
         :param query_db: orm对象
-        :param table_name: 表格名称
+        :param table_name: 业务表名称
         :return: 生成代码结果
         """
         env = TemplateInitializer.init_jinja2()
@@ -273,7 +278,7 @@ class GenTableService:
         批量生成代码service
 
         :param query_db: orm对象
-        :param table_names: 表格名称
+        :param table_names: 业务表名称组
         :return: 下载代码结果
         """
         zip_buffer = io.BytesIO()
@@ -295,7 +300,7 @@ class GenTableService:
         获取生成代码渲染模板相关信息
 
         :param query_db: orm对象
-        :param table_name: 表格名称
+        :param table_name: 业务表名称
         :return: 生成代码渲染模板相关信息
         """
         gen_table = GenTableModel(
@@ -327,11 +332,11 @@ class GenTableService:
     @classmethod
     async def sync_db_services(cls, query_db: AsyncSession, table_name: str):
         """
-        获取需要生成的表格详细信息service
+        同步数据库service
 
         :param query_db: orm对象
-        :param table_name: 表格名称
-        :return: 需要生成的表格名称对应的信息
+        :param table_name: 业务表名称
+        :return: 同步数据库结果
         """
         gen_table = await GenTableDao.get_gen_table_by_name(query_db, table_name)
         table = GenTableModel(**CamelCaseUtil.transform_result(gen_table))
@@ -381,6 +386,7 @@ class GenTableService:
 
         :param query_db: orm对象
         :param gen_table: 业务表信息
+        :return:
         """
         if gen_table.sub_table_name:
             sub_table = await GenTableDao.get_gen_table_by_name(query_db, gen_table.sub_table_name)
@@ -392,6 +398,7 @@ class GenTableService:
         设置主键列信息
 
         :param gen_table: 业务表信息
+        :return:
         """
         for column in gen_table.columns:
             if column.pk:
@@ -407,43 +414,13 @@ class GenTableService:
             if gen_table.sub_table.columns is None:
                 gen_table.sub_table.pk_column = gen_table.sub_table.columns[0]
 
-    @staticmethod
-    async def export_post_list_services(post_list: List):
-        """
-        导出岗位信息service
-
-        :param post_list: 岗位信息列表
-        :return: 岗位信息对应excel的二进制数据
-        """
-        # 创建一个映射字典，将英文键映射到中文键
-        mapping_dict = {
-            'postId': '岗位编号',
-            'postCode': '岗位编码',
-            'postName': '岗位名称',
-            'postSort': '显示顺序',
-            'status': '状态',
-            'createBy': '创建者',
-            'createTime': '创建时间',
-            'updateBy': '更新者',
-            'updateTime': '更新时间',
-            'remark': '备注',
-        }
-
-        for item in post_list:
-            if item.get('status') == '0':
-                item['status'] = '正常'
-            else:
-                item['status'] = '停用'
-        binary_data = ExcelUtil.export_list2excel(post_list, mapping_dict)
-
-        return binary_data
-
     @classmethod
     async def set_table_from_options(cls, gen_table: GenTableModel):
         """
         设置代码生成其他选项值
 
         :param gen_table: 设置后的生成对象
+        :return:
         """
         params_obj = json.loads(gen_table.options) if gen_table.options else None
         if params_obj:
@@ -453,10 +430,13 @@ class GenTableService:
             gen_table.parent_menu_id = params_obj.get(GenConstant.PARENT_MENU_ID)
             gen_table.parent_menu_name = params_obj.get(GenConstant.PARENT_MENU_NAME)
 
-        return gen_table
-
     @classmethod
     async def validate_edit(cls, edit_gen_table: EditGenTableModel):
+        """
+        编辑保存参数校验
+
+        :param edit_gen_table: 编辑业务表对象
+        """
         if edit_gen_table.tpl_category == GenConstant.TPL_TREE:
             params_obj = edit_gen_table.params
 
@@ -474,14 +454,18 @@ class GenTableService:
 
 
 class GenTableColumnService:
+    """
+    代码生成业务表字段服务层
+    """
+
     @classmethod
     async def get_gen_table_column_list_by_table_id_services(cls, query_db: AsyncSession, table_id: int):
         """
-        获取代码生成列列表信息service
+        获取业务表字段列表信息service
 
         :param query_db: orm对象
-        :param table_id: 表格id
-        :return: 代码生成列列表信息对象
+        :param table_id: 业务表格id
+        :return: 业务表字段列表信息对象
         """
         gen_table_column_list_result = await GenTableColumnDao.get_gen_table_column_list_by_table_id(query_db, table_id)
 

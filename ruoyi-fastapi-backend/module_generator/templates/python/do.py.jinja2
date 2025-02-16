@@ -1,5 +1,6 @@
-from datetime import datetime
-from sqlalchemy import Column, DateTime, Integer, String
+{% for do_import in doImportList %}
+{{ do_import }}
+{% endfor %}
 {% if table.sub %}
 from sqlalchemy.orm import relationship
 {% endif %}
@@ -18,23 +19,23 @@ class {{ ClassName }}(Base):
     {% endfor %}
 
     {% if table.sub %}
-    {{ table.sub_table.business_name }} = relationship('{{ table.sub_table.class_name }}', back_populates='{{ businessName }}')
+    {{ subTable.business_name }} = relationship('{{ subTable.class_name }}', back_populates='{{ businessName }}')
     {% endif %}
 
 
 {% if table.sub %}
-class {{ table.sub_table.class_name }}(Base):
+class {{ subTable.class_name }}(Base):
     """
-    {{ table.sub_table.function_name }}表
+    {{ subTable.function_name }}表
     """
 
-    __tablename__ = '{{ table.sub_table.table_name }}'
+    __tablename__ = '{{ subTableName }}'
 
-    {% for column in table.sub_table.columns %}
+    {% for column in subTable.columns %}
     {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required %}nullable=True{% else %}nullable=False{% endif %}, comment='{{ column.column_comment }}')
     {% endfor %}
 
     {% if table.sub %}
-    {{ businessName }} = relationship('{{ ClassName }}', back_populates='{{ table.sub_table.business_name }}')
+    {{ businessName }} = relationship('{{ ClassName }}', back_populates='{{ subTable.business_name }}')
     {% endif %}
 {% endif %}

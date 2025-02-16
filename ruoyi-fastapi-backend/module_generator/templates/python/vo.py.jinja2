@@ -1,11 +1,14 @@
 {% set pkField = pkColumn.python_field %}
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
-{% set pk_field_comment = pkColumn.comment %}
-from datetime import datetime
+{% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
+{% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
+{% for vo_import in voImportList %}
+{{ vo_import }}
+{% endfor %}
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank
-from typing import Literal, Optional
+from typing import Optional
 from module_admin.annotation.pydantic_annotation import as_query
 
 

@@ -1,8 +1,13 @@
 {% set pkField = pkColumn.python_field %}
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
+{% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
+{% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
 from datetime import datetime, time
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+{% if table.sub %}
+from sqlalchemy.orm import selectinload
+{% endif %}
 from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 from utils.page_util import PageUtil
@@ -16,10 +21,10 @@ class {{ BusinessName }}Dao:
     @classmethod
     async def get_{{ businessName }}_detail_by_id(cls, db: AsyncSession, {{ pk_field }}: int):
         """
-        根据{{ functionName }}id获取{{ functionName }}详细信息
+        根据{{ pk_field_comment }}获取{{ functionName }}详细信息
 
         :param db: orm对象
-        :param {{ pk_field }}: 通知公告id
+        :param {{ pk_field }}: {{ pk_field_comment }}
         :return: {{ functionName }}信息对象
         """
         {{ businessName }}_info = (await db.execute(select({{ ClassName }}).where({{ ClassName }}.{{ pk_field }} == {{ pk_field }}))).scalars().first()
@@ -64,7 +69,12 @@ class {{ BusinessName }}Dao:
         :return: {{ functionName }}列表信息对象
         """
         query = (
+            {% if table.sub %%}
             select({{ ClassName }})
+            .options(selectinload{{ ClassName }}.{{ subTable.business_name }})
+            {% else %}
+            select({{ ClassName }})
+            {% endif %}
             .where(
                 {% for column in columns %}
                 {% set field = column.python_field | camel_to_snake %}

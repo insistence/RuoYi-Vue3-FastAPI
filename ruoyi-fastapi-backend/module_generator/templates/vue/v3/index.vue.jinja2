@@ -7,7 +7,6 @@
       {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
       {% set parentheseIndex = column.column_comment.find("（") %}
       {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
-
       {% if column.html_type == "input" %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
         <el-input
@@ -188,7 +187,7 @@
             v-for="dict in {{ dictType }}"
             :key="dict.value"
             :label="dict.label"
-            {% if column.python_type == 'Integer' or column.python_type == 'Long' %}
+            {% if column.python_type == 'int' %}
             :value="parseInt(dict.value)"
             {% else %}
             :value="dict.value"
@@ -225,7 +224,7 @@
           <el-radio
             v-for="dict in {{ dictType }}"
             :key="dict.value"
-            {% if column.python_type == 'Integer' or column.python_type == 'Long' %}
+            {% if column.python_type == 'int' %}
             :label="parseInt(dict.value)"
             {% else %}
             :label="dict.value"
@@ -333,7 +332,7 @@
 import { list{{ BusinessName }}, get{{ BusinessName }}, del{{ BusinessName }}, add{{ BusinessName }}, update{{ BusinessName }} } from "@/api/{{ moduleName }}/{{ businessName }}";
 
 const { proxy } = getCurrentInstance();
-{% if dicts != '' %}
+{% if dicts %}
 {% set dictsNoSymbol = dicts.replace("'", "") %}
 const { {{ dictsNoSymbol }} } = proxy.useDict({{ dicts }});
 {% endif %}
@@ -477,7 +476,7 @@ function handleUpdate(row) {
     {% endif %}
     {% endfor %}
     {% if table.sub %}
-    {{ subclassName }}List.value = response.{{ subclassName }}List;
+    {{ subclassName }}List.value = response.data.{{ subclassName }}List;
     {% endif %}
     open.value = true;
     title.value = "修改{{ functionName }}";
@@ -535,7 +534,7 @@ function handleAdd{{ subClassName }}() {
   let obj = {};
   {% for column in subTable.columns %}
   {% if column.pk or column.python_field == subTableFkclassName %}
-  {% elif column.list and "" != column.python_field %}
+  {% elif column.list and column.python_field %}
   obj.{{ column.python_field }} = "";
   {% endif %}
   {% endfor %}

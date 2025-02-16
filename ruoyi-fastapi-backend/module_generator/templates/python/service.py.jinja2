@@ -1,6 +1,7 @@
 {% set pkField = pkColumn.python_field %}
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
-{% set pk_field_comment = pkColumn.comment %}
+{% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
+{% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from config.constant import CommonConstant
@@ -87,8 +88,8 @@ class {{ BusinessName }}Service:
         :return: 编辑{{ functionName }}校验结果
         """
         edit_{{ businessName }} = page_object.model_dump(exclude_unset=True)
-        {{ businessName }}_info = await cls.{{ businessName }}_detail_services(query_db, page_object.post_id)
-        if {{ businessName }}_info.post_id:
+        {{ businessName }}_info = await cls.{{ businessName }}_detail_services(query_db, page_object.{{ pk_field }})
+        if {{ businessName }}_info.{{ pk_field }}:
             if not await cls.check_post_name_unique_services(query_db, page_object):
                 raise ServiceException(message=f'修改岗位{page_object.post_name}失败，岗位名称已存在')
             elif not await cls.check_post_code_unique_services(query_db, page_object):
@@ -133,8 +134,8 @@ class {{ BusinessName }}Service:
         获取{{ functionName }}详细信息service
 
         :param query_db: orm对象
-        :param post_id: 岗位id
-        :return: 岗位id对应的信息
+        :param {{ pk_field }}: {{ pk_field_comment }}
+        :return: {{ pk_field_comment }}对应的信息
         """
         {{ businessName }} = await {{ BusinessName }}Dao.get_{{ businessName }}_detail_by_id(query_db, {{ pk_field }}={{ pk_field }})
         if {{ businessName }}:

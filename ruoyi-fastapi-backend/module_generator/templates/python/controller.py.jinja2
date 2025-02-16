@@ -1,6 +1,10 @@
 {% set pkField = pkColumn.python_field %}
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
+{% for column in columns %}
+{% if column.python_field == "createTime" %}
 from datetime import datetime
+{% endif %}
+{% endfor %}
 from fastapi import APIRouter, Depends, Form, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,18 +33,18 @@ async def get_{{ moduleName }}_{{ businessName }}_list(
     {{ businessName }}_page_query: {{ BusinessName }}PageQueryModel = Depends({{ BusinessName }}PageQueryModel.as_query),
     query_db: AsyncSession = Depends(get_db),
 ):
-{% if table.crud or table.sub %}
+    {% if table.crud or table.sub %}
     # 获取分页数据
     {{ businessName }}_page_query_result = await {{ BusinessName }}Service.get_{{ businessName }}_list_services(query_db, {{ businessName }}_page_query, is_page=True)
     logger.info('获取成功')
 
     return ResponseUtil.success(model_content={{ businessName }}_page_query_result)
-{% elif table.tree %}
+    {% elif table.tree %}
     {{ businessName }}_query_result = await {{ BusinessName }}Service.get_{{ businessName }}_list_services(query_db, {{ businessName }}_query)
     logger.info('获取成功')
 
     return ResponseUtil.success(data={{ businessName }}_query_result)
-{% endif %}
+    {% endif %}
 
 
 @{{ businessName }}Controller.post('', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:add'))])
@@ -52,17 +56,17 @@ async def add_{{ moduleName }}_{{ businessName }}(
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
 ):
-{% for column in columns %}
-{% if column.python_field == "createBy" %}
+    {% for column in columns %}
+    {% if column.python_field == "createBy" %}
     add_{{ businessName }}.create_by = current_user.user.user_name
-{% elif column.python_field == "createTime" %}
+    {% elif column.python_field == "createTime" %}
     add_{{ businessName }}.create_time = datetime.now()
-{% elif column.python_field == "updateBy" %}
+    {% elif column.python_field == "updateBy" %}
     add_{{ businessName }}.update_by = current_user.user.user_name
-{% elif column.python_field == "updateTime" %}
+    {% elif column.python_field == "updateTime" %}
     add_{{ businessName }}.update_time = datetime.now()
-{% endif %}
-{% endfor %}
+    {% endif %}
+    {% endfor %}
     add_{{ businessName }}_result = await {{ BusinessName }}Service.add_{{ businessName }}_services(query_db, add_{{ businessName }})
     logger.info(add_{{ businessName }}_result.message)
 
