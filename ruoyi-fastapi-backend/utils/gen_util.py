@@ -98,6 +98,11 @@ class GenUtils:
         # 内容字段设置富文本控件
         elif column_name.lower().endswith('content'):
             column.html_type = GenConstant.HTML_EDITOR
+        
+        column.create_by = table.create_by
+        column.create_time = datetime.now()
+        column.update_by = table.update_by
+        column.update_time = datetime.now()
 
     @classmethod
     def arrays_contains(cls, arr: List[str], target_value: str) -> bool:

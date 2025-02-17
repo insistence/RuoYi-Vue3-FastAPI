@@ -119,7 +119,7 @@ async def export_{{ moduleName }}_{{ businessName }}_list(
 ):
     # 获取全量数据
     {{ businessName }}_query_result = await {{ BusinessName }}Service.get_{{ businessName }}_list_services(query_db, {{ businessName }}_page_query, is_page=False)
-    {{ businessName }}_export_result = await {{ BusinessName }}Service.export_{{ businessName }}_list_services({{ businessName }}_query_result)
+    {{ businessName }}_export_result = await {{ BusinessName }}Service.export_{{ businessName }}_list_services({% if dicts %}request, {% endif %}{{ businessName }}_query_result)
     logger.info('导出成功')
 
     return ResponseUtil.streaming(data=bytes2file_response({{ businessName }}_export_result))

@@ -5,6 +5,7 @@ from pydantic_validation_decorator import NotBlank
 from typing import List, Literal, Optional
 from config.constant import GenConstant
 from module_admin.annotation.pydantic_annotation import as_query
+from utils.string_util import StringUtil
 
 
 class GenTableBaseModel(BaseModel):
@@ -183,6 +184,8 @@ class GenTableColumnBaseModel(BaseModel):
     sort: Optional[int] = Field(default=None, description='排序')
     create_by: Optional[str] = Field(default=None, description='创建者')
     create_time: Optional[datetime] = Field(default=None, description='创建时间')
+    update_by: Optional[str] = Field(default=None, description='更新者')
+    update_time: Optional[datetime] = Field(default=None, description='更新时间')
 
     @NotBlank(field_name='python_field', message='Python属性不能为空')
     def get_python_field(self):
@@ -198,15 +201,15 @@ class GenTableColumnModel(GenTableColumnBaseModel):
     """
 
     cap_python_field: Optional[str] = Field(default=None, description='字段大写形式')
-    pk: Optional[bool] = Field(default=None, description='是否为子表')
-    increment: Optional[bool] = Field(default=None, description='是否为树表')
-    required: Optional[bool] = Field(default=None, description='是否为必填字段')
-    insert: Optional[bool] = Field(default=None, description='是否为必填字段')
-    edit: Optional[bool] = Field(default=None, description='是否为必填字段')
-    list: Optional[bool] = Field(default=None, description='是否为必填字段')
-    query: Optional[bool] = Field(default=None, description='是否为必填字段')
+    pk: Optional[bool] = Field(default=None, description='是否主键')
+    increment: Optional[bool] = Field(default=None, description='是否自增')
+    required: Optional[bool] = Field(default=None, description='是否必填')
+    insert: Optional[bool] = Field(default=None, description='是否为插入字段')
+    edit: Optional[bool] = Field(default=None, description='是否编辑字段')
+    list: Optional[bool] = Field(default=None, description='是否列表字段')
+    query: Optional[bool] = Field(default=None, description='是否查询字段')
     super_column: Optional[bool] = Field(default=None, description='是否为基类字段')
-    usable_column: Optional[bool] = Field(default=None, description='是否为基类字段')
+    usable_column: Optional[bool] = Field(default=None, description='是否为基类字段白名单')
 
     @model_validator(mode='after')
     def check_some_is(self) -> 'GenTableModel':
@@ -220,19 +223,11 @@ class GenTableColumnModel(GenTableColumnBaseModel):
         self.query = True if self.is_query and self.is_query == '1' else False
         self.super_column = (
             True
-            if any(
-                self.python_field and self.python_field.lower() == field.lower()
-                for field in GenConstant.TREE_ENTITY + GenConstant.BASE_ENTITY
-            )
+            if StringUtil.equals_any_ignore_case(self.python_field, GenConstant.TREE_ENTITY + GenConstant.BASE_ENTITY)
             else False
         )
         self.usable_column = (
-            True
-            if any(
-                self.python_field and self.python_field.lower() == field.lower()
-                for field in ['parentId', 'orderNum', 'remark']
-            )
-            else False
+            True if StringUtil.equals_any_ignore_case(self.python_field, ['parentId', 'orderNum', 'remark']) else False
         )
         return self
 

@@ -3,6 +3,7 @@ import json
 import os
 import re
 import zipfile
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from config.constant import GenConstant
@@ -121,6 +122,8 @@ class GenTableService:
                 edit_gen_table['options'] = json.dumps(edit_gen_table.get('params'))
                 await GenTableDao.edit_gen_table_dao(query_db, edit_gen_table)
                 for gen_table_column in page_object.columns:
+                    gen_table_column.update_by = page_object.update_by
+                    gen_table_column.update_time = datetime.now()
                     await GenTableColumnDao.edit_gen_table_column_dao(
                         query_db, gen_table_column.model_dump(by_alias=True)
                     )
@@ -167,9 +170,9 @@ class GenTableService:
         :return: 需要生成的业务表id对应的信息
         """
         gen_table = await GenTableDao.get_gen_table_by_id(query_db, table_id)
-        await cls.set_table_from_options(GenTableModel(**CamelCaseUtil.transform_result(gen_table)))
+        result = await cls.set_table_from_options(GenTableModel(**CamelCaseUtil.transform_result(gen_table)))
 
-        return gen_table
+        return result
 
     @classmethod
     async def get_gen_table_all_services(cls, query_db: AsyncSession):
@@ -419,8 +422,8 @@ class GenTableService:
         """
         设置代码生成其他选项值
 
-        :param gen_table: 设置后的生成对象
-        :return:
+        :param gen_table: 生成对象
+        :return: 设置后的生成对象
         """
         params_obj = json.loads(gen_table.options) if gen_table.options else None
         if params_obj:
@@ -430,6 +433,8 @@ class GenTableService:
             gen_table.parent_menu_id = params_obj.get(GenConstant.PARENT_MENU_ID)
             gen_table.parent_menu_name = params_obj.get(GenConstant.PARENT_MENU_NAME)
 
+        return gen_table
+
     @classmethod
     async def validate_edit(cls, edit_gen_table: EditGenTableModel):
         """
@@ -438,19 +443,19 @@ class GenTableService:
         :param edit_gen_table: 编辑业务表对象
         """
         if edit_gen_table.tpl_category == GenConstant.TPL_TREE:
-            params_obj = edit_gen_table.params
+            params_obj = edit_gen_table.params.model_dump(by_alias=True)
 
-            if not getattr(params_obj, GenConstant.TREE_CODE):
-                raise ServiceException('树编码字段不能为空')
-            elif not getattr(params_obj, GenConstant.TREE_PARENT_CODE):
-                raise ServiceException('树父编码字段不能为空')
-            elif not getattr(params_obj, GenConstant.TREE_NAME):
-                raise ServiceException('树名称字段不能为空')
+            if GenConstant.TREE_CODE not in params_obj:
+                raise ServiceException(message='树编码字段不能为空')
+            elif GenConstant.TREE_PARENT_CODE not in params_obj:
+                raise ServiceException(message='树父编码字段不能为空')
+            elif GenConstant.TREE_NAME not in params_obj:
+                raise ServiceException(message='树名称字段不能为空')
             elif edit_gen_table.tpl_category == GenConstant.TPL_SUB:
                 if not edit_gen_table.sub_table_name:
-                    raise ServiceException('关联子表的表名不能为空')
+                    raise ServiceException(message='关联子表的表名不能为空')
                 elif not edit_gen_table.sub_table_fk_name:
-                    raise ServiceException('子表关联的外键名不能为空')
+                    raise ServiceException(message='子表关联的外键名不能为空')
 
 
 class GenTableColumnService:

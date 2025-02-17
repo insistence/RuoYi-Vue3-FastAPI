@@ -67,7 +67,7 @@ async def import_gen_table(
 
 
 @genController.put('', dependencies=[Depends(CheckUserInterfaceAuth('tool:gen:edit'))])
-@ValidateFields(validate_model='edit_post')
+@ValidateFields(validate_model='edit_gen_table')
 @Log(title='代码生成', business_type=BusinessType.UPDATE)
 async def edit_gen_table(
     request: Request,

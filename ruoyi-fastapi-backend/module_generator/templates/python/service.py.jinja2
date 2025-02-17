@@ -2,12 +2,18 @@
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
 {% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
 {% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
+{% if dicts %}
+from fastapi import Request
+{% endif %}
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from config.constant import CommonConstant
 from exceptions.exception import ServiceException
-from {{ packageName }}.dao.{{ businessName }}_dao import {{ BusinessName }}Dao
 from module_admin.entity.vo.common_vo import CrudResponseModel
+{% if dicts %}
+from module_admin.service.dict_service import DictDataService
+{% endif %}
+from {{ packageName }}.dao.{{ businessName }}_dao import {{ BusinessName }}Dao
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import Delete{{ BusinessName }}Model, {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
@@ -65,18 +71,28 @@ class {{ BusinessName }}Service:
         :param page_object: 新增{{ functionName }}对象
         :return: 新增{{ functionName }}校验结果
         """
-        if not await cls.check_post_name_unique_services(query_db, page_object):
-            raise ServiceException(message=f'新增岗位{page_object.post_name}失败，岗位名称已存在')
-        elif not await cls.check_post_code_unique_services(query_db, page_object):
-            raise ServiceException(message=f'新增岗位{page_object.post_name}失败，岗位编码已存在')
-        else:
-            try:
-                await {{ BusinessName }}Dao.add_{{ businessName }}_dao(query_db, page_object)
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='新增成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+        {% for column in columns %}
+        {% set parentheseIndex = column.column_comment.find("（") %}
+        {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+        {% if column.required %}
+        if not await cls.check_{{ column.python_field | camel_to_snake }}_unique_services(query_db, page_object)
+            raise ServiceException(message=f'新增{{ functionName }}{page_object.{{ column.python_field | camel_to_snake }}}失败，{{ comment }}已存在')
+        {% endif %}
+        {% endfor %}
+        try:
+            {% if table.sub %}
+            add_{{ businessName }} = await {{ BusinessName }}Dao.add_{{ businessName }}_dao(query_db, page_object)
+            if add_{{ businessName }}:
+            for sub_table in page_object.{{ subclassName }}_list:
+                await {{ BusinessName }}Dao.add_{{ subTable.business_name }}_dao(query_db, sub_table)
+            {% else %}
+            await {{ BusinessName }}Dao.add_{{ businessName }}_dao(query_db, page_object)
+            {% endif %}
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='新增成功')
+        except Exception as e:
+            await query_db.rollback()
+            raise e
 
     @classmethod
     async def edit_{{ businessName }}_services(cls, query_db: AsyncSession, page_object: {{ BusinessName }}Model):
@@ -87,21 +103,28 @@ class {{ BusinessName }}Service:
         :param page_object: 编辑{{ functionName }}对象
         :return: 编辑{{ functionName }}校验结果
         """
-        edit_{{ businessName }} = page_object.model_dump(exclude_unset=True)
+        edit_{{ businessName }} = page_object.model_dump(exclude_unset=True{% if table.sub %}, exclude={'{{ subclassName }}_list'}{% endif %})
         {{ businessName }}_info = await cls.{{ businessName }}_detail_services(query_db, page_object.{{ pk_field }})
         if {{ businessName }}_info.{{ pk_field }}:
-            if not await cls.check_post_name_unique_services(query_db, page_object):
-                raise ServiceException(message=f'修改岗位{page_object.post_name}失败，岗位名称已存在')
-            elif not await cls.check_post_code_unique_services(query_db, page_object):
-                raise ServiceException(message=f'修改岗位{page_object.post_name}失败，岗位编码已存在')
-            else:
-                try:
-                    await {{ BusinessName }}Dao.edit_{{ businessName }}_dao(query_db, edit_{{ businessName }})
-                    await query_db.commit()
-                    return CrudResponseModel(is_success=True, message='更新成功')
-                except Exception as e:
-                    await query_db.rollback()
-                    raise e
+            {% for column in columns %}
+            {% set parentheseIndex = column.column_comment.find("（") %}
+            {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+            {% if column.required %}
+            if not await cls.check_{{ column.python_field | camel_to_snake }}_unique_services(query_db, page_object)
+                raise ServiceException(message=f'修改{{ functionName }}{page_object.{{ column.python_field | camel_to_snake }}}失败，{{ comment }}已存在')
+            {% endif %}
+            {% endfor %}
+            try:
+                await {{ BusinessName }}Dao.edit_{{ businessName }}_dao(query_db, edit_{{ businessName }})
+                {% if table.sub %}
+                for sub_table in page_object.{{ subclassName }}_list:
+                    await {{ BusinessName }}Dao.edit_{{ subTable.business_name }}_dao(query_db, sub_table)
+                {% endif %}
+                await query_db.commit()
+                return CrudResponseModel(is_success=True, message='更新成功')
+            except Exception as e:
+                await query_db.rollback()
+                raise e
         else:
             raise ServiceException(message='{{ functionName }}不存在')
 
@@ -118,8 +141,12 @@ class {{ BusinessName }}Service:
             {{ pk_field }}_list = page_object.{{ pk_field }}s.split(',')
             try:
                 for {{ pk_field }} in {{ pk_field }}_list:
-                    {{ businessName }} = await cls.{{ businessName }}_detail_services(query_db, int({{ pk_field }}))
                     await {{ BusinessName }}Dao.delete_{{ businessName }}_dao(query_db, {{ BusinessName }}Model({{ pkField }}={{ pk_field }}))
+                    {% if table.sub %}
+                    {{ businessName }} = await cls.{{ businessName }}_detail_services(query_db, int({{ pk_field }}))
+                    for sub_table in {{ businessName }}.{{ subclassName }}_list:
+                        await {{ BusinessName }}Dao.delete_{{ subTable.business_name }}_dao(query_db, sub_table)
+                    {% endif %}
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
@@ -146,7 +173,7 @@ class {{ BusinessName }}Service:
         return result
 
     @staticmethod
-    async def export_{{ businessName }}_list_services({{ businessName }}_list: List):
+    async def export_{{ businessName }}_list_services({% if dicts %}request: Request, {% endif %}{{ businessName }}_list: List):
         """
         导出{{ functionName }}信息service
 
@@ -161,12 +188,22 @@ class {{ BusinessName }}Service:
             '{{ column.python_field }}': '{{ comment }}',
             {% endfor %}
         }
-
+        {% if dicts %}
+        {% for dict_type in dicts.split(", ") %}
+        {{ dict_type[1:-1] }}_list = await DictDataService.query_dict_data_list_from_cache_services(
+            request.app.state.redis, dict_type={{ dict_type }}
+        )
+        {{ dict_type[1:-1] }}_option = [dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in {{ dict_type[1:-1] }}_list]
+        {{ dict_type[1:-1] }}_option_dict = {item.get('value'): item for item in {{ dict_type[1:-1] }}_option}
+        {% endfor %}
         for item in {{ businessName }}_list:
-            if item.get('status') == '0':
-                item['status'] = '正常'
-            else:
-                item['status'] = '停用'
+            {% for column in columns %}
+            {% if column.dict_type %}
+            if str(item.get('{{ column.python_field }}')) in {{ column.dict_type }}_option_dict.keys():
+                item['{{ column.python_field }}'] = {{ column.dict_type }}_option_dict.get(str(item.get('{{ column.python_field }}'))).get('label')
+            {% endif %}
+            {% endfor %}
+        {% endif %}
         binary_data = ExcelUtil.export_list2excel({{ businessName }}_list, mapping_dict)
 
         return binary_data

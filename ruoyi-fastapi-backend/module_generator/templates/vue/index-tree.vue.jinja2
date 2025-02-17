@@ -127,6 +127,7 @@
       {% else %}
       <el-table-column label="{{ comment }}" align="center" prop="{{ pythonField }}" />
       {% endif %}
+      {% endif %}
       {% endfor %}
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template slot-scope="scope">
@@ -135,7 +136,7 @@
             type="text"
             icon="el-icon-edit"
             @click="handleUpdate(scope.row)"
-            v-hasPermi="['{{ moduleName }:{{ businessName }}:edit']"
+            v-hasPermi="['{{ moduleName }}:{{ businessName }}:edit']"
           >修改</el-button>
           <el-button
             size="mini"

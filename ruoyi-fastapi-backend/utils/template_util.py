@@ -256,6 +256,7 @@ class TemplateUtils:
         """
         columns = gen_table.columns or []
         import_list = set()
+        import_list.add('from sqlalchemy import Column')
         for column in columns:
             data_type = cls.get_db_type(column.column_type)
             import_list.add(
@@ -332,7 +333,7 @@ class TemplateUtils:
         """
         for column in columns:
             if (
-                column.super_column
+                not column.super_column
                 and StringUtil.is_not_empty(column.dict_type)
                 and StringUtil.equals_any_ignore_case(
                     column.html_type, [GenConstant.HTML_SELECT, GenConstant.HTML_RADIO, GenConstant.HTML_CHECKBOX]

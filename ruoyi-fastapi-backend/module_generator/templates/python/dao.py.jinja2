@@ -2,7 +2,11 @@
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
 {% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
 {% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
+{% for column in columns %}
+{% if column.python_field == "createTime" %}
 from datetime import datetime, time
+{% endif %}
+{% endfor %}
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 {% if table.sub %}
@@ -27,7 +31,23 @@ class {{ BusinessName }}Dao:
         :param {{ pk_field }}: {{ pk_field_comment }}
         :return: {{ functionName }}信息对象
         """
-        {{ businessName }}_info = (await db.execute(select({{ ClassName }}).where({{ ClassName }}.{{ pk_field }} == {{ pk_field }}))).scalars().first()
+        {{ businessName }}_info = (
+            (
+                await db.execute(
+                    {% if table.sub %}
+                    select({{ ClassName }})
+                    .options(selectinload({{ ClassName }}.{{ subclassName }}_list))
+                    {% else %}
+                    select({{ ClassName }})
+                    {% endif %}
+                    .where(
+                        {{ ClassName }}.{{ pk_field }} == {{ pk_field }}
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
 
         return {{ businessName }}_info
 
@@ -69,9 +89,9 @@ class {{ BusinessName }}Dao:
         :return: {{ functionName }}列表信息对象
         """
         query = (
-            {% if table.sub %%}
+            {% if table.sub %}
             select({{ ClassName }})
-            .options(selectinload{{ ClassName }}.{{ subTable.business_name }})
+            .options(selectinload({{ ClassName }}.{{ subclassName }}_list))
             {% else %}
             select({{ ClassName }})
             {% endif %}
@@ -117,10 +137,10 @@ class {{ BusinessName }}Dao:
         新增{{ functionName }}数据库操作
 
         :param db: orm对象
-        :param notice: {{ functionName }}对象
+        :param {{ businessName }}: {{ functionName }}对象
         :return:
         """
-        db_{{ businessName }} = {{ ClassName }}(**{{ businessName }}.model_dump())
+        db_{{ businessName }} = {{ ClassName }}(**{{ businessName }}.model_dump({%if table.sub %}exclude={'{{ subclassName }}_list'}{% endif %}))
         db.add(db_{{ businessName }})
         await db.flush()
 
@@ -132,7 +152,7 @@ class {{ BusinessName }}Dao:
         编辑{{ functionName }}数据库操作
 
         :param db: orm对象
-        :param notice: 需要更新的{{ functionName }}字典
+        :param {{ businessName }}: 需要更新的{{ functionName }}字典
         :return:
         """
         await db.execute(update({{ ClassName }}), [{{ businessName }}])
@@ -143,7 +163,46 @@ class {{ BusinessName }}Dao:
         删除{{ functionName }}数据库操作
 
         :param db: orm对象
-        :param notice: {{ functionName }}对象
+        :param {{ businessName }}: {{ functionName }}对象
         :return:
         """
         await db.execute(delete({{ ClassName }}).where({{ ClassName }}.{{ pk_field }}.in_([{{ businessName }}.{{ pk_field }}])))
+
+    {% if table.sub %}
+    @classmethod
+    async def add_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: {{ subTable.business_name | capitalize }}Model):
+        """
+        新增{{ subTable.function_name }}数据库操作
+
+        :param db: orm对象
+        :param {{ subTable.business_name }}: {{ subTable.function_name }}对象
+        :return:
+        """
+        db_{{ subTable.business_name }} = {{ subClassName }}(**{{ subTable.business_name }}.model_dump())
+        db.add(db_{{ subTable.business_name }})
+        await db.flush()
+
+        return db_{{ subTable.business_name }}
+
+    @classmethod
+    async def edit_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: dict):
+        """
+        编辑{{ subTable.function_name }}数据库操作
+
+        :param db: orm对象
+        :param {{ subTable.business_name }}: 需要更新的{{ subTable.function_name }}字典
+        :return:
+        """
+        await db.execute(update({{ subClassName }}), [{{ subTable.business_name }}])
+
+    @classmethod
+    async def delete_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: {{ subTable.business_name | capitalize }}Model):
+        """
+        删除{{ subTable.function_name }}数据库操作
+
+        :param db: orm对象
+        :param {{ subTable.business_name }}: {{ subTable.function_name }}对象
+        :return:
+        """
+        await db.execute(delete({{ subClassName }}).where({{ subClassName }}.{{ subTable.pk_column.python_field | camel_to_snake }}.in_([{{ subTable.business_name }}.{{ subTable.pk_column.python_field | camel_to_snake }}])))
+    {% endif %}

@@ -19,12 +19,12 @@ class {{ ClassName }}(Base):
     {% endfor %}
 
     {% if table.sub %}
-    {{ subTable.business_name }} = relationship('{{ subTable.class_name }}', back_populates='{{ businessName }}')
+    {{ subclassName }}_list = relationship('{{ subClassName }}', back_populates='{{ businessName }}')
     {% endif %}
 
 
 {% if table.sub %}
-class {{ subTable.class_name }}(Base):
+class {{ subClassName }}(Base):
     """
     {{ subTable.function_name }}表
     """
@@ -36,6 +36,6 @@ class {{ subTable.class_name }}(Base):
     {% endfor %}
 
     {% if table.sub %}
-    {{ businessName }} = relationship('{{ ClassName }}', back_populates='{{ subTable.business_name }}')
+    {{ businessName }} = relationship('{{ ClassName }}', back_populates='{{ subclassName }}_list')
     {% endif %}
 {% endif %}
