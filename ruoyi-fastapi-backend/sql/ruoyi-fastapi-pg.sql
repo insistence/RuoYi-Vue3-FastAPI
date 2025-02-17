@@ -909,7 +909,7 @@ comment on table gen_table is '代码生成业务表';
 drop table if exists gen_table_column;
 create table gen_table_column (
     column_id bigserial not null,
-    table_id varchar(64),
+    table_id bigint,
     column_name varchar(200),
     column_comment varchar(500),
     column_type varchar(100),
@@ -981,18 +981,18 @@ SELECT c.relname                                                                
        a.attname                                                                           AS column_name,
        d.description                                                                       AS column_comment,
        CASE
-           WHEN a.attnotnull AND con.conname IS NULL THEN 1
-           ELSE 0
+           WHEN a.attnotnull AND con.conname IS NULL THEN '1'
+           ELSE '0'
            END                                                                             AS is_required,
        CASE
-           WHEN con.conname IS NOT NULL THEN 1
-           ELSE 0
+           WHEN con.conname IS NOT NULL THEN '1'
+           ELSE '0'
            END                                                                             AS is_pk,
        a.attnum                                                                            AS sort,
        CASE
            WHEN "position"(pg_get_expr(ad.adbin, ad.adrelid), ((c.relname::text || '_'::text) || a.attname
-                           ::text) || '_seq'::text) > 0 THEN 1
-           ELSE 0
+                           ::text) || '_seq'::text) > 0 THEN '1'
+           ELSE '0'
            END                                                                             AS is_increment,
        btrim(
                    CASE

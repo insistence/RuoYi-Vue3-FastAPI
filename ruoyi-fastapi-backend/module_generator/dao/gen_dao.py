@@ -3,6 +3,7 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List
+from config.env import DataBaseConfig
 from module_generator.entity.do.gen_do import GenTable, GenTableColumn
 from module_generator.entity.vo.gen_vo import (
     GenTableBaseModel,
@@ -127,27 +128,47 @@ class GenTableDao:
         :param is_page: 是否开启分页
         :return: 数据库列表信息对象
         """
-        query_sql = """
-            table_name as table_name, 
-            table_comment as table_comment, 
-            create_time as create_time, 
-            update_time as update_time
-        from 
-            information_schema.tables
-		where 
-            table_schema = (select database())
-            and table_name not like 'apscheduler\_%' 
-            and table_name not like 'gen\_%'
-            and table_name not in (select table_name from gen_table)
-        """
+        if DataBaseConfig.db_type == 'postgresql':
+            query_sql = """
+                table_name as table_name, 
+                table_comment as table_comment, 
+                create_time as create_time, 
+                update_time as update_time
+            from 
+                list_table
+            where 
+                table_name not like 'apscheduler_%' 
+                and table_name not like 'gen_%'
+                and table_name not in (select table_name from gen_table)
+            """
+        else:
+            query_sql = """
+                table_name as table_name, 
+                table_comment as table_comment, 
+                create_time as create_time, 
+                update_time as update_time
+            from 
+                information_schema.tables
+            where 
+                table_schema = (select database())
+                and table_name not like 'apscheduler\_%' 
+                and table_name not like 'gen\_%'
+                and table_name not in (select table_name from gen_table)
+            """
         if query_object.table_name:
             query_sql += """and lower(table_name) like lower(concat('%', :table_name, '%'))"""
         if query_object.table_comment:
             query_sql += """and lower(table_comment) like lower(concat('%', :table_comment, '%'))"""
         if query_object.begin_time:
-            query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')"""
+            if DataBaseConfig.db_type == 'postgresql':
+                query_sql += """and create_time::date >= to_date(:begin_time, 'yyyy-MM-dd')"""
+            else:
+                query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')"""
         if query_object.end_time:
-            query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:end_time, '%Y%m%d')"""
+            if DataBaseConfig.db_type == 'postgresql':
+                query_sql += """and create_time::date <= to_date(:end_time, 'yyyy-MM-dd')"""
+            else:
+                query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:end_time, '%Y%m%d')"""
         query_sql += """order by create_time desc"""
         query = select(
             text(query_sql).bindparams(
@@ -170,20 +191,35 @@ class GenTableDao:
         :param table_names: 业务表名称组
         :return: 数据库列表信息对象
         """
-        query_sql = """
-        select
-            table_name as table_name, 
-            table_comment as table_comment, 
-            create_time as create_time, 
-            update_time as update_time 
-        from 
-            information_schema.tables
-		where 
-            table_name not like 'qrtz\_%' 
-            and table_name not like 'gen\_%' 
-            and table_schema = (select database())
-            and table_name in :table_names
-        """
+        if DataBaseConfig.db_type == 'postgresql':
+            query_sql = """
+            select
+                table_name as table_name, 
+                table_comment as table_comment, 
+                create_time as create_time, 
+                update_time as update_time 
+            from 
+                list_table
+            where 
+                table_name not like 'qrtz_%' 
+                and table_name not like 'gen_%' 
+                and table_name = any(:table_names)
+            """
+        else:
+            query_sql = """
+            select
+                table_name as table_name, 
+                table_comment as table_comment, 
+                create_time as create_time, 
+                update_time as update_time 
+            from 
+                information_schema.tables
+            where 
+                table_name not like 'qrtz\_%' 
+                and table_name not like 'gen\_%' 
+                and table_schema = (select database())
+                and table_name in :table_names
+            """
         query = text(query_sql).bindparams(table_names=tuple(table_names))
         gen_db_table_list = (await db.execute(query)).fetchall()
 
@@ -256,32 +292,42 @@ class GenTableColumnDao:
         :param table_name: 业务表名称
         :return: 业务表字段列表信息对象
         """
-        query_sql = """
-        select 
-            column_name as column_name,
-            case 
-                when is_nullable = 'no' and column_key != 'PRI' then '1' 
-                else '0' 
-            end as is_required,
-            case 
-                when column_key = 'PRI' then '1' 
-                else '0' 
-            end as is_pk,
-            ordinal_position as sort,
-            column_comment as column_comment,
-            case 
-                when extra = 'auto_increment' then '1' 
-                else '0' 
-            end as is_increment,
-            column_type as column_type
-        from 
-            information_schema.columns
-        where 
-            table_schema = (select database()) 
-            and table_name = :table_name
-        order by 
-            ordinal_position
-        """
+        if DataBaseConfig.db_type == 'postgresql':
+            query_sql = """
+            select
+                column_name, is_required, is_pk, sort, column_comment, is_increment, column_type
+            from
+                list_column
+            where
+                table_name = :table_name
+            """
+        else:
+            query_sql = """
+            select 
+                column_name as column_name,
+                case 
+                    when is_nullable = 'no' and column_key != 'PRI' then '1' 
+                    else '0' 
+                end as is_required,
+                case 
+                    when column_key = 'PRI' then '1' 
+                    else '0' 
+                end as is_pk,
+                ordinal_position as sort,
+                column_comment as column_comment,
+                case 
+                    when extra = 'auto_increment' then '1' 
+                    else '0' 
+                end as is_increment,
+                column_type as column_type
+            from 
+                information_schema.columns
+            where 
+                table_schema = (select database()) 
+                and table_name = :table_name
+            order by 
+                ordinal_position
+            """
         query = text(query_sql).bindparams(table_name=table_name)
         gen_db_table_columns = (await db.execute(query)).fetchall()
 

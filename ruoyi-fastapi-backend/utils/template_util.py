@@ -4,6 +4,7 @@ from datetime import datetime
 from jinja2 import Environment, FileSystemLoader
 from typing import Dict, List, Set
 from config.constant import GenConstant
+from config.env import DataBaseConfig
 from module_generator.entity.vo.gen_vo import GenTableModel, GenTableColumnModel
 from utils.common_util import CamelCaseUtil, SnakeCaseUtil
 from utils.string_util import StringUtil
@@ -86,6 +87,7 @@ class TemplateUtils:
             'columns': gen_table.columns,
             'table': gen_table,
             'dicts': cls.get_dicts(gen_table),
+            'dbType': DataBaseConfig.db_type,
         }
 
         # 设置菜单、树形结构、子表的上下文
