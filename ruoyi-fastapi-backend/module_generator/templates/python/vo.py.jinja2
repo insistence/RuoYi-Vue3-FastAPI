@@ -32,7 +32,8 @@ from typing import Optional
 from module_admin.annotation.pydantic_annotation import as_query
 
 
-class {{ BusinessName }}Model(BaseModel):
+{% if table.sub %}
+class {{ BusinessName }}BaseModel(BaseModel):
     """
     {{ functionName }}表对应pydantic模型
     """
@@ -42,9 +43,6 @@ class {{ BusinessName }}Model(BaseModel):
     {% for column in columns %}
     {{ column.column_name }}: Optional[{{ column.python_type }}] = Field(default=None, description='{{ column.column_comment }}')
     {% endfor %}
-    {% if table.sub %}
-    {{ subclassName }}_list: Optional[List['{{ subTable.business_name | capitalize }}Model']] = Field(default=None, description='子表列信息')
-    {% endif %}
 
     {% for column in columns %}
     {% if column.required %}
@@ -53,6 +51,7 @@ class {{ BusinessName }}Model(BaseModel):
     @NotBlank(field_name='{{ column.column_name }}', message='{{ comment }}不能为空')
     def get_{{ column.column_name }}(self):
         return self.{{ column.column_name }}
+    {% if not loop.last %}{{ "\n" }}{% endif %}
     {% endif %}
     {% endfor %}
 
@@ -63,6 +62,45 @@ class {{ BusinessName }}Model(BaseModel):
         self.get_{{ column.column_name }}()
     {% endif %}
     {% endfor %}
+    {% endif %}
+{% endif %}
+
+
+class {{ BusinessName }}Model({% if table.sub %}{{ BusinessName }}BaseModel{% else %}BaseModel{% endif %}):
+    """
+    {{ functionName }}表对应pydantic模型
+    """
+    {% if not table.sub %}
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    {% for column in columns %}
+    {{ column.column_name }}: Optional[{{ column.python_type }}] = Field(default=None, description='{{ column.column_comment }}')
+    {% endfor %}
+    {% endif %}
+    {% if table.sub %}
+    {{ subclassName }}_list: Optional[List['{{ subTable.business_name | capitalize }}Model']] = Field(default=None, description='子表列信息')
+    {% endif %}
+
+    {% if not table.sub %}
+    {% for column in columns %}
+    {% if column.required %}
+    {% set parentheseIndex = column.column_comment.find("（") %}
+    {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+    @NotBlank(field_name='{{ column.column_name }}', message='{{ comment }}不能为空')
+    def get_{{ column.column_name }}(self):
+        return self.{{ column.column_name }}
+    {% if not loop.last %}{{ "\n" }}{% endif %}
+    {% endif %}
+    {% endfor %}
+
+    {% if vo_field_required.has_required %}
+    def validate_fields(self):
+    {% for column in columns %}
+    {% if column.required %}
+        self.get_{{ column.column_name }}()
+    {% endif %}
+    {% endfor %}
+    {% endif %}
     {% endif %}
 
 
@@ -85,6 +123,7 @@ class {{ subTable.business_name | capitalize }}Model(BaseModel):
     @NotBlank(field_name='{{ sub_column.column_name }}', message='{{ comment }}不能为空')
     def get_{{ sub_column.column_name }}(self):
         return self.{{ sub_column.column_name }}
+    {% if not loop.last %}{{ "\n" }}{% endif %}
     {% endif %}
     {% endfor %}
 
@@ -99,7 +138,7 @@ class {{ subTable.business_name | capitalize }}Model(BaseModel):
 {% endif %}
 
 
-class {{ BusinessName }}QueryModel({{ BusinessName }}Model):
+class {{ BusinessName }}QueryModel({% if table.sub %}{{ BusinessName }}BaseModel{% else %}{{ BusinessName }}Model{% endif %}):
     """
     {{ functionName }}不分页查询模型
     """

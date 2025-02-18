@@ -243,7 +243,7 @@ class TemplateUtils:
             sub_columns = gen_table.sub_table.columns or []
             for sub_column in sub_columns:
                 if sub_column.python_type in GenConstant.TYPE_DATE:
-                    import_list.add(f'from datetime import {column.python_type}')
+                    import_list.add(f'from datetime import {sub_column.python_type}')
                 elif sub_column.python_type == GenConstant.TYPE_DECIMAL:
                     import_list.add('from decimal import Decimal')
         return cls.merge_same_imports(list(import_list), 'from datetime import')
@@ -267,6 +267,7 @@ class TemplateUtils:
                 f'from sqlalchemy import {StringUtil.get_mapping_value_by_key_ignore_case(GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, data_type)}'
             )
         if gen_table.sub:
+            import_list.add('from sqlalchemy import ForeignKey')
             sub_columns = gen_table.sub_table.columns or []
             for sub_column in sub_columns:
                 data_type = cls.get_db_type(sub_column.column_type)

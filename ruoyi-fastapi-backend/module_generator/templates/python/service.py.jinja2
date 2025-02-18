@@ -103,7 +103,7 @@ class {{ BusinessName }}Service:
         :param page_object: 编辑{{ functionName }}对象
         :return: 编辑{{ functionName }}校验结果
         """
-        edit_{{ businessName }} = page_object.model_dump(exclude_unset=True, exclude={% raw %}{{% endraw %}{% if table.sub %}'{{ subclassName }}_list, '{% endif %}{% for column in columns %}{% if not column.edit and not column.pk %}'{{ column.python_field | camel_to_snake  }}'{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}{% raw %}}{% endraw %})
+        edit_{{ businessName }} = page_object.model_dump(exclude_unset=True, exclude={% raw %}{{% endraw %}{% if table.sub %}'{{ subclassName }}_list', {% endif %}{% for column in columns %}{% if not column.edit and not column.pk %}'{{ column.python_field | camel_to_snake  }}'{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}{% raw %}}{% endraw %})
         {{ businessName }}_info = await cls.{{ businessName }}_detail_services(query_db, page_object.{{ pk_field }})
         if {{ businessName }}_info.{{ pk_field }}:
             {% for column in columns %}
@@ -117,8 +117,10 @@ class {{ BusinessName }}Service:
             try:
                 await {{ BusinessName }}Dao.edit_{{ businessName }}_dao(query_db, edit_{{ businessName }})
                 {% if table.sub %}
+                for sub_table in {{ businessName }}_info.{{ subclassName }}_list:
+                    await {{ BusinessName }}Dao.delete_{{ subTable.business_name }}_dao(query_db, sub_table)
                 for sub_table in page_object.{{ subclassName }}_list:
-                    await {{ BusinessName }}Dao.edit_{{ subTable.business_name }}_dao(query_db, sub_table)
+                    await {{ BusinessName }}Dao.add_{{ subTable.business_name }}_dao(query_db, sub_table)
                 {% endif %}
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='更新成功')
@@ -141,12 +143,12 @@ class {{ BusinessName }}Service:
             {{ pk_field }}_list = page_object.{{ pk_field }}s.split(',')
             try:
                 for {{ pk_field }} in {{ pk_field }}_list:
-                    await {{ BusinessName }}Dao.delete_{{ businessName }}_dao(query_db, {{ BusinessName }}Model({{ pkField }}={{ pk_field }}))
                     {% if table.sub %}
                     {{ businessName }} = await cls.{{ businessName }}_detail_services(query_db, int({{ pk_field }}))
                     for sub_table in {{ businessName }}.{{ subclassName }}_list:
                         await {{ BusinessName }}Dao.delete_{{ subTable.business_name }}_dao(query_db, sub_table)
                     {% endif %}
+                    await {{ BusinessName }}Dao.delete_{{ businessName }}_dao(query_db, {{ BusinessName }}Model({{ pkField }}={{ pk_field }}))
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:

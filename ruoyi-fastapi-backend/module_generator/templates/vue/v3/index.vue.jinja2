@@ -229,7 +229,7 @@
             {% else %}
             :label="dict.value"
             {% endif %}>
-            {{ dict.label }}
+            {% raw %}{{{% endraw %} dict.label {% raw %}}}{% endraw %}
           </el-radio>
         </el-radio-group>
       </el-form-item>
@@ -297,7 +297,7 @@
           <template #default="scope">
             <el-select v-model="scope.row.{{ pythonField }}" placeholder="请选择{{ comment }}">
               <el-option
-                v-for="dict in {{ column.dictType }}"
+                v-for="dict in {{ column.dict_type }}"
                 :key="dict.value"
                 :label="dict.label"
                 :value="dict.value"
