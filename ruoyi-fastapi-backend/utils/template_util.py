@@ -5,6 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 from typing import Dict, List, Set
 from config.constant import GenConstant
 from config.env import DataBaseConfig
+from exceptions.exception import ServiceWarning
 from module_generator.entity.vo.gen_vo import GenTableModel, GenTableColumnModel
 from utils.common_util import CamelCaseUtil, SnakeCaseUtil
 from utils.string_util import StringUtil
@@ -60,6 +61,8 @@ class TemplateUtils:
         :param gen_table: 生成表的配置信息
         :return: 模板上下文字典
         """
+        if not gen_table.options:
+            raise ServiceWarning(message='请先完善生成配置信息')
         class_name = gen_table.class_name
         module_name = gen_table.module_name
         business_name = gen_table.business_name
@@ -445,13 +448,18 @@ class TemplateUtils:
         """
         if '(' in column_type:
             column_type_list = column_type.split('(')
-            sqlalchemy_type = (
-                StringUtil.get_mapping_value_by_key_ignore_case(
+            if column_type_list[0] in GenConstant.COLUMNTYPE_STR:
+                sqlalchemy_type = (
+                    StringUtil.get_mapping_value_by_key_ignore_case(
+                        GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, column_type_list[0]
+                    )
+                    + '('
+                    + column_type_list[1]
+                )
+            else:
+                sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(
                     GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, column_type_list[0]
                 )
-                + '('
-                + column_type_list[1]
-            )
         else:
             sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(
                 GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, column_type

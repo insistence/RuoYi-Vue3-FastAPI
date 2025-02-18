@@ -169,7 +169,7 @@
     />
 
     <!-- 添加或修改{{ functionName }}对话框 -->
-    <el-dialog :title="title" v-model="open" width="500px" append-to-body>
+    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
       {% for column in columns %}
       {% set field = column.python_field %}
@@ -457,130 +457,130 @@ export default {
       this.{{ subclassName }}List = [];
       {% endif %}
       this.resetForm("form");
-    }
-  },
-  /** 搜索按钮操作 */
-  handleQuery() {
-    this.queryParams.pageNum = 1;
-    this.getList();
-  },
-  /** 重置按钮操作 */
-  resetQuery() {
-    {% for column in columns %}
-    {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
-    {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
-    this.daterange{{ AttrName }} = [];
-    {% endif %}
-    {% endfor %}
-    this.resetForm("queryRef");
-    this.handleQuery();
-  },
-  /** 多选框选中数据  */
-  handleSelectionChange(selection) {
-    this.ids = selection.map(item => item.{{ pkColumn.python_field }});
-    this.single = selection.length != 1;
-    this.multiple = !selection.length;
-  },
-  /** 新增按钮操作 */
-  handleAdd() {
-    this.reset();
-    this.open = true;
-    this.title = "添加{{ functionName }}";
-  },
-  /** 修改按钮操作 */
-  handleUpdate(row) {
-    this.reset();
-    const {{ pkColumn.python_field }} = row.{{ pkColumn.python_field }} || this.ids;
-    get{{ BusinessName }}({{ pkColumn.python_field }}).then(response => {
-      this.form = response.data;
+    },
+    /** 搜索按钮操作 */
+    handleQuery() {
+      this.queryParams.pageNum = 1;
+      this.getList();
+    },
+    /** 重置按钮操作 */
+    resetQuery() {
       {% for column in columns %}
-      {% if column.html_type == "checkbox" %}
-      this.form.{{ column.python_field }} = this.form.{{ column.python_field }}.split(",");
+      {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+      {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
+      this.daterange{{ AttrName }} = [];
       {% endif %}
       {% endfor %}
-      {% if table.sub %}
-      this.{{ subclassName }}List = response.data.{{ subclassName }}List;
-      {% endif %}
+      this.resetForm("queryForm");
+      this.handleQuery();
+    },
+    /** 多选框选中数据  */
+    handleSelectionChange(selection) {
+      this.ids = selection.map(item => item.{{ pkColumn.python_field }});
+      this.single = selection.length != 1;
+      this.multiple = !selection.length;
+    },
+    /** 新增按钮操作 */
+    handleAdd() {
+      this.reset();
       this.open = true;
-      this.title = "修改{{ functionName }}";
-    });
-  },
-  /** 提交按钮 */
-  submitForm() {
-    this.$refs["form"].validate(valid => {
-      if (valid) {
+      this.title = "添加{{ functionName }}";
+    },
+    /** 修改按钮操作 */
+    handleUpdate(row) {
+      this.reset();
+      const {{ pkColumn.python_field }} = row.{{ pkColumn.python_field }} || this.ids;
+      get{{ BusinessName }}({{ pkColumn.python_field }}).then(response => {
+        this.form = response.data;
         {% for column in columns %}
         {% if column.html_type == "checkbox" %}
-        this.form.{{ column.python_field }} = this.form.{{ column.python_field }}.join(",");
+        this.form.{{ column.python_field }} = this.form.{{ column.python_field }}.split(",");
         {% endif %}
         {% endfor %}
         {% if table.sub %}
-        this.form.{{ subclassName }}List = this.{{ subclassName }}List;
+        this.{{ subclassName }}List = response.data.{{ subclassName }}List;
         {% endif %}
-        if (this.form.{{ pkColumn.python_field }} != null) {
-          update{{ BusinessName }}(this.form).then(response => {
-            this.$modal.msgSuccess("修改成功");
-            this.open = false;
-            this.getList();
-          });
-        } else {
-          add{{ BusinessName }}(this.form).then(response => {
-            this.$modal.msgSuccess("新增成功");
-            this.open = false;
-            this.getList();
-          });
-        }
-      }
-    });
-  },
-  /** 删除按钮操作 */
-  handleDelete(row) {
-    const {{ pkColumn.python_field }}s = row.{{ pkColumn.python_field }} || this.ids;
-    this.$modal.confirm('是否确认删除{{ functionName }}编号为"' + {{ pkColumn.python_field }}s + '"的数据项？').then(function() {
-      return del{{ BusinessName }}({{ pkColumn.python_field }}s);
-    }).then(() => {
-      this.getList();
-      this.$modal.msgSuccess("删除成功");
-    }).catch(() => {});
-  },
-  {% if table.sub %}
-  /** {{ subTable.functionName }}序号 */
-  row{{ subClassName }}Index({ row, rowIndex }) {
-    row.index = rowIndex + 1;
-  },
-  /** {{ subTable.functionName }}添加按钮操作 */
-  handleAdd{{ subClassName }}() {
-    let obj = {};
-    {% for column in subTable.columns %}
-    {% if column.pk or column.python_field == subTableFkclassName %}
-    {% elif column.list and column.python_field %}
-    obj.{{ column.python_field }} = "";
-    {% endif %}
-    {% endfor %}
-    this.{{ subclassName }}List.push(obj);
-  },
-  /** {{ subTable.functionName }}删除按钮操作 */
-  handleDelete{{ subClassName }}() {
-    if (this.checked{{ subClassName }}.length == 0) {
-      this.$modal.msgError("请先选择要删除的{{ subTable.functionName }}数据");
-    } else {
-      const {{ subclassName }}List = this.{{ subclassName }}List;
-      const checked{{ subClassName }} = this.checked{{ subClassName }};
-      this.{{ subclassName }}List = {{ subclassName }}List.filter(function(item) {
-        return checked{{ subClassName }}.indexOf(item.index) == -1
+        this.open = true;
+        this.title = "修改{{ functionName }}";
       });
+    },
+    /** 提交按钮 */
+    submitForm() {
+      this.$refs["form"].validate(valid => {
+        if (valid) {
+          {% for column in columns %}
+          {% if column.html_type == "checkbox" %}
+          this.form.{{ column.python_field }} = this.form.{{ column.python_field }}.join(",");
+          {% endif %}
+          {% endfor %}
+          {% if table.sub %}
+          this.form.{{ subclassName }}List = this.{{ subclassName }}List;
+          {% endif %}
+          if (this.form.{{ pkColumn.python_field }} != null) {
+            update{{ BusinessName }}(this.form).then(response => {
+              this.$modal.msgSuccess("修改成功");
+              this.open = false;
+              this.getList();
+            });
+          } else {
+            add{{ BusinessName }}(this.form).then(response => {
+              this.$modal.msgSuccess("新增成功");
+              this.open = false;
+              this.getList();
+            });
+          }
+        }
+      });
+    },
+    /** 删除按钮操作 */
+    handleDelete(row) {
+      const {{ pkColumn.python_field }}s = row.{{ pkColumn.python_field }} || this.ids;
+      this.$modal.confirm('是否确认删除{{ functionName }}编号为"' + {{ pkColumn.python_field }}s + '"的数据项？').then(function() {
+        return del{{ BusinessName }}({{ pkColumn.python_field }}s);
+      }).then(() => {
+        this.getList();
+        this.$modal.msgSuccess("删除成功");
+      }).catch(() => {});
+    },
+    {% if table.sub %}
+    /** {{ subTable.functionName }}序号 */
+    row{{ subClassName }}Index({ row, rowIndex }) {
+      row.index = rowIndex + 1;
+    },
+    /** {{ subTable.functionName }}添加按钮操作 */
+    handleAdd{{ subClassName }}() {
+      let obj = {};
+      {% for column in subTable.columns %}
+      {% if column.pk or column.python_field == subTableFkclassName %}
+      {% elif column.list and column.python_field %}
+      obj.{{ column.python_field }} = "";
+      {% endif %}
+      {% endfor %}
+      this.{{ subclassName }}List.push(obj);
+    },
+    /** {{ subTable.functionName }}删除按钮操作 */
+    handleDelete{{ subClassName }}() {
+      if (this.checked{{ subClassName }}.length == 0) {
+        this.$modal.msgError("请先选择要删除的{{ subTable.functionName }}数据");
+      } else {
+        const {{ subclassName }}List = this.{{ subclassName }}List;
+        const checked{{ subClassName }} = this.checked{{ subClassName }};
+        this.{{ subclassName }}List = {{ subclassName }}List.filter(function(item) {
+          return checked{{ subClassName }}.indexOf(item.index) == -1
+        });
+      }
+    },
+    /** 复选框选中数据 */
+    handle{{ subClassName }}SelectionChange(selection) {
+      this.checked{{ subClassName }} = selection.map(item => item.index)
+    },
+    {% endif %}
+    /** 导出按钮操作 */
+    handleExport() {
+      this.download('{{ moduleName }}/{{ businessName }}/export', {
+        ...this.queryParams
+      }, `{{ businessName }}_${new Date().getTime()}.xlsx`);
     }
   },
-  /** 复选框选中数据 */
-  handle{{ subClassName }}SelectionChange(selection) {
-    this.checked{{ subClassName }} = selection.map(item => item.index)
-  },
-  {% endif %}
-  /** 导出按钮操作 */
-  handleExport() {
-    this.download('{{ moduleName }}/{{ businessName }}/export', {
-      ...queryParams.value
-    }, `{{ businessName }}_${new Date().getTime()}.xlsx`);
-  }
 };
 </script>
