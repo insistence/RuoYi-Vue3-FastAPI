@@ -3,7 +3,7 @@
 {% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
 {% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
 {% for column in columns %}
-{% if column.python_field == "createTime" %}
+{% if column.query and column.query_type == 'BETWEEN' and column.python_field == "createTime" %}
 from datetime import datetime, time
 {% endif %}
 {% endfor %}
@@ -12,8 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 {% if table.sub %}
 from sqlalchemy.orm import selectinload
 {% endif %}
+{% if table.sub %}
+from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}, {{ subClassName }}
+from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel, {{ subTable.business_name | capitalize }}Model
+{% else %}
 from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
+{% endif %}
 from utils.page_util import PageUtil
 
 

@@ -278,7 +278,13 @@ class GenTableColumnDao:
         :return: 需要生成的业务表字段列表信息对象
         """
         gen_table_column_list = (
-            (await db.execute(select(GenTableColumn).where(GenTableColumn.table_id == table_id))).scalars().all()
+            (
+                await db.execute(
+                    select(GenTableColumn).where(GenTableColumn.table_id == table_id).order_by(GenTableColumn.sort)
+                )
+            )
+            .scalars()
+            .all()
         )
 
         return gen_table_column_list

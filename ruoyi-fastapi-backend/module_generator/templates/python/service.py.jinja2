@@ -75,7 +75,7 @@ class {{ BusinessName }}Service:
         {% set parentheseIndex = column.column_comment.find("（") %}
         {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
         {% if column.required %}
-        if not await cls.check_{{ column.python_field | camel_to_snake }}_unique_services(query_db, page_object)
+        if not await cls.check_{{ column.python_field | camel_to_snake }}_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增{{ functionName }}{page_object.{{ column.python_field | camel_to_snake }}}失败，{{ comment }}已存在')
         {% endif %}
         {% endfor %}
@@ -83,8 +83,8 @@ class {{ BusinessName }}Service:
             {% if table.sub %}
             add_{{ businessName }} = await {{ BusinessName }}Dao.add_{{ businessName }}_dao(query_db, page_object)
             if add_{{ businessName }}:
-            for sub_table in page_object.{{ subclassName }}_list:
-                await {{ BusinessName }}Dao.add_{{ subTable.business_name }}_dao(query_db, sub_table)
+                for sub_table in page_object.{{ subclassName }}_list:
+                    await {{ BusinessName }}Dao.add_{{ subTable.business_name }}_dao(query_db, sub_table)
             {% else %}
             await {{ BusinessName }}Dao.add_{{ businessName }}_dao(query_db, page_object)
             {% endif %}
@@ -110,7 +110,7 @@ class {{ BusinessName }}Service:
             {% set parentheseIndex = column.column_comment.find("（") %}
             {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
             {% if column.required %}
-            if not await cls.check_{{ column.python_field | camel_to_snake }}_unique_services(query_db, page_object)
+            if not await cls.check_{{ column.python_field | camel_to_snake }}_unique_services(query_db, page_object):
                 raise ServiceException(message=f'修改{{ functionName }}{page_object.{{ column.python_field | camel_to_snake }}}失败，{{ comment }}已存在')
             {% endif %}
             {% endfor %}

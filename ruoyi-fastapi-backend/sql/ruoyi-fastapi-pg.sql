@@ -976,7 +976,7 @@ $BODY$
     LANGUAGE plpgsql VOLATILE
                      COST 100;
 
-create view list_column as
+create or replace view list_column as
 SELECT c.relname                                                                           AS table_name,
        a.attname                                                                           AS column_name,
        d.description                                                                       AS column_comment,
@@ -1016,7 +1016,7 @@ WHERE (c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"]))
   AND not a.attisdropped
   ORDER BY c.relname, a.attnum;
 
-create view list_table as
+create or replace view list_table as
 SELECT c.relname              AS table_name,
        obj_description(c.oid) AS table_comment,
        CURRENT_TIMESTAMP      AS create_time,

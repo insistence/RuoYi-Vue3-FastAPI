@@ -36,6 +36,7 @@
                 <el-option label="datetime" value="datetime" />
                 <el-option label="bytes" value="bytes" />
                 <el-option label="dict" value="dict" />
+                <el-option label="list" value="list" />
               </el-select>
             </template>
           </el-table-column>

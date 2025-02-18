@@ -210,7 +210,7 @@ class TemplateUtils:
             return f'{cls.BACKEND_PROJECT_PATH}/sql/{business_name}_menu.sql'
         elif 'api.js.jinja2' in template:
             return f'{vue_path}/api/{module_name}/{business_name}.js'
-        elif 'index.vue.jinja2' in template or 'index-tree.vue.j2' in template:
+        elif 'index.vue.jinja2' in template or 'index-tree.vue.jinja2' in template:
             return f'{vue_path}/views/{module_name}/{business_name}/index.vue'
         return ''
 
@@ -261,16 +261,18 @@ class TemplateUtils:
         import_list.add('from sqlalchemy import Column')
         for column in columns:
             data_type = cls.get_db_type(column.column_type)
+            if data_type in GenConstant.COLUMNTYPE_GEOMETRY:
+                import_list.add('from geoalchemy2 import Geometry')
             import_list.add(
-                f'from sqlalchemy import {StringUtil.get_mapping_value_by_key_ignore_case(GenConstant.MYSQL_TO_SQLALCHEMY_TYPE_MAPPING, data_type)}'
+                f'from sqlalchemy import {StringUtil.get_mapping_value_by_key_ignore_case(GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, data_type)}'
             )
         if gen_table.sub:
             sub_columns = gen_table.sub_table.columns or []
             for sub_column in sub_columns:
-                if sub_column.python_type in GenConstant.TYPE_DATE:
-                    import_list.add(f'from datetime import {column.python_type}')
-                elif sub_column.python_type == GenConstant.TYPE_DECIMAL:
-                    import_list.add('from decimal import Decimal')
+                data_type = cls.get_db_type(sub_column.column_type)
+                import_list.add(
+                    f'from sqlalchemy import {StringUtil.get_mapping_value_by_key_ignore_case(GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, data_type)}'
+                )
         return cls.merge_same_imports(list(import_list), 'from sqlalchemy import')
 
     @classmethod
@@ -444,14 +446,14 @@ class TemplateUtils:
             column_type_list = column_type.split('(')
             sqlalchemy_type = (
                 StringUtil.get_mapping_value_by_key_ignore_case(
-                    GenConstant.MYSQL_TO_SQLALCHEMY_TYPE_MAPPING, column_type_list[0]
+                    GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, column_type_list[0]
                 )
                 + '('
                 + column_type_list[1]
             )
         else:
             sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(
-                GenConstant.MYSQL_TO_SQLALCHEMY_TYPE_MAPPING, column_type
+                GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, column_type
             )
 
         return sqlalchemy_type

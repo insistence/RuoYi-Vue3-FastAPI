@@ -398,7 +398,7 @@ function toggleExpandAll() {
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset();
-  await getTreeselect();
+  getTreeselect();
   if (row != null) {
     form.value.{{ treeParentCode }} = row.{{ treeParentCode }};
   }
