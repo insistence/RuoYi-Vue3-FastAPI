@@ -55,6 +55,7 @@ class GenTableColumn(Base):
     is_pk = Column(String(1), nullable=True, comment='是否主键（1是）')
     is_increment = Column(String(1), nullable=True, comment='是否自增（1是）')
     is_required = Column(String(1), nullable=True, comment='是否必填（1是）')
+    is_unique = Column(String(1), nullable=True, comment='是否唯一（1是）')
     is_insert = Column(String(1), nullable=True, comment='是否为插入字段（1是）')
     is_edit = Column(String(1), nullable=True, comment='是否编辑字段（1是）')
     is_list = Column(String(1), nullable=True, comment='是否列表字段（1是）')

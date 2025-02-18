@@ -71,7 +71,7 @@ class {{ BusinessName }}Dao:
                     select({{ ClassName }}).where(
                         {% for column in columns %}
                         {% if column.required %}
-                        {{ ClassName }}.{{ column.python_field | camel_to_snake }} == {{ businessName }}.{{ column.python_field | camel_to_snake }},
+                        {{ ClassName }}.{{ column.python_field | camel_to_snake }} == {{ businessName }}.{{ column.python_field | camel_to_snake }} if {{ businessName }}.{{ column.python_field | camel_to_snake }} else True,
                         {% endif %}
                         {% endfor %}
                     )
@@ -145,7 +145,7 @@ class {{ BusinessName }}Dao:
         :param {{ businessName }}: {{ functionName }}对象
         :return:
         """
-        db_{{ businessName }} = {{ ClassName }}(**{{ businessName }}.model_dump({%if table.sub %}exclude={'{{ subclassName }}_list'}{% endif %}))
+        db_{{ businessName }} = {{ ClassName }}(**{{ businessName }}.model_dump(exclude={% raw %}{{% endraw %}{% if table.sub %}'{{ subclassName }}_list, '{% endif %}{% for column in columns %}{% if not column.insert %}'{{ column.python_field | camel_to_snake  }}'{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}{% raw %}}{% endraw %}))
         db.add(db_{{ businessName }})
         await db.flush()
 

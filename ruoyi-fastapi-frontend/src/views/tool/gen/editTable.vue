@@ -85,6 +85,11 @@
               <el-checkbox true-label="1" false-label="0" v-model="scope.row.isRequired"></el-checkbox>
             </template>
           </el-table-column>
+          <el-table-column label="唯一" min-width="5%">
+            <template #default="scope">
+              <el-checkbox true-label="1" false-label="0" v-model="scope.row.isUnique"></el-checkbox>
+            </template>
+          </el-table-column>
           <el-table-column label="显示类型" min-width="12%">
             <template #default="scope">
               <el-select v-model="scope.row.htmlType">

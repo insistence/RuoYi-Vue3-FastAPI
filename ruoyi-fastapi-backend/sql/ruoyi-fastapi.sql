@@ -696,6 +696,7 @@ create table gen_table_column (
   is_pk             char(1)                                    comment '是否主键（1是）',
   is_increment      char(1)                                    comment '是否自增（1是）',
   is_required       char(1)                                    comment '是否必填（1是）',
+  is_unique         char(1)                                    comment '是否唯一（1是）',
   is_insert         char(1)                                    comment '是否为插入字段（1是）',
   is_edit           char(1)                                    comment '是否编辑字段（1是）',
   is_list           char(1)                                    comment '是否列表字段（1是）',

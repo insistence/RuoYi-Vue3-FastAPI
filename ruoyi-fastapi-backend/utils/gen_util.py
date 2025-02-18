@@ -71,13 +71,13 @@ class GenUtils:
         column.is_insert = GenConstant.REQUIRE
 
         # 编辑字段
-        if not cls.arrays_contains(GenConstant.COLUMNNAME_NOT_EDIT, column_name) and not column.is_pk:
+        if not cls.arrays_contains(GenConstant.COLUMNNAME_NOT_EDIT, column_name) and not column.pk:
             column.is_edit = GenConstant.REQUIRE
         # 列表字段
-        if not cls.arrays_contains(GenConstant.COLUMNNAME_NOT_LIST, column_name) and not column.is_pk:
+        if not cls.arrays_contains(GenConstant.COLUMNNAME_NOT_LIST, column_name) and not column.pk:
             column.is_list = GenConstant.REQUIRE
         # 查询字段
-        if not cls.arrays_contains(GenConstant.COLUMNNAME_NOT_QUERY, column_name) and not column.is_pk:
+        if not cls.arrays_contains(GenConstant.COLUMNNAME_NOT_QUERY, column_name) and not column.pk:
             column.is_query = GenConstant.REQUIRE
 
         # 查询字段类型

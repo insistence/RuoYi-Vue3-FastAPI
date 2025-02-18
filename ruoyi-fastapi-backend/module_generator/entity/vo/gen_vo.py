@@ -172,6 +172,7 @@ class GenTableColumnBaseModel(BaseModel):
     is_pk: Optional[str] = Field(default=None, description='是否主键（1是）')
     is_increment: Optional[str] = Field(default=None, description='是否自增（1是）')
     is_required: Optional[str] = Field(default=None, description='是否必填（1是）')
+    is_unique: Optional[str] = Field(default=None, description='是否唯一（1是）')
     is_insert: Optional[str] = Field(default=None, description='是否为插入字段（1是）')
     is_edit: Optional[str] = Field(default=None, description='是否编辑字段（1是）')
     is_list: Optional[str] = Field(default=None, description='是否列表字段（1是）')
@@ -204,6 +205,7 @@ class GenTableColumnModel(GenTableColumnBaseModel):
     pk: Optional[bool] = Field(default=None, description='是否主键')
     increment: Optional[bool] = Field(default=None, description='是否自增')
     required: Optional[bool] = Field(default=None, description='是否必填')
+    unique: Optional[bool] = Field(default=None, description='是否唯一')
     insert: Optional[bool] = Field(default=None, description='是否为插入字段')
     edit: Optional[bool] = Field(default=None, description='是否编辑字段')
     list: Optional[bool] = Field(default=None, description='是否列表字段')
@@ -217,6 +219,7 @@ class GenTableColumnModel(GenTableColumnBaseModel):
         self.pk = True if self.is_pk and self.is_pk == '1' else False
         self.increment = True if self.is_increment and self.is_increment == '1' else False
         self.required = True if self.is_required and self.is_required == '1' else False
+        self.unique = True if self.is_unique and self.is_unique == '1' else False
         self.insert = True if self.is_insert and self.is_insert == '1' else False
         self.edit = True if self.is_edit and self.is_edit == '1' else False
         self.list = True if self.is_list and self.is_list == '1' else False

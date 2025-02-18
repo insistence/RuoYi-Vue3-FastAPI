@@ -918,6 +918,7 @@ create table gen_table_column (
     is_pk char(1),
     is_increment char(1),
     is_required char(1),
+    is_unique char(1),
     is_insert char(1),
     is_edit char(1),
     is_list char(1),
@@ -942,6 +943,7 @@ comment on column gen_table_column.python_field is 'PYTHON字段名';
 comment on column gen_table_column.is_pk is '是否主键（1是）';
 comment on column gen_table_column.is_increment is '是否自增（1是）';
 comment on column gen_table_column.is_required is '是否必填（1是）';
+comment on column gen_table_column.is_unique is '是否唯一（1是）';
 comment on column gen_table_column.is_insert is '是否为插入字段（1是）';
 comment on column gen_table_column.is_edit is '是否编辑字段（1是）';
 comment on column gen_table_column.is_list is '是否列表字段（1是）';

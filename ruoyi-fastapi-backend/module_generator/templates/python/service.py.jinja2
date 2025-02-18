@@ -43,7 +43,7 @@ class {{ BusinessName }}Service:
     {% for column in columns %}
     {% set parentheseIndex = column.column_comment.find("（") %}
     {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
-    {% if column.required %}
+    {% if column.unique %}
     @classmethod
     async def check_{{ column.python_field | camel_to_snake }}_unique_services(cls, query_db: AsyncSession, page_object: {{ BusinessName }}Model):
         """
@@ -74,7 +74,7 @@ class {{ BusinessName }}Service:
         {% for column in columns %}
         {% set parentheseIndex = column.column_comment.find("（") %}
         {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
-        {% if column.required %}
+        {% if column.unique %}
         if not await cls.check_{{ column.python_field | camel_to_snake }}_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增{{ functionName }}{page_object.{{ column.python_field | camel_to_snake }}}失败，{{ comment }}已存在')
         {% endif %}
@@ -103,13 +103,13 @@ class {{ BusinessName }}Service:
         :param page_object: 编辑{{ functionName }}对象
         :return: 编辑{{ functionName }}校验结果
         """
-        edit_{{ businessName }} = page_object.model_dump(exclude_unset=True{% if table.sub %}, exclude={'{{ subclassName }}_list'}{% endif %})
+        edit_{{ businessName }} = page_object.model_dump(exclude_unset=True, exclude={% raw %}{{% endraw %}{% if table.sub %}'{{ subclassName }}_list, '{% endif %}{% for column in columns %}{% if not column.edit and not column.pk %}'{{ column.python_field | camel_to_snake  }}'{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}{% raw %}}{% endraw %})
         {{ businessName }}_info = await cls.{{ businessName }}_detail_services(query_db, page_object.{{ pk_field }})
         if {{ businessName }}_info.{{ pk_field }}:
             {% for column in columns %}
             {% set parentheseIndex = column.column_comment.find("（") %}
             {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
-            {% if column.required %}
+            {% if column.unique %}
             if not await cls.check_{{ column.python_field | camel_to_snake }}_unique_services(query_db, page_object):
                 raise ServiceException(message=f'修改{{ functionName }}{page_object.{{ column.python_field | camel_to_snake }}}失败，{{ comment }}已存在')
             {% endif %}

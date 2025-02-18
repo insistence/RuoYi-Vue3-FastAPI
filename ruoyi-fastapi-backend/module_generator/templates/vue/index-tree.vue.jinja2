@@ -162,7 +162,7 @@
       {% for column in columns %}
       {% set field = column.python_field %}
       {% if column.insert and not column.pk %}
-      {% if column.usable_column or column.super_column %}
+      {% if column.usable_column or not column.super_column %}
       {% set parentheseIndex = column.column_comment.find("（") %}
       {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
       {% set dictType = column.dict_type %}
