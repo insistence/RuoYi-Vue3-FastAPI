@@ -311,7 +311,7 @@
           <template slot-scope="scope">
             <el-select v-model="scope.row.{{ pythonField }}" placeholder="请选择{{ comment }}">
               <el-option
-                v-for="dict in dict.type.{{ column.dictType }}"
+                v-for="dict in dict.type.{{ column.dict_type }}"
                 :key="dict.value"
                 :label="dict.label"
                 :value="dict.value"
