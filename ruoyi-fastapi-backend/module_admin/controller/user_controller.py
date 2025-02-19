@@ -296,7 +296,7 @@ async def change_system_user_profile_info(
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def reset_system_user_password(
     request: Request,
-    reset_password: ResetPasswordModel = Depends(ResetPasswordModel.as_query),
+    reset_password: ResetPasswordModel,
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
 ):
