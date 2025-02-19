@@ -100,9 +100,9 @@ const activeMenu = computed(() => {
   let activePath = path;
   if (path !== undefined && path.lastIndexOf("/") > 0 && hideList.indexOf(path) === -1) {
     const tmpPath = path.substring(1, path.length);
-    activePath = "/" + tmpPath.substring(0, tmpPath.indexOf("/"));
     if (!route.meta.link) {
-        appStore.toggleSideBarHide(false);
+      activePath = "/" + tmpPath.substring(0, tmpPath.indexOf("/"));
+      appStore.toggleSideBarHide(false);
     }
   } else if(!route.children) {
     activePath = path;
@@ -196,7 +196,7 @@ onMounted(() => {
 
 /* 背景色隐藏 */
 .topmenu-container.el-menu--horizontal>.el-menu-item:not(.is-disabled):focus, .topmenu-container.el-menu--horizontal>.el-menu-item:not(.is-disabled):hover, .topmenu-container.el-menu--horizontal>.el-submenu .el-submenu__title:hover {
-  background-color: #ffffff !important;
+  background-color: #ffffff;
 }
 
 /* 图标右间距 */

@@ -1,0 +1,167 @@
+{% set pkField = pkColumn.python_field %}
+{% set pk_field = pkColumn.python_field | camel_to_snake %}
+{% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
+{% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
+{% set vo_field_required = namespace(has_required=False) %}
+{% for column in columns %}
+{% if column.required %}
+    {% set vo_field_required.has_required = True %}
+{% endif %}
+{% endfor %}
+{% if table.sub %}
+{% set sub_vo_field_required = namespace(has_required=False) %}
+{% for sub_column in subTable.columns %}
+{% if sub_column.required %}
+    {% set sub_vo_field_required.has_required = True %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% for vo_import in voImportList %}
+{{ vo_import }}
+{% endfor %}
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+{% if vo_field_required.has_required %}
+from pydantic_validation_decorator import NotBlank
+{% endif %}
+{% if table.sub %}
+from typing import List, Optional
+{% else %}
+from typing import Optional
+{% endif %}
+from module_admin.annotation.pydantic_annotation import as_query
+
+
+{% if table.sub %}
+class {{ BusinessName }}BaseModel(BaseModel):
+    """
+    {{ functionName }}表对应pydantic模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    {% for column in columns %}
+    {{ column.column_name }}: Optional[{{ column.python_type }}] = Field(default=None, description='{{ column.column_comment }}')
+    {% endfor %}
+
+    {% for column in columns %}
+    {% if column.required %}
+    {% set parentheseIndex = column.column_comment.find("（") %}
+    {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+    @NotBlank(field_name='{{ column.column_name }}', message='{{ comment }}不能为空')
+    def get_{{ column.column_name }}(self):
+        return self.{{ column.column_name }}
+    {% if not loop.last %}{{ "\n" }}{% endif %}
+    {% endif %}
+    {% endfor %}
+
+    {% if vo_field_required.has_required %}
+    def validate_fields(self):
+    {% for column in columns %}
+    {% if column.required %}
+        self.get_{{ column.column_name }}()
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+{% endif %}
+
+
+class {{ BusinessName }}Model({% if table.sub %}{{ BusinessName }}BaseModel{% else %}BaseModel{% endif %}):
+    """
+    {{ functionName }}表对应pydantic模型
+    """
+    {% if not table.sub %}
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    {% for column in columns %}
+    {{ column.column_name }}: Optional[{{ column.python_type }}] = Field(default=None, description='{{ column.column_comment }}')
+    {% endfor %}
+    {% endif %}
+    {% if table.sub %}
+    {{ subclassName }}_list: Optional[List['{{ subTable.business_name | capitalize }}Model']] = Field(default=None, description='子表列信息')
+    {% endif %}
+
+    {% if not table.sub %}
+    {% for column in columns %}
+    {% if column.required %}
+    {% set parentheseIndex = column.column_comment.find("（") %}
+    {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+    @NotBlank(field_name='{{ column.column_name }}', message='{{ comment }}不能为空')
+    def get_{{ column.column_name }}(self):
+        return self.{{ column.column_name }}
+    {% if not loop.last %}{{ "\n" }}{% endif %}
+    {% endif %}
+    {% endfor %}
+
+    {% if vo_field_required.has_required %}
+    def validate_fields(self):
+    {% for column in columns %}
+    {% if column.required %}
+        self.get_{{ column.column_name }}()
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+    {% endif %}
+
+
+{% if table.sub %}
+class {{ subTable.business_name | capitalize }}Model(BaseModel):
+    """
+    {{ subTable.function_name }}表对应pydantic模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    {% for sub_column in subTable.columns %}
+    {{ sub_column.column_name }}: Optional[{{ sub_column.python_type }}] = Field(default=None, description='{{ sub_column.column_comment}}')
+    {% endfor %}
+
+    {% for sub_column in subTable.columns %}
+    {% if sub_column.required %}
+    {% set parentheseIndex = sub_column.column_comment.find("（") %}
+    {% set comment = sub_column.column_comment[:parentheseIndex] if parentheseIndex != -1 else sub_column.column_comment %}
+    @NotBlank(field_name='{{ sub_column.column_name }}', message='{{ comment }}不能为空')
+    def get_{{ sub_column.column_name }}(self):
+        return self.{{ sub_column.column_name }}
+    {% if not loop.last %}{{ "\n" }}{% endif %}
+    {% endif %}
+    {% endfor %}
+
+    {% if sub_vo_field_required.has_required %}
+    def validate_fields(self):
+    {% for sub_column in subTable.columns %}
+    {% if sub_column.required %}
+        self.get_{{ sub_column.column_name }}()
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+{% endif %}
+
+
+class {{ BusinessName }}QueryModel({% if table.sub %}{{ BusinessName }}BaseModel{% else %}{{ BusinessName }}Model{% endif %}):
+    """
+    {{ functionName }}不分页查询模型
+    """
+
+    begin_time: Optional[str] = Field(default=None, description='开始时间')
+    end_time: Optional[str] = Field(default=None, description='结束时间')
+
+
+@as_query
+class {{ BusinessName }}PageQueryModel({{ BusinessName }}QueryModel):
+    """
+    {{ functionName }}分页查询模型
+    """
+
+    page_num: int = Field(default=1, description='当前页码')
+    page_size: int = Field(default=10, description='每页记录数')
+
+
+class Delete{{ BusinessName }}Model(BaseModel):
+    """
+    删除{{ functionName }}模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    {{ pk_field }}s: str = Field(description='需要删除的{{ pk_field_comment }}')

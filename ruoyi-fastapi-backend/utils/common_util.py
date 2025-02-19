@@ -7,6 +7,7 @@ from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy.engine.row import Row
+from sqlalchemy.orm.collections import InstrumentedList
 from typing import Any, Dict, List, Literal, Union
 from config.database import Base
 from config.env import CachePathConfig
@@ -58,6 +59,9 @@ class SqlalchemyUtil:
         if isinstance(obj, Base):
             base_dict = obj.__dict__.copy()
             base_dict.pop('_sa_instance_state', None)
+            for name, value in base_dict.items():
+                if isinstance(value, InstrumentedList):
+                    base_dict[name] = cls.serialize_result(value, 'snake_to_camel')
         elif isinstance(obj, dict):
             base_dict = obj.copy()
         if transform_case == 'snake_to_camel':

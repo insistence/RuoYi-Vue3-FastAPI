@@ -6,7 +6,9 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 from asyncio import iscoroutinefunction
 from datetime import datetime, timedelta
 from sqlalchemy.engine import create_engine
@@ -201,8 +203,7 @@ class SchedulerUtil:
             job_executor = 'default'
         scheduler.add_job(
             func=eval(job_info.invoke_target),
-            trigger='date',
-            run_date=datetime.now() + timedelta(seconds=1),
+            trigger=OrTrigger(triggers=[DateTrigger(), MyCronTrigger.from_crontab(job_info.cron_expression)]),
             args=job_info.job_args.split(',') if job_info.job_args else None,
             kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
             id=str(job_info.job_id),

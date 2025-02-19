@@ -190,7 +190,6 @@ class EditUserModel(AddUserModel):
     role: Optional[List] = Field(default=[], description='角色信息')
 
 
-@as_query
 class ResetPasswordModel(BaseModel):
     """
     重置密码模型

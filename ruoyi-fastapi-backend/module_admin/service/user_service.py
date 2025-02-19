@@ -31,7 +31,8 @@ from module_admin.service.config_service import ConfigService
 from module_admin.service.dept_service import DeptService
 from module_admin.service.post_service import PostService
 from module_admin.service.role_service import RoleService
-from utils.common_util import CamelCaseUtil, export_list2excel, get_excel_template
+from utils.common_util import CamelCaseUtil
+from utils.excel_util import ExcelUtil
 from utils.page_util import PageResponseModel
 from utils.pwd_util import PwdUtil
 
@@ -461,7 +462,7 @@ class UserService:
         header_list = ['部门编号', '登录名称', '用户名称', '用户邮箱', '手机号码', '用户性别', '帐号状态']
         selector_header_list = ['用户性别', '帐号状态']
         option_list = [{'用户性别': ['男', '女', '未知']}, {'帐号状态': ['正常', '停用']}]
-        binary_data = get_excel_template(
+        binary_data = ExcelUtil.get_excel_template(
             header_list=header_list, selector_header_list=selector_header_list, option_list=option_list
         )
 
@@ -492,9 +493,7 @@ class UserService:
             'remark': '备注',
         }
 
-        data = user_list
-
-        for item in data:
+        for item in user_list:
             if item.get('status') == '0':
                 item['status'] = '正常'
             else:
@@ -505,10 +504,7 @@ class UserService:
                 item['sex'] = '女'
             else:
                 item['sex'] = '未知'
-        new_data = [
-            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
-        ]
-        binary_data = export_list2excel(new_data)
+        binary_data = ExcelUtil.export_list2excel(user_list, mapping_dict)
 
         return binary_data
 

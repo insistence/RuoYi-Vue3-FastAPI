@@ -1,0 +1,41 @@
+{% for do_import in doImportList %}
+{{ do_import }}
+{% endfor %}
+{% if table.sub %}
+from sqlalchemy.orm import relationship
+{% endif %}
+from config.database import Base
+
+
+class {{ ClassName }}(Base):
+    """
+    {{ functionName }}表
+    """
+
+    __tablename__ = '{{ tableName }}'
+
+    {% for column in columns %}
+    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
+    {% endfor %}
+
+    {% if table.sub %}
+    {{ subclassName }}_list = relationship('{{ subClassName }}', back_populates='{{ businessName }}')
+    {% endif %}
+
+
+{% if table.sub %}
+class {{ subClassName }}(Base):
+    """
+    {{ subTable.function_name }}表
+    """
+
+    __tablename__ = '{{ subTableName }}'
+
+    {% for column in subTable.columns %}
+    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type }}, {% if column.column_name == subTableFkName %}ForeignKey('{{ tableName }}.{{ subTableFkName }}'), {% endif %}{% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required %}nullable=True{% else %}nullable=False{% endif %}, comment='{{ column.column_comment }}')
+    {% endfor %}
+
+    {% if table.sub %}
+    {{ businessName }} = relationship('{{ ClassName }}', back_populates='{{ subclassName }}_list')
+    {% endif %}
+{% endif %}

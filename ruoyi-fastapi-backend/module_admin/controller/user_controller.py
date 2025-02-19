@@ -135,7 +135,7 @@ async def delete_system_user(
 ):
     user_id_list = user_ids.split(',') if user_ids else []
     if user_id_list:
-        if current_user.user.user_id in user_id_list:
+        if current_user.user.user_id in list(map(int, user_id_list)):
             logger.warning('当前登录用户不能删除')
 
             return ResponseUtil.failure(msg='当前登录用户不能删除')
@@ -296,7 +296,7 @@ async def change_system_user_profile_info(
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def reset_system_user_password(
     request: Request,
-    reset_password: ResetPasswordModel = Depends(ResetPasswordModel.as_query),
+    reset_password: ResetPasswordModel,
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
 ):

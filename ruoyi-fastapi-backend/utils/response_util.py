@@ -3,7 +3,8 @@ from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
-from typing import Any, Dict, Optional
+from starlette.background import BackgroundTask
+from typing import Any, Dict, Mapping, Optional
 from config.constant import HttpStatusConstant
 
 
@@ -20,6 +21,9 @@ class ResponseUtil:
         rows: Optional[Any] = None,
         dict_content: Optional[Dict] = None,
         model_content: Optional[BaseModel] = None,
+        headers: Optional[Mapping[str, str]] = None,
+        media_type: Optional[str] = None,
+        background: Optional[BackgroundTask] = None,
     ) -> Response:
         """
         成功响应方法
@@ -29,6 +33,9 @@ class ResponseUtil:
         :param rows: 可选，成功响应结果中属性为rows的值
         :param dict_content: 可选，dict类型，成功响应结果中自定义属性的值
         :param model_content: 可选，BaseModel类型，成功响应结果中自定义属性的值
+        :param headers: 可选，响应头信息
+        :param media_type: 可选，响应结果媒体类型
+        :param background: 可选，响应返回后执行的后台任务
         :return: 成功响应结果
         """
         result = {'code': HttpStatusConstant.SUCCESS, 'msg': msg}
@@ -44,7 +51,13 @@ class ResponseUtil:
 
         result.update({'success': True, 'time': datetime.now()})
 
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(result),
+            headers=headers,
+            media_type=media_type,
+            background=background,
+        )
 
     @classmethod
     def failure(
@@ -54,6 +67,9 @@ class ResponseUtil:
         rows: Optional[Any] = None,
         dict_content: Optional[Dict] = None,
         model_content: Optional[BaseModel] = None,
+        headers: Optional[Mapping[str, str]] = None,
+        media_type: Optional[str] = None,
+        background: Optional[BackgroundTask] = None,
     ) -> Response:
         """
         失败响应方法
@@ -63,6 +79,9 @@ class ResponseUtil:
         :param rows: 可选，失败响应结果中属性为rows的值
         :param dict_content: 可选，dict类型，失败响应结果中自定义属性的值
         :param model_content: 可选，BaseModel类型，失败响应结果中自定义属性的值
+        :param headers: 可选，响应头信息
+        :param media_type: 可选，响应结果媒体类型
+        :param background: 可选，响应返回后执行的后台任务
         :return: 失败响应结果
         """
         result = {'code': HttpStatusConstant.WARN, 'msg': msg}
@@ -78,7 +97,13 @@ class ResponseUtil:
 
         result.update({'success': False, 'time': datetime.now()})
 
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(result),
+            headers=headers,
+            media_type=media_type,
+            background=background,
+        )
 
     @classmethod
     def unauthorized(
@@ -88,6 +113,9 @@ class ResponseUtil:
         rows: Optional[Any] = None,
         dict_content: Optional[Dict] = None,
         model_content: Optional[BaseModel] = None,
+        headers: Optional[Mapping[str, str]] = None,
+        media_type: Optional[str] = None,
+        background: Optional[BackgroundTask] = None,
     ) -> Response:
         """
         未认证响应方法
@@ -97,6 +125,9 @@ class ResponseUtil:
         :param rows: 可选，未认证响应结果中属性为rows的值
         :param dict_content: 可选，dict类型，未认证响应结果中自定义属性的值
         :param model_content: 可选，BaseModel类型，未认证响应结果中自定义属性的值
+        :param headers: 可选，响应头信息
+        :param media_type: 可选，响应结果媒体类型
+        :param background: 可选，响应返回后执行的后台任务
         :return: 未认证响应结果
         """
         result = {'code': HttpStatusConstant.UNAUTHORIZED, 'msg': msg}
@@ -112,7 +143,13 @@ class ResponseUtil:
 
         result.update({'success': False, 'time': datetime.now()})
 
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(result),
+            headers=headers,
+            media_type=media_type,
+            background=background,
+        )
 
     @classmethod
     def forbidden(
@@ -122,6 +159,9 @@ class ResponseUtil:
         rows: Optional[Any] = None,
         dict_content: Optional[Dict] = None,
         model_content: Optional[BaseModel] = None,
+        headers: Optional[Mapping[str, str]] = None,
+        media_type: Optional[str] = None,
+        background: Optional[BackgroundTask] = None,
     ) -> Response:
         """
         未授权响应方法
@@ -131,6 +171,9 @@ class ResponseUtil:
         :param rows: 可选，未授权响应结果中属性为rows的值
         :param dict_content: 可选，dict类型，未授权响应结果中自定义属性的值
         :param model_content: 可选，BaseModel类型，未授权响应结果中自定义属性的值
+        :param headers: 可选，响应头信息
+        :param media_type: 可选，响应结果媒体类型
+        :param background: 可选，响应返回后执行的后台任务
         :return: 未授权响应结果
         """
         result = {'code': HttpStatusConstant.FORBIDDEN, 'msg': msg}
@@ -146,7 +189,13 @@ class ResponseUtil:
 
         result.update({'success': False, 'time': datetime.now()})
 
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(result),
+            headers=headers,
+            media_type=media_type,
+            background=background,
+        )
 
     @classmethod
     def error(
@@ -156,6 +205,9 @@ class ResponseUtil:
         rows: Optional[Any] = None,
         dict_content: Optional[Dict] = None,
         model_content: Optional[BaseModel] = None,
+        headers: Optional[Mapping[str, str]] = None,
+        media_type: Optional[str] = None,
+        background: Optional[BackgroundTask] = None,
     ) -> Response:
         """
         错误响应方法
@@ -165,6 +217,9 @@ class ResponseUtil:
         :param rows: 可选，错误响应结果中属性为rows的值
         :param dict_content: 可选，dict类型，错误响应结果中自定义属性的值
         :param model_content: 可选，BaseModel类型，错误响应结果中自定义属性的值
+        :param headers: 可选，响应头信息
+        :param media_type: 可选，响应结果媒体类型
+        :param background: 可选，响应返回后执行的后台任务
         :return: 错误响应结果
         """
         result = {'code': HttpStatusConstant.ERROR, 'msg': msg}
@@ -180,14 +235,32 @@ class ResponseUtil:
 
         result.update({'success': False, 'time': datetime.now()})
 
-        return JSONResponse(status_code=status.HTTP_200_OK, content=jsonable_encoder(result))
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(result),
+            headers=headers,
+            media_type=media_type,
+            background=background,
+        )
 
     @classmethod
-    def streaming(cls, *, data: Any = None):
+    def streaming(
+        cls,
+        *,
+        data: Any = None,
+        headers: Optional[Mapping[str, str]] = None,
+        media_type: Optional[str] = None,
+        background: Optional[BackgroundTask] = None,
+    ) -> Response:
         """
         流式响应方法
 
         :param data: 流式传输的内容
+        :param headers: 可选，响应头信息
+        :param media_type: 可选，响应结果媒体类型
+        :param background: 可选，响应返回后执行的后台任务
         :return: 流式响应结果
         """
-        return StreamingResponse(status_code=status.HTTP_200_OK, content=data)
+        return StreamingResponse(
+            status_code=status.HTTP_200_OK, content=data, headers=headers, media_type=media_type, background=background
+        )

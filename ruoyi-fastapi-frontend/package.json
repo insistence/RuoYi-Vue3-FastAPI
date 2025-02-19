@@ -1,6 +1,6 @@
 {
   "name": "vfadmin",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "vfadmin管理系统",
   "author": "insistence",
   "license": "MIT",
@@ -23,17 +23,21 @@
     "@vueuse/core": "10.11.0",
     "ant-design-vue": "^4.1.1",
     "axios": "0.28.1",
+    "clipboard": "2.0.11",
     "echarts": "5.5.1",
     "element-plus": "2.7.6",
     "file-saver": "2.0.5",
     "fuse.js": "6.6.2",
+    "js-beautify": "1.15.1",
     "js-cookie": "3.0.5",
     "jsencrypt": "3.3.2",
     "nprogress": "0.2.0",
     "pinia": "2.1.7",
+    "splitpanes": "3.1.5",
     "vue": "3.4.15",
     "vue-cropper": "1.1.1",
-    "vue-router": "4.4.0"
+    "vue-router": "4.4.0",
+    "vuedraggable": "4.1.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "5.0.5",

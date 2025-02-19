@@ -15,7 +15,8 @@ from module_admin.entity.vo.role_vo import (
 from module_admin.entity.vo.user_vo import UserInfoModel, UserRolePageQueryModel
 from module_admin.dao.role_dao import RoleDao
 from module_admin.dao.user_dao import UserDao
-from utils.common_util import CamelCaseUtil, export_list2excel
+from utils.common_util import CamelCaseUtil
+from utils.excel_util import ExcelUtil
 from utils.page_util import PageResponseModel
 
 
@@ -295,17 +296,12 @@ class RoleService:
             'remark': '备注',
         }
 
-        data = role_list
-
-        for item in data:
+        for item in role_list:
             if item.get('status') == '0':
                 item['status'] = '正常'
             else:
                 item['status'] = '停用'
-        new_data = [
-            {mapping_dict.get(key): value for key, value in item.items() if mapping_dict.get(key)} for item in data
-        ]
-        binary_data = export_list2excel(new_data)
+        binary_data = ExcelUtil.export_list2excel(role_list, mapping_dict)
 
         return binary_data
 

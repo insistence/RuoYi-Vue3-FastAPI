@@ -1,0 +1,491 @@
+<template>
+  <div class="app-container">
+    <el-form :model="queryParams" ref="queryForm" size="small" :inline="true" v-show="showSearch" label-width="68px">
+      {% for column in columns %}
+      {% if column.query %}
+      {% set dictType = column.dict_type %}
+      {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
+      {% set parentheseIndex = column.column_comment.find("（") %}
+      {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+      {% if column.html_type == "input" %}
+      <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
+        <el-input
+          v-model="queryParams.{{ column.python_field }}"
+          placeholder="请输入{{ comment }}"
+          clearable
+          @keyup.enter.native="handleQuery"
+        />
+      </el-form-item>
+      {% elif (column.html_type == "select" or column.html_type == "radio") and dictType %}
+      <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
+        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable>
+          <el-option
+            v-for="dict in dict.type.{{ dictType }}"
+            :key="dict.value"
+            :label="dict.label"
+            :value="dict.value"
+          />
+        </el-select>
+      </el-form-item>
+      {% elif (column.html_type == "select" or column.html_type == "radio") and not dictType %}
+      <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
+        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable>
+          <el-option label="请选择字典生成" value="" />
+        </el-select>
+      </el-form-item>
+      {% elif column.html_type == "datetime" and column.query_type != "BETWEEN" %}
+      <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
+        <el-date-picker clearable
+          v-model="queryParams.{{ column.python_field }}"
+          type="date"
+          value-format="yyyy-MM-dd"
+          placeholder="请选择{{ comment }}">
+        </el-date-picker>
+      </el-form-item>
+      {% elif column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+      <el-form-item label="{{ comment }}">
+        <el-date-picker
+          v-model="daterange{{ AttrName }}"
+          style="width: 240px"
+          value-format="yyyy-MM-dd"
+          type="daterange"
+          range-separator="-"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+        ></el-date-picker>
+      </el-form-item>
+      {% endif %}
+      {% endif %}
+      {% endfor %}
+      <el-form-item>
+        <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">搜索</el-button>
+        <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
+      </el-form-item>
+    </el-form>
+
+    <el-row :gutter="10" class="mb8">
+      <el-col :span="1.5">
+        <el-button
+          type="primary"
+          plain
+          icon="el-icon-plus"
+          size="mini"
+          @click="handleAdd"
+          v-hasPermi="['{{ moduleName }}:{{ businessName }}:add']"
+        >新增</el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="info"
+          plain
+          icon="el-icon-sort"
+          size="mini"
+          @click="toggleExpandAll"
+        >展开/折叠</el-button>
+      </el-col>
+      <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
+    </el-row>
+
+    <el-table
+      v-if="refreshTable"
+      v-loading="loading"
+      :data="{{ businessName }}List"
+      row-key="{{ treeCode }}"
+      :default-expand-all="isExpandAll"
+      :tree-props="{children: 'children', hasChildren: 'hasChildren'}"
+    >
+      {% for column in columns %}
+      {% set pythonField = column.python_field %}
+      {% set parentheseIndex = column.column_comment.find("（") %}
+      {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+      {% if column.pk %}
+      {% elif column.list and column.html_type == "datetime" %}
+      <el-table-column label="{{ comment }}" align="center" prop="{{ pythonField }}" width="180">
+        <template slot-scope="scope">
+          <span>{% raw %}{{{% endraw %} parseTime(scope.row.{{ pythonField }}, '{y}-{m}-{d}') {% raw %}}}{% endraw %}</span>
+        </template>
+      </el-table-column>
+      {% elif column.list and column.html_type == "imageUpload" %}
+      <el-table-column label="{{ comment }}" align="center" prop="{{ pythonField }}" width="100">
+        <template slot-scope="scope">
+          <image-preview :src="scope.row.{{ pythonField }}" :width="50" :height="50"/>
+        </template>
+      </el-table-column>
+      {% elif column.list and column.dict_type %}
+      <el-table-column label="{{ comment }}" align="center" prop="{{ pythonField }}">
+        <template slot-scope="scope">
+          {% if column.html_type == "checkbox" %}
+            <dict-tag :options="{{ column.dict_type }}" :value="scope.row.{{ pythonField }} ? scope.row.{{ pythonField }}.split(',') : []"/>
+          {% else %}
+            <dict-tag :options="{{ column.dict_type }}" :value="scope.row.{{ pythonField }}"/>
+          {% endif %}
+        </template>
+      </el-table-column>
+      {% elif column.list and pythonField %}
+      {% if loop.index == 1 %}
+      <el-table-column label="{{ comment }}" prop="{{ pythonField }}" />
+      {% else %}
+      <el-table-column label="{{ comment }}" align="center" prop="{{ pythonField }}" />
+      {% endif %}
+      {% endif %}
+      {% endfor %}
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+        <template slot-scope="scope">
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-edit"
+            @click="handleUpdate(scope.row)"
+            v-hasPermi="['{{ moduleName }}:{{ businessName }}:edit']"
+          >修改</el-button>
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-plus"
+            @click="handleAdd(scope.row)"
+            v-hasPermi="['{{ moduleName }}:{{ businessName }}:add']"
+          >新增</el-button>
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-delete"
+            @click="handleDelete(scope.row)"
+            v-hasPermi="['{{ moduleName }}:{{ businessName }}:remove']"
+          >删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <!-- 添加或修改{{ functionName }}对话框 -->
+    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
+      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
+      {% for column in columns %}
+      {% set field = column.python_field %}
+      {% if column.insert and not column.pk %}
+      {% if column.usable_column or not column.super_column %}
+      {% set parentheseIndex = column.column_comment.find("（") %}
+      {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+      {% set dictType = column.dict_type %}
+      {% if treeParentCode and column.python_field == treeParentCode %}
+      <el-form-item label="{{ comment }}" prop="{{ treeParentCode }}">
+        <treeselect v-model="form.{{ treeParentCode }}" :options="{{ businessName }}Options" :normalizer="normalizer" placeholder="请选择{{ comment }}" />
+      </el-form-item>
+      {% elif column.html_type == "input" %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-input v-model="form.{{ field }}" placeholder="请输入{{ comment }}" />
+      </el-form-item>
+      {% elif column.html_type == "imageUpload" %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <image-upload v-model="form.{{ field }}"/>
+      </el-form-item>
+      {% elif column.html_type == "fileUpload" %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <file-upload v-model="form.{{ field }}"/>
+      </el-form-item>
+      {% elif column.html_type == "editor" %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <editor v-model="form.{{ field }}" :min-height="192"/>
+      </el-form-item>
+      {% elif column.html_type == "select" and dictType %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-select v-model="form.{{ field }}" placeholder="请选择{{ comment }}">
+          <el-option
+            v-for="dict in dict.type.{{ dictType }}"
+            :key="dict.value"
+            :label="dict.label"
+            {% if column.python_type == 'int' %}
+            :value="parseInt(dict.value)"
+            {% else %}
+            :value="dict.value"
+            {% endif %}
+          ></el-option>
+        </el-select>
+      </el-form-item>
+      {% elif column.html_type == "select" and not dictType %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-select v-model="form.{{ field }}" placeholder="请选择{{ comment }}">
+          <el-option label="请选择字典生成" value="" />
+        </el-select>
+      </el-form-item>
+      {% elif column.html_type == "checkbox" and dictType %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-checkbox-group v-model="form.{{ field }}">
+          <el-checkbox
+            v-for="dict in dict.type.{{ dictType }}"
+            :key="dict.value"
+            :label="dict.value">
+            {% raw %}{{{% endraw %} dict.label {% raw %}}}{% endraw %}
+          </el-checkbox>
+        </el-checkbox-group>
+      </el-form-item>
+      {% elif column.html_type == "checkbox" and not dictType %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-checkbox-group v-model="form.{{ field }}">
+          <el-checkbox>请选择字典生成</el-checkbox>
+        </el-checkbox-group>
+      </el-form-item>
+      {% elif column.html_type == "radio" and dictType %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-radio-group v-model="form.{{ field }}">
+          <el-radio
+            v-for="dict in dict.type.{{ dictType }}"
+            :key="dict.value"
+            {% if column.python_type == 'int' %}
+            :label="parseInt(dict.value)"
+            {% else %}
+            :label="dict.value"
+            {% endif %}>
+            {% raw %}{{{% endraw %} dict.label {% raw %}}}{% endraw %}
+          </el-radio>
+        </el-radio-group>
+      </el-form-item>
+      {% elif column.html_type == "radio" and not dictType %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-radio-group v-model="form.{{ field }}">
+          <el-radio label="请选择字典生成" value="" />
+        </el-radio-group>
+      </el-form-item>
+      {% elif column.html_type == "datetime" %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-date-picker clearable
+          v-model="form.{{ field }}"
+          type="date"
+          value-format="yyyy-MM-d"
+          placeholder="请选择{{ comment }}">
+        </el-date-picker>
+      </el-form-item>
+      {% elif column.html_type == "textarea" %}
+      <el-form-item label="{{ comment }}" prop="{{ field }}">
+        <el-input v-model="form.{{ field }}" type="textarea" placeholder="请输入内容" />
+      </el-form-item>
+      {% endif %}
+      {% endif %}
+      {% endif %}
+      {% endfor %}
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-button @click="cancel">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script>
+import { list{{ BusinessName }}, get{{ BusinessName }}, del{{ BusinessName }}, add{{ BusinessName }}, update{{ BusinessName }} } from "@/api/{{ moduleName }}/{{ businessName }}";
+import Treeselect from "@riophae/vue-treeselect";
+import "@riophae/vue-treeselect/dist/vue-treeselect.css";
+
+export default {
+  name: "{{ BusinessName }}",
+  {% if dicts %}
+  dicts: [{{ dicts }}],
+  {% endif %}
+  components: {
+    Treeselect
+  },
+  data() {
+    return {
+      // 遮罩层
+      loading: true,
+      // 显示搜索条件
+      showSearch: true,
+      // {{ functionName }}表格数据
+      {{ businessName }}List: [],
+      // {{ functionName }}树选项
+      {{ businessName }}Options: [],
+      // 弹出层标题
+      title: "",
+      // 是否显示弹出层
+      open: false,
+      // 是否展开，默认全部展开
+      isExpandAll: true,
+      // 重新渲染表格状态
+      refreshTable: true,
+      {% for column in columns %}
+      {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+      {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
+      // {{ comment }}时间范围
+      daterange{{ AttrName }}: [],
+      {% endif %}
+      {% endfor %}
+      // 查询参数
+      queryParams: {
+        {% for column in columns %}
+        {% if column.query %}
+        {{ column.python_field }}: null,
+        {% endif %}
+        {% endfor %}
+      },
+      // 表单参数
+      form: {},
+      // 表单校验
+      rules: {
+        {% for column in columns %}
+        {% if column.required %}
+        {% set parentheseIndex = column.column_comment.find("（") %}
+        {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+        {{ column.python_field }}: [
+          { required: true, message: "{{ comment }}不能为空", trigger: "{% if column.html_type == 'select' or column.html_type == 'radio' %}change{% else %}blur{% endif %}" }
+        ],
+        {% endif %}
+        {% endfor %}
+      }
+    };
+  },
+  created() {
+    this.getList();
+  },
+  methods: {
+    /** 查询{{ functionName }}列表 */
+    getList() {
+      this.loading = true;
+      {% for column in columns %}
+      {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+      this.queryParams.params = {};
+      {% endif %}
+      {% endfor %}
+      {% for column in columns %}
+      {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+      {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
+      if (null != this.daterange{{ AttrName }} && '' != this.daterange{{ AttrName }}) {
+        this.queryParams.params["begin{{ AttrName }}"] = this.daterange{{ AttrName }}[0];
+        this.queryParams.params["end{{ AttrName }}"] = this.daterange{{ AttrName }}[1];
+      }
+      {% endif %}
+      {% endfor %}
+      list{{ BusinessName }}(this.queryParams).then(response => {
+        this.{{ businessName }}List = this.handleTree(response.data, "{{ treeCode }}", "{{ treeParentCode }}");
+        this.loading = false;
+      });
+    },
+    /** 转换{{ functionName }}数据结构 */
+    normalizer(node) {
+      if (node.children && !node.children.length) {
+        delete node.children;
+      }
+      return {
+        id: node.{{ treeCode }},
+        label: node.{{ treeName }},
+        children: node.children
+      };
+    },
+    /** 查询{{ functionName }}下拉树结构 */
+    getTreeselect() {
+      list{{ BusinessName }}().then(response => {
+        this.{{ businessName }}Options = [];
+        const data = { {{ treeCode }}: 0, {{ treeName }}: '顶级节点', children: [] };
+        data.children = this.handleTree(response.data, "{{ treeCode }}", "{{ treeParentCode }}");
+        this.{{ businessName }}Options.push(data);
+      });
+    },
+    /** 取消按钮 */
+    cancel() {
+      this.open = false;
+      this.reset();
+    },
+    /** 表单重置 */
+    reset() {
+      this.form = {
+        {% for column in columns %}
+        {% if column.html_type == "checkbox" %}
+        {{ column.python_field }}: [],
+        {% else %}
+        {{ column.python_field }}: null,
+        {% endif %}
+        {% endfor %}
+      };
+      this.resetForm("form");
+    },
+    /** 搜索按钮操作 */
+    handleQuery() {
+      this.getList();
+    },
+    /** 重置按钮操作 */
+    resetQuery() {
+      {% for column in columns %}
+      {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+      {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
+      this.daterange{{ AttrName }} = [];
+      {% endif %}
+      {% endfor %}
+      this.resetForm("queryForm");
+      this.handleQuery();
+    },
+    /** 新增按钮操作 */
+    handleAdd(row) {
+      this.reset();
+      this.getTreeselect();
+      if (row != null && row.{{ treeCode }}) {
+        this.form.{{ treeParentCode }} = row.{{ treeCode }};
+      } else {
+        this.form.{{ treeParentCode }} = 0;
+      }
+      this.open = true;
+      this.title = "添加{{ functionName }}";
+    },
+    /** 展开/折叠操作 */
+    toggleExpandAll() {
+      this.refreshTable = false;
+      this.isExpandAll = !isExpandAll;
+      nextTick(() => {
+        this.refreshTable = true;
+      });
+    },
+    /** 修改按钮操作 */
+    handleUpdate(row) {
+      this.reset();
+      this.getTreeselect();
+      if (row != null) {
+        this.form.{{ treeParentCode }} = row.{{ treeParentCode }};
+      }
+      get{{ BusinessName }}(row.{{ pkColumn.python_field }}).then(response => {
+        this.form = response.data;
+        {% for column in columns %}
+        {% if column.html_type == "checkbox" %}
+        this.form.{{ column.python_field }} = this.form.{{ column.python_field }}.split(",");
+        {% endif %}
+        {% endfor %}
+        this.open = true;
+        this.title = "修改{{ functionName }}";
+      });
+    },
+    /** 提交按钮 */
+    submitForm() {
+      this.$refs["form"].validate(valid => {
+        if (valid) {
+          {% for column in columns %}
+          {% if column.html_type == "checkbox" %}
+          this.form.{{ column.python_field }} = this.form.{{ column.python_field }}.join(",");
+          {% endif %}
+          {% endfor %}
+          if (this.form.{{ pkColumn.python_field }} != null) {
+            update{{ BusinessName }}(this.form).then(response => {
+              this.$modal.msgSuccess("修改成功");
+              this.open = false;
+              this.getList();
+            });
+          } else {
+            add{{ BusinessName }}(this.form).then(response => {
+              this.$modal.msgSuccess("新增成功");
+              this.open = false;
+              this.getList();
+            });
+          }
+        }
+      });
+    },
+    /** 删除按钮操作 */
+    handleDelete(row) {
+      this.$modal.confirm('是否确认删除{{ functionName }}编号为"' + row.{{ pkColumn.python_field }} + '"的数据项？').then(function() {
+        return del{{ BusinessName }}(row.{{ pkColumn.python_field }});
+      }).then(() => {
+        this.getList();
+        this.$modal.msgSuccess("删除成功");
+      }).catch(() => {});
+    }
+  },
+};
+</script>

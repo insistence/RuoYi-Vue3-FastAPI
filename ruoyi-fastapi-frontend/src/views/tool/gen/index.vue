@@ -1,7 +1,6 @@
 <template>
   <div class="app-container">
-    <div>我是代码生成</div>
-    <!-- <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
+    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
       <el-form-item label="表名称" prop="tableName">
         <el-input
           v-model="queryParams.tableName"
@@ -42,9 +41,19 @@
           type="primary"
           plain
           icon="Download"
+          :disabled="multiple"
           @click="handleGenTable"
           v-hasPermi="['tool:gen:code']"
         >生成</el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="primary"
+          plain
+          icon="Plus"
+          @click="openCreateTable"
+          v-hasRole="['admin']"
+        >创建</el-button>
       </el-col>
       <el-col :span="1.5">
         <el-button
@@ -131,14 +140,14 @@
       v-model:page="queryParams.pageNum"
       v-model:limit="queryParams.pageSize"
       @pagination="getList"
-    /> -->
+    />
     <!-- 预览界面 -->
-    <!-- <el-dialog :title="preview.title" v-model="preview.open" width="80%" top="5vh" append-to-body class="scrollbar">
+    <el-dialog :title="preview.title" v-model="preview.open" width="80%" top="5vh" append-to-body class="scrollbar">
       <el-tabs v-model="preview.activeName">
         <el-tab-pane
           v-for="(value, key) in preview.data"
-          :label="key.substring(key.lastIndexOf('/')+1,key.indexOf('.vm'))"
-          :name="key.substring(key.lastIndexOf('/')+1,key.indexOf('.vm'))"
+          :label="key.substring(key.lastIndexOf('/')+1,key.indexOf('.jinja2'))"
+          :name="key.substring(key.lastIndexOf('/')+1,key.indexOf('.jinja2'))"
           :key="value"
         >
           <el-link :underline="false" icon="DocumentCopy" v-copyText="value" v-copyText:callback="copyTextSuccess" style="float:right">&nbsp;复制</el-link>
@@ -146,7 +155,8 @@
         </el-tab-pane>
       </el-tabs>
     </el-dialog>
-    <import-table ref="importRef" @ok="handleQuery" /> -->
+    <import-table ref="importRef" @ok="handleQuery" />
+    <create-table ref="createRef" @ok="handleQuery" />
   </div>
 </template>
 
@@ -154,6 +164,7 @@
 import { listTable, previewTable, delTable, genCode, synchDb } from "@/api/tool/gen";
 import router from "@/router";
 import importTable from "./importTable";
+import createTable from "./createTable";
 
 const route = useRoute();
 const { proxy } = getCurrentInstance();
@@ -180,7 +191,7 @@ const data = reactive({
     open: false,
     title: "代码预览",
     data: {},
-    activeName: "domain.java"
+    activeName: "do.py"
   }
 });
 
@@ -206,11 +217,13 @@ function getList() {
     loading.value = false;
   });
 }
+
 /** 搜索按钮操作 */
 function handleQuery() {
   queryParams.value.pageNum = 1;
   getList();
 }
+
 /** 生成代码操作 */
 function handleGenTable(row) {
   const tbNames = row.tableName || tableNames.value;
@@ -223,9 +236,10 @@ function handleGenTable(row) {
       proxy.$modal.msgSuccess("成功生成到自定义路径：" + row.genPath);
     });
   } else {
-    proxy.$download.zip("/tool/gen/batchGenCode?tables=" + tbNames, "ruoyi.zip");
+    proxy.$download.zip("/tool/gen/batchGenCode?tables=" + tbNames, "vfadmin.zip");
   }
 }
+
 /** 同步数据库操作 */
 function handleSynchDb(row) {
   const tableName = row.tableName;
@@ -235,28 +249,38 @@ function handleSynchDb(row) {
     proxy.$modal.msgSuccess("同步成功");
   }).catch(() => {});
 }
+
 /** 打开导入表弹窗 */
 function openImportTable() {
   proxy.$refs["importRef"].show();
 }
+
+/** 打开创建表弹窗 */
+function openCreateTable() {
+  proxy.$refs["createRef"].show();
+}
+
 /** 重置按钮操作 */
 function resetQuery() {
   dateRange.value = [];
   proxy.resetForm("queryRef");
   handleQuery();
 }
+
 /** 预览按钮 */
 function handlePreview(row) {
   previewTable(row.tableId).then(response => {
     preview.value.data = response.data;
     preview.value.open = true;
-    preview.value.activeName = "domain.java";
+    preview.value.activeName = "do.py";
   });
 }
+
 /** 复制代码成功 */
 function copyTextSuccess() {
   proxy.$modal.msgSuccess("复制成功");
 }
+
 // 多选框选中数据
 function handleSelectionChange(selection) {
   ids.value = selection.map(item => item.tableId);
@@ -264,11 +288,13 @@ function handleSelectionChange(selection) {
   single.value = selection.length != 1;
   multiple.value = !selection.length;
 }
+
 /** 修改按钮操作 */
 function handleEditTable(row) {
   const tableId = row.tableId || ids.value[0];
   router.push({ path: "/tool/gen-edit/index/" + tableId, query: { pageNum: queryParams.value.pageNum } });
 }
+
 /** 删除按钮操作 */
 function handleDelete(row) {
   const tableIds = row.tableId || ids.value;
@@ -280,5 +306,5 @@ function handleDelete(row) {
   }).catch(() => {});
 }
 
-// getList();
+getList();
 </script>
