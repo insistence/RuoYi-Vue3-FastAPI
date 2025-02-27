@@ -8,7 +8,7 @@ pandas==2.2.3
 passlib[bcrypt]==1.7.4
 Pillow==11.1.0
 psutil==7.0.0
-pydantic-validation-decorator==0.1.4
+pydantic_validation_decorator==0.1.4
 PyJWT[crypto]==2.10.1
 PyMySQL==1.1.1
 redis==5.2.1

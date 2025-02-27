@@ -347,9 +347,9 @@ class GenTableService:
         """
         gen_path = gen_table.gen_path
         if gen_path == '/':
-            return os.path.join(os.getcwd(), GenConfig.GEN_PATH, TemplateUtils.get_file_name(template, gen_table))
+            return os.path.join(os.getcwd(), GenConfig.GEN_PATH, TemplateUtils.get_file_name([template], gen_table))
         else:
-            return os.path.join(gen_path, TemplateUtils.get_file_name(template, gen_table))
+            return os.path.join(gen_path, TemplateUtils.get_file_name([template], gen_table))
 
     @classmethod
     async def sync_db_services(cls, query_db: AsyncSession, table_name: str):
