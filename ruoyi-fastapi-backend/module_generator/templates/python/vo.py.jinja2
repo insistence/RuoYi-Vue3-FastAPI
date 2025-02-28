@@ -8,8 +8,8 @@
     {% set vo_field_required.has_required = True %}
 {% endif %}
 {% endfor %}
-{% if table.sub %}
 {% set sub_vo_field_required = namespace(has_required=False) %}
+{% if table.sub %}
 {% for sub_column in subTable.columns %}
 {% if sub_column.required %}
     {% set sub_vo_field_required.has_required = True %}
@@ -21,7 +21,7 @@
 {% endfor %}
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-{% if vo_field_required.has_required %}
+{% if vo_field_required.has_required or sub_vo_field_required.has_required %}
 from pydantic_validation_decorator import NotBlank
 {% endif %}
 {% if table.sub %}
