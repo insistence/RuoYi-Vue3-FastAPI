@@ -1,13 +1,14 @@
 import io
 import json
 import os
-import re
 import zipfile
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlglot import parse as sqlglot_parse
+from sqlglot.expressions import Add, Alter, Create, Delete, Drop, Expression, Insert, Table, TruncateTable, Update
 from typing import List
 from config.constant import GenConstant
-from config.env import GenConfig
+from config.env import DataBaseConfig, GenConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -197,10 +198,11 @@ class GenTableService:
         :param current_user: 当前用户信息对象
         :return: 创建表结构结果
         """
-        if cls.__is_valid_create_table(sql):
+        sql_statements = sqlglot_parse(sql, dialect=DataBaseConfig.sqlglot_parse_dialect)
+        if cls.__is_valid_create_table(sql_statements):
             try:
-                table_names = re.findall(r'create\s+table\s+(\w+)', sql, re.IGNORECASE)
-                await GenTableDao.create_table_by_sql_dao(query_db, sql)
+                table_names = cls.__get_table_names(sql_statements)
+                await GenTableDao.create_table_by_sql_dao(query_db, sql_statements)
                 gen_table_list = await cls.get_gen_db_table_list_by_name_services(query_db, table_names)
                 await cls.import_gen_table_services(query_db, gen_table_list, current_user)
 
@@ -211,21 +213,38 @@ class GenTableService:
             raise ServiceException(message='建表语句不合法')
 
     @classmethod
-    def __is_valid_create_table(cls, sql: str):
+    def __is_valid_create_table(cls, sql_statements: List[Expression]):
         """
         校验sql语句是否为合法的建表语句
 
-        :param sql: sql语句
+        :param sql_statements: sql语句的ast列表
         :return: 校验结果
         """
-        create_table_pattern = r'^\s*CREATE\s+TABLE\s+'
-        if not re.search(create_table_pattern, sql, re.IGNORECASE):
+        validate_create = [isinstance(sql_statement, Create) for sql_statement in sql_statements]
+        validate_forbidden_keywords = [
+            isinstance(
+                sql_statement,
+                (Add, Alter, Delete, Drop, Insert, TruncateTable, Update),
+            )
+            for sql_statement in sql_statements
+        ]
+        if not any(validate_create) or any(validate_forbidden_keywords):
             return False
-        forbidden_keywords = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'ALTER', 'TRUNCATE']
-        for keyword in forbidden_keywords:
-            if re.search(rf'\b{keyword}\b', sql, re.IGNORECASE):
-                return False
         return True
+
+    @classmethod
+    def __get_table_names(cls, sql_statements: List[Expression]):
+        """
+        获取sql语句中所有的建表表名
+
+        :param sql_statements: sql语句的ast列表
+        :return: 建表表名列表
+        """
+        table_names = []
+        for sql_statement in sql_statements:
+            if isinstance(sql_statement, Create):
+                table_names.append(sql_statement.find(Table).name)
+        return table_names
 
     @classmethod
     async def preview_code_services(cls, query_db: AsyncSession, table_id: int):

@@ -3,6 +3,7 @@ import os
 import sys
 from dotenv import load_dotenv
 from functools import lru_cache
+from pydantic import computed_field
 from pydantic_settings import BaseSettings
 from typing import Literal
 
@@ -50,6 +51,13 @@ class DataBaseSettings(BaseSettings):
     db_pool_size: int = 50
     db_pool_recycle: int = 3600
     db_pool_timeout: int = 30
+
+    @computed_field
+    @property
+    def sqlglot_parse_dialect(self) -> str:
+        if self.db_type == 'postgresql':
+            return 'postgres'
+        return self.db_type
 
 
 class RedisSettings(BaseSettings):

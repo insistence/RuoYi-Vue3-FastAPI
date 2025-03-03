@@ -2,10 +2,13 @@ import inspect
 from fastapi import Form, Query
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
-from typing import Type
+from typing import Type, TypeVar
 
 
-def as_query(cls: Type[BaseModel]):
+BaseModelVar = TypeVar('BaseModelVar', bound=BaseModel)
+
+
+def as_query(cls: Type[BaseModelVar]) -> Type[BaseModelVar]:
     """
     pydantic模型查询参数装饰器，将pydantic模型用于接收查询参数
     """
@@ -43,7 +46,7 @@ def as_query(cls: Type[BaseModel]):
     return cls
 
 
-def as_form(cls: Type[BaseModel]):
+def as_form(cls: Type[BaseModelVar]) -> Type[BaseModelVar]:
     """
     pydantic模型表单参数装饰器，将pydantic模型用于接收表单参数
     """

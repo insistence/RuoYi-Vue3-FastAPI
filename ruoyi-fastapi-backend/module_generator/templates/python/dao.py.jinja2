@@ -70,7 +70,7 @@ class {{ BusinessName }}Dao:
                 await db.execute(
                     select({{ ClassName }}).where(
                         {% for column in columns %}
-                        {% if column.required %}
+                        {% if column.unique %}
                         {{ ClassName }}.{{ column.python_field | camel_to_snake }} == {{ businessName }}.{{ column.python_field | camel_to_snake }} if {{ businessName }}.{{ column.python_field | camel_to_snake }} else True,
                         {% endif %}
                         {% endfor %}
