@@ -91,6 +91,8 @@ class TemplateUtils:
             'table': gen_table,
             'dicts': cls.get_dicts(gen_table),
             'dbType': DataBaseConfig.db_type,
+            'column_not_add_show': GenConstant.COLUMNNAME_NOT_ADD_SHOW,
+            'column_not_edit_show': GenConstant.COLUMNNAME_NOT_EDIT_SHOW,
         }
 
         # 设置菜单、树形结构、子表的上下文
