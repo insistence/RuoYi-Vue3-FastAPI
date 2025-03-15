@@ -201,9 +201,12 @@ class SchedulerUtil:
         job_executor = job_info.job_executor
         if iscoroutinefunction(job_func):
             job_executor = 'default'
+        job_trigger = DateTrigger()
+        if job_info.status == '0':
+            job_trigger = OrTrigger(triggers=[DateTrigger(), MyCronTrigger.from_crontab(job_info.cron_expression)])
         scheduler.add_job(
             func=eval(job_info.invoke_target),
-            trigger=OrTrigger(triggers=[DateTrigger(), MyCronTrigger.from_crontab(job_info.cron_expression)]),
+            trigger=job_trigger,
             args=job_info.job_args.split(',') if job_info.job_args else None,
             kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
             id=str(job_info.job_id),
