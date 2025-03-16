@@ -163,7 +163,7 @@
       <el-form ref="{{ businessName }}Ref" :model="form" :rules="rules" label-width="80px">
       {% for column in columns %}
       {% set field = column.python_field %}
-      {% if (column.insert or column.edit) and not column.pk %}
+      {% if (column.insert or column.edit) and not column.pk and column.column_name not in column_not_add_show + column_not_edit_show %}
       {% if column.usable_column or not column.super_column %}
       {% set parentheseIndex = column.column_comment.find("（") %}
       {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
