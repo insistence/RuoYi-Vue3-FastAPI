@@ -103,7 +103,7 @@ class DictTypeService:
                     if dict_type_info.dict_type != page_object.dict_type:
                         for dict_data in dict_data_list:
                             edit_dict_data = DictDataModel(
-                                dictCode=dict_data.dict_code,
+                                dictCode=dict_data.get('dict_code'),
                                 dictType=page_object.dict_type,
                                 updateBy=page_object.update_by,
                             ).model_dump(exclude_unset=True)
