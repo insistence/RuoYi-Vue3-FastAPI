@@ -118,12 +118,12 @@ class {{ BusinessName }}Dao:
                 {{ ClassName }}.{{ field }} <= query_object.{{ field }} if query_object.{{ field }} else True,
                 {% elif column.query_type == "LIKE" %}
                 {{ ClassName }}.{{ field }}.like(f'%{% raw %}{{% endraw %}query_object.{{ field }}{% raw %}}{% endraw %}%') if query_object.{{ field }} else True,
-                {% elif column.query_type == "BETWEEN" %}
+                {% elif column.html_type == "datetime" and column.query_type == "BETWEEN" %}
                 {{ ClassName }}.{{ field }}.between(
-                    datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
-                    datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),
+                    datetime.combine(datetime.strptime(query_object.begin_{{ column.column_name }}, '%Y-%m-%d'), time(00, 00, 00)),
+                    datetime.combine(datetime.strptime(query_object.end_{{ column.column_name }}, '%Y-%m-%d'), time(23, 59, 59)),
                 )
-                if query_object.begin_time and query_object.end_time
+                if query_object.begin_{{ column.column_name }} and query_object.end_{{ column.column_name }}
                 else True,
                 {% endif %}
                 {% endif %}

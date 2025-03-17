@@ -426,8 +426,8 @@ export default {
       {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
       {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
       if (null != this.daterange{{ AttrName }} && '' != this.daterange{{ AttrName }}) {
-        this.queryParams.params["begin{{ AttrName }}"] = this.daterange{{ AttrName }}[0];
-        this.queryParams.params["end{{ AttrName }}"] = this.daterange{{ AttrName }}[1];
+        this.queryParams.begin{{ AttrName }} = this.daterange{{ AttrName }}[0];
+        this.queryParams.end{{ AttrName }} = this.daterange{{ AttrName }}[1];
       }
       {% endif %}
       {% endfor %}

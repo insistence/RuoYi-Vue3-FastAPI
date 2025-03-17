@@ -3,9 +3,13 @@
 {% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
 {% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
 {% set vo_field_required = namespace(has_required=False) %}
+{% set vo_field_daterange = namespace(has_daterange=False) %}
 {% for column in columns %}
 {% if column.required %}
     {% set vo_field_required.has_required = True %}
+{% endif %}
+{% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+    {% set vo_field_daterange.has_daterange = True %}
 {% endif %}
 {% endfor %}
 {% set sub_vo_field_required = namespace(has_required=False) %}
@@ -142,9 +146,16 @@ class {{ BusinessName }}QueryModel({% if table.sub %}{{ BusinessName }}BaseModel
     """
     {{ functionName }}不分页查询模型
     """
-
-    begin_time: Optional[str] = Field(default=None, description='开始时间')
-    end_time: Optional[str] = Field(default=None, description='结束时间')
+    {% if vo_field_daterange.has_daterange %}
+    {% for column in columns %}
+    {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+    begin_{{ column.column_name  }}: Optional[str] = Field(default=None, description='开始{{ column.column_comment }}')
+    end_{{ column.column_name  }}: Optional[str] = Field(default=None, description='结束{{ column.column_comment }}')
+    {% endif %}
+    {% endfor %}
+    {% else %}
+    pass
+    {% endif %}
 
 
 @as_query
