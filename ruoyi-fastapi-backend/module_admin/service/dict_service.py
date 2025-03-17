@@ -106,6 +106,7 @@ class DictTypeService:
                                 dictCode=dict_data.get('dict_code'),
                                 dictType=page_object.dict_type,
                                 updateBy=page_object.update_by,
+                                updateTime=page_object.update_time,
                             ).model_dump(exclude_unset=True)
                             await DictDataDao.edit_dict_data_dao(query_db, edit_dict_data)
                     await DictTypeDao.edit_dict_type_dao(query_db, edit_dict_type)
