@@ -252,6 +252,8 @@ class GenConstant:
         'double',
         'decimal',
     ]
+    COLUMNNAME_NOT_ADD_SHOW = ['create_by', 'create_time']
+    COLUMNNAME_NOT_EDIT_SHOW = ['update_by', 'update_time']
     COLUMNNAME_NOT_EDIT = ['id', 'create_by', 'create_time', 'del_flag']
     COLUMNNAME_NOT_LIST = ['id', 'create_by', 'create_time', 'del_flag', 'update_by', 'update_time']
     COLUMNNAME_NOT_QUERY = ['id', 'create_by', 'create_time', 'del_flag', 'update_by', 'update_time', 'remark']

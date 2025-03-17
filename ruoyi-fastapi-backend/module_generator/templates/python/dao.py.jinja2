@@ -145,7 +145,7 @@ class {{ BusinessName }}Dao:
         :param {{ businessName }}: {{ functionName }}对象
         :return:
         """
-        db_{{ businessName }} = {{ ClassName }}(**{{ businessName }}.model_dump(exclude={% raw %}{{% endraw %}{% if table.sub %}'{{ subclassName }}_list', {% endif %}{% for column in columns %}{% if not column.insert %}'{{ column.python_field | camel_to_snake  }}'{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}{% raw %}}{% endraw %}))
+        db_{{ businessName }} = {{ ClassName }}(**{{ businessName }}.model_dump(exclude={% raw %}{{% endraw %}{% if table.sub %}'{{ subclassName }}_list', {% endif %}{% for column in columns %}{% if not column.insert and column.column_name not in column_not_add_show + column_not_edit_show %}'{{ column.python_field | camel_to_snake  }}'{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}{% raw %}}{% endraw %}))
         db.add(db_{{ businessName }})
         await db.flush()
 
