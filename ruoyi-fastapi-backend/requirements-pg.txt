@@ -14,4 +14,5 @@ psycopg2==2.9.10
 redis==5.2.1
 requests==2.32.3
 SQLAlchemy[asyncio]==2.0.38
+sqlglot[rs]==26.6.0
 user-agents==2.2.0

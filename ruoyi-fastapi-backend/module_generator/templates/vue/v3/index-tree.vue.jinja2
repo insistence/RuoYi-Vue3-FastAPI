@@ -13,12 +13,13 @@
           v-model="queryParams.{{ column.python_field }}"
           placeholder="请输入{{ comment }}"
           clearable
+          style="width: 240px"
           @keyup.enter="handleQuery"
         />
       </el-form-item>
       {% elif (column.html_type == "select" or column.html_type == "radio") and dictType %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
-        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable>
+        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable style="width: 240px">
           <el-option
             v-for="dict in {{ dictType }}"
             :key="dict.value"
@@ -29,18 +30,20 @@
       </el-form-item>
       {% elif (column.html_type == "select" or column.html_type == "radio") and not dictType %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
-        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable>
+        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable style="width: 240px">
           <el-option label="请选择字典生成" value="" />
         </el-select>
       </el-form-item>
       {% elif column.html_type == "datetime" and column.query_type != "BETWEEN" %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
-        <el-date-picker clearable
+        <el-date-picker
           v-model="queryParams.{{ column.python_field }}"
           type="date"
           value-format="YYYY-MM-DD"
-          placeholder="请选择{{ comment }}">
-        </el-date-picker>
+          placeholder="请选择{{ comment }}"
+          clearable
+          style="width: 240px"
+        />
       </el-form-item>
       {% elif column.html_type == "datetime" and column.query_type == "BETWEEN" %}
       <el-form-item label="{{ comment }}" style="width: 308px">
@@ -51,7 +54,8 @@
           range-separator="-"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
-        ></el-date-picker>
+          style="width: 240px"
+        />
       </el-form-item>
       {% endif %}
       {% endif %}
@@ -136,13 +140,13 @@
       <el-form ref="{{ businessName }}Ref" :model="form" :rules="rules" label-width="80px">
       {% for column in columns %}
       {% set field = column.python_field %}
-      {% if column.insert and not column.pk %}
+      {% if (column.insert or column.edit) and not column.pk and column.column_name not in column_not_add_show + column_not_edit_show %}
       {% if column.usable_column or not column.super_column %}
       {% set parentheseIndex = column.column_comment.find("（") %}
       {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
       {% set dictType = column.dict_type %}
       {% if treeParentCode and column.python_field == treeParentCode %}
-      <el-form-item label="{{ comment }}" prop="{{ treeParentCode }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ treeParentCode }}">
         <el-tree-select
           v-model="form.{{ treeParentCode }}"
           :data="{{ businessName }}Options"
@@ -153,23 +157,23 @@
         />
       </el-form-item>
       {% elif column.html_type == "input" %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-input v-model="form.{{ field }}" placeholder="请输入{{ comment }}" />
       </el-form-item>
       {% elif column.html_type == "imageUpload" %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <image-upload v-model="form.{{ field }}"/>
       </el-form-item>
       {% elif column.html_type == "fileUpload" %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <file-upload v-model="form.{{ field }}"/>
       </el-form-item>
       {% elif column.html_type == "editor" %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <editor v-model="form.{{ field }}" :min-height="192"/>
       </el-form-item>
       {% elif column.html_type == "select" and dictType %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-select v-model="form.{{ field }}" placeholder="请选择{{ comment }}">
           <el-option
             v-for="dict in {{ dictType }}"
@@ -184,13 +188,13 @@
         </el-select>
       </el-form-item>
       {% elif column.html_type == "select" and not dictType %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-select v-model="form.{{ field }}" placeholder="请选择{{ comment }}">
           <el-option label="请选择字典生成" value="" />
         </el-select>
       </el-form-item>
       {% elif column.html_type == "checkbox" and dictType %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-checkbox-group v-model="form.{{ field }}">
           <el-checkbox
             v-for="dict in {{ dictType }}"
@@ -201,13 +205,13 @@
         </el-checkbox-group>
       </el-form-item>
       {% elif column.html_type == "checkbox" and not dictType %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-checkbox-group v-model="form.{{ field }}">
           <el-checkbox>请选择字典生成</el-checkbox>
         </el-checkbox-group>
       </el-form-item>
       {% elif column.html_type == "radio" and dictType %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-radio-group v-model="form.{{ field }}">
           <el-radio
             v-for="dict in {{ dictType }}"
@@ -222,13 +226,13 @@
         </el-radio-group>
       </el-form-item>
       {% elif column.html_type == "radio" and not dictType %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-radio-group v-model="form.{{ field }}">
           <el-radio label="请选择字典生成" value="" />
         </el-radio-group>
       </el-form-item>
       {% elif column.html_type == "datetime" %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-date-picker clearable
           v-model="form.{{ field }}"
           type="date"
@@ -237,7 +241,7 @@
         </el-date-picker>
       </el-form-item>
       {% elif column.html_type == "textarea" %}
-      <el-form-item label="{{ comment }}" prop="{{ field }}">
+      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
         <el-input v-model="form.{{ field }}" type="textarea" placeholder="请输入内容" />
       </el-form-item>
       {% endif %}
@@ -315,8 +319,8 @@ function getList() {
   {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
   {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
   if (null != daterange{{ AttrName }} && '' != daterange{{ AttrName }}) {
-    queryParams.value.params["begin{{ AttrName }}"] = daterange{{ AttrName }}.value[0];
-    queryParams.value.params["end{{ AttrName }}"] = daterange{{ AttrName }}.value[1];
+    queryParams.value.begin{{ AttrName }} = daterange{{ AttrName }}.value[0];
+    queryParams.value.end{{ AttrName }} = daterange{{ AttrName }}.value[1];
   }
   {% endif %}
   {% endfor %}
@@ -448,6 +452,11 @@ function handleDelete(row) {
     getList();
     proxy.$modal.msgSuccess("删除成功");
   }).catch(() => {});
+}
+
+/** 是否渲染字段 */
+function renderField(insert, edit) {
+  return form.value.{{ pkColumn.python_field }} == null ? insert : edit;
 }
 
 getList();

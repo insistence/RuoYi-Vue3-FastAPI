@@ -103,7 +103,7 @@ class {{ BusinessName }}Service:
         :param page_object: 编辑{{ functionName }}对象
         :return: 编辑{{ functionName }}校验结果
         """
-        edit_{{ businessName }} = page_object.model_dump(exclude_unset=True, exclude={% raw %}{{% endraw %}{% if table.sub %}'{{ subclassName }}_list', {% endif %}{% for column in columns %}{% if not column.edit and not column.pk %}'{{ column.python_field | camel_to_snake  }}'{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}{% raw %}}{% endraw %})
+        edit_{{ businessName }} = page_object.model_dump(exclude_unset=True, exclude={% raw %}{{% endraw %}{% if table.sub %}'{{ subclassName }}_list', {% endif %}{% for column in columns %}{% if not column.edit and not column.pk and column.column_name not in column_not_edit_show %}'{{ column.python_field | camel_to_snake  }}'{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}{% raw %}}{% endraw %})
         {{ businessName }}_info = await cls.{{ businessName }}_detail_services(query_db, page_object.{{ pk_field }})
         if {{ businessName }}_info.{{ pk_field }}:
             {% for column in columns %}
