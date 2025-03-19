@@ -13,12 +13,13 @@
           v-model="queryParams.{{ column.python_field }}"
           placeholder="请输入{{ comment }}"
           clearable
+          style="width: 240px"
           @keyup.enter="handleQuery"
         />
       </el-form-item>
       {% elif (column.html_type == "select" or column.html_type == "radio") and dictType %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
-        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable>
+        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable style="width: 240px">
           <el-option
             v-for="dict in {{ dictType }}"
             :key="dict.value"
@@ -29,18 +30,20 @@
       </el-form-item>
       {% elif (column.html_type == "select" or column.html_type == "radio") and not dictType %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
-        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable>
+        <el-select v-model="queryParams.{{ column.python_field }}" placeholder="请选择{{ comment }}" clearable style="width: 240px">
           <el-option label="请选择字典生成" value="" />
         </el-select>
       </el-form-item>
       {% elif column.html_type == "datetime" and column.query_type != "BETWEEN" %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
-        <el-date-picker clearable
+        <el-date-picker
           v-model="queryParams.{{ column.python_field }}"
           type="date"
           value-format="YYYY-MM-DD"
-          placeholder="请选择{{ comment }}">
-        </el-date-picker>
+          placeholder="请选择{{ comment }}"
+          clearable
+          style="width: 240px"
+        />
       </el-form-item>
       {% elif column.html_type == "datetime" and column.query_type == "BETWEEN" %}
       <el-form-item label="{{ comment }}" style="width: 308px">
@@ -51,7 +54,8 @@
           range-separator="-"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
-        ></el-date-picker>
+          style="width: 240px"
+        />
       </el-form-item>
       {% endif %}
       {% endif %}

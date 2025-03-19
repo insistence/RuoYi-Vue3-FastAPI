@@ -35,12 +35,13 @@
       </el-form-item>
       {% elif column.html_type == "datetime" and column.query_type != "BETWEEN" %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
-        <el-date-picker clearable
+        <el-date-picker
           v-model="queryParams.{{ column.python_field }}"
           type="date"
           value-format="yyyy-MM-dd"
-          placeholder="请选择{{ comment }}">
-        </el-date-picker>
+          placeholder="请选择{{ comment }}"
+          clearable
+        />
       </el-form-item>
       {% elif column.html_type == "datetime" and column.query_type == "BETWEEN" %}
       <el-form-item label="{{ comment }}">
@@ -52,7 +53,7 @@
           range-separator="-"
           start-placeholder="开始日期"
           end-placeholder="结束日期"
-        ></el-date-picker>
+        />
       </el-form-item>
       {% endif %}
       {% endif %}
