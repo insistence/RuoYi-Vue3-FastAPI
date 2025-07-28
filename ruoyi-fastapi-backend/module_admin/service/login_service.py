@@ -466,15 +466,15 @@ class LoginService:
         return CrudResponseModel(**result)
 
     @classmethod
-    async def logout_services(cls, request: Request, session_id: str):
+    async def logout_services(cls, request: Request, token_id: str):
         """
         退出登录services
 
         :param request: Request对象
-        :param session_id: 会话编号
+        :param token_id: 令牌编号
         :return: 退出登录结果
         """
-        await request.app.state.redis.delete(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{session_id}')
+        await request.app.state.redis.delete(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{token_id}')
         # await request.app.state.redis.delete(f'{current_user.user.user_id}_access_token')
         # await request.app.state.redis.delete(f'{current_user.user.user_id}_session_id')
 
