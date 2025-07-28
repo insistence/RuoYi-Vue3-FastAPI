@@ -46,7 +46,7 @@ class Log:
     def __call__(self, func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            start_time = time.time()
+            start_time = time.perf_counter()
             # 获取被装饰函数的文件路径
             file_path = inspect.getfile(func)
             # 获取项目根路径
@@ -129,7 +129,7 @@ class Log:
                 logger.exception(e)
                 result = ResponseUtil.error(msg=str(e))
             # 获取请求耗时
-            cost_time = float(time.time() - start_time) * 100
+            cost_time = float(time.perf_counter() - start_time) * 1000
             # 判断请求是否来自api文档
             request_from_swagger = (
                 request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
