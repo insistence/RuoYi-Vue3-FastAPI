@@ -1,12 +1,13 @@
+import httpx
 import inspect
 import json
 import os
-import requests
 import time
+from async_lru import alru_cache
 from datetime import datetime
 from fastapi import Request
 from fastapi.responses import JSONResponse, ORJSONResponse, UJSONResponse
-from functools import lru_cache, wraps
+from functools import wraps
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any, Callable, Literal, Optional
 from user_agents import parse
@@ -74,7 +75,7 @@ class Log:
             oper_ip = request.headers.get('X-Forwarded-For')
             oper_location = '内网IP'
             if AppConfig.app_ip_location_query:
-                oper_location = get_ip_location(oper_ip)
+                oper_location = await get_ip_location(oper_ip)
             # 根据不同的请求类型使用不同的方法获取请求参数
             content_type = request.headers.get('Content-Type')
             if content_type and (
@@ -203,8 +204,8 @@ class Log:
         return wrapper
 
 
-@lru_cache()
-def get_ip_location(oper_ip: str):
+@alru_cache()
+async def get_ip_location(oper_ip: str):
     """
     查询ip归属区域
 
@@ -215,12 +216,13 @@ def get_ip_location(oper_ip: str):
     try:
         if oper_ip != '127.0.0.1' and oper_ip != 'localhost':
             oper_location = '未知'
-            ip_result = requests.get(f'https://qifu-api.baidubce.com/ip/geo/v1/district?ip={oper_ip}')
-            if ip_result.status_code == 200:
-                prov = ip_result.json().get('data').get('prov')
-                city = ip_result.json().get('data').get('city')
-                if prov or city:
-                    oper_location = f'{prov}-{city}'
+            async with httpx.AsyncClient() as client:
+                ip_result = await client.get(f'https://qifu-api.baidubce.com/ip/geo/v1/district?ip={oper_ip}')
+                if ip_result.status_code == 200:
+                    prov = ip_result.json().get('data', {}).get('prov')
+                    city = ip_result.json().get('data', {}).get('city')
+                    if prov or city:
+                        oper_location = f'{prov}-{city}'
     except Exception as e:
         oper_location = '未知'
         print(e)
