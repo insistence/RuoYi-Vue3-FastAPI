@@ -1,4 +1,5 @@
 APScheduler==3.11.0
+async-lru==2.0.5
 asyncmy==0.2.10
 DateTime==5.5
 fastapi[all]==0.115.8
@@ -12,7 +13,6 @@ pydantic-validation-decorator==0.1.4
 PyJWT[crypto]==2.10.1
 PyMySQL==1.1.1
 redis==5.2.1
-requests==2.32.3
 SQLAlchemy[asyncio]==2.0.38
 sqlglot[rs]==26.6.0
 user-agents==2.2.0
