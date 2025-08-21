@@ -1,4 +1,5 @@
 import argparse
+import configparser
 import os
 import sys
 from dotenv import load_dotenv
@@ -206,7 +207,15 @@ class GetConfig:
         """
         解析命令行参数
         """
-        if 'uvicorn' in sys.argv[0]:
+        # 检查是否在alembic环境中运行，如果是则跳过参数解析
+        if 'alembic' in sys.argv[0] or any('alembic' in arg for arg in sys.argv):
+            ini_config = configparser.ConfigParser()
+            ini_config.read('alembic.ini', encoding='utf-8')
+            if 'settings' in ini_config:
+                # 获取env选项
+                env_value = ini_config['settings'].get('env')
+                os.environ['APP_ENV'] = env_value if env_value else 'dev'
+        elif 'uvicorn' in sys.argv[0]:
             # 使用uvicorn启动时，命令行参数需要按照uvicorn的文档进行配置，无法自定义参数
             pass
         else:
