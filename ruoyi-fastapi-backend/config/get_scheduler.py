@@ -131,7 +131,7 @@ class SchedulerUtil:
 
         :return:
         """
-        logger.info('开始启动定时任务...')
+        logger.info('🔎 开始启动定时任务...')
         scheduler.start()
         async with AsyncSessionLocal() as session:
             job_list = await JobDao.get_job_list_for_scheduler(session)
@@ -139,7 +139,7 @@ class SchedulerUtil:
                 cls.remove_scheduler_job(job_id=str(item.job_id))
                 cls.add_scheduler_job(item)
         scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
-        logger.info('系统初始定时任务加载成功')
+        logger.info('✅️ 系统初始定时任务加载成功')
 
     @classmethod
     async def close_system_scheduler(cls):
@@ -149,7 +149,7 @@ class SchedulerUtil:
         :return:
         """
         scheduler.shutdown()
-        logger.info('关闭定时任务成功')
+        logger.info('✅️ 关闭定时任务成功')
 
     @classmethod
     def get_scheduler_job(cls, job_id: Union[str, int]):
