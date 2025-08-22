@@ -8,6 +8,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy.engine.row import Row
 from sqlalchemy.orm.collections import InstrumentedList
+from sqlalchemy.sql.expression import TextClause, null
 from typing import Any, Dict, List, Literal, Union
 from config.database import Base
 from config.env import CachePathConfig
@@ -99,6 +100,19 @@ class SqlalchemyUtil:
                     return {SnakeCaseUtil.camel_to_snake(k): v for k, v in result_dict.items()}
                 return result_dict
         return result
+
+    @classmethod
+    def get_server_default_null(cls, dialect_name: str, need_explicit_null: bool = True) -> Union[TextClause, None]:
+        """
+        根据数据库方言动态返回值为null的server_default
+
+        :param dialect_name: 数据库方言名称
+        :param need_explicit_null: 是否需要显式DEFAULT NULL
+        :return: 不同数据库方言对应的null_server_default
+        """
+        if need_explicit_null and dialect_name == 'postgresql':
+            return null()
+        return None
 
 
 class CamelCaseUtil:

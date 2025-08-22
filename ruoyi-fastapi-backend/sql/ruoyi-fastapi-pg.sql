@@ -522,7 +522,7 @@ create table sys_oper_log (
     status int4 default 0,
     error_msg varchar(2000) default '',
     oper_time timestamp(0),
-    cost_time int8 default 0,
+    cost_time bigint default 0,
     primary key (oper_id)
 );
 alter sequence sys_oper_log_oper_id_seq restart 100;
@@ -545,6 +545,7 @@ comment on column sys_oper_log.json_result is '返回参数';
 comment on column sys_oper_log.status is '操作状态（0正常 1异常）';
 comment on column sys_oper_log.error_msg is '错误消息';
 comment on column sys_oper_log.oper_time is '操作时间';
+comment on column sys_oper_log.cost_time is '消耗时间';
 comment on table sys_oper_log is '操作日志记录';
 
 -- ----------------------------
@@ -931,7 +932,8 @@ create table gen_table_column (
     create_time timestamp(0),
     update_by varchar(64) default '',
     update_time timestamp(0),
-    primary key (column_id)
+    primary key (column_id),
+    constraint fk_gen_table_column_table_id foreign key (table_id) references gen_table(table_id)
 );
 comment on column gen_table_column.column_id is '编号';
 comment on column gen_table_column.table_id is '归属表编号';

@@ -129,7 +129,7 @@ class JobService:
                 elif not await cls.check_job_unique_services(query_db, page_object):
                     raise ServiceException(message=f'修改定时任务{page_object.job_name}失败，定时任务已存在')
             try:
-                await JobDao.edit_job_dao(query_db, edit_job)
+                await JobDao.edit_job_dao(query_db, edit_job, job_info)
                 SchedulerUtil.remove_scheduler_job(job_id=edit_job.get('job_id'))
                 if edit_job.get('status') == '0':
                     job_info = await cls.job_detail_services(query_db, edit_job.get('job_id'))
