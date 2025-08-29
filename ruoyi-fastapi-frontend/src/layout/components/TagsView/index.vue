@@ -12,7 +12,7 @@
         @click.middle="!isAffix(tag) ? closeSelectedTag(tag) : ''"
         @contextmenu.prevent="openMenu(tag, $event)"
       >
-        <svg-icon v-if="tagsIcon && tag.meta && tag.meta.icon && tag.meta.icon !== '#'" :icon-class="tag.meta.icon"/>
+        <svg-icon v-if="tagsIcon && tag.meta && tag.meta.icon && tag.meta.icon !== '#'" :icon-class="tag.meta.icon" />
         {{ tag.title }}
         <span v-if="!isAffix(tag)" @click.prevent.stop="closeSelectedTag(tag)">
           <close class="el-icon-close" style="width: 1em; height: 1em;vertical-align: middle;" />
@@ -291,7 +291,7 @@ function handleScroll() {
   .tags-view-item.active.has-icon::before {
     content: none !important;
   }
-  
+
   .contextmenu {
     margin: 0;
     background: var(--el-bg-color-overlay, #fff);

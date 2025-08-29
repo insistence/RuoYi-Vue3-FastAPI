@@ -59,7 +59,7 @@
     </el-form>
     <!--  底部  -->
     <div class="el-login-footer">
-      <span>Copyright © 2024 insistence.tech All Rights Reserved.</span>
+      <span>Copyright © 2024-2025 insistence.tech All Rights Reserved.</span>
     </div>
   </div>
 </template>
