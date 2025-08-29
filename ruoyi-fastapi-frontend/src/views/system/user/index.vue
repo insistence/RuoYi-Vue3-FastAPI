@@ -465,6 +465,8 @@
         :disabled="upload.isUploading"
         :on-progress="handleFileUploadProgress"
         :on-success="handleFileSuccess"
+        :on-change="handleFileChange"
+        :on-remove="handleFileRemove"
         :auto-upload="false"
         drag
       >
@@ -642,14 +644,16 @@ function getList() {
 }
 /** 查询部门下拉树结构 */
 function getDeptTree() {
-  deptTreeSelect().then(response => {
+  deptTreeSelect().then((response) => {
     deptOptions.value = response.data;
-    enabledDeptOptions.value = filterDisabledDept(JSON.parse(JSON.stringify(response.data)));
+    enabledDeptOptions.value = filterDisabledDept(
+      JSON.parse(JSON.stringify(response.data))
+    );
   });
-};
+}
 /** 过滤禁用的部门 */
 function filterDisabledDept(deptList) {
-  return deptList.filter(dept => {
+  return deptList.filter((dept) => {
     if (dept.disabled) {
       return false;
     }
@@ -658,7 +662,7 @@ function filterDisabledDept(deptList) {
     }
     return true;
   });
-};
+}
 /** 节点单击事件 */
 function handleNodeClick(data) {
   queryParams.value.deptId = data.id;
@@ -766,6 +770,7 @@ function handleSelectionChange(selection) {
 function handleImport() {
   upload.title = "用户导入";
   upload.open = true;
+  upload.selectedFile = null;
 }
 /** 下载模板操作 */
 function importTemplate() {
@@ -778,6 +783,14 @@ function importTemplate() {
 /**文件上传中处理 */
 const handleFileUploadProgress = (event, file, fileList) => {
   upload.isUploading = true;
+};
+/** 文件选择处理 */
+const handleFileChange = (file, fileList) => {
+  upload.selectedFile = file;
+};
+/** 文件删除处理 */
+const handleFileRemove = (file, fileList) => {
+  upload.selectedFile = null;
 };
 /** 文件上传成功处理 */
 const handleFileSuccess = (response, file, fileList) => {
@@ -795,6 +808,16 @@ const handleFileSuccess = (response, file, fileList) => {
 };
 /** 提交上传文件 */
 function submitFileForm() {
+  const file = upload.selectedFile;
+  if (
+    !file ||
+    file.length === 0 ||
+    (!file.name.toLowerCase().endsWith(".xls") &&
+      !file.name.toLowerCase().endsWith(".xlsx"))
+  ) {
+    proxy.$modal.msgError("请选择后缀为 “xls”或“xlsx”的文件。");
+    return;
+  }
   proxy.$refs["uploadRef"].submit();
 }
 /** 重置操作表单 */
@@ -867,12 +890,11 @@ function submitForm() {
   });
 }
 
-
 onMounted(() => {
-  getDeptTree()
-  getList()
-  proxy.getConfigKey("sys.user.initPassword").then(response => {
-    initPassword.value = response.msg
-  })
-})
+  getDeptTree();
+  getList();
+  proxy.getConfigKey("sys.user.initPassword").then((response) => {
+    initPassword.value = response.msg;
+  });
+});
 </script>
