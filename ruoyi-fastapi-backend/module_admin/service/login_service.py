@@ -245,6 +245,9 @@ class LoginService:
             is_default_modify_pwd = await cls.__init_password_is_modify(
                 request, query_user.get('user_basic_info').pwd_update_date
             )
+            is_password_expired = await cls.__password_is_expired(
+                request, query_user.get('user_basic_info').pwd_update_date
+            )
 
             current_user = CurrentUserModel(
                 permissions=permissions,
@@ -257,6 +260,7 @@ class LoginService:
                     role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
                 ),
                 isDefaultModifyPwd=is_default_modify_pwd,
+                isPasswordExpired=is_password_expired,
             )
             return current_user
         else:
@@ -276,6 +280,26 @@ class LoginService:
             f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.initPasswordModify'
         )
         return init_password_is_modify == '1' and pwd_update_date is None
+
+    @classmethod
+    async def __password_is_expired(cls, request: Request, pwd_update_date: datetime):
+        """
+        判断当前用户密码是否过期
+
+        :param request: Request对象
+        :param pwd_update_date: 密码最后更新时间
+        :return: 密码是否过期
+        """
+        password_validate_days = await request.app.state.redis.get(
+            f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.passwordValidateDays'
+        )
+        if password_validate_days and int(password_validate_days) > 0:
+            if pwd_update_date is None:
+                return True
+            expire_date = pwd_update_date + timedelta(days=int(password_validate_days))
+            if datetime.now() > expire_date:
+                return True
+        return False
 
     @classmethod
     async def get_current_user_routers(cls, user_id: int, query_db: AsyncSession):

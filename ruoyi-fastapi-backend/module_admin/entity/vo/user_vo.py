@@ -127,6 +127,7 @@ class CurrentUserModel(BaseModel):
     roles: List = Field(description='角色信息')
     user: Union[UserInfoModel, None] = Field(description='用户信息')
     is_default_modify_pwd: bool = Field(default=False, description='是否初始密码修改提醒')
+    is_password_expired: bool = Field(default=False, description='密码是否过期提醒')
 
 
 class UserDetailModel(BaseModel):
