@@ -1,6 +1,8 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, CHAR, Column, DateTime, String
+from sqlalchemy import BigInteger, CHAR, Column, DateTime, DOUBLE, Index, LargeBinary, String
 from config.database import Base
+from config.env import DataBaseConfig
+from utils.common_util import SqlalchemyUtil
 
 
 class SysJob(Base):
@@ -54,3 +56,19 @@ class SysJobLog(Base):
     status = Column(CHAR(1), nullable=True, server_default='0', comment='执行状态（0正常 1失败）')
     exception_info = Column(String(2000), nullable=True, server_default="''", comment='异常信息')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
+
+
+class ApschedulerJobs(Base):
+    """
+    定时任务调度任务表
+    """
+
+    __tablename__ = 'apscheduler_jobs'
+
+    id = Column(String(191), primary_key=True, nullable=False)
+    next_run_time = Column(
+        DOUBLE, nullable=True, server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type, False)
+    )
+    job_state = Column(LargeBinary, nullable=False)
+
+    idx_sys_logininfor_s = Index('ix_apscheduler_jobs_next_run_time', next_run_time)
