@@ -201,6 +201,8 @@ function toggleTheme() {
           height: 30px;
           margin-right: 8px;
           border-radius: 50%;
+          vertical-align: middle;
+          border-style: none;
         }
 
         .user-nickname{
