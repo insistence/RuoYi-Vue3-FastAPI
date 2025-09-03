@@ -32,6 +32,7 @@ class SysUser(Base):
     del_flag = Column(CHAR(1), nullable=True, server_default='0', comment='删除标志（0代表存在 2代表删除）')
     login_ip = Column(String(128), nullable=True, server_default="''", comment='最后登录IP')
     login_date = Column(DateTime, nullable=True, comment='最后登录时间')
+    pwd_update_date = Column(DateTime, nullable=True, comment='密码最后更新时间')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time = Column(DateTime, nullable=True, comment='创建时间', default=datetime.now())
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')

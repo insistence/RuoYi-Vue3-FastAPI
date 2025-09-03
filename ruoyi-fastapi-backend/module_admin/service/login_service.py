@@ -218,7 +218,7 @@ class LoginService:
         else:
             # 此方法可实现同一账号同一时间只能登录一次
             redis_token = await request.app.state.redis.get(
-                f"{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get('user_basic_info').user_id}"
+                f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get("user_basic_info").user_id}'
             )
         if token == redis_token:
             if AppConfig.app_same_time_login:
@@ -229,7 +229,7 @@ class LoginService:
                 )
             else:
                 await request.app.state.redis.set(
-                    f"{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get('user_basic_info').user_id}",
+                    f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get("user_basic_info").user_id}',
                     redis_token,
                     ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
                 )
@@ -242,6 +242,9 @@ class LoginService:
             post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])
             role_ids = ','.join([str(row.role_id) for row in query_user.get('user_role_info')])
             roles = [row.role_key for row in query_user.get('user_role_info')]
+            is_default_modify_pwd = await cls.__init_password_is_modify(
+                request, query_user.get('user_basic_info').pwd_update_date
+            )
 
             current_user = CurrentUserModel(
                 permissions=permissions,
@@ -253,11 +256,26 @@ class LoginService:
                     dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
                     role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
                 ),
+                isDefaultModifyPwd=is_default_modify_pwd,
             )
             return current_user
         else:
             logger.warning('用户token已失效，请重新登录')
             raise AuthException(data='', message='用户token已失效，请重新登录')
+
+    @classmethod
+    async def __init_password_is_modify(cls, request: Request, pwd_update_date: datetime):
+        """
+        判断当前用户是否初始密码登录
+
+        :param request: Request对象
+        :param pwd_update_date: 密码最后更新时间
+        :return: 是否初始密码登录
+        """
+        init_password_is_modify = await request.app.state.redis.get(
+            f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.initPasswordModify'
+        )
+        return init_password_is_modify == '1' and pwd_update_date is None
 
     @classmethod
     async def get_current_user_routers(cls, user_id: int, query_db: AsyncSession):
