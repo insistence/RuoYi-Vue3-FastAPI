@@ -6,13 +6,8 @@
       </el-tab-pane>
       <el-tab-pane label="字段信息" name="columnInfo">
         <el-table ref="dragTable" :data="columns" row-key="columnId" :max-height="tableHeight">
-          <el-table-column label="序号" type="index" min-width="5%"/>
-          <el-table-column
-            label="字段列名"
-            prop="columnName"
-            min-width="10%"
-            :show-overflow-tooltip="true"
-          />
+          <el-table-column label="序号" type="index" min-width="5%" class-name="allowDrag"/>
+          <el-table-column label="字段列名" prop="columnName" min-width="10%" :show-overflow-tooltip="true" class-name="allowDrag"/>
           <el-table-column label="字段描述" min-width="10%">
             <template #default="scope">
               <el-input v-model="scope.row.columnComment"></el-input>
@@ -48,22 +43,22 @@
 
           <el-table-column label="插入" min-width="5%">
             <template #default="scope">
-              <el-checkbox true-label="1" false-label="0" v-model="scope.row.isInsert"></el-checkbox>
+              <el-checkbox true-value="1" false-value="0" v-model="scope.row.isInsert"></el-checkbox>
             </template>
           </el-table-column>
           <el-table-column label="编辑" min-width="5%">
             <template #default="scope">
-              <el-checkbox true-label="1" false-label="0" v-model="scope.row.isEdit"></el-checkbox>
+              <el-checkbox true-value="1" false-value="0" v-model="scope.row.isEdit"></el-checkbox>
             </template>
           </el-table-column>
           <el-table-column label="列表" min-width="5%">
             <template #default="scope">
-              <el-checkbox true-label="1" false-label="0" v-model="scope.row.isList"></el-checkbox>
+              <el-checkbox true-value="1" false-value="0" v-model="scope.row.isList"></el-checkbox>
             </template>
           </el-table-column>
           <el-table-column label="查询" min-width="5%">
             <template #default="scope">
-              <el-checkbox true-label="1" false-label="0" v-model="scope.row.isQuery"></el-checkbox>
+              <el-checkbox true-value="1" false-value="0" v-model="scope.row.isQuery"></el-checkbox>
             </template>
           </el-table-column>
           <el-table-column label="查询方式" min-width="10%">
@@ -82,12 +77,12 @@
           </el-table-column>
           <el-table-column label="必填" min-width="5%">
             <template #default="scope">
-              <el-checkbox true-label="1" false-label="0" v-model="scope.row.isRequired"></el-checkbox>
+              <el-checkbox true-value="1" false-value="0" v-model="scope.row.isRequired"></el-checkbox>
             </template>
           </el-table-column>
           <el-table-column label="唯一" min-width="5%">
             <template #default="scope">
-              <el-checkbox true-label="1" false-label="0" v-model="scope.row.isUnique"></el-checkbox>
+              <el-checkbox true-value="1" false-value="0" v-model="scope.row.isUnique"></el-checkbox>
             </template>
           </el-table-column>
           <el-table-column label="显示类型" min-width="12%">
@@ -139,6 +134,7 @@ import { getGenTable, updateGenTable } from "@/api/tool/gen";
 import { optionselect as getDictOptionselect } from "@/api/system/dict/type";
 import basicInfoForm from "./basicInfoForm";
 import genInfoForm from "./genInfoForm";
+import Sortable from 'sortablejs';
 
 const route = useRoute();
 const { proxy } = getCurrentInstance();
@@ -205,4 +201,20 @@ function close() {
     });
   }
 })();
+
+
+// 拖动排序
+onMounted(() => {
+  const element = document.querySelector('.el-table__body > tbody')
+  Sortable.create(element, {
+    handle: ".allowDrag",
+    onEnd: (evt) => {
+      const targetRow = columns.value.splice(evt.oldIndex, 1)[0]
+      columns.value.splice(evt.newIndex, 0, targetRow)
+      for (const index in columns.value) {
+        columns.value[index].sort = parseInt(index) + 1
+      }
+    }
+  })
+})
 </script>

@@ -141,8 +141,11 @@ async def logout(request: Request, token: Optional[str] = Depends(oauth2_scheme)
     payload = jwt.decode(
         token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}
     )
-    session_id: str = payload.get('session_id')
-    await LoginService.logout_services(request, session_id)
+    if AppConfig.app_same_time_login:
+        token_id: str = payload.get('session_id')
+    else:
+        token_id: str = payload.get('user_id')
+    await LoginService.logout_services(request, token_id)
     logger.info('退出成功')
 
     return ResponseUtil.success(msg='退出成功')

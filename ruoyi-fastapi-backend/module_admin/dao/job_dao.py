@@ -104,15 +104,24 @@ class JobDao:
         return db_job
 
     @classmethod
-    async def edit_job_dao(cls, db: AsyncSession, job: dict):
+    async def edit_job_dao(cls, db: AsyncSession, job: dict, old_job: JobModel):
         """
         编辑定时任务数据库操作
 
         :param db: orm对象
         :param job: 需要更新的定时任务字典
+        :param old_job: 原定时任务对象
         :return:
         """
-        await db.execute(update(SysJob), [job])
+        await db.execute(
+            update(SysJob)
+            .where(
+                SysJob.job_id == old_job.job_id,
+                SysJob.job_name == old_job.job_name,
+                SysJob.job_group == old_job.job_group,
+            )
+            .values(**job)
+        )
 
     @classmethod
     async def delete_job_dao(cls, db: AsyncSession, job: JobModel):

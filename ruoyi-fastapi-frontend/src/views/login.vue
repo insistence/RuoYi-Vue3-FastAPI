@@ -1,7 +1,7 @@
 <template>
   <div class="login">
     <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form">
-      <h3 class="title">vfadmin后台管理系统</h3>
+      <h3 class="title">{{ title }}</h3>
       <el-form-item prop="username">
         <el-input
           v-model="loginForm.username"
@@ -59,7 +59,7 @@
     </el-form>
     <!--  底部  -->
     <div class="el-login-footer">
-      <span>Copyright © 2024 insistence.tech All Rights Reserved.</span>
+      <span>Copyright © 2024-2025 insistence.tech All Rights Reserved.</span>
     </div>
   </div>
 </template>
@@ -70,7 +70,8 @@ import Cookies from "js-cookie";
 import { encrypt, decrypt } from "@/utils/jsencrypt";
 import useUserStore from '@/store/modules/user'
 
-const userStore = useUserStore()
+const title = import.meta.env.VITE_APP_TITLE;
+const userStore = useUserStore();
 const route = useRoute();
 const router = useRouter();
 const { proxy } = getCurrentInstance();
@@ -183,6 +184,7 @@ getCookie();
   background: #ffffff;
   width: 400px;
   padding: 25px 25px 5px 25px;
+  z-index: 1;
   .el-input {
     height: 40px;
     input {

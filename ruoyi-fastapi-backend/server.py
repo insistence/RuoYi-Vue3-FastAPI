@@ -31,14 +31,14 @@ from utils.log_util import logger
 # 生命周期事件
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info(f'{AppConfig.app_name}开始启动')
+    logger.info(f'⏰️ {AppConfig.app_name}开始启动')
     worship()
     await init_create_table()
     app.state.redis = await RedisUtil.create_redis_pool()
     await RedisUtil.init_sys_dict(app.state.redis)
     await RedisUtil.init_sys_config(app.state.redis)
     await SchedulerUtil.init_system_scheduler()
-    logger.info(f'{AppConfig.app_name}启动成功')
+    logger.info(f'🚀 {AppConfig.app_name}启动成功')
     yield
     await RedisUtil.close_redis_pool(app)
     await SchedulerUtil.close_system_scheduler()

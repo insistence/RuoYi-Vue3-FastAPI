@@ -19,7 +19,7 @@ class RedisUtil:
 
         :return: Redis连接对象
         """
-        logger.info('开始连接redis...')
+        logger.info('🔎 开始连接redis...')
         redis = await aioredis.from_url(
             url=f'redis://{RedisConfig.redis_host}',
             port=RedisConfig.redis_port,
@@ -32,15 +32,15 @@ class RedisUtil:
         try:
             connection = await redis.ping()
             if connection:
-                logger.info('redis连接成功')
+                logger.info('✅️ redis连接成功')
             else:
-                logger.error('redis连接失败')
+                logger.error('❌️ redis连接失败')
         except AuthenticationError as e:
-            logger.error(f'redis用户名或密码错误，详细错误信息：{e}')
+            logger.error(f'❌️ redis用户名或密码错误，详细错误信息：{e}')
         except TimeoutError as e:
-            logger.error(f'redis连接超时，详细错误信息：{e}')
+            logger.error(f'❌️ redis连接超时，详细错误信息：{e}')
         except RedisError as e:
-            logger.error(f'redis连接错误，详细错误信息：{e}')
+            logger.error(f'❌️ redis连接错误，详细错误信息：{e}')
         return redis
 
     @classmethod
@@ -52,7 +52,7 @@ class RedisUtil:
         :return:
         """
         await app.state.redis.close()
-        logger.info('关闭redis连接成功')
+        logger.info('✅️ 关闭redis连接成功')
 
     @classmethod
     async def init_sys_dict(cls, redis):

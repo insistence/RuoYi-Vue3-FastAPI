@@ -165,6 +165,7 @@ async def reset_system_user_pwd(
     edit_user = EditUserModel(
         userId=reset_user.user_id,
         password=PwdUtil.get_password_hash(reset_user.password),
+        pwdUpdateDate=datetime.now(),
         updateBy=current_user.user.user_name,
         updateTime=datetime.now(),
         type='pwd',
@@ -304,6 +305,7 @@ async def reset_system_user_password(
         userId=current_user.user.user_id,
         oldPassword=reset_password.old_password,
         password=reset_password.new_password,
+        pwdUpdateDate=datetime.now(),
         updateBy=current_user.user.user_name,
         updateTime=datetime.now(),
     )

@@ -40,6 +40,7 @@ class UserModel(BaseModel):
     del_flag: Optional[Literal['0', '2']] = Field(default=None, description='删除标志（0代表存在 2代表删除）')
     login_ip: Optional[str] = Field(default=None, description='最后登录IP')
     login_date: Optional[datetime] = Field(default=None, description='最后登录时间')
+    pwd_update_date: Optional[datetime] = Field(default=None, description='密码最后更新时间')
     create_by: Optional[str] = Field(default=None, description='创建者')
     create_time: Optional[datetime] = Field(default=None, description='创建时间')
     update_by: Optional[str] = Field(default=None, description='更新者')
@@ -125,6 +126,8 @@ class CurrentUserModel(BaseModel):
     permissions: List = Field(description='权限信息')
     roles: List = Field(description='角色信息')
     user: Union[UserInfoModel, None] = Field(description='用户信息')
+    is_default_modify_pwd: bool = Field(default=False, description='是否初始密码修改提醒')
+    is_password_expired: bool = Field(default=False, description='密码是否过期提醒')
 
 
 class UserDetailModel(BaseModel):

@@ -327,8 +327,9 @@
 </template>
 
 <script setup name="Job">
-import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus } from "@/api/monitor/job";
 import Crontab from '@/components/Crontab'
+import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus } from "@/api/monitor/job"
+
 const router = useRouter();
 const { proxy } = getCurrentInstance();
 const { sys_job_group, sys_job_status, sys_job_executor } = proxy.useDict("sys_job_group", "sys_job_status", "sys_job_executor");

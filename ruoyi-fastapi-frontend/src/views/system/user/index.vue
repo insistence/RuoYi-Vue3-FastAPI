@@ -164,14 +164,14 @@
                 align="center"
                 key="userId"
                 prop="userId"
-                v-if="columns[0].visible"
+                v-if="columns.userId.visible"
               />
               <el-table-column
                 label="用户名称"
                 align="center"
                 key="userName"
                 prop="userName"
-                v-if="columns[1].visible"
+                v-if="columns.userName.visible"
                 :show-overflow-tooltip="true"
               />
               <el-table-column
@@ -179,7 +179,7 @@
                 align="center"
                 key="nickName"
                 prop="nickName"
-                v-if="columns[2].visible"
+                v-if="columns.nickName.visible"
                 :show-overflow-tooltip="true"
               />
               <el-table-column
@@ -187,7 +187,7 @@
                 align="center"
                 key="deptName"
                 prop="dept.deptName"
-                v-if="columns[3].visible"
+                v-if="columns.deptName.visible"
                 :show-overflow-tooltip="true"
               />
               <el-table-column
@@ -195,14 +195,14 @@
                 align="center"
                 key="phonenumber"
                 prop="phonenumber"
-                v-if="columns[4].visible"
+                v-if="columns.phonenumber.visible"
                 width="120"
               />
               <el-table-column
                 label="状态"
                 align="center"
                 key="status"
-                v-if="columns[5].visible"
+                v-if="columns.status.visible"
               >
                 <template #default="scope">
                   <el-switch
@@ -217,7 +217,7 @@
                 label="创建时间"
                 align="center"
                 prop="createTime"
-                v-if="columns[6].visible"
+                v-if="columns.createTime.visible"
                 width="160"
               >
                 <template #default="scope">
@@ -319,6 +319,7 @@
                 :props="{ value: 'id', label: 'label', children: 'children' }"
                 value-key="id"
                 placeholder="请选择归属部门"
+                clearable
                 check-strictly
               />
             </el-form-item>
@@ -464,6 +465,8 @@
         :disabled="upload.isUploading"
         :on-progress="handleFileUploadProgress"
         :on-success="handleFileSuccess"
+        :on-change="handleFileChange"
+        :on-remove="handleFileRemove"
         :auto-upload="false"
         drag
       >
@@ -553,15 +556,16 @@ const upload = reactive({
   url: import.meta.env.VITE_APP_BASE_API + "/system/user/importData",
 });
 // 列显隐信息
-const columns = ref([
-  { key: 0, label: `用户编号`, visible: true },
-  { key: 1, label: `用户名称`, visible: true },
-  { key: 2, label: `用户昵称`, visible: true },
-  { key: 3, label: `部门`, visible: true },
-  { key: 4, label: `手机号码`, visible: true },
-  { key: 5, label: `状态`, visible: true },
-  { key: 6, label: `创建时间`, visible: true },
-]);
+
+const columns = ref({
+  userId: { label: "用户编号", visible: true },
+  userName: { label: "用户名称", visible: true },
+  nickName: { label: "用户昵称", visible: true },
+  deptName: { label: "部门", visible: true },
+  phonenumber: { label: "手机号码", visible: true },
+  status: { label: "状态", visible: true },
+  createTime: { label: "创建时间", visible: true },
+});
 
 const data = reactive({
   form: {},
@@ -641,14 +645,16 @@ function getList() {
 }
 /** 查询部门下拉树结构 */
 function getDeptTree() {
-  deptTreeSelect().then(response => {
+  deptTreeSelect().then((response) => {
     deptOptions.value = response.data;
-    enabledDeptOptions.value = filterDisabledDept(JSON.parse(JSON.stringify(response.data)));
+    enabledDeptOptions.value = filterDisabledDept(
+      JSON.parse(JSON.stringify(response.data))
+    );
   });
-};
+}
 /** 过滤禁用的部门 */
 function filterDisabledDept(deptList) {
-  return deptList.filter(dept => {
+  return deptList.filter((dept) => {
     if (dept.disabled) {
       return false;
     }
@@ -657,7 +663,7 @@ function filterDisabledDept(deptList) {
     }
     return true;
   });
-};
+}
 /** 节点单击事件 */
 function handleNodeClick(data) {
   queryParams.value.deptId = data.id;
@@ -765,6 +771,7 @@ function handleSelectionChange(selection) {
 function handleImport() {
   upload.title = "用户导入";
   upload.open = true;
+  upload.selectedFile = null;
 }
 /** 下载模板操作 */
 function importTemplate() {
@@ -777,6 +784,14 @@ function importTemplate() {
 /**文件上传中处理 */
 const handleFileUploadProgress = (event, file, fileList) => {
   upload.isUploading = true;
+};
+/** 文件选择处理 */
+const handleFileChange = (file, fileList) => {
+  upload.selectedFile = file;
+};
+/** 文件删除处理 */
+const handleFileRemove = (file, fileList) => {
+  upload.selectedFile = null;
 };
 /** 文件上传成功处理 */
 const handleFileSuccess = (response, file, fileList) => {
@@ -794,6 +809,16 @@ const handleFileSuccess = (response, file, fileList) => {
 };
 /** 提交上传文件 */
 function submitFileForm() {
+  const file = upload.selectedFile;
+  if (
+    !file ||
+    file.length === 0 ||
+    (!file.name.toLowerCase().endsWith(".xls") &&
+      !file.name.toLowerCase().endsWith(".xlsx"))
+  ) {
+    proxy.$modal.msgError("请选择后缀为 “xls”或“xlsx”的文件。");
+    return;
+  }
   proxy.$refs["uploadRef"].submit();
 }
 /** 重置操作表单 */
@@ -866,6 +891,11 @@ function submitForm() {
   });
 }
 
-getDeptTree();
-getList();
+onMounted(() => {
+  getDeptTree();
+  getList();
+  proxy.getConfigKey("sys.user.initPassword").then((response) => {
+    initPassword.value = response.msg;
+  });
+});
 </script>

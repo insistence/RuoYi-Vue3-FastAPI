@@ -218,7 +218,7 @@ class LoginService:
         else:
             # 此方法可实现同一账号同一时间只能登录一次
             redis_token = await request.app.state.redis.get(
-                f"{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get('user_basic_info').user_id}"
+                f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get("user_basic_info").user_id}'
             )
         if token == redis_token:
             if AppConfig.app_same_time_login:
@@ -229,7 +229,7 @@ class LoginService:
                 )
             else:
                 await request.app.state.redis.set(
-                    f"{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get('user_basic_info').user_id}",
+                    f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get("user_basic_info").user_id}',
                     redis_token,
                     ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
                 )
@@ -242,6 +242,12 @@ class LoginService:
             post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])
             role_ids = ','.join([str(row.role_id) for row in query_user.get('user_role_info')])
             roles = [row.role_key for row in query_user.get('user_role_info')]
+            is_default_modify_pwd = await cls.__init_password_is_modify(
+                request, query_user.get('user_basic_info').pwd_update_date
+            )
+            is_password_expired = await cls.__password_is_expired(
+                request, query_user.get('user_basic_info').pwd_update_date
+            )
 
             current_user = CurrentUserModel(
                 permissions=permissions,
@@ -253,11 +259,47 @@ class LoginService:
                     dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
                     role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
                 ),
+                isDefaultModifyPwd=is_default_modify_pwd,
+                isPasswordExpired=is_password_expired,
             )
             return current_user
         else:
             logger.warning('用户token已失效，请重新登录')
             raise AuthException(data='', message='用户token已失效，请重新登录')
+
+    @classmethod
+    async def __init_password_is_modify(cls, request: Request, pwd_update_date: datetime):
+        """
+        判断当前用户是否初始密码登录
+
+        :param request: Request对象
+        :param pwd_update_date: 密码最后更新时间
+        :return: 是否初始密码登录
+        """
+        init_password_is_modify = await request.app.state.redis.get(
+            f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.initPasswordModify'
+        )
+        return init_password_is_modify == '1' and pwd_update_date is None
+
+    @classmethod
+    async def __password_is_expired(cls, request: Request, pwd_update_date: datetime):
+        """
+        判断当前用户密码是否过期
+
+        :param request: Request对象
+        :param pwd_update_date: 密码最后更新时间
+        :return: 密码是否过期
+        """
+        password_validate_days = await request.app.state.redis.get(
+            f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.passwordValidateDays'
+        )
+        if password_validate_days and int(password_validate_days) > 0:
+            if pwd_update_date is None:
+                return True
+            expire_date = pwd_update_date + timedelta(days=int(password_validate_days))
+            if datetime.now() > expire_date:
+                return True
+        return False
 
     @classmethod
     async def get_current_user_routers(cls, user_id: int, query_db: AsyncSession):
@@ -404,6 +446,7 @@ class LoginService:
                     userName=user_register.username,
                     nickName=user_register.username,
                     password=PwdUtil.get_password_hash(user_register.password),
+                    pwdUpdateDate=datetime.now(),
                 )
                 result = await UserService.add_user_services(query_db, add_user)
                 return result
@@ -466,15 +509,15 @@ class LoginService:
         return CrudResponseModel(**result)
 
     @classmethod
-    async def logout_services(cls, request: Request, session_id: str):
+    async def logout_services(cls, request: Request, token_id: str):
         """
         退出登录services
 
         :param request: Request对象
-        :param session_id: 会话编号
+        :param token_id: 令牌编号
         :return: 退出登录结果
         """
-        await request.app.state.redis.delete(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{session_id}')
+        await request.app.state.redis.delete(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{token_id}')
         # await request.app.state.redis.delete(f'{current_user.user.user_id}_access_token')
         # await request.app.state.redis.delete(f'{current_user.user.user_id}_session_id')
 
