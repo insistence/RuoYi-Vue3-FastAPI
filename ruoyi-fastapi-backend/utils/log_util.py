@@ -1,6 +1,6 @@
 """
 @modifier: left666
-@modify_time: 2025/9/25  9:00
+@modify_time: 2025/10/9  9:00
 """
 import os
 import sys
@@ -21,7 +21,6 @@ class LoggerInitializer:
     def __init__(self):
         self.log_path = os.path.join(os.getcwd(), 'logs')
         self.__ensure_log_directory_exists()
-        # self.log_path_error = os.path.join(self.log_path, f'{time.strftime("%Y-%m-%d")}_error.log')
 
     def __ensure_log_directory_exists(self):
         """
@@ -88,12 +87,12 @@ class LoggerInitializer:
         _logger.add(
             os.path.join(self.log_path, f'request.log'),
             rotation="50 MB",  # 文件最大50MB
-            retention=1,  # 只保留一个文件
             delay=True,  # 延迟到第一条记录消息时再创建文件
             filter=lambda log: log["level"].name == "request",
             format=self.__format_request_log,
             encoding="utf-8",
-            enqueue=True
+            enqueue=True,
+            compression="zip"
         )
         # 添加普通日志控制台输出
         _logger.add(
@@ -106,12 +105,13 @@ class LoggerInitializer:
         # 添加普通日志文件
         _logger.add(
             os.path.join(self.log_path, f'{time.strftime("%Y-%m-%d")}_app.log'),
-            rotation="00:00",  # 每天午夜创建新文件
-            retention=30,  # 保留30个文件
+            rotation="50 MB",
             delay=True,
             filter=self.__sift_out_common,
             format=self.format_str,
-            encoding="utf-8"
+            encoding="utf-8",
+            enqueue=True,
+            compression="zip"
         )
 
         return _logger

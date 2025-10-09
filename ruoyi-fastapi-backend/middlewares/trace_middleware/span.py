@@ -22,7 +22,7 @@ class Span:
     def __init__(self, scope: Scope):
         self.scope = scope
         self.client_ip = scope.get('client')[0]
-        self.start_time = time.time()
+        self.start_time = time.perf_counter()
         self.status_code = None
 
     async def request_before(self):
@@ -57,7 +57,7 @@ class Span:
         elif message['type'] == 'http.response.body':
             if not message.get('more_body', False):  # 是最后一部分响应体时
                 # 计算请求处理时间
-                duration = round((time.time() - self.start_time) * 1000)
+                duration = round((time.perf_counter() - self.start_time) * 1000)
                 with logger.contextualize(status_code=self.status_code, duration=duration):
                     logger.log("request", f"{self.client_ip} {self.scope.get('method')} {self.scope.get('path')}")
         return message
