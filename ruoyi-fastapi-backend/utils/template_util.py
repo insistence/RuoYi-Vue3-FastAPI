@@ -73,6 +73,7 @@ class TemplateUtils:
         context = {
             'tplCategory': tpl_category,
             'tableName': gen_table.table_name,
+            'tableComment': gen_table.table_comment,
             'functionName': function_name if StringUtil.is_not_empty(function_name) else '【请填写功能名称】',
             'ClassName': class_name,
             'className': class_name.lower(),

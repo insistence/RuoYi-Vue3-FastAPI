@@ -1,10 +1,14 @@
 {% set pkField = pkColumn.python_field %}
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
+{% set need_import_datetime = namespace(has_datetime=False) %}
 {% for column in columns %}
-{% if column.python_field == "createTime" %}
-from datetime import datetime
+{% if column.python_field in ["createTime", "updatetime"] %}
+{% set need_import_datetime.has_datetime = True %}
 {% endif %}
 {% endfor %}
+{% if need_import_datetime.has_datetime %}
+from datetime import datetime
+{% endif %}
 from fastapi import APIRouter, Depends, Form, Request
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,8 +86,13 @@ async def edit_{{ moduleName }}_{{ businessName }}(
     query_db: AsyncSession = Depends(get_db),
     current_user: CurrentUserModel = Depends(LoginService.get_current_user),
 ):
+    {% for column in columns %}
+    {% if column.python_field == "updateBy" %}
     edit_{{ businessName }}.update_by = current_user.user.user_name
+    {% elif column.python_field == "updateTime" %}
     edit_{{ businessName }}.update_time = datetime.now()
+    {% endif %}
+    {% endfor %}
     edit_{{ businessName }}_result = await {{ BusinessName }}Service.edit_{{ businessName }}_services(query_db, edit_{{ businessName }})
     logger.info(edit_{{ businessName }}_result.message)
 

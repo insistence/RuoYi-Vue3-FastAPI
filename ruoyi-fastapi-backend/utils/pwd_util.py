@@ -1,6 +1,4 @@
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+import bcrypt
 
 
 class PwdUtil:
@@ -9,7 +7,7 @@ class PwdUtil:
     """
 
     @classmethod
-    def verify_password(cls, plain_password, hashed_password):
+    def verify_password(cls, plain_password: str, hashed_password: str) -> bool:
         """
         工具方法：校验当前输入的密码与数据库存储的密码是否一致
 
@@ -17,7 +15,9 @@ class PwdUtil:
         :param hashed_password: 数据库存储的密码
         :return: 校验结果
         """
-        return pwd_context.verify(plain_password, hashed_password)
+        return (
+            bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8')) if hashed_password else None
+        )
 
     @classmethod
     def get_password_hash(cls, input_password):
@@ -27,4 +27,4 @@ class PwdUtil:
         :param input_password: 输入的密码
         :return: 加密成功的密码
         """
-        return pwd_context.hash(input_password)
+        return bcrypt.hashpw(input_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
