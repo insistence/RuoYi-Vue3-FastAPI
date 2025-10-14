@@ -72,7 +72,7 @@ class Log:
             # 获取请求的url
             oper_url = request.url.path
             # 获取请求的ip及ip归属区域
-            oper_ip = request.headers.get('X-Forwarded-For')
+            oper_ip = request.headers.get('X-Forwarded-For') or request.headers.get('X-Real-IP') or request.client.host
             oper_location = '内网IP'
             if AppConfig.app_ip_location_query:
                 oper_location = await get_ip_location(oper_ip)
@@ -217,7 +217,7 @@ async def get_ip_location(oper_ip: str):
         if oper_ip != '127.0.0.1' and oper_ip != 'localhost':
             oper_location = '未知'
             async with httpx.AsyncClient() as client:
-                ip_result = await client.get(f'https://qifu-api.baidubce.com/ip/geo/v1/district?ip={oper_ip}')
+                ip_result = await client.get(f'https://ip9.com.cn/get?ip={oper_ip}')
                 if ip_result.status_code == 200:
                     prov = ip_result.json().get('data', {}).get('prov')
                     city = ip_result.json().get('data', {}).get('city')

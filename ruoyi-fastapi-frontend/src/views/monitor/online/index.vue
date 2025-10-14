@@ -1,6 +1,6 @@
 <template>
    <div class="app-container">
-      <el-form :model="queryParams" ref="queryRef" :inline="true">
+      <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
          <el-form-item label="登录地址" prop="ipaddr">
             <el-input
                v-model="queryParams.ipaddr"
@@ -24,16 +24,34 @@
             <el-button icon="Refresh" @click="resetQuery">重置</el-button>
          </el-form-item>
       </el-form>
+
+     <el-row :gutter="10" class="mb8">
+         <el-col :span="1.5">
+            <el-button
+               type="danger"
+               plain
+               icon="Remove"
+               :disabled="multiple"
+               @click="handleForceLogout"
+               v-hasPermi="['monitor:online:batchLogout']"
+            >强退</el-button>
+         </el-col>
+
+         <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
+      </el-row>
+
       <el-table
          v-loading="loading"
          :data="onlineList.slice((pageNum - 1) * pageSize, pageNum * pageSize)"
          style="width: 100%;"
+         @selection-change="handleSelectionChange"
       >
-         <el-table-column label="序号" width="50" type="index" align="center">
-            <template #default="scope">
-               <span>{{ (pageNum - 1) * pageSize + scope.$index + 1 }}</span>
-            </template>
-         </el-table-column>
+<!--         <el-table-column label="序号" width="50" type="index" align="center">-->
+<!--            <template #default="scope">-->
+<!--               <span>{{ (pageNum - 1) * pageSize + scope.$index + 1 }}</span>-->
+<!--            </template>-->
+<!--         </el-table-column>-->
+         <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="会话编号" align="center" prop="tokenId" :show-overflow-tooltip="true" />
          <el-table-column label="登录名称" align="center" prop="userName" :show-overflow-tooltip="true" />
          <el-table-column label="所属部门" align="center" prop="deptName" :show-overflow-tooltip="true" />
@@ -46,9 +64,11 @@
                <span>{{ parseTime(scope.row.loginTime) }}</span>
             </template>
          </el-table-column>
-         <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+         <el-table-column label="操作" width="100" align="center" class-name="small-padding fixed-width">
             <template #default="scope">
-               <el-button link type="primary" icon="Delete" @click="handleForceLogout(scope.row)" v-hasPermi="['monitor:online:forceLogout']">强退</el-button>
+              <el-tooltip content="强退" placement="top">
+                <el-button link type="primary" icon="Remove" @click="handleForceLogout(scope.row)" v-hasPermi="['monitor:online:forceLogout']"></el-button>
+              </el-tooltip>
             </template>
          </el-table-column>
       </el-table>
@@ -67,6 +87,10 @@ const loading = ref(true);
 const total = ref(0);
 const pageNum = ref(1);
 const pageSize = ref(10);
+const showSearch = ref(true);
+const ids = ref([]);
+const single = ref(true);
+const multiple = ref(true);
 
 const queryParams = ref({
   ipaddr: undefined,
@@ -92,13 +116,20 @@ function resetQuery() {
   proxy.resetForm("queryRef");
   handleQuery();
 }
+/** 多选框选中数据 */
+function handleSelectionChange(selection) {
+  ids.value = selection.map(item => item.tokenId);
+  single.value = selection.length != 1;
+  multiple.value = !selection.length;
+}
 /** 强退按钮操作 */
 function handleForceLogout(row) {
-    proxy.$modal.confirm('是否确认强退名称为"' + row.userName + '"的用户?').then(function () {
-  return forceLogout(row.tokenId);
+  const tokenIds = row.tokenId || ids.value;
+  proxy.$modal.confirm('是否确认强退名称为"' + row.userName + '"的用户?').then(function () {
+  return forceLogout(tokenIds);
   }).then(() => {
     getList();
-    proxy.$modal.msgSuccess("删除成功");
+    proxy.$modal.msgSuccess("强退成功");
   }).catch(() => {});
 }
 
