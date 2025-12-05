@@ -1,10 +1,11 @@
+aiofiles==25.1.0
 alembic==1.16.4
 APScheduler==3.11.0
 async-lru==2.0.5
 asyncmy==0.2.10
 bcrypt==5.0.0
 DateTime==5.5
-fastapi[all]==0.116.1
+fastapi[all]==0.123.9
 loguru==0.7.3
 openpyxl==3.1.5
 pandas==2.3.2
@@ -14,6 +15,7 @@ pydantic-validation-decorator==0.1.4
 PyJWT[crypto]==2.10.1
 PyMySQL==1.1.1
 redis==6.4.0
+ruff==0.14.6
 SQLAlchemy[asyncio]==2.0.43
 sqlglot[rs]==27.8.0
 user-agents==2.2.0

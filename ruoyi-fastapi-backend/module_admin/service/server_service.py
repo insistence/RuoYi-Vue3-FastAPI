@@ -1,8 +1,10 @@
 import os
 import platform
-import psutil
 import socket
 import time
+
+import psutil
+
 from module_admin.entity.vo.server_vo import CpuInfo, MemoryInfo, PyInfo, ServerMonitorModel, SysFiles, SysInfo
 from utils.common_util import bytes2human
 
@@ -13,7 +15,7 @@ class ServerService:
     """
 
     @staticmethod
-    async def get_server_monitor_info():
+    async def get_server_monitor_info() -> ServerMonitorModel:
         # CPU信息
         # 获取CPU总核心数
         cpu_num = psutil.cpu_count(logical=True)

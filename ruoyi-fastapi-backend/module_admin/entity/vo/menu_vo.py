@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
-from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class MenuModel(BaseModel):
@@ -36,30 +36,30 @@ class MenuModel(BaseModel):
 
     @NotBlank(field_name='menu_name', message='菜单名称不能为空')
     @Size(field_name='menu_name', min_length=0, max_length=50, message='菜单名称长度不能超过50个字符')
-    def get_menu_name(self):
+    def get_menu_name(self) -> Union[str, None]:
         return self.menu_name
 
     @NotBlank(field_name='order_num', message='显示顺序不能为空')
-    def get_order_num(self):
+    def get_order_num(self) -> Union[int, None]:
         return self.order_num
 
     @Size(field_name='path', min_length=0, max_length=200, message='路由地址长度不能超过200个字符')
-    def get_path(self):
+    def get_path(self) -> Union[str, None]:
         return self.path
 
     @Size(field_name='component', min_length=0, max_length=255, message='组件路径长度不能超过255个字符')
-    def get_component(self):
+    def get_component(self) -> Union[str, None]:
         return self.component
 
     @NotBlank(field_name='menu_type', message='菜单类型不能为空')
-    def get_menu_type(self):
+    def get_menu_type(self) -> Union[Literal['M', 'C', 'F'], None]:
         return self.menu_type
 
     @Size(field_name='perms', min_length=0, max_length=100, message='权限标识长度不能超过100个字符')
-    def get_perms(self):
+    def get_perms(self) -> Union[str, None]:
         return self.perms
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_menu_name()
         self.get_order_num()
         self.get_path()
@@ -68,7 +68,6 @@ class MenuModel(BaseModel):
         self.get_perms()
 
 
-@as_query
 class MenuQueryModel(MenuModel):
     """
     菜单管理不分页查询模型

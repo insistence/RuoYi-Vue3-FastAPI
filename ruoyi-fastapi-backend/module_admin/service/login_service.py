@@ -1,20 +1,25 @@
-import jwt
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Any, Optional, Union
+
+import jwt
 from fastapi import Depends, Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
+from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, List, Optional, Union
+
 from config.constant import CommonConstant, MenuConstant
 from config.enums import RedisInitKeyConfig
 from config.env import AppConfig, JwtConfig
 from config.get_db import get_db
-from exceptions.exception import LoginException, AuthException, ServiceException
+from exceptions.exception import AuthException, LoginException, ServiceException
 from module_admin.dao.login_dao import login_by_account
 from module_admin.dao.user_dao import UserDao
+from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.menu_do import SysMenu
+from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.login_vo import MenuTreeModel, MetaModel, RouterModel, SmsCode, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import AddUserModel, CurrentUserModel, ResetUserModel, TokenData, UserInfoModel
@@ -42,8 +47,8 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
         client_secret: Optional[str] = Form(default=None),
         code: Optional[str] = Form(default=''),
         uuid: Optional[str] = Form(default=''),
-        login_info: Optional[Dict[str, str]] = Form(default=None),
-    ):
+        login_info: Optional[dict[str, str]] = Form(default=None),
+    ) -> None:
         super().__init__(
             grant_type=grant_type,
             username=username,
@@ -63,7 +68,9 @@ class LoginService:
     """
 
     @classmethod
-    async def authenticate_user(cls, request: Request, query_db: AsyncSession, login_user: UserLogin):
+    async def authenticate_user(
+        cls, request: Request, query_db: AsyncSession, login_user: UserLogin
+    ) -> Row[tuple[SysUser, SysDept]]:
         """
         根据用户名密码校验用户登录
 
@@ -110,7 +117,7 @@ class LoginService:
                 password_error_count,
                 ex=timedelta(minutes=10),
             )
-            if password_error_count > 5:
+            if password_error_count > CommonConstant.PASSWORD_ERROR_COUNT:
                 await request.app.state.redis.delete(
                     f'{RedisInitKeyConfig.PASSWORD_ERROR_COUNT.key}:{login_user.user_name}'
                 )
@@ -130,7 +137,7 @@ class LoginService:
         return user
 
     @classmethod
-    async def __check_login_ip(cls, request: Request):
+    async def __check_login_ip(cls, request: Request) -> bool:
         """
         校验用户登录ip是否在黑名单内
 
@@ -145,7 +152,7 @@ class LoginService:
         return True
 
     @classmethod
-    async def __check_login_captcha(cls, request: Request, login_user: UserLogin):
+    async def __check_login_captcha(cls, request: Request, login_user: UserLogin) -> bool:
         """
         校验用户登录验证码
 
@@ -163,7 +170,7 @@ class LoginService:
         return True
 
     @classmethod
-    async def create_access_token(cls, data: dict, expires_delta: Union[timedelta, None] = None):
+    async def create_access_token(cls, data: dict, expires_delta: Union[timedelta, None] = None) -> str:
         """
         根据登录信息创建当前用户token
 
@@ -183,7 +190,7 @@ class LoginService:
     @classmethod
     async def get_current_user(
         cls, request: Request = Request, token: str = Depends(oauth2_scheme), query_db: AsyncSession = Depends(get_db)
-    ):
+    ) -> CurrentUserModel:
         """
         根据token获取当前用户信息
 
@@ -206,9 +213,9 @@ class LoginService:
                 logger.warning('用户token不合法')
                 raise AuthException(data='', message='用户token不合法')
             token_data = TokenData(user_id=int(user_id))
-        except InvalidTokenError:
+        except InvalidTokenError as e:
             logger.warning('用户token已失效，请重新登录')
-            raise AuthException(data='', message='用户token已失效，请重新登录')
+            raise AuthException(data='', message='用户token已失效，请重新登录') from e
         query_user = await UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
         if query_user.get('user_basic_info') is None:
             logger.warning('用户token不合法')
@@ -235,7 +242,7 @@ class LoginService:
                 )
 
             role_id_list = [item.role_id for item in query_user.get('user_role_info')]
-            if 1 in role_id_list:
+            if 1 in role_id_list:  # noqa: SIM108
                 permissions = ['*:*:*']
             else:
                 permissions = [row.perms for row in query_user.get('user_menu_info')]
@@ -263,12 +270,11 @@ class LoginService:
                 isPasswordExpired=is_password_expired,
             )
             return current_user
-        else:
-            logger.warning('用户token已失效，请重新登录')
-            raise AuthException(data='', message='用户token已失效，请重新登录')
+        logger.warning('用户token已失效，请重新登录')
+        raise AuthException(data='', message='用户token已失效，请重新登录')
 
     @classmethod
-    async def __init_password_is_modify(cls, request: Request, pwd_update_date: datetime):
+    async def __init_password_is_modify(cls, request: Request, pwd_update_date: datetime) -> bool:
         """
         判断当前用户是否初始密码登录
 
@@ -282,7 +288,7 @@ class LoginService:
         return init_password_is_modify == '1' and pwd_update_date is None
 
     @classmethod
-    async def __password_is_expired(cls, request: Request, pwd_update_date: datetime):
+    async def __password_is_expired(cls, request: Request, pwd_update_date: datetime) -> bool:
         """
         判断当前用户密码是否过期
 
@@ -302,7 +308,7 @@ class LoginService:
         return False
 
     @classmethod
-    async def get_current_user_routers(cls, user_id: int, query_db: AsyncSession):
+    async def get_current_user_routers(cls, user_id: int, query_db: AsyncSession) -> list[dict[str, Any]]:
         """
         根据用户id获取当前用户路由信息
 
@@ -324,7 +330,7 @@ class LoginService:
         return [router.model_dump(exclude_unset=True, by_alias=True) for router in user_router]
 
     @classmethod
-    def __generate_menus(cls, pid: int, permission_list: List[SysMenu]):
+    def __generate_menus(cls, pid: int, permission_list: list[SysMenu]) -> list[MenuTreeModel]:
         """
         工具方法：根据菜单信息生成菜单信息树形嵌套数据
 
@@ -332,7 +338,7 @@ class LoginService:
         :param permission_list: 菜单列表信息
         :return: 菜单信息树形嵌套数据
         """
-        menu_list: List[MenuTreeModel] = []
+        menu_list: list[MenuTreeModel] = []
         for permission in permission_list:
             if permission.parent_id == pid:
                 children = cls.__generate_menus(permission.menu_id, permission_list)
@@ -344,17 +350,17 @@ class LoginService:
         return menu_list
 
     @classmethod
-    def __generate_user_router_menu(cls, permission_list: List[MenuTreeModel]):
+    def __generate_user_router_menu(cls, permission_list: list[MenuTreeModel]) -> list[RouterModel]:
         """
         工具方法：根据菜单树信息生成路由信息树形嵌套数据
 
         :param permission_list: 菜单树列表信息
         :return: 路由信息树形嵌套数据
         """
-        router_list: List[RouterModel] = []
+        router_list: list[RouterModel] = []
         for permission in permission_list:
             router = RouterModel(
-                hidden=True if permission.visible == '1' else False,
+                hidden=permission.visible == '1',
                 name=RouterUtil.get_router_name(permission),
                 path=RouterUtil.get_router_path(permission),
                 component=RouterUtil.get_component(permission),
@@ -362,7 +368,7 @@ class LoginService:
                 meta=MetaModel(
                     title=permission.menu_name,
                     icon=permission.icon,
-                    noCache=True if permission.is_cache == 1 else False,
+                    noCache=permission.is_cache == 1,
                     link=permission.path if RouterUtil.is_http(permission.path) else None,
                 ),
             )
@@ -373,7 +379,7 @@ class LoginService:
                 router.children = cls.__generate_user_router_menu(c_menus)
             elif RouterUtil.is_menu_frame(permission):
                 router.meta = None
-                children_list: List[RouterModel] = []
+                children_list: list[RouterModel] = []
                 children = RouterModel(
                     path=permission.path,
                     component=permission.component,
@@ -381,7 +387,7 @@ class LoginService:
                     meta=MetaModel(
                         title=permission.menu_name,
                         icon=permission.icon,
-                        noCache=True if permission.is_cache == 1 else False,
+                        noCache=permission.is_cache == 1,
                         link=permission.path if RouterUtil.is_http(permission.path) else None,
                     ),
                     query=permission.query,
@@ -391,7 +397,7 @@ class LoginService:
             elif permission.parent_id == 0 and RouterUtil.is_inner_link(permission):
                 router.meta = MetaModel(title=permission.menu_name, icon=permission.icon)
                 router.path = '/'
-                children_list: List[RouterModel] = []
+                children_list: list[RouterModel] = []
                 router_path = RouterUtil.inner_link_replace_each(permission.path)
                 children = RouterModel(
                     path=router_path,
@@ -411,7 +417,9 @@ class LoginService:
         return router_list
 
     @classmethod
-    async def register_user_services(cls, request: Request, query_db: AsyncSession, user_register: UserRegister):
+    async def register_user_services(
+        cls, request: Request, query_db: AsyncSession, user_register: UserRegister
+    ) -> CrudResponseModel:
         """
         用户注册services
 
@@ -421,16 +429,11 @@ class LoginService:
         :return: 注册结果
         """
         register_enabled = (
-            True
-            if await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.registerUser')
-            == 'true'
-            else False
+            await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.registerUser') == 'true'
         )
         captcha_enabled = (
-            True
-            if await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled')
+            await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled')
             == 'true'
-            else False
         )
         if user_register.password == user_register.confirm_password:
             if register_enabled:
@@ -440,7 +443,7 @@ class LoginService:
                     )
                     if not captcha_value:
                         raise ServiceException(message='验证码已失效')
-                    elif user_register.code != str(captcha_value):
+                    if user_register.code != str(captcha_value):
                         raise ServiceException(message='验证码错误')
                 add_user = AddUserModel(
                     userName=user_register.username,
@@ -450,13 +453,11 @@ class LoginService:
                 )
                 result = await UserService.add_user_services(query_db, add_user)
                 return result
-            else:
-                raise ServiceException(message='注册程序已关闭，禁止注册')
-        else:
-            raise ServiceException(message='两次输入的密码不一致')
+            raise ServiceException(message='注册程序已关闭，禁止注册')
+        raise ServiceException(message='两次输入的密码不一致')
 
     @classmethod
-    async def get_sms_code_services(cls, request: Request, query_db: AsyncSession, user: ResetUserModel):
+    async def get_sms_code_services(cls, request: Request, query_db: AsyncSession, user: ResetUserModel) -> SmsCode:
         """
         获取短信验证码service
 
@@ -467,7 +468,7 @@ class LoginService:
         """
         redis_sms_result = await request.app.state.redis.get(f'{RedisInitKeyConfig.SMS_CODE.key}:{user.session_id}')
         if redis_sms_result:
-            return SmsCode(**dict(is_success=False, sms_code='', session_id='', message='短信验证码仍在有效期内'))
+            return SmsCode(is_success=False, sms_code='', session_id='', message='短信验证码仍在有效期内')
         is_user = await UserDao.get_user_by_name(query_db, user.user_name)
         if is_user:
             sms_code = str(random.randint(100000, 999999))
@@ -478,12 +479,14 @@ class LoginService:
             # 此处模拟调用短信服务
             message_service(sms_code)
 
-            return SmsCode(**dict(is_success=True, sms_code=sms_code, session_id=session_id, message='获取成功'))
+            return SmsCode(is_success=True, sms_code=sms_code, session_id=session_id, message='获取成功')
 
-        return SmsCode(**dict(is_success=False, sms_code='', session_id='', message='用户不存在'))
+        return SmsCode(is_success=False, sms_code='', session_id='', message='用户不存在')
 
     @classmethod
-    async def forget_user_services(cls, request: Request, query_db: AsyncSession, forget_user: ResetUserModel):
+    async def forget_user_services(
+        cls, request: Request, query_db: AsyncSession, forget_user: ResetUserModel
+    ) -> CrudResponseModel:
         """
         用户忘记密码services
 
@@ -501,15 +504,15 @@ class LoginService:
             edit_result = await UserService.reset_user_services(query_db, forget_user)
             result = edit_result.dict()
         elif not redis_sms_result:
-            result = dict(is_success=False, message='短信验证码已过期')
+            result = {'is_success': False, 'message': '短信验证码已过期'}
         else:
             await request.app.state.redis.delete(f'{RedisInitKeyConfig.SMS_CODE.key}:{forget_user.session_id}')
-            result = dict(is_success=False, message='短信验证码不正确')
+            result = {'is_success': False, 'message': '短信验证码不正确'}
 
         return CrudResponseModel(**result)
 
     @classmethod
-    async def logout_services(cls, request: Request, token_id: str):
+    async def logout_services(cls, request: Request, token_id: str) -> bool:
         """
         退出登录services
 
@@ -530,7 +533,7 @@ class RouterUtil:
     """
 
     @classmethod
-    def get_router_name(cls, menu: MenuTreeModel):
+    def get_router_name(cls, menu: MenuTreeModel) -> str:
         """
         获取路由名称
 
@@ -544,7 +547,7 @@ class RouterUtil:
         return cls.get_route_name(menu.route_name, menu.path)
 
     @classmethod
-    def get_route_name(cls, name: str, path: str):
+    def get_route_name(cls, name: str, path: str) -> str:
         """
         获取路由名称，如没有配置路由名称则取路由地址
 
@@ -556,7 +559,7 @@ class RouterUtil:
         return router_name.capitalize()
 
     @classmethod
-    def get_router_path(cls, menu: MenuTreeModel):
+    def get_router_path(cls, menu: MenuTreeModel) -> Union[str, None]:
         """
         获取路由地址
 
@@ -576,7 +579,7 @@ class RouterUtil:
         return router_path
 
     @classmethod
-    def get_component(cls, menu: MenuTreeModel):
+    def get_component(cls, menu: MenuTreeModel) -> str:
         """
         获取组件信息
 
@@ -593,7 +596,7 @@ class RouterUtil:
         return component
 
     @classmethod
-    def is_menu_frame(cls, menu: MenuTreeModel):
+    def is_menu_frame(cls, menu: MenuTreeModel) -> bool:
         """
         判断是否为菜单内部跳转
 
@@ -605,7 +608,7 @@ class RouterUtil:
         )
 
     @classmethod
-    def is_inner_link(cls, menu: MenuTreeModel):
+    def is_inner_link(cls, menu: MenuTreeModel) -> bool:
         """
         判断是否为内链组件
 
@@ -615,7 +618,7 @@ class RouterUtil:
         return menu.is_frame == MenuConstant.NO_FRAME and cls.is_http(menu.path)
 
     @classmethod
-    def is_parent_view(cls, menu: MenuTreeModel):
+    def is_parent_view(cls, menu: MenuTreeModel) -> bool:
         """
         判断是否为parent_view组件
 
@@ -625,17 +628,17 @@ class RouterUtil:
         return menu.parent_id != 0 and menu.menu_type == MenuConstant.TYPE_DIR
 
     @classmethod
-    def is_http(cls, link: str):
+    def is_http(cls, link: str) -> bool:
         """
         判断是否为http(s)://开头
 
         :param link: 链接
         :return: 是否为http(s)://开头
         """
-        return link.startswith(CommonConstant.HTTP) or link.startswith(CommonConstant.HTTPS)
+        return link.startswith((CommonConstant.HTTP, CommonConstant.HTTPS))
 
     @classmethod
-    def inner_link_replace_each(cls, path: str):
+    def inner_link_replace_each(cls, path: str) -> str:
         """
         内链域名特殊字符替换
 

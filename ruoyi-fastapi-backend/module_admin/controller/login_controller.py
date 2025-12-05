@@ -1,35 +1,35 @@
-import jwt
 import uuid
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, Request
+from typing import Annotated, Optional
+
+import jwt
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+
 from config.enums import BusinessType, RedisInitKeyConfig
 from config.env import AppConfig, JwtConfig
 from config.get_db import get_db
 from module_admin.annotation.log_annotation import Log
 from module_admin.entity.vo.common_vo import CrudResponseModel
-from module_admin.entity.vo.login_vo import UserLogin, UserRegister, Token
+from module_admin.entity.vo.login_vo import Token, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
 from module_admin.service.user_service import UserService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
+login_controller = APIRouter()
 
-loginController = APIRouter()
 
-
-@loginController.post('/login', response_model=Token)
+@login_controller.post('/login', response_model=Token)
 @Log(title='用户登录', business_type=BusinessType.OTHER, log_type='login')
 async def login(
-    request: Request, form_data: CustomOAuth2PasswordRequestForm = Depends(), query_db: AsyncSession = Depends(get_db)
-):
+    request: Request,
+    form_data: Annotated[CustomOAuth2PasswordRequestForm, Depends()],
+    query_db: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
     captcha_enabled = (
-        True
-        if await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled')
-        == 'true'
-        else False
+        await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled') == 'true'
     )
     user = UserLogin(
         userName=form_data.username,
@@ -77,36 +77,40 @@ async def login(
     return ResponseUtil.success(msg='登录成功', dict_content={'token': access_token})
 
 
-@loginController.get('/getInfo', response_model=CurrentUserModel)
+@login_controller.get('/getInfo', response_model=CurrentUserModel)
 async def get_login_user_info(
-    request: Request, current_user: CurrentUserModel = Depends(LoginService.get_current_user)
-):
+    request: Request, current_user: Annotated[CurrentUserModel, Depends(LoginService.get_current_user)]
+) -> Response:
     logger.info('获取成功')
 
     return ResponseUtil.success(model_content=current_user)
 
 
-@loginController.get('/getRouters')
+@login_controller.get('/getRouters')
 async def get_login_user_routers(
     request: Request,
-    current_user: CurrentUserModel = Depends(LoginService.get_current_user),
-    query_db: AsyncSession = Depends(get_db),
-):
+    current_user: Annotated[CurrentUserModel, Depends(LoginService.get_current_user)],
+    query_db: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
     logger.info('获取成功')
     user_routers = await LoginService.get_current_user_routers(current_user.user.user_id, query_db)
 
     return ResponseUtil.success(data=user_routers)
 
 
-@loginController.post('/register', response_model=CrudResponseModel)
-async def register_user(request: Request, user_register: UserRegister, query_db: AsyncSession = Depends(get_db)):
+@login_controller.post('/register', response_model=CrudResponseModel)
+async def register_user(
+    request: Request,
+    user_register: UserRegister,
+    query_db: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
     user_register_result = await LoginService.register_user_services(request, query_db, user_register)
     logger.info(user_register_result.message)
 
     return ResponseUtil.success(data=user_register_result, msg=user_register_result.message)
 
 
-# @loginController.post("/getSmsCode", response_model=SmsCode)
+# @login_controller.post("/getSmsCode", response_model=SmsCode)
 # async def get_sms_code(request: Request, user: ResetUserModel, query_db: AsyncSession = Depends(get_db)):
 #     try:
 #         sms_result = await LoginService.get_sms_code_services(request, query_db, user)
@@ -121,7 +125,7 @@ async def register_user(request: Request, user_register: UserRegister, query_db:
 #         return ResponseUtil.error(msg=str(e))
 #
 #
-# @loginController.post("/forgetPwd", response_model=CrudResponseModel)
+# @login_controller.post("/forgetPwd", response_model=CrudResponseModel)
 # async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_db: AsyncSession = Depends(get_db)):
 #     try:
 #         forget_user_result = await LoginService.forget_user_services(request, query_db, forget_user)
@@ -136,8 +140,8 @@ async def register_user(request: Request, user_register: UserRegister, query_db:
 #         return ResponseUtil.error(msg=str(e))
 
 
-@loginController.post('/logout')
-async def logout(request: Request, token: Optional[str] = Depends(oauth2_scheme)):
+@login_controller.post('/logout')
+async def logout(request: Request, token: Annotated[Optional[str], Depends(oauth2_scheme)]) -> Response:
     payload = jwt.decode(
         token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}
     )

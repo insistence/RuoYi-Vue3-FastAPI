@@ -1,7 +1,10 @@
 import io
 import os
-import pandas as pd
 import re
+from collections.abc import Generator, Sequence
+from typing import Any, Literal, Union, overload
+
+import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
@@ -9,13 +12,13 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy.engine.row import Row
 from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.sql.expression import TextClause, null
-from typing import Any, Dict, List, Literal, Union
+
 from config.database import Base
 from config.env import CachePathConfig
 
 
-def worship():
-    print("""
+def worship() -> None:
+    print(r"""
 ////////////////////////////////////////////////////////////////////
 //                          _ooOoo_                               //
 //                         o8888888o                              //
@@ -36,7 +39,7 @@ def worship():
 //      ========`-.____`-.___\_____/___.-`____.-'========         //
 //                           `=---='                              //
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^        //
-//             佛祖保佑       永不宕机      永无BUG                 //
+//             佛祖保佑       永不宕机      永无BUG                  //
 ////////////////////////////////////////////////////////////////////
     """)
 
@@ -48,8 +51,8 @@ class SqlalchemyUtil:
 
     @classmethod
     def base_to_dict(
-        cls, obj: Union[Base, Dict], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
-    ):
+        cls, obj: Union[Base, dict], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> dict:
         """
         将sqlalchemy模型对象转换为字典
 
@@ -67,15 +70,63 @@ class SqlalchemyUtil:
             base_dict = obj.copy()
         if transform_case == 'snake_to_camel':
             return {CamelCaseUtil.snake_to_camel(k): v for k, v in base_dict.items()}
-        elif transform_case == 'camel_to_snake':
+        if transform_case == 'camel_to_snake':
             return {SnakeCaseUtil.camel_to_snake(k): v for k, v in base_dict.items()}
 
         return base_dict
 
     @classmethod
+    @overload
+    def serialize_result(
+        cls, result: Base, transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> dict[str, Any]: ...
+
+    @classmethod
+    @overload
+    def serialize_result(
+        cls, result: dict, transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> dict[Any, Any]: ...
+
+    @classmethod
+    @overload
+    def serialize_result(
+        cls, result: Row, transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> Union[dict[str, Any], list[dict[Any, Any]]]: ...
+
+    @classmethod
+    @overload
+    def serialize_result(
+        cls, result: Sequence[Base], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> list[dict[str, Any]]: ...
+
+    @classmethod
+    @overload
+    def serialize_result(
+        cls, result: Sequence[dict], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> list[dict[Any, Any]]: ...
+
+    @classmethod
+    @overload
+    def serialize_result(
+        cls, result: Sequence[Row], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> list[Union[dict[str, Any], list[dict[Any, Any]]]]: ...
+
+    @classmethod
+    @overload
+    def serialize_result(
+        cls, result: Sequence[Any], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> list[Any]: ...
+
+    @classmethod
+    @overload
     def serialize_result(
         cls, result: Any, transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
-    ):
+    ) -> Any: ...
+
+    @classmethod
+    def serialize_result(
+        cls, result: Any, transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+    ) -> Any:
         """
         将sqlalchemy查询结果序列化
 
@@ -85,20 +136,19 @@ class SqlalchemyUtil:
         """
         if isinstance(result, (Base, dict)):
             return cls.base_to_dict(result, transform_case)
-        elif isinstance(result, list):
+        if isinstance(result, list):
             return [cls.serialize_result(row, transform_case) for row in result]
-        elif isinstance(result, Row):
-            if all([isinstance(row, Base) for row in result]):
+        if isinstance(result, Row):
+            if all(isinstance(row, Base) for row in result):
                 return [cls.base_to_dict(row, transform_case) for row in result]
-            elif any([isinstance(row, Base) for row in result]):
+            if any(isinstance(row, Base) for row in result):
                 return [cls.serialize_result(row, transform_case) for row in result]
-            else:
-                result_dict = result._asdict()
-                if transform_case == 'snake_to_camel':
-                    return {CamelCaseUtil.snake_to_camel(k): v for k, v in result_dict.items()}
-                elif transform_case == 'camel_to_snake':
-                    return {SnakeCaseUtil.camel_to_snake(k): v for k, v in result_dict.items()}
-                return result_dict
+            result_dict = result._asdict()
+            if transform_case == 'snake_to_camel':
+                return {CamelCaseUtil.snake_to_camel(k): v for k, v in result_dict.items()}
+            if transform_case == 'camel_to_snake':
+                return {SnakeCaseUtil.camel_to_snake(k): v for k, v in result_dict.items()}
+            return result_dict
         return result
 
     @classmethod
@@ -121,7 +171,7 @@ class CamelCaseUtil:
     """
 
     @classmethod
-    def snake_to_camel(cls, snake_str: str):
+    def snake_to_camel(cls, snake_str: str) -> str:
         """
         下划线形式字符串(snake_case)转换为小驼峰形式字符串(camelCase)
 
@@ -134,7 +184,39 @@ class CamelCaseUtil:
         return words[0] + ''.join(word.capitalize() for word in words[1:])
 
     @classmethod
-    def transform_result(cls, result: Any):
+    @overload
+    def transform_result(cls, result: Base) -> dict[str, Any]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: dict) -> dict[Any, Any]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Row) -> Union[dict[str, Any], list[dict[Any, Any]]]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Sequence[Base]) -> list[dict[str, Any]]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Sequence[dict]) -> list[dict[Any, Any]]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Sequence[Row]) -> list[Union[dict[str, Any], list[dict[Any, Any]]]]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Sequence[Any]) -> list[Any]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Any) -> Any: ...
+
+    @classmethod
+    def transform_result(cls, result: Any) -> Any:
         """
         针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
 
@@ -150,7 +232,7 @@ class SnakeCaseUtil:
     """
 
     @classmethod
-    def camel_to_snake(cls, camel_str: str):
+    def camel_to_snake(cls, camel_str: str) -> str:
         """
         小驼峰形式字符串(camelCase)转换为下划线形式字符串(snake_case)
 
@@ -162,17 +244,49 @@ class SnakeCaseUtil:
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', words).lower()
 
     @classmethod
-    def transform_result(cls, result: Any):
+    @overload
+    def transform_result(cls, result: Base) -> dict[str, Any]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: dict) -> dict[Any, Any]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Row) -> Union[dict[str, Any], list[dict[Any, Any]]]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Sequence[Base]) -> list[dict[str, Any]]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Sequence[dict]) -> list[dict[Any, Any]]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Sequence[Row]) -> list[Union[dict[str, Any], list[dict[Any, Any]]]]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Sequence[Any]) -> list[Any]: ...
+
+    @classmethod
+    @overload
+    def transform_result(cls, result: Any) -> Any: ...
+
+    @classmethod
+    def transform_result(cls, result: Any) -> Any:
         """
-        针对不同类型将下划线形式(snake_case)批量转换为小驼峰形式(camelCase)方法
+        针对不同类型将小驼峰形式(camelCase)批量转换为下划线形式(snake_case)方法
 
         :param result: 输入数据
-        :return: 小驼峰形式结果
+        :return: 下划线形式结果
         """
         return SqlalchemyUtil.serialize_result(result=result, transform_case='camel_to_snake')
 
 
-def bytes2human(n, format_str='%(value).1f%(symbol)s'):
+def bytes2human(n: int, format_str: str = '%(value).1f%(symbol)s') -> str:
     """Used by various scripts. See:
     http://goo.gl/zeJZl
 
@@ -189,14 +303,14 @@ def bytes2human(n, format_str='%(value).1f%(symbol)s'):
         if n >= prefix[symbol]:
             value = float(n) / prefix[symbol]
             return format_str % locals()
-    return format_str % dict(symbol=symbols[0], value=n)
+    return format_str % {'symbol': symbols[0], 'value': n}
 
 
-def bytes2file_response(bytes_info):
+def bytes2file_response(bytes_info: bytes) -> Generator[bytes]:
     yield bytes_info
 
 
-def export_list2excel(list_data: List):
+def export_list2excel(list_data: list) -> bytes:
     """
     工具方法：将需要导出的list数据转化为对应excel的二进制数据
 
@@ -211,7 +325,7 @@ def export_list2excel(list_data: List):
     return binary_data
 
 
-def get_excel_template(header_list: List, selector_header_list: List, option_list: List[dict]):
+def get_excel_template(header_list: list, selector_header_list: list, option_list: list[dict]) -> bytes:
     """
     工具方法：将需要导出的list数据转化为对应excel的二进制数据
 
@@ -272,7 +386,7 @@ def get_excel_template(header_list: List, selector_header_list: List, option_lis
     return excel_data
 
 
-def get_filepath_from_url(url: str):
+def get_filepath_from_url(url: str) -> str:
     """
     工具方法：根据请求参数获取文件路径
 

@@ -1,6 +1,8 @@
+from typing import Any, Union
+
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+
 from exceptions.exception import ServiceException
 from module_admin.dao.log_dao import LoginLogDao, OperationLogDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
@@ -15,6 +17,7 @@ from module_admin.entity.vo.log_vo import (
 )
 from module_admin.service.dict_service import DictDataService
 from utils.excel_util import ExcelUtil
+from utils.page_util import PageResponseModel
 
 
 class OperationLogService:
@@ -25,7 +28,7 @@ class OperationLogService:
     @classmethod
     async def get_operation_log_list_services(
         cls, query_db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False
-    ):
+    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
         """
         获取操作日志列表信息service
 
@@ -39,7 +42,7 @@ class OperationLogService:
         return operation_log_list_result
 
     @classmethod
-    async def add_operation_log_services(cls, query_db: AsyncSession, page_object: OperLogModel):
+    async def add_operation_log_services(cls, query_db: AsyncSession, page_object: OperLogModel) -> CrudResponseModel:
         """
         新增操作日志service
 
@@ -56,7 +59,9 @@ class OperationLogService:
             raise e
 
     @classmethod
-    async def delete_operation_log_services(cls, query_db: AsyncSession, page_object: DeleteOperLogModel):
+    async def delete_operation_log_services(
+        cls, query_db: AsyncSession, page_object: DeleteOperLogModel
+    ) -> CrudResponseModel:
         """
         删除操作日志信息service
 
@@ -78,7 +83,7 @@ class OperationLogService:
             raise ServiceException(message='传入操作日志id为空')
 
     @classmethod
-    async def clear_operation_log_services(cls, query_db: AsyncSession):
+    async def clear_operation_log_services(cls, query_db: AsyncSession) -> CrudResponseModel:
         """
         清除操作日志信息service
 
@@ -94,7 +99,7 @@ class OperationLogService:
             raise e
 
     @classmethod
-    async def export_operation_log_list_services(cls, request: Request, operation_log_list: List):
+    async def export_operation_log_list_services(cls, request: Request, operation_log_list: list) -> bytes:
         """
         导出操作日志信息service
 
@@ -126,7 +131,7 @@ class OperationLogService:
             request.app.state.redis, dict_type='sys_oper_type'
         )
         operation_type_option = [
-            dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in operation_type_list
+            {'label': item.get('dictLabel'), 'value': item.get('dictValue')} for item in operation_type_list
         ]
         operation_type_option_dict = {item.get('value'): item for item in operation_type_option}
 
@@ -135,7 +140,7 @@ class OperationLogService:
                 item['status'] = '成功'
             else:
                 item['status'] = '失败'
-            if str(item.get('businessType')) in operation_type_option_dict.keys():
+            if str(item.get('businessType')) in operation_type_option_dict:
                 item['businessType'] = operation_type_option_dict.get(str(item.get('businessType'))).get('label')
         binary_data = ExcelUtil.export_list2excel(operation_log_list, mapping_dict)
 
@@ -150,7 +155,7 @@ class LoginLogService:
     @classmethod
     async def get_login_log_list_services(
         cls, query_db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False
-    ):
+    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
         """
         获取登录日志列表信息service
 
@@ -164,7 +169,7 @@ class LoginLogService:
         return operation_log_list_result
 
     @classmethod
-    async def add_login_log_services(cls, query_db: AsyncSession, page_object: LogininforModel):
+    async def add_login_log_services(cls, query_db: AsyncSession, page_object: LogininforModel) -> CrudResponseModel:
         """
         新增登录日志service
 
@@ -181,7 +186,9 @@ class LoginLogService:
             raise e
 
     @classmethod
-    async def delete_login_log_services(cls, query_db: AsyncSession, page_object: DeleteLoginLogModel):
+    async def delete_login_log_services(
+        cls, query_db: AsyncSession, page_object: DeleteLoginLogModel
+    ) -> CrudResponseModel:
         """
         删除操作日志信息service
 
@@ -203,7 +210,7 @@ class LoginLogService:
             raise ServiceException(message='传入登录日志id为空')
 
     @classmethod
-    async def clear_login_log_services(cls, query_db: AsyncSession):
+    async def clear_login_log_services(cls, query_db: AsyncSession) -> CrudResponseModel:
         """
         清除操作日志信息service
 
@@ -219,16 +226,15 @@ class LoginLogService:
             raise e
 
     @classmethod
-    async def unlock_user_services(cls, request: Request, unlock_user: UnlockUser):
+    async def unlock_user_services(cls, request: Request, unlock_user: UnlockUser) -> CrudResponseModel:
         locked_user = await request.app.state.redis.get(f'account_lock:{unlock_user.user_name}')
         if locked_user:
             await request.app.state.redis.delete(f'account_lock:{unlock_user.user_name}')
             return CrudResponseModel(is_success=True, message='解锁成功')
-        else:
-            raise ServiceException(message='该用户未锁定')
+        raise ServiceException(message='该用户未锁定')
 
     @staticmethod
-    async def export_login_log_list_services(login_log_list: List):
+    async def export_login_log_list_services(login_log_list: list) -> bytes:
         """
         导出登录日志信息service
 

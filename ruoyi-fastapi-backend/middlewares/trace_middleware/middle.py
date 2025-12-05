@@ -1,13 +1,8 @@
-# -*- coding: utf-8 -*-
-"""
-@author: peng
-@file: middle.py
-@time: 2025/1/17  16:57
-"""
-
 from functools import wraps
+
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
-from .span import get_current_span, Span
+
+from .span import Span, get_current_span
 
 
 class TraceASGIMiddleware:
@@ -21,11 +16,11 @@ class TraceASGIMiddleware:
         self.app = app
 
     @staticmethod
-    async def my_receive(receive: Receive, span: Span):
+    async def my_receive(receive: Receive, span: Span) -> Receive:
         await span.request_before()
 
         @wraps(receive)
-        async def my_receive():
+        async def my_receive() -> Message:
             message = await receive()
             await span.request_after(message)
             return message

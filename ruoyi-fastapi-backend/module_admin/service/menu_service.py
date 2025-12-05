@@ -1,11 +1,15 @@
+from collections.abc import Sequence
+from typing import Any, Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+
 from config.constant import CommonConstant, MenuConstant
 from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.menu_dao import MenuDao
 from module_admin.dao.role_dao import RoleDao
+from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.vo.common_vo import CrudResponseModel
-from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuQueryModel, MenuModel
+from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel
 from module_admin.entity.vo.role_vo import RoleMenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from utils.common_util import CamelCaseUtil
@@ -18,7 +22,9 @@ class MenuService:
     """
 
     @classmethod
-    async def get_menu_tree_services(cls, query_db: AsyncSession, current_user: Optional[CurrentUserModel] = None):
+    async def get_menu_tree_services(
+        cls, query_db: AsyncSession, current_user: Optional[CurrentUserModel] = None
+    ) -> list[dict[str, Any]]:
         """
         获取菜单树信息service
 
@@ -36,7 +42,7 @@ class MenuService:
     @classmethod
     async def get_role_menu_tree_services(
         cls, query_db: AsyncSession, role_id: int, current_user: Optional[CurrentUserModel] = None
-    ):
+    ) -> RoleMenuQueryModel:
         """
         根据角色id获取菜单树信息service
 
@@ -59,7 +65,7 @@ class MenuService:
     @classmethod
     async def get_menu_list_services(
         cls, query_db: AsyncSession, page_object: MenuQueryModel, current_user: Optional[CurrentUserModel] = None
-    ):
+    ) -> list[dict[str, Any]]:
         """
         获取菜单列表信息service
 
@@ -75,7 +81,7 @@ class MenuService:
         return CamelCaseUtil.transform_result(menu_list_result)
 
     @classmethod
-    async def check_menu_name_unique_services(cls, query_db: AsyncSession, page_object: MenuModel):
+    async def check_menu_name_unique_services(cls, query_db: AsyncSession, page_object: MenuModel) -> bool:
         """
         校验菜单名称是否唯一service
 
@@ -90,7 +96,7 @@ class MenuService:
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def add_menu_services(cls, query_db: AsyncSession, page_object: MenuModel):
+    async def add_menu_services(cls, query_db: AsyncSession, page_object: MenuModel) -> CrudResponseModel:
         """
         新增菜单信息service
 
@@ -100,19 +106,18 @@ class MenuService:
         """
         if not await cls.check_menu_name_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增菜单{page_object.menu_name}失败，菜单名称已存在')
-        elif page_object.is_frame == MenuConstant.YES_FRAME and not StringUtil.is_http(page_object.path):
+        if page_object.is_frame == MenuConstant.YES_FRAME and not StringUtil.is_http(page_object.path):
             raise ServiceException(message=f'新增菜单{page_object.menu_name}失败，地址必须以http(s)://开头')
-        else:
-            try:
-                await MenuDao.add_menu_dao(query_db, page_object)
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='新增成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+        try:
+            await MenuDao.add_menu_dao(query_db, page_object)
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='新增成功')
+        except Exception as e:
+            await query_db.rollback()
+            raise e
 
     @classmethod
-    async def edit_menu_services(cls, query_db: AsyncSession, page_object: MenuModel):
+    async def edit_menu_services(cls, query_db: AsyncSession, page_object: MenuModel) -> CrudResponseModel:
         """
         编辑菜单信息service
 
@@ -125,23 +130,22 @@ class MenuService:
         if menu_info.menu_id:
             if not await cls.check_menu_name_unique_services(query_db, page_object):
                 raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，菜单名称已存在')
-            elif page_object.is_frame == MenuConstant.YES_FRAME and not StringUtil.is_http(page_object.path):
+            if page_object.is_frame == MenuConstant.YES_FRAME and not StringUtil.is_http(page_object.path):
                 raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，地址必须以http(s)://开头')
-            elif page_object.menu_id == page_object.parent_id:
+            if page_object.menu_id == page_object.parent_id:
                 raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，上级菜单不能选择自己')
-            else:
-                try:
-                    await MenuDao.edit_menu_dao(query_db, edit_menu)
-                    await query_db.commit()
-                    return CrudResponseModel(is_success=True, message='更新成功')
-                except Exception as e:
-                    await query_db.rollback()
-                    raise e
+            try:
+                await MenuDao.edit_menu_dao(query_db, edit_menu)
+                await query_db.commit()
+                return CrudResponseModel(is_success=True, message='更新成功')
+            except Exception as e:
+                await query_db.rollback()
+                raise e
         else:
             raise ServiceException(message='菜单不存在')
 
     @classmethod
-    async def delete_menu_services(cls, query_db: AsyncSession, page_object: DeleteMenuModel):
+    async def delete_menu_services(cls, query_db: AsyncSession, page_object: DeleteMenuModel) -> CrudResponseModel:
         """
         删除菜单信息service
 
@@ -155,7 +159,7 @@ class MenuService:
                 for menu_id in menu_id_list:
                     if (await MenuDao.has_child_by_menu_id_dao(query_db, int(menu_id))) > 0:
                         raise ServiceWarning(message='存在子菜单,不允许删除')
-                    elif (await MenuDao.check_menu_exist_role_dao(query_db, int(menu_id))) > 0:
+                    if (await MenuDao.check_menu_exist_role_dao(query_db, int(menu_id))) > 0:
                         raise ServiceWarning(message='菜单已分配,不允许删除')
                     await MenuDao.delete_menu_dao(query_db, MenuModel(menuId=menu_id))
                 await query_db.commit()
@@ -167,7 +171,7 @@ class MenuService:
             raise ServiceException(message='传入菜单id为空')
 
     @classmethod
-    async def menu_detail_services(cls, query_db: AsyncSession, menu_id: int):
+    async def menu_detail_services(cls, query_db: AsyncSession, menu_id: int) -> MenuModel:
         """
         获取菜单详细信息service
 
@@ -176,37 +180,34 @@ class MenuService:
         :return: 菜单id对应的信息
         """
         menu = await MenuDao.get_menu_detail_by_id(query_db, menu_id=menu_id)
-        if menu:
-            result = MenuModel(**CamelCaseUtil.transform_result(menu))
-        else:
-            result = MenuModel(**dict())
+        result = MenuModel(**CamelCaseUtil.transform_result(menu)) if menu else MenuModel()
 
         return result
 
     @classmethod
-    def list_to_tree(cls, permission_list: list) -> list:
+    def list_to_tree(cls, permission_list: Sequence[SysMenu]) -> list[dict[str, Any]]:
         """
         工具方法：根据菜单列表信息生成树形嵌套数据
 
         :param permission_list: 菜单列表信息
         :return: 菜单树形嵌套数据
         """
-        permission_list = [
-            dict(id=item.menu_id, label=item.menu_name, parentId=item.parent_id) for item in permission_list
+        _permission_list = [
+            {'id': item.menu_id, 'label': item.menu_name, 'parentId': item.parent_id} for item in permission_list
         ]
         # 转成id为key的字典
-        mapping: dict = dict(zip([i['id'] for i in permission_list], permission_list))
+        mapping: dict[int, dict[str, Any]] = dict(zip([i['id'] for i in _permission_list], _permission_list))
 
         # 树容器
-        container: list = []
+        container: list[dict[str, Any]] = []
 
-        for d in permission_list:
+        for d in _permission_list:
             # 如果找不到父级项，则是根节点
-            parent: dict = mapping.get(d['parentId'])
+            parent = mapping.get(d['parentId'])
             if parent is None:
                 container.append(d)
             else:
-                children: list = parent.get('children')
+                children: list[dict[str, Any]] = parent.get('children')
                 if not children:
                     children = []
                 children.append(d)

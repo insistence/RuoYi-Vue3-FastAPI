@@ -1,10 +1,13 @@
 from datetime import datetime, time
+from typing import Any, Union
+
 from sqlalchemy import delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
+
 from module_admin.entity.do.job_do import SysJobLog
 from module_admin.entity.vo.job_vo import JobLogModel, JobLogPageQueryModel
-from utils.page_util import PageUtil
+from utils.page_util import PageResponseModel, PageUtil
 
 
 class JobLogDao:
@@ -13,7 +16,9 @@ class JobLogDao:
     """
 
     @classmethod
-    async def get_job_log_list(cls, db: AsyncSession, query_object: JobLogPageQueryModel, is_page: bool = False):
+    async def get_job_log_list(
+        cls, db: AsyncSession, query_object: JobLogPageQueryModel, is_page: bool = False
+    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
         """
         根据查询参数获取定时任务日志列表信息
 
@@ -38,12 +43,14 @@ class JobLogDao:
             .order_by(desc(SysJobLog.create_time))
             .distinct()
         )
-        job_log_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        job_log_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return job_log_list
 
     @classmethod
-    def add_job_log_dao(cls, db: Session, job_log: JobLogModel):
+    def add_job_log_dao(cls, db: Session, job_log: JobLogModel) -> SysJobLog:
         """
         新增定时任务日志数据库操作
 
@@ -58,7 +65,7 @@ class JobLogDao:
         return db_job_log
 
     @classmethod
-    async def delete_job_log_dao(cls, db: AsyncSession, job_log: JobLogModel):
+    async def delete_job_log_dao(cls, db: AsyncSession, job_log: JobLogModel) -> None:
         """
         删除定时任务日志数据库操作
 
@@ -69,7 +76,7 @@ class JobLogDao:
         await db.execute(delete(SysJobLog).where(SysJobLog.job_log_id.in_([job_log.job_log_id])))
 
     @classmethod
-    async def clear_job_log_dao(cls, db: AsyncSession):
+    async def clear_job_log_dao(cls, db: AsyncSession) -> None:
         """
         清除定时任务日志数据库操作
 

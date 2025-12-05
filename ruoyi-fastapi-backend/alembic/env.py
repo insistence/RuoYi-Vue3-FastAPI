@@ -1,13 +1,18 @@
 import asyncio
 import os
-from alembic import context
+from collections.abc import Iterable
 from logging.config import fileConfig
+from typing import Optional, Union
+
+from alembic import context
+from alembic.migration import MigrationContext
+from alembic.operations.ops import MigrationScript
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-from config.database import Base, ASYNC_SQLALCHEMY_DATABASE_URL
-from utils.import_util import ImportUtil
 
+from config.database import ASYNC_SQLALCHEMY_DATABASE_URL, Base
+from utils.import_util import ImportUtil
 
 # 判断vesrions目录是否存在，如果不存在则创建
 alembic_veresions_path = 'alembic/versions'
@@ -60,7 +65,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    def process_revision_directives(context, revision, directives):
+    def process_revision_directives(
+        context: MigrationContext,
+        revision: Union[str, Iterable[Optional[str]], Iterable[str]],
+        directives: list[MigrationScript],
+    ) -> None:
         script = directives[0]
 
         # 检查所有操作集是否为空

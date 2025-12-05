@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Union
 
 
 class BusinessType(Enum):
@@ -35,11 +36,11 @@ class RedisInitKeyConfig(Enum):
     """
 
     @property
-    def key(self):
+    def key(self) -> Union[str, None]:
         return self.value.get('key')
 
     @property
-    def remark(self):
+    def remark(self) -> Union[str, None]:
         return self.value.get('remark')
 
     ACCESS_TOKEN = {'key': 'access_token', 'remark': '登录令牌信息'}

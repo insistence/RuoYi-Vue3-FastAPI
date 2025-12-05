@@ -1,10 +1,10 @@
 import io
+
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
-from typing import Dict, List
 
 
 class ExcelUtil:
@@ -13,7 +13,7 @@ class ExcelUtil:
     """
 
     @classmethod
-    def __mapping_list(cls, list_data: List, mapping_dict: Dict):
+    def __mapping_list(cls, list_data: list, mapping_dict: dict) -> list[dict]:
         """
         工具方法：将list数据中的字段名映射为对应的中文字段名
 
@@ -26,7 +26,7 @@ class ExcelUtil:
         return mapping_data
 
     @classmethod
-    def export_list2excel(cls, list_data: List, mapping_dict: Dict):
+    def export_list2excel(cls, list_data: list, mapping_dict: dict) -> bytes:
         """
         工具方法：将需要导出的list数据转化为对应excel的二进制数据
 
@@ -43,7 +43,7 @@ class ExcelUtil:
         return binary_data
 
     @classmethod
-    def get_excel_template(cls, header_list: List, selector_header_list: List, option_list: List[Dict]):
+    def get_excel_template(cls, header_list: list, selector_header_list: list, option_list: list[dict]) -> bytes:
         """
         工具方法：将需要导出的list数据转化为对应excel的二进制数据
 

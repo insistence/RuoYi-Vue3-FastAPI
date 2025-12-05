@@ -1,8 +1,12 @@
+from collections.abc import Sequence
+from typing import Any, Union
+
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from module_admin.entity.do.job_do import SysJob
 from module_admin.entity.vo.job_vo import JobModel, JobPageQueryModel
-from utils.page_util import PageUtil
+from utils.page_util import PageResponseModel, PageUtil
 
 
 class JobDao:
@@ -11,7 +15,7 @@ class JobDao:
     """
 
     @classmethod
-    async def get_job_detail_by_id(cls, db: AsyncSession, job_id: int):
+    async def get_job_detail_by_id(cls, db: AsyncSession, job_id: int) -> Union[SysJob, None]:
         """
         根据定时任务id获取定时任务详细信息
 
@@ -24,7 +28,7 @@ class JobDao:
         return job_info
 
     @classmethod
-    async def get_job_detail_by_info(cls, db: AsyncSession, job: JobModel):
+    async def get_job_detail_by_info(cls, db: AsyncSession, job: JobModel) -> Union[SysJob, None]:
         """
         根据定时任务参数获取定时任务信息
 
@@ -53,7 +57,9 @@ class JobDao:
         return job_info
 
     @classmethod
-    async def get_job_list(cls, db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False):
+    async def get_job_list(
+        cls, db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False
+    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
         """
         根据查询参数获取定时任务列表信息
 
@@ -72,12 +78,14 @@ class JobDao:
             .order_by(SysJob.job_id)
             .distinct()
         )
-        job_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        job_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return job_list
 
     @classmethod
-    async def get_job_list_for_scheduler(cls, db: AsyncSession):
+    async def get_job_list_for_scheduler(cls, db: AsyncSession) -> Sequence[SysJob]:
         """
         获取定时任务列表信息
 
@@ -89,7 +97,7 @@ class JobDao:
         return job_list
 
     @classmethod
-    async def add_job_dao(cls, db: AsyncSession, job: JobModel):
+    async def add_job_dao(cls, db: AsyncSession, job: JobModel) -> SysJob:
         """
         新增定时任务数据库操作
 
@@ -104,7 +112,7 @@ class JobDao:
         return db_job
 
     @classmethod
-    async def edit_job_dao(cls, db: AsyncSession, job: dict, old_job: JobModel):
+    async def edit_job_dao(cls, db: AsyncSession, job: dict, old_job: JobModel) -> None:
         """
         编辑定时任务数据库操作
 
@@ -124,7 +132,7 @@ class JobDao:
         )
 
     @classmethod
-    async def delete_job_dao(cls, db: AsyncSession, job: JobModel):
+    async def delete_job_dao(cls, db: AsyncSession, job: JobModel) -> None:
         """
         删除定时任务数据库操作
 

@@ -1,10 +1,14 @@
+from typing import Any, Union
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from config.constant import CommonConstant
 from exceptions.exception import ServiceException
 from module_admin.dao.notice_dao import NoticeDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.notice_vo import DeleteNoticeModel, NoticeModel, NoticePageQueryModel
 from utils.common_util import CamelCaseUtil
+from utils.page_util import PageResponseModel
 
 
 class NoticeService:
@@ -15,7 +19,7 @@ class NoticeService:
     @classmethod
     async def get_notice_list_services(
         cls, query_db: AsyncSession, query_object: NoticePageQueryModel, is_page: bool = True
-    ):
+    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
         """
         获取通知公告列表信息service
 
@@ -29,7 +33,7 @@ class NoticeService:
         return notice_list_result
 
     @classmethod
-    async def check_notice_unique_services(cls, query_db: AsyncSession, page_object: NoticeModel):
+    async def check_notice_unique_services(cls, query_db: AsyncSession, page_object: NoticeModel) -> bool:
         """
         校验通知公告是否存在service
 
@@ -44,7 +48,7 @@ class NoticeService:
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def add_notice_services(cls, query_db: AsyncSession, page_object: NoticeModel):
+    async def add_notice_services(cls, query_db: AsyncSession, page_object: NoticeModel) -> CrudResponseModel:
         """
         新增通知公告信息service
 
@@ -54,17 +58,16 @@ class NoticeService:
         """
         if not await cls.check_notice_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增通知公告{page_object.notice_title}失败，通知公告已存在')
-        else:
-            try:
-                await NoticeDao.add_notice_dao(query_db, page_object)
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='新增成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+        try:
+            await NoticeDao.add_notice_dao(query_db, page_object)
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='新增成功')
+        except Exception as e:
+            await query_db.rollback()
+            raise e
 
     @classmethod
-    async def edit_notice_services(cls, query_db: AsyncSession, page_object: NoticeModel):
+    async def edit_notice_services(cls, query_db: AsyncSession, page_object: NoticeModel) -> CrudResponseModel:
         """
         编辑通知公告信息service
 
@@ -77,19 +80,18 @@ class NoticeService:
         if notice_info.notice_id:
             if not await cls.check_notice_unique_services(query_db, page_object):
                 raise ServiceException(message=f'修改通知公告{page_object.notice_title}失败，通知公告已存在')
-            else:
-                try:
-                    await NoticeDao.edit_notice_dao(query_db, edit_notice)
-                    await query_db.commit()
-                    return CrudResponseModel(is_success=True, message='更新成功')
-                except Exception as e:
-                    await query_db.rollback()
-                    raise e
+            try:
+                await NoticeDao.edit_notice_dao(query_db, edit_notice)
+                await query_db.commit()
+                return CrudResponseModel(is_success=True, message='更新成功')
+            except Exception as e:
+                await query_db.rollback()
+                raise e
         else:
             raise ServiceException(message='通知公告不存在')
 
     @classmethod
-    async def delete_notice_services(cls, query_db: AsyncSession, page_object: DeleteNoticeModel):
+    async def delete_notice_services(cls, query_db: AsyncSession, page_object: DeleteNoticeModel) -> CrudResponseModel:
         """
         删除通知公告信息service
 
@@ -111,7 +113,7 @@ class NoticeService:
             raise ServiceException(message='传入通知公告id为空')
 
     @classmethod
-    async def notice_detail_services(cls, query_db: AsyncSession, notice_id: int):
+    async def notice_detail_services(cls, query_db: AsyncSession, notice_id: int) -> NoticeModel:
         """
         获取通知公告详细信息service
 
@@ -120,9 +122,6 @@ class NoticeService:
         :return: 通知公告id对应的信息
         """
         notice = await NoticeDao.get_notice_detail_by_id(query_db, notice_id=notice_id)
-        if notice:
-            result = NoticeModel(**CamelCaseUtil.transform_result(notice))
-        else:
-            result = NoticeModel(**dict())
+        result = NoticeModel(**CamelCaseUtil.transform_result(notice)) if notice else NoticeModel()
 
         return result

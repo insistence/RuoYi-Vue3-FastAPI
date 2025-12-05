@@ -1,10 +1,11 @@
 from fastapi import FastAPI
+
 from middlewares.cors_middleware import add_cors_middleware
 from middlewares.gzip_middleware import add_gzip_middleware
 from middlewares.trace_middleware import add_trace_middleware
 
 
-def handle_middleware(app: FastAPI):
+def handle_middleware(app: FastAPI) -> None:
     """
     全局中间件处理
     """

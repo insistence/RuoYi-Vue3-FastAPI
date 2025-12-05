@@ -1,10 +1,11 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank
-from typing import List, Literal, Optional
+
 from config.constant import GenConstant
-from module_admin.annotation.pydantic_annotation import as_query
 from utils.string_util import StringUtil
 
 
@@ -38,38 +39,38 @@ class GenTableBaseModel(BaseModel):
     remark: Optional[str] = Field(default=None, description='备注')
 
     @NotBlank(field_name='table_name', message='表名称不能为空')
-    def get_table_name(self):
+    def get_table_name(self) -> Union[str, None]:
         return self.table_name
 
     @NotBlank(field_name='table_comment', message='表描述不能为空')
-    def get_table_comment(self):
+    def get_table_comment(self) -> Union[str, None]:
         return self.table_comment
 
     @NotBlank(field_name='class_name', message='实体类名称不能为空')
-    def get_class_name(self):
+    def get_class_name(self) -> Union[str, None]:
         return self.class_name
 
     @NotBlank(field_name='package_name', message='生成包路径不能为空')
-    def get_package_name(self):
+    def get_package_name(self) -> Union[str, None]:
         return self.package_name
 
     @NotBlank(field_name='module_name', message='生成模块名不能为空')
-    def get_module_name(self):
+    def get_module_name(self) -> Union[str, None]:
         return self.module_name
 
     @NotBlank(field_name='business_name', message='生成业务名不能为空')
-    def get_business_name(self):
+    def get_business_name(self) -> Union[str, None]:
         return self.business_name
 
     @NotBlank(field_name='function_name', message='生成功能名不能为空')
-    def get_function_name(self):
+    def get_function_name(self) -> Union[str, None]:
         return self.function_name
 
     @NotBlank(field_name='function_author', message='生成功能作者不能为空')
-    def get_function_author(self):
+    def get_function_author(self) -> Union[str, None]:
         return self.function_author
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_table_name()
         self.get_table_comment()
         self.get_class_name()
@@ -87,7 +88,7 @@ class GenTableModel(GenTableBaseModel):
 
     pk_column: Optional['GenTableColumnModel'] = Field(default=None, description='主键信息')
     sub_table: Optional['GenTableModel'] = Field(default=None, description='子表信息')
-    columns: Optional[List['GenTableColumnModel']] = Field(default=None, description='表列信息')
+    columns: Optional[list['GenTableColumnModel']] = Field(default=None, description='表列信息')
     tree_code: Optional[str] = Field(default=None, description='树编码字段')
     tree_parent_code: Optional[str] = Field(default=None, description='树父编码字段')
     tree_name: Optional[str] = Field(default=None, description='树名称字段')
@@ -99,9 +100,9 @@ class GenTableModel(GenTableBaseModel):
 
     @model_validator(mode='after')
     def check_some_is(self) -> 'GenTableModel':
-        self.sub = True if self.tpl_category and self.tpl_category == GenConstant.TPL_SUB else False
-        self.tree = True if self.tpl_category and self.tpl_category == GenConstant.TPL_TREE else False
-        self.crud = True if self.tpl_category and self.tpl_category == GenConstant.TPL_CRUD else False
+        self.sub = bool(self.tpl_category and self.tpl_category == GenConstant.TPL_SUB)
+        self.tree = bool(self.tpl_category and self.tpl_category == GenConstant.TPL_TREE)
+        self.crud = bool(self.tpl_category and self.tpl_category == GenConstant.TPL_CRUD)
         return self
 
 
@@ -135,7 +136,6 @@ class GenTableQueryModel(GenTableBaseModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class GenTablePageQueryModel(GenTableQueryModel):
     """
     代码生成业务表分页查询模型
@@ -189,10 +189,10 @@ class GenTableColumnBaseModel(BaseModel):
     update_time: Optional[datetime] = Field(default=None, description='更新时间')
 
     @NotBlank(field_name='python_field', message='Python属性不能为空')
-    def get_python_field(self):
+    def get_python_field(self) -> Union[str, None]:
         return self.python_field
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_python_field()
 
 
@@ -216,21 +216,19 @@ class GenTableColumnModel(GenTableColumnBaseModel):
     @model_validator(mode='after')
     def check_some_is(self) -> 'GenTableModel':
         self.cap_python_field = self.python_field[0].upper() + self.python_field[1:] if self.python_field else None
-        self.pk = True if self.is_pk and self.is_pk == '1' else False
-        self.increment = True if self.is_increment and self.is_increment == '1' else False
-        self.required = True if self.is_required and self.is_required == '1' else False
-        self.unique = True if self.is_unique and self.is_unique == '1' else False
-        self.insert = True if self.is_insert and self.is_insert == '1' else False
-        self.edit = True if self.is_edit and self.is_edit == '1' else False
-        self.list = True if self.is_list and self.is_list == '1' else False
-        self.query = True if self.is_query and self.is_query == '1' else False
-        self.super_column = (
-            True
-            if StringUtil.equals_any_ignore_case(self.python_field, GenConstant.TREE_ENTITY + GenConstant.BASE_ENTITY)
-            else False
+        self.pk = self.is_pk and self.is_pk == '1'
+        self.increment = bool(self.is_increment and self.is_increment == '1')
+        self.required = bool(self.is_required and self.is_required == '1')
+        self.unique = bool(self.is_unique and self.is_unique == '1')
+        self.insert = bool(self.is_insert and self.is_insert == '1')
+        self.edit = bool(self.is_edit and self.is_edit == '1')
+        self.list = bool(self.is_list and self.is_list == '1')
+        self.query = bool(self.is_query and self.is_query == '1')
+        self.super_column = bool(
+            StringUtil.equals_any_ignore_case(self.python_field, GenConstant.TREE_ENTITY + GenConstant.BASE_ENTITY)
         )
-        self.usable_column = (
-            True if StringUtil.equals_any_ignore_case(self.python_field, ['parentId', 'orderNum', 'remark']) else False
+        self.usable_column = bool(
+            StringUtil.equals_any_ignore_case(self.python_field, ['parentId', 'orderNum', 'remark'])
         )
         return self
 
@@ -244,7 +242,6 @@ class GenTableColumnQueryModel(GenTableColumnBaseModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class GenTableColumnPageQueryModel(GenTableColumnQueryModel):
     """
     代码生成业务表字段分页查询模型

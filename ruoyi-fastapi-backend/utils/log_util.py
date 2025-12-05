@@ -1,18 +1,20 @@
 import os
 import sys
 import time
+
 from loguru import logger as _logger
-from typing import Dict
+from loguru._logger import Logger
+
 from middlewares.trace_middleware import TraceCtx
 
 
 class LoggerInitializer:
-    def __init__(self):
+    def __init__(self) -> None:
         self.log_path = os.path.join(os.getcwd(), 'logs')
         self.__ensure_log_directory_exists()
         self.log_path_error = os.path.join(self.log_path, f'{time.strftime("%Y-%m-%d")}_error.log')
 
-    def __ensure_log_directory_exists(self):
+    def __ensure_log_directory_exists(self) -> None:
         """
         确保日志目录存在，如果不存在则创建
         """
@@ -20,14 +22,14 @@ class LoggerInitializer:
             os.mkdir(self.log_path)
 
     @staticmethod
-    def __filter(log: Dict):
+    def __filter(log: dict) -> dict:
         """
         自定义日志过滤器，添加trace_id
         """
         log['trace_id'] = TraceCtx.get_id()
         return log
 
-    def init_log(self):
+    def init_log(self) -> Logger:
         """
         初始化日志配置
         """

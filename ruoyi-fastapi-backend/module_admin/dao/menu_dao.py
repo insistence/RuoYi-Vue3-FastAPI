@@ -1,5 +1,9 @@
+from collections.abc import Sequence
+from typing import Union
+
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.role_do import SysRole, SysRoleMenu
 from module_admin.entity.do.user_do import SysUser, SysUserRole
@@ -12,7 +16,7 @@ class MenuDao:
     """
 
     @classmethod
-    async def get_menu_detail_by_id(cls, db: AsyncSession, menu_id: int):
+    async def get_menu_detail_by_id(cls, db: AsyncSession, menu_id: int) -> Union[SysMenu, None]:
         """
         根据菜单id获取菜单详细信息
 
@@ -25,7 +29,7 @@ class MenuDao:
         return menu_info
 
     @classmethod
-    async def get_menu_detail_by_info(cls, db: AsyncSession, menu: MenuModel):
+    async def get_menu_detail_by_info(cls, db: AsyncSession, menu: MenuModel) -> Union[SysMenu, None]:
         """
         根据菜单参数获取菜单信息
 
@@ -50,7 +54,7 @@ class MenuDao:
         return menu_info
 
     @classmethod
-    async def get_menu_list_for_tree(cls, db: AsyncSession, user_id: int, role: list):
+    async def get_menu_list_for_tree(cls, db: AsyncSession, user_id: int, role: list) -> Sequence[SysMenu]:
         """
         根据角色信息获取所有在用菜单列表信息
 
@@ -94,7 +98,9 @@ class MenuDao:
         return menu_query_all
 
     @classmethod
-    async def get_menu_list(cls, db: AsyncSession, page_object: MenuQueryModel, user_id: int, role: list):
+    async def get_menu_list(
+        cls, db: AsyncSession, page_object: MenuQueryModel, user_id: int, role: list
+    ) -> Sequence[SysMenu]:
         """
         根据查询参数获取菜单列表信息
 
@@ -156,7 +162,7 @@ class MenuDao:
         return menu_query_all
 
     @classmethod
-    async def add_menu_dao(cls, db: AsyncSession, menu: MenuModel):
+    async def add_menu_dao(cls, db: AsyncSession, menu: MenuModel) -> SysMenu:
         """
         新增菜单数据库操作
 
@@ -171,7 +177,7 @@ class MenuDao:
         return db_menu
 
     @classmethod
-    async def edit_menu_dao(cls, db: AsyncSession, menu: dict):
+    async def edit_menu_dao(cls, db: AsyncSession, menu: dict) -> None:
         """
         编辑菜单数据库操作
 
@@ -182,7 +188,7 @@ class MenuDao:
         await db.execute(update(SysMenu), [menu])
 
     @classmethod
-    async def delete_menu_dao(cls, db: AsyncSession, menu: MenuModel):
+    async def delete_menu_dao(cls, db: AsyncSession, menu: MenuModel) -> None:
         """
         删除菜单数据库操作
 
@@ -193,7 +199,7 @@ class MenuDao:
         await db.execute(delete(SysMenu).where(SysMenu.menu_id.in_([menu.menu_id])))
 
     @classmethod
-    async def has_child_by_menu_id_dao(cls, db: AsyncSession, menu_id: int):
+    async def has_child_by_menu_id_dao(cls, db: AsyncSession, menu_id: int) -> Union[int, None]:
         """
         根据菜单id查询菜单关联子菜单的数量
 
@@ -208,7 +214,7 @@ class MenuDao:
         return menu_count
 
     @classmethod
-    async def check_menu_exist_role_dao(cls, db: AsyncSession, menu_id: int):
+    async def check_menu_exist_role_dao(cls, db: AsyncSession, menu_id: int) -> Union[int, None]:
         """
         根据菜单id查询菜单关联角色数量
 

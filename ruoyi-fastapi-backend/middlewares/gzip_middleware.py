@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from starlette.middleware.gzip import GZipMiddleware
 
 
-def add_gzip_middleware(app: FastAPI):
+def add_gzip_middleware(app: FastAPI) -> None:
     """
     添加gzip压缩中间件
 

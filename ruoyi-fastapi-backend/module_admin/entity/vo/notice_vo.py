@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size, Xss
-from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class NoticeModel(BaseModel):
@@ -27,10 +27,10 @@ class NoticeModel(BaseModel):
     @Xss(field_name='notice_title', message='公告标题不能包含脚本字符')
     @NotBlank(field_name='notice_title', message='公告标题不能为空')
     @Size(field_name='notice_title', min_length=0, max_length=50, message='公告标题不能超过50个字符')
-    def get_notice_title(self):
+    def get_notice_title(self) -> Union[str, None]:
         return self.notice_title
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_notice_title()
 
 
@@ -43,7 +43,6 @@ class NoticeQueryModel(NoticeModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class NoticePageQueryModel(NoticeQueryModel):
     """
     通知公告管理分页查询模型

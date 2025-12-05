@@ -1,12 +1,15 @@
+from typing import Any, Union
+
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
-from typing import List
+
 from module_admin.dao.job_log_dao import JobLogDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.job_vo import DeleteJobLogModel, JobLogModel, JobLogPageQueryModel
 from module_admin.service.dict_service import DictDataService
 from utils.excel_util import ExcelUtil
+from utils.page_util import PageResponseModel
 
 
 class JobLogService:
@@ -17,7 +20,7 @@ class JobLogService:
     @classmethod
     async def get_job_log_list_services(
         cls, query_db: AsyncSession, query_object: JobLogPageQueryModel, is_page: bool = False
-    ):
+    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
         """
         获取定时任务日志列表信息service
 
@@ -31,7 +34,7 @@ class JobLogService:
         return job_log_list_result
 
     @classmethod
-    def add_job_log_services(cls, query_db: Session, page_object: JobLogModel):
+    def add_job_log_services(cls, query_db: Session, page_object: JobLogModel) -> CrudResponseModel:
         """
         新增定时任务日志信息service
 
@@ -42,15 +45,15 @@ class JobLogService:
         try:
             JobLogDao.add_job_log_dao(query_db, page_object)
             query_db.commit()
-            result = dict(is_success=True, message='新增成功')
+            result = {'is_success': True, 'message': '新增成功'}
         except Exception as e:
             query_db.rollback()
-            result = dict(is_success=False, message=str(e))
+            result = {'is_success': False, 'message': str(e)}
 
         return CrudResponseModel(**result)
 
     @classmethod
-    async def delete_job_log_services(cls, query_db: AsyncSession, page_object: DeleteJobLogModel):
+    async def delete_job_log_services(cls, query_db: AsyncSession, page_object: DeleteJobLogModel) -> CrudResponseModel:
         """
         删除定时任务日志信息service
 
@@ -64,16 +67,16 @@ class JobLogService:
                 for job_log_id in job_log_id_list:
                     await JobLogDao.delete_job_log_dao(query_db, JobLogModel(jobLogId=job_log_id))
                 await query_db.commit()
-                result = dict(is_success=True, message='删除成功')
+                result = {'is_success': True, 'message': '删除成功'}
             except Exception as e:
                 await query_db.rollback()
                 raise e
         else:
-            result = dict(is_success=False, message='传入定时任务日志id为空')
+            result = {'is_success': False, 'message': '传入定时任务日志id为空'}
         return CrudResponseModel(**result)
 
     @classmethod
-    async def clear_job_log_services(cls, query_db: AsyncSession):
+    async def clear_job_log_services(cls, query_db: AsyncSession) -> CrudResponseModel:
         """
         清除定时任务日志信息service
 
@@ -83,7 +86,7 @@ class JobLogService:
         try:
             await JobLogDao.clear_job_log_dao(query_db)
             await query_db.commit()
-            result = dict(is_success=True, message='清除成功')
+            result = {'is_success': True, 'message': '清除成功'}
         except Exception as e:
             await query_db.rollback()
             raise e
@@ -91,7 +94,7 @@ class JobLogService:
         return CrudResponseModel(**result)
 
     @staticmethod
-    async def export_job_log_list_services(request: Request, job_log_list: List):
+    async def export_job_log_list_services(request: Request, job_log_list: list) -> bytes:
         """
         导出定时任务日志信息service
 
@@ -118,13 +121,13 @@ class JobLogService:
         job_group_list = await DictDataService.query_dict_data_list_from_cache_services(
             request.app.state.redis, dict_type='sys_job_group'
         )
-        job_group_option = [dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in job_group_list]
+        job_group_option = [{'label': item.get('dictLabel'), 'value': item.get('dictValue')} for item in job_group_list]
         job_group_option_dict = {item.get('value'): item for item in job_group_option}
         job_executor_list = await DictDataService.query_dict_data_list_from_cache_services(
             request.app.state.redis, dict_type='sys_job_executor'
         )
         job_executor_option = [
-            dict(label=item.get('dictLabel'), value=item.get('dictValue')) for item in job_executor_list
+            {'label': item.get('dictLabel'), 'value': item.get('dictValue')} for item in job_executor_list
         ]
         job_executor_option_dict = {item.get('value'): item for item in job_executor_option}
 
@@ -133,9 +136,9 @@ class JobLogService:
                 item['status'] = '正常'
             else:
                 item['status'] = '暂停'
-            if str(item.get('jobGroup')) in job_group_option_dict.keys():
+            if str(item.get('jobGroup')) in job_group_option_dict:
                 item['jobGroup'] = job_group_option_dict.get(str(item.get('jobGroup'))).get('label')
-            if str(item.get('jobExecutor')) in job_executor_option_dict.keys():
+            if str(item.get('jobExecutor')) in job_executor_option_dict:
                 item['jobExecutor'] = job_executor_option_dict.get(str(item.get('jobExecutor'))).get('label')
         binary_data = ExcelUtil.export_list2excel(job_log_list, mapping_dict)
 

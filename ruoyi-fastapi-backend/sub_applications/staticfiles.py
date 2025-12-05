@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+
 from config.env import UploadConfig
 
 
-def mount_staticfiles(app: FastAPI):
+def mount_staticfiles(app: FastAPI) -> None:
     """
     挂载静态文件
     """

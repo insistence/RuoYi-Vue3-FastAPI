@@ -1,28 +1,24 @@
 import uuid
 from datetime import timedelta
-from fastapi import APIRouter, Request
+
+from fastapi import APIRouter, Request, Response
+
 from config.enums import RedisInitKeyConfig
 from module_admin.entity.vo.login_vo import CaptchaCode
 from module_admin.service.captcha_service import CaptchaService
-from utils.response_util import ResponseUtil
 from utils.log_util import logger
+from utils.response_util import ResponseUtil
+
+captcha_controller = APIRouter()
 
 
-captchaController = APIRouter()
-
-
-@captchaController.get('/captchaImage')
-async def get_captcha_image(request: Request):
+@captcha_controller.get('/captchaImage')
+async def get_captcha_image(request: Request) -> Response:
     captcha_enabled = (
-        True
-        if await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled')
-        == 'true'
-        else False
+        await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled') == 'true'
     )
     register_enabled = (
-        True
-        if await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.registerUser') == 'true'
-        else False
+        await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.registerUser') == 'true'
     )
     session_id = str(uuid.uuid4())
     captcha_result = await CaptchaService.create_captcha_image_service()

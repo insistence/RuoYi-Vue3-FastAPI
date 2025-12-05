@@ -1,7 +1,9 @@
 import re
+from typing import Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
-from typing import List, Optional, Union
+
 from exceptions.exception import ModelValidatorException
 from module_admin.entity.vo.menu_vo import MenuModel
 
@@ -31,8 +33,7 @@ class UserRegister(BaseModel):
         pattern = r"""^[^<>"'|\\]+$"""
         if self.password is None or re.match(pattern, self.password):
             return self
-        else:
-            raise ModelValidatorException(message='密码不能包含非法字符：< > " \' \\ |')
+        raise ModelValidatorException(message='密码不能包含非法字符：< > " \' \\ |')
 
 
 class Token(BaseModel):
@@ -57,7 +58,7 @@ class SmsCode(BaseModel):
 
 
 class MenuTreeModel(MenuModel):
-    children: Optional[Union[List['MenuTreeModel'], None]] = Field(default=None, description='子菜单')
+    children: Optional[Union[list['MenuTreeModel'], None]] = Field(default=None, description='子菜单')
 
 
 class MetaModel(BaseModel):
@@ -84,4 +85,4 @@ class RouterModel(BaseModel):
         default=None, description='当你一个路由下面的children声明的路由大于1个时，自动会变成嵌套的模式--如组件页面'
     )
     meta: Optional[MetaModel] = Field(default=None, description='其他元素')
-    children: Optional[Union[List['RouterModel'], None]] = Field(default=None, description='子路由')
+    children: Optional[Union[list['RouterModel'], None]] = Field(default=None, description='子路由')

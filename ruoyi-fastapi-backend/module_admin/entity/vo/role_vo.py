@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
-from typing import List, Literal, Optional, Union
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class RoleModel(BaseModel):
@@ -55,19 +55,19 @@ class RoleModel(BaseModel):
 
     @NotBlank(field_name='role_name', message='角色名称不能为空')
     @Size(field_name='role_name', min_length=0, max_length=30, message='角色名称长度不能超过30个字符')
-    def get_role_name(self):
+    def get_role_name(self) -> Union[str, None]:
         return self.role_name
 
     @NotBlank(field_name='role_key', message='权限字符不能为空')
     @Size(field_name='role_key', min_length=0, max_length=100, message='权限字符长度不能超过100个字符')
-    def get_role_key(self):
+    def get_role_key(self) -> Union[str, None]:
         return self.role_key
 
     @NotBlank(field_name='role_sort', message='显示顺序不能为空')
-    def get_role_sort(self):
+    def get_role_sort(self) -> Union[int, None]:
         return self.role_sort
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_role_name()
         self.get_role_key()
         self.get_role_sort()
@@ -104,7 +104,6 @@ class RoleQueryModel(RoleModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class RolePageQueryModel(RoleQueryModel):
     """
     角色管理分页查询模型
@@ -121,8 +120,8 @@ class RoleMenuQueryModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    menus: List = Field(default=[], description='菜单信息')
-    checked_keys: List[int] = Field(default=[], description='已选择的菜单ID信息')
+    menus: list = Field(default=[], description='菜单信息')
+    checked_keys: list[int] = Field(default=[], description='已选择的菜单ID信息')
 
 
 class RoleDeptQueryModel(BaseModel):
@@ -132,8 +131,8 @@ class RoleDeptQueryModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    depts: List = Field(default=[], description='部门信息')
-    checked_keys: List[int] = Field(default=[], description='已选择的部门ID信息')
+    depts: list = Field(default=[], description='部门信息')
+    checked_keys: list[int] = Field(default=[], description='已选择的部门ID信息')
 
 
 class AddRoleModel(RoleModel):
@@ -141,8 +140,8 @@ class AddRoleModel(RoleModel):
     新增角色模型
     """
 
-    dept_ids: List = Field(default=[], description='部门ID信息')
-    menu_ids: List = Field(default=[], description='菜单ID信息')
+    dept_ids: list = Field(default=[], description='部门ID信息')
+    menu_ids: list = Field(default=[], description='菜单ID信息')
     type: Optional[str] = Field(default=None, description='操作类型')
 
 
@@ -153,6 +152,6 @@ class DeleteRoleModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    role_ids: str = Field(description='需要删除的菜单ID')
+    role_ids: str = Field(description='需要删除的角色ID')
     update_by: Optional[str] = Field(default=None, description='更新者')
     update_time: Optional[datetime] = Field(default=None, description='更新时间')

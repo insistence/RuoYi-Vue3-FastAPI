@@ -1,6 +1,7 @@
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from typing import List, Optional
 
 
 class CpuInfo(BaseModel):
@@ -64,4 +65,4 @@ class ServerMonitorModel(BaseModel):
     py: Optional[PyInfo] = Field(description='Python相关信息')
     mem: Optional[MemoryInfo] = Field(description='內存相关信息')
     sys: Optional[SysInfo] = Field(description='服务器相关信息')
-    sys_files: Optional[List[SysFiles]] = Field(description='磁盘相关信息')
+    sys_files: Optional[list[SysFiles]] = Field(description='磁盘相关信息')

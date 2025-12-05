@@ -1,5 +1,7 @@
+from typing import Any, Union
+
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+
 from config.constant import CommonConstant
 from exceptions.exception import ServiceException
 from module_admin.dao.post_dao import PostDao
@@ -7,6 +9,7 @@ from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
+from utils.page_util import PageResponseModel
 
 
 class PostService:
@@ -17,7 +20,7 @@ class PostService:
     @classmethod
     async def get_post_list_services(
         cls, query_db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False
-    ):
+    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
         """
         获取岗位列表信息service
 
@@ -31,7 +34,7 @@ class PostService:
         return post_list_result
 
     @classmethod
-    async def check_post_name_unique_services(cls, query_db: AsyncSession, page_object: PostModel):
+    async def check_post_name_unique_services(cls, query_db: AsyncSession, page_object: PostModel) -> bool:
         """
         检查岗位名称是否唯一service
 
@@ -46,7 +49,7 @@ class PostService:
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def check_post_code_unique_services(cls, query_db: AsyncSession, page_object: PostModel):
+    async def check_post_code_unique_services(cls, query_db: AsyncSession, page_object: PostModel) -> bool:
         """
         检查岗位编码是否唯一service
 
@@ -61,7 +64,7 @@ class PostService:
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def add_post_services(cls, query_db: AsyncSession, page_object: PostModel):
+    async def add_post_services(cls, query_db: AsyncSession, page_object: PostModel) -> CrudResponseModel:
         """
         新增岗位信息service
 
@@ -71,19 +74,18 @@ class PostService:
         """
         if not await cls.check_post_name_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增岗位{page_object.post_name}失败，岗位名称已存在')
-        elif not await cls.check_post_code_unique_services(query_db, page_object):
+        if not await cls.check_post_code_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增岗位{page_object.post_name}失败，岗位编码已存在')
-        else:
-            try:
-                await PostDao.add_post_dao(query_db, page_object)
-                await query_db.commit()
-                return CrudResponseModel(is_success=True, message='新增成功')
-            except Exception as e:
-                await query_db.rollback()
-                raise e
+        try:
+            await PostDao.add_post_dao(query_db, page_object)
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='新增成功')
+        except Exception as e:
+            await query_db.rollback()
+            raise e
 
     @classmethod
-    async def edit_post_services(cls, query_db: AsyncSession, page_object: PostModel):
+    async def edit_post_services(cls, query_db: AsyncSession, page_object: PostModel) -> CrudResponseModel:
         """
         编辑岗位信息service
 
@@ -96,21 +98,20 @@ class PostService:
         if post_info.post_id:
             if not await cls.check_post_name_unique_services(query_db, page_object):
                 raise ServiceException(message=f'修改岗位{page_object.post_name}失败，岗位名称已存在')
-            elif not await cls.check_post_code_unique_services(query_db, page_object):
+            if not await cls.check_post_code_unique_services(query_db, page_object):
                 raise ServiceException(message=f'修改岗位{page_object.post_name}失败，岗位编码已存在')
-            else:
-                try:
-                    await PostDao.edit_post_dao(query_db, edit_post)
-                    await query_db.commit()
-                    return CrudResponseModel(is_success=True, message='更新成功')
-                except Exception as e:
-                    await query_db.rollback()
-                    raise e
+            try:
+                await PostDao.edit_post_dao(query_db, edit_post)
+                await query_db.commit()
+                return CrudResponseModel(is_success=True, message='更新成功')
+            except Exception as e:
+                await query_db.rollback()
+                raise e
         else:
             raise ServiceException(message='岗位不存在')
 
     @classmethod
-    async def delete_post_services(cls, query_db: AsyncSession, page_object: DeletePostModel):
+    async def delete_post_services(cls, query_db: AsyncSession, page_object: DeletePostModel) -> CrudResponseModel:
         """
         删除岗位信息service
 
@@ -135,7 +136,7 @@ class PostService:
             raise ServiceException(message='传入岗位id为空')
 
     @classmethod
-    async def post_detail_services(cls, query_db: AsyncSession, post_id: int):
+    async def post_detail_services(cls, query_db: AsyncSession, post_id: int) -> PostModel:
         """
         获取岗位详细信息service
 
@@ -144,15 +145,12 @@ class PostService:
         :return: 岗位id对应的信息
         """
         post = await PostDao.get_post_detail_by_id(query_db, post_id=post_id)
-        if post:
-            result = PostModel(**CamelCaseUtil.transform_result(post))
-        else:
-            result = PostModel(**dict())
+        result = PostModel(**CamelCaseUtil.transform_result(post)) if post else PostModel()
 
         return result
 
     @staticmethod
-    async def export_post_list_services(post_list: List):
+    async def export_post_list_services(post_list: list) -> bytes:
         """
         导出岗位信息service
 

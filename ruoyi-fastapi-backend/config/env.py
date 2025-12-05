@@ -2,11 +2,11 @@ import argparse
 import configparser
 import os
 import sys
+from typing import Literal
+
 from dotenv import load_dotenv
-from functools import lru_cache
 from pydantic import computed_field
 from pydantic_settings import BaseSettings
-from typing import Literal
 
 
 class AppSettings(BaseSettings):
@@ -86,7 +86,7 @@ class GenSettings:
 
     GEN_PATH = 'vf_admin/gen_path'
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not os.path.exists(self.GEN_PATH):
             os.makedirs(self.GEN_PATH)
 
@@ -130,7 +130,7 @@ class UploadSettings:
     ]
     DOWNLOAD_PATH = 'vf_admin/download_path'
 
-    def __init__(self):
+    def __init__(self) -> None:
         if not os.path.exists(self.UPLOAD_PATH):
             os.makedirs(self.UPLOAD_PATH)
         if not os.path.exists(self.DOWNLOAD_PATH):
@@ -151,59 +151,53 @@ class GetConfig:
     获取配置
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.parse_cli_args()
 
-    @lru_cache()
-    def get_app_config(self):
+    def get_app_config(self) -> AppSettings:
         """
         获取应用配置
         """
         # 实例化应用配置模型
         return AppSettings()
 
-    @lru_cache()
-    def get_jwt_config(self):
+    def get_jwt_config(self) -> JwtSettings:
         """
         获取Jwt配置
         """
         # 实例化Jwt配置模型
         return JwtSettings()
 
-    @lru_cache()
-    def get_database_config(self):
+    def get_database_config(self) -> DataBaseSettings:
         """
         获取数据库配置
         """
         # 实例化数据库配置模型
         return DataBaseSettings()
 
-    @lru_cache()
-    def get_redis_config(self):
+    def get_redis_config(self) -> RedisSettings:
         """
         获取Redis配置
         """
         # 实例化Redis配置模型
         return RedisSettings()
 
-    @lru_cache()
-    def get_gen_config(self):
+    def get_gen_config(self) -> GenSettings:
         """
         获取代码生成配置
         """
         # 实例化代码生成配置
         return GenSettings()
 
-    @lru_cache()
-    def get_upload_config(self):
+    def get_upload_config(self) -> UploadSettings:
         """
-        获取数据库配置
+        获取上传配置
         """
         # 实例上传配置
         return UploadSettings()
 
     @staticmethod
-    def parse_cli_args():
+    def parse_cli_args() -> None:
         """
         解析命令行参数
         """

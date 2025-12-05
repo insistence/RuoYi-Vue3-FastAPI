@@ -1,4 +1,5 @@
-from typing import Dict, List
+from typing import Union
+
 from config.constant import CommonConstant
 
 
@@ -8,7 +9,7 @@ class StringUtil:
     """
 
     @classmethod
-    def is_blank(cls, string: str) -> bool:
+    def is_blank(cls, string: Union[str, None]) -> bool:
         """
         校验字符串是否为''或全空格
 
@@ -20,14 +21,10 @@ class StringUtil:
         str_len = len(string)
         if str_len == 0:
             return True
-        else:
-            for i in range(str_len):
-                if string[i] != ' ':
-                    return False
-            return True
+        return all(string[i] == ' ' for i in range(str_len))
 
     @classmethod
-    def is_empty(cls, string) -> bool:
+    def is_empty(cls, string: str) -> bool:
         """
         校验字符串是否为''或None
 
@@ -47,17 +44,17 @@ class StringUtil:
         return not cls.is_empty(string)
 
     @classmethod
-    def is_http(cls, link: str):
+    def is_http(cls, link: str) -> bool:
         """
         判断是否为http(s)://开头
 
         :param link: 链接
         :return: 是否为http(s)://开头
         """
-        return link.startswith(CommonConstant.HTTP) or link.startswith(CommonConstant.HTTPS)
+        return link.startswith((CommonConstant.HTTP, CommonConstant.HTTPS))
 
     @classmethod
-    def contains_ignore_case(cls, search_str: str, compare_str: str):
+    def contains_ignore_case(cls, search_str: str, compare_str: str) -> bool:
         """
         查找指定字符串是否包含指定字符串同时忽略大小写
 
@@ -70,7 +67,7 @@ class StringUtil:
         return False
 
     @classmethod
-    def contains_any_ignore_case(cls, search_str: str, compare_str_list: List[str]):
+    def contains_any_ignore_case(cls, search_str: str, compare_str_list: list[str]) -> bool:
         """
         查找指定字符串是否包含指定字符串列表中的任意一个字符串同时忽略大小写
 
@@ -79,11 +76,11 @@ class StringUtil:
         :return: 查找结果
         """
         if search_str and compare_str_list:
-            return any([cls.contains_ignore_case(search_str, compare_str) for compare_str in compare_str_list])
+            return any(cls.contains_ignore_case(search_str, compare_str) for compare_str in compare_str_list)
         return False
 
     @classmethod
-    def equals_ignore_case(cls, search_str: str, compare_str: str):
+    def equals_ignore_case(cls, search_str: str, compare_str: str) -> bool:
         """
         比较两个字符串是否相等同时忽略大小写
 
@@ -96,7 +93,7 @@ class StringUtil:
         return False
 
     @classmethod
-    def equals_any_ignore_case(cls, search_str: str, compare_str_list: List[str]):
+    def equals_any_ignore_case(cls, search_str: str, compare_str_list: list[str]) -> bool:
         """
         比较指定字符串是否与指定字符串列表中的任意一个字符串相等同时忽略大小写
 
@@ -105,11 +102,11 @@ class StringUtil:
         :return: 比较结果
         """
         if search_str and compare_str_list:
-            return any([cls.equals_ignore_case(search_str, compare_str) for compare_str in compare_str_list])
+            return any(cls.equals_ignore_case(search_str, compare_str) for compare_str in compare_str_list)
         return False
 
     @classmethod
-    def startswith_case(cls, search_str: str, compare_str: str):
+    def startswith_case(cls, search_str: str, compare_str: str) -> bool:
         """
         查找指定字符串是否以指定字符串开头
 
@@ -122,7 +119,7 @@ class StringUtil:
         return False
 
     @classmethod
-    def startswith_any_case(cls, search_str: str, compare_str_list: List[str]):
+    def startswith_any_case(cls, search_str: str, compare_str_list: list[str]) -> bool:
         """
         查找指定字符串是否以指定字符串列表中的任意一个字符串开头
 
@@ -131,7 +128,7 @@ class StringUtil:
         :return: 查找结果
         """
         if search_str and compare_str_list:
-            return any([cls.startswith_case(search_str, compare_str) for compare_str in compare_str_list])
+            return any(cls.startswith_case(search_str, compare_str) for compare_str in compare_str_list)
         return False
 
     @classmethod
@@ -155,7 +152,7 @@ class StringUtil:
         return ''.join(result)
 
     @classmethod
-    def get_mapping_value_by_key_ignore_case(cls, mapping: Dict[str, str], key: str) -> str:
+    def get_mapping_value_by_key_ignore_case(cls, mapping: dict[str, str], key: str) -> str:
         """
         根据忽略大小写的键获取字典中的对应的值
 
@@ -166,5 +163,5 @@ class StringUtil:
         for k, v in mapping.items():
             if key.lower() == k.lower():
                 return v
-        
+
         return ''

@@ -7,11 +7,14 @@
 from datetime import datetime, time
 {% endif %}
 {% endfor %}
+from typing import Any, Union
+
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 {% if table.sub %}
 from sqlalchemy.orm import selectinload
 {% endif %}
+
 {% if table.sub %}
 from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}, {{ subClassName }}
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel, {{ subTable.business_name | capitalize }}Model
@@ -19,7 +22,7 @@ from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}
 from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 {% endif %}
-from utils.page_util import PageUtil
+from utils.page_util import PageResponseModel, PageUtil
 
 
 class {{ BusinessName }}Dao:
@@ -28,7 +31,7 @@ class {{ BusinessName }}Dao:
     """
 
     @classmethod
-    async def get_{{ businessName }}_detail_by_id(cls, db: AsyncSession, {{ pk_field }}: int):
+    async def get_{{ businessName }}_detail_by_id(cls, db: AsyncSession, {{ pk_field }}: int) -> Union[{{ ClassName }}, None]:
         """
         根据{{ pk_field_comment }}获取{{ functionName }}详细信息
 
@@ -57,7 +60,7 @@ class {{ BusinessName }}Dao:
         return {{ businessName }}_info
 
     @classmethod
-    async def get_{{ businessName }}_detail_by_info(cls, db: AsyncSession, {{ businessName }}: {{ BusinessName }}Model):
+    async def get_{{ businessName }}_detail_by_info(cls, db: AsyncSession, {{ businessName }}: {{ BusinessName }}Model) -> Union[{{ ClassName }}, None]:
         """
         根据{{ functionName }}参数获取{{ functionName }}信息
 
@@ -84,7 +87,9 @@ class {{ BusinessName }}Dao:
         return {{ businessName }}_info
 
     @classmethod
-    async def get_{{ businessName }}_list(cls, db: AsyncSession, query_object: {{ BusinessName }}PageQueryModel, is_page: bool = False):
+    async def get_{{ businessName }}_list(
+        cls, db: AsyncSession, query_object: {{ BusinessName }}PageQueryModel, is_page: bool = False
+    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
         """
         根据查询参数获取{{ functionName }}列表信息
 
@@ -132,12 +137,14 @@ class {{ BusinessName }}Dao:
             .order_by({{ ClassName }}.{{ pk_field }})
             .distinct()
         )
-        {{ businessName }}_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        {{ businessName }}_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return {{ businessName }}_list
 
     @classmethod
-    async def add_{{ businessName }}_dao(cls, db: AsyncSession, {{ businessName }}: {{ BusinessName }}Model):
+    async def add_{{ businessName }}_dao(cls, db: AsyncSession, {{ businessName }}: {{ BusinessName }}Model) -> {{ ClassName }}:
         """
         新增{{ functionName }}数据库操作
 
@@ -152,7 +159,7 @@ class {{ BusinessName }}Dao:
         return db_{{ businessName }}
 
     @classmethod
-    async def edit_{{ businessName }}_dao(cls, db: AsyncSession, {{ businessName }}: dict):
+    async def edit_{{ businessName }}_dao(cls, db: AsyncSession, {{ businessName }}: dict) -> None:
         """
         编辑{{ functionName }}数据库操作
 
@@ -163,7 +170,7 @@ class {{ BusinessName }}Dao:
         await db.execute(update({{ ClassName }}), [{{ businessName }}])
 
     @classmethod
-    async def delete_{{ businessName }}_dao(cls, db: AsyncSession, {{ businessName }}: {{ BusinessName }}Model):
+    async def delete_{{ businessName }}_dao(cls, db: AsyncSession, {{ businessName }}: {{ BusinessName }}Model) -> None:
         """
         删除{{ functionName }}数据库操作
 
@@ -175,7 +182,7 @@ class {{ BusinessName }}Dao:
 
     {% if table.sub %}
     @classmethod
-    async def add_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: {{ subTable.business_name | capitalize }}Model):
+    async def add_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: {{ subTable.business_name | capitalize }}Model) -> {{ subClassName }}:
         """
         新增{{ subTable.function_name }}数据库操作
 
@@ -190,7 +197,7 @@ class {{ BusinessName }}Dao:
         return db_{{ subTable.business_name }}
 
     @classmethod
-    async def edit_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: dict):
+    async def edit_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: dict) -> None:
         """
         编辑{{ subTable.function_name }}数据库操作
 
@@ -201,7 +208,7 @@ class {{ BusinessName }}Dao:
         await db.execute(update({{ subClassName }}), [{{ subTable.business_name }}])
 
     @classmethod
-    async def delete_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: {{ subTable.business_name | capitalize }}Model):
+    async def delete_{{ subTable.business_name }}_dao(cls, db: AsyncSession, {{ subTable.business_name }}: {{ subTable.business_name | capitalize }}Model) -> None:
         """
         删除{{ subTable.function_name }}数据库操作
 

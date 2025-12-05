@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
-from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class ConfigModel(BaseModel):
@@ -26,20 +26,20 @@ class ConfigModel(BaseModel):
 
     @NotBlank(field_name='config_key', message='参数名称不能为空')
     @Size(field_name='config_key', min_length=0, max_length=100, message='参数名称长度不能超过100个字符')
-    def get_config_key(self):
+    def get_config_key(self) -> Union[str, None]:
         return self.config_key
 
     @NotBlank(field_name='config_name', message='参数键名不能为空')
     @Size(field_name='config_name', min_length=0, max_length=100, message='参数键名长度不能超过100个字符')
-    def get_config_name(self):
+    def get_config_name(self) -> Union[str, None]:
         return self.config_name
 
     @NotBlank(field_name='config_value', message='参数键值不能为空')
     @Size(field_name='config_value', min_length=0, max_length=500, message='参数键值长度不能超过500个字符')
-    def get_config_value(self):
+    def get_config_value(self) -> Union[str, None]:
         return self.config_value
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_config_key()
         self.get_config_name()
         self.get_config_value()
@@ -54,7 +54,6 @@ class ConfigQueryModel(ConfigModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class ConfigPageQueryModel(ConfigQueryModel):
     """
     参数配置管理分页查询模型
