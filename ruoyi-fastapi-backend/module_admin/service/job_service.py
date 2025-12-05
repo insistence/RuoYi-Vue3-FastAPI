@@ -3,7 +3,7 @@ from typing import Any, Union
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.constant import CommonConstant, JobConstant
+from common.constant import CommonConstant, JobConstant
 from config.get_scheduler import SchedulerUtil
 from exceptions.exception import ServiceException
 from module_admin.dao.job_dao import JobDao

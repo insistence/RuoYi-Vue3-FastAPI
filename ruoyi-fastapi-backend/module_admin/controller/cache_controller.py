@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Request, Response
 
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
+from common.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.cache_vo import CacheInfoModel, CacheMonitorModel
 from module_admin.service.cache_service import CacheService
 from module_admin.service.login_service import LoginService

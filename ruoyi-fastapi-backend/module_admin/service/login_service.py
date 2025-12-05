@@ -10,8 +10,8 @@ from jwt.exceptions import InvalidTokenError
 from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.constant import CommonConstant, MenuConstant
-from config.enums import RedisInitKeyConfig
+from common.constant import CommonConstant, MenuConstant
+from common.enums import RedisInitKeyConfig
 from config.env import AppConfig, JwtConfig
 from config.get_db import get_db
 from exceptions.exception import AuthException, LoginException, ServiceException

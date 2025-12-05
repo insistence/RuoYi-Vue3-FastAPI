@@ -3,7 +3,7 @@ from typing import Any
 import jwt
 from fastapi import Request
 
-from config.enums import RedisInitKeyConfig
+from common.enums import RedisInitKeyConfig
 from config.env import JwtConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.common_vo import CrudResponseModel

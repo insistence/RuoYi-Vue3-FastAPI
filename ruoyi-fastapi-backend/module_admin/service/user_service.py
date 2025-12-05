@@ -6,7 +6,7 @@ import pandas as pd
 from fastapi import Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.constant import CommonConstant
+from common.constant import CommonConstant
 from exceptions.exception import ServiceException
 from module_admin.dao.user_dao import UserDao
 from module_admin.entity.do.user_do import SysUserRole

@@ -6,10 +6,10 @@ import jwt
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.enums import BusinessType, RedisInitKeyConfig
+from common.annotation.log_annotation import Log
+from common.enums import BusinessType, RedisInitKeyConfig
 from config.env import AppConfig, JwtConfig
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import Log
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.login_vo import Token, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel

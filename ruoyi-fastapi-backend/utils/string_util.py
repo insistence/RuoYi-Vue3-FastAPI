@@ -1,6 +1,6 @@
 from typing import Union
 
-from config.constant import CommonConstant
+from common.constant import CommonConstant
 
 
 class StringUtil:

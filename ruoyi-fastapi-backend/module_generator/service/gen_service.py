@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlglot import parse as sqlglot_parse
 from sqlglot.expressions import Add, Alter, Create, Delete, Drop, Expression, Insert, Table, TruncateTable, Update
 
-from config.constant import GenConstant
+from common.constant import GenConstant
 from config.env import DataBaseConfig, GenConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.common_vo import CrudResponseModel

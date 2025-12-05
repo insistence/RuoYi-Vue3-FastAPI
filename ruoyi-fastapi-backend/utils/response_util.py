@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
 
-from config.constant import HttpStatusConstant
+from common.constant import HttpStatusConstant
 
 
 class ResponseUtil:

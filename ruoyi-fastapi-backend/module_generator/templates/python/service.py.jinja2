@@ -9,7 +9,7 @@ from fastapi import Request
 {% endif %}
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.constant import CommonConstant
+from common.constant import CommonConstant
 from exceptions.exception import ServiceException
 from {{ packageName }}.dao.{{ businessName }}_dao import {{ BusinessName }}Dao
 from module_admin.entity.vo.common_vo import CrudResponseModel

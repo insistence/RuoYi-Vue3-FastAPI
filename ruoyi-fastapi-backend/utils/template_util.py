@@ -5,7 +5,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
-from config.constant import GenConstant
+from common.constant import GenConstant
 from config.env import DataBaseConfig
 from exceptions.exception import ServiceWarning
 from module_generator.entity.vo.gen_vo import GenTableColumnModel, GenTableModel

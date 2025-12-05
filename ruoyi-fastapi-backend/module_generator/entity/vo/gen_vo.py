@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank
 
-from config.constant import GenConstant
+from common.constant import GenConstant
 from utils.string_util import StringUtil
 
 

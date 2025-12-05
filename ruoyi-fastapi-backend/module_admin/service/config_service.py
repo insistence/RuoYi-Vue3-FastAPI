@@ -4,8 +4,8 @@ from fastapi import Request
 from redis import asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.constant import CommonConstant
-from config.enums import RedisInitKeyConfig
+from common.constant import CommonConstant
+from common.enums import RedisInitKeyConfig
 from exceptions.exception import ServiceException
 from module_admin.dao.config_dao import ConfigDao
 from module_admin.entity.vo.common_vo import CrudResponseModel

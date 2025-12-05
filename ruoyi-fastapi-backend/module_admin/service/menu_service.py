@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.constant import CommonConstant, MenuConstant
+from common.constant import CommonConstant, MenuConstant
 from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.menu_dao import MenuDao
 from module_admin.dao.role_dao import RoleDao

@@ -6,8 +6,8 @@ from fastapi import Request
 from redis import asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.constant import CommonConstant
-from config.enums import RedisInitKeyConfig
+from common.constant import CommonConstant
+from common.enums import RedisInitKeyConfig
 from exceptions.exception import ServiceException
 from module_admin.dao.dict_dao import DictDataDao, DictTypeDao
 from module_admin.entity.do.dict_do import SysDictData

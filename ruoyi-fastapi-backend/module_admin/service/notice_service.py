@@ -2,7 +2,7 @@ from typing import Any, Union
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.constant import CommonConstant
+from common.constant import CommonConstant
 from exceptions.exception import ServiceException
 from module_admin.dao.notice_dao import NoticeDao
 from module_admin.entity.vo.common_vo import CrudResponseModel

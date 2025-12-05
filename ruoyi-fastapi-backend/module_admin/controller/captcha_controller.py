@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Request, Response
 
-from config.enums import RedisInitKeyConfig
+from common.enums import RedisInitKeyConfig
 from module_admin.entity.vo.login_vo import CaptchaCode
 from module_admin.service.captcha_service import CaptchaService
 from utils.log_util import logger

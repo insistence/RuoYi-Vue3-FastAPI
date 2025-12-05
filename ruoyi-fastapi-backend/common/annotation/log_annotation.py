@@ -15,7 +15,7 @@ from starlette.status import HTTP_200_OK
 from typing_extensions import ParamSpec
 from user_agents import parse
 
-from config.enums import BusinessType
+from common.enums import BusinessType
 from config.env import AppConfig
 from exceptions.exception import LoginException, ServiceException, ServiceWarning
 from module_admin.entity.vo.log_vo import LogininforModel, OperLogModel

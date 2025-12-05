@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends, Form, Path, Query, Request, Response
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.enums import BusinessType
+from common.annotation.log_annotation import Log
+from common.aspect.data_scope import GetDataScope
+from common.aspect.interface_auth import CheckUserInterfaceAuth
+from common.enums import BusinessType
 from config.get_db import get_db
-from module_admin.annotation.log_annotation import Log
-from module_admin.aspect.data_scope import GetDataScope
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
 from module_admin.entity.vo.dept_vo import DeptModel
 from module_admin.entity.vo.role_vo import AddRoleModel, DeleteRoleModel, RoleModel, RolePageQueryModel
 from module_admin.entity.vo.user_vo import CrudUserRoleModel, CurrentUserModel, UserRolePageQueryModel
