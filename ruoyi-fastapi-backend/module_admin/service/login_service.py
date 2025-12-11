@@ -11,6 +11,7 @@ from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant, MenuConstant
+from common.context import RequestContext
 from common.enums import RedisInitKeyConfig
 from config.env import AppConfig, JwtConfig
 from config.get_db import get_db
@@ -269,6 +270,8 @@ class LoginService:
                 isDefaultModifyPwd=is_default_modify_pwd,
                 isPasswordExpired=is_password_expired,
             )
+            # 设置当前用户信息到上下文
+            RequestContext.set_current_user(current_user)
             return current_user
         logger.warning('用户token已失效，请重新登录')
         raise AuthException(data='', message='用户token已失效，请重新登录')

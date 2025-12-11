@@ -15,12 +15,13 @@ from starlette.status import HTTP_200_OK
 from typing_extensions import ParamSpec
 from user_agents import parse
 
+from common.context import RequestContext
 from common.enums import BusinessType
 from config.env import AppConfig
 from exceptions.exception import LoginException, ServiceException, ServiceWarning
 from module_admin.entity.vo.log_vo import LogininforModel, OperLogModel
 from module_admin.service.log_service import LoginLogService, OperationLogService
-from module_admin.service.login_service import LoginService
+from utils.dependency_util import DependencyUtil
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
@@ -61,6 +62,7 @@ class Log:
             # 获取上下文信息
             request_name_list = get_function_parameters_name_by_type(func, Request)
             request = get_function_parameters_value_by_name(func, request_name_list[0], *args, **kwargs)
+            DependencyUtil.check_exclude_routes(request, err_msg='当前路由不在认证规则内，不可使用Log装饰器')
             session_name_list = get_function_parameters_name_by_type(func, AsyncSession)
             query_db = get_function_parameters_value_by_name(func, session_name_list[0], *args, **kwargs)
             request_method = request.method
@@ -122,8 +124,7 @@ class Log:
 
                     await LoginLogService.add_login_log_services(query_db, LogininforModel(**login_log))
             else:
-                token = request.headers.get('Authorization')
-                current_user = await LoginService.get_current_user(request, token, query_db)
+                current_user = RequestContext.get_current_user()
                 oper_name = current_user.user.user_name
                 dept_name = current_user.user.dept.dept_name if current_user.user.dept else None
                 operation_log = OperLogModel(
