@@ -13,16 +13,16 @@ from datetime import datetime
 {% endif %}
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Path, Query, Request, Response
+from fastapi import APIRouter, Form, Path, Query, Request, Response
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
-from common.aspect.interface_auth import CheckUserInterfaceAuth
+from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.interface_auth import UserInterfaceAuthDependency
+from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
-from config.get_db import get_db
 from module_admin.entity.vo.user_vo import CurrentUserModel
-from module_admin.service.login_service import LoginService
 from {{ packageName }}.service.{{ businessName }}_service import {{ BusinessName }}Service
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import Delete{{ BusinessName }}Model, {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 from utils.common_util import bytes2file_response
@@ -31,16 +31,18 @@ from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 
-{{ businessName }}_controller = APIRouter(prefix='/{{ moduleName }}/{{ businessName }}', dependencies=[Depends(LoginService.get_current_user)])
+{{ businessName }}_controller = APIRouter(prefix='/{{ moduleName }}/{{ businessName }}', dependencies=[PreAuthDependency()])
 
 
 @{{ businessName }}_controller.get(
-    '/list', response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:list'))]
+    '/list',
+    response_model=PageResponseModel,
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:list')],
 )
 async def get_{{ moduleName }}_{{ businessName }}_list(
     request: Request,
     {% if table.crud or table.sub %}{{ businessName }}_page_query{% elif table.tree %}{{ businessName }}_query{% endif %}: Annotated[{{ BusinessName }}PageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     {% if table.crud or table.sub %}
     # 获取分页数据
@@ -56,14 +58,16 @@ async def get_{{ moduleName }}_{{ businessName }}_list(
     {% endif %}
 
 
-@{{ businessName }}_controller.post('', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:add'))])
+@{{ businessName }}_controller.post(
+    '',
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:add')]),
 @ValidateFields(validate_model='add_{{ businessName }}')
 @Log(title='{{ functionName }}', business_type=BusinessType.INSERT)
 async def add_{{ moduleName }}_{{ businessName }}(
     request: Request,
     add_{{ businessName }}: {{ BusinessName }}Model,
-    query_db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[CurrentUserModel, Depends(LoginService.get_current_user)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     {% for column in columns %}
     {% if column.python_field == "createBy" %}
@@ -82,14 +86,16 @@ async def add_{{ moduleName }}_{{ businessName }}(
     return ResponseUtil.success(msg=add_{{ businessName }}_result.message)
 
 
-@{{ businessName }}_controller.put('', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:edit'))])
+@{{ businessName }}_controller.put(
+    '',
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:edit')]),
 @ValidateFields(validate_model='edit_{{ businessName }}')
 @Log(title='{{ functionName }}', business_type=BusinessType.UPDATE)
 async def edit_{{ moduleName }}_{{ businessName }}(
     request: Request,
     edit_{{ businessName }}: {{ BusinessName }}Model,
-    query_db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[CurrentUserModel, Depends(LoginService.get_current_user)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     {% for column in columns %}
     {% if column.python_field == "updateBy" %}
@@ -104,12 +110,14 @@ async def edit_{{ moduleName }}_{{ businessName }}(
     return ResponseUtil.success(msg=edit_{{ businessName }}_result.message)
 
 
-@{{ businessName }}_controller.delete('/{% raw %}{{% endraw %}{{ pk_field }}s{% raw %}}{% endraw %}', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:remove'))])
+@{{ businessName }}_controller.delete(
+    '/{% raw %}{{% endraw %}{{ pk_field }}s{% raw %}}{% endraw %}',
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:remove')]),
 @Log(title='{{ functionName }}', business_type=BusinessType.DELETE)
 async def delete_{{ moduleName }}_{{ businessName }}(
     request: Request,
     {{ pk_field }}s: Annotated[str, Path(description='需要删除的{{ pk_field_comment }}')],
-    Annotated[AsyncSession, Depends(get_db)],
+    Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_{{ businessName }} = Delete{{ BusinessName }}Model({{ pkField }}s={{ pk_field }}s)
     delete_{{ businessName }}_result = await {{ BusinessName }}Service.delete_{{ businessName }}_services(query_db, delete_{{ businessName }})
@@ -119,12 +127,14 @@ async def delete_{{ moduleName }}_{{ businessName }}(
 
 
 @{{ businessName }}_controller.get(
-    '/{% raw %}{{% endraw %}{{ pk_field }}{% raw %}}{% endraw %}', response_model={{ BusinessName }}Model, dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:query'))]
+    '/{% raw %}{{% endraw %}{{ pk_field }}{% raw %}}{% endraw %}',
+    response_model={{ BusinessName }}Model,
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:query')]
 )
 async def query_detail_{{ moduleName }}_{{ businessName }}(
     request: Request,
     {{ pk_field }}: Annotated[{{ pkColumn.python_type }}, Path(description='{{ pk_field_comment }}')],
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     {{ businessName }}_detail_result = await {{ BusinessName }}Service.{{ businessName }}_detail_services(query_db, {{ pk_field }})
     logger.info(f'获取{{ pk_field }}为{% raw %}{{% endraw %}{{ pk_field }}{% raw %}}{% endraw %}的信息成功')
@@ -132,12 +142,14 @@ async def query_detail_{{ moduleName }}_{{ businessName }}(
     return ResponseUtil.success(data={{ businessName }}_detail_result)
 
 
-@{{ businessName }}_controller.post('/export', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:export'))])
+@{{ businessName }}_controller.post(
+    '/export',
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:export')])
 @Log(title='{{ functionName }}', business_type=BusinessType.EXPORT)
 async def export_{{ moduleName }}_{{ businessName }}_list(
     request: Request,
     {{ businessName }}_page_query: Annotated[{{ BusinessName }}PageQueryModel, Form()],
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取全量数据
     {{ businessName }}_query_result = await {{ BusinessName }}Service.get_{{ businessName }}_list_services(query_db, {{ businessName }}_page_query, is_page=False)

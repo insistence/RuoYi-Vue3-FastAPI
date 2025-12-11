@@ -1,13 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Request, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Query, Request, Response, UploadFile
 
+from common.aspect.pre_auth import PreAuthDependency
 from module_admin.service.common_service import CommonService
-from module_admin.service.login_service import LoginService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-common_controller = APIRouter(prefix='/common', dependencies=[Depends(LoginService.get_current_user)])
+common_controller = APIRouter(prefix='/common', dependencies=[PreAuthDependency()])
 
 
 @common_controller.post('/upload')

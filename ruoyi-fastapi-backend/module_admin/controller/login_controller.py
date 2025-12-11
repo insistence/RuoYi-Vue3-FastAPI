@@ -7,9 +7,10 @@ from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
+from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.pre_auth import CurrentUserDependency
 from common.enums import BusinessType, RedisInitKeyConfig
 from config.env import AppConfig, JwtConfig
-from config.get_db import get_db
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.login_vo import Token, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
@@ -26,7 +27,7 @@ login_controller = APIRouter()
 async def login(
     request: Request,
     form_data: Annotated[CustomOAuth2PasswordRequestForm, Depends()],
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     captcha_enabled = (
         await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled') == 'true'
@@ -79,7 +80,7 @@ async def login(
 
 @login_controller.get('/getInfo', response_model=CurrentUserModel)
 async def get_login_user_info(
-    request: Request, current_user: Annotated[CurrentUserModel, Depends(LoginService.get_current_user)]
+    request: Request, current_user: Annotated[CurrentUserModel, CurrentUserDependency()]
 ) -> Response:
     logger.info('获取成功')
 
@@ -89,8 +90,8 @@ async def get_login_user_info(
 @login_controller.get('/getRouters')
 async def get_login_user_routers(
     request: Request,
-    current_user: Annotated[CurrentUserModel, Depends(LoginService.get_current_user)],
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     logger.info('获取成功')
     user_routers = await LoginService.get_current_user_routers(current_user.user.user_id, query_db)
@@ -102,7 +103,7 @@ async def get_login_user_routers(
 async def register_user(
     request: Request,
     user_register: UserRegister,
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     user_register_result = await LoginService.register_user_services(request, query_db, user_register)
     logger.info(user_register_result.message)
@@ -111,7 +112,7 @@ async def register_user(
 
 
 # @login_controller.post("/getSmsCode", response_model=SmsCode)
-# async def get_sms_code(request: Request, user: ResetUserModel, query_db: AsyncSession = Depends(get_db)):
+# async def get_sms_code(request: Request, user: ResetUserModel, query_db: AsyncSession = DBSessionDependency()):
 #     try:
 #         sms_result = await LoginService.get_sms_code_services(request, query_db, user)
 #         if sms_result.is_success:
@@ -126,7 +127,7 @@ async def register_user(
 #
 #
 # @login_controller.post("/forgetPwd", response_model=CrudResponseModel)
-# async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_db: AsyncSession = Depends(get_db)):
+# async def forget_user_pwd(request: Request, forget_user: ResetUserModel, query_db: AsyncSession = DBSessionDependency()):
 #     try:
 #         forget_user_result = await LoginService.forget_user_services(request, query_db, forget_user)
 #         if forget_user_result.is_success:

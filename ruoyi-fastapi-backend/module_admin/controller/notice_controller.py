@@ -1,32 +1,34 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Request, Response
+from fastapi import APIRouter, Path, Query, Request, Response
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
-from common.aspect.interface_auth import CheckUserInterfaceAuth
+from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.interface_auth import UserInterfaceAuthDependency
+from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
-from config.get_db import get_db
 from module_admin.entity.vo.notice_vo import DeleteNoticeModel, NoticeModel, NoticePageQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
-from module_admin.service.login_service import LoginService
 from module_admin.service.notice_service import NoticeService
 from utils.log_util import logger
 from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
-notice_controller = APIRouter(prefix='/system/notice', dependencies=[Depends(LoginService.get_current_user)])
+notice_controller = APIRouter(prefix='/system/notice', dependencies=[PreAuthDependency()])
 
 
 @notice_controller.get(
-    '/list', response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('system:notice:list'))]
+    '/list',
+    response_model=PageResponseModel,
+    dependencies=[UserInterfaceAuthDependency('system:notice:list')],
 )
 async def get_system_notice_list(
     request: Request,
     notice_page_query: Annotated[NoticePageQueryModel, Query()],
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
     notice_page_query_result = await NoticeService.get_notice_list_services(query_db, notice_page_query, is_page=True)
@@ -35,14 +37,17 @@ async def get_system_notice_list(
     return ResponseUtil.success(model_content=notice_page_query_result)
 
 
-@notice_controller.post('', dependencies=[Depends(CheckUserInterfaceAuth('system:notice:add'))])
+@notice_controller.post(
+    '',
+    dependencies=[UserInterfaceAuthDependency('system:notice:add')],
+)
 @ValidateFields(validate_model='add_notice')
 @Log(title='通知公告', business_type=BusinessType.INSERT)
 async def add_system_notice(
     request: Request,
     add_notice: NoticeModel,
-    query_db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[CurrentUserModel, Depends(LoginService.get_current_user)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_notice.create_by = current_user.user.user_name
     add_notice.create_time = datetime.now()
@@ -54,14 +59,17 @@ async def add_system_notice(
     return ResponseUtil.success(msg=add_notice_result.message)
 
 
-@notice_controller.put('', dependencies=[Depends(CheckUserInterfaceAuth('system:notice:edit'))])
+@notice_controller.put(
+    '',
+    dependencies=[UserInterfaceAuthDependency('system:notice:edit')],
+)
 @ValidateFields(validate_model='edit_notice')
 @Log(title='通知公告', business_type=BusinessType.UPDATE)
 async def edit_system_notice(
     request: Request,
     edit_notice: NoticeModel,
-    query_db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[CurrentUserModel, Depends(LoginService.get_current_user)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_notice.update_by = current_user.user.user_name
     edit_notice.update_time = datetime.now()
@@ -71,12 +79,15 @@ async def edit_system_notice(
     return ResponseUtil.success(msg=edit_notice_result.message)
 
 
-@notice_controller.delete('/{notice_ids}', dependencies=[Depends(CheckUserInterfaceAuth('system:notice:remove'))])
+@notice_controller.delete(
+    '/{notice_ids}',
+    dependencies=[UserInterfaceAuthDependency('system:notice:remove')],
+)
 @Log(title='通知公告', business_type=BusinessType.DELETE)
 async def delete_system_notice(
     request: Request,
     notice_ids: Annotated[str, Path(description='需要删除的公告ID')],
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_notice = DeleteNoticeModel(noticeIds=notice_ids)
     delete_notice_result = await NoticeService.delete_notice_services(query_db, delete_notice)
@@ -86,12 +97,14 @@ async def delete_system_notice(
 
 
 @notice_controller.get(
-    '/{notice_id}', response_model=NoticeModel, dependencies=[Depends(CheckUserInterfaceAuth('system:notice:query'))]
+    '/{notice_id}',
+    response_model=NoticeModel,
+    dependencies=[UserInterfaceAuthDependency('system:notice:query')],
 )
 async def query_detail_system_post(
     request: Request,
     notice_id: Annotated[int, Path(description='公告ID')],
-    query_db: Annotated[AsyncSession, Depends(get_db)],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     notice_detail_result = await NoticeService.notice_detail_services(query_db, notice_id)
     logger.info(f'获取notice_id为{notice_id}的信息成功')
