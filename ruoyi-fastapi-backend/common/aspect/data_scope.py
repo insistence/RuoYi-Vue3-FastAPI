@@ -1,9 +1,9 @@
 from typing import Optional
 
-from fastapi import Depends
+from fastapi import Depends, Request, params
 
-from module_admin.entity.vo.user_vo import CurrentUserModel
-from module_admin.service.login_service import LoginService
+from common.context import RequestContext
+from utils.dependency_util import DependencyUtil
 
 
 class GetDataScope:
@@ -37,7 +37,9 @@ class GetDataScope:
         self.user_alias = user_alias
         self.dept_alias = dept_alias
 
-    def __call__(self, current_user: CurrentUserModel = Depends(LoginService.get_current_user)) -> str:
+    def __call__(self, request: Request) -> str:
+        DependencyUtil.check_exclude_routes(request, err_msg='当前路由不在认证规则内，不可使用GetDataScope依赖项')
+        current_user = RequestContext.get_current_user()
         user_id = current_user.user.user_id
         dept_id = current_user.user.dept_id
         custom_data_scope_role_id_list = [
@@ -75,3 +77,21 @@ class GetDataScope:
         param_sql = f'or_({", ".join(param_sql_list)})'
 
         return param_sql
+
+
+def DataScopeDependency(  # noqa: N802
+    query_alias: Optional[str] = '',
+    db_alias: Optional[str] = 'db',
+    user_alias: Optional[str] = 'user_id',
+    dept_alias: Optional[str] = 'dept_id',
+) -> params.Depends:
+    """
+    当前用户数据权限依赖
+
+    :param query_alias: 所要查询表对应的sqlalchemy模型名称，默认为''
+    :param db_alias: orm对象别名，默认为'db'
+    :param user_alias: 用户id字段别名，默认为'user_id'
+    :param dept_alias: 部门id字段别名，默认为'dept_id'
+    :return: 当前用户数据权限依赖
+    """
+    return Depends(GetDataScope(query_alias, db_alias, user_alias, dept_alias))
