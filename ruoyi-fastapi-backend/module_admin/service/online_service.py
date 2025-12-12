@@ -4,7 +4,7 @@ import jwt
 from fastapi import Request
 
 from common.enums import RedisInitKeyConfig
-from config.env import JwtConfig
+from config.env import AppConfig, JwtConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
@@ -33,7 +33,7 @@ class OnlineService:
         for item in access_token_values_list:
             payload = jwt.decode(item, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
             online_dict = {
-                'token_id': payload.get('session_id'),
+                'token_id': payload.get('session_id') if AppConfig.app_same_time_login else payload.get('user_id'),
                 'user_name': payload.get('user_name'),
                 'dept_name': payload.get('dept_name'),
                 'ipaddr': payload.get('login_info').get('ipaddr'),
