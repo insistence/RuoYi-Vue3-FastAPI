@@ -5,12 +5,13 @@ from typing import Any, Union
 from sqlalchemy import and_, delete, desc, func, or_, select, update  # noqa: F401
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import PageModel
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.role_do import SysRole, SysRoleDept, SysRoleMenu
 from module_admin.entity.do.user_do import SysUser, SysUserRole
 from module_admin.entity.vo.role_vo import RoleDeptModel, RoleMenuModel, RoleModel, RolePageQueryModel
-from utils.page_util import PageResponseModel, PageUtil
+from utils.page_util import PageUtil
 
 
 class RoleDao:
@@ -131,7 +132,7 @@ class RoleDao:
     @classmethod
     async def get_role_list(
         cls, db: AsyncSession, query_object: RolePageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取角色列表信息
 
@@ -163,7 +164,7 @@ class RoleDao:
             .order_by(SysRole.role_sort)
             .distinct()
         )
-        role_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        role_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

@@ -4,6 +4,7 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant, JobConstant
+from common.vo import PageModel
 from config.get_scheduler import SchedulerUtil
 from exceptions.exception import ServiceException
 from module_admin.dao.job_dao import JobDao
@@ -13,7 +14,6 @@ from module_admin.service.dict_service import DictDataService
 from utils.common_util import CamelCaseUtil
 from utils.cron_util import CronUtil
 from utils.excel_util import ExcelUtil
-from utils.page_util import PageResponseModel
 from utils.string_util import StringUtil
 
 
@@ -25,7 +25,7 @@ class JobService:
     @classmethod
     async def get_job_list_services(
         cls, query_db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取定时任务列表信息service
 

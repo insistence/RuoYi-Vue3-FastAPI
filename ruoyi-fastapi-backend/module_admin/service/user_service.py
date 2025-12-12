@@ -7,6 +7,7 @@ from fastapi import Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
+from common.vo import PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.user_dao import UserDao
 from module_admin.entity.do.user_do import SysUserRole
@@ -36,7 +37,6 @@ from module_admin.service.post_service import PostService
 from module_admin.service.role_service import RoleService
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
-from utils.page_util import PageResponseModel
 from utils.pwd_util import PwdUtil
 
 
@@ -48,7 +48,7 @@ class UserService:
     @classmethod
     async def get_user_list_services(
         cls, query_db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取用户列表信息service
 
@@ -60,7 +60,7 @@ class UserService:
         """
         query_result = await UserDao.get_user_list(query_db, query_object, data_scope_sql, is_page)
         if is_page:
-            user_list_result = PageResponseModel(
+            user_list_result = PageModel(
                 **{
                     **query_result.model_dump(by_alias=True),
                     'rows': [{**row[0], 'dept': row[1]} for row in query_result.rows],

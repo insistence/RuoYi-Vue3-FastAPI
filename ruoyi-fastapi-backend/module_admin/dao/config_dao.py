@@ -4,9 +4,10 @@ from typing import Any, Union
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import PageModel
 from module_admin.entity.do.config_do import SysConfig
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel
-from utils.page_util import PageResponseModel, PageUtil
+from utils.page_util import PageUtil
 
 
 class ConfigDao:
@@ -54,7 +55,7 @@ class ConfigDao:
     @classmethod
     async def get_config_list(
         cls, db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取参数配置列表信息
 
@@ -79,7 +80,7 @@ class ConfigDao:
             .order_by(SysConfig.config_id)
             .distinct()
         )
-        config_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        config_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

@@ -1,26 +1,11 @@
 import math
-from typing import Any, Optional, Union
+from typing import Any, Union
 
-from pydantic import BaseModel, ConfigDict
-from pydantic.alias_generators import to_camel
 from sqlalchemy import Row, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import PageModel
 from utils.common_util import CamelCaseUtil
-
-
-class PageResponseModel(BaseModel):
-    """
-    列表分页查询返回模型
-    """
-
-    model_config = ConfigDict(alias_generator=to_camel)
-
-    rows: list = []
-    page_num: Optional[int] = None
-    page_size: Optional[int] = None
-    total: int
-    has_next: Optional[bool] = None
 
 
 class PageUtil:
@@ -29,7 +14,7 @@ class PageUtil:
     """
 
     @classmethod
-    def get_page_obj(cls, data_list: list, page_num: int, page_size: int) -> PageResponseModel:
+    def get_page_obj(cls, data_list: list, page_num: int, page_size: int) -> PageModel:
         """
         输入数据列表data_list和分页信息，返回分页数据列表结果
 
@@ -46,7 +31,7 @@ class PageUtil:
         paginated_data = data_list[start:end]
         has_next = math.ceil(len(data_list) / page_size) > page_num
 
-        result = PageResponseModel(
+        result = PageModel[Any](
             rows=paginated_data, pageNum=page_num, pageSize=page_size, total=len(data_list), hasNext=has_next
         )
 
@@ -55,7 +40,7 @@ class PageUtil:
     @classmethod
     async def paginate(
         cls, db: AsyncSession, query: Select, page_num: int, page_size: int, is_page: bool = False
-    ) -> Union[PageResponseModel, list[Union[dict[str, Any], list[dict[Any, Any]]]]]:
+    ) -> Union[PageModel, list[Union[dict[str, Any], list[dict[Any, Any]]]]]:
         """
         输入查询语句和分页信息，返回分页数据列表结果
 
@@ -76,7 +61,7 @@ class PageUtil:
                 else:
                     paginated_data.append(row)
             has_next = math.ceil(total / page_size) > page_num
-            result = PageResponseModel(
+            result = PageModel[Any](
                 rows=CamelCaseUtil.transform_result(paginated_data),
                 pageNum=page_num,
                 pageSize=page_size,
@@ -96,7 +81,7 @@ class PageUtil:
         return result
 
 
-def get_page_obj(data_list: list, page_num: int, page_size: int) -> PageResponseModel:
+def get_page_obj(data_list: list, page_num: int, page_size: int) -> PageModel:
     """
     输入数据列表data_list和分页信息，返回分页数据列表结果
 
@@ -113,7 +98,7 @@ def get_page_obj(data_list: list, page_num: int, page_size: int) -> PageResponse
     paginated_data = data_list[start:end]
     has_next = math.ceil(len(data_list) / page_size) > page_num
 
-    result = PageResponseModel(
+    result = PageModel[Any](
         rows=paginated_data, pageNum=page_num, pageSize=page_size, total=len(data_list), hasNext=has_next
     )
 

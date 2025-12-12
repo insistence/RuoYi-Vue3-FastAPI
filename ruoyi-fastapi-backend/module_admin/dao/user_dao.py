@@ -5,6 +5,7 @@ from typing import Any, Union
 from sqlalchemy import and_, delete, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import PageModel
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.post_do import SysPost
@@ -18,7 +19,7 @@ from module_admin.entity.vo.user_vo import (
     UserRolePageQueryModel,
     UserRoleQueryModel,
 )
-from utils.page_util import PageResponseModel, PageUtil
+from utils.page_util import PageUtil
 
 
 class UserDao:
@@ -280,7 +281,7 @@ class UserDao:
     @classmethod
     async def get_user_list(
         cls, db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> Union[PageResponseModel, list[list[dict[str, Any]]]]:
+    ) -> Union[PageModel, list[list[dict[str, Any]]]]:
         """
         根据查询参数获取用户列表信息
 
@@ -325,7 +326,7 @@ class UserDao:
             .order_by(SysUser.user_id)
             .distinct()
         )
-        user_list: Union[PageResponseModel, list[list[dict[str, Any]]]] = await PageUtil.paginate(
+        user_list: Union[PageModel, list[list[dict[str, Any]]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -408,7 +409,7 @@ class UserDao:
     @classmethod
     async def get_user_role_allocated_list_by_role_id(
         cls, db: AsyncSession, query_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据角色id获取已分配的用户列表信息
 
@@ -432,7 +433,7 @@ class UserDao:
             )
             .distinct()
         )
-        allocated_user_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        allocated_user_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -441,7 +442,7 @@ class UserDao:
     @classmethod
     async def get_user_role_unallocated_list_by_role_id(
         cls, db: AsyncSession, query_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据角色id获取未分配的用户列表信息
 
@@ -473,7 +474,7 @@ class UserDao:
             )
             .distinct()
         )
-        unallocated_user_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        unallocated_user_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

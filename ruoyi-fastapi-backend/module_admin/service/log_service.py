@@ -3,6 +3,7 @@ from typing import Any, Union
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.log_dao import LoginLogDao, OperationLogDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
@@ -17,7 +18,6 @@ from module_admin.entity.vo.log_vo import (
 )
 from module_admin.service.dict_service import DictDataService
 from utils.excel_util import ExcelUtil
-from utils.page_util import PageResponseModel
 
 
 class OperationLogService:
@@ -28,7 +28,7 @@ class OperationLogService:
     @classmethod
     async def get_operation_log_list_services(
         cls, query_db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取操作日志列表信息service
 
@@ -155,7 +155,7 @@ class LoginLogService:
     @classmethod
     async def get_login_log_list_services(
         cls, query_db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取登录日志列表信息service
 

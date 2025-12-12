@@ -4,12 +4,12 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from common.vo import PageModel
 from module_admin.dao.job_log_dao import JobLogDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.job_vo import DeleteJobLogModel, JobLogModel, JobLogPageQueryModel
 from module_admin.service.dict_service import DictDataService
 from utils.excel_util import ExcelUtil
-from utils.page_util import PageResponseModel
 
 
 class JobLogService:
@@ -20,7 +20,7 @@ class JobLogService:
     @classmethod
     async def get_job_log_list_services(
         cls, query_db: AsyncSession, query_object: JobLogPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取定时任务日志列表信息service
 

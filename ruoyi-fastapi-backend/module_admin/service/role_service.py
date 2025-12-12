@@ -3,6 +3,7 @@ from typing import Any, Union
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
+from common.vo import PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.role_dao import RoleDao
 from module_admin.dao.user_dao import UserDao
@@ -19,7 +20,6 @@ from module_admin.entity.vo.role_vo import (
 from module_admin.entity.vo.user_vo import UserInfoModel, UserRolePageQueryModel
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
-from utils.page_util import PageResponseModel
 
 
 class RoleService:
@@ -58,7 +58,7 @@ class RoleService:
     @classmethod
     async def get_role_list_services(
         cls, query_db: AsyncSession, query_object: RolePageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取角色列表信息service
 
@@ -306,7 +306,7 @@ class RoleService:
     @classmethod
     async def get_role_user_allocated_list_services(
         cls, query_db: AsyncSession, page_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> PageResponseModel:
+    ) -> PageModel:
         """
         根据角色id获取已分配用户列表
 
@@ -319,7 +319,7 @@ class RoleService:
         query_user_list = await UserDao.get_user_role_allocated_list_by_role_id(
             query_db, page_object, data_scope_sql, is_page
         )
-        allocated_list = PageResponseModel(
+        allocated_list = PageModel(
             **{
                 **query_user_list.model_dump(by_alias=True),
                 'rows': [UserInfoModel(**row) for row in query_user_list.rows],
@@ -331,7 +331,7 @@ class RoleService:
     @classmethod
     async def get_role_user_unallocated_list_services(
         cls, query_db: AsyncSession, page_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> PageResponseModel:
+    ) -> PageModel:
         """
         根据角色id获取未分配用户列表
 
@@ -344,7 +344,7 @@ class RoleService:
         query_user_list = await UserDao.get_user_role_unallocated_list_by_role_id(
             query_db, page_object, data_scope_sql, is_page
         )
-        unallocated_list = PageResponseModel(
+        unallocated_list = PageModel(
             **{
                 **query_user_list.model_dump(by_alias=True),
                 'rows': [UserInfoModel(**row) for row in query_user_list.rows],

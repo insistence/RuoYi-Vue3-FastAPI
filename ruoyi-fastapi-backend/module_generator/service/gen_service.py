@@ -11,6 +11,7 @@ from sqlglot import parse as sqlglot_parse
 from sqlglot.expressions import Add, Alter, Create, Delete, Drop, Expression, Insert, Table, TruncateTable, Update
 
 from common.constant import GenConstant
+from common.vo import PageModel
 from config.env import DataBaseConfig, GenConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.common_vo import CrudResponseModel
@@ -25,7 +26,6 @@ from module_generator.entity.vo.gen_vo import (
 )
 from utils.common_util import CamelCaseUtil
 from utils.gen_util import GenUtils
-from utils.page_util import PageResponseModel
 from utils.template_util import TemplateInitializer, TemplateUtils
 
 
@@ -37,7 +37,7 @@ class GenTableService:
     @classmethod
     async def get_gen_table_list_services(
         cls, query_db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取代码生成业务表列表信息service
 
@@ -53,7 +53,7 @@ class GenTableService:
     @classmethod
     async def get_gen_db_table_list_services(
         cls, query_db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取数据库列表信息service
 

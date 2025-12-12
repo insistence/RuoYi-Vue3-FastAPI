@@ -4,10 +4,11 @@ from typing import Any, Union
 from sqlalchemy import asc, delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import PageModel
 from module_admin.entity.do.log_do import SysLogininfor, SysOperLog
 from module_admin.entity.vo.log_vo import LogininforModel, LoginLogPageQueryModel, OperLogModel, OperLogPageQueryModel
 from utils.common_util import SnakeCaseUtil
-from utils.page_util import PageResponseModel, PageUtil
+from utils.page_util import PageUtil
 from utils.time_format_util import TimeFormatUtil
 
 
@@ -19,7 +20,7 @@ class OperationLogDao:
     @classmethod
     async def get_operation_log_list(
         cls, db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取操作日志列表信息
 
@@ -53,7 +54,7 @@ class OperationLogDao:
             .distinct()
             .order_by(order_by_column)
         )
-        operation_log_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        operation_log_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -104,7 +105,7 @@ class LoginLogDao:
     @classmethod
     async def get_login_log_list(
         cls, db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取登录日志列表信息
 
@@ -139,7 +140,7 @@ class LoginLogDao:
             .distinct()
             .order_by(order_by_column)
         )
-        login_log_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        login_log_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
 from common.enums import RedisInitKeyConfig
+from common.vo import PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.dict_dao import DictDataDao, DictTypeDao
 from module_admin.entity.do.dict_do import SysDictData
@@ -22,7 +23,6 @@ from module_admin.entity.vo.dict_vo import (
 )
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
-from utils.page_util import PageResponseModel
 
 
 class DictTypeService:
@@ -33,7 +33,7 @@ class DictTypeService:
     @classmethod
     async def get_dict_type_list_services(
         cls, query_db: AsyncSession, query_object: DictTypePageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取字典类型列表信息service
 
@@ -231,7 +231,7 @@ class DictDataService:
     @classmethod
     async def get_dict_data_list_services(
         cls, query_db: AsyncSession, query_object: DictDataPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取字典数据列表信息service
 

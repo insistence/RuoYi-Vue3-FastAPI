@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlglot.expressions import Expression
 
+from common.vo import PageModel
 from config.env import DataBaseConfig
 from module_generator.entity.do.gen_do import GenTable, GenTableColumn
 from module_generator.entity.vo.gen_vo import (
@@ -16,7 +17,7 @@ from module_generator.entity.vo.gen_vo import (
     GenTableModel,
     GenTablePageQueryModel,
 )
-from utils.page_util import PageResponseModel, PageUtil
+from utils.page_util import PageUtil
 
 
 class GenTableDao:
@@ -94,7 +95,7 @@ class GenTableDao:
     @classmethod
     async def get_gen_table_list(
         cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取代码生成业务表列表信息
 
@@ -122,7 +123,7 @@ class GenTableDao:
             )
             .distinct()
         )
-        gen_table_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        gen_table_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -131,7 +132,7 @@ class GenTableDao:
     @classmethod
     async def get_gen_db_table_list(
         cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取数据库列表信息
 
@@ -185,7 +186,7 @@ class GenTableDao:
         query = select(
             text(query_sql).bindparams(**query_object.model_dump(exclude_none=True, exclude={'page_num', 'page_size'}))
         )
-        gen_db_table_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        gen_db_table_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

@@ -5,9 +5,10 @@ from typing import Any, Union
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import PageModel
 from module_admin.entity.do.dict_do import SysDictData, SysDictType
 from module_admin.entity.vo.dict_vo import DictDataModel, DictDataPageQueryModel, DictTypeModel, DictTypePageQueryModel
-from utils.page_util import PageResponseModel, PageUtil
+from utils.page_util import PageUtil
 from utils.time_format_util import list_format_datetime
 
 
@@ -68,7 +69,7 @@ class DictTypeDao:
     @classmethod
     async def get_dict_type_list(
         cls, db: AsyncSession, query_object: DictTypePageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取字典类型列表信息
 
@@ -93,7 +94,7 @@ class DictTypeDao:
             .order_by(SysDictType.dict_id)
             .distinct()
         )
-        dict_type_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        dict_type_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -185,7 +186,7 @@ class DictDataDao:
     @classmethod
     async def get_dict_data_list(
         cls, db: AsyncSession, query_object: DictDataPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取字典数据列表信息
 
@@ -204,7 +205,7 @@ class DictDataDao:
             .order_by(SysDictData.dict_sort)
             .distinct()
         )
-        dict_data_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        dict_data_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

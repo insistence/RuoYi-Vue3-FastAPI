@@ -3,10 +3,11 @@ from typing import Any, Union
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import PageModel
 from module_admin.entity.do.post_do import SysPost
 from module_admin.entity.do.user_do import SysUserPost
 from module_admin.entity.vo.post_vo import PostModel, PostPageQueryModel
-from utils.page_util import PageResponseModel, PageUtil
+from utils.page_util import PageUtil
 
 
 class PostDao:
@@ -72,7 +73,7 @@ class PostDao:
     @classmethod
     async def get_post_list(
         cls, db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取岗位列表信息
 
@@ -91,7 +92,7 @@ class PostDao:
             .order_by(SysPost.post_sort)
             .distinct()
         )
-        post_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        post_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

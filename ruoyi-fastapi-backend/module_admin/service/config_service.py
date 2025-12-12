@@ -6,13 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
 from common.enums import RedisInitKeyConfig
+from common.vo import PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.config_dao import ConfigDao
 from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
-from utils.page_util import PageResponseModel
 
 
 class ConfigService:
@@ -23,7 +23,7 @@ class ConfigService:
     @classmethod
     async def get_config_list_services(
         cls, query_db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取参数配置列表信息service
 
