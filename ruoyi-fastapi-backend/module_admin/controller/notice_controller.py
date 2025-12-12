@@ -10,11 +10,11 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.notice_vo import DeleteNoticeModel, NoticeModel, NoticePageQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.notice_service import NoticeService
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 notice_controller = APIRouter(prefix='/system/notice', dependencies=[PreAuthDependency()])
@@ -22,7 +22,7 @@ notice_controller = APIRouter(prefix='/system/notice', dependencies=[PreAuthDepe
 
 @notice_controller.get(
     '/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[NoticeModel],
     dependencies=[UserInterfaceAuthDependency('system:notice:list')],
 )
 async def get_system_notice_list(
@@ -39,6 +39,7 @@ async def get_system_notice_list(
 
 @notice_controller.post(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:notice:add')],
 )
 @ValidateFields(validate_model='add_notice')
@@ -61,6 +62,7 @@ async def add_system_notice(
 
 @notice_controller.put(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:notice:edit')],
 )
 @ValidateFields(validate_model='edit_notice')
@@ -81,6 +83,7 @@ async def edit_system_notice(
 
 @notice_controller.delete(
     '/{notice_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:notice:remove')],
 )
 @Log(title='通知公告', business_type=BusinessType.DELETE)
@@ -98,7 +101,7 @@ async def delete_system_notice(
 
 @notice_controller.get(
     '/{notice_id}',
-    response_model=NoticeModel,
+    response_model=DataResponseModel[NoticeModel],
     dependencies=[UserInterfaceAuthDependency('system:notice:query')],
 )
 async def query_detail_system_post(

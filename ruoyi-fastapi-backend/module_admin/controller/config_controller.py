@@ -10,12 +10,12 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.config_service import ConfigService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 config_controller = APIRouter(prefix='/system/config', dependencies=[PreAuthDependency()])
@@ -23,7 +23,7 @@ config_controller = APIRouter(prefix='/system/config', dependencies=[PreAuthDepe
 
 @config_controller.get(
     '/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[ConfigModel],
     dependencies=[UserInterfaceAuthDependency('system:config:list')],
 )
 async def get_system_config_list(
@@ -40,6 +40,7 @@ async def get_system_config_list(
 
 @config_controller.post(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:add')],
 )
 @ValidateFields(validate_model='add_config')
@@ -62,6 +63,7 @@ async def add_system_config(
 
 @config_controller.put(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:edit')],
 )
 @ValidateFields(validate_model='edit_config')
@@ -82,6 +84,7 @@ async def edit_system_config(
 
 @config_controller.delete(
     '/refreshCache',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:remove')],
 )
 @Log(title='参数管理', business_type=BusinessType.UPDATE)
@@ -97,6 +100,7 @@ async def refresh_system_config(
 
 @config_controller.delete(
     '/{config_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:remove')],
 )
 @Log(title='参数管理', business_type=BusinessType.DELETE)
@@ -114,7 +118,7 @@ async def delete_system_config(
 
 @config_controller.get(
     '/{config_id}',
-    response_model=ConfigModel,
+    response_model=DataResponseModel[ConfigModel],
     dependencies=[UserInterfaceAuthDependency('system:config:query')],
 )
 async def query_detail_system_config(
@@ -128,7 +132,10 @@ async def query_detail_system_config(
     return ResponseUtil.success(data=config_detail_result)
 
 
-@config_controller.get('/configKey/{config_key}')
+@config_controller.get(
+    '/configKey/{config_key}',
+    response_model=ResponseBaseModel,
+)
 async def query_system_config(request: Request, config_key: str) -> Response:
     # 获取全量数据
     config_query_result = await ConfigService.query_config_list_from_cache_services(request.app.state.redis, config_key)

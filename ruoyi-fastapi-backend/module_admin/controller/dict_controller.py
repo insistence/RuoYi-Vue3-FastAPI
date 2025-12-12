@@ -10,6 +10,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.dict_vo import (
     DeleteDictDataModel,
     DeleteDictTypeModel,
@@ -22,7 +23,6 @@ from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.dict_service import DictDataService, DictTypeService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 dict_controller = APIRouter(prefix='/system/dict', dependencies=[PreAuthDependency()])
@@ -30,7 +30,7 @@ dict_controller = APIRouter(prefix='/system/dict', dependencies=[PreAuthDependen
 
 @dict_controller.get(
     '/type/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[DictTypeModel],
     dependencies=[UserInterfaceAuthDependency('system:dict:list')],
 )
 async def get_system_dict_type_list(
@@ -49,6 +49,7 @@ async def get_system_dict_type_list(
 
 @dict_controller.post(
     '/type',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:add')],
 )
 @ValidateFields(validate_model='add_dict_type')
@@ -71,6 +72,7 @@ async def add_system_dict_type(
 
 @dict_controller.put(
     '/type',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:edit')],
 )
 @ValidateFields(validate_model='edit_dict_type')
@@ -91,6 +93,7 @@ async def edit_system_dict_type(
 
 @dict_controller.delete(
     '/type/refreshCache',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:remove')],
 )
 @Log(title='字典类型', business_type=BusinessType.UPDATE)
@@ -103,6 +106,7 @@ async def refresh_system_dict(request: Request, query_db: Annotated[AsyncSession
 
 @dict_controller.delete(
     '/type/{dict_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:remove')],
 )
 @Log(title='字典类型', business_type=BusinessType.DELETE)
@@ -118,7 +122,10 @@ async def delete_system_dict_type(
     return ResponseUtil.success(msg=delete_dict_type_result.message)
 
 
-@dict_controller.get('/type/optionselect', response_model=list[DictTypeModel])
+@dict_controller.get(
+    '/type/optionselect',
+    response_model=DataResponseModel[list[DictTypeModel]],
+)
 async def query_system_dict_type_options(
     request: Request, query_db: Annotated[AsyncSession, DBSessionDependency()]
 ) -> Response:
@@ -132,7 +139,7 @@ async def query_system_dict_type_options(
 
 @dict_controller.get(
     '/type/{dict_id}',
-    response_model=DictTypeModel,
+    response_model=DataResponseModel[DictTypeModel],
     dependencies=[UserInterfaceAuthDependency('system:dict:query')],
 )
 async def query_detail_system_dict_type(
@@ -166,7 +173,10 @@ async def export_system_dict_type_list(
     return ResponseUtil.streaming(data=bytes2file_response(dict_type_export_result))
 
 
-@dict_controller.get('/data/type/{dict_type}')
+@dict_controller.get(
+    '/data/type/{dict_type}',
+    response_model=DataResponseModel[list[DictDataModel]],
+)
 async def query_system_dict_type_data(
     request: Request,
     dict_type: Annotated[str, Path(description='字典类型')],
@@ -183,7 +193,7 @@ async def query_system_dict_type_data(
 
 @dict_controller.get(
     '/data/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[DictDataModel],
     dependencies=[UserInterfaceAuthDependency('system:dict:list')],
 )
 async def get_system_dict_data_list(
@@ -202,6 +212,7 @@ async def get_system_dict_data_list(
 
 @dict_controller.post(
     '/data',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:add')],
 )
 @ValidateFields(validate_model='add_dict_data')
@@ -224,6 +235,7 @@ async def add_system_dict_data(
 
 @dict_controller.put(
     '/data',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:edit')],
 )
 @ValidateFields(validate_model='edit_dict_data')
@@ -244,6 +256,7 @@ async def edit_system_dict_data(
 
 @dict_controller.delete(
     '/data/{dict_codes}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:remove')],
 )
 @Log(title='字典数据', business_type=BusinessType.DELETE)
@@ -261,7 +274,7 @@ async def delete_system_dict_data(
 
 @dict_controller.get(
     '/data/{dict_code}',
-    response_model=DictDataModel,
+    response_model=DataResponseModel[DictDataModel],
     dependencies=[UserInterfaceAuthDependency('system:dict:query')],
 )
 async def query_detail_system_dict_data(

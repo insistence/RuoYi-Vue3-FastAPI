@@ -13,6 +13,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
 from config.env import UploadConfig
 from module_admin.entity.vo.dept_vo import DeptModel
 from module_admin.entity.vo.user_vo import (
@@ -36,7 +37,6 @@ from module_admin.service.role_service import RoleService
 from module_admin.service.user_service import UserService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.pwd_util import PwdUtil
 from utils.response_util import ResponseUtil
 from utils.upload_util import UploadUtil
@@ -81,6 +81,7 @@ async def get_system_user_list(
 
 @user_controller.post(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:add')],
 )
 @ValidateFields(validate_model='add_user')
@@ -111,6 +112,7 @@ async def add_system_user(
 
 @user_controller.put(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )
 @ValidateFields(validate_model='edit_user')
@@ -141,6 +143,7 @@ async def edit_system_user(
 
 @user_controller.delete(
     '/{user_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:remove')],
 )
 @Log(title='用户管理', business_type=BusinessType.DELETE)
@@ -170,6 +173,7 @@ async def delete_system_user(
 
 @user_controller.put(
     '/resetPwd',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:resetPwd')],
 )
 @Log(title='用户管理', business_type=BusinessType.UPDATE)
@@ -199,6 +203,7 @@ async def reset_system_user_pwd(
 
 @user_controller.put(
     '/changeStatus',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )
 @Log(title='用户管理', business_type=BusinessType.UPDATE)
@@ -225,7 +230,10 @@ async def change_system_user_status(
     return ResponseUtil.success(msg=edit_user_result.message)
 
 
-@user_controller.get('/profile', response_model=UserProfileModel)
+@user_controller.get(
+    '/profile',
+    response_model=DynamicResponseModel[UserProfileModel],
+)
 async def query_detail_system_user_profile(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -239,7 +247,7 @@ async def query_detail_system_user_profile(
 
 @user_controller.get(
     '/{user_id}',
-    response_model=UserDetailModel,
+    response_model=DataResponseModel[UserDetailModel],
     dependencies=[UserInterfaceAuthDependency('system:user:query')],
 )
 @user_controller.get(
@@ -297,7 +305,10 @@ async def change_system_user_profile_avatar(
     return ResponseUtil.failure(msg='上传图片异常，请联系管理员')
 
 
-@user_controller.put('/profile')
+@user_controller.put(
+    '/profile',
+    response_model=ResponseBaseModel,
+)
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def change_system_user_profile_info(
     request: Request,
@@ -321,7 +332,10 @@ async def change_system_user_profile_info(
     return ResponseUtil.success(msg=edit_user_result.message)
 
 
-@user_controller.put('/profile/updatePwd')
+@user_controller.put(
+    '/profile/updatePwd',
+    response_model=ResponseBaseModel,
+)
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def reset_system_user_password(
     request: Request,
@@ -345,6 +359,7 @@ async def reset_system_user_password(
 
 @user_controller.post(
     '/importData',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:import')],
 )
 @Log(title='用户管理', business_type=BusinessType.IMPORT)
@@ -401,7 +416,7 @@ async def export_system_user_list(
 
 @user_controller.get(
     '/authRole/{user_id}',
-    response_model=UserRoleResponseModel,
+    response_model=DynamicResponseModel[UserRoleResponseModel],
     dependencies=[UserInterfaceAuthDependency('system:user:query')],
 )
 async def get_system_allocated_role_list(
@@ -420,7 +435,7 @@ async def get_system_allocated_role_list(
 
 @user_controller.put(
     '/authRole',
-    response_model=UserRoleResponseModel,
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )
 @Log(title='用户管理', business_type=BusinessType.GRANT)

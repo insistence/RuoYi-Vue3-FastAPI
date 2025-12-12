@@ -10,12 +10,12 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.post_service import PostService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 post_controller = APIRouter(prefix='/system/post', dependencies=[PreAuthDependency()])
@@ -23,7 +23,7 @@ post_controller = APIRouter(prefix='/system/post', dependencies=[PreAuthDependen
 
 @post_controller.get(
     '/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[PostModel],
     dependencies=[UserInterfaceAuthDependency('system:post:list')],
 )
 async def get_system_post_list(
@@ -40,6 +40,7 @@ async def get_system_post_list(
 
 @post_controller.post(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:post:add')],
 )
 @ValidateFields(validate_model='add_post')
@@ -62,6 +63,7 @@ async def add_system_post(
 
 @post_controller.put(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:post:edit')],
 )
 @ValidateFields(validate_model='edit_post')
@@ -82,6 +84,7 @@ async def edit_system_post(
 
 @post_controller.delete(
     '/{post_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:post:remove')],
 )
 @Log(title='岗位管理', business_type=BusinessType.DELETE)
@@ -99,7 +102,7 @@ async def delete_system_post(
 
 @post_controller.get(
     '/{post_id}',
-    response_model=PostModel,
+    response_model=DataResponseModel[PostModel],
     dependencies=[UserInterfaceAuthDependency('system:post:query')],
 )
 async def query_detail_system_post(

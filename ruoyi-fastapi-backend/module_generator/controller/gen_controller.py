@@ -10,13 +10,13 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import RoleInterfaceAuthDependency, UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import PageResponseModel
 from config.env import GenConfig
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_generator.entity.vo.gen_vo import DeleteGenTableModel, EditGenTableModel, GenTablePageQueryModel
 from module_generator.service.gen_service import GenTableColumnService, GenTableService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 gen_controller = APIRouter(prefix='/tool/gen', dependencies=[PreAuthDependency()])

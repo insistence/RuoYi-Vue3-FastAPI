@@ -11,15 +11,15 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.dept_vo import DeptModel
 from module_admin.entity.vo.role_vo import AddRoleModel, DeleteRoleModel, RoleModel, RolePageQueryModel
-from module_admin.entity.vo.user_vo import CrudUserRoleModel, CurrentUserModel, UserRolePageQueryModel
+from module_admin.entity.vo.user_vo import CrudUserRoleModel, CurrentUserModel, UserModel, UserRolePageQueryModel
 from module_admin.service.dept_service import DeptService
 from module_admin.service.role_service import RoleService
 from module_admin.service.user_service import UserService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 role_controller = APIRouter(prefix='/system/role', dependencies=[PreAuthDependency()])
@@ -45,7 +45,7 @@ async def get_system_role_dept_tree(
 
 @role_controller.get(
     '/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[RoleModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
 async def get_system_role_list(
@@ -64,6 +64,7 @@ async def get_system_role_list(
 
 @role_controller.post(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:add')],
 )
 @ValidateFields(validate_model='add_role')
@@ -86,6 +87,7 @@ async def add_system_role(
 
 @role_controller.put(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
 @ValidateFields(validate_model='edit_role')
@@ -110,6 +112,7 @@ async def edit_system_role(
 
 @role_controller.put(
     '/dataScope',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
 @Log(title='角色管理', business_type=BusinessType.GRANT)
@@ -139,6 +142,7 @@ async def edit_system_role_datascope(
 
 @role_controller.delete(
     '/{role_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:remove')],
 )
 @Log(title='角色管理', business_type=BusinessType.DELETE)
@@ -164,7 +168,7 @@ async def delete_system_role(
 
 @role_controller.get(
     '/{role_id}',
-    response_model=RoleModel,
+    response_model=DataResponseModel[RoleModel],
     dependencies=[UserInterfaceAuthDependency('system:role:query')],
 )
 async def query_detail_system_role(
@@ -205,6 +209,7 @@ async def export_system_role_list(
 
 @role_controller.put(
     '/changeStatus',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
 @Log(title='角色管理', business_type=BusinessType.UPDATE)
@@ -233,7 +238,7 @@ async def reset_system_role_status(
 
 @role_controller.get(
     '/authUser/allocatedList',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[UserModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
 async def get_system_allocated_user_list(
@@ -252,7 +257,7 @@ async def get_system_allocated_user_list(
 
 @role_controller.get(
     '/authUser/unallocatedList',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[UserModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
 async def get_system_unallocated_user_list(
@@ -271,6 +276,7 @@ async def get_system_unallocated_user_list(
 
 @role_controller.put(
     '/authUser/selectAll',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
 @Log(title='角色管理', business_type=BusinessType.GRANT)
@@ -291,6 +297,7 @@ async def add_system_role_user(
 
 @role_controller.put(
     '/authUser/cancel',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
 @Log(title='角色管理', business_type=BusinessType.GRANT)
@@ -307,6 +314,7 @@ async def cancel_system_role_user(
 
 @role_controller.put(
     '/authUser/cancelAll',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
 @Log(title='角色管理', business_type=BusinessType.GRANT)

@@ -8,17 +8,19 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.enums import BusinessType
+from common.vo import PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.log_vo import (
     DeleteLoginLogModel,
     DeleteOperLogModel,
+    LogininforModel,
     LoginLogPageQueryModel,
+    OperLogModel,
     OperLogPageQueryModel,
     UnlockUser,
 )
 from module_admin.service.log_service import LoginLogService, OperationLogService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 log_controller = APIRouter(prefix='/monitor', dependencies=[PreAuthDependency()])
@@ -26,7 +28,7 @@ log_controller = APIRouter(prefix='/monitor', dependencies=[PreAuthDependency()]
 
 @log_controller.get(
     '/operlog/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[OperLogModel],
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:list')],
 )
 async def get_system_operation_log_list(
@@ -45,6 +47,7 @@ async def get_system_operation_log_list(
 
 @log_controller.delete(
     '/operlog/clean',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:remove')],
 )
 @Log(title='操作日志', business_type=BusinessType.CLEAN)
@@ -59,6 +62,7 @@ async def clear_system_operation_log(
 
 @log_controller.delete(
     '/operlog/{oper_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:remove')],
 )
 @Log(title='操作日志', business_type=BusinessType.DELETE)
@@ -100,7 +104,7 @@ async def export_system_operation_log_list(
 
 @log_controller.get(
     '/logininfor/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[LogininforModel],
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:list')],
 )
 async def get_system_login_log_list(
@@ -119,6 +123,7 @@ async def get_system_login_log_list(
 
 @log_controller.delete(
     '/logininfor/clean',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:remove')],
 )
 @Log(title='登录日志', business_type=BusinessType.CLEAN)
@@ -133,6 +138,7 @@ async def clear_system_login_log(
 
 @log_controller.delete(
     '/logininfor/{info_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:remove')],
 )
 @Log(title='登录日志', business_type=BusinessType.DELETE)
@@ -150,6 +156,7 @@ async def delete_system_login_log(
 
 @log_controller.get(
     '/logininfor/unlock/{user_name}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:unlock')],
 )
 @Log(title='账户解锁', business_type=BusinessType.OTHER)

@@ -10,10 +10,12 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.job_vo import (
     DeleteJobLogModel,
     DeleteJobModel,
     EditJobModel,
+    JobLogModel,
     JobLogPageQueryModel,
     JobModel,
     JobPageQueryModel,
@@ -23,7 +25,6 @@ from module_admin.service.job_log_service import JobLogService
 from module_admin.service.job_service import JobService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 job_controller = APIRouter(prefix='/monitor', dependencies=[PreAuthDependency()])
@@ -31,7 +32,7 @@ job_controller = APIRouter(prefix='/monitor', dependencies=[PreAuthDependency()]
 
 @job_controller.get(
     '/job/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[JobModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:list')],
 )
 async def get_system_job_list(
@@ -40,14 +41,15 @@ async def get_system_job_list(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     # 获取分页数据
-    notice_page_query_result = await JobService.get_job_list_services(query_db, job_page_query, is_page=True)
+    job_page_query_result = await JobService.get_job_list_services(query_db, job_page_query, is_page=True)
     logger.info('获取成功')
 
-    return ResponseUtil.success(model_content=notice_page_query_result)
+    return ResponseUtil.success(model_content=job_page_query_result)
 
 
 @job_controller.post(
     '/job',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:add')],
 )
 @ValidateFields(validate_model='add_job')
@@ -70,6 +72,7 @@ async def add_system_job(
 
 @job_controller.put(
     '/job',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:edit')],
 )
 @ValidateFields(validate_model='edit_job')
@@ -90,6 +93,7 @@ async def edit_system_job(
 
 @job_controller.put(
     '/job/changeStatus',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:changeStatus')],
 )
 @Log(title='定时任务', business_type=BusinessType.UPDATE)
@@ -114,6 +118,7 @@ async def change_system_job_status(
 
 @job_controller.put(
     '/job/run',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:changeStatus')],
 )
 @Log(title='定时任务', business_type=BusinessType.UPDATE)
@@ -130,6 +135,7 @@ async def execute_system_job(
 
 @job_controller.delete(
     '/job/{job_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:remove')],
 )
 @Log(title='定时任务', business_type=BusinessType.DELETE)
@@ -147,7 +153,7 @@ async def delete_system_job(
 
 @job_controller.get(
     '/job/{job_id}',
-    response_model=JobModel,
+    response_model=DataResponseModel[JobModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
 )
 async def query_detail_system_job(
@@ -181,7 +187,7 @@ async def export_system_job_list(
 
 @job_controller.get(
     '/jobLog/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[JobLogModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:list')],
 )
 async def get_system_job_log_list(
@@ -200,6 +206,7 @@ async def get_system_job_log_list(
 
 @job_controller.delete(
     '/jobLog/clean',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:remove')],
 )
 @Log(title='定时任务调度日志', business_type=BusinessType.CLEAN)
@@ -215,6 +222,7 @@ async def clear_system_job_log(
 
 @job_controller.delete(
     '/jobLog/{job_log_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:remove')],
 )
 @Log(title='定时任务调度日志', business_type=BusinessType.DELETE)

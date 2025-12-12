@@ -8,10 +8,10 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.enums import BusinessType
-from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
+from common.vo import PageResponseModel, ResponseBaseModel
+from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineModel, OnlineQueryModel
 from module_admin.service.online_service import OnlineService
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 online_controller = APIRouter(prefix='/monitor/online', dependencies=[PreAuthDependency()])
@@ -19,7 +19,7 @@ online_controller = APIRouter(prefix='/monitor/online', dependencies=[PreAuthDep
 
 @online_controller.get(
     '/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[OnlineModel],
     dependencies=[UserInterfaceAuthDependency('monitor:online:list')],
 )
 async def get_monitor_online_list(
@@ -37,6 +37,7 @@ async def get_monitor_online_list(
 
 @online_controller.delete(
     '/{token_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:online:forceLogout')],
 )
 @Log(title='在线用户', business_type=BusinessType.FORCE)
