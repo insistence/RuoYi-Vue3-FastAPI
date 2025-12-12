@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, DOUBLE, BigInteger, Column, DateTime, Index, LargeBinary, String
+from sqlalchemy import CHAR, DOUBLE, BigInteger, Column, DateTime, Float, Index, LargeBinary, String, Unicode
 
 from config.database import Base
 from config.env import DataBaseConfig
@@ -67,9 +67,11 @@ class ApschedulerJobs(Base):
 
     __tablename__ = 'apscheduler_jobs'
 
-    id = Column(String(191), primary_key=True, nullable=False)
+    id = Column(Unicode(191), primary_key=True, nullable=False)
     next_run_time = Column(
-        DOUBLE, nullable=True, server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type, False)
+        DOUBLE if DataBaseConfig.db_type == 'mysql' else Float(25),
+        nullable=True,
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type, False),
     )
     job_state = Column(LargeBinary, nullable=False)
 
