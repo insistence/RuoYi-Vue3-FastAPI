@@ -4,10 +4,10 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
+from common.vo import CrudResponseModel
 from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.dept_dao import DeptDao
 from module_admin.entity.do.dept_do import SysDept
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel
 from utils.common_util import CamelCaseUtil
 

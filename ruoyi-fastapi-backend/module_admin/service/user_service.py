@@ -7,11 +7,10 @@ from fastapi import Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
-from common.vo import PageModel
+from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.user_dao import UserDao
 from module_admin.entity.do.user_do import SysUserRole
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.post_vo import PostPageQueryModel
 from module_admin.entity.vo.user_vo import (
     AddUserModel,

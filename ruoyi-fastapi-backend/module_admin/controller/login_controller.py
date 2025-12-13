@@ -10,8 +10,8 @@ from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.pre_auth import CurrentUserDependency
 from common.enums import BusinessType, RedisInitKeyConfig
+from common.vo import CrudResponseModel
 from config.env import AppConfig, JwtConfig
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.login_vo import Token, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme

@@ -4,9 +4,8 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
-from common.vo import PageModel
+from common.vo import CrudResponseModel, PageModel
 from module_admin.dao.job_log_dao import JobLogDao
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.job_vo import DeleteJobLogModel, JobLogModel, JobLogPageQueryModel
 from module_admin.service.dict_service import DictDataService
 from utils.excel_util import ExcelUtil

@@ -4,9 +4,10 @@ from datetime import datetime
 import aiofiles
 from fastapi import BackgroundTasks, Request, UploadFile
 
+from common.vo import CrudResponseModel
 from config.env import UploadConfig
 from exceptions.exception import ServiceException
-from module_admin.entity.vo.common_vo import CrudResponseModel, UploadResponseModel
+from module_admin.entity.vo.common_vo import UploadResponseModel
 from utils.upload_util import UploadUtil
 
 

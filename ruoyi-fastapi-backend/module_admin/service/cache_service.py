@@ -1,9 +1,9 @@
 from fastapi import Request
 
 from common.enums import RedisInitKeyConfig
+from common.vo import CrudResponseModel
 from config.get_redis import RedisUtil
 from module_admin.entity.vo.cache_vo import CacheInfoModel, CacheMonitorModel
-from module_admin.entity.vo.common_vo import CrudResponseModel
 
 
 class CacheService:

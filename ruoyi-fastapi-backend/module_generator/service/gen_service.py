@@ -11,10 +11,9 @@ from sqlglot import parse as sqlglot_parse
 from sqlglot.expressions import Add, Alter, Create, Delete, Drop, Expression, Insert, Table, TruncateTable, Update
 
 from common.constant import GenConstant
-from common.vo import PageModel
+from common.vo import CrudResponseModel, PageModel
 from config.env import DataBaseConfig, GenConfig
 from exceptions.exception import ServiceException
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_generator.dao.gen_dao import GenTableColumnDao, GenTableDao
 from module_generator.entity.vo.gen_vo import (

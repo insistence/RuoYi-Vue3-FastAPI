@@ -6,10 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
 from common.enums import RedisInitKeyConfig
-from common.vo import PageModel
+from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.config_dao import ConfigDao
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil

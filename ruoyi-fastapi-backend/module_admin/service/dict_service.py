@@ -8,11 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
 from common.enums import RedisInitKeyConfig
-from common.vo import PageModel
+from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.dict_dao import DictDataDao, DictTypeDao
 from module_admin.entity.do.dict_do import SysDictData
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.dict_vo import (
     DeleteDictDataModel,
     DeleteDictTypeModel,

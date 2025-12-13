@@ -10,10 +10,9 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
-from common.vo import PageModel
+from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
 from {{ packageName }}.dao.{{ businessName }}_dao import {{ BusinessName }}Dao
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import Delete{{ BusinessName }}Model, {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 {% if dicts %}
 from module_admin.service.dict_service import DictDataService

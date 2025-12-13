@@ -3,10 +3,9 @@ from typing import Any, Union
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.vo import PageModel
+from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.log_dao import LoginLogDao, OperationLogDao
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.log_vo import (
     DeleteLoginLogModel,
     DeleteOperLogModel,

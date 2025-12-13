@@ -4,11 +4,11 @@ from typing import Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant, MenuConstant
+from common.vo import CrudResponseModel
 from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.menu_dao import MenuDao
 from module_admin.dao.role_dao import RoleDao
 from module_admin.entity.do.menu_do import SysMenu
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel
 from module_admin.entity.vo.role_vo import RoleMenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel

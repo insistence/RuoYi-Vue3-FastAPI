@@ -4,9 +4,9 @@ import jwt
 from fastapi import Request
 
 from common.enums import RedisInitKeyConfig
+from common.vo import CrudResponseModel
 from config.env import AppConfig, JwtConfig
 from exceptions.exception import ServiceException
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
 from utils.common_util import CamelCaseUtil
 
