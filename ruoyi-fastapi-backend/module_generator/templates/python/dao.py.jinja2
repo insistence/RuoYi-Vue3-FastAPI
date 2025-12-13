@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 {% endif %}
 
+from common.vo import PageModel
 {% if table.sub %}
 from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}, {{ subClassName }}
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel, {{ subTable.business_name | capitalize }}Model
@@ -22,7 +23,7 @@ from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}
 from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 {% endif %}
-from utils.page_util import PageResponseModel, PageUtil
+from utils.page_util import PageUtil
 
 
 class {{ BusinessName }}Dao:
@@ -89,7 +90,7 @@ class {{ BusinessName }}Dao:
     @classmethod
     async def get_{{ businessName }}_list(
         cls, db: AsyncSession, query_object: {{ BusinessName }}PageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取{{ functionName }}列表信息
 
@@ -137,7 +138,7 @@ class {{ BusinessName }}Dao:
             .order_by({{ ClassName }}.{{ pk_field }})
             .distinct()
         )
-        {{ businessName }}_list: Union[PageResponseModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        {{ businessName }}_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

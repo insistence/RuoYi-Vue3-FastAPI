@@ -10,6 +10,7 @@ from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
+from common.vo import PageModel
 from exceptions.exception import ServiceException
 from {{ packageName }}.dao.{{ businessName }}_dao import {{ BusinessName }}Dao
 from module_admin.entity.vo.common_vo import CrudResponseModel
@@ -19,7 +20,6 @@ from module_admin.service.dict_service import DictDataService
 {% endif %}
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
-from utils.page_util import PageResponseModel
 
 
 class {{ BusinessName }}Service:
@@ -30,7 +30,7 @@ class {{ BusinessName }}Service:
     @classmethod
     async def get_{{ businessName }}_list_services(
         cls, query_db: AsyncSession, query_object: {{ BusinessName }}PageQueryModel, is_page: bool = False
-    ) -> Union[PageResponseModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取{{ functionName }}列表信息service
 

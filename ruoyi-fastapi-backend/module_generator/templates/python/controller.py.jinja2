@@ -22,12 +22,12 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from {{ packageName }}.service.{{ businessName }}_service import {{ BusinessName }}Service
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import Delete{{ BusinessName }}Model, {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 
@@ -36,7 +36,7 @@ from utils.response_util import ResponseUtil
 
 @{{ businessName }}_controller.get(
     '/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[{{ BusinessName }}Model],
     dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:list')],
 )
 async def get_{{ moduleName }}_{{ businessName }}_list(
@@ -60,7 +60,9 @@ async def get_{{ moduleName }}_{{ businessName }}_list(
 
 @{{ businessName }}_controller.post(
     '',
-    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:add')]),
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:add')],
+)
 @ValidateFields(validate_model='add_{{ businessName }}')
 @Log(title='{{ functionName }}', business_type=BusinessType.INSERT)
 async def add_{{ moduleName }}_{{ businessName }}(
@@ -88,7 +90,9 @@ async def add_{{ moduleName }}_{{ businessName }}(
 
 @{{ businessName }}_controller.put(
     '',
-    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:edit')]),
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:edit')],
+)
 @ValidateFields(validate_model='edit_{{ businessName }}')
 @Log(title='{{ functionName }}', business_type=BusinessType.UPDATE)
 async def edit_{{ moduleName }}_{{ businessName }}(
@@ -112,7 +116,9 @@ async def edit_{{ moduleName }}_{{ businessName }}(
 
 @{{ businessName }}_controller.delete(
     '/{% raw %}{{% endraw %}{{ pk_field }}s{% raw %}}{% endraw %}',
-    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:remove')]),
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:remove')],
+)
 @Log(title='{{ functionName }}', business_type=BusinessType.DELETE)
 async def delete_{{ moduleName }}_{{ businessName }}(
     request: Request,
@@ -128,7 +134,7 @@ async def delete_{{ moduleName }}_{{ businessName }}(
 
 @{{ businessName }}_controller.get(
     '/{% raw %}{{% endraw %}{{ pk_field }}{% raw %}}{% endraw %}',
-    response_model={{ BusinessName }}Model,
+    response_model=DataResponseModel[{{ BusinessName }}Model],
     dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:query')]
 )
 async def query_detail_{{ moduleName }}_{{ businessName }}(
@@ -144,7 +150,8 @@ async def query_detail_{{ moduleName }}_{{ businessName }}(
 
 @{{ businessName }}_controller.post(
     '/export',
-    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:export')])
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:export')],
+)
 @Log(title='{{ functionName }}', business_type=BusinessType.EXPORT)
 async def export_{{ moduleName }}_{{ businessName }}_list(
     request: Request,
