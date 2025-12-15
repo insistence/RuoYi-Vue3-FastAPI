@@ -81,17 +81,21 @@ class ServerService:
         io = psutil.disk_partitions()
         sys_files = []
         for i in io:
-            o = psutil.disk_usage(i.device)
-            disk_data = SysFiles(
-                dirName=i.device,
-                sysTypeName=i.fstype,
-                typeName='本地固定磁盘（' + i.mountpoint.replace('\\', '') + '）',
-                total=bytes2human(o.total),
-                used=bytes2human(o.used),
-                free=bytes2human(o.free),
-                usage=f'{psutil.disk_usage(i.device).percent}%',
-            )
-            sys_files.append(disk_data)
+            try:
+                o = psutil.disk_usage(i.device)
+                disk_data = SysFiles(
+                    dirName=i.device,
+                    sysTypeName=i.fstype,
+                    typeName='本地固定磁盘（' + i.mountpoint.replace('\\', '') + '）',
+                    total=bytes2human(o.total),
+                    used=bytes2human(o.used),
+                    free=bytes2human(o.free),
+                    usage=f'{psutil.disk_usage(i.device).percent}%',
+                )
+                sys_files.append(disk_data)
+            except Exception:  # noqa: PERF203
+                # 忽略所有异常，跳过有问题的磁盘
+                continue
 
         result = ServerMonitorModel(cpu=cpu, mem=mem, sys=sys, py=py, sysFiles=sys_files)
 
