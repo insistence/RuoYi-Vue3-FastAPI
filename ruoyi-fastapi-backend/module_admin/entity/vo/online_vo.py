@@ -31,6 +31,17 @@ class OnlineQueryModel(OnlineModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
+class OnlinePageResponseModel(BaseModel):
+    """
+    在线用户分页响应模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    rows: list[OnlineModel] = Field(description='在线用户记录列表')
+    total: int = Field(description='总记录数')
+
+
 class DeleteOnlineModel(BaseModel):
     """
     强退在线用户模型

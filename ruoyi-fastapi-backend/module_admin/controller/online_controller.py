@@ -8,8 +8,8 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.enums import BusinessType
-from common.vo import PageResponseModel, ResponseBaseModel
-from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineModel, OnlineQueryModel
+from common.vo import ResponseBaseModel
+from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlinePageResponseModel, OnlineQueryModel
 from module_admin.service.online_service import OnlineService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
@@ -21,7 +21,7 @@ online_controller = APIRouter(prefix='/monitor/online', dependencies=[PreAuthDep
     '/list',
     summary='获取在线用户分页列表接口',
     description='用于获取在线用户分页列表',
-    response_model=PageResponseModel[OnlineModel],
+    response_model=OnlinePageResponseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:online:list')],
 )
 async def get_monitor_online_list(
@@ -33,7 +33,7 @@ async def get_monitor_online_list(
     logger.info('获取成功')
 
     return ResponseUtil.success(
-        model_content=PageResponseModel(rows=online_query_result, total=len(online_query_result))
+        model_content=OnlinePageResponseModel(rows=online_query_result, total=len(online_query_result))
     )
 
 
