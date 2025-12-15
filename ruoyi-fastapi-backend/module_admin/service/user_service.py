@@ -29,6 +29,7 @@ from module_admin.entity.vo.user_vo import (
     UserRoleModel,
     UserRoleQueryModel,
     UserRoleResponseModel,
+    UserRowModel,
 )
 from module_admin.service.config_service import ConfigService
 from module_admin.service.dept_service import DeptService
@@ -47,7 +48,7 @@ class UserService:
     @classmethod
     async def get_user_list_services(
         cls, query_db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> Union[PageModel[UserRowModel], list[dict[str, Any]]]:
         """
         获取用户列表信息service
 
@@ -59,7 +60,7 @@ class UserService:
         """
         query_result = await UserDao.get_user_list(query_db, query_object, data_scope_sql, is_page)
         if is_page:
-            user_list_result = PageModel(
+            user_list_result = PageModel[UserRowModel](
                 **{
                     **query_result.model_dump(by_alias=True),
                     'rows': [{**row[0], 'dept': row[1]} for row in query_result.rows],

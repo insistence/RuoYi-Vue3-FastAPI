@@ -81,6 +81,27 @@ class GenTableBaseModel(BaseModel):
         self.get_function_author()
 
 
+class GenTableRowModel(GenTableBaseModel):
+    """
+    代码生成业务表行数据模型
+    """
+
+    columns: Optional[list['GenTableColumnBaseModel']] = Field(default=None, description='表列信息')
+
+
+class GenTableDbRowModel(BaseModel):
+    """
+    代码生成业务表数据库行数据模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    table_name: Optional[str] = Field(default=None, description='表名称')
+    table_comment: Optional[str] = Field(default=None, description='表描述')
+    create_time: Optional[datetime] = Field(default=None, description='创建时间')
+    update_time: Optional[datetime] = Field(default=None, description='更新时间')
+
+
 class GenTableModel(GenTableBaseModel):
     """
     代码生成业务表模型
@@ -143,6 +164,18 @@ class GenTablePageQueryModel(GenTableQueryModel):
 
     page_num: int = Field(default=1, description='当前页码')
     page_size: int = Field(default=10, description='每页记录数')
+
+
+class GenTableDetailModel(BaseModel):
+    """
+    代码生成业务表详情模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    info: Optional[GenTableModel] = Field(default=None, description='业务表信息')
+    rows: Optional[list['GenTableColumnModel']] = Field(default=None, description='表列信息')
+    tables: Optional[list['GenTableModel']] = Field(default=None, description='所有业务表信息')
 
 
 class DeleteGenTableModel(BaseModel):

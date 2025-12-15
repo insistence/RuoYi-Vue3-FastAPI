@@ -77,6 +77,19 @@ class MenuQueryModel(MenuModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
+class MenuTreeModel(BaseModel):
+    """
+    菜单树模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    id: int = Field(description='菜单id')
+    label: str = Field(description='菜单名称')
+    parent_id: int = Field(description='父菜单id')
+    children: Optional[list['MenuTreeModel']] = Field(default=None, description='子菜单树')
+
+
 class DeleteMenuModel(BaseModel):
     """
     删除菜单模型

@@ -62,6 +62,19 @@ class DeptQueryModel(DeptModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
+class DeptTreeModel(BaseModel):
+    """
+    部门树模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    id: int = Field(description='部门id')
+    label: str = Field(description='部门名称')
+    parent_id: int = Field(description='父部门id')
+    children: Optional[list['DeptTreeModel']] = Field(default=None, description='子部门树')
+
+
 class DeleteDeptModel(BaseModel):
     """
     删除部门模型

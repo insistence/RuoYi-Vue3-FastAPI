@@ -4,6 +4,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Request, Response
 
 from common.enums import RedisInitKeyConfig
+from common.vo import DynamicResponseModel
 from module_admin.entity.vo.login_vo import CaptchaCode
 from module_admin.service.captcha_service import CaptchaService
 from utils.log_util import logger
@@ -12,7 +13,10 @@ from utils.response_util import ResponseUtil
 captcha_controller = APIRouter()
 
 
-@captcha_controller.get('/captchaImage')
+@captcha_controller.get(
+    '/captchaImage',
+    response_model=DynamicResponseModel[CaptchaCode],
+)
 async def get_captcha_image(request: Request) -> Response:
     captcha_enabled = (
         await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled') == 'true'

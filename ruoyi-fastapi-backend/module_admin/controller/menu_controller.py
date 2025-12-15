@@ -10,7 +10,9 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
-from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel
+from common.vo import DataResponseModel, DynamicResponseModel, ResponseBaseModel
+from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuTreeModel
+from module_admin.entity.vo.role_vo import RoleMenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.menu_service import MenuService
 from utils.log_util import logger
@@ -19,7 +21,10 @@ from utils.response_util import ResponseUtil
 menu_controller = APIRouter(prefix='/system/menu', dependencies=[PreAuthDependency()])
 
 
-@menu_controller.get('/treeselect')
+@menu_controller.get(
+    '/treeselect',
+    response_model=DataResponseModel[list[MenuTreeModel]],
+)
 async def get_system_menu_tree(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -31,7 +36,10 @@ async def get_system_menu_tree(
     return ResponseUtil.success(data=menu_query_result)
 
 
-@menu_controller.get('/roleMenuTreeselect/{role_id}')
+@menu_controller.get(
+    '/roleMenuTreeselect/{role_id}',
+    response_model=DynamicResponseModel[RoleMenuQueryModel],
+)
 async def get_system_role_menu_tree(
     request: Request,
     role_id: Annotated[int, Path(description='角色ID')],
@@ -46,7 +54,7 @@ async def get_system_role_menu_tree(
 
 @menu_controller.get(
     '/list',
-    response_model=list[MenuModel],
+    response_model=DataResponseModel[list[MenuModel]],
     dependencies=[UserInterfaceAuthDependency('system:menu:list')],
 )
 async def get_system_menu_list(
@@ -63,6 +71,7 @@ async def get_system_menu_list(
 
 @menu_controller.post(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:menu:add')],
 )
 @ValidateFields(validate_model='add_menu')
@@ -85,6 +94,7 @@ async def add_system_menu(
 
 @menu_controller.put(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:menu:edit')],
 )
 @ValidateFields(validate_model='edit_menu')
@@ -105,6 +115,7 @@ async def edit_system_menu(
 
 @menu_controller.delete(
     '/{menu_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:menu:remove')],
 )
 @Log(title='菜单管理', business_type=BusinessType.DELETE)
@@ -122,7 +133,7 @@ async def delete_system_menu(
 
 @menu_controller.get(
     '/{menu_id}',
-    response_model=MenuModel,
+    response_model=DataResponseModel[MenuModel],
     dependencies=[UserInterfaceAuthDependency('system:menu:query')],
 )
 async def query_detail_system_menu(

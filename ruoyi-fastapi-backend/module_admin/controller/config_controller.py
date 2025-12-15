@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,6 +147,15 @@ async def query_system_config(request: Request, config_key: str) -> Response:
 
 @config_controller.post(
     '/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回参数列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('system:config:export')],
 )
 @Log(title='参数管理', business_type=BusinessType.EXPORT)

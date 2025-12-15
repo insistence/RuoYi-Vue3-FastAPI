@@ -8,7 +8,7 @@ from common.vo import CrudResponseModel
 from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.dept_dao import DeptDao
 from module_admin.entity.do.dept_do import SysDept
-from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel
+from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptTreeModel
 from utils.common_util import CamelCaseUtil
 
 
@@ -20,7 +20,7 @@ class DeptService:
     @classmethod
     async def get_dept_tree_services(
         cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str,Any]]:
         """
         获取部门树信息service
 
@@ -30,7 +30,8 @@ class DeptService:
         :return: 部门树信息对象
         """
         dept_list_result = await DeptDao.get_dept_list_for_tree(query_db, page_object, data_scope_sql)
-        dept_tree_result = cls.list_to_tree(dept_list_result)
+        dept_tree_model_result = cls.list_to_tree(dept_list_result)
+        dept_tree_result = [dept.model_dump(exclude_unset=True, by_alias=True) for dept in dept_tree_model_result]
 
         return dept_tree_result
 
@@ -205,7 +206,7 @@ class DeptService:
         return result
 
     @classmethod
-    def list_to_tree(cls, permission_list: Sequence[SysDept]) -> list[dict[str, Any]]:
+    def list_to_tree(cls, permission_list: Sequence[SysDept]) -> list[DeptTreeModel]:
         """
         工具方法：根据部门列表信息生成树形嵌套数据
 
@@ -213,25 +214,25 @@ class DeptService:
         :return: 部门树形嵌套数据
         """
         _permission_list = [
-            {'id': item.dept_id, 'label': item.dept_name, 'parentId': item.parent_id} for item in permission_list
+            DeptTreeModel(id=item.dept_id, label=item.dept_name, parentId=item.parent_id) for item in permission_list
         ]
         # 转成id为key的字典
-        mapping: dict[int, dict[str, Any]] = dict(zip([i['id'] for i in _permission_list], _permission_list))
+        mapping: dict[int, DeptTreeModel] = dict(zip([i.id for i in _permission_list], _permission_list))
 
         # 树容器
-        container: list[dict[str, Any]] = []
+        container: list[DeptTreeModel] = []
 
         for d in _permission_list:
             # 如果找不到父级项，则是根节点
-            parent = mapping.get(d['parentId'])
+            parent = mapping.get(d.parent_id)
             if parent is None:
                 container.append(d)
             else:
-                children: list[dict[str, Any]] = parent.get('children')
+                children: list[DeptTreeModel] = parent.children
                 if not children:
                     children = []
                 children.append(d)
-                parent.update({'children': children})
+                parent.children = children
 
         return container
 

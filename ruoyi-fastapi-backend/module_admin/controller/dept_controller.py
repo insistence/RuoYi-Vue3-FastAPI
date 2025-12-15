@@ -11,6 +11,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.vo import DataResponseModel, ResponseBaseModel
 from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.dept_service import DeptService
@@ -22,7 +23,7 @@ dept_controller = APIRouter(prefix='/system/dept', dependencies=[PreAuthDependen
 
 @dept_controller.get(
     '/list/exclude/{dept_id}',
-    response_model=list[DeptModel],
+    response_model=DataResponseModel[list[DeptModel]],
     dependencies=[UserInterfaceAuthDependency('system:dept:list')],
 )
 async def get_system_dept_tree_for_edit_option(
@@ -40,7 +41,7 @@ async def get_system_dept_tree_for_edit_option(
 
 @dept_controller.get(
     '/list',
-    response_model=list[DeptModel],
+    response_model=DataResponseModel[list[DeptModel]],
     dependencies=[UserInterfaceAuthDependency('system:dept:list')],
 )
 async def get_system_dept_list(
@@ -57,6 +58,7 @@ async def get_system_dept_list(
 
 @dept_controller.post(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dept:add')],
 )
 @ValidateFields(validate_model='add_dept')
@@ -74,11 +76,12 @@ async def add_system_dept(
     add_dept_result = await DeptService.add_dept_services(query_db, add_dept)
     logger.info(add_dept_result.message)
 
-    return ResponseUtil.success(data=add_dept_result)
+    return ResponseUtil.success(msg=add_dept_result.message)
 
 
 @dept_controller.put(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dept:edit')],
 )
 @ValidateFields(validate_model='edit_dept')
@@ -102,6 +105,7 @@ async def edit_system_dept(
 
 @dept_controller.delete(
     '/{dept_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dept:remove')],
 )
 @Log(title='部门管理', business_type=BusinessType.DELETE)
@@ -128,7 +132,7 @@ async def delete_system_dept(
 
 @dept_controller.get(
     '/{dept_id}',
-    response_model=DeptModel,
+    response_model=DataResponseModel[DeptModel],
     dependencies=[UserInterfaceAuthDependency('system:dept:query')],
 )
 async def query_detail_system_dept(

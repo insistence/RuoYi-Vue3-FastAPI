@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,10 +11,17 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import RoleInterfaceAuthDependency, UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
-from common.vo import PageResponseModel
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from config.env import GenConfig
 from module_admin.entity.vo.user_vo import CurrentUserModel
-from module_generator.entity.vo.gen_vo import DeleteGenTableModel, EditGenTableModel, GenTablePageQueryModel
+from module_generator.entity.vo.gen_vo import (
+    DeleteGenTableModel,
+    EditGenTableModel,
+    GenTableDbRowModel,
+    GenTableDetailModel,
+    GenTablePageQueryModel,
+    GenTableRowModel,
+)
 from module_generator.service.gen_service import GenTableColumnService, GenTableService
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
@@ -24,7 +32,7 @@ gen_controller = APIRouter(prefix='/tool/gen', dependencies=[PreAuthDependency()
 
 @gen_controller.get(
     '/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[GenTableRowModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:list')],
 )
 async def get_gen_table_list(
@@ -41,7 +49,7 @@ async def get_gen_table_list(
 
 @gen_controller.get(
     '/db/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[GenTableDbRowModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:list')],
 )
 async def get_gen_db_table_list(
@@ -58,6 +66,7 @@ async def get_gen_db_table_list(
 
 @gen_controller.post(
     '/importTable',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:import')],
 )
 @Log(title='代码生成', business_type=BusinessType.IMPORT)
@@ -77,6 +86,7 @@ async def import_gen_table(
 
 @gen_controller.put(
     '',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:edit')],
 )
 @ValidateFields(validate_model='edit_gen_table')
@@ -98,6 +108,7 @@ async def edit_gen_table(
 
 @gen_controller.delete(
     '/{table_ids}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:remove')],
 )
 @Log(title='代码生成', business_type=BusinessType.DELETE)
@@ -115,6 +126,7 @@ async def delete_gen_table(
 
 @gen_controller.post(
     '/createTable',
+    response_model=ResponseBaseModel,
     dependencies=[RoleInterfaceAuthDependency('admin')],
 )
 @Log(title='创建表', business_type=BusinessType.OTHER)
@@ -132,6 +144,15 @@ async def create_table(
 
 @gen_controller.get(
     '/batchGenCode',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回生成的代码文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('tool:gen:code')],
 )
 @Log(title='代码生成', business_type=BusinessType.GENCODE)
@@ -149,6 +170,7 @@ async def batch_gen_code(
 
 @gen_controller.get(
     '/genCode/{table_name}',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:code')],
 )
 @Log(title='代码生成', business_type=BusinessType.GENCODE)
@@ -168,6 +190,7 @@ async def gen_code_local(
 
 @gen_controller.get(
     '/{table_id}',
+    response_model=DataResponseModel[GenTableDetailModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:query')],
 )
 async def query_detail_gen_table(
@@ -186,6 +209,7 @@ async def query_detail_gen_table(
 
 @gen_controller.get(
     '/preview/{table_id}',
+    response_model=DataResponseModel[dict[str, str]],
     dependencies=[UserInterfaceAuthDependency('tool:gen:preview')],
 )
 async def preview_code(
@@ -201,6 +225,7 @@ async def preview_code(
 
 @gen_controller.get(
     '/synchDb/{table_name}',
+    response_model=DataResponseModel[str],
     dependencies=[UserInterfaceAuthDependency('tool:gen:edit')],
 )
 @Log(title='代码生成', business_type=BusinessType.UPDATE)

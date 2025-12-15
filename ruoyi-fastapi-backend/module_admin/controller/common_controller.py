@@ -1,8 +1,11 @@
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, File, Query, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 
 from common.aspect.pre_auth import PreAuthDependency
+from common.vo import DynamicResponseModel
+from module_admin.entity.vo.common_vo import UploadResponseModel
 from module_admin.service.common_service import CommonService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
@@ -10,7 +13,10 @@ from utils.response_util import ResponseUtil
 common_controller = APIRouter(prefix='/common', dependencies=[PreAuthDependency()])
 
 
-@common_controller.post('/upload')
+@common_controller.post(
+    '/upload',
+    response_model=DynamicResponseModel[UploadResponseModel],
+)
 async def common_upload(request: Request, file: Annotated[UploadFile, File(...)]) -> Response:
     upload_result = await CommonService.upload_service(request, file)
     logger.info('上传成功')
@@ -18,7 +24,18 @@ async def common_upload(request: Request, file: Annotated[UploadFile, File(...)]
     return ResponseUtil.success(model_content=upload_result.result)
 
 
-@common_controller.get('/download')
+@common_controller.get(
+    '/download',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
+)
 async def common_download(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -31,7 +48,18 @@ async def common_download(
     return ResponseUtil.streaming(data=download_result.result)
 
 
-@common_controller.get('/download/resource')
+@common_controller.get(
+    '/download/resource',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
+)
 async def common_download_resource(request: Request, resource: Annotated[str, Query()]) -> Response:
     download_resource_result = await CommonService.download_resource_services(resource)
     logger.info(download_resource_result.message)

@@ -91,6 +91,14 @@ class UserModel(BaseModel):
         self.get_phonenumber()
 
 
+class UserRowModel(UserModel):
+    """
+    用户列表行数据模型
+    """
+
+    dept: Optional[DeptModel] = Field(default=None, description='部门信息')
+
+
 class UserRoleModel(BaseModel):
     """
     用户和角色关联表对应pydantic模型
@@ -154,6 +162,16 @@ class UserProfileModel(BaseModel):
     data: Union[UserInfoModel, None] = Field(description='用户信息')
     post_group: Union[str, None] = Field(description='岗位信息')
     role_group: Union[str, None] = Field(description='角色信息')
+
+
+class AvatarModel(BaseModel):
+    """
+    上传头像响应模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    img_url: str = Field(description='头像地址')
 
 
 class UserQueryModel(UserModel):

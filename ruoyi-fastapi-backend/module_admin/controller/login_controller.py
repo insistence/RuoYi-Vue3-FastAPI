@@ -10,9 +10,9 @@ from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.pre_auth import CurrentUserDependency
 from common.enums import BusinessType, RedisInitKeyConfig
-from common.vo import CrudResponseModel
+from common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from config.env import AppConfig, JwtConfig
-from module_admin.entity.vo.login_vo import Token, UserLogin, UserRegister
+from module_admin.entity.vo.login_vo import RouterModel, Token, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
 from module_admin.service.user_service import UserService
@@ -22,7 +22,10 @@ from utils.response_util import ResponseUtil
 login_controller = APIRouter()
 
 
-@login_controller.post('/login', response_model=Token)
+@login_controller.post(
+    '/login',
+    response_model=DynamicResponseModel[Token],
+)
 @Log(title='用户登录', business_type=BusinessType.OTHER, log_type='login')
 async def login(
     request: Request,
@@ -78,7 +81,10 @@ async def login(
     return ResponseUtil.success(msg='登录成功', dict_content={'token': access_token})
 
 
-@login_controller.get('/getInfo', response_model=CurrentUserModel)
+@login_controller.get(
+    '/getInfo',
+    response_model=DynamicResponseModel[CurrentUserModel],
+)
 async def get_login_user_info(
     request: Request, current_user: Annotated[CurrentUserModel, CurrentUserDependency()]
 ) -> Response:
@@ -87,7 +93,10 @@ async def get_login_user_info(
     return ResponseUtil.success(model_content=current_user)
 
 
-@login_controller.get('/getRouters')
+@login_controller.get(
+    '/getRouters',
+    response_model=DataResponseModel[list[RouterModel]],
+)
 async def get_login_user_routers(
     request: Request,
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
@@ -99,7 +108,10 @@ async def get_login_user_routers(
     return ResponseUtil.success(data=user_routers)
 
 
-@login_controller.post('/register', response_model=CrudResponseModel)
+@login_controller.post(
+    '/register',
+    response_model=DataResponseModel[CrudResponseModel],
+)
 async def register_user(
     request: Request,
     user_register: UserRegister,
@@ -141,7 +153,10 @@ async def register_user(
 #         return ResponseUtil.error(msg=str(e))
 
 
-@login_controller.post('/logout')
+@login_controller.post(
+    '/logout',
+    response_model=ResponseBaseModel,
+)
 async def logout(request: Request, token: Annotated[Optional[str], Depends(oauth2_scheme)]) -> Response:
     payload = jwt.decode(
         token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}

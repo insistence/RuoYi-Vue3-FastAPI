@@ -4,6 +4,7 @@ from typing import Annotated, Literal, Optional, Union
 
 import aiofiles
 from fastapi import APIRouter, File, Form, Path, Query, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,9 +16,10 @@ from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
 from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
 from config.env import UploadConfig
-from module_admin.entity.vo.dept_vo import DeptModel
+from module_admin.entity.vo.dept_vo import DeptModel, DeptTreeModel
 from module_admin.entity.vo.user_vo import (
     AddUserModel,
+    AvatarModel,
     CrudUserRoleModel,
     CurrentUserModel,
     DeleteUserModel,
@@ -31,6 +33,7 @@ from module_admin.entity.vo.user_vo import (
     UserProfileModel,
     UserRoleQueryModel,
     UserRoleResponseModel,
+    UserRowModel,
 )
 from module_admin.service.dept_service import DeptService
 from module_admin.service.role_service import RoleService
@@ -46,6 +49,7 @@ user_controller = APIRouter(prefix='/system/user', dependencies=[PreAuthDependen
 
 @user_controller.get(
     '/deptTree',
+    response_model=DataResponseModel[list[DeptTreeModel]],
     dependencies=[UserInterfaceAuthDependency('system:user:list')],
 )
 async def get_system_dept_tree(
@@ -61,7 +65,7 @@ async def get_system_dept_tree(
 
 @user_controller.get(
     '/list',
-    response_model=PageResponseModel,
+    response_model=PageResponseModel[UserRowModel],
     dependencies=[UserInterfaceAuthDependency('system:user:list')],
 )
 async def get_system_user_list(
@@ -247,12 +251,12 @@ async def query_detail_system_user_profile(
 
 @user_controller.get(
     '/{user_id}',
-    response_model=DataResponseModel[UserDetailModel],
+    response_model=DynamicResponseModel[UserDetailModel],
     dependencies=[UserInterfaceAuthDependency('system:user:query')],
 )
 @user_controller.get(
     '/',
-    response_model=UserDetailModel,
+    response_model=DynamicResponseModel[UserDetailModel],
     dependencies=[UserInterfaceAuthDependency('system:user:query')],
 )
 async def query_detail_system_user(
@@ -270,7 +274,10 @@ async def query_detail_system_user(
     return ResponseUtil.success(model_content=detail_user_result)
 
 
-@user_controller.post('/profile/avatar')
+@user_controller.post(
+    '/profile/avatar',
+    response_model=DynamicResponseModel[AvatarModel],
+)
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def change_system_user_profile_avatar(
     request: Request,
@@ -301,7 +308,7 @@ async def change_system_user_profile_avatar(
         edit_user_result = await UserService.edit_user_services(query_db, edit_user)
         logger.info(edit_user_result.message)
 
-        return ResponseUtil.success(dict_content={'imgUrl': edit_user.avatar}, msg=edit_user_result.message)
+        return ResponseUtil.success(model_content=AvatarModel(imgUrl=edit_user.avatar), msg=edit_user_result.message)
     return ResponseUtil.failure(msg='上传图片异常，请联系管理员')
 
 
@@ -382,6 +389,15 @@ async def batch_import_system_user(
 
 @user_controller.post(
     '/importTemplate',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回导入用户模板excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('system:user:import')],
 )
 async def export_system_user_template(
@@ -395,6 +411,15 @@ async def export_system_user_template(
 
 @user_controller.post(
     '/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回用户列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('system:user:export')],
 )
 @Log(title='用户管理', business_type=BusinessType.EXPORT)

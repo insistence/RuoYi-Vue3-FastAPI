@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -169,6 +170,15 @@ async def query_detail_system_job(
 
 @job_controller.post(
     '/job/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回定时任务列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('monitor:job:export')],
 )
 @Log(title='定时任务', business_type=BusinessType.EXPORT)
@@ -240,6 +250,15 @@ async def delete_system_job_log(
 
 @job_controller.post(
     '/jobLog/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回定时任务日志列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('monitor:job:export')],
 )
 @Log(title='定时任务调度日志', business_type=BusinessType.EXPORT)

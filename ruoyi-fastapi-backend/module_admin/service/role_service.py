@@ -318,7 +318,7 @@ class RoleService:
         query_user_list = await UserDao.get_user_role_allocated_list_by_role_id(
             query_db, page_object, data_scope_sql, is_page
         )
-        allocated_list = PageModel(
+        allocated_list = PageModel[UserInfoModel](
             **{
                 **query_user_list.model_dump(by_alias=True),
                 'rows': [UserInfoModel(**row) for row in query_user_list.rows],
@@ -343,7 +343,7 @@ class RoleService:
         query_user_list = await UserDao.get_user_role_unallocated_list_by_role_id(
             query_db, page_object, data_scope_sql, is_page
         )
-        unallocated_list = PageModel(
+        unallocated_list = PageModel[UserInfoModel](
             **{
                 **query_user_list.model_dump(by_alias=True),
                 'rows': [UserInfoModel(**row) for row in query_user_list.rows],

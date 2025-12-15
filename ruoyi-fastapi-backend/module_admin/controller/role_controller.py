@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,10 +12,16 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
-from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
+from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.dept_vo import DeptModel
-from module_admin.entity.vo.role_vo import AddRoleModel, DeleteRoleModel, RoleModel, RolePageQueryModel
-from module_admin.entity.vo.user_vo import CrudUserRoleModel, CurrentUserModel, UserModel, UserRolePageQueryModel
+from module_admin.entity.vo.role_vo import (
+    AddRoleModel,
+    DeleteRoleModel,
+    RoleDeptQueryModel,
+    RoleModel,
+    RolePageQueryModel,
+)
+from module_admin.entity.vo.user_vo import CrudUserRoleModel, CurrentUserModel, UserInfoModel, UserRolePageQueryModel
 from module_admin.service.dept_service import DeptService
 from module_admin.service.role_service import RoleService
 from module_admin.service.user_service import UserService
@@ -27,6 +34,7 @@ role_controller = APIRouter(prefix='/system/role', dependencies=[PreAuthDependen
 
 @role_controller.get(
     '/deptTree/{role_id}',
+    response_model=DynamicResponseModel[RoleDeptQueryModel],
     dependencies=[UserInterfaceAuthDependency('system:role:query')],
 )
 async def get_system_role_dept_tree(
@@ -188,6 +196,15 @@ async def query_detail_system_role(
 
 @role_controller.post(
     '/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回角色列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('system:role:export')],
 )
 @Log(title='角色管理', business_type=BusinessType.EXPORT)
@@ -238,7 +255,7 @@ async def reset_system_role_status(
 
 @role_controller.get(
     '/authUser/allocatedList',
-    response_model=PageResponseModel[UserModel],
+    response_model=PageResponseModel[UserInfoModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
 async def get_system_allocated_user_list(
@@ -257,7 +274,7 @@ async def get_system_allocated_user_list(
 
 @role_controller.get(
     '/authUser/unallocatedList',
-    response_model=PageResponseModel[UserModel],
+    response_model=PageResponseModel[UserInfoModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
 async def get_system_unallocated_user_list(

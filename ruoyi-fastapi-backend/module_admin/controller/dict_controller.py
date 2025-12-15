@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -155,6 +156,15 @@ async def query_detail_system_dict_type(
 
 @dict_controller.post(
     '/type/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回字典类型列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('system:dict:export')],
 )
 @Log(title='字典类型', business_type=BusinessType.EXPORT)
@@ -290,6 +300,15 @@ async def query_detail_system_dict_data(
 
 @dict_controller.post(
     '/data/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回字典数据列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('system:dict:export')],
 )
 @Log(title='字典数据', business_type=BusinessType.EXPORT)

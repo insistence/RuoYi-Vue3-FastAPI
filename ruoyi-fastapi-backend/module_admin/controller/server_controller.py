@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Response
 
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
+from common.vo import DataResponseModel
 from module_admin.entity.vo.server_vo import ServerMonitorModel
 from module_admin.service.server_service import ServerService
 from utils.log_util import logger
@@ -12,7 +13,7 @@ server_controller = APIRouter(prefix='/monitor/server', dependencies=[PreAuthDep
 
 @server_controller.get(
     '',
-    response_model=ServerMonitorModel,
+    response_model=DataResponseModel[ServerMonitorModel],
     dependencies=[UserInterfaceAuthDependency('monitor:server:list')],
 )
 async def get_monitor_server_info(request: Request) -> Response:

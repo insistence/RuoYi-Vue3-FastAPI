@@ -9,7 +9,7 @@ from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.menu_dao import MenuDao
 from module_admin.dao.role_dao import RoleDao
 from module_admin.entity.do.menu_do import SysMenu
-from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel
+from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuTreeModel
 from module_admin.entity.vo.role_vo import RoleMenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from utils.common_util import CamelCaseUtil
@@ -35,7 +35,8 @@ class MenuService:
         menu_list_result = await MenuDao.get_menu_list_for_tree(
             query_db, current_user.user.user_id, current_user.user.role
         )
-        menu_tree_result = cls.list_to_tree(menu_list_result)
+        menu_tree_model_result = cls.list_to_tree(menu_list_result)
+        menu_tree_result = [menu.model_dump(exclude_unset=True, by_alias=True) for menu in menu_tree_model_result]
 
         return menu_tree_result
 
@@ -185,7 +186,7 @@ class MenuService:
         return result
 
     @classmethod
-    def list_to_tree(cls, permission_list: Sequence[SysMenu]) -> list[dict[str, Any]]:
+    def list_to_tree(cls, permission_list: Sequence[SysMenu]) -> list[MenuTreeModel]:
         """
         工具方法：根据菜单列表信息生成树形嵌套数据
 
@@ -193,24 +194,24 @@ class MenuService:
         :return: 菜单树形嵌套数据
         """
         _permission_list = [
-            {'id': item.menu_id, 'label': item.menu_name, 'parentId': item.parent_id} for item in permission_list
+            MenuTreeModel(id=item.menu_id, label=item.menu_name, parentId=item.parent_id) for item in permission_list
         ]
         # 转成id为key的字典
-        mapping: dict[int, dict[str, Any]] = dict(zip([i['id'] for i in _permission_list], _permission_list))
+        mapping: dict[int, MenuTreeModel] = dict(zip([i.id for i in _permission_list], _permission_list))
 
         # 树容器
-        container: list[dict[str, Any]] = []
+        container: list[MenuTreeModel] = []
 
         for d in _permission_list:
             # 如果找不到父级项，则是根节点
-            parent = mapping.get(d['parentId'])
+            parent = mapping.get(d.parent_id)
             if parent is None:
                 container.append(d)
             else:
-                children: list[dict[str, Any]] = parent.get('children')
+                children: list[MenuTreeModel] = parent.children
                 if not children:
                     children = []
                 children.append(d)
-                parent.update({'children': children})
+                parent.children = children
 
         return container

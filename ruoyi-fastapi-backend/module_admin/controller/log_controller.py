@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
@@ -82,6 +83,15 @@ async def delete_system_operation_log(
 
 @log_controller.post(
     '/operlog/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回操作日志列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:export')],
 )
 @Log(title='操作日志', business_type=BusinessType.EXPORT)
@@ -174,6 +184,15 @@ async def unlock_system_user(
 
 @log_controller.post(
     '/logininfor/export',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回登录日志列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:export')],
 )
 @Log(title='登录日志', business_type=BusinessType.EXPORT)

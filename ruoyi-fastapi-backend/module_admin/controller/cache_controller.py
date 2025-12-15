@@ -4,6 +4,7 @@ from fastapi import APIRouter, Path, Request, Response
 
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
+from common.vo import DataResponseModel, ResponseBaseModel
 from module_admin.entity.vo.cache_vo import CacheInfoModel, CacheMonitorModel
 from module_admin.service.cache_service import CacheService
 from utils.log_util import logger
@@ -14,7 +15,7 @@ cache_controller = APIRouter(prefix='/monitor/cache', dependencies=[PreAuthDepen
 
 @cache_controller.get(
     '',
-    response_model=CacheMonitorModel,
+    response_model=DataResponseModel[CacheMonitorModel],
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def get_monitor_cache_info(request: Request) -> Response:
@@ -27,7 +28,7 @@ async def get_monitor_cache_info(request: Request) -> Response:
 
 @cache_controller.get(
     '/getNames',
-    response_model=list[CacheInfoModel],
+    response_model=DataResponseModel[list[CacheInfoModel]],
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def get_monitor_cache_name(request: Request) -> Response:
@@ -40,7 +41,7 @@ async def get_monitor_cache_name(request: Request) -> Response:
 
 @cache_controller.get(
     '/getKeys/{cache_name}',
-    response_model=list[str],
+    response_model=DataResponseModel[list[str]],
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def get_monitor_cache_key(request: Request, cache_name: Annotated[str, Path(description='缓存名称')]) -> Response:
@@ -53,7 +54,7 @@ async def get_monitor_cache_key(request: Request, cache_name: Annotated[str, Pat
 
 @cache_controller.get(
     '/getValue/{cache_name}/{cache_key}',
-    response_model=CacheInfoModel,
+    response_model=DataResponseModel[CacheInfoModel],
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def get_monitor_cache_value(
@@ -83,6 +84,7 @@ async def clear_monitor_cache_name(
 
 @cache_controller.delete(
     '/clearCacheKey/{cache_key}',
+    response_model= ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def clear_monitor_cache_key(request: Request, cache_key: Annotated[str, Path(description='缓存键')]) -> Response:
@@ -94,6 +96,7 @@ async def clear_monitor_cache_key(request: Request, cache_key: Annotated[str, Pa
 
 @cache_controller.delete(
     '/clearCacheAll',
+    response_model= ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def clear_monitor_cache_all(request: Request) -> Response:
