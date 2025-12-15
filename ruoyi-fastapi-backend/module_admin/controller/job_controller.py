@@ -33,6 +33,8 @@ job_controller = APIRouter(prefix='/monitor', dependencies=[PreAuthDependency()]
 
 @job_controller.get(
     '/job/list',
+    summary='获取定时任务分页列表接口',
+    description='用于获取定时任务分页列表',
     response_model=PageResponseModel[JobModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:list')],
 )
@@ -50,6 +52,8 @@ async def get_system_job_list(
 
 @job_controller.post(
     '/job',
+    summary='新增定时任务接口',
+    description='用于新增定时任务',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:add')],
 )
@@ -73,6 +77,8 @@ async def add_system_job(
 
 @job_controller.put(
     '/job',
+    summary='编辑定时任务接口',
+    description='用于编辑定时任务',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:edit')],
 )
@@ -94,6 +100,8 @@ async def edit_system_job(
 
 @job_controller.put(
     '/job/changeStatus',
+    summary='修改定时任务状态接口',
+    description='用于修改定时任务状态',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:changeStatus')],
 )
@@ -119,6 +127,8 @@ async def change_system_job_status(
 
 @job_controller.put(
     '/job/run',
+    summary='执行定时任务接口',
+    description='用于执行指定的定时任务',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:changeStatus')],
 )
@@ -136,6 +146,8 @@ async def execute_system_job(
 
 @job_controller.delete(
     '/job/{job_ids}',
+    summary='删除定时任务接口',
+    description='用于删除定时任务',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:remove')],
 )
@@ -154,6 +166,8 @@ async def delete_system_job(
 
 @job_controller.get(
     '/job/{job_id}',
+    summary='获取定时任务详情接口',
+    description='用于获取指定定时任务的详情信息',
     response_model=DataResponseModel[JobModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
 )
@@ -170,6 +184,8 @@ async def query_detail_system_job(
 
 @job_controller.post(
     '/job/export',
+    summary='导出定时任务列表接口',
+    description='用于导出当前符合查询条件的定时任务列表数据',
     response_class=StreamingResponse,
     responses={
         200: {
@@ -197,6 +213,8 @@ async def export_system_job_list(
 
 @job_controller.get(
     '/jobLog/list',
+    summary='获取定时任务调度日志分页列表接口',
+    description='用于获取定时任务调度日志分页列表',
     response_model=PageResponseModel[JobLogModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:list')],
 )
@@ -216,6 +234,8 @@ async def get_system_job_log_list(
 
 @job_controller.delete(
     '/jobLog/clean',
+    summary='清空定时任务调度日志接口',
+    description='用于清空所有定时任务调度日志',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:remove')],
 )
@@ -232,6 +252,8 @@ async def clear_system_job_log(
 
 @job_controller.delete(
     '/jobLog/{job_log_ids}',
+    summary='删除定时任务调度日志接口',
+    description='用于删除定时任务调度日志',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:remove')],
 )
@@ -250,6 +272,8 @@ async def delete_system_job_log(
 
 @job_controller.post(
     '/jobLog/export',
+    summary='导出定时任务调度日志列表接口',
+    description='用于导出当前符合查询条件的定时任务调度日志列表数据',
     response_class=StreamingResponse,
     responses={
         200: {

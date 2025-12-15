@@ -13,6 +13,8 @@ server_controller = APIRouter(prefix='/monitor/server', dependencies=[PreAuthDep
 
 @server_controller.get(
     '',
+    summary='获取服务器监控信息接口',
+    description='用于获取当前服务器的监控信息',
     response_model=DataResponseModel[ServerMonitorModel],
     dependencies=[UserInterfaceAuthDependency('monitor:server:list')],
 )

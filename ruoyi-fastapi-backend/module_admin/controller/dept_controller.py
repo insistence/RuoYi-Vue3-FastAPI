@@ -23,6 +23,8 @@ dept_controller = APIRouter(prefix='/system/dept', dependencies=[PreAuthDependen
 
 @dept_controller.get(
     '/list/exclude/{dept_id}',
+    summary='获取编辑部门的下拉树接口',
+    description='用于获取部门下拉树，不包含指定部门及其子部门',
     response_model=DataResponseModel[list[DeptModel]],
     dependencies=[UserInterfaceAuthDependency('system:dept:list')],
 )
@@ -41,6 +43,8 @@ async def get_system_dept_tree_for_edit_option(
 
 @dept_controller.get(
     '/list',
+    summary='获取部门列表接口',
+    description='用于获取部门列表',
     response_model=DataResponseModel[list[DeptModel]],
     dependencies=[UserInterfaceAuthDependency('system:dept:list')],
 )
@@ -58,6 +62,8 @@ async def get_system_dept_list(
 
 @dept_controller.post(
     '',
+    summary='新增部门接口',
+    description='用于新增部门',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dept:add')],
 )
@@ -81,6 +87,8 @@ async def add_system_dept(
 
 @dept_controller.put(
     '',
+    summary='编辑部门接口',
+    description='用于编辑部门',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dept:edit')],
 )
@@ -105,6 +113,8 @@ async def edit_system_dept(
 
 @dept_controller.delete(
     '/{dept_ids}',
+    summary='删除部门接口',
+    description='用于删除部门',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dept:remove')],
 )
@@ -132,6 +142,8 @@ async def delete_system_dept(
 
 @dept_controller.get(
     '/{dept_id}',
+    summary='获取部门详情接口',
+    description='用于获取指定部门的详情信息',
     response_model=DataResponseModel[DeptModel],
     dependencies=[UserInterfaceAuthDependency('system:dept:query')],
 )

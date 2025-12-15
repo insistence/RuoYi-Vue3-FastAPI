@@ -24,6 +24,8 @@ config_controller = APIRouter(prefix='/system/config', dependencies=[PreAuthDepe
 
 @config_controller.get(
     '/list',
+    summary='获取参数分页列表接口',
+    description='用于获取参数分页列表',
     response_model=PageResponseModel[ConfigModel],
     dependencies=[UserInterfaceAuthDependency('system:config:list')],
 )
@@ -41,6 +43,8 @@ async def get_system_config_list(
 
 @config_controller.post(
     '',
+    summary='新增参数接口',
+    description='用于新增参数',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:add')],
 )
@@ -64,6 +68,8 @@ async def add_system_config(
 
 @config_controller.put(
     '',
+    summary='编辑参数接口',
+    description='用于编辑参数',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:edit')],
 )
@@ -85,6 +91,8 @@ async def edit_system_config(
 
 @config_controller.delete(
     '/refreshCache',
+    summary='刷新参数缓存接口',
+    description='用于刷新参数缓存',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:remove')],
 )
@@ -101,6 +109,8 @@ async def refresh_system_config(
 
 @config_controller.delete(
     '/{config_ids}',
+    summary='删除参数接口',
+    description='用于删除参数',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:remove')],
 )
@@ -119,6 +129,8 @@ async def delete_system_config(
 
 @config_controller.get(
     '/{config_id}',
+    summary='获取参数详情接口',
+    description='用于获取指定参数的详细信息',
     response_model=DataResponseModel[ConfigModel],
     dependencies=[UserInterfaceAuthDependency('system:config:query')],
 )
@@ -135,6 +147,8 @@ async def query_detail_system_config(
 
 @config_controller.get(
     '/configKey/{config_key}',
+    summary='根据参数键查询参数值接口',
+    description='用于根据参数键从缓存中查询参数值',
     response_model=ResponseBaseModel,
 )
 async def query_system_config(request: Request, config_key: str) -> Response:
@@ -147,6 +161,8 @@ async def query_system_config(request: Request, config_key: str) -> Response:
 
 @config_controller.post(
     '/export',
+    summary='导出参数列表接口',
+    description='用于导出当前符合查询条件的参数列表数据',
     response_class=StreamingResponse,
     responses={
         200: {

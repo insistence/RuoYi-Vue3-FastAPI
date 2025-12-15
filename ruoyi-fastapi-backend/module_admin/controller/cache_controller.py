@@ -15,6 +15,8 @@ cache_controller = APIRouter(prefix='/monitor/cache', dependencies=[PreAuthDepen
 
 @cache_controller.get(
     '',
+    summary='获取缓存监控信息接口',
+    description='用于获取缓存监控信息',
     response_model=DataResponseModel[CacheMonitorModel],
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
@@ -28,6 +30,8 @@ async def get_monitor_cache_info(request: Request) -> Response:
 
 @cache_controller.get(
     '/getNames',
+    summary='获取缓存名称列表接口',
+    description='用于获取缓存名称列表',
     response_model=DataResponseModel[list[CacheInfoModel]],
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
@@ -41,6 +45,8 @@ async def get_monitor_cache_name(request: Request) -> Response:
 
 @cache_controller.get(
     '/getKeys/{cache_name}',
+    summary='获取缓存键列表接口',
+    description='用于获取指定缓存名称下的所有缓存键列表',
     response_model=DataResponseModel[list[str]],
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
@@ -54,6 +60,8 @@ async def get_monitor_cache_key(request: Request, cache_name: Annotated[str, Pat
 
 @cache_controller.get(
     '/getValue/{cache_name}/{cache_key}',
+    summary='获取缓存值接口',
+    description='用于获取指定缓存名称下的指定缓存键对应的值',
     response_model=DataResponseModel[CacheInfoModel],
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
@@ -71,6 +79,9 @@ async def get_monitor_cache_value(
 
 @cache_controller.delete(
     '/clearCacheName/{cache_name}',
+    summary='清除缓存名称接口',
+    description='用于清除指定缓存名称下的所有缓存键值对',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def clear_monitor_cache_name(
@@ -84,7 +95,9 @@ async def clear_monitor_cache_name(
 
 @cache_controller.delete(
     '/clearCacheKey/{cache_key}',
-    response_model= ResponseBaseModel,
+    summary='清除缓存键接口',
+    description='用于清除指定缓存键对应的值',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def clear_monitor_cache_key(request: Request, cache_key: Annotated[str, Path(description='缓存键')]) -> Response:
@@ -96,7 +109,9 @@ async def clear_monitor_cache_key(request: Request, cache_key: Annotated[str, Pa
 
 @cache_controller.delete(
     '/clearCacheAll',
-    response_model= ResponseBaseModel,
+    summary='清除所有缓存接口',
+    description='用于清除所有缓存键值对',
+    response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
 async def clear_monitor_cache_all(request: Request) -> Response:

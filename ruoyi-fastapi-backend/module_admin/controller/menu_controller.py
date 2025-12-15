@@ -23,6 +23,8 @@ menu_controller = APIRouter(prefix='/system/menu', dependencies=[PreAuthDependen
 
 @menu_controller.get(
     '/treeselect',
+    summary='获取菜单树接口',
+    description='用于获取当前用户可见的菜单树',
     response_model=DataResponseModel[list[MenuTreeModel]],
 )
 async def get_system_menu_tree(
@@ -38,6 +40,8 @@ async def get_system_menu_tree(
 
 @menu_controller.get(
     '/roleMenuTreeselect/{role_id}',
+    summary='获取角色菜单树接口',
+    description='用于获取指定角色可见的菜单树',
     response_model=DynamicResponseModel[RoleMenuQueryModel],
 )
 async def get_system_role_menu_tree(
@@ -54,6 +58,8 @@ async def get_system_role_menu_tree(
 
 @menu_controller.get(
     '/list',
+    summary='获取菜单列表接口',
+    description='用于获取当前用户可见的菜单列表',
     response_model=DataResponseModel[list[MenuModel]],
     dependencies=[UserInterfaceAuthDependency('system:menu:list')],
 )
@@ -71,6 +77,8 @@ async def get_system_menu_list(
 
 @menu_controller.post(
     '',
+    summary='新增菜单接口',
+    description='用于新增菜单',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:menu:add')],
 )
@@ -94,6 +102,8 @@ async def add_system_menu(
 
 @menu_controller.put(
     '',
+    summary='编辑菜单接口',
+    description='用于编辑菜单',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:menu:edit')],
 )
@@ -115,6 +125,8 @@ async def edit_system_menu(
 
 @menu_controller.delete(
     '/{menu_ids}',
+    summary='删除菜单接口',
+    description='用于删除菜单',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:menu:remove')],
 )
@@ -133,6 +145,8 @@ async def delete_system_menu(
 
 @menu_controller.get(
     '/{menu_id}',
+    summary='获取菜单详情接口',
+    description='用于获取指定菜单的详情信息',
     response_model=DataResponseModel[MenuModel],
     dependencies=[UserInterfaceAuthDependency('system:menu:query')],
 )

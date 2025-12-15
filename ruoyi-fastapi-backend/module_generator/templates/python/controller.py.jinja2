@@ -37,6 +37,8 @@ from utils.response_util import ResponseUtil
 
 @{{ businessName }}_controller.get(
     '/list',
+    summary='获取{{ functionName }}分页列表接口',
+    description='用于获取{{ functionName }}分页列表',
     response_model=PageResponseModel[{{ BusinessName }}Model],
     dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:list')],
 )
@@ -61,6 +63,8 @@ async def get_{{ moduleName }}_{{ businessName }}_list(
 
 @{{ businessName }}_controller.post(
     '',
+    summary='新增{{ functionName }}接口',
+    description='用于新增{{ functionName }}',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:add')],
 )
@@ -91,6 +95,8 @@ async def add_{{ moduleName }}_{{ businessName }}(
 
 @{{ businessName }}_controller.put(
     '',
+    summary='编辑{{ functionName }}接口',
+    description='用于编辑{{ functionName }}',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:edit')],
 )
@@ -117,6 +123,8 @@ async def edit_{{ moduleName }}_{{ businessName }}(
 
 @{{ businessName }}_controller.delete(
     '/{% raw %}{{% endraw %}{{ pk_field }}s{% raw %}}{% endraw %}',
+    summary='删除{{ functionName }}接口',
+    description='用于删除{{ functionName }}',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:remove')],
 )
@@ -135,6 +143,8 @@ async def delete_{{ moduleName }}_{{ businessName }}(
 
 @{{ businessName }}_controller.get(
     '/{% raw %}{{% endraw %}{{ pk_field }}{% raw %}}{% endraw %}',
+    summary='获取{{ functionName }}详情接口',
+    description='用于获取指定{{ functionName }}的详细信息',
     response_model=DataResponseModel[{{ BusinessName }}Model],
     dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:query')]
 )
@@ -151,6 +161,8 @@ async def query_detail_{{ moduleName }}_{{ businessName }}(
 
 @{{ businessName }}_controller.post(
     '/export',
+    summary='导出{{ functionName }}列表接口',
+    description='用于导出当前符合查询条件的{{ functionName }}列表数据',
     response_class=StreamingResponse,
     responses={
         200: {

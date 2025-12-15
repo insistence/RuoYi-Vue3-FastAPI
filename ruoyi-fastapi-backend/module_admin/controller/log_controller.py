@@ -29,6 +29,8 @@ log_controller = APIRouter(prefix='/monitor', dependencies=[PreAuthDependency()]
 
 @log_controller.get(
     '/operlog/list',
+    summary='获取操作日志分页列表接口',
+    description='用于获取操作日志分页列表',
     response_model=PageResponseModel[OperLogModel],
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:list')],
 )
@@ -48,6 +50,8 @@ async def get_system_operation_log_list(
 
 @log_controller.delete(
     '/operlog/clean',
+    summary='清空操作日志接口',
+    description='用于清空所有操作日志',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:remove')],
 )
@@ -63,6 +67,8 @@ async def clear_system_operation_log(
 
 @log_controller.delete(
     '/operlog/{oper_ids}',
+    summary='删除操作日志接口',
+    description='用于删除操作日志',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:remove')],
 )
@@ -83,6 +89,8 @@ async def delete_system_operation_log(
 
 @log_controller.post(
     '/operlog/export',
+    summary='导出操作日志接口',
+    description='用于导出当前符合查询条件的操作日志数据',
     response_class=StreamingResponse,
     responses={
         200: {
@@ -114,6 +122,8 @@ async def export_system_operation_log_list(
 
 @log_controller.get(
     '/logininfor/list',
+    summary='获取登录日志分页列表接口',
+    description='用于获取登录日志分页列表',
     response_model=PageResponseModel[LogininforModel],
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:list')],
 )
@@ -133,6 +143,8 @@ async def get_system_login_log_list(
 
 @log_controller.delete(
     '/logininfor/clean',
+    summary='清空登录日志接口',
+    description='用于清空所有登录日志',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:remove')],
 )
@@ -148,6 +160,8 @@ async def clear_system_login_log(
 
 @log_controller.delete(
     '/logininfor/{info_ids}',
+    summary='删除登录日志接口',
+    description='用于删除登录日志',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:remove')],
 )
@@ -166,6 +180,8 @@ async def delete_system_login_log(
 
 @log_controller.get(
     '/logininfor/unlock/{user_name}',
+    summary='解锁账户接口',
+    description='用于解锁指定用户账户',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:unlock')],
 )
@@ -184,6 +200,8 @@ async def unlock_system_user(
 
 @log_controller.post(
     '/logininfor/export',
+    summary='导出登录日志接口',
+    description='用于导出当前符合查询条件的登录日志数据',
     response_class=StreamingResponse,
     responses={
         200: {

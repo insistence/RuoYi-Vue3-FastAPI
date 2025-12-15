@@ -15,6 +15,8 @@ captcha_controller = APIRouter()
 
 @captcha_controller.get(
     '/captchaImage',
+    summary='获取图片验证码接口',
+    description='用于获取图片验证码',
     response_model=DynamicResponseModel[CaptchaCode],
 )
 async def get_captcha_image(request: Request) -> Response:

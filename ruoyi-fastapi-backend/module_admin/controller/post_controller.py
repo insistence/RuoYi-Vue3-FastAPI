@@ -24,6 +24,8 @@ post_controller = APIRouter(prefix='/system/post', dependencies=[PreAuthDependen
 
 @post_controller.get(
     '/list',
+    summary='获取岗位分页列表接口',
+    description='用于获取岗位分页列表',
     response_model=PageResponseModel[PostModel],
     dependencies=[UserInterfaceAuthDependency('system:post:list')],
 )
@@ -41,6 +43,8 @@ async def get_system_post_list(
 
 @post_controller.post(
     '',
+    summary='新增岗位接口',
+    description='用于新增岗位',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:post:add')],
 )
@@ -64,6 +68,8 @@ async def add_system_post(
 
 @post_controller.put(
     '',
+    summary='编辑岗位接口',
+    description='用于编辑岗位',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:post:edit')],
 )
@@ -85,6 +91,8 @@ async def edit_system_post(
 
 @post_controller.delete(
     '/{post_ids}',
+    summary='删除岗位接口',
+    description='用于删除岗位',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:post:remove')],
 )
@@ -103,6 +111,8 @@ async def delete_system_post(
 
 @post_controller.get(
     '/{post_id}',
+    summary='获取岗位详情接口',
+    description='用于获取指定岗位的详细信息',
     response_model=DataResponseModel[PostModel],
     dependencies=[UserInterfaceAuthDependency('system:post:query')],
 )
@@ -119,6 +129,8 @@ async def query_detail_system_post(
 
 @post_controller.post(
     '/export',
+    summary='导出岗位列表接口',
+    description='用于导出当前符合查询条件的岗位列表数据',
     response_class=StreamingResponse,
     responses={
         200: {

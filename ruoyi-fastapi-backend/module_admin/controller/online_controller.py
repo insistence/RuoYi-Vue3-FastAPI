@@ -19,6 +19,8 @@ online_controller = APIRouter(prefix='/monitor/online', dependencies=[PreAuthDep
 
 @online_controller.get(
     '/list',
+    summary='获取在线用户分页列表接口',
+    description='用于获取在线用户分页列表',
     response_model=PageResponseModel[OnlineModel],
     dependencies=[UserInterfaceAuthDependency('monitor:online:list')],
 )
@@ -37,6 +39,8 @@ async def get_monitor_online_list(
 
 @online_controller.delete(
     '/{token_ids}',
+    summary='强退在线用户接口',
+    description='用于强退指定会话编号的在线用户',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:online:forceLogout')],
 )

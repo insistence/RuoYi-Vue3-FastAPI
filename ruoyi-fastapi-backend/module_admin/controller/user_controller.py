@@ -49,6 +49,8 @@ user_controller = APIRouter(prefix='/system/user', dependencies=[PreAuthDependen
 
 @user_controller.get(
     '/deptTree',
+    summary='获取部门树接口',
+    description='用于获取当前登录用户可见的部门树',
     response_model=DataResponseModel[list[DeptTreeModel]],
     dependencies=[UserInterfaceAuthDependency('system:user:list')],
 )
@@ -65,6 +67,8 @@ async def get_system_dept_tree(
 
 @user_controller.get(
     '/list',
+    summary='获取用户分页列表接口',
+    description='用于获取用户分页列表',
     response_model=PageResponseModel[UserRowModel],
     dependencies=[UserInterfaceAuthDependency('system:user:list')],
 )
@@ -85,6 +89,8 @@ async def get_system_user_list(
 
 @user_controller.post(
     '',
+    summary='新增用户接口',
+    description='用于新增用户',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:add')],
 )
@@ -116,6 +122,8 @@ async def add_system_user(
 
 @user_controller.put(
     '',
+    summary='编辑用户接口',
+    description='用于编辑用户',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )
@@ -147,6 +155,8 @@ async def edit_system_user(
 
 @user_controller.delete(
     '/{user_ids}',
+    summary='删除用户接口',
+    description='用于删除用户',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:remove')],
 )
@@ -177,6 +187,8 @@ async def delete_system_user(
 
 @user_controller.put(
     '/resetPwd',
+    summary='重置用户密码接口',
+    description='用于重置用户密码',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:resetPwd')],
 )
@@ -207,6 +219,8 @@ async def reset_system_user_pwd(
 
 @user_controller.put(
     '/changeStatus',
+    summary='修改用户状态接口',
+    description='用于修改用户状态',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )
@@ -236,6 +250,8 @@ async def change_system_user_status(
 
 @user_controller.get(
     '/profile',
+    summary='获取用户个人信息接口',
+    description='用于获取当前登录用户的个人信息',
     response_model=DynamicResponseModel[UserProfileModel],
 )
 async def query_detail_system_user_profile(
@@ -251,11 +267,15 @@ async def query_detail_system_user_profile(
 
 @user_controller.get(
     '/{user_id}',
+    summary='获取用户详情接口',
+    description='用于获取指定用户的详情信息',
     response_model=DynamicResponseModel[UserDetailModel],
     dependencies=[UserInterfaceAuthDependency('system:user:query')],
 )
 @user_controller.get(
     '/',
+    summary='获取用户岗位和角色列表接口',
+    description='用于获取当前登录用户可见的岗位和角色列表',
     response_model=DynamicResponseModel[UserDetailModel],
     dependencies=[UserInterfaceAuthDependency('system:user:query')],
 )
@@ -276,6 +296,8 @@ async def query_detail_system_user(
 
 @user_controller.post(
     '/profile/avatar',
+    summary='修改用户头像接口',
+    description='用于修改当前登录用户的头像',
     response_model=DynamicResponseModel[AvatarModel],
 )
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
@@ -314,6 +336,8 @@ async def change_system_user_profile_avatar(
 
 @user_controller.put(
     '/profile',
+    summary='修改用户个人信息接口',
+    description='用于修改当前登录用户的个人信息',
     response_model=ResponseBaseModel,
 )
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
@@ -341,6 +365,8 @@ async def change_system_user_profile_info(
 
 @user_controller.put(
     '/profile/updatePwd',
+    summary='修改用户密码接口',
+    description='用于修改当前登录用户的密码',
     response_model=ResponseBaseModel,
 )
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
@@ -366,6 +392,8 @@ async def reset_system_user_password(
 
 @user_controller.post(
     '/importData',
+    summary='批量导入用户接口',
+    description='用于批量导入用户数据',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:import')],
 )
@@ -389,6 +417,8 @@ async def batch_import_system_user(
 
 @user_controller.post(
     '/importTemplate',
+    summary='获取用户导入模板接口',
+    description='用于获取用户导入模板excel文件',
     response_class=StreamingResponse,
     responses={
         200: {
@@ -411,6 +441,8 @@ async def export_system_user_template(
 
 @user_controller.post(
     '/export',
+    summary='导出用户列表接口',
+    description='用于导出当前符合查询条件的用户列表数据',
     response_class=StreamingResponse,
     responses={
         200: {
@@ -441,6 +473,8 @@ async def export_system_user_list(
 
 @user_controller.get(
     '/authRole/{user_id}',
+    summary='获取用户已分配角色列表接口',
+    description='用于获取指定用户已分配的角色列表',
     response_model=DynamicResponseModel[UserRoleResponseModel],
     dependencies=[UserInterfaceAuthDependency('system:user:query')],
 )
@@ -460,6 +494,8 @@ async def get_system_allocated_role_list(
 
 @user_controller.put(
     '/authRole',
+    summary='给用户分配角色接口',
+    description='用于给指定用户分配角色',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )

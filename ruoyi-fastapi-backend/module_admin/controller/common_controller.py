@@ -15,6 +15,8 @@ common_controller = APIRouter(prefix='/common', dependencies=[PreAuthDependency(
 
 @common_controller.post(
     '/upload',
+    summary='通用文件上传接口',
+    description='用于上传文件',
     response_model=DynamicResponseModel[UploadResponseModel],
 )
 async def common_upload(request: Request, file: Annotated[UploadFile, File(...)]) -> Response:
@@ -26,6 +28,8 @@ async def common_upload(request: Request, file: Annotated[UploadFile, File(...)]
 
 @common_controller.get(
     '/download',
+    summary='通用文件下载接口',
+    description='用于下载下载目录中的文件',
     response_class=StreamingResponse,
     responses={
         200: {
@@ -50,6 +54,8 @@ async def common_download(
 
 @common_controller.get(
     '/download/resource',
+    summary='通用资源文件下载接口',
+    description='用于下载上传目录中的资源文件',
     response_class=StreamingResponse,
     responses={
         200: {

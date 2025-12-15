@@ -31,6 +31,8 @@ dict_controller = APIRouter(prefix='/system/dict', dependencies=[PreAuthDependen
 
 @dict_controller.get(
     '/type/list',
+    summary='获取字典类型分页列表接口',
+    description='用于获取字典类型分页列表',
     response_model=PageResponseModel[DictTypeModel],
     dependencies=[UserInterfaceAuthDependency('system:dict:list')],
 )
@@ -50,6 +52,8 @@ async def get_system_dict_type_list(
 
 @dict_controller.post(
     '/type',
+    summary='新增字典类型接口',
+    description='用于新增字典类型',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:add')],
 )
@@ -73,6 +77,8 @@ async def add_system_dict_type(
 
 @dict_controller.put(
     '/type',
+    summary='编辑字典类型接口',
+    description='用于编辑字典类型',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:edit')],
 )
@@ -94,6 +100,8 @@ async def edit_system_dict_type(
 
 @dict_controller.delete(
     '/type/refreshCache',
+    summary='刷新字典缓存接口',
+    description='用于刷新字典缓存',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:remove')],
 )
@@ -107,6 +115,8 @@ async def refresh_system_dict(request: Request, query_db: Annotated[AsyncSession
 
 @dict_controller.delete(
     '/type/{dict_ids}',
+    summary='删除字典类型接口',
+    description='用于删除字典类型',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:remove')],
 )
@@ -125,6 +135,8 @@ async def delete_system_dict_type(
 
 @dict_controller.get(
     '/type/optionselect',
+    summary='获取字典类型下拉列表接口',
+    description='用于获取字典类型下拉列表',
     response_model=DataResponseModel[list[DictTypeModel]],
 )
 async def query_system_dict_type_options(
@@ -140,6 +152,8 @@ async def query_system_dict_type_options(
 
 @dict_controller.get(
     '/type/{dict_id}',
+    summary='获取字典类型详情接口',
+    description='用于获取指定字典类型的详细信息',
     response_model=DataResponseModel[DictTypeModel],
     dependencies=[UserInterfaceAuthDependency('system:dict:query')],
 )
@@ -156,6 +170,8 @@ async def query_detail_system_dict_type(
 
 @dict_controller.post(
     '/type/export',
+    summary='导出字典类型列表接口',
+    description='用于导出当前符合查询条件的字典类型列表数据',
     response_class=StreamingResponse,
     responses={
         200: {
@@ -185,6 +201,8 @@ async def export_system_dict_type_list(
 
 @dict_controller.get(
     '/data/type/{dict_type}',
+    summary='获取指定字典类型的数据列表接口',
+    description='用于从缓存中获取指定字典类型的所有数据项',
     response_model=DataResponseModel[list[DictDataModel]],
 )
 async def query_system_dict_type_data(
@@ -203,6 +221,8 @@ async def query_system_dict_type_data(
 
 @dict_controller.get(
     '/data/list',
+    summary='获取字典数据分页列表接口',
+    description='用于获取字典数据分页列表',
     response_model=PageResponseModel[DictDataModel],
     dependencies=[UserInterfaceAuthDependency('system:dict:list')],
 )
@@ -222,6 +242,8 @@ async def get_system_dict_data_list(
 
 @dict_controller.post(
     '/data',
+    summary='新增字典数据接口',
+    description='用于新增字典数据',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:add')],
 )
@@ -245,6 +267,8 @@ async def add_system_dict_data(
 
 @dict_controller.put(
     '/data',
+    summary='编辑字典数据接口',
+    description='用于编辑字典数据',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:edit')],
 )
@@ -266,6 +290,8 @@ async def edit_system_dict_data(
 
 @dict_controller.delete(
     '/data/{dict_codes}',
+    summary='删除字典数据接口',
+    description='用于删除字典数据',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dict:remove')],
 )
@@ -284,6 +310,8 @@ async def delete_system_dict_data(
 
 @dict_controller.get(
     '/data/{dict_code}',
+    summary='获取字典数据详情接口',
+    description='用于获取指定字典数据的详细信息',
     response_model=DataResponseModel[DictDataModel],
     dependencies=[UserInterfaceAuthDependency('system:dict:query')],
 )
@@ -300,6 +328,8 @@ async def query_detail_system_dict_data(
 
 @dict_controller.post(
     '/data/export',
+    summary='导出字典数据列表接口',
+    description='用于导出当前符合查询条件的字典数据列表数据',
     response_class=StreamingResponse,
     responses={
         200: {

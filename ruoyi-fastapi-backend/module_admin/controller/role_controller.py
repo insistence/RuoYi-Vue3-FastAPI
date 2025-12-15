@@ -34,6 +34,8 @@ role_controller = APIRouter(prefix='/system/role', dependencies=[PreAuthDependen
 
 @role_controller.get(
     '/deptTree/{role_id}',
+    summary='获取自定义数据权限时可见的部门树接口',
+    description='用于自定义数据权限时获取当前用户可见的部门树',
     response_model=DynamicResponseModel[RoleDeptQueryModel],
     dependencies=[UserInterfaceAuthDependency('system:role:query')],
 )
@@ -53,6 +55,8 @@ async def get_system_role_dept_tree(
 
 @role_controller.get(
     '/list',
+    summary='获取角色分页列表接口',
+    description='用于获取角色分页列表',
     response_model=PageResponseModel[RoleModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
@@ -72,6 +76,8 @@ async def get_system_role_list(
 
 @role_controller.post(
     '',
+    summary='新增角色接口',
+    description='用于新增角色',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:add')],
 )
@@ -95,6 +101,8 @@ async def add_system_role(
 
 @role_controller.put(
     '',
+    summary='编辑角色接口',
+    description='用于编辑角色',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
@@ -120,6 +128,8 @@ async def edit_system_role(
 
 @role_controller.put(
     '/dataScope',
+    summary='编辑角色数据权限接口',
+    description='用于编辑角色数据权限',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
@@ -150,6 +160,8 @@ async def edit_system_role_datascope(
 
 @role_controller.delete(
     '/{role_ids}',
+    summary='删除角色接口',
+    description='用于删除角色',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:remove')],
 )
@@ -176,6 +188,8 @@ async def delete_system_role(
 
 @role_controller.get(
     '/{role_id}',
+    summary='获取角色详情接口',
+    description='用于获取指定角色的详细信息',
     response_model=DataResponseModel[RoleModel],
     dependencies=[UserInterfaceAuthDependency('system:role:query')],
 )
@@ -196,6 +210,8 @@ async def query_detail_system_role(
 
 @role_controller.post(
     '/export',
+    summary='导出角色列表接口',
+    description='用于导出当前符合查询条件的角色列表数据',
     response_class=StreamingResponse,
     responses={
         200: {
@@ -226,6 +242,8 @@ async def export_system_role_list(
 
 @role_controller.put(
     '/changeStatus',
+    summary='修改角色状态接口',
+    description='用于修改角色状态',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
@@ -255,6 +273,8 @@ async def reset_system_role_status(
 
 @role_controller.get(
     '/authUser/allocatedList',
+    summary='获取已分配用户分页列表接口',
+    description='用于获取指定角色已分配的用户分页列表',
     response_model=PageResponseModel[UserInfoModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
@@ -274,6 +294,8 @@ async def get_system_allocated_user_list(
 
 @role_controller.get(
     '/authUser/unallocatedList',
+    summary='获取未分配用户分页列表接口',
+    description='用于获取指定角色未分配的用户分页列表',
     response_model=PageResponseModel[UserInfoModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
@@ -293,6 +315,8 @@ async def get_system_unallocated_user_list(
 
 @role_controller.put(
     '/authUser/selectAll',
+    summary='分配用户给角色接口',
+    description='用于给指定角色分配用户',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
@@ -314,6 +338,8 @@ async def add_system_role_user(
 
 @role_controller.put(
     '/authUser/cancel',
+    summary='取消分配用户给角色接口',
+    description='用于取消指定用户分配给角色',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
@@ -331,6 +357,8 @@ async def cancel_system_role_user(
 
 @role_controller.put(
     '/authUser/cancelAll',
+    summary='批量取消分配用户给角色接口',
+    description='用于批量取消用户分配给角色',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )

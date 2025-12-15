@@ -22,6 +22,8 @@ notice_controller = APIRouter(prefix='/system/notice', dependencies=[PreAuthDepe
 
 @notice_controller.get(
     '/list',
+    summary='获取通知公告分页列表接口',
+    description='用于获取通知公告分页列表',
     response_model=PageResponseModel[NoticeModel],
     dependencies=[UserInterfaceAuthDependency('system:notice:list')],
 )
@@ -39,6 +41,8 @@ async def get_system_notice_list(
 
 @notice_controller.post(
     '',
+    summary='新增通知公告接口',
+    description='用于新增通知公告',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:notice:add')],
 )
@@ -62,6 +66,8 @@ async def add_system_notice(
 
 @notice_controller.put(
     '',
+    summary='编辑通知公告接口',
+    description='用于编辑通知公告',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:notice:edit')],
 )
@@ -83,6 +89,8 @@ async def edit_system_notice(
 
 @notice_controller.delete(
     '/{notice_ids}',
+    summary='删除通知公告接口',
+    description='用于删除通知公告',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:notice:remove')],
 )
@@ -101,6 +109,8 @@ async def delete_system_notice(
 
 @notice_controller.get(
     '/{notice_id}',
+    summary='获取通知公告详情接口',
+    description='用于获取指定通知公告的详细信息',
     response_model=DataResponseModel[NoticeModel],
     dependencies=[UserInterfaceAuthDependency('system:notice:query')],
 )

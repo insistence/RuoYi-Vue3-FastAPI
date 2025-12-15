@@ -24,6 +24,8 @@ login_controller = APIRouter()
 
 @login_controller.post(
     '/login',
+    summary='登录接口',
+    description='用于用户登录',
     response_model=DynamicResponseModel[Token],
 )
 @Log(title='用户登录', business_type=BusinessType.OTHER, log_type='login')
@@ -83,6 +85,8 @@ async def login(
 
 @login_controller.get(
     '/getInfo',
+    summary='获取用户信息接口',
+    description='用于获取当前登录用户的信息',
     response_model=DynamicResponseModel[CurrentUserModel],
 )
 async def get_login_user_info(
@@ -95,6 +99,8 @@ async def get_login_user_info(
 
 @login_controller.get(
     '/getRouters',
+    summary='获取用户路由接口',
+    description='用于获取当前登录用户的路由信息',
     response_model=DataResponseModel[list[RouterModel]],
 )
 async def get_login_user_routers(
@@ -110,6 +116,8 @@ async def get_login_user_routers(
 
 @login_controller.post(
     '/register',
+    summary='注册接口',
+    description='用于用户注册',
     response_model=DataResponseModel[CrudResponseModel],
 )
 async def register_user(
@@ -155,6 +163,8 @@ async def register_user(
 
 @login_controller.post(
     '/logout',
+    summary='退出登录接口',
+    description='用于用户退出登录',
     response_model=ResponseBaseModel,
 )
 async def logout(request: Request, token: Annotated[Optional[str], Depends(oauth2_scheme)]) -> Response:

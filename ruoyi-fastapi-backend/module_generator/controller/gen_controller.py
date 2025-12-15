@@ -32,6 +32,8 @@ gen_controller = APIRouter(prefix='/tool/gen', dependencies=[PreAuthDependency()
 
 @gen_controller.get(
     '/list',
+    summary='获取代码生成表分页列表接口',
+    description='用于获取代码生成表分页列表',
     response_model=PageResponseModel[GenTableRowModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:list')],
 )
@@ -49,6 +51,8 @@ async def get_gen_table_list(
 
 @gen_controller.get(
     '/db/list',
+    summary='获取数据库表分页列表接口',
+    description='用于获取数据库表分页列表',
     response_model=PageResponseModel[GenTableDbRowModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:list')],
 )
@@ -66,6 +70,8 @@ async def get_gen_db_table_list(
 
 @gen_controller.post(
     '/importTable',
+    summary='导入数据库表接口',
+    description='用于导入数据库表',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:import')],
 )
@@ -86,6 +92,8 @@ async def import_gen_table(
 
 @gen_controller.put(
     '',
+    summary='编辑代码生成表接口',
+    description='用于编辑代码生成表',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:edit')],
 )
@@ -108,6 +116,8 @@ async def edit_gen_table(
 
 @gen_controller.delete(
     '/{table_ids}',
+    summary='删除代码生成表接口',
+    description='用于删除代码生成表',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:remove')],
 )
@@ -126,6 +136,8 @@ async def delete_gen_table(
 
 @gen_controller.post(
     '/createTable',
+    summary='创建数据库表接口',
+    description='用于创建数据库表',
     response_model=ResponseBaseModel,
     dependencies=[RoleInterfaceAuthDependency('admin')],
 )
@@ -144,6 +156,8 @@ async def create_table(
 
 @gen_controller.get(
     '/batchGenCode',
+    summary='生成代码文件接口',
+    description='用于生成代码文件',
     response_class=StreamingResponse,
     responses={
         200: {
@@ -170,6 +184,8 @@ async def batch_gen_code(
 
 @gen_controller.get(
     '/genCode/{table_name}',
+    summary='生成代码文件到本地接口',
+    description='用于生成代码文件到本地',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:code')],
 )
@@ -190,6 +206,8 @@ async def gen_code_local(
 
 @gen_controller.get(
     '/{table_id}',
+    summary='获取代码生成表详情接口',
+    description='用于获取指定代码生成表的详细信息',
     response_model=DataResponseModel[GenTableDetailModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:query')],
 )
@@ -209,6 +227,8 @@ async def query_detail_gen_table(
 
 @gen_controller.get(
     '/preview/{table_id}',
+    summary='预览生成的代码接口',
+    description='用于预览指定代码生成表生成的代码',
     response_model=DataResponseModel[dict[str, str]],
     dependencies=[UserInterfaceAuthDependency('tool:gen:preview')],
 )
@@ -225,6 +245,8 @@ async def preview_code(
 
 @gen_controller.get(
     '/synchDb/{table_name}',
+    summary='同步数据库接口',
+    description='用于同步指定数据库信息到指定代码生成表',
     response_model=DataResponseModel[str],
     dependencies=[UserInterfaceAuthDependency('tool:gen:edit')],
 )
