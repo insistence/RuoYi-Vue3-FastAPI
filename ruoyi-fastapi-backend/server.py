@@ -1,7 +1,9 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, applications
+from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html
+from fastapi.responses import HTMLResponse
 
 from config.env import AppConfig
 from config.get_db import init_create_table
@@ -47,6 +49,45 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await SchedulerUtil.close_system_scheduler()
 
 
+def setup_docs_static_resources(
+    redoc_js_url: str = 'https://registry.npmmirror.com/redoc/2/files/bundles/redoc.standalone.js',
+    redoc_favicon_url: str = 'https://fastapi.tiangolo.com/img/favicon.png',
+    swagger_js_url: str = 'https://registry.npmmirror.com/swagger-ui-dist/5/files/swagger-ui-bundle.js',
+    swagger_css_url: str = 'https://registry.npmmirror.com/swagger-ui-dist/5/files/swagger-ui.css',
+    swagger_favicon_url: str = 'https://fastapi.tiangolo.com/img/favicon.png',
+) -> None:
+    """
+    配置文档静态资源
+
+    :param redoc_js_url: 用于加载ReDoc JavaScript的URL
+    :param redoc_favicon_url: ReDoc要使用的favicon的URL
+    :param swagger_js_url: 用于加载Swagger UI JavaScript的URL
+    :param swagger_css_url: 用于加载Swagger UI CSS的URL
+    :param swagger_favicon_url: Swagger UI要使用的favicon的URL
+    :return:
+    """
+
+    def redoc_monkey_patch(*args, **kwargs) -> HTMLResponse:
+        return get_redoc_html(
+            *args,
+            **kwargs,
+            redoc_js_url=redoc_js_url,
+            redoc_favicon_url=redoc_favicon_url,
+        )
+
+    def swagger_ui_monkey_patch(*args, **kwargs) -> HTMLResponse:
+        return get_swagger_ui_html(
+            *args,
+            **kwargs,
+            swagger_js_url=swagger_js_url,
+            swagger_css_url=swagger_css_url,
+            swagger_favicon_url=swagger_favicon_url,
+        )
+
+    applications.get_redoc_html = redoc_monkey_patch
+    applications.get_swagger_ui_html = swagger_ui_monkey_patch
+
+
 def register_routers(app: FastAPI) -> None:
     """
     注册路由
@@ -85,6 +126,8 @@ def create_app() -> FastAPI:
 
     :return: FastAPI对象
     """
+    # 配置文档静态资源
+    setup_docs_static_resources()
     # 初始化FastAPI对象
     app = FastAPI(
         title=AppConfig.app_name,
