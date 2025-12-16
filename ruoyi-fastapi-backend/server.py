@@ -47,42 +47,59 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await SchedulerUtil.close_system_scheduler()
 
 
-# 初始化FastAPI对象
-app = FastAPI(
-    title=AppConfig.app_name,
-    description=f'{AppConfig.app_name}接口文档',
-    version=AppConfig.app_version,
-    lifespan=lifespan,
-)
+def register_routers(app: FastAPI) -> None:
+    """
+    注册路由
 
-# 挂载子应用
-handle_sub_applications(app)
-# 加载中间件处理方法
-handle_middleware(app)
-# 加载全局异常处理方法
-handle_exception(app)
+    :param app: FastAPI对象
+    :return:
+    """
+    # 加载路由列表
+    controller_list = [
+        {'router': login_controller, 'tags': ['登录模块']},
+        {'router': captcha_controller, 'tags': ['验证码模块']},
+        {'router': user_controller, 'tags': ['系统管理-用户管理']},
+        {'router': role_controller, 'tags': ['系统管理-角色管理']},
+        {'router': menu_controller, 'tags': ['系统管理-菜单管理']},
+        {'router': dept_controller, 'tags': ['系统管理-部门管理']},
+        {'router': post_controller, 'tags': ['系统管理-岗位管理']},
+        {'router': dict_controller, 'tags': ['系统管理-字典管理']},
+        {'router': config_controller, 'tags': ['系统管理-参数管理']},
+        {'router': notice_controller, 'tags': ['系统管理-通知公告管理']},
+        {'router': log_controller, 'tags': ['系统管理-日志管理']},
+        {'router': online_controller, 'tags': ['系统监控-在线用户']},
+        {'router': job_controller, 'tags': ['系统监控-定时任务']},
+        {'router': server_controller, 'tags': ['系统监控-服务监控']},
+        {'router': cache_controller, 'tags': ['系统监控-缓存监控']},
+        {'router': common_controller, 'tags': ['通用模块']},
+        {'router': gen_controller, 'tags': ['代码生成']},
+    ]
+
+    for controller in controller_list:
+        app.include_router(router=controller.get('router'), tags=controller.get('tags'))
 
 
-# 加载路由列表
-controller_list = [
-    {'router': login_controller, 'tags': ['登录模块']},
-    {'router': captcha_controller, 'tags': ['验证码模块']},
-    {'router': user_controller, 'tags': ['系统管理-用户管理']},
-    {'router': role_controller, 'tags': ['系统管理-角色管理']},
-    {'router': menu_controller, 'tags': ['系统管理-菜单管理']},
-    {'router': dept_controller, 'tags': ['系统管理-部门管理']},
-    {'router': post_controller, 'tags': ['系统管理-岗位管理']},
-    {'router': dict_controller, 'tags': ['系统管理-字典管理']},
-    {'router': config_controller, 'tags': ['系统管理-参数管理']},
-    {'router': notice_controller, 'tags': ['系统管理-通知公告管理']},
-    {'router': log_controller, 'tags': ['系统管理-日志管理']},
-    {'router': online_controller, 'tags': ['系统监控-在线用户']},
-    {'router': job_controller, 'tags': ['系统监控-定时任务']},
-    {'router': server_controller, 'tags': ['系统监控-服务监控']},
-    {'router': cache_controller, 'tags': ['系统监控-缓存监控']},
-    {'router': common_controller, 'tags': ['通用模块']},
-    {'router': gen_controller, 'tags': ['代码生成']},
-]
+def create_app() -> FastAPI:
+    """
+    创建FastAPI应用
 
-for controller in controller_list:
-    app.include_router(router=controller.get('router'), tags=controller.get('tags'))
+    :return: FastAPI对象
+    """
+    # 初始化FastAPI对象
+    app = FastAPI(
+        title=AppConfig.app_name,
+        description=f'{AppConfig.app_name}接口文档',
+        version=AppConfig.app_version,
+        lifespan=lifespan,
+    )
+
+    # 挂载子应用
+    handle_sub_applications(app)
+    # 加载中间件处理方法
+    handle_middleware(app)
+    # 加载全局异常处理方法
+    handle_exception(app)
+    # 注册路由
+    register_routers(app)
+
+    return app

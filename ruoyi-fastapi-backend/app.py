@@ -1,6 +1,9 @@
 import uvicorn
 
-from server import AppConfig, app  # noqa: F401
+from config.env import AppConfig
+from server import create_app
+
+app = create_app()
 
 if __name__ == '__main__':
     uvicorn.run(
