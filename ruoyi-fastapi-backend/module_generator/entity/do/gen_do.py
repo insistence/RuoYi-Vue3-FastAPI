@@ -1,7 +1,7 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, String
+from sqlalchemy.orm import foreign, relationship
 
 from config.database import Base
 from config.env import DataBaseConfig
@@ -57,7 +57,12 @@ class GenTable(Base):
         comment='备注',
     )
 
-    columns = relationship('GenTableColumn', order_by='GenTableColumn.sort', back_populates='tables')
+    columns = relationship(
+        'GenTableColumn',
+        primaryjoin=lambda: GenTable.table_id == foreign(GenTableColumn.table_id),
+        order_by='GenTableColumn.sort',
+        back_populates='tables',
+    )
 
 
 class GenTableColumn(Base):
@@ -69,7 +74,7 @@ class GenTableColumn(Base):
     __table_args__ = {'comment': '代码生成业务表字段'}
 
     column_id = Column(BigInteger, primary_key=True, autoincrement=True, nullable=False, comment='编号')
-    table_id = Column(BigInteger, ForeignKey('gen_table.table_id'), nullable=True, comment='归属表编号')
+    table_id = Column(BigInteger, nullable=True, comment='归属表编号')
     column_name = Column(String(200), nullable=True, comment='列名称')
     column_comment = Column(String(500), nullable=True, comment='列描述')
     column_type = Column(String(100), nullable=True, comment='列类型')
@@ -96,4 +101,6 @@ class GenTableColumn(Base):
     update_by = Column(String(64), server_default="''", comment='更新者')
     update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
 
-    tables = relationship('GenTable', back_populates='columns')
+    tables = relationship(
+        'GenTable', primaryjoin=lambda: foreign(GenTableColumn.table_id) == GenTable.table_id, back_populates='columns'
+    )
