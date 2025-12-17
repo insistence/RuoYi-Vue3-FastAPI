@@ -20,7 +20,7 @@ class DeptService:
     @classmethod
     async def get_dept_tree_services(
         cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str
-    ) -> list[dict[str,Any]]:
+    ) -> list[dict[str, Any]]:
         """
         获取部门树信息service
 
