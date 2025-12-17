@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi import Form, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.job_vo import (
     DeleteJobLogModel,
@@ -28,7 +29,9 @@ from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-job_controller = APIRouter(prefix='/monitor', dependencies=[PreAuthDependency()])
+job_controller = APIRouterPro(
+    prefix='/monitor', order_num=13, tags=['系统监控-定时任务'], dependencies=[PreAuthDependency()]
+)
 
 
 @job_controller.get(

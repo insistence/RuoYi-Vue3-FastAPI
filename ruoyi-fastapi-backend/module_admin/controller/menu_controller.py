@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, Request, Response
+from fastapi import Path, Query, Request, Response
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuTreeModel
 from module_admin.entity.vo.role_vo import RoleMenuQueryModel
@@ -18,7 +19,9 @@ from module_admin.service.menu_service import MenuService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-menu_controller = APIRouter(prefix='/system/menu', dependencies=[PreAuthDependency()])
+menu_controller = APIRouterPro(
+    prefix='/system/menu', order_num=5, tags=['系统管理-菜单管理'], dependencies=[PreAuthDependency()]
+)
 
 
 @menu_controller.get(

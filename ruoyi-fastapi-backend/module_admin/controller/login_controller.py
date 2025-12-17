@@ -3,13 +3,14 @@ from datetime import datetime, timedelta
 from typing import Annotated, Optional
 
 import jwt
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.pre_auth import CurrentUserDependency
 from common.enums import BusinessType, RedisInitKeyConfig
+from common.router import APIRouterPro
 from common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from config.env import AppConfig, JwtConfig
 from module_admin.entity.vo.login_vo import RouterModel, Token, UserLogin, UserRegister
@@ -19,7 +20,7 @@ from module_admin.service.user_service import UserService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-login_controller = APIRouter()
+login_controller = APIRouterPro(order_num=1, tags=['登录模块'])
 
 
 @login_controller.post(

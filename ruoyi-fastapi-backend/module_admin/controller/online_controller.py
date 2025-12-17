@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Query, Request, Response
+from fastapi import Path, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
@@ -8,13 +8,16 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.enums import BusinessType
+from common.router import APIRouterPro
 from common.vo import ResponseBaseModel
 from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlinePageResponseModel, OnlineQueryModel
 from module_admin.service.online_service import OnlineService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-online_controller = APIRouter(prefix='/monitor/online', dependencies=[PreAuthDependency()])
+online_controller = APIRouterPro(
+    prefix='/monitor/online', order_num=12, tags=['系统监控-在线用户'], dependencies=[PreAuthDependency()]
+)
 
 
 @online_controller.get(

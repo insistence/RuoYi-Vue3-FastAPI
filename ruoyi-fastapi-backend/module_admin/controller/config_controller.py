@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi import Form, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel, DeleteConfigModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -19,7 +20,9 @@ from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-config_controller = APIRouter(prefix='/system/config', dependencies=[PreAuthDependency()])
+config_controller = APIRouterPro(
+    prefix='/system/config', order_num=9, tags=['系统管理-参数管理'], dependencies=[PreAuthDependency()]
+)
 
 
 @config_controller.get(

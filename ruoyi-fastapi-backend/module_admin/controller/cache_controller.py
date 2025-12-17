@@ -1,16 +1,19 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Path, Request, Response
+from fastapi import Path, Request, Response
 
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
+from common.router import APIRouterPro
 from common.vo import DataResponseModel, ResponseBaseModel
 from module_admin.entity.vo.cache_vo import CacheInfoModel, CacheMonitorModel
 from module_admin.service.cache_service import CacheService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-cache_controller = APIRouter(prefix='/monitor/cache', dependencies=[PreAuthDependency()])
+cache_controller = APIRouterPro(
+    prefix='/monitor/cache', order_num=15, tags=['系统监控-缓存监控'], dependencies=[PreAuthDependency()]
+)
 
 
 @cache_controller.get(

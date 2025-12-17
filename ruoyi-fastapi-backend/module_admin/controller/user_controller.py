@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Annotated, Literal, Optional, Union
 
 import aiofiles
-from fastapi import APIRouter, File, Form, Path, Query, Request, Response, UploadFile
+from fastapi import File, Form, Path, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
 from config.env import UploadConfig
 from module_admin.entity.vo.dept_vo import DeptModel, DeptTreeModel
@@ -44,7 +45,9 @@ from utils.pwd_util import PwdUtil
 from utils.response_util import ResponseUtil
 from utils.upload_util import UploadUtil
 
-user_controller = APIRouter(prefix='/system/user', dependencies=[PreAuthDependency()])
+user_controller = APIRouterPro(
+    prefix='/system/user', order_num=3, tags=['系统管理-用户管理'], dependencies=[PreAuthDependency()]
+)
 
 
 @user_controller.get(

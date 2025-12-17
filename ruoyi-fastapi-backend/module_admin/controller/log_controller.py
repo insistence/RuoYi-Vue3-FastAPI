@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi import Form, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.enums import BusinessType
+from common.router import APIRouterPro
 from common.vo import PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.log_vo import (
     DeleteLoginLogModel,
@@ -24,7 +25,9 @@ from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-log_controller = APIRouter(prefix='/monitor', dependencies=[PreAuthDependency()])
+log_controller = APIRouterPro(
+    prefix='/monitor', order_num=11, tags=['系统管理-日志管理'], dependencies=[PreAuthDependency()]
+)
 
 
 @log_controller.get(

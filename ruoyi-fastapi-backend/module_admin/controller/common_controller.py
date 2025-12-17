@@ -1,16 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, File, Query, Request, Response, UploadFile
+from fastapi import BackgroundTasks, File, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
 from common.aspect.pre_auth import PreAuthDependency
+from common.router import APIRouterPro
 from common.vo import DynamicResponseModel
 from module_admin.entity.vo.common_vo import UploadResponseModel
 from module_admin.service.common_service import CommonService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-common_controller = APIRouter(prefix='/common', dependencies=[PreAuthDependency()])
+common_controller = APIRouterPro(prefix='/common', order_num=16, tags=['通用模块'], dependencies=[PreAuthDependency()])
 
 
 @common_controller.post(

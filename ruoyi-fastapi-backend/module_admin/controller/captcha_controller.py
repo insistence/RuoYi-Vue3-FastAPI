@@ -1,16 +1,17 @@
 import uuid
 from datetime import timedelta
 
-from fastapi import APIRouter, Request, Response
+from fastapi import Request, Response
 
 from common.enums import RedisInitKeyConfig
+from common.router import APIRouterPro
 from common.vo import DynamicResponseModel
 from module_admin.entity.vo.login_vo import CaptchaCode
 from module_admin.service.captcha_service import CaptchaService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-captcha_controller = APIRouter()
+captcha_controller = APIRouterPro(order_num=2, tags=['验证码模块'])
 
 
 @captcha_controller.get(

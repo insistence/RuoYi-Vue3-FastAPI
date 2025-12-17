@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Request, Response
+from fastapi import Request, Response
 
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
+from common.router import APIRouterPro
 from common.vo import DataResponseModel
 from module_admin.entity.vo.server_vo import ServerMonitorModel
 from module_admin.service.server_service import ServerService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
-server_controller = APIRouter(prefix='/monitor/server', dependencies=[PreAuthDependency()])
+server_controller = APIRouterPro(
+    prefix='/monitor/server', order_num=14, tags=['系统监控-服务监控'], dependencies=[PreAuthDependency()]
+)
 
 
 @server_controller.get(
