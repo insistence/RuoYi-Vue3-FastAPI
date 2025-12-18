@@ -1,0 +1,14 @@
+FROM python:3.10
+WORKDIR /app
+
+# 复制源代码
+COPY . .
+
+# 安装依赖
+RUN pip install --no-cache-dir -r requirements-pg.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+
+# 暴露端口
+EXPOSE 9099
+
+# 启动命令
+CMD ["python", "app.py", "--env=dockerpg"]

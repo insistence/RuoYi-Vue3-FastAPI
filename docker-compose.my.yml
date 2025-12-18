@@ -1,0 +1,73 @@
+services:
+  # 前端服务
+  ruoyi-frontend:
+    build:
+      context: ./ruoyi-fastapi-frontend
+      dockerfile: Dockerfile
+    image: ruoyi-frontend:latest
+    container_name: ruoyi-frontend
+    ports:
+      - "12580:80"
+    volumes:
+      - ./ruoyi-fastapi-frontend/bin/nginx.dockermy.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - ruoyi-backend-my
+    networks:
+      - ruoyi-network
+
+  # 后端服务（MySQL版本）
+  ruoyi-backend-my:
+    build:
+      context: ./ruoyi-fastapi-backend
+      dockerfile: Dockerfile.my
+    image: ruoyi-backend-my:latest
+    container_name: ruoyi-backend-my
+    ports:
+      - "19099:9099"
+    depends_on:
+      ruoyi-mysql:
+        condition: service_healthy
+      ruoyi-redis:
+        condition: service_healthy
+    networks:
+      - ruoyi-network
+
+  # MySQL服务
+  ruoyi-mysql:
+    image: mysql:8.0
+    container_name: ruoyi-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ruoyi-fastapi
+    ports:
+      - "13306:3306"
+    volumes:
+      - ./ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/ruoyi-fastapi.sql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
+    networks:
+      - ruoyi-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  # Redis服务
+  ruoyi-redis:
+    image: redis:latest
+    container_name: ruoyi-redis
+    ports:
+      - "16379:6379"
+    networks:
+      - ruoyi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+# 网络配置
+networks:
+  ruoyi-network:
+    name: ruoyi-network
+    driver: bridge
