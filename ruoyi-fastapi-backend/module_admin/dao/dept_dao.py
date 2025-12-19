@@ -1,7 +1,10 @@
+from collections.abc import Sequence
+from typing import Union
+
 from sqlalchemy import bindparam, func, or_, select, update  # noqa: F401
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.util import immutabledict
-from typing import List
+
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.role_do import SysRoleDept  # noqa: F401
 from module_admin.entity.do.user_do import SysUser
@@ -14,7 +17,7 @@ class DeptDao:
     """
 
     @classmethod
-    async def get_dept_by_id(cls, db: AsyncSession, dept_id: int):
+    async def get_dept_by_id(cls, db: AsyncSession, dept_id: int) -> Union[SysDept, None]:
         """
         根据部门id获取在用部门信息
 
@@ -27,7 +30,7 @@ class DeptDao:
         return dept_info
 
     @classmethod
-    async def get_dept_detail_by_id(cls, db: AsyncSession, dept_id: int):
+    async def get_dept_detail_by_id(cls, db: AsyncSession, dept_id: int) -> Union[SysDept, None]:
         """
         根据部门id获取部门详细信息
 
@@ -44,7 +47,7 @@ class DeptDao:
         return dept_info
 
     @classmethod
-    async def get_dept_detail_by_info(cls, db: AsyncSession, dept: DeptModel):
+    async def get_dept_detail_by_info(cls, db: AsyncSession, dept: DeptModel) -> Union[SysDept, None]:
         """
         根据部门参数获取部门信息
 
@@ -68,7 +71,9 @@ class DeptDao:
         return dept_info
 
     @classmethod
-    async def get_dept_info_for_edit_option(cls, db: AsyncSession, dept_info: DeptModel, data_scope_sql: str):
+    async def get_dept_info_for_edit_option(
+        cls, db: AsyncSession, dept_info: DeptModel, data_scope_sql: str
+    ) -> Sequence[SysDept]:
         """
         获取部门编辑对应的在用部门列表信息
 
@@ -101,7 +106,7 @@ class DeptDao:
         return dept_result
 
     @classmethod
-    async def get_children_dept_dao(cls, db: AsyncSession, dept_id: int):
+    async def get_children_dept_dao(cls, db: AsyncSession, dept_id: int) -> Sequence[SysDept]:
         """
         根据部门id查询当前部门的子部门列表信息
 
@@ -116,7 +121,9 @@ class DeptDao:
         return dept_result
 
     @classmethod
-    async def get_dept_list_for_tree(cls, db: AsyncSession, dept_info: DeptModel, data_scope_sql: str):
+    async def get_dept_list_for_tree(
+        cls, db: AsyncSession, dept_info: DeptModel, data_scope_sql: str
+    ) -> Sequence[SysDept]:
         """
         获取所有在用部门列表信息
 
@@ -146,7 +153,7 @@ class DeptDao:
         return dept_result
 
     @classmethod
-    async def get_dept_list(cls, db: AsyncSession, page_object: DeptModel, data_scope_sql: str):
+    async def get_dept_list(cls, db: AsyncSession, page_object: DeptModel, data_scope_sql: str) -> Sequence[SysDept]:
         """
         根据查询参数获取部门列表信息
 
@@ -177,7 +184,7 @@ class DeptDao:
         return dept_result
 
     @classmethod
-    async def add_dept_dao(cls, db: AsyncSession, dept: DeptModel):
+    async def add_dept_dao(cls, db: AsyncSession, dept: DeptModel) -> SysDept:
         """
         新增部门数据库操作
 
@@ -192,7 +199,7 @@ class DeptDao:
         return db_dept
 
     @classmethod
-    async def edit_dept_dao(cls, db: AsyncSession, dept: dict):
+    async def edit_dept_dao(cls, db: AsyncSession, dept: dict) -> None:
         """
         编辑部门数据库操作
 
@@ -203,7 +210,7 @@ class DeptDao:
         await db.execute(update(SysDept), [dept])
 
     @classmethod
-    async def update_dept_children_dao(cls, db: AsyncSession, update_dept: List):
+    async def update_dept_children_dao(cls, db: AsyncSession, update_dept: list) -> None:
         """
         更新子部门信息
 
@@ -225,7 +232,7 @@ class DeptDao:
         )
 
     @classmethod
-    async def update_dept_status_normal_dao(cls, db: AsyncSession, dept_id_list: List):
+    async def update_dept_status_normal_dao(cls, db: AsyncSession, dept_id_list: list) -> None:
         """
         批量更新部门状态为正常
 
@@ -236,7 +243,7 @@ class DeptDao:
         await db.execute(update(SysDept).where(SysDept.dept_id.in_(dept_id_list)).values(status='0'))
 
     @classmethod
-    async def delete_dept_dao(cls, db: AsyncSession, dept: DeptModel):
+    async def delete_dept_dao(cls, db: AsyncSession, dept: DeptModel) -> None:
         """
         删除部门数据库操作
 
@@ -251,7 +258,7 @@ class DeptDao:
         )
 
     @classmethod
-    async def count_normal_children_dept_dao(cls, db: AsyncSession, dept_id: int):
+    async def count_normal_children_dept_dao(cls, db: AsyncSession, dept_id: int) -> Union[int, None]:
         """
         根据部门id查询查询所有子部门（正常状态）的数量
 
@@ -270,7 +277,7 @@ class DeptDao:
         return normal_children_dept_count
 
     @classmethod
-    async def count_children_dept_dao(cls, db: AsyncSession, dept_id: int):
+    async def count_children_dept_dao(cls, db: AsyncSession, dept_id: int) -> Union[int, None]:
         """
         根据部门id查询查询所有子部门（所有状态）的数量
 
@@ -290,7 +297,7 @@ class DeptDao:
         return children_dept_count
 
     @classmethod
-    async def count_dept_user_dao(cls, db: AsyncSession, dept_id: int):
+    async def count_dept_user_dao(cls, db: AsyncSession, dept_id: int) -> Union[int, None]:
         """
         根据部门id查询查询部门下的用户数量
 

@@ -1,6 +1,11 @@
+from collections.abc import Sequence
 from datetime import datetime, time
+from typing import Any, Union
+
 from sqlalchemy import and_, delete, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from common.vo import PageModel
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.post_do import SysPost
@@ -23,7 +28,7 @@ class UserDao:
     """
 
     @classmethod
-    async def get_user_by_name(cls, db: AsyncSession, user_name: str):
+    async def get_user_by_name(cls, db: AsyncSession, user_name: str) -> Union[SysUser, None]:
         """
         根据用户名获取用户信息
 
@@ -47,7 +52,7 @@ class UserDao:
         return query_user_info
 
     @classmethod
-    async def get_user_by_info(cls, db: AsyncSession, user: UserModel):
+    async def get_user_by_info(cls, db: AsyncSession, user: UserModel) -> Union[SysUser, None]:
         """
         根据用户参数获取用户信息
 
@@ -76,7 +81,7 @@ class UserDao:
         return query_user_info
 
     @classmethod
-    async def get_user_by_id(cls, db: AsyncSession, user_id: int):
+    async def get_user_by_id(cls, db: AsyncSession, user_id: int) -> dict[str, Any]:
         """
         根据user_id获取用户信息
 
@@ -172,18 +177,18 @@ class UserDao:
                 .all()
             )
 
-        results = dict(
-            user_basic_info=query_user_basic_info,
-            user_dept_info=query_user_dept_info,
-            user_role_info=query_user_role_info,
-            user_post_info=query_user_post_info,
-            user_menu_info=query_user_menu_info,
-        )
+        results = {
+            'user_basic_info': query_user_basic_info,
+            'user_dept_info': query_user_dept_info,
+            'user_role_info': query_user_role_info,
+            'user_post_info': query_user_post_info,
+            'user_menu_info': query_user_menu_info,
+        }
 
         return results
 
     @classmethod
-    async def get_user_detail_by_id(cls, db: AsyncSession, user_id: int):
+    async def get_user_detail_by_id(cls, db: AsyncSession, user_id: int) -> dict[str, Any]:
         """
         根据user_id获取用户详细信息
 
@@ -263,20 +268,20 @@ class UserDao:
             .scalars()
             .all()
         )
-        results = dict(
-            user_basic_info=query_user_basic_info,
-            user_dept_info=query_user_dept_info,
-            user_role_info=query_user_role_info,
-            user_post_info=query_user_post_info,
-            user_menu_info=query_user_menu_info,
-        )
+        results = {
+            'user_basic_info': query_user_basic_info,
+            'user_dept_info': query_user_dept_info,
+            'user_role_info': query_user_role_info,
+            'user_post_info': query_user_post_info,
+            'user_menu_info': query_user_menu_info,
+        }
 
         return results
 
     @classmethod
     async def get_user_list(
         cls, db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False
-    ):
+    ) -> Union[PageModel, list[list[dict[str, Any]]]]:
         """
         根据查询参数获取用户列表信息
 
@@ -321,12 +326,14 @@ class UserDao:
             .order_by(SysUser.user_id)
             .distinct()
         )
-        user_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        user_list: Union[PageModel, list[list[dict[str, Any]]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return user_list
 
     @classmethod
-    async def add_user_dao(cls, db: AsyncSession, user: UserModel):
+    async def add_user_dao(cls, db: AsyncSession, user: UserModel) -> SysUser:
         """
         新增用户数据库操作
 
@@ -341,7 +348,7 @@ class UserDao:
         return db_user
 
     @classmethod
-    async def edit_user_dao(cls, db: AsyncSession, user: dict):
+    async def edit_user_dao(cls, db: AsyncSession, user: dict) -> None:
         """
         编辑用户数据库操作
 
@@ -352,7 +359,7 @@ class UserDao:
         await db.execute(update(SysUser), [user])
 
     @classmethod
-    async def delete_user_dao(cls, db: AsyncSession, user: UserModel):
+    async def delete_user_dao(cls, db: AsyncSession, user: UserModel) -> None:
         """
         删除用户数据库操作
 
@@ -367,7 +374,9 @@ class UserDao:
         )
 
     @classmethod
-    async def get_user_role_allocated_list_by_user_id(cls, db: AsyncSession, query_object: UserRoleQueryModel):
+    async def get_user_role_allocated_list_by_user_id(
+        cls, db: AsyncSession, query_object: UserRoleQueryModel
+    ) -> Sequence[SysRole]:
         """
         根据用户id获取用户已分配的角色列表信息数据库操作
 
@@ -400,7 +409,7 @@ class UserDao:
     @classmethod
     async def get_user_role_allocated_list_by_role_id(
         cls, db: AsyncSession, query_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
-    ):
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据角色id获取已分配的用户列表信息
 
@@ -424,14 +433,16 @@ class UserDao:
             )
             .distinct()
         )
-        allocated_user_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        allocated_user_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return allocated_user_list
 
     @classmethod
     async def get_user_role_unallocated_list_by_role_id(
         cls, db: AsyncSession, query_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
-    ):
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据角色id获取未分配的用户列表信息
 
@@ -463,14 +474,14 @@ class UserDao:
             )
             .distinct()
         )
-        unallocated_user_list = await PageUtil.paginate(
+        unallocated_user_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
         return unallocated_user_list
 
     @classmethod
-    async def add_user_role_dao(cls, db: AsyncSession, user_role: UserRoleModel):
+    async def add_user_role_dao(cls, db: AsyncSession, user_role: UserRoleModel) -> None:
         """
         新增用户角色关联信息数据库操作
 
@@ -482,7 +493,7 @@ class UserDao:
         db.add(db_user_role)
 
     @classmethod
-    async def delete_user_role_dao(cls, db: AsyncSession, user_role: UserRoleModel):
+    async def delete_user_role_dao(cls, db: AsyncSession, user_role: UserRoleModel) -> None:
         """
         删除用户角色关联信息数据库操作
 
@@ -493,7 +504,7 @@ class UserDao:
         await db.execute(delete(SysUserRole).where(SysUserRole.user_id.in_([user_role.user_id])))
 
     @classmethod
-    async def delete_user_role_by_user_and_role_dao(cls, db: AsyncSession, user_role: UserRoleModel):
+    async def delete_user_role_by_user_and_role_dao(cls, db: AsyncSession, user_role: UserRoleModel) -> None:
         """
         根据用户id及角色id删除用户角色关联信息数据库操作
 
@@ -509,7 +520,7 @@ class UserDao:
         )
 
     @classmethod
-    async def get_user_role_detail(cls, db: AsyncSession, user_role: UserRoleModel):
+    async def get_user_role_detail(cls, db: AsyncSession, user_role: UserRoleModel) -> Union[SysUserRole, None]:
         """
         根据用户角色关联获取用户角色关联详细信息
 
@@ -532,7 +543,7 @@ class UserDao:
         return user_role_info
 
     @classmethod
-    async def add_user_post_dao(cls, db: AsyncSession, user_post: UserPostModel):
+    async def add_user_post_dao(cls, db: AsyncSession, user_post: UserPostModel) -> None:
         """
         新增用户岗位关联信息数据库操作
 
@@ -544,7 +555,7 @@ class UserDao:
         db.add(db_user_post)
 
     @classmethod
-    async def delete_user_post_dao(cls, db: AsyncSession, user_post: UserPostModel):
+    async def delete_user_post_dao(cls, db: AsyncSession, user_post: UserPostModel) -> None:
         """
         删除用户岗位关联信息数据库操作
 
@@ -555,7 +566,7 @@ class UserDao:
         await db.execute(delete(SysUserPost).where(SysUserPost.user_id.in_([user_post.user_id])))
 
     @classmethod
-    async def get_user_dept_info(cls, db: AsyncSession, dept_id: int):
+    async def get_user_dept_info(cls, db: AsyncSession, dept_id: int) -> Union[SysDept, None]:
         dept_basic_info = (
             (
                 await db.execute(

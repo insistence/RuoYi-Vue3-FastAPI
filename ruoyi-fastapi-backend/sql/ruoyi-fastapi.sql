@@ -712,6 +712,5 @@ create table gen_table_column (
   create_time 	    datetime                                   comment '创建时间',
   update_by         varchar(64)     default ''                 comment '更新者',
   update_time       datetime                                   comment '更新时间',
-  primary key (column_id),
-  foreign key (table_id) references gen_table(table_id)
+  primary key (column_id)
 ) engine=innodb auto_increment=1 comment = '代码生成业务表字段';

@@ -1,6 +1,8 @@
 from datetime import datetime
+
 from sqlalchemy import CHAR, Column, DateTime, Integer, LargeBinary, String
 from sqlalchemy.dialects import mysql
+
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil

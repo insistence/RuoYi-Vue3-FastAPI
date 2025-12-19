@@ -1,8 +1,8 @@
 from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from typing import Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class OnlineModel(BaseModel):
@@ -22,7 +22,6 @@ class OnlineModel(BaseModel):
     login_time: Optional[datetime] = Field(default=None, description='登录时间')
 
 
-@as_query
 class OnlineQueryModel(OnlineModel):
     """
     岗位管理不分页查询模型
@@ -30,6 +29,17 @@ class OnlineQueryModel(OnlineModel):
 
     begin_time: Optional[str] = Field(default=None, description='开始时间')
     end_time: Optional[str] = Field(default=None, description='结束时间')
+
+
+class OnlinePageResponseModel(BaseModel):
+    """
+    在线用户分页响应模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    rows: list[OnlineModel] = Field(description='在线用户记录列表')
+    total: int = Field(description='总记录数')
 
 
 class DeleteOnlineModel(BaseModel):

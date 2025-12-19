@@ -1,12 +1,14 @@
 import json
 import os
 from datetime import datetime
+from typing import Any
+
 from jinja2 import Environment, FileSystemLoader
-from typing import Dict, List, Set
-from config.constant import GenConstant
+
+from common.constant import GenConstant
 from config.env import DataBaseConfig
 from exceptions.exception import ServiceWarning
-from module_generator.entity.vo.gen_vo import GenTableModel, GenTableColumnModel
+from module_generator.entity.vo.gen_vo import GenTableColumnModel, GenTableModel
 from utils.common_util import CamelCaseUtil, SnakeCaseUtil
 from utils.string_util import StringUtil
 
@@ -17,7 +19,7 @@ class TemplateInitializer:
     """
 
     @classmethod
-    def init_jinja2(cls):
+    def init_jinja2(cls) -> Environment:
         """
         初始化 Jinja2 模板引擎
 
@@ -40,7 +42,7 @@ class TemplateInitializer:
             )
             return env
         except Exception as e:
-            raise RuntimeError(f'初始化Jinja2模板引擎失败: {e}')
+            raise RuntimeError(f'初始化Jinja2模板引擎失败: {e}') from e
 
 
 class TemplateUtils:
@@ -54,7 +56,7 @@ class TemplateUtils:
     DEFAULT_PARENT_MENU_ID = '3'
 
     @classmethod
-    def prepare_context(cls, gen_table: GenTableModel):
+    def prepare_context(cls, gen_table: GenTableModel) -> dict[str, Any]:
         """
         准备模板变量
 
@@ -106,7 +108,7 @@ class TemplateUtils:
         return context
 
     @classmethod
-    def set_menu_context(cls, context: Dict, gen_table: GenTableModel):
+    def set_menu_context(cls, context: dict, gen_table: GenTableModel) -> None:
         """
         设置菜单上下文
 
@@ -119,7 +121,7 @@ class TemplateUtils:
         context['parentMenuId'] = cls.get_parent_menu_id(params_obj)
 
     @classmethod
-    def set_tree_context(cls, context: Dict, gen_table: GenTableModel):
+    def set_tree_context(cls, context: dict, gen_table: GenTableModel) -> None:
         """
         设置树形结构上下文
 
@@ -135,7 +137,7 @@ class TemplateUtils:
         context['expandColumn'] = cls.get_expand_column(gen_table)
 
     @classmethod
-    def set_sub_context(cls, context: Dict, gen_table: GenTableModel):
+    def set_sub_context(cls, context: dict, gen_table: GenTableModel) -> None:
         """
         设置子表上下文
 
@@ -157,7 +159,7 @@ class TemplateUtils:
         context['subclassName'] = sub_class_name.lower()
 
     @classmethod
-    def get_template_list(cls, tpl_category: str, tpl_web_type: str):
+    def get_template_list(cls, tpl_category: str, tpl_web_type: str) -> list[str]:
         """
         获取模板列表
 
@@ -187,7 +189,7 @@ class TemplateUtils:
         return templates
 
     @classmethod
-    def get_file_name(cls, template: List[str], gen_table: GenTableModel):
+    def get_file_name(cls, template: list[str], gen_table: GenTableModel) -> str:
         """
         根据模板生成文件名
 
@@ -204,24 +206,24 @@ class TemplateUtils:
 
         if 'controller.py.jinja2' in template:
             return f'{python_path}/controller/{business_name}_controller.py'
-        elif 'dao.py.jinja2' in template:
+        if 'dao.py.jinja2' in template:
             return f'{python_path}/dao/{business_name}_dao.py'
-        elif 'do.py.jinja2' in template:
+        if 'do.py.jinja2' in template:
             return f'{python_path}/entity/do/{business_name}_do.py'
-        elif 'service.py.jinja2' in template:
+        if 'service.py.jinja2' in template:
             return f'{python_path}/service/{business_name}_service.py'
-        elif 'vo.py.jinja2' in template:
+        if 'vo.py.jinja2' in template:
             return f'{python_path}/entity/vo/{business_name}_vo.py'
-        elif 'sql.jinja2' in template:
+        if 'sql.jinja2' in template:
             return f'{cls.BACKEND_PROJECT_PATH}/sql/{business_name}_menu.sql'
-        elif 'api.js.jinja2' in template:
+        if 'api.js.jinja2' in template:
             return f'{vue_path}/api/{module_name}/{business_name}.js'
-        elif 'index.vue.jinja2' in template or 'index-tree.vue.jinja2' in template:
+        if 'index.vue.jinja2' in template or 'index-tree.vue.jinja2' in template:
             return f'{vue_path}/views/{module_name}/{business_name}/index.vue'
         return ''
 
     @classmethod
-    def get_package_prefix(cls, package_name: str):
+    def get_package_prefix(cls, package_name: str) -> str:
         """
         获取包前缀
 
@@ -231,7 +233,7 @@ class TemplateUtils:
         return package_name[: package_name.rfind('.')]
 
     @classmethod
-    def get_vo_import_list(cls, gen_table: GenTableModel):
+    def get_vo_import_list(cls, gen_table: GenTableModel) -> list[str]:
         """
         获取vo模板导入包列表
 
@@ -255,7 +257,7 @@ class TemplateUtils:
         return cls.merge_same_imports(list(import_list), 'from datetime import')
 
     @classmethod
-    def get_do_import_list(cls, gen_table: GenTableModel):
+    def get_do_import_list(cls, gen_table: GenTableModel) -> list[str]:
         """
         获取do模板导入包列表
 
@@ -295,7 +297,7 @@ class TemplateUtils:
         return column_type
 
     @classmethod
-    def merge_same_imports(cls, imports: List[str], import_start: str) -> List[str]:
+    def merge_same_imports(cls, imports: list[str], import_start: str) -> list[str]:
         """
         合并相同的导入语句
 
@@ -319,7 +321,7 @@ class TemplateUtils:
         return merged_imports
 
     @classmethod
-    def get_dicts(cls, gen_table: GenTableModel):
+    def get_dicts(cls, gen_table: GenTableModel) -> str:
         """
         获取字典列表
 
@@ -334,7 +336,7 @@ class TemplateUtils:
         return ', '.join(dicts)
 
     @classmethod
-    def add_dicts(cls, dicts: Set[str], columns: List[GenTableColumnModel]):
+    def add_dicts(cls, dicts: set[str], columns: list[GenTableColumnModel]) -> None:
         """
         添加字典列表
 
@@ -353,7 +355,7 @@ class TemplateUtils:
                 dicts.add(f"'{column.dict_type}'")
 
     @classmethod
-    def get_permission_prefix(cls, module_name: str, business_name: str):
+    def get_permission_prefix(cls, module_name: str, business_name: str) -> str:
         """
         获取权限前缀
 
@@ -364,7 +366,7 @@ class TemplateUtils:
         return f'{module_name}:{business_name}'
 
     @classmethod
-    def get_parent_menu_id(cls, params_obj: Dict):
+    def get_parent_menu_id(cls, params_obj: dict) -> str:
         """
         获取上级菜单ID
 
@@ -376,7 +378,7 @@ class TemplateUtils:
         return cls.DEFAULT_PARENT_MENU_ID
 
     @classmethod
-    def get_tree_code(cls, params_obj: Dict):
+    def get_tree_code(cls, params_obj: dict) -> str:
         """
         获取树编码
 
@@ -388,7 +390,7 @@ class TemplateUtils:
         return ''
 
     @classmethod
-    def get_tree_parent_code(cls, params_obj: Dict):
+    def get_tree_parent_code(cls, params_obj: dict) -> str:
         """
         获取树父编码
 
@@ -400,7 +402,7 @@ class TemplateUtils:
         return ''
 
     @classmethod
-    def get_tree_name(cls, params_obj: Dict):
+    def get_tree_name(cls, params_obj: dict) -> str:
         """
         获取树名称
 
@@ -412,7 +414,7 @@ class TemplateUtils:
         return ''
 
     @classmethod
-    def get_expand_column(cls, gen_table: GenTableModel):
+    def get_expand_column(cls, gen_table: GenTableModel) -> int:
         """
         获取展开列
 
@@ -442,7 +444,7 @@ class TemplateUtils:
         return parts[0] + ''.join(word.capitalize() for word in parts[1:])
 
     @classmethod
-    def get_sqlalchemy_type(cls, column_type: str):
+    def get_sqlalchemy_type(cls, column_type: str) -> str:
         """
         获取SQLAlchemy类型
 

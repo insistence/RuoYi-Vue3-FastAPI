@@ -5,6 +5,7 @@ class CommonConstant:
     """
     常用常量
 
+    PASSWORD_ERROR_COUNT: 密码错误次数
     WWW: www主域
     HTTP: http请求
     HTTPS: https请求
@@ -19,6 +20,7 @@ class CommonConstant:
     NOT_UNIQUE: 校验是否唯一的返回标识（否）
     """
 
+    PASSWORD_ERROR_COUNT = 5
     WWW = 'www.'
     HTTP = 'http://'
     HTTPS = 'https://'

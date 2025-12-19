@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
-from typing import List
-from config.constant import GenConstant
+
+from common.constant import GenConstant
 from config.env import GenConfig
 from module_generator.entity.vo.gen_vo import GenTableColumnModel, GenTableModel
 from utils.string_util import StringUtil
@@ -9,6 +9,8 @@ from utils.string_util import StringUtil
 
 class GenUtils:
     """代码生成器工具类"""
+
+    TEXTAREA_COLUMN_LENGTH = 500
 
     @classmethod
     def init_table(cls, gen_table: GenTableModel, oper_name: str) -> None:
@@ -58,7 +60,8 @@ class GenUtils:
             column_length = cls.get_column_length(column.column_type)
             html_type = (
                 GenConstant.HTML_TEXTAREA
-                if column_length >= 500 or cls.arrays_contains(GenConstant.COLUMNTYPE_TEXT, data_type)
+                if column_length >= cls.TEXTAREA_COLUMN_LENGTH
+                or cls.arrays_contains(GenConstant.COLUMNTYPE_TEXT, data_type)
                 else GenConstant.HTML_INPUT
             )
             column.html_type = html_type
@@ -98,14 +101,14 @@ class GenUtils:
         # 内容字段设置富文本控件
         elif column_name.lower().endswith('content'):
             column.html_type = GenConstant.HTML_EDITOR
-        
+
         column.create_by = table.create_by
         column.create_time = datetime.now()
         column.update_by = table.update_by
         column.update_time = datetime.now()
 
     @classmethod
-    def arrays_contains(cls, arr: List[str], target_value: str) -> bool:
+    def arrays_contains(cls, arr: list[str], target_value: str) -> bool:
         """
         校验数组是否包含指定值
 
@@ -151,7 +154,7 @@ class GenUtils:
         return StringUtil.convert_to_camel_case(table_name)
 
     @classmethod
-    def replace_first(cls, replacement: str, search_list: List[str]) -> str:
+    def replace_first(cls, replacement: str, search_list: list[str]) -> str:
         """
         批量替换前缀
 
@@ -200,7 +203,7 @@ class GenUtils:
         return 0
 
     @classmethod
-    def split_column_type(cls, column_type: str) -> List[str]:
+    def split_column_type(cls, column_type: str) -> list[str]:
         """
         拆分列类型
 

@@ -1,8 +1,10 @@
 import os
 import platform
-import psutil
 import socket
 import time
+
+import psutil
+
 from module_admin.entity.vo.server_vo import CpuInfo, MemoryInfo, PyInfo, ServerMonitorModel, SysFiles, SysInfo
 from utils.common_util import bytes2human
 
@@ -13,7 +15,7 @@ class ServerService:
     """
 
     @staticmethod
-    async def get_server_monitor_info():
+    async def get_server_monitor_info() -> ServerMonitorModel:
         # CPU信息
         # 获取CPU总核心数
         cpu_num = psutil.cpu_count(logical=True)
@@ -79,17 +81,21 @@ class ServerService:
         io = psutil.disk_partitions()
         sys_files = []
         for i in io:
-            o = psutil.disk_usage(i.device)
-            disk_data = SysFiles(
-                dirName=i.device,
-                sysTypeName=i.fstype,
-                typeName='本地固定磁盘（' + i.mountpoint.replace('\\', '') + '）',
-                total=bytes2human(o.total),
-                used=bytes2human(o.used),
-                free=bytes2human(o.free),
-                usage=f'{psutil.disk_usage(i.device).percent}%',
-            )
-            sys_files.append(disk_data)
+            try:
+                o = psutil.disk_usage(i.device)
+                disk_data = SysFiles(
+                    dirName=i.device,
+                    sysTypeName=i.fstype,
+                    typeName='本地固定磁盘（' + i.mountpoint.replace('\\', '') + '）',
+                    total=bytes2human(o.total),
+                    used=bytes2human(o.used),
+                    free=bytes2human(o.free),
+                    usage=f'{psutil.disk_usage(i.device).percent}%',
+                )
+                sys_files.append(disk_data)
+            except Exception:  # noqa: PERF203
+                # 忽略所有异常，跳过有问题的磁盘
+                continue
 
         result = ServerMonitorModel(cpu=cpu, mem=mem, sys=sys, py=py, sysFiles=sys_files)
 

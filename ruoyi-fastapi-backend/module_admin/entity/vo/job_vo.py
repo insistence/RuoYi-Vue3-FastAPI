@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
-from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class JobModel(BaseModel):
@@ -34,15 +34,15 @@ class JobModel(BaseModel):
 
     @NotBlank(field_name='invoke_target', message='调用目标字符串不能为空')
     @Size(field_name='invoke_target', min_length=0, max_length=500, message='调用目标字符串长度不能超过500个字符')
-    def get_invoke_target(self):
+    def get_invoke_target(self) -> Union[str, None]:
         return self.invoke_target
 
     @NotBlank(field_name='cron_expression', message='Cron执行表达式不能为空')
     @Size(field_name='cron_expression', min_length=0, max_length=255, message='Cron执行表达式不能超过255个字符')
-    def get_cron_expression(self):
+    def get_cron_expression(self) -> Union[str, None]:
         return self.cron_expression
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_invoke_target()
         self.get_cron_expression()
 
@@ -77,7 +77,6 @@ class JobQueryModel(JobModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class JobPageQueryModel(JobQueryModel):
     """
     定时任务管理分页查询模型
@@ -114,7 +113,6 @@ class JobLogQueryModel(JobLogModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class JobLogPageQueryModel(JobLogQueryModel):
     """
     定时任务日志管理分页查询模型

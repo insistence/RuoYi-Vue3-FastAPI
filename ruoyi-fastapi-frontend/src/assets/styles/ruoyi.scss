@@ -60,6 +60,14 @@
 	color: inherit;
 }
 
+.el-form--inline {
+	.el-form-item {
+		.el-input, .el-cascader, .el-select, .el-autocomplete {
+			width: 200px;
+		}
+	}
+}
+
 .el-form .el-form-item__label {
 	font-weight: 700;
 }
@@ -146,6 +154,16 @@
 	padding-left: 0;
 	padding-right: 0;
 	width: inherit;
+}
+
+/* horizontal el menu */
+.el-menu--horizontal .el-menu-item .svg-icon + span,
+.el-menu--horizontal .el-sub-menu__title .svg-icon + span {
+	margin-left: 3px;
+}
+
+.el-menu--horizontal .el-menu--popup {
+	min-width: 120px !important;
 }
 
 /** 表格更多操作下拉样式 */

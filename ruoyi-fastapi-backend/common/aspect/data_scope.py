@@ -1,7 +1,9 @@
-from fastapi import Depends
 from typing import Optional
-from module_admin.entity.vo.user_vo import CurrentUserModel
-from module_admin.service.login_service import LoginService
+
+from fastapi import Depends, Request, params
+
+from common.context import RequestContext
+from utils.dependency_util import DependencyUtil
 
 
 class GetDataScope:
@@ -21,7 +23,7 @@ class GetDataScope:
         db_alias: Optional[str] = 'db',
         user_alias: Optional[str] = 'user_id',
         dept_alias: Optional[str] = 'dept_id',
-    ):
+    ) -> None:
         """
         获取当前用户数据权限对应的查询sql语句
 
@@ -35,7 +37,9 @@ class GetDataScope:
         self.user_alias = user_alias
         self.dept_alias = dept_alias
 
-    def __call__(self, current_user: CurrentUserModel = Depends(LoginService.get_current_user)):
+    def __call__(self, request: Request) -> str:
+        DependencyUtil.check_exclude_routes(request, err_msg='当前路由不在认证规则内，不可使用GetDataScope依赖项')
+        current_user = RequestContext.get_current_user()
         user_id = current_user.user.user_id
         dept_id = current_user.user.dept_id
         custom_data_scope_role_id_list = [
@@ -46,7 +50,7 @@ class GetDataScope:
             if current_user.user.admin or role.data_scope == self.DATA_SCOPE_ALL:
                 param_sql_list = ['1 == 1']
                 break
-            elif role.data_scope == self.DATA_SCOPE_CUSTOM:
+            if role.data_scope == self.DATA_SCOPE_CUSTOM:
                 if len(custom_data_scope_role_id_list) > 1:
                     param_sql_list.append(
                         f"{self.query_alias}.{self.dept_alias}.in_(select(SysRoleDept.dept_id).where(SysRoleDept.role_id.in_({custom_data_scope_role_id_list}))) if hasattr({self.query_alias}, '{self.dept_alias}') else 1 == 0"
@@ -70,6 +74,24 @@ class GetDataScope:
             else:
                 param_sql_list.append('1 == 0')
         param_sql_list = list(dict.fromkeys(param_sql_list))
-        param_sql = f"or_({', '.join(param_sql_list)})"
+        param_sql = f'or_({", ".join(param_sql_list)})'
 
         return param_sql
+
+
+def DataScopeDependency(  # noqa: N802
+    query_alias: Optional[str] = '',
+    db_alias: Optional[str] = 'db',
+    user_alias: Optional[str] = 'user_id',
+    dept_alias: Optional[str] = 'dept_id',
+) -> params.Depends:
+    """
+    当前用户数据权限依赖
+
+    :param query_alias: 所要查询表对应的sqlalchemy模型名称，默认为''
+    :param db_alias: orm对象别名，默认为'db'
+    :param user_alias: 用户id字段别名，默认为'user_id'
+    :param dept_alias: 部门id字段别名，默认为'dept_id'
+    :return: 当前用户数据权限依赖
+    """
+    return Depends(GetDataScope(query_alias, db_alias, user_alias, dept_alias))

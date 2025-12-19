@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
-from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class PostModel(BaseModel):
@@ -26,19 +26,19 @@ class PostModel(BaseModel):
 
     @NotBlank(field_name='post_code', message='岗位编码不能为空')
     @Size(field_name='post_code', min_length=0, max_length=64, message='岗位编码长度不能超过64个字符')
-    def get_post_code(self):
+    def get_post_code(self) -> Union[str, None]:
         return self.post_code
 
     @NotBlank(field_name='post_name', message='岗位名称不能为空')
     @Size(field_name='post_name', min_length=0, max_length=50, message='岗位名称长度不能超过50个字符')
-    def get_post_name(self):
+    def get_post_name(self) -> Union[str, None]:
         return self.post_name
 
     @NotBlank(field_name='post_sort', message='显示顺序不能为空')
-    def get_post_sort(self):
+    def get_post_sort(self) -> Union[int, None]:
         return self.post_sort
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_post_code()
         self.get_post_name()
         self.get_post_sort()
@@ -53,7 +53,6 @@ class PostQueryModel(PostModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class PostPageQueryModel(PostQueryModel):
     """
     岗位管理分页查询模型

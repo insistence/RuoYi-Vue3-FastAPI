@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Pattern, Size
-from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class DictTypeModel(BaseModel):
@@ -25,7 +25,7 @@ class DictTypeModel(BaseModel):
 
     @NotBlank(field_name='dict_name', message='字典名称不能为空')
     @Size(field_name='dict_name', min_length=0, max_length=100, message='字典类型名称长度不能超过100个字符')
-    def get_dict_name(self):
+    def get_dict_name(self) -> Union[str, None]:
         return self.dict_name
 
     @NotBlank(field_name='dict_type', message='字典类型不能为空')
@@ -35,10 +35,10 @@ class DictTypeModel(BaseModel):
         regexp='^[a-z][a-z0-9_]*$',
         message='字典类型必须以字母开头，且只能为（小写字母，数字，下滑线）',
     )
-    def get_dict_type(self):
+    def get_dict_type(self) -> Union[str, None]:
         return self.dict_type
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_dict_name()
         self.get_dict_type()
 
@@ -67,24 +67,24 @@ class DictDataModel(BaseModel):
 
     @NotBlank(field_name='dict_label', message='字典标签不能为空')
     @Size(field_name='dict_label', min_length=0, max_length=100, message='字典标签长度不能超过100个字符')
-    def get_dict_label(self):
+    def get_dict_label(self) -> Union[str, None]:
         return self.dict_label
 
     @NotBlank(field_name='dict_value', message='字典键值不能为空')
     @Size(field_name='dict_value', min_length=0, max_length=100, message='字典键值长度不能超过100个字符')
-    def get_dict_value(self):
+    def get_dict_value(self) -> Union[str, None]:
         return self.dict_value
 
     @NotBlank(field_name='dict_type', message='字典类型不能为空')
     @Size(field_name='dict_type', min_length=0, max_length=100, message='字典类型长度不能超过100个字符')
-    def get_dict_type(self):
+    def get_dict_type(self) -> Union[str, None]:
         return self.dict_type
 
     @Size(field_name='css_class', min_length=0, max_length=100, message='样式属性长度不能超过100个字符')
-    def get_css_class(self):
+    def get_css_class(self) -> Union[str, None]:
         return self.css_class
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_dict_label()
         self.get_dict_value()
         self.get_dict_type()
@@ -100,7 +100,6 @@ class DictTypeQueryModel(DictTypeModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class DictTypePageQueryModel(DictTypeQueryModel):
     """
     字典类型管理分页查询模型
@@ -129,7 +128,6 @@ class DictDataQueryModel(DictDataModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class DictDataPageQueryModel(DictDataQueryModel):
     """
     字典数据管理分页查询模型

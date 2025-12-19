@@ -1,8 +1,8 @@
 from datetime import datetime
+from typing import Literal, Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
-from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class OperLogModel(BaseModel):
@@ -68,7 +68,6 @@ class OperLogQueryModel(OperLogModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class OperLogPageQueryModel(OperLogQueryModel):
     """
     操作日志管理分页查询模型
@@ -101,7 +100,6 @@ class LoginLogQueryModel(LogininforModel):
     end_time: Optional[str] = Field(default=None, description='结束时间')
 
 
-@as_query
 class LoginLogPageQueryModel(LoginLogQueryModel):
     """
     登录日志管理分页查询模型

@@ -1,5 +1,7 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, CHAR, Column, DateTime, Index, Integer, String
+
+from sqlalchemy import CHAR, BigInteger, Column, DateTime, Index, Integer, String
+
 from config.database import Base
 
 
@@ -38,7 +40,9 @@ class SysOperLog(Base):
     business_type = Column(Integer, nullable=True, server_default='0', comment='业务类型（0其它 1新增 2修改 3删除）')
     method = Column(String(100), nullable=True, server_default="''", comment='方法名称')
     request_method = Column(String(10), nullable=True, server_default="''", comment='请求方式')
-    operator_type = Column(Integer, nullable=True, server_default='0', comment='操作类别（0其它 1后台用户 2手机端用户）')
+    operator_type = Column(
+        Integer, nullable=True, server_default='0', comment='操作类别（0其它 1后台用户 2手机端用户）'
+    )
     oper_name = Column(String(50), nullable=True, server_default="''", comment='操作人员')
     dept_name = Column(String(50), nullable=True, server_default="''", comment='部门名称')
     oper_url = Column(String(255), nullable=True, server_default="''", comment='请求URL')

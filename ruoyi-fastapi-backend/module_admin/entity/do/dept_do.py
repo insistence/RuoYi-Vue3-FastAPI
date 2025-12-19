@@ -1,5 +1,7 @@
 from datetime import datetime
-from sqlalchemy import BigInteger, CHAR, Column, DateTime, Integer, String
+
+from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, String
+
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil

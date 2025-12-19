@@ -236,7 +236,8 @@ function handleGenTable(row) {
       proxy.$modal.msgSuccess("成功生成到自定义路径：" + row.genPath);
     });
   } else {
-    proxy.$download.zip("/tool/gen/batchGenCode?tables=" + tbNames, "vfadmin.zip");
+    const zipName = Array.isArray(tbNames) ? "vfadmin.zip" : tbNames + ".zip"
+    proxy.$download.zip("/tool/gen/batchGenCode?tables=" + tbNames, zipName)
   }
 }
 

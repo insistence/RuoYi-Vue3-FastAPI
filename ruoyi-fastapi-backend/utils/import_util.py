@@ -1,11 +1,13 @@
 import importlib
 import inspect
 import os
-from pathlib import Path
 import sys
 from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
 from sqlalchemy import inspect as sa_inspect
-from typing import Any, List
+
 from config.database import Base
 
 
@@ -49,7 +51,7 @@ class ImportUtil:
 
     @classmethod
     @lru_cache(maxsize=256)
-    def find_models(cls, base_class: Base) -> List[Base]:
+    def find_models(cls, base_class: Base) -> list[Base]:
         """
         查找并过滤有效的模型类，避免重复和无效定义
 
@@ -64,7 +66,7 @@ class ImportUtil:
         project_root = cls.find_project_root()
 
         sys.path.append(str(project_root))
-        print(f"⏰️ 开始在项目根目录 {project_root} 中查找模型...")
+        print(f'⏰️ 开始在项目根目录 {project_root} 中查找模型...')
 
         # 排除目录扩展
         exclude_dirs = {
@@ -87,13 +89,13 @@ class ImportUtil:
             for file in files:
                 if file.endswith('.py') and not file.startswith('__'):
                     relative_path = Path(root).relative_to(project_root)
-                    module_parts = list(relative_path.parts) + [file[:-3]]
+                    module_parts = [*list(relative_path.parts), file[:-3]]
                     module_name = '.'.join(module_parts)
 
                     try:
                         module = importlib.import_module(module_name)
 
-                        for name, obj in inspect.getmembers(module, inspect.isclass):
+                        for _name, obj in inspect.getmembers(module, inspect.isclass):
                             # 验证模型有效性
                             if not cls.is_valid_model(obj, base_class):
                                 continue

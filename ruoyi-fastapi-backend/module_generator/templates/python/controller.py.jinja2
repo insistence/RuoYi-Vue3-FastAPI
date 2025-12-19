@@ -1,5 +1,7 @@
 {% set pkField = pkColumn.python_field %}
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
+{% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
+{% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
 {% set need_import_datetime = namespace(has_datetime=False) %}
 {% for column in columns %}
 {% if column.python_field in ["createTime", "updatetime"] %}
@@ -9,34 +11,45 @@
 {% if need_import_datetime.has_datetime %}
 from datetime import datetime
 {% endif %}
-from fastapi import APIRouter, Depends, Form, Request
+from typing import Annotated
+
+from fastapi import Form, Path, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
-from config.enums import BusinessType
-from config.get_db import get_db
-from module_admin.annotation.log_annotation import Log
-from module_admin.aspect.interface_auth import CheckUserInterfaceAuth
+
+from common.annotation.log_annotation import Log
+from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.interface_auth import UserInterfaceAuthDependency
+from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
+from common.enums import BusinessType
+from common.router import APIRouterPro
+from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
-from module_admin.service.login_service import LoginService
 from {{ packageName }}.service.{{ businessName }}_service import {{ BusinessName }}Service
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import Delete{{ BusinessName }}Model, {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
-from utils.page_util import PageResponseModel
 from utils.response_util import ResponseUtil
 
 
-{{ businessName }}Controller = APIRouter(prefix='/{{ moduleName }}/{{ businessName }}', dependencies=[Depends(LoginService.get_current_user)])
+{{ businessName }}_controller = APIRouterPro(
+    prefix='/{{ moduleName }}/{{ businessName }}', order_num=50, tags=['{{ functionName }}'], dependencies=[PreAuthDependency()]
+)
 
 
-@{{ businessName }}Controller.get(
-    '/list', response_model=PageResponseModel, dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:list'))]
+@{{ businessName }}_controller.get(
+    '/list',
+    summary='获取{{ functionName }}分页列表接口',
+    description='用于获取{{ functionName }}分页列表',
+    response_model=PageResponseModel[{{ BusinessName }}Model],
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:list')],
 )
 async def get_{{ moduleName }}_{{ businessName }}_list(
     request: Request,
-    {% if table.crud or table.sub %}{{ businessName }}_page_query{% elif table.tree %}{{ businessName }}_query{% endif %}: {{ BusinessName }}PageQueryModel = Depends({{ BusinessName }}PageQueryModel.as_query),
-    query_db: AsyncSession = Depends(get_db),
-):
+    {% if table.crud or table.sub %}{{ businessName }}_page_query{% elif table.tree %}{{ businessName }}_query{% endif %}: Annotated[{{ BusinessName }}PageQueryModel, Query()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
     {% if table.crud or table.sub %}
     # 获取分页数据
     {{ businessName }}_page_query_result = await {{ BusinessName }}Service.get_{{ businessName }}_list_services(query_db, {{ businessName }}_page_query, is_page=True)
@@ -51,15 +64,21 @@ async def get_{{ moduleName }}_{{ businessName }}_list(
     {% endif %}
 
 
-@{{ businessName }}Controller.post('', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:add'))])
+@{{ businessName }}_controller.post(
+    '',
+    summary='新增{{ functionName }}接口',
+    description='用于新增{{ functionName }}',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:add')],
+)
 @ValidateFields(validate_model='add_{{ businessName }}')
 @Log(title='{{ functionName }}', business_type=BusinessType.INSERT)
 async def add_{{ moduleName }}_{{ businessName }}(
     request: Request,
     add_{{ businessName }}: {{ BusinessName }}Model,
-    query_db: AsyncSession = Depends(get_db),
-    current_user: CurrentUserModel = Depends(LoginService.get_current_user),
-):
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
     {% for column in columns %}
     {% if column.python_field == "createBy" %}
     add_{{ businessName }}.create_by = current_user.user.user_name
@@ -77,15 +96,21 @@ async def add_{{ moduleName }}_{{ businessName }}(
     return ResponseUtil.success(msg=add_{{ businessName }}_result.message)
 
 
-@{{ businessName }}Controller.put('', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:edit'))])
+@{{ businessName }}_controller.put(
+    '',
+    summary='编辑{{ functionName }}接口',
+    description='用于编辑{{ functionName }}',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:edit')],
+)
 @ValidateFields(validate_model='edit_{{ businessName }}')
 @Log(title='{{ functionName }}', business_type=BusinessType.UPDATE)
 async def edit_{{ moduleName }}_{{ businessName }}(
     request: Request,
     edit_{{ businessName }}: {{ BusinessName }}Model,
-    query_db: AsyncSession = Depends(get_db),
-    current_user: CurrentUserModel = Depends(LoginService.get_current_user),
-):
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
     {% for column in columns %}
     {% if column.python_field == "updateBy" %}
     edit_{{ businessName }}.update_by = current_user.user.user_name
@@ -99,9 +124,19 @@ async def edit_{{ moduleName }}_{{ businessName }}(
     return ResponseUtil.success(msg=edit_{{ businessName }}_result.message)
 
 
-@{{ businessName }}Controller.delete('/{% raw %}{{% endraw %}{{ pk_field }}s{% raw %}}{% endraw %}', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:remove'))])
+@{{ businessName }}_controller.delete(
+    '/{% raw %}{{% endraw %}{{ pk_field }}s{% raw %}}{% endraw %}',
+    summary='删除{{ functionName }}接口',
+    description='用于删除{{ functionName }}',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:remove')],
+)
 @Log(title='{{ functionName }}', business_type=BusinessType.DELETE)
-async def delete_{{ moduleName }}_{{ businessName }}(request: Request, {{ pk_field }}s: str, query_db: AsyncSession = Depends(get_db)):
+async def delete_{{ moduleName }}_{{ businessName }}(
+    request: Request,
+    {{ pk_field }}s: Annotated[str, Path(description='需要删除的{{ pk_field_comment }}')],
+    Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
     delete_{{ businessName }} = Delete{{ BusinessName }}Model({{ pkField }}s={{ pk_field }}s)
     delete_{{ businessName }}_result = await {{ BusinessName }}Service.delete_{{ businessName }}_services(query_db, delete_{{ businessName }})
     logger.info(delete_{{ businessName }}_result.message)
@@ -109,23 +144,45 @@ async def delete_{{ moduleName }}_{{ businessName }}(request: Request, {{ pk_fie
     return ResponseUtil.success(msg=delete_{{ businessName }}_result.message)
 
 
-@{{ businessName }}Controller.get(
-    '/{% raw %}{{% endraw %}{{ pk_field }}{% raw %}}{% endraw %}', response_model={{ BusinessName }}Model, dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:query'))]
+@{{ businessName }}_controller.get(
+    '/{% raw %}{{% endraw %}{{ pk_field }}{% raw %}}{% endraw %}',
+    summary='获取{{ functionName }}详情接口',
+    description='用于获取指定{{ functionName }}的详细信息',
+    response_model=DataResponseModel[{{ BusinessName }}Model],
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:query')]
 )
-async def query_detail_{{ moduleName }}_{{ businessName }}(request: Request, {{ pk_field }}: int, query_db: AsyncSession = Depends(get_db)):
+async def query_detail_{{ moduleName }}_{{ businessName }}(
+    request: Request,
+    {{ pk_field }}: Annotated[{{ pkColumn.python_type }}, Path(description='{{ pk_field_comment }}')],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
     {{ businessName }}_detail_result = await {{ BusinessName }}Service.{{ businessName }}_detail_services(query_db, {{ pk_field }})
     logger.info(f'获取{{ pk_field }}为{% raw %}{{% endraw %}{{ pk_field }}{% raw %}}{% endraw %}的信息成功')
 
     return ResponseUtil.success(data={{ businessName }}_detail_result)
 
 
-@{{ businessName }}Controller.post('/export', dependencies=[Depends(CheckUserInterfaceAuth('{{ permissionPrefix }}:export'))])
+@{{ businessName }}_controller.post(
+    '/export',
+    summary='导出{{ functionName }}列表接口',
+    description='用于导出当前符合查询条件的{{ functionName }}列表数据',
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            'description': '流式返回{{ functionName }}列表excel文件',
+            'content': {
+                'application/octet-stream': {},
+            },
+        }
+    },
+    dependencies=[UserInterfaceAuthDependency('{{ permissionPrefix }}:export')],
+)
 @Log(title='{{ functionName }}', business_type=BusinessType.EXPORT)
 async def export_{{ moduleName }}_{{ businessName }}_list(
     request: Request,
-    {{ businessName }}_page_query: {{ BusinessName }}PageQueryModel = Form(),
-    query_db: AsyncSession = Depends(get_db),
-):
+    {{ businessName }}_page_query: Annotated[{{ BusinessName }}PageQueryModel, Form()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
     # 获取全量数据
     {{ businessName }}_query_result = await {{ BusinessName }}Service.get_{{ businessName }}_list_services(query_db, {{ businessName }}_page_query, is_page=False)
     {{ businessName }}_export_result = await {{ BusinessName }}Service.export_{{ businessName }}_list_services({% if dicts %}request, {% endif %}{{ businessName }}_query_result)

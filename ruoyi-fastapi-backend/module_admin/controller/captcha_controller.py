@@ -1,28 +1,31 @@
 import uuid
 from datetime import timedelta
-from fastapi import APIRouter, Request
-from config.enums import RedisInitKeyConfig
+
+from fastapi import Request, Response
+
+from common.enums import RedisInitKeyConfig
+from common.router import APIRouterPro
+from common.vo import DynamicResponseModel
 from module_admin.entity.vo.login_vo import CaptchaCode
 from module_admin.service.captcha_service import CaptchaService
-from utils.response_util import ResponseUtil
 from utils.log_util import logger
+from utils.response_util import ResponseUtil
+
+captcha_controller = APIRouterPro(order_num=2, tags=['验证码模块'])
 
 
-captchaController = APIRouter()
-
-
-@captchaController.get('/captchaImage')
-async def get_captcha_image(request: Request):
+@captcha_controller.get(
+    '/captchaImage',
+    summary='获取图片验证码接口',
+    description='用于获取图片验证码',
+    response_model=DynamicResponseModel[CaptchaCode],
+)
+async def get_captcha_image(request: Request) -> Response:
     captcha_enabled = (
-        True
-        if await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled')
-        == 'true'
-        else False
+        await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled') == 'true'
     )
     register_enabled = (
-        True
-        if await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.registerUser') == 'true'
-        else False
+        await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.registerUser') == 'true'
     )
     session_id = str(uuid.uuid4())
     captcha_result = await CaptchaService.create_captcha_image_service()
