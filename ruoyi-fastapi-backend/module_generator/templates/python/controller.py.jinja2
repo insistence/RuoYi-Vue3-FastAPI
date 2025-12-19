@@ -13,7 +13,7 @@ from datetime import datetime
 {% endif %}
 from typing import Annotated
 
-from fastapi import APIRouter, Form, Path, Query, Request, Response
+from fastapi import Form, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +23,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
+from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from {{ packageName }}.service.{{ businessName }}_service import {{ BusinessName }}Service
@@ -32,7 +33,9 @@ from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
 
-{{ businessName }}_controller = APIRouter(prefix='/{{ moduleName }}/{{ businessName }}', dependencies=[PreAuthDependency()])
+{{ businessName }}_controller = APIRouterPro(
+    prefix='/{{ moduleName }}/{{ businessName }}', order_num=50, tags=['{{ functionName }}'], dependencies=[PreAuthDependency()]
+)
 
 
 @{{ businessName }}_controller.get(
