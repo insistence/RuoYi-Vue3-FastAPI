@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
@@ -19,7 +20,7 @@ class DeptService:
 
     @classmethod
     async def get_dept_tree_services(
-        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str
+        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: ColumnElement
     ) -> list[dict[str, Any]]:
         """
         获取部门树信息service
@@ -37,7 +38,7 @@ class DeptService:
 
     @classmethod
     async def get_dept_for_edit_option_services(
-        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str
+        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: ColumnElement
     ) -> list[dict[str, Any]]:
         """
         获取部门编辑部门树信息service
@@ -53,7 +54,7 @@ class DeptService:
 
     @classmethod
     async def get_dept_list_services(
-        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str
+        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: ColumnElement
     ) -> list[dict[str, Any]]:
         """
         获取部门列表信息service
@@ -69,7 +70,7 @@ class DeptService:
 
     @classmethod
     async def check_dept_data_scope_services(
-        cls, query_db: AsyncSession, dept_id: int, data_scope_sql: str
+        cls, query_db: AsyncSession, dept_id: int, data_scope_sql: ColumnElement
     ) -> CrudResponseModel:
         """
         校验部门是否有数据权限service

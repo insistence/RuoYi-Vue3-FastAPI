@@ -1,12 +1,11 @@
 from collections.abc import Sequence
 from typing import Union
 
-from sqlalchemy import bindparam, func, or_, select, update  # noqa: F401
+from sqlalchemy import ColumnElement, bindparam, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.util import immutabledict
 
 from module_admin.entity.do.dept_do import SysDept
-from module_admin.entity.do.role_do import SysRoleDept  # noqa: F401
 from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.dept_vo import DeptModel
 
@@ -72,7 +71,7 @@ class DeptDao:
 
     @classmethod
     async def get_dept_info_for_edit_option(
-        cls, db: AsyncSession, dept_info: DeptModel, data_scope_sql: str
+        cls, db: AsyncSession, dept_info: DeptModel, data_scope_sql: ColumnElement
     ) -> Sequence[SysDept]:
         """
         获取部门编辑对应的在用部门列表信息
@@ -93,7 +92,7 @@ class DeptDao:
                         ),
                         SysDept.del_flag == '0',
                         SysDept.status == '0',
-                        eval(data_scope_sql),
+                        data_scope_sql,
                     )
                     .order_by(SysDept.order_num)
                     .distinct()
@@ -122,7 +121,7 @@ class DeptDao:
 
     @classmethod
     async def get_dept_list_for_tree(
-        cls, db: AsyncSession, dept_info: DeptModel, data_scope_sql: str
+        cls, db: AsyncSession, dept_info: DeptModel, data_scope_sql: ColumnElement
     ) -> Sequence[SysDept]:
         """
         获取所有在用部门列表信息
@@ -140,7 +139,7 @@ class DeptDao:
                         SysDept.status == '0',
                         SysDept.del_flag == '0',
                         SysDept.dept_name.like(f'%{dept_info.dept_name}%') if dept_info.dept_name else True,
-                        eval(data_scope_sql),
+                        data_scope_sql,
                     )
                     .order_by(SysDept.order_num)
                     .distinct()
@@ -153,7 +152,9 @@ class DeptDao:
         return dept_result
 
     @classmethod
-    async def get_dept_list(cls, db: AsyncSession, page_object: DeptModel, data_scope_sql: str) -> Sequence[SysDept]:
+    async def get_dept_list(
+        cls, db: AsyncSession, page_object: DeptModel, data_scope_sql: ColumnElement
+    ) -> Sequence[SysDept]:
         """
         根据查询参数获取部门列表信息
 
@@ -171,7 +172,7 @@ class DeptDao:
                         SysDept.dept_id == page_object.dept_id if page_object.dept_id is not None else True,
                         SysDept.status == page_object.status if page_object.status else True,
                         SysDept.dept_name.like(f'%{page_object.dept_name}%') if page_object.dept_name else True,
-                        eval(data_scope_sql),
+                        data_scope_sql,
                     )
                     .order_by(SysDept.order_num)
                     .distinct()

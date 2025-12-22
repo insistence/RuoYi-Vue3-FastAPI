@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Form, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
@@ -14,6 +15,8 @@ from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
+from module_admin.entity.do.dept_do import SysDept
+from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.dept_vo import DeptModel
 from module_admin.entity.vo.role_vo import (
     AddRoleModel,
@@ -46,7 +49,7 @@ async def get_system_role_dept_tree(
     request: Request,
     role_id: Annotated[int, Path(description='角色ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     dept_query_result = await DeptService.get_dept_tree_services(query_db, DeptModel(), data_scope_sql)
     role_dept_query_result = await RoleService.get_role_dept_tree_services(query_db, role_id)
@@ -67,7 +70,7 @@ async def get_system_role_list(
     request: Request,
     role_page_query: Annotated[RolePageQueryModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     role_page_query_result = await RoleService.get_role_list_services(
         query_db, role_page_query, data_scope_sql, is_page=True
@@ -116,7 +119,7 @@ async def edit_system_role(
     edit_role: AddRoleModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     await RoleService.check_role_allowed_services(edit_role)
     if not current_user.user.admin:
@@ -142,7 +145,7 @@ async def edit_system_role_datascope(
     role_data_scope: AddRoleModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     await RoleService.check_role_allowed_services(role_data_scope)
     if not current_user.user.admin:
@@ -174,7 +177,7 @@ async def delete_system_role(
     role_ids: Annotated[str, Path(description='需要删除的角色ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     role_id_list = role_ids.split(',') if role_ids else []
     if role_id_list:
@@ -201,7 +204,7 @@ async def query_detail_system_role(
     role_id: Annotated[int, Path(description='角色ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     if not current_user.user.admin:
         await RoleService.check_role_data_scope_services(query_db, str(role_id), data_scope_sql)
@@ -231,7 +234,7 @@ async def export_system_role_list(
     request: Request,
     role_page_query: Annotated[RolePageQueryModel, Form()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     # 获取全量数据
     role_query_result = await RoleService.get_role_list_services(
@@ -256,7 +259,7 @@ async def reset_system_role_status(
     change_role: AddRoleModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     await RoleService.check_role_allowed_services(change_role)
     if not current_user.user.admin:
@@ -285,7 +288,7 @@ async def get_system_allocated_user_list(
     request: Request,
     user_role: Annotated[UserRolePageQueryModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     role_user_allocated_page_query_result = await RoleService.get_role_user_allocated_list_services(
         query_db, user_role, data_scope_sql, is_page=True
@@ -306,7 +309,7 @@ async def get_system_unallocated_user_list(
     request: Request,
     user_role: Annotated[UserRolePageQueryModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     role_user_unallocated_page_query_result = await RoleService.get_role_user_unallocated_list_services(
         query_db, user_role, data_scope_sql, is_page=True
@@ -329,7 +332,7 @@ async def add_system_role_user(
     add_role_user: Annotated[CrudUserRoleModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     if not current_user.user.admin:
         await RoleService.check_role_data_scope_services(query_db, str(add_role_user.role_id), data_scope_sql)

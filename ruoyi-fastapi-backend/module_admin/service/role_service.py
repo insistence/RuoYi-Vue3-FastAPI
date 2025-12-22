@@ -1,5 +1,6 @@
 from typing import Any, Union
 
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
@@ -56,7 +57,11 @@ class RoleService:
 
     @classmethod
     async def get_role_list_services(
-        cls, query_db: AsyncSession, query_object: RolePageQueryModel, data_scope_sql: str, is_page: bool = False
+        cls,
+        query_db: AsyncSession,
+        query_object: RolePageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取角色列表信息service
@@ -84,7 +89,9 @@ class RoleService:
         return CrudResponseModel(is_success=True, message='校验通过')
 
     @classmethod
-    async def check_role_data_scope_services(cls, query_db: AsyncSession, role_ids: str, data_scope_sql: str) -> None:
+    async def check_role_data_scope_services(
+        cls, query_db: AsyncSession, role_ids: str, data_scope_sql: ColumnElement
+    ) -> None:
         """
         校验角色是否有数据权限service
 
@@ -304,7 +311,11 @@ class RoleService:
 
     @classmethod
     async def get_role_user_allocated_list_services(
-        cls, query_db: AsyncSession, page_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
+        cls,
+        query_db: AsyncSession,
+        page_object: UserRolePageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> PageModel:
         """
         根据角色id获取已分配用户列表
@@ -329,7 +340,11 @@ class RoleService:
 
     @classmethod
     async def get_role_user_unallocated_list_services(
-        cls, query_db: AsyncSession, page_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
+        cls,
+        query_db: AsyncSession,
+        page_object: UserRolePageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> PageModel:
         """
         根据角色id获取未分配用户列表

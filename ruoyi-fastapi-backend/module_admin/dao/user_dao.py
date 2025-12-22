@@ -2,14 +2,14 @@ from collections.abc import Sequence
 from datetime import datetime, time
 from typing import Any, Union
 
-from sqlalchemy import and_, delete, desc, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, delete, desc, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.post_do import SysPost
-from module_admin.entity.do.role_do import SysRole, SysRoleDept, SysRoleMenu  # noqa: F401
+from module_admin.entity.do.role_do import SysRole, SysRoleMenu
 from module_admin.entity.do.user_do import SysUser, SysUserPost, SysUserRole
 from module_admin.entity.vo.user_vo import (
     UserModel,
@@ -280,7 +280,7 @@ class UserDao:
 
     @classmethod
     async def get_user_list(
-        cls, db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False
+        cls, db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: ColumnElement, is_page: bool = False
     ) -> Union[PageModel, list[list[dict[str, Any]]]]:
         """
         根据查询参数获取用户列表信息
@@ -316,7 +316,7 @@ class UserDao:
                 )
                 if query_object.begin_time and query_object.end_time
                 else True,
-                eval(data_scope_sql),
+                data_scope_sql,
             )
             .join(
                 SysDept,
@@ -408,7 +408,11 @@ class UserDao:
 
     @classmethod
     async def get_user_role_allocated_list_by_role_id(
-        cls, db: AsyncSession, query_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
+        cls,
+        db: AsyncSession,
+        query_object: UserRolePageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据角色id获取已分配的用户列表信息
@@ -429,7 +433,7 @@ class UserDao:
                 SysUser.user_name == query_object.user_name if query_object.user_name else True,
                 SysUser.phonenumber == query_object.phonenumber if query_object.phonenumber else True,
                 SysRole.role_id == query_object.role_id,
-                eval(data_scope_sql),
+                data_scope_sql,
             )
             .distinct()
         )
@@ -441,7 +445,11 @@ class UserDao:
 
     @classmethod
     async def get_user_role_unallocated_list_by_role_id(
-        cls, db: AsyncSession, query_object: UserRolePageQueryModel, data_scope_sql: str, is_page: bool = False
+        cls,
+        db: AsyncSession,
+        query_object: UserRolePageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据角色id获取未分配的用户列表信息
@@ -470,7 +478,7 @@ class UserDao:
                         and_(SysUserRole.user_id == SysUser.user_id, SysUserRole.role_id == query_object.role_id),
                     )
                 ),
-                eval(data_scope_sql),
+                data_scope_sql,
             )
             .distinct()
         )

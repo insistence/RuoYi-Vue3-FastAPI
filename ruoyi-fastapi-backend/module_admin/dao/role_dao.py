@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime, time
 from typing import Any, Union
 
-from sqlalchemy import and_, delete, desc, func, or_, select, update  # noqa: F401
+from sqlalchemy import ColumnElement, and_, delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
@@ -131,7 +131,7 @@ class RoleDao:
 
     @classmethod
     async def get_role_list(
-        cls, db: AsyncSession, query_object: RolePageQueryModel, data_scope_sql: str, is_page: bool = False
+        cls, db: AsyncSession, query_object: RolePageQueryModel, data_scope_sql: ColumnElement, is_page: bool = False
     ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取角色列表信息
@@ -159,7 +159,7 @@ class RoleDao:
                 )
                 if query_object.begin_time and query_object.end_time
                 else True,
-                eval(data_scope_sql),
+                data_scope_sql,
             )
             .order_by(SysRole.role_sort)
             .distinct()
