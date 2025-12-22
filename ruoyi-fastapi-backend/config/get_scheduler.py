@@ -1,7 +1,8 @@
+import importlib
 import json
 from asyncio import iscoroutinefunction
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Any, Callable, Optional, Union
 
 from apscheduler.events import EVENT_ALL, SchedulerEvent
 from apscheduler.executors.asyncio import AsyncIOExecutor
@@ -153,6 +154,18 @@ class SchedulerUtil:
         logger.info('✅️ 关闭定时任务成功')
 
     @classmethod
+    def _import_function(cls, func_path: str) -> Callable[..., Any]:
+        """
+        动态导入函数
+
+        :param func_path: 函数字符串，如module_task.scheduler_test.job
+        :return: 导入的函数对象
+        """
+        module_path, func_name = func_path.rsplit('.', 1)
+        module = importlib.import_module(module_path)
+        return getattr(module, func_name)
+
+    @classmethod
     def get_scheduler_job(cls, job_id: Union[str, int]) -> Job:
         """
         根据任务id获取任务对象
@@ -172,12 +185,12 @@ class SchedulerUtil:
         :param job_info: 任务对象信息
         :return:
         """
-        job_func = eval(job_info.invoke_target)
+        job_func = cls._import_function(job_info.invoke_target)
         job_executor = job_info.job_executor
         if iscoroutinefunction(job_func):
             job_executor = 'default'
         scheduler.add_job(
-            func=eval(job_info.invoke_target),
+            func=job_func,
             trigger=MyCronTrigger.from_crontab(job_info.cron_expression),
             args=job_info.job_args.split(',') if job_info.job_args else None,
             kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
@@ -198,7 +211,7 @@ class SchedulerUtil:
         :param job_info: 任务对象信息
         :return:
         """
-        job_func = eval(job_info.invoke_target)
+        job_func = cls._import_function(job_info.invoke_target)
         job_executor = job_info.job_executor
         if iscoroutinefunction(job_func):
             job_executor = 'default'
@@ -206,7 +219,7 @@ class SchedulerUtil:
         if job_info.status == '0':
             job_trigger = OrTrigger(triggers=[DateTrigger(), MyCronTrigger.from_crontab(job_info.cron_expression)])
         scheduler.add_job(
-            func=eval(job_info.invoke_target),
+            func=job_func,
             trigger=job_trigger,
             args=job_info.job_args.split(',') if job_info.job_args else None,
             kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
