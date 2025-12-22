@@ -6,6 +6,7 @@ import aiofiles
 from fastapi import File, Form, Path, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
@@ -17,6 +18,8 @@ from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
 from config.env import UploadConfig
+from module_admin.entity.do.dept_do import SysDept
+from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.dept_vo import DeptModel, DeptTreeModel
 from module_admin.entity.vo.user_vo import (
     AddUserModel,
@@ -60,7 +63,7 @@ user_controller = APIRouterPro(
 async def get_system_dept_tree(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     dept_query_result = await DeptService.get_dept_tree_services(query_db, DeptModel(), data_scope_sql)
     logger.info('获取成功')
@@ -79,7 +82,7 @@ async def get_system_user_list(
     request: Request,
     user_page_query: Annotated[UserPageQueryModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     # 获取分页数据
     user_page_query_result = await UserService.get_user_list_services(
@@ -104,8 +107,8 @@ async def add_system_user(
     add_user: AddUserModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    dept_data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
-    role_data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    dept_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
+    role_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     if not current_user.user.admin:
         await DeptService.check_dept_data_scope_services(query_db, add_user.dept_id, dept_data_scope_sql)
@@ -137,9 +140,9 @@ async def edit_system_user(
     edit_user: EditUserModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    user_data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
-    dept_data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
-    role_data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    user_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
+    dept_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
+    role_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     await UserService.check_user_allowed_services(edit_user)
     if not current_user.user.admin:
@@ -169,7 +172,7 @@ async def delete_system_user(
     user_ids: Annotated[str, Path(description='需要删除的用户ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     user_id_list = user_ids.split(',') if user_ids else []
     if user_id_list:
@@ -201,7 +204,7 @@ async def reset_system_user_pwd(
     reset_user: EditUserModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     await UserService.check_user_allowed_services(reset_user)
     if not current_user.user.admin:
@@ -233,7 +236,7 @@ async def change_system_user_status(
     change_user: EditUserModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     await UserService.check_user_allowed_services(change_user)
     if not current_user.user.admin:
@@ -286,7 +289,7 @@ async def query_detail_system_user(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
     user_id: Optional[Union[int, Literal['']]] = '',
 ) -> Response:
     if user_id and not current_user.user.admin:
@@ -407,8 +410,8 @@ async def batch_import_system_user(
     update_support: Annotated[bool, Query(alias='updateSupport')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    user_data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
-    dept_data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    user_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
+    dept_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     batch_import_result = await UserService.batch_import_user_services(
         request, query_db, file, update_support, current_user, user_data_scope_sql, dept_data_scope_sql
@@ -462,7 +465,7 @@ async def export_system_user_list(
     request: Request,
     user_page_query: Annotated[UserPageQueryModel, Form()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
-    data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
 ) -> Response:
     # 获取全量数据
     user_query_result = await UserService.get_user_list_services(
@@ -509,8 +512,8 @@ async def update_system_role_user(
     role_ids: Annotated[str, Query(alias='roleIds')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    user_data_scope_sql: Annotated[str, DataScopeDependency('SysUser')],
-    role_data_scope_sql: Annotated[str, DataScopeDependency('SysDept')],
+    user_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
+    role_data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
 ) -> Response:
     if not current_user.user.admin:
         await UserService.check_user_data_scope_services(query_db, user_id, user_data_scope_sql)

@@ -4,6 +4,7 @@ from typing import Any, Union
 
 import pandas as pd
 from fastapi import Request, UploadFile
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
@@ -47,7 +48,11 @@ class UserService:
 
     @classmethod
     async def get_user_list_services(
-        cls, query_db: AsyncSession, query_object: UserPageQueryModel, data_scope_sql: str, is_page: bool = False
+        cls,
+        query_db: AsyncSession,
+        query_object: UserPageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> Union[PageModel[UserRowModel], list[dict[str, Any]]]:
         """
         获取用户列表信息service
@@ -87,7 +92,7 @@ class UserService:
 
     @classmethod
     async def check_user_data_scope_services(
-        cls, query_db: AsyncSession, user_id: int, data_scope_sql: str
+        cls, query_db: AsyncSession, user_id: int, data_scope_sql: ColumnElement
     ) -> CrudResponseModel:
         """
         校验用户数据权限service
@@ -392,8 +397,8 @@ class UserService:
         file: UploadFile,
         update_support: bool,
         current_user: CurrentUserModel,
-        user_data_scope_sql: str,
-        dept_data_scope_sql: str,
+        user_data_scope_sql: ColumnElement,
+        dept_data_scope_sql: ColumnElement,
     ) -> CrudResponseModel:
         """
         批量导入用户service
