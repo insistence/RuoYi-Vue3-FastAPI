@@ -48,11 +48,27 @@ jobs:
           # Wait for backend to be ready (MySQL and Redis are already handled by depends_on in docker-compose)
           cd ruoyi-fastapi-test
           # Wait for backend to be running
-          timeout 120 bash -c 'until docker compose -f docker-compose.test.yml ps ruoyi-backend-my | grep -q "Up"; do sleep 5; done'
+          timeout 180 bash -c 'until docker compose -f docker-compose.test.yml ps ruoyi-backend-my | grep -q "Up"; do sleep 5; done'
           # Wait for frontend to be running
-          timeout 60 bash -c 'until docker compose -f docker-compose.test.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
-          # Additional wait for services to be fully ready
-          sleep 10
+          timeout 120 bash -c 'until docker compose -f docker-compose.test.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
+          # Additional wait for services to be fully ready and listening on ports
+          sleep 30
+          # Check that backend is actually responding on the API endpoint
+          echo "Checking if backend service is ready..."
+          for i in {1..30}; do
+            if curl -f http://localhost:9099/captchaImage > /dev/null 2>&1; then
+              echo "Backend service is ready!"
+              break
+            fi
+            echo "Waiting for backend service to be ready... ($i/30)"
+            sleep 5
+          done
+          # Final check
+          if ! curl -f http://localhost:9099/captchaImage > /dev/null 2>&1; then
+            echo "Backend service failed to start properly. Checking logs..."
+            docker logs ruoyi-backend-test
+            exit 1
+          fi
 
       - name: Run tests
         run: |
