@@ -58,6 +58,7 @@ jobs:
         run: |
           cd ruoyi-fastapi-test
           pip install -r requirements.txt
+          playwright install
           pytest -v
 
       - name: Stop services
