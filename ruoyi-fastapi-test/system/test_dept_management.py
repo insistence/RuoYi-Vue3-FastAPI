@@ -25,7 +25,7 @@ class DeptManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').first.click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 上级部门
@@ -63,7 +63,7 @@ class DeptManagementTest(BasePageTest):
         # 树形表格结构可能不同，但通常也是在 tbody 的 row 中
         await self.page.locator('tbody').get_by_role('button', name='修改').nth(0).click()
 
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改负责人

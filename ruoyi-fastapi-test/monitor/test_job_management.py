@@ -30,11 +30,11 @@ class JobManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写表单
-        await dialog.get_by_role('textbox', name='* 任务名称').fill(job_name)
+        await dialog.get_by_role('textbox', name='任务名称').fill(job_name)
 
         # 选择任务分组
         await dialog.locator("label:has-text('任务分组') + div .el-select").click()
@@ -45,10 +45,10 @@ class JobManagementTest(BasePageTest):
         await self.page.get_by_role('option', name=job_executor).click()
 
         # 填写调用方法
-        await dialog.get_by_role('textbox', name='* 调用方法').fill(invoke_target)
+        await dialog.get_by_role('textbox', name='调用方法').fill(invoke_target)
 
         # 填写cron表达式
-        await dialog.get_by_role('textbox', name='* cron表达式').fill(cron_expression)
+        await dialog.get_by_role('textbox', name='cron表达式').fill(cron_expression)
 
         # 策略：如果"失败"策略等有默认值，就不管了
 
@@ -72,11 +72,11 @@ class JobManagementTest(BasePageTest):
         # 操作列按钮顺序: 修改, 删除, 执行一次, 详细, 日志
         await row.locator('button').nth(0).click()
 
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改调用方法
-        await dialog.get_by_role('textbox', name='* 调用方法').fill(new_invoke_target)
+        await dialog.get_by_role('textbox', name='调用方法').fill(new_invoke_target)
 
         await dialog.get_by_role('button', name='确 定').click()
         await self.wait_for_selector("div:has-text('修改成功')", timeout=10000)

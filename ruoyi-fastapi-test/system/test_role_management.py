@@ -24,13 +24,13 @@ class RoleManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写信息
-        await dialog.get_by_role('textbox', name='* 角色名称').fill(role_name)
-        await dialog.get_by_role('textbox', name='* 权限字符').fill(role_key)
-        await dialog.get_by_role('spinbutton', name='* 角色顺序').fill(str(role_sort))
+        await dialog.get_by_role('textbox', name='角色名称').fill(role_name)
+        await dialog.get_by_role('textbox', name='权限字符').fill(role_key)
+        await dialog.get_by_role('spinbutton', name='角色顺序').fill(str(role_sort))
 
         # 选择菜单权限 (点击第一个复选框)
         await self.page.locator('.el-tree-node__content .el-checkbox').first.click()
@@ -58,7 +58,7 @@ class RoleManagementTest(BasePageTest):
         row = self.page.locator('tbody tr').first
         await row.get_by_role('button').nth(0).click()
 
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改备注

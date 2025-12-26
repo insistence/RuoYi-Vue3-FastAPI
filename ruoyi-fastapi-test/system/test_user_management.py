@@ -25,11 +25,11 @@ class UserManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写基本信息
-        await dialog.get_by_role('textbox', name='* 用户昵称').fill(nick_name)
+        await dialog.get_by_role('textbox', name='用户昵称').fill(nick_name)
 
         # 归属部门
         # 使用 label 定位父级 form-item，再点击内部的 wrapper
@@ -38,7 +38,7 @@ class UserManagementTest(BasePageTest):
         # 使用 .el-popper 定位下拉框中的内容
         await self.page.locator('.el-popper:visible').get_by_text('集团总公司').click()
 
-        await dialog.get_by_role('textbox', name='* 用户名称').fill(user_name)
+        await dialog.get_by_role('textbox', name='用户名称').fill(user_name)
         # 手机号码在搜索框也有，所以必须限定在 dialog 内
         # 注意：有些 label 可能不带 *，或者带 * 但 get_by_role 需要准确匹配
         # 这里使用 get_by_placeholder 或者 filter 来定位更稳妥，或者直接 scope 到 dialog
@@ -81,7 +81,7 @@ class UserManagementTest(BasePageTest):
         row = self.page.locator('tbody tr').first
         await row.get_by_role('button').nth(0).click()
 
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改性别为女

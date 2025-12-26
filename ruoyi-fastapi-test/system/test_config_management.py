@@ -25,13 +25,13 @@ class ConfigManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').first.click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写参数信息
-        await dialog.get_by_role('textbox', name='* 参数名称').fill(config_name)
-        await dialog.get_by_role('textbox', name='* 参数键名').fill(config_key)
-        await dialog.get_by_role('textbox', name='* 参数键值').fill(config_value)
+        await dialog.get_by_role('textbox', name='参数名称').fill(config_name)
+        await dialog.get_by_role('textbox', name='参数键名').fill(config_key)
+        await dialog.get_by_role('textbox', name='参数键值').fill(config_value)
 
         # 等待一段时间确保输入完成
         await self.page.wait_for_timeout(500)
@@ -75,11 +75,11 @@ class ConfigManagementTest(BasePageTest):
         await self.page.locator('tbody').get_by_role('button', name='修改').nth(0).click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改参数键值
-        await dialog.get_by_role('textbox', name='* 参数键值').fill(updated_value)
+        await dialog.get_by_role('textbox', name='参数键值').fill(updated_value)
 
         # 确认
         await self.page.get_by_role('button', name='确 定').first.click()

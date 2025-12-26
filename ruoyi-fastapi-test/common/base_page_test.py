@@ -79,7 +79,7 @@ class BasePageTest:
 
     async def get_table_total_rows(self) -> int:
         """获取表格总行数"""
-        element = self.page.locator('span.el-pagination__total.is-first').first
+        element = self.page.locator('span.el-pagination__total').first
         text = await element.text_content()
 
         # 提取数字

@@ -25,11 +25,11 @@ class NoticeManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').first.click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写公告信息
-        await dialog.get_by_role('textbox', name='* 公告标题').fill(notice_title)
+        await dialog.get_by_role('textbox', name='公告标题').fill(notice_title)
 
         # 选择公告类型
         # 根据codegen脚本，点击下拉框触发器
@@ -73,11 +73,11 @@ class NoticeManagementTest(BasePageTest):
         await self.page.locator('tbody').get_by_role('button', name='修改').nth(0).click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改公告标题
-        await dialog.get_by_role('textbox', name='* 公告标题').fill(updated_title)
+        await dialog.get_by_role('textbox', name='公告标题').fill(updated_title)
 
         # 修改公告内容
         await self.page.locator('.ql-editor').fill(updated_content)

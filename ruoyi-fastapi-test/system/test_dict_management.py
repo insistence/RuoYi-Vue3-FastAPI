@@ -29,7 +29,7 @@ class DictManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').first.click()
 
         # 等待对话框
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写表单
@@ -59,7 +59,7 @@ class DictManagementTest(BasePageTest):
         row = self.page.locator('tbody tr').first
         await row.get_by_role('button', name='修改').click()
 
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         await dialog.get_by_role('textbox', name='备注').fill(remark)
@@ -104,7 +104,7 @@ class DictManagementTest(BasePageTest):
         # 点击新增按钮
         await self.page.get_by_role('button', name='新增').first.click()
 
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         await dialog.get_by_role('textbox', name='数据标签').fill(label)
@@ -139,7 +139,7 @@ class DictManagementTest(BasePageTest):
         row = self.page.locator('tbody tr').filter(has_text=label).first
         await row.get_by_role('button', name='修改').click()
 
-        dialog = self.page.locator('.el-dialog:visible')
+        dialog =self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         await dialog.get_by_role('textbox', name='备注').fill(remark)
