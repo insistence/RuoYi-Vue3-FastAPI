@@ -1,0 +1,68 @@
+line-length = 120
+show-fixes = true
+target-version = "py39"
+unsafe-fixes = true
+
+[lint]
+select = [
+    "FAST",   # fastapi
+    "ANN",    # flake8-annotations
+    "ASYNC",  # flake8-async
+    "B",      # flake8-bugbear
+    "A",      # flake8-builtins
+    "COM",    # flake8-commas
+    "C4",     # flake8-comprehensions
+    "ISC",    # flake8-implicit-str-concat
+    "ICN",    # flake8-import-conventions
+    "PIE",    # flake8-pie
+    "RSE",    # flake8-raise
+    "RET",    # flake8-return
+    "SIM",    # flake8-simplify
+    "TC",     # flake8-type-checking
+    "FLY",    # flynt
+    "I",      # isort
+    "N",      # pep8-naming
+    "PERF",   # perflint
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "PGH",    # pygrep-hooks
+    "PL",     # pylint
+    "UP",     # pyupgrade
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "ANN002", # missing type annotation for *{name}
+    "ANN003", # missing type annotation for **{name}
+    "ANN401", # dynamically typed expressions (typing.Any) are disallowed in {name}
+    "B008",   # do not perform function calls in argument defaults
+    "COM812", # trailing comma missing
+    "RET504", # unnecessary assignment to {name} before return statement
+    "SIM105", # use contextlib.suppress({exception}) instead of try-except-pass
+    "C901",   # too complex
+    "N818",   # exception name {name} should be named with an Error suffix
+    "E501",   # line too long
+    "W191",   # indentation contains tabs
+    "RUF001", # string contains ambiguous
+    "RUF002", # docstring contains ambiguous
+    "RUF003", # comment contains ambiguous
+    "RUF012", # mutable class attributes should be annotated with typing.ClassVar
+]
+
+[lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlalchemy.orm.DeclarativeBase"]
+
+[lint.isort]
+known-third-party = ["alembic"]
+
+[lint.pylint]
+max-args = 10
+max-returns = 10
+
+[lint.pyupgrade]
+# Preserve types, even if a file imports `from __future__ import annotations`.
+keep-runtime-typing = true
+
+[format]
+docstring-code-format = true
+quote-style = "single"
