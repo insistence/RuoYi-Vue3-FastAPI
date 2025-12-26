@@ -13,7 +13,7 @@ services:
     depends_on:
       - ruoyi-backend-my
     networks:
-      - ruoyi-test-network
+      - ruoyi-network-test
 
   # 后端服务（MySQL版本）
   ruoyi-backend-my:
@@ -30,7 +30,7 @@ services:
       ruoyi-redis:
         condition: service_healthy
     networks:
-      - ruoyi-test-network
+      - ruoyi-network-test
     environment:
       # 使用测试环境配置，禁用验证码
       - SYS_CAPTCHA_ENABLED=false
@@ -49,9 +49,9 @@ services:
       - ./disable_captcha.sql:/docker-entrypoint-initdb.d/02-disable-captcha.sql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
     networks:
-      - ruoyi-test-network
+      - ruoyi-network-test
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      test: ["CMD", "bash", "-c", "mysqladmin ping -h localhost -u root -proot && mysql -h localhost -u root -proot -e 'SELECT 1'"]
       interval: 5s
       timeout: 10s
       retries: 30
@@ -63,7 +63,7 @@ services:
     ports:
       - "16380:6379"
     networks:
-      - ruoyi-test-network
+      - ruoyi-network-test
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -72,6 +72,6 @@ services:
 
 # 网络配置
 networks:
-  ruoyi-test-network:
-    name: ruoyi-test-network
+  ruoyi-network-test:
+    name: ruoyi-network-test
     driver: bridge
