@@ -1,0 +1,74 @@
+services:
+  # 前端服务
+  ruoyi-frontend:
+    build:
+      context: ../ruoyi-fastapi-frontend
+      dockerfile: Dockerfile
+    image: ruoyi-frontend:latest
+    container_name: ruoyi-frontend-test
+    ports:
+      - "80:80"
+    volumes:
+      - ../ruoyi-fastapi-frontend/bin/nginx.dockerpg.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - ruoyi-backend-pg
+    networks:
+      - ruoyi-network-test
+
+  # 后端服务（PostgreSQL版本）
+  ruoyi-backend-pg:
+    build:
+      context: ../ruoyi-fastapi-backend
+      dockerfile: Dockerfile.pg
+    image: ruoyi-backend-pg:latest
+    container_name: ruoyi-backend-pg-test
+    ports:
+      - "9099:9099"
+    depends_on:
+      ruoyi-pg:
+        condition: service_healthy
+      ruoyi-redis:
+        condition: service_healthy
+    networks:
+      - ruoyi-network-test
+
+  # PostgreSQL服务
+  ruoyi-pg:
+    image: postgres:14
+    container_name: ruoyi-pg-test
+    environment:
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: ruoyi-fastapi
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "15433:5432"
+    volumes:
+      - ../ruoyi-fastapi-backend/sql/ruoyi-fastapi-pg.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi-pg.sql
+      - ./disable_captcha.sql:/docker-entrypoint-initdb.d/02-disable-captcha.sql
+    networks:
+      - ruoyi-network-test
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  # Redis服务
+  ruoyi-redis:
+    image: redis:latest
+    container_name: ruoyi-redis-test
+    ports:
+      - "16381:6379"
+    networks:
+      - ruoyi-network-test
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+# 网络配置
+networks:
+  ruoyi-network-test:
+    name: ruoyi-network-test
+    driver: bridge

@@ -1,0 +1,74 @@
+services:
+  # 前端服务
+  ruoyi-frontend:
+    build:
+      context: ../ruoyi-fastapi-frontend
+      dockerfile: Dockerfile
+    image: ruoyi-frontend:latest
+    container_name: ruoyi-frontend-test
+    ports:
+      - "80:80"
+    volumes:
+      - ../ruoyi-fastapi-frontend/bin/nginx.dockermy.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - ruoyi-backend-my
+    networks:
+      - ruoyi-network-test
+
+  # 后端服务（MySQL版本）
+  ruoyi-backend-my:
+    build:
+      context: ../ruoyi-fastapi-backend
+      dockerfile: Dockerfile.my
+    image: ruoyi-backend-my:latest
+    container_name: ruoyi-backend-my-test
+    ports:
+      - "9099:9099"
+    depends_on:
+      ruoyi-mysql:
+        condition: service_healthy
+      ruoyi-redis:
+        condition: service_healthy
+    networks:
+      - ruoyi-network-test
+
+  # MySQL服务
+  ruoyi-mysql:
+    image: mysql:8.0
+    container_name: ruoyi-mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ruoyi-fastapi
+    ports:
+      - "13307:3306"
+    volumes:
+      - ../ruoyi-fastapi-backend/sql/ruoyi-fastapi.sql:/docker-entrypoint-initdb.d/01-ruoyi-fastapi.sql
+      - ./disable_captcha.sql:/docker-entrypoint-initdb.d/02-disable-captcha.sql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci --skip-character-set-client-handshake=1
+    networks:
+      - ruoyi-network-test
+    healthcheck:
+      test: ["CMD", "bash", "-c", "mysqladmin ping -h localhost -u root -proot && mysql -h localhost -u root -proot -e 'SELECT 1'"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  # Redis服务
+  ruoyi-redis:
+    image: redis:latest
+    container_name: ruoyi-redis-test
+    ports:
+      - "16380:6379"
+    networks:
+      - ruoyi-network-test
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+# 网络配置
+networks:
+  ruoyi-network-test:
+    name: ruoyi-network-test
+    driver: bridge
