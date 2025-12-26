@@ -14,6 +14,7 @@
 
 1.优化数据权限依赖 (#55)。
 2.动态导入定时任务函数，移除eval (#56)。
+3.优化pg版本的docker compose配置文件 (#61)。
 
 ## RuoYi-Vue3-FastAPI v1.8.0
 
