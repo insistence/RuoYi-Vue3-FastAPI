@@ -60,6 +60,7 @@ class DeptDao:
                     select(SysDept).where(
                         SysDept.parent_id == dept.parent_id if dept.parent_id else True,
                         SysDept.dept_name == dept.dept_name if dept.dept_name else True,
+                        SysDept.del_flag == '0',
                     )
                 )
             )
