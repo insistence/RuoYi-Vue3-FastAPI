@@ -1,3 +1,5 @@
+from typing import Union
+
 import requests
 
 from common.config import Config
@@ -7,11 +9,12 @@ class LoginHelper:
     """
     登录辅助类
     """
+
     def __init__(self, base_url: str = Config.frontend_url) -> None:
         self.base_url = base_url
         self.session = requests.Session()
 
-    def login(self, username: str = 'admin', password: str = 'admin123', max_retries: int = 3) -> str | None:
+    def login(self, username: str = 'admin', password: str = 'admin123', max_retries: int = 3) -> Union[str, None]:
         """
         执行登录操作（在测试环境中，验证码已禁用）
         """
