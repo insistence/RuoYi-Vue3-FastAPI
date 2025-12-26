@@ -128,7 +128,7 @@ jobs:
         run: |
           cd ruoyi-fastapi-test
           # Wait for backend to be running
-          timeout 180 bash -c 'until docker compose -f docker-compose.test.pg.yml ps ruoyi-backend-my | grep -q "Up"; do sleep 5; done'
+          timeout 180 bash -c 'until docker compose -f docker-compose.test.pg.yml ps ruoyi-backend-pg | grep -q "Up"; do sleep 5; done'
           # Wait for frontend to be running
           timeout 120 bash -c 'until docker compose -f docker-compose.test.pg.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
           # Additional wait for services to be fully ready and listening on ports
