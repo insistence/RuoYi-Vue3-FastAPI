@@ -56,7 +56,10 @@ cd ruoyi-fastapi-test
 #### 启动 Docker 服务
 
 ```bash
-docker compose -f docker-compose.test.yml up -d
+# MySQL版本
+docker compose -f docker-compose.test.my.yml up -d --build
+# PostgreSQL版本
+docker compose -f docker-compose.test.pg.yml up -d --build
 ```
 
 #### 运行测试
@@ -102,7 +105,7 @@ python -m pytest -v
 
 ## 配置说明
 
-默认使用 `docker-compose.test.yml` (MySQL版本) 启动服务，前端端口为 `80`，后端端口为 `9099`。测试环境已禁用验证码功能。
+使用 `docker-compose.test.my.yml`或`docker-compose.test.pg.yml`启动服务，默认前端端口为 `80`，后端端口为 `9099`。测试环境已禁用验证码功能。
 
 ## 注意事项
 

@@ -21,7 +21,7 @@ services:
       context: ../ruoyi-fastapi-backend
       dockerfile: Dockerfile.my
     image: ruoyi-backend-my:latest
-    container_name: ruoyi-backend-test
+    container_name: ruoyi-backend-my-test
     ports:
       - "9099:9099"
     depends_on:
@@ -31,9 +31,6 @@ services:
         condition: service_healthy
     networks:
       - ruoyi-network-test
-    environment:
-      # 使用测试环境配置，禁用验证码
-      - SYS_CAPTCHA_ENABLED=false
 
   # MySQL服务
   ruoyi-mysql:
