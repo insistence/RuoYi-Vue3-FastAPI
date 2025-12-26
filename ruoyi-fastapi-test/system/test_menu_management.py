@@ -28,7 +28,7 @@ class MenuManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').first.click()
 
         # 等待对话框出现
-        dialog =self.page.get_by_role('dialog')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写表单
@@ -61,7 +61,7 @@ class MenuManagementTest(BasePageTest):
         await row.get_by_role('button', name='新增').click()
 
         # 等待对话框
-        dialog =self.page.get_by_role('dialog')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 选择菜单类型为"菜单"

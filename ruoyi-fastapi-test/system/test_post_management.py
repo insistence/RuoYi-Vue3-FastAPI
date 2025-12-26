@@ -51,7 +51,7 @@ class PostManagementTest(BasePageTest):
         """新增岗位"""
         await self.page.get_by_role('button', name='新增').click()
 
-        dialog =self.page.get_by_role('dialog')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写表单
@@ -92,7 +92,7 @@ class PostManagementTest(BasePageTest):
         # 点击修改按钮
         await row.get_by_role('button', name='修改').click()
 
-        dialog =self.page.get_by_role('dialog')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改备注

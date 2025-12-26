@@ -25,7 +25,7 @@ class NoticeManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').first.click()
 
         # 等待对话框
-        dialog =self.page.get_by_role('dialog')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写公告信息
@@ -73,7 +73,7 @@ class NoticeManagementTest(BasePageTest):
         await self.page.locator('tbody').get_by_role('button', name='修改').nth(0).click()
 
         # 等待对话框
-        dialog =self.page.get_by_role('dialog')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改公告标题

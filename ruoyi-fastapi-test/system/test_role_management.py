@@ -24,7 +24,7 @@ class RoleManagementTest(BasePageTest):
         await self.page.get_by_role('button', name='新增').click()
 
         # 等待对话框
-        dialog =self.page.get_by_role('dialog')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 填写信息
@@ -58,7 +58,7 @@ class RoleManagementTest(BasePageTest):
         row = self.page.locator('tbody tr').first
         await row.get_by_role('button').nth(0).click()
 
-        dialog =self.page.get_by_role('dialog')
+        dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
 
         # 修改备注
