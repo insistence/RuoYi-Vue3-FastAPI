@@ -1,9 +1,15 @@
+from collections.abc import Sequence
+from typing import Any
+
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
-from config.constant import CommonConstant
+
+from common.constant import CommonConstant
+from common.vo import CrudResponseModel
 from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.dept_dao import DeptDao
-from module_admin.entity.vo.common_vo import CrudResponseModel
-from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel
+from module_admin.entity.do.dept_do import SysDept
+from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptTreeModel
 from utils.common_util import CamelCaseUtil
 
 
@@ -13,7 +19,9 @@ class DeptService:
     """
 
     @classmethod
-    async def get_dept_tree_services(cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str):
+    async def get_dept_tree_services(
+        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: ColumnElement
+    ) -> list[dict[str, Any]]:
         """
         获取部门树信息service
 
@@ -23,14 +31,15 @@ class DeptService:
         :return: 部门树信息对象
         """
         dept_list_result = await DeptDao.get_dept_list_for_tree(query_db, page_object, data_scope_sql)
-        dept_tree_result = cls.list_to_tree(dept_list_result)
+        dept_tree_model_result = cls.list_to_tree(dept_list_result)
+        dept_tree_result = [dept.model_dump(exclude_unset=True, by_alias=True) for dept in dept_tree_model_result]
 
         return dept_tree_result
 
     @classmethod
     async def get_dept_for_edit_option_services(
-        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str
-    ):
+        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: ColumnElement
+    ) -> list[dict[str, Any]]:
         """
         获取部门编辑部门树信息service
 
@@ -44,7 +53,9 @@ class DeptService:
         return CamelCaseUtil.transform_result(dept_list_result)
 
     @classmethod
-    async def get_dept_list_services(cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: str):
+    async def get_dept_list_services(
+        cls, query_db: AsyncSession, page_object: DeptModel, data_scope_sql: ColumnElement
+    ) -> list[dict[str, Any]]:
         """
         获取部门列表信息service
 
@@ -58,7 +69,9 @@ class DeptService:
         return CamelCaseUtil.transform_result(dept_list_result)
 
     @classmethod
-    async def check_dept_data_scope_services(cls, query_db: AsyncSession, dept_id: int, data_scope_sql: str):
+    async def check_dept_data_scope_services(
+        cls, query_db: AsyncSession, dept_id: int, data_scope_sql: ColumnElement
+    ) -> CrudResponseModel:
         """
         校验部门是否有数据权限service
 
@@ -70,11 +83,10 @@ class DeptService:
         depts = await DeptDao.get_dept_list(query_db, DeptModel(deptId=dept_id), data_scope_sql)
         if depts:
             return CrudResponseModel(is_success=True, message='校验通过')
-        else:
-            raise ServiceException(message='没有权限访问部门数据')
+        raise ServiceException(message='没有权限访问部门数据')
 
     @classmethod
-    async def check_dept_name_unique_services(cls, query_db: AsyncSession, page_object: DeptModel):
+    async def check_dept_name_unique_services(cls, query_db: AsyncSession, page_object: DeptModel) -> bool:
         """
         校验部门名称是否唯一service
 
@@ -91,7 +103,7 @@ class DeptService:
         return CommonConstant.UNIQUE
 
     @classmethod
-    async def add_dept_services(cls, query_db: AsyncSession, page_object: DeptModel):
+    async def add_dept_services(cls, query_db: AsyncSession, page_object: DeptModel) -> CrudResponseModel:
         """
         新增部门信息service
 
@@ -114,7 +126,7 @@ class DeptService:
             raise e
 
     @classmethod
-    async def edit_dept_services(cls, query_db: AsyncSession, page_object: DeptModel):
+    async def edit_dept_services(cls, query_db: AsyncSession, page_object: DeptModel) -> CrudResponseModel:
         """
         编辑部门信息service
 
@@ -124,9 +136,9 @@ class DeptService:
         """
         if not await cls.check_dept_name_unique_services(query_db, page_object):
             raise ServiceException(message=f'修改部门{page_object.dept_name}失败，部门名称已存在')
-        elif page_object.dept_id == page_object.parent_id:
+        if page_object.dept_id == page_object.parent_id:
             raise ServiceException(message=f'修改部门{page_object.dept_name}失败，上级部门不能是自己')
-        elif (
+        if (
             page_object.status == CommonConstant.DEPT_DISABLE
             and (await DeptDao.count_normal_children_dept_dao(query_db, page_object.dept_id)) > 0
         ):
@@ -154,7 +166,7 @@ class DeptService:
             raise e
 
     @classmethod
-    async def delete_dept_services(cls, query_db: AsyncSession, page_object: DeleteDeptModel):
+    async def delete_dept_services(cls, query_db: AsyncSession, page_object: DeleteDeptModel) -> CrudResponseModel:
         """
         删除部门信息service
 
@@ -168,7 +180,7 @@ class DeptService:
                 for dept_id in dept_id_list:
                     if (await DeptDao.count_children_dept_dao(query_db, int(dept_id))) > 0:
                         raise ServiceWarning(message='存在下级部门,不允许删除')
-                    elif (await DeptDao.count_dept_user_dao(query_db, int(dept_id))) > 0:
+                    if (await DeptDao.count_dept_user_dao(query_db, int(dept_id))) > 0:
                         raise ServiceWarning(message='部门存在用户,不允许删除')
 
                     await DeptDao.delete_dept_dao(query_db, DeptModel(deptId=dept_id))
@@ -181,7 +193,7 @@ class DeptService:
             raise ServiceException(message='传入部门id为空')
 
     @classmethod
-    async def dept_detail_services(cls, query_db: AsyncSession, dept_id: int):
+    async def dept_detail_services(cls, query_db: AsyncSession, dept_id: int) -> DeptModel:
         """
         获取部门详细信息service
 
@@ -190,46 +202,43 @@ class DeptService:
         :return: 部门id对应的信息
         """
         dept = await DeptDao.get_dept_detail_by_id(query_db, dept_id=dept_id)
-        if dept:
-            result = DeptModel(**CamelCaseUtil.transform_result(dept))
-        else:
-            result = DeptModel(**dict())
+        result = DeptModel(**CamelCaseUtil.transform_result(dept)) if dept else DeptModel()
 
         return result
 
     @classmethod
-    def list_to_tree(cls, permission_list: list) -> list:
+    def list_to_tree(cls, permission_list: Sequence[SysDept]) -> list[DeptTreeModel]:
         """
         工具方法：根据部门列表信息生成树形嵌套数据
 
         :param permission_list: 部门列表信息
         :return: 部门树形嵌套数据
         """
-        permission_list = [
-            dict(id=item.dept_id, label=item.dept_name, parentId=item.parent_id) for item in permission_list
+        _permission_list = [
+            DeptTreeModel(id=item.dept_id, label=item.dept_name, parentId=item.parent_id) for item in permission_list
         ]
         # 转成id为key的字典
-        mapping: dict = dict(zip([i['id'] for i in permission_list], permission_list))
+        mapping: dict[int, DeptTreeModel] = dict(zip([i.id for i in _permission_list], _permission_list))
 
         # 树容器
-        container: list = []
+        container: list[DeptTreeModel] = []
 
-        for d in permission_list:
+        for d in _permission_list:
             # 如果找不到父级项，则是根节点
-            parent: dict = mapping.get(d['parentId'])
+            parent = mapping.get(d.parent_id)
             if parent is None:
                 container.append(d)
             else:
-                children: list = parent.get('children')
+                children: list[DeptTreeModel] = parent.children
                 if not children:
                     children = []
                 children.append(d)
-                parent.update({'children': children})
+                parent.children = children
 
         return container
 
     @classmethod
-    async def replace_first(cls, original_str: str, old_str: str, new_str: str):
+    async def replace_first(cls, original_str: str, old_str: str, new_str: str) -> str:
         """
         工具方法：替换字符串
 
@@ -240,11 +249,10 @@ class DeptService:
         """
         if original_str.startswith(old_str):
             return original_str.replace(old_str, new_str, 1)
-        else:
-            return original_str
+        return original_str
 
     @classmethod
-    async def update_parent_dept_status_normal(cls, query_db: AsyncSession, dept: DeptModel):
+    async def update_parent_dept_status_normal(cls, query_db: AsyncSession, dept: DeptModel) -> None:
         """
         更新父部门状态为正常
 
@@ -256,7 +264,9 @@ class DeptService:
         await DeptDao.update_dept_status_normal_dao(query_db, list(map(int, dept_id_list)))
 
     @classmethod
-    async def update_dept_children(cls, query_db: AsyncSession, dept_id: int, new_ancestors: str, old_ancestors: str):
+    async def update_dept_children(
+        cls, query_db: AsyncSession, dept_id: int, new_ancestors: str, old_ancestors: str
+    ) -> None:
         """
         更新子部门信息
 

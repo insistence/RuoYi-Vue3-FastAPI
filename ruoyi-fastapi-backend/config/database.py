@@ -1,8 +1,8 @@
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.ext.asyncio import async_sessionmaker
-from sqlalchemy.ext.asyncio import AsyncAttrs
-from sqlalchemy.orm import DeclarativeBase
 from urllib.parse import quote_plus
+
+from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
+
 from config.env import DataBaseConfig
 
 ASYNC_SQLALCHEMY_DATABASE_URL = (

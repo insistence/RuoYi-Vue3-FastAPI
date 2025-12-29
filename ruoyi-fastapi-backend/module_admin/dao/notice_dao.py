@@ -1,6 +1,10 @@
 from datetime import datetime, time
+from typing import Any, Union
+
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from common.vo import PageModel
 from module_admin.entity.do.notice_do import SysNotice
 from module_admin.entity.vo.notice_vo import NoticeModel, NoticePageQueryModel
 from utils.page_util import PageUtil
@@ -12,7 +16,7 @@ class NoticeDao:
     """
 
     @classmethod
-    async def get_notice_detail_by_id(cls, db: AsyncSession, notice_id: int):
+    async def get_notice_detail_by_id(cls, db: AsyncSession, notice_id: int) -> Union[SysNotice, None]:
         """
         根据通知公告id获取通知公告详细信息
 
@@ -25,7 +29,7 @@ class NoticeDao:
         return notice_info
 
     @classmethod
-    async def get_notice_detail_by_info(cls, db: AsyncSession, notice: NoticeModel):
+    async def get_notice_detail_by_info(cls, db: AsyncSession, notice: NoticeModel) -> Union[SysNotice, None]:
         """
         根据通知公告参数获取通知公告信息
 
@@ -50,7 +54,9 @@ class NoticeDao:
         return notice_info
 
     @classmethod
-    async def get_notice_list(cls, db: AsyncSession, query_object: NoticePageQueryModel, is_page: bool = False):
+    async def get_notice_list(
+        cls, db: AsyncSession, query_object: NoticePageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取通知公告列表信息
 
@@ -75,12 +81,14 @@ class NoticeDao:
             .order_by(SysNotice.notice_id)
             .distinct()
         )
-        notice_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        notice_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return notice_list
 
     @classmethod
-    async def add_notice_dao(cls, db: AsyncSession, notice: NoticeModel):
+    async def add_notice_dao(cls, db: AsyncSession, notice: NoticeModel) -> SysNotice:
         """
         新增通知公告数据库操作
 
@@ -95,7 +103,7 @@ class NoticeDao:
         return db_notice
 
     @classmethod
-    async def edit_notice_dao(cls, db: AsyncSession, notice: dict):
+    async def edit_notice_dao(cls, db: AsyncSession, notice: dict) -> None:
         """
         编辑通知公告数据库操作
 
@@ -106,7 +114,7 @@ class NoticeDao:
         await db.execute(update(SysNotice), [notice])
 
     @classmethod
-    async def delete_notice_dao(cls, db: AsyncSession, notice: NoticeModel):
+    async def delete_notice_dao(cls, db: AsyncSession, notice: NoticeModel) -> None:
         """
         删除通知公告数据库操作
 

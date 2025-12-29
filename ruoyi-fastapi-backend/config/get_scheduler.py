@@ -1,7 +1,13 @@
+import importlib
 import json
-from apscheduler.events import EVENT_ALL
+from asyncio import iscoroutinefunction
+from datetime import datetime, timedelta
+from typing import Any, Callable, Optional, Union
+
+from apscheduler.events import EVENT_ALL, SchedulerEvent
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.executors.pool import ProcessPoolExecutor
+from apscheduler.job import Job
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -9,27 +15,29 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
-from asyncio import iscoroutinefunction
-from datetime import datetime, timedelta
 from sqlalchemy.engine import create_engine
 from sqlalchemy.orm import sessionmaker
-from typing import Union
+
+import module_task  # noqa: F401
 from config.database import AsyncSessionLocal, quote_plus
 from config.env import DataBaseConfig, RedisConfig
 from module_admin.dao.job_dao import JobDao
 from module_admin.entity.vo.job_vo import JobLogModel, JobModel
 from module_admin.service.job_log_service import JobLogService
 from utils.log_util import logger
-import module_task  # noqa: F401
 
 
 # 重写Cron定时
 class MyCronTrigger(CronTrigger):
+    CRON_EXPRESSION_LENGTH_MIN = 6
+    CRON_EXPRESSION_LENGTH_MAX = 7
+    WEEKDAY_COUNT = 5
+
     @classmethod
-    def from_crontab(cls, expr: str, timezone=None):
+    def from_crontab(cls, expr: str, timezone: Optional[str] = None) -> 'MyCronTrigger':
         values = expr.split()
-        if len(values) != 6 and len(values) != 7:
-            raise ValueError('Wrong number of fields; got {}, expected 6 or 7'.format(len(values)))
+        if len(values) != cls.CRON_EXPRESSION_LENGTH_MIN and len(values) != cls.CRON_EXPRESSION_LENGTH_MAX:
+            raise ValueError(f'Wrong number of fields; got {len(values)}, expected 6 or 7')
 
         second = values[0]
         minute = values[1]
@@ -37,7 +45,7 @@ class MyCronTrigger(CronTrigger):
         if '?' in values[3]:
             day = None
         elif 'L' in values[5]:
-            day = f"last {values[5].replace('L', '')}"
+            day = f'last {values[5].replace("L", "")}'
         elif 'W' in values[3]:
             day = cls.__find_recent_workday(int(values[3].split('W')[0]))
         else:
@@ -49,11 +57,8 @@ class MyCronTrigger(CronTrigger):
             week = int(values[5].split('#')[1])
         else:
             week = values[5]
-        if '#' in values[5]:
-            day_of_week = int(values[5].split('#')[0]) - 1
-        else:
-            day_of_week = None
-        year = values[6] if len(values) == 7 else None
+        day_of_week = int(values[5].split('#')[0]) - 1 if '#' in values[5] else None
+        year = values[6] if len(values) == cls.CRON_EXPRESSION_LENGTH_MAX else None
         return cls(
             second=second,
             minute=minute,
@@ -67,19 +72,17 @@ class MyCronTrigger(CronTrigger):
         )
 
     @classmethod
-    def __find_recent_workday(cls, day: int):
+    def __find_recent_workday(cls, day: int) -> int:
         now = datetime.now()
         date = datetime(now.year, now.month, day)
-        if date.weekday() < 5:
+        if date.weekday() < cls.WEEKDAY_COUNT:
             return date.day
-        else:
-            diff = 1
-            while True:
-                previous_day = date - timedelta(days=diff)
-                if previous_day.weekday() < 5:
-                    return previous_day.day
-                else:
-                    diff += 1
+        diff = 1
+        while True:
+            previous_day = date - timedelta(days=diff)
+            if previous_day.weekday() < cls.WEEKDAY_COUNT:
+                return previous_day.day
+            diff += 1
 
 
 SQLALCHEMY_DATABASE_URL = (
@@ -100,18 +103,17 @@ engine = create_engine(
     pool_timeout=DataBaseConfig.db_pool_timeout,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+redis_config = {
+    'host': RedisConfig.redis_host,
+    'port': RedisConfig.redis_port,
+    'username': RedisConfig.redis_username,
+    'password': RedisConfig.redis_password,
+    'db': RedisConfig.redis_database,
+}
 job_stores = {
     'default': MemoryJobStore(),
     'sqlalchemy': SQLAlchemyJobStore(url=SQLALCHEMY_DATABASE_URL, engine=engine),
-    'redis': RedisJobStore(
-        **dict(
-            host=RedisConfig.redis_host,
-            port=RedisConfig.redis_port,
-            username=RedisConfig.redis_username,
-            password=RedisConfig.redis_password,
-            db=RedisConfig.redis_database,
-        )
-    ),
+    'redis': RedisJobStore(**redis_config),
 }
 executors = {'default': AsyncIOExecutor(), 'processpool': ProcessPoolExecutor(5)}
 job_defaults = {'coalesce': False, 'max_instance': 1}
@@ -125,7 +127,7 @@ class SchedulerUtil:
     """
 
     @classmethod
-    async def init_system_scheduler(cls):
+    async def init_system_scheduler(cls) -> None:
         """
         应用启动时初始化定时任务
 
@@ -142,7 +144,7 @@ class SchedulerUtil:
         logger.info('✅️ 系统初始定时任务加载成功')
 
     @classmethod
-    async def close_system_scheduler(cls):
+    async def close_system_scheduler(cls) -> None:
         """
         应用关闭时关闭定时任务
 
@@ -152,7 +154,19 @@ class SchedulerUtil:
         logger.info('✅️ 关闭定时任务成功')
 
     @classmethod
-    def get_scheduler_job(cls, job_id: Union[str, int]):
+    def _import_function(cls, func_path: str) -> Callable[..., Any]:
+        """
+        动态导入函数
+
+        :param func_path: 函数字符串，如module_task.scheduler_test.job
+        :return: 导入的函数对象
+        """
+        module_path, func_name = func_path.rsplit('.', 1)
+        module = importlib.import_module(module_path)
+        return getattr(module, func_name)
+
+    @classmethod
+    def get_scheduler_job(cls, job_id: Union[str, int]) -> Job:
         """
         根据任务id获取任务对象
 
@@ -164,40 +178,40 @@ class SchedulerUtil:
         return query_job
 
     @classmethod
-    def add_scheduler_job(cls, job_info: JobModel):
+    def add_scheduler_job(cls, job_info: JobModel) -> None:
         """
         根据输入的任务对象信息添加任务
 
         :param job_info: 任务对象信息
         :return:
         """
-        job_func = eval(job_info.invoke_target)
+        job_func = cls._import_function(job_info.invoke_target)
         job_executor = job_info.job_executor
         if iscoroutinefunction(job_func):
             job_executor = 'default'
         scheduler.add_job(
-            func=eval(job_info.invoke_target),
+            func=job_func,
             trigger=MyCronTrigger.from_crontab(job_info.cron_expression),
             args=job_info.job_args.split(',') if job_info.job_args else None,
             kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
             id=str(job_info.job_id),
             name=job_info.job_name,
             misfire_grace_time=1000000000000 if job_info.misfire_policy == '3' else None,
-            coalesce=True if job_info.misfire_policy == '2' else False,
+            coalesce=job_info.misfire_policy == '2',
             max_instances=3 if job_info.concurrent == '0' else 1,
             jobstore=job_info.job_group,
             executor=job_executor,
         )
 
     @classmethod
-    def execute_scheduler_job_once(cls, job_info: JobModel):
+    def execute_scheduler_job_once(cls, job_info: JobModel) -> None:
         """
         根据输入的任务对象执行一次任务
 
         :param job_info: 任务对象信息
         :return:
         """
-        job_func = eval(job_info.invoke_target)
+        job_func = cls._import_function(job_info.invoke_target)
         job_executor = job_info.job_executor
         if iscoroutinefunction(job_func):
             job_executor = 'default'
@@ -205,21 +219,21 @@ class SchedulerUtil:
         if job_info.status == '0':
             job_trigger = OrTrigger(triggers=[DateTrigger(), MyCronTrigger.from_crontab(job_info.cron_expression)])
         scheduler.add_job(
-            func=eval(job_info.invoke_target),
+            func=job_func,
             trigger=job_trigger,
             args=job_info.job_args.split(',') if job_info.job_args else None,
             kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
             id=str(job_info.job_id),
             name=job_info.job_name,
             misfire_grace_time=1000000000000 if job_info.misfire_policy == '3' else None,
-            coalesce=True if job_info.misfire_policy == '2' else False,
+            coalesce=job_info.misfire_policy == '2',
             max_instances=3 if job_info.concurrent == '0' else 1,
             jobstore=job_info.job_group,
             executor=job_executor,
         )
 
     @classmethod
-    def remove_scheduler_job(cls, job_id: Union[str, int]):
+    def remove_scheduler_job(cls, job_id: Union[str, int]) -> None:
         """
         根据任务id移除任务
 
@@ -231,7 +245,7 @@ class SchedulerUtil:
             scheduler.remove_job(job_id=str(job_id))
 
     @classmethod
-    def scheduler_event_listener(cls, event):
+    def scheduler_event_listener(cls, event: SchedulerEvent) -> None:
         # 获取事件类型和任务ID
         event_type = event.__class__.__name__
         # 获取任务执行异常信息
@@ -260,7 +274,7 @@ class SchedulerUtil:
                 # 获取任务触发器
                 job_trigger = str(query_job_info.get('trigger'))
                 # 构造日志消息
-                job_message = f"事件类型: {event_type}, 任务ID: {job_id}, 任务名称: {job_name}, 执行于{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                job_message = f'事件类型: {event_type}, 任务ID: {job_id}, 任务名称: {job_name}, 执行于{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
                 job_log = JobLogModel(
                     jobName=job_name,
                     jobGroup=job_group,

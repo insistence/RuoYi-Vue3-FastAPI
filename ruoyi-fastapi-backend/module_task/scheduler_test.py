@@ -1,7 +1,7 @@
 from datetime import datetime
 
 
-def job(*args, **kwargs):
+def job(*args, **kwargs) -> None:
     """
     定时任务执行同步函数示例
     """
@@ -10,7 +10,7 @@ def job(*args, **kwargs):
     print(f'{datetime.now()}同步函数执行了')
 
 
-async def async_job(*args, **kwargs):
+async def async_job(*args, **kwargs) -> None:
     """
     定时任务执行异步函数示例
     """

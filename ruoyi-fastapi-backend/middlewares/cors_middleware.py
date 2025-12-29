@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 
-def add_cors_middleware(app: FastAPI):
+def add_cors_middleware(app: FastAPI) -> None:
     """
     添加跨域中间件
 

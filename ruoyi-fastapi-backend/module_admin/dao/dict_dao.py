@@ -1,7 +1,12 @@
+from collections.abc import Sequence
 from datetime import datetime, time
+from typing import Any, Union
+
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from module_admin.entity.do.dict_do import SysDictType, SysDictData
+
+from common.vo import PageModel
+from module_admin.entity.do.dict_do import SysDictData, SysDictType
 from module_admin.entity.vo.dict_vo import DictDataModel, DictDataPageQueryModel, DictTypeModel, DictTypePageQueryModel
 from utils.page_util import PageUtil
 from utils.time_format_util import list_format_datetime
@@ -13,7 +18,7 @@ class DictTypeDao:
     """
 
     @classmethod
-    async def get_dict_type_detail_by_id(cls, db: AsyncSession, dict_id: int):
+    async def get_dict_type_detail_by_id(cls, db: AsyncSession, dict_id: int) -> Union[SysDictType, None]:
         """
         根据字典类型id获取字典类型详细信息
 
@@ -26,7 +31,7 @@ class DictTypeDao:
         return dict_type_info
 
     @classmethod
-    async def get_dict_type_detail_by_info(cls, db: AsyncSession, dict_type: DictTypeModel):
+    async def get_dict_type_detail_by_info(cls, db: AsyncSession, dict_type: DictTypeModel) -> Union[SysDictType, None]:
         """
         根据字典类型参数获取字典类型信息
 
@@ -50,7 +55,7 @@ class DictTypeDao:
         return dict_type_info
 
     @classmethod
-    async def get_all_dict_type(cls, db: AsyncSession):
+    async def get_all_dict_type(cls, db: AsyncSession) -> list[Any]:
         """
         获取所有的字典类型信息
 
@@ -62,7 +67,9 @@ class DictTypeDao:
         return list_format_datetime(dict_type_info)
 
     @classmethod
-    async def get_dict_type_list(cls, db: AsyncSession, query_object: DictTypePageQueryModel, is_page: bool = False):
+    async def get_dict_type_list(
+        cls, db: AsyncSession, query_object: DictTypePageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取字典类型列表信息
 
@@ -87,12 +94,14 @@ class DictTypeDao:
             .order_by(SysDictType.dict_id)
             .distinct()
         )
-        dict_type_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        dict_type_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return dict_type_list
 
     @classmethod
-    async def add_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel):
+    async def add_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel) -> SysDictType:
         """
         新增字典类型数据库操作
 
@@ -107,7 +116,7 @@ class DictTypeDao:
         return db_dict_type
 
     @classmethod
-    async def edit_dict_type_dao(cls, db: AsyncSession, dict_type: dict):
+    async def edit_dict_type_dao(cls, db: AsyncSession, dict_type: dict) -> None:
         """
         编辑字典类型数据库操作
 
@@ -118,7 +127,7 @@ class DictTypeDao:
         await db.execute(update(SysDictType), [dict_type])
 
     @classmethod
-    async def delete_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel):
+    async def delete_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel) -> None:
         """
         删除字典类型数据库操作
 
@@ -135,7 +144,7 @@ class DictDataDao:
     """
 
     @classmethod
-    async def get_dict_data_detail_by_id(cls, db: AsyncSession, dict_code: int):
+    async def get_dict_data_detail_by_id(cls, db: AsyncSession, dict_code: int) -> Union[SysDictData, None]:
         """
         根据字典数据id获取字典数据详细信息
 
@@ -150,7 +159,7 @@ class DictDataDao:
         return dict_data_info
 
     @classmethod
-    async def get_dict_data_detail_by_info(cls, db: AsyncSession, dict_data: DictDataModel):
+    async def get_dict_data_detail_by_info(cls, db: AsyncSession, dict_data: DictDataModel) -> Union[SysDictData, None]:
         """
         根据字典数据参数获取字典数据信息
 
@@ -175,7 +184,9 @@ class DictDataDao:
         return dict_data_info
 
     @classmethod
-    async def get_dict_data_list(cls, db: AsyncSession, query_object: DictDataPageQueryModel, is_page: bool = False):
+    async def get_dict_data_list(
+        cls, db: AsyncSession, query_object: DictDataPageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取字典数据列表信息
 
@@ -194,12 +205,14 @@ class DictDataDao:
             .order_by(SysDictData.dict_sort)
             .distinct()
         )
-        dict_data_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        dict_data_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return dict_data_list
 
     @classmethod
-    async def query_dict_data_list(cls, db: AsyncSession, dict_type: str):
+    async def query_dict_data_list(cls, db: AsyncSession, dict_type: str) -> Sequence[SysDictData]:
         """
         根据查询参数获取字典数据列表信息
 
@@ -229,7 +242,7 @@ class DictDataDao:
         return dict_data_list
 
     @classmethod
-    async def add_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel):
+    async def add_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel) -> SysDictData:
         """
         新增字典数据数据库操作
 
@@ -244,7 +257,7 @@ class DictDataDao:
         return db_data_type
 
     @classmethod
-    async def edit_dict_data_dao(cls, db: AsyncSession, dict_data: dict):
+    async def edit_dict_data_dao(cls, db: AsyncSession, dict_data: dict) -> None:
         """
         编辑字典数据数据库操作
 
@@ -255,7 +268,7 @@ class DictDataDao:
         await db.execute(update(SysDictData), [dict_data])
 
     @classmethod
-    async def delete_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel):
+    async def delete_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel) -> None:
         """
         删除字典数据数据库操作
 
@@ -266,7 +279,7 @@ class DictDataDao:
         await db.execute(delete(SysDictData).where(SysDictData.dict_code.in_([dict_data.dict_code])))
 
     @classmethod
-    async def count_dict_data_dao(cls, db: AsyncSession, dict_type: str):
+    async def count_dict_data_dao(cls, db: AsyncSession, dict_type: str) -> Union[int, None]:
         """
         根据字典类型查询字典类型关联的字典数据数量
 

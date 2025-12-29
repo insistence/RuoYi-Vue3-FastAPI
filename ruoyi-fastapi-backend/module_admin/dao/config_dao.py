@@ -1,6 +1,10 @@
 from datetime import datetime, time
+from typing import Any, Union
+
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from common.vo import PageModel
 from module_admin.entity.do.config_do import SysConfig
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel
 from utils.page_util import PageUtil
@@ -12,7 +16,7 @@ class ConfigDao:
     """
 
     @classmethod
-    async def get_config_detail_by_id(cls, db: AsyncSession, config_id: int):
+    async def get_config_detail_by_id(cls, db: AsyncSession, config_id: int) -> Union[SysConfig, None]:
         """
         根据参数配置id获取参数配置详细信息
 
@@ -25,7 +29,7 @@ class ConfigDao:
         return config_info
 
     @classmethod
-    async def get_config_detail_by_info(cls, db: AsyncSession, config: ConfigModel):
+    async def get_config_detail_by_info(cls, db: AsyncSession, config: ConfigModel) -> Union[SysConfig, None]:
         """
         根据参数配置参数获取参数配置信息
 
@@ -49,7 +53,9 @@ class ConfigDao:
         return config_info
 
     @classmethod
-    async def get_config_list(cls, db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False):
+    async def get_config_list(
+        cls, db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取参数配置列表信息
 
@@ -74,12 +80,14 @@ class ConfigDao:
             .order_by(SysConfig.config_id)
             .distinct()
         )
-        config_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        config_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return config_list
 
     @classmethod
-    async def add_config_dao(cls, db: AsyncSession, config: ConfigModel):
+    async def add_config_dao(cls, db: AsyncSession, config: ConfigModel) -> SysConfig:
         """
         新增参数配置数据库操作
 
@@ -94,7 +102,7 @@ class ConfigDao:
         return db_config
 
     @classmethod
-    async def edit_config_dao(cls, db: AsyncSession, config: dict):
+    async def edit_config_dao(cls, db: AsyncSession, config: dict) -> None:
         """
         编辑参数配置数据库操作
 
@@ -105,7 +113,7 @@ class ConfigDao:
         await db.execute(update(SysConfig), [config])
 
     @classmethod
-    async def delete_config_dao(cls, db: AsyncSession, config: ConfigModel):
+    async def delete_config_dao(cls, db: AsyncSession, config: ConfigModel) -> None:
         """
         删除参数配置数据库操作
 

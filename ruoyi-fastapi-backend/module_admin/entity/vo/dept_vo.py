@@ -1,9 +1,9 @@
 from datetime import datetime
+from typing import Literal, Optional, Union
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import Network, NotBlank, Size
-from typing import Literal, Optional
-from module_admin.annotation.pydantic_annotation import as_query
 
 
 class DeptModel(BaseModel):
@@ -30,30 +30,29 @@ class DeptModel(BaseModel):
 
     @NotBlank(field_name='dept_name', message='部门名称不能为空')
     @Size(field_name='dept_name', min_length=0, max_length=30, message='部门名称长度不能超过30个字符')
-    def get_dept_name(self):
+    def get_dept_name(self) -> Union[str, None]:
         return self.dept_name
 
     @NotBlank(field_name='order_num', message='显示顺序不能为空')
-    def get_order_num(self):
+    def get_order_num(self) -> Union[int, None]:
         return self.order_num
 
     @Size(field_name='phone', min_length=0, max_length=11, message='联系电话长度不能超过11个字符')
-    def get_phone(self):
+    def get_phone(self) -> Union[str, None]:
         return self.phone
 
     @Network(field_name='email', field_type='EmailStr', message='邮箱格式不正确')
     @Size(field_name='email', min_length=0, max_length=50, message='邮箱长度不能超过50个字符')
-    def get_email(self):
+    def get_email(self) -> Union[str, None]:
         return self.email
 
-    def validate_fields(self):
+    def validate_fields(self) -> None:
         self.get_dept_name()
         self.get_order_num()
         self.get_phone()
         self.get_email()
 
 
-@as_query
 class DeptQueryModel(DeptModel):
     """
     部门管理不分页查询模型
@@ -61,6 +60,19 @@ class DeptQueryModel(DeptModel):
 
     begin_time: Optional[str] = Field(default=None, description='开始时间')
     end_time: Optional[str] = Field(default=None, description='结束时间')
+
+
+class DeptTreeModel(BaseModel):
+    """
+    部门树模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    id: int = Field(description='部门id')
+    label: str = Field(description='部门名称')
+    parent_id: int = Field(description='父部门id')
+    children: Optional[list['DeptTreeModel']] = Field(default=None, description='子部门树')
 
 
 class DeleteDeptModel(BaseModel):

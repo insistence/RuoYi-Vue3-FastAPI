@@ -1,5 +1,9 @@
+from typing import Any, Union
+
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from common.vo import PageModel
 from module_admin.entity.do.post_do import SysPost
 from module_admin.entity.do.user_do import SysUserPost
 from module_admin.entity.vo.post_vo import PostModel, PostPageQueryModel
@@ -12,7 +16,7 @@ class PostDao:
     """
 
     @classmethod
-    async def get_post_by_id(cls, db: AsyncSession, post_id: int):
+    async def get_post_by_id(cls, db: AsyncSession, post_id: int) -> Union[SysPost, None]:
         """
         根据岗位id获取在用岗位详细信息
 
@@ -29,7 +33,7 @@ class PostDao:
         return post_info
 
     @classmethod
-    async def get_post_detail_by_id(cls, db: AsyncSession, post_id: int):
+    async def get_post_detail_by_id(cls, db: AsyncSession, post_id: int) -> Union[SysPost, None]:
         """
         根据岗位id获取岗位详细信息
 
@@ -42,7 +46,7 @@ class PostDao:
         return post_info
 
     @classmethod
-    async def get_post_detail_by_info(cls, db: AsyncSession, post: PostModel):
+    async def get_post_detail_by_info(cls, db: AsyncSession, post: PostModel) -> Union[SysPost, None]:
         """
         根据岗位参数获取岗位信息
 
@@ -67,7 +71,9 @@ class PostDao:
         return post_info
 
     @classmethod
-    async def get_post_list(cls, db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False):
+    async def get_post_list(
+        cls, db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取岗位列表信息
 
@@ -86,12 +92,14 @@ class PostDao:
             .order_by(SysPost.post_sort)
             .distinct()
         )
-        post_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        post_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return post_list
 
     @classmethod
-    async def add_post_dao(cls, db: AsyncSession, post: PostModel):
+    async def add_post_dao(cls, db: AsyncSession, post: PostModel) -> SysPost:
         """
         新增岗位数据库操作
 
@@ -106,7 +114,7 @@ class PostDao:
         return db_post
 
     @classmethod
-    async def edit_post_dao(cls, db: AsyncSession, post: dict):
+    async def edit_post_dao(cls, db: AsyncSession, post: dict) -> None:
         """
         编辑岗位数据库操作
 
@@ -117,7 +125,7 @@ class PostDao:
         await db.execute(update(SysPost), [post])
 
     @classmethod
-    async def delete_post_dao(cls, db: AsyncSession, post: PostModel):
+    async def delete_post_dao(cls, db: AsyncSession, post: PostModel) -> None:
         """
         删除岗位数据库操作
 
@@ -128,7 +136,7 @@ class PostDao:
         await db.execute(delete(SysPost).where(SysPost.post_id.in_([post.post_id])))
 
     @classmethod
-    async def count_user_post_dao(cls, db: AsyncSession, post_id: int):
+    async def count_user_post_dao(cls, db: AsyncSession, post_id: int) -> Union[int, None]:
         """
         根据岗位id查询岗位关联的用户数量
 

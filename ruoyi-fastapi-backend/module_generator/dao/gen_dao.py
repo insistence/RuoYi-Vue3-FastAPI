@@ -1,9 +1,13 @@
+from collections.abc import Sequence
 from datetime import datetime, time
-from sqlalchemy import delete, func, select, text, update
+from typing import Any, Union
+
+from sqlalchemy import Row, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlglot.expressions import Expression
-from typing import List
+
+from common.vo import PageModel
 from config.env import DataBaseConfig
 from module_generator.entity.do.gen_do import GenTable, GenTableColumn
 from module_generator.entity.vo.gen_vo import (
@@ -22,7 +26,7 @@ class GenTableDao:
     """
 
     @classmethod
-    async def get_gen_table_by_id(cls, db: AsyncSession, table_id: int):
+    async def get_gen_table_by_id(cls, db: AsyncSession, table_id: int) -> Union[GenTable, None]:
         """
         根据业务表id获取需要生成的业务表信息
 
@@ -43,7 +47,7 @@ class GenTableDao:
         return gen_table_info
 
     @classmethod
-    async def get_gen_table_by_name(cls, db: AsyncSession, table_name: str):
+    async def get_gen_table_by_name(cls, db: AsyncSession, table_name: str) -> Union[GenTable, None]:
         """
         根据业务表名称获取需要生成的业务表信息
 
@@ -64,7 +68,7 @@ class GenTableDao:
         return gen_table_info
 
     @classmethod
-    async def get_gen_table_all(cls, db: AsyncSession):
+    async def get_gen_table_all(cls, db: AsyncSession) -> Sequence[GenTable]:
         """
         获取所有业务表信息
 
@@ -76,7 +80,7 @@ class GenTableDao:
         return gen_table_all
 
     @classmethod
-    async def create_table_by_sql_dao(cls, db: AsyncSession, sql_statements: List[Expression]):
+    async def create_table_by_sql_dao(cls, db: AsyncSession, sql_statements: list[Expression]) -> None:
         """
         根据sql语句创建表结构
 
@@ -89,7 +93,9 @@ class GenTableDao:
             await db.execute(text(sql))
 
     @classmethod
-    async def get_gen_table_list(cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False):
+    async def get_gen_table_list(
+        cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取代码生成业务表列表信息
 
@@ -117,12 +123,16 @@ class GenTableDao:
             )
             .distinct()
         )
-        gen_table_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        gen_table_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return gen_table_list
 
     @classmethod
-    async def get_gen_db_table_list(cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False):
+    async def get_gen_db_table_list(
+        cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取数据库列表信息
 
@@ -133,28 +143,28 @@ class GenTableDao:
         """
         if DataBaseConfig.db_type == 'postgresql':
             query_sql = """
-                table_name as table_name, 
-                table_comment as table_comment, 
-                create_time as create_time, 
+                table_name as table_name,
+                table_comment as table_comment,
+                create_time as create_time,
                 update_time as update_time
-            from 
+            from
                 list_table
-            where 
-                table_name not like 'apscheduler_%' 
+            where
+                table_name not like 'apscheduler_%'
                 and table_name not like 'gen_%'
                 and table_name not in (select table_name from gen_table)
             """
         else:
-            query_sql = """
-                table_name as table_name, 
-                table_comment as table_comment, 
-                create_time as create_time, 
+            query_sql = r"""
+                table_name as table_name,
+                table_comment as table_comment,
+                create_time as create_time,
                 update_time as update_time
-            from 
+            from
                 information_schema.tables
-            where 
+            where
                 table_schema = (select database())
-                and table_name not like 'apscheduler\_%' 
+                and table_name not like 'apscheduler\_%'
                 and table_name not like 'gen\_%'
                 and table_name not in (select table_name from gen_table)
             """
@@ -174,19 +184,16 @@ class GenTableDao:
                 query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:end_time, '%Y%m%d')"""
         query_sql += """order by create_time desc"""
         query = select(
-            text(query_sql).bindparams(
-                **{
-                    k: v
-                    for k, v in query_object.model_dump(exclude_none=True, exclude={'page_num', 'page_size'}).items()
-                }
-            )
+            text(query_sql).bindparams(**query_object.model_dump(exclude_none=True, exclude={'page_num', 'page_size'}))
         )
-        gen_db_table_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        gen_db_table_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return gen_db_table_list
 
     @classmethod
-    async def get_gen_db_table_list_by_names(cls, db: AsyncSession, table_names: List[str]):
+    async def get_gen_db_table_list_by_names(cls, db: AsyncSession, table_names: list[str]) -> Sequence[Row]:
         """
         根据业务表名称组获取数据库列表信息
 
@@ -197,29 +204,29 @@ class GenTableDao:
         if DataBaseConfig.db_type == 'postgresql':
             query_sql = """
             select
-                table_name as table_name, 
-                table_comment as table_comment, 
-                create_time as create_time, 
-                update_time as update_time 
-            from 
+                table_name as table_name,
+                table_comment as table_comment,
+                create_time as create_time,
+                update_time as update_time
+            from
                 list_table
-            where 
-                table_name not like 'qrtz_%' 
-                and table_name not like 'gen_%' 
+            where
+                table_name not like 'qrtz_%'
+                and table_name not like 'gen_%'
                 and table_name = any(:table_names)
             """
         else:
-            query_sql = """
+            query_sql = r"""
             select
-                table_name as table_name, 
-                table_comment as table_comment, 
-                create_time as create_time, 
-                update_time as update_time 
-            from 
+                table_name as table_name,
+                table_comment as table_comment,
+                create_time as create_time,
+                update_time as update_time
+            from
                 information_schema.tables
-            where 
-                table_name not like 'qrtz\_%' 
-                and table_name not like 'gen\_%' 
+            where
+                table_name not like 'qrtz\_%'
+                and table_name not like 'gen\_%'
                 and table_schema = (select database())
                 and table_name in :table_names
             """
@@ -229,7 +236,7 @@ class GenTableDao:
         return gen_db_table_list
 
     @classmethod
-    async def add_gen_table_dao(cls, db: AsyncSession, gen_table: GenTableModel):
+    async def add_gen_table_dao(cls, db: AsyncSession, gen_table: GenTableModel) -> GenTable:
         """
         新增业务表数据库操作
 
@@ -244,7 +251,7 @@ class GenTableDao:
         return db_gen_table
 
     @classmethod
-    async def edit_gen_table_dao(cls, db: AsyncSession, gen_table: dict):
+    async def edit_gen_table_dao(cls, db: AsyncSession, gen_table: dict) -> None:
         """
         编辑业务表数据库操作
 
@@ -255,7 +262,7 @@ class GenTableDao:
         await db.execute(update(GenTable), [GenTableBaseModel(**gen_table).model_dump()])
 
     @classmethod
-    async def delete_gen_table_dao(cls, db: AsyncSession, gen_table: GenTableModel):
+    async def delete_gen_table_dao(cls, db: AsyncSession, gen_table: GenTableModel) -> None:
         """
         删除业务表数据库操作
 
@@ -272,7 +279,7 @@ class GenTableColumnDao:
     """
 
     @classmethod
-    async def get_gen_table_column_list_by_table_id(cls, db: AsyncSession, table_id: int):
+    async def get_gen_table_column_list_by_table_id(cls, db: AsyncSession, table_id: int) -> GenTableColumn:
         """
         根据业务表id获取需要生成的业务表字段列表信息
 
@@ -293,7 +300,7 @@ class GenTableColumnDao:
         return gen_table_column_list
 
     @classmethod
-    async def get_gen_db_table_columns_by_name(cls, db: AsyncSession, table_name: str):
+    async def get_gen_db_table_columns_by_name(cls, db: AsyncSession, table_name: str) -> Sequence[Row]:
         """
         根据业务表名称获取业务表字段列表信息
 
@@ -312,29 +319,29 @@ class GenTableColumnDao:
             """
         else:
             query_sql = """
-            select 
+            select
                 column_name as column_name,
-                case 
-                    when is_nullable = 'no' and column_key != 'PRI' then '1' 
-                    else '0' 
+                case
+                    when is_nullable = 'no' and column_key != 'PRI' then '1'
+                    else '0'
                 end as is_required,
-                case 
-                    when column_key = 'PRI' then '1' 
-                    else '0' 
+                case
+                    when column_key = 'PRI' then '1'
+                    else '0'
                 end as is_pk,
                 ordinal_position as sort,
                 column_comment as column_comment,
-                case 
-                    when extra = 'auto_increment' then '1' 
-                    else '0' 
+                case
+                    when extra = 'auto_increment' then '1'
+                    else '0'
                 end as is_increment,
                 column_type as column_type
-            from 
+            from
                 information_schema.columns
-            where 
-                table_schema = (select database()) 
+            where
+                table_schema = (select database())
                 and table_name = :table_name
-            order by 
+            order by
                 ordinal_position
             """
         query = text(query_sql).bindparams(table_name=table_name)
@@ -343,7 +350,7 @@ class GenTableColumnDao:
         return gen_db_table_columns
 
     @classmethod
-    async def add_gen_table_column_dao(cls, db: AsyncSession, gen_table_column: GenTableColumnModel):
+    async def add_gen_table_column_dao(cls, db: AsyncSession, gen_table_column: GenTableColumnModel) -> GenTableColumn:
         """
         新增业务表字段数据库操作
 
@@ -360,7 +367,7 @@ class GenTableColumnDao:
         return db_gen_table_column
 
     @classmethod
-    async def edit_gen_table_column_dao(cls, db: AsyncSession, gen_table_column: dict):
+    async def edit_gen_table_column_dao(cls, db: AsyncSession, gen_table_column: dict) -> None:
         """
         编辑业务表字段数据库操作
 
@@ -371,7 +378,9 @@ class GenTableColumnDao:
         await db.execute(update(GenTableColumn), [GenTableColumnBaseModel(**gen_table_column).model_dump()])
 
     @classmethod
-    async def delete_gen_table_column_by_table_id_dao(cls, db: AsyncSession, gen_table_column: GenTableColumnModel):
+    async def delete_gen_table_column_by_table_id_dao(
+        cls, db: AsyncSession, gen_table_column: GenTableColumnModel
+    ) -> None:
         """
         通过业务表id删除业务表字段数据库操作
 
@@ -382,7 +391,9 @@ class GenTableColumnDao:
         await db.execute(delete(GenTableColumn).where(GenTableColumn.table_id.in_([gen_table_column.table_id])))
 
     @classmethod
-    async def delete_gen_table_column_by_column_id_dao(cls, db: AsyncSession, gen_table_column: GenTableColumnModel):
+    async def delete_gen_table_column_by_column_id_dao(
+        cls, db: AsyncSession, gen_table_column: GenTableColumnModel
+    ) -> None:
         """
         通过业务字段id删除业务表字段数据库操作
 

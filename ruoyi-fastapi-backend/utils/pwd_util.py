@@ -20,7 +20,7 @@ class PwdUtil:
         )
 
     @classmethod
-    def get_password_hash(cls, input_password):
+    def get_password_hash(cls, input_password: str) -> str:
         """
         工具方法：对当前输入的密码进行加密
 

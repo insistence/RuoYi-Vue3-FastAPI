@@ -1,11 +1,14 @@
+from collections.abc import Mapping
 from datetime import datetime
+from typing import Any, Optional
+
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTask
-from typing import Any, Dict, Mapping, Optional
-from config.constant import HttpStatusConstant
+
+from common.constant import HttpStatusConstant
 
 
 class ResponseUtil:
@@ -19,7 +22,7 @@ class ResponseUtil:
         msg: str = '操作成功',
         data: Optional[Any] = None,
         rows: Optional[Any] = None,
-        dict_content: Optional[Dict] = None,
+        dict_content: Optional[dict] = None,
         model_content: Optional[BaseModel] = None,
         headers: Optional[Mapping[str, str]] = None,
         media_type: Optional[str] = None,
@@ -65,7 +68,7 @@ class ResponseUtil:
         msg: str = '操作失败',
         data: Optional[Any] = None,
         rows: Optional[Any] = None,
-        dict_content: Optional[Dict] = None,
+        dict_content: Optional[dict] = None,
         model_content: Optional[BaseModel] = None,
         headers: Optional[Mapping[str, str]] = None,
         media_type: Optional[str] = None,
@@ -111,7 +114,7 @@ class ResponseUtil:
         msg: str = '登录信息已过期，访问系统资源失败',
         data: Optional[Any] = None,
         rows: Optional[Any] = None,
-        dict_content: Optional[Dict] = None,
+        dict_content: Optional[dict] = None,
         model_content: Optional[BaseModel] = None,
         headers: Optional[Mapping[str, str]] = None,
         media_type: Optional[str] = None,
@@ -157,7 +160,7 @@ class ResponseUtil:
         msg: str = '该用户无此接口权限',
         data: Optional[Any] = None,
         rows: Optional[Any] = None,
-        dict_content: Optional[Dict] = None,
+        dict_content: Optional[dict] = None,
         model_content: Optional[BaseModel] = None,
         headers: Optional[Mapping[str, str]] = None,
         media_type: Optional[str] = None,
@@ -203,7 +206,7 @@ class ResponseUtil:
         msg: str = '接口异常',
         data: Optional[Any] = None,
         rows: Optional[Any] = None,
-        dict_content: Optional[Dict] = None,
+        dict_content: Optional[dict] = None,
         model_content: Optional[BaseModel] = None,
         headers: Optional[Mapping[str, str]] = None,
         media_type: Optional[str] = None,

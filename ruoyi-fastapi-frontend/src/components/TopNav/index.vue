@@ -174,7 +174,7 @@ onMounted(() => {
   float: left;
   height: 50px !important;
   line-height: 50px !important;
-  color: #999093 !important;
+  color: #303133 !important;
   padding: 0 5px !important;
   margin: 0 10px !important;
 }
@@ -189,7 +189,7 @@ onMounted(() => {
   float: left;
   height: 50px !important;
   line-height: 50px !important;
-  color: #999093 !important;
+  color: #303133 !important;
   padding: 0 5px !important;
   margin: 0 10px !important;
 }

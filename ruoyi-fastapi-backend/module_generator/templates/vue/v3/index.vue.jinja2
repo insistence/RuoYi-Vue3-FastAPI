@@ -400,7 +400,7 @@ function getList() {
   {% for column in columns %}
   {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
   {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
-  if (null != daterange{{ AttrName }} && '' != daterange{{ AttrName }}) {
+  if (null != daterange{{ AttrName }}.value && '' != daterange{{ AttrName }}.value) {
     queryParams.value.begin{{ AttrName }} = daterange{{ AttrName }}.value[0];
     queryParams.value.end{{ AttrName }} = daterange{{ AttrName }}.value[1];
   }

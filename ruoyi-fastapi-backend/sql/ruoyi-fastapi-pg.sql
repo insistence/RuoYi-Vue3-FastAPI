@@ -936,8 +936,7 @@ create table gen_table_column (
     create_time timestamp(0),
     update_by varchar(64) default '',
     update_time timestamp(0),
-    primary key (column_id),
-    constraint fk_gen_table_column_table_id foreign key (table_id) references gen_table(table_id)
+    primary key (column_id)
 );
 comment on column gen_table_column.column_id is '编号';
 comment on column gen_table_column.table_id is '归属表编号';

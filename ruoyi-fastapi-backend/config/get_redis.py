@@ -1,5 +1,8 @@
+from fastapi import FastAPI
 from redis import asyncio as aioredis
-from redis.exceptions import AuthenticationError, TimeoutError, RedisError
+from redis.exceptions import AuthenticationError, RedisError
+from redis.exceptions import TimeoutError as RedisTimeoutError
+
 from config.database import AsyncSessionLocal
 from config.env import RedisConfig
 from module_admin.service.config_service import ConfigService
@@ -37,14 +40,14 @@ class RedisUtil:
                 logger.error('❌️ redis连接失败')
         except AuthenticationError as e:
             logger.error(f'❌️ redis用户名或密码错误，详细错误信息：{e}')
-        except TimeoutError as e:
+        except RedisTimeoutError as e:
             logger.error(f'❌️ redis连接超时，详细错误信息：{e}')
         except RedisError as e:
             logger.error(f'❌️ redis连接错误，详细错误信息：{e}')
         return redis
 
     @classmethod
-    async def close_redis_pool(cls, app):
+    async def close_redis_pool(cls, app: FastAPI) -> None:
         """
         应用关闭时关闭redis连接
 
@@ -55,7 +58,7 @@ class RedisUtil:
         logger.info('✅️ 关闭redis连接成功')
 
     @classmethod
-    async def init_sys_dict(cls, redis):
+    async def init_sys_dict(cls, redis: FastAPI) -> None:
         """
         应用启动时缓存字典表
 
@@ -66,7 +69,7 @@ class RedisUtil:
             await DictDataService.init_cache_sys_dict_services(session, redis)
 
     @classmethod
-    async def init_sys_config(cls, redis):
+    async def init_sys_config(cls, redis: aioredis.Redis) -> None:
         """
         应用启动时缓存参数配置表
 

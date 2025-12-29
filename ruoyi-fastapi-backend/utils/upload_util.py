@@ -1,7 +1,11 @@
 import os
 import random
+from collections.abc import AsyncGenerator
 from datetime import datetime
+
+import aiofiles
 from fastapi import UploadFile
+
 from config.env import UploadConfig
 
 
@@ -11,7 +15,7 @@ class UploadUtil:
     """
 
     @classmethod
-    def generate_random_number(cls):
+    def generate_random_number(cls) -> str:
         """
         生成3位数字构成的字符串
 
@@ -22,7 +26,7 @@ class UploadUtil:
         return f'{random_number:03}'
 
     @classmethod
-    def check_file_exists(cls, filepath: str):
+    def check_file_exists(cls, filepath: str) -> bool:
         """
         检查文件是否存在
 
@@ -32,7 +36,7 @@ class UploadUtil:
         return os.path.exists(filepath)
 
     @classmethod
-    def check_file_extension(cls, file: UploadFile):
+    def check_file_extension(cls, file: UploadFile) -> bool:
         """
         检查文件后缀是否合法
 
@@ -40,12 +44,11 @@ class UploadUtil:
         :return: 校验结果
         """
         file_extension = file.filename.rsplit('.', 1)[-1]
-        if file_extension in UploadConfig.DEFAULT_ALLOWED_EXTENSION:
-            return True
-        return False
+
+        return file_extension in UploadConfig.DEFAULT_ALLOWED_EXTENSION
 
     @classmethod
-    def check_file_timestamp(cls, filename: str):
+    def check_file_timestamp(cls, filename: str) -> bool:
         """
         校验文件时间戳是否合法
 
@@ -60,19 +63,17 @@ class UploadUtil:
             return False
 
     @classmethod
-    def check_file_machine(cls, filename: str):
+    def check_file_machine(cls, filename: str) -> bool:
         """
         校验文件机器码是否合法
 
         :param filename: 文件名称
         :return: 校验结果
         """
-        if filename.rsplit('.', 1)[0][-4] == UploadConfig.UPLOAD_MACHINE:
-            return True
-        return False
+        return filename.rsplit('.', 1)[0][-4] == UploadConfig.UPLOAD_MACHINE
 
     @classmethod
-    def check_file_random_code(cls, filename: str):
+    def check_file_random_code(cls, filename: str) -> bool:
         """
         校验文件随机码是否合法
 
@@ -80,23 +81,23 @@ class UploadUtil:
         :return: 校验结果
         """
         valid_code_list = [f'{i:03}' for i in range(1, 999)]
-        if filename.rsplit('.', 1)[0][-3:] in valid_code_list:
-            return True
-        return False
+
+        return filename.rsplit('.', 1)[0][-3:] in valid_code_list
 
     @classmethod
-    def generate_file(cls, filepath: str):
+    async def generate_file(cls, filepath: str) -> AsyncGenerator[bytes, None]:
         """
         根据文件生成二进制数据
 
         :param filepath: 文件路径
         :yield: 二进制数据
         """
-        with open(filepath, 'rb') as response_file:
-            yield from response_file
+        async with aiofiles.open(filepath, 'rb') as response_file:
+            async for chunk in response_file:
+                yield chunk
 
     @classmethod
-    def delete_file(cls, filepath: str):
+    def delete_file(cls, filepath: str) -> None:
         """
         根据文件路径删除对应文件
 

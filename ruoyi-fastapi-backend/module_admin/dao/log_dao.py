@@ -1,6 +1,10 @@
 from datetime import datetime, time
+from typing import Any, Union
+
 from sqlalchemy import asc, delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from common.vo import PageModel
 from module_admin.entity.do.log_do import SysLogininfor, SysOperLog
 from module_admin.entity.vo.log_vo import LogininforModel, LoginLogPageQueryModel, OperLogModel, OperLogPageQueryModel
 from utils.common_util import SnakeCaseUtil
@@ -14,7 +18,9 @@ class OperationLogDao:
     """
 
     @classmethod
-    async def get_operation_log_list(cls, db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False):
+    async def get_operation_log_list(
+        cls, db: AsyncSession, query_object: OperLogPageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取操作日志列表信息
 
@@ -48,12 +54,14 @@ class OperationLogDao:
             .distinct()
             .order_by(order_by_column)
         )
-        operation_log_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        operation_log_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return operation_log_list
 
     @classmethod
-    async def add_operation_log_dao(cls, db: AsyncSession, operation_log: OperLogModel):
+    async def add_operation_log_dao(cls, db: AsyncSession, operation_log: OperLogModel) -> SysOperLog:
         """
         新增操作日志数据库操作
 
@@ -68,7 +76,7 @@ class OperationLogDao:
         return db_operation_log
 
     @classmethod
-    async def delete_operation_log_dao(cls, db: AsyncSession, operation_log: OperLogModel):
+    async def delete_operation_log_dao(cls, db: AsyncSession, operation_log: OperLogModel) -> None:
         """
         删除操作日志数据库操作
 
@@ -79,7 +87,7 @@ class OperationLogDao:
         await db.execute(delete(SysOperLog).where(SysOperLog.oper_id.in_([operation_log.oper_id])))
 
     @classmethod
-    async def clear_operation_log_dao(cls, db: AsyncSession):
+    async def clear_operation_log_dao(cls, db: AsyncSession) -> None:
         """
         清除操作日志数据库操作
 
@@ -95,7 +103,9 @@ class LoginLogDao:
     """
 
     @classmethod
-    async def get_login_log_list(cls, db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False):
+    async def get_login_log_list(
+        cls, db: AsyncSession, query_object: LoginLogPageQueryModel, is_page: bool = False
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         根据查询参数获取登录日志列表信息
 
@@ -130,12 +140,14 @@ class LoginLogDao:
             .distinct()
             .order_by(order_by_column)
         )
-        login_log_list = await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+        login_log_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+            db, query, query_object.page_num, query_object.page_size, is_page
+        )
 
         return login_log_list
 
     @classmethod
-    async def add_login_log_dao(cls, db: AsyncSession, login_log: LogininforModel):
+    async def add_login_log_dao(cls, db: AsyncSession, login_log: LogininforModel) -> SysLogininfor:
         """
         新增登录日志数据库操作
 
@@ -150,7 +162,7 @@ class LoginLogDao:
         return db_login_log
 
     @classmethod
-    async def delete_login_log_dao(cls, db: AsyncSession, login_log: LogininforModel):
+    async def delete_login_log_dao(cls, db: AsyncSession, login_log: LogininforModel) -> None:
         """
         删除登录日志数据库操作
 
@@ -161,7 +173,7 @@ class LoginLogDao:
         await db.execute(delete(SysLogininfor).where(SysLogininfor.info_id.in_([login_log.info_id])))
 
     @classmethod
-    async def clear_login_log_dao(cls, db: AsyncSession):
+    async def clear_login_log_dao(cls, db: AsyncSession) -> None:
         """
         清除登录日志数据库操作
 

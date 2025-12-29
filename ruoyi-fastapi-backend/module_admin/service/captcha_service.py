@@ -2,6 +2,7 @@ import base64
 import io
 import os
 import random
+
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -11,7 +12,7 @@ class CaptchaService:
     """
 
     @classmethod
-    async def create_captcha_image_service(cls):
+    async def create_captcha_image_service(cls) -> list[str, int]:
         # 创建空白图像
         image = Image.new('RGB', (160, 60), color='#EAEAEA')
 

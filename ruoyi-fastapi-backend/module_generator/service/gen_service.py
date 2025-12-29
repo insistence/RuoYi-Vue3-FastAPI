@@ -3,15 +3,19 @@ import json
 import os
 import zipfile
 from datetime import datetime
+from typing import Any, Union
+
+import aiofiles
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlglot import parse as sqlglot_parse
 from sqlglot.expressions import Add, Alter, Create, Delete, Drop, Expression, Insert, Table, TruncateTable, Update
-from typing import List
-from config.constant import GenConstant
+
+from common.constant import GenConstant
+from common.vo import CrudResponseModel, PageModel
 from config.env import DataBaseConfig, GenConfig
 from exceptions.exception import ServiceException
-from module_admin.entity.vo.common_vo import CrudResponseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
+from module_generator.dao.gen_dao import GenTableColumnDao, GenTableDao
 from module_generator.entity.vo.gen_vo import (
     DeleteGenTableModel,
     EditGenTableModel,
@@ -19,7 +23,6 @@ from module_generator.entity.vo.gen_vo import (
     GenTableModel,
     GenTablePageQueryModel,
 )
-from module_generator.dao.gen_dao import GenTableColumnDao, GenTableDao
 from utils.common_util import CamelCaseUtil
 from utils.gen_util import GenUtils
 from utils.template_util import TemplateInitializer, TemplateUtils
@@ -33,7 +36,7 @@ class GenTableService:
     @classmethod
     async def get_gen_table_list_services(
         cls, query_db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ):
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取代码生成业务表列表信息service
 
@@ -49,7 +52,7 @@ class GenTableService:
     @classmethod
     async def get_gen_db_table_list_services(
         cls, query_db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ):
+    ) -> Union[PageModel, list[dict[str, Any]]]:
         """
         获取数据库列表信息service
 
@@ -63,7 +66,9 @@ class GenTableService:
         return gen_db_table_list_result
 
     @classmethod
-    async def get_gen_db_table_list_by_name_services(cls, query_db: AsyncSession, table_names: List[str]):
+    async def get_gen_db_table_list_by_name_services(
+        cls, query_db: AsyncSession, table_names: list[str]
+    ) -> list[GenTableModel]:
         """
         根据表名称组获取数据库列表信息service
 
@@ -77,8 +82,8 @@ class GenTableService:
 
     @classmethod
     async def import_gen_table_services(
-        cls, query_db: AsyncSession, gen_table_list: List[GenTableModel], current_user: CurrentUserModel
-    ):
+        cls, query_db: AsyncSession, gen_table_list: list[GenTableModel], current_user: CurrentUserModel
+    ) -> CrudResponseModel:
         """
         导入表结构service
 
@@ -105,10 +110,10 @@ class GenTableService:
             return CrudResponseModel(is_success=True, message='导入成功')
         except Exception as e:
             await query_db.rollback()
-            raise ServiceException(message=f'导入失败, {str(e)}')
+            raise ServiceException(message=f'导入失败, {e}') from e
 
     @classmethod
-    async def edit_gen_table_services(cls, query_db: AsyncSession, page_object: EditGenTableModel):
+    async def edit_gen_table_services(cls, query_db: AsyncSession, page_object: EditGenTableModel) -> CrudResponseModel:
         """
         编辑业务表信息service
 
@@ -137,7 +142,9 @@ class GenTableService:
             raise ServiceException(message='业务表不存在')
 
     @classmethod
-    async def delete_gen_table_services(cls, query_db: AsyncSession, page_object: DeleteGenTableModel):
+    async def delete_gen_table_services(
+        cls, query_db: AsyncSession, page_object: DeleteGenTableModel
+    ) -> CrudResponseModel:
         """
         删除业务表信息service
 
@@ -162,7 +169,7 @@ class GenTableService:
             raise ServiceException(message='传入业务表id为空')
 
     @classmethod
-    async def get_gen_table_by_id_services(cls, query_db: AsyncSession, table_id: int):
+    async def get_gen_table_by_id_services(cls, query_db: AsyncSession, table_id: int) -> GenTableModel:
         """
         获取需要生成的业务表详细信息service
 
@@ -176,7 +183,7 @@ class GenTableService:
         return result
 
     @classmethod
-    async def get_gen_table_all_services(cls, query_db: AsyncSession):
+    async def get_gen_table_all_services(cls, query_db: AsyncSession) -> list[GenTableModel]:
         """
         获取所有业务表信息service
 
@@ -189,7 +196,9 @@ class GenTableService:
         return result
 
     @classmethod
-    async def create_table_services(cls, query_db: AsyncSession, sql: str, current_user: CurrentUserModel):
+    async def create_table_services(
+        cls, query_db: AsyncSession, sql: str, current_user: CurrentUserModel
+    ) -> CrudResponseModel:
         """
         创建表结构service
 
@@ -208,12 +217,12 @@ class GenTableService:
 
                 return CrudResponseModel(is_success=True, message='创建表结构成功')
             except Exception as e:
-                raise ServiceException(message=f'创建表结构异常，详细错误信息：{str(e)}')
+                raise ServiceException(message=f'创建表结构异常，详细错误信息：{e}') from e
         else:
             raise ServiceException(message='建表语句不合法')
 
     @classmethod
-    def __is_valid_create_table(cls, sql_statements: List[Expression]):
+    def __is_valid_create_table(cls, sql_statements: list[Expression]) -> bool:
         """
         校验sql语句是否为合法的建表语句
 
@@ -228,26 +237,24 @@ class GenTableService:
             )
             for sql_statement in sql_statements
         ]
-        if not any(validate_create) or any(validate_forbidden_keywords):
-            return False
-        return True
+        return not (not any(validate_create) or any(validate_forbidden_keywords))
 
     @classmethod
-    def __get_table_names(cls, sql_statements: List[Expression]):
+    def __get_table_names(cls, sql_statements: list[Expression]) -> list[str]:
         """
         获取sql语句中所有的建表表名
 
         :param sql_statements: sql语句的ast列表
         :return: 建表表名列表
         """
-        table_names = []
-        for sql_statement in sql_statements:
-            if isinstance(sql_statement, Create):
-                table_names.append(sql_statement.find(Table).name)
+        table_names = [
+            sql_statement.find(Table).name for sql_statement in sql_statements if isinstance(sql_statement, Create)
+        ]
+
         return table_names
 
     @classmethod
-    async def preview_code_services(cls, query_db: AsyncSession, table_id: int):
+    async def preview_code_services(cls, query_db: AsyncSession, table_id: int) -> dict[str, str]:
         """
         预览代码service
 
@@ -270,7 +277,7 @@ class GenTableService:
         return preview_code_result
 
     @classmethod
-    async def generate_code_services(cls, query_db: AsyncSession, table_name: str):
+    async def generate_code_services(cls, query_db: AsyncSession, table_name: str) -> CrudResponseModel:
         """
         生成代码至指定路径service
 
@@ -280,22 +287,20 @@ class GenTableService:
         """
         env = TemplateInitializer.init_jinja2()
         render_info = await cls.__get_gen_render_info(query_db, table_name)
-        for template in render_info[0]:
-            try:
+        try:
+            for template in render_info[0]:
                 render_content = env.get_template(template).render(**render_info[2])
                 gen_path = cls.__get_gen_path(render_info[3], template)
                 os.makedirs(os.path.dirname(gen_path), exist_ok=True)
-                with open(gen_path, 'w', encoding='utf-8') as f:
-                    f.write(render_content)
-            except Exception as e:
-                raise ServiceException(
-                    message=f'渲染模板失败，表名：{render_info[3].table_name}，详细错误信息：{str(e)}'
-                )
+                async with aiofiles.open(gen_path, 'w', encoding='utf-8') as f:
+                    await f.write(render_content)
+        except Exception as e:
+            raise ServiceException(message=f'渲染模板失败，表名：{render_info[3].table_name}，详细错误信息：{e}') from e
 
         return CrudResponseModel(is_success=True, message='生成代码成功')
 
     @classmethod
-    async def batch_gen_code_services(cls, query_db: AsyncSession, table_names: List[str]):
+    async def batch_gen_code_services(cls, query_db: AsyncSession, table_names: list[str]) -> bytes:
         """
         批量生成代码service
 
@@ -317,7 +322,7 @@ class GenTableService:
         return zip_data
 
     @classmethod
-    async def __get_gen_render_info(cls, query_db: AsyncSession, table_name: str):
+    async def __get_gen_render_info(cls, query_db: AsyncSession, table_name: str) -> list:
         """
         获取生成代码渲染模板相关信息
 
@@ -337,7 +342,7 @@ class GenTableService:
         return [template_list, output_files, context, gen_table]
 
     @classmethod
-    def __get_gen_path(cls, gen_table: GenTableModel, template: str):
+    def __get_gen_path(cls, gen_table: GenTableModel, template: str) -> str:
         """
         根据GenTableModel对象和模板名称生成路径
 
@@ -348,11 +353,11 @@ class GenTableService:
         gen_path = gen_table.gen_path
         if gen_path == '/':
             return os.path.join(os.getcwd(), GenConfig.GEN_PATH, TemplateUtils.get_file_name(template, gen_table))
-        else:
-            return os.path.join(gen_path, TemplateUtils.get_file_name(template, gen_table))
+
+        return os.path.join(gen_path, TemplateUtils.get_file_name(template, gen_table))
 
     @classmethod
-    async def sync_db_services(cls, query_db: AsyncSession, table_name: str):
+    async def sync_db_services(cls, query_db: AsyncSession, table_name: str) -> CrudResponseModel:
         """
         同步数据库service
 
@@ -402,7 +407,7 @@ class GenTableService:
             raise e
 
     @classmethod
-    async def set_sub_table(cls, query_db: AsyncSession, gen_table: GenTableModel):
+    async def set_sub_table(cls, query_db: AsyncSession, gen_table: GenTableModel) -> None:
         """
         设置主子表信息
 
@@ -415,7 +420,7 @@ class GenTableService:
             gen_table.sub_table = GenTableModel(**CamelCaseUtil.transform_result(sub_table))
 
     @classmethod
-    async def set_pk_column(cls, gen_table: GenTableModel):
+    async def set_pk_column(cls, gen_table: GenTableModel) -> None:
         """
         设置主键列信息
 
@@ -437,7 +442,7 @@ class GenTableService:
                 gen_table.sub_table.pk_column = gen_table.sub_table.columns[0]
 
     @classmethod
-    async def set_table_from_options(cls, gen_table: GenTableModel):
+    async def set_table_from_options(cls, gen_table: GenTableModel) -> GenTableModel:
         """
         设置代码生成其他选项值
 
@@ -455,7 +460,7 @@ class GenTableService:
         return gen_table
 
     @classmethod
-    async def validate_edit(cls, edit_gen_table: EditGenTableModel):
+    async def validate_edit(cls, edit_gen_table: EditGenTableModel) -> None:
         """
         编辑保存参数校验
 
@@ -466,14 +471,14 @@ class GenTableService:
 
             if GenConstant.TREE_CODE not in params_obj:
                 raise ServiceException(message='树编码字段不能为空')
-            elif GenConstant.TREE_PARENT_CODE not in params_obj:
+            if GenConstant.TREE_PARENT_CODE not in params_obj:
                 raise ServiceException(message='树父编码字段不能为空')
-            elif GenConstant.TREE_NAME not in params_obj:
+            if GenConstant.TREE_NAME not in params_obj:
                 raise ServiceException(message='树名称字段不能为空')
-            elif edit_gen_table.tpl_category == GenConstant.TPL_SUB:
+            if edit_gen_table.tpl_category == GenConstant.TPL_SUB:
                 if not edit_gen_table.sub_table_name:
                     raise ServiceException(message='关联子表的表名不能为空')
-                elif not edit_gen_table.sub_table_fk_name:
+                if not edit_gen_table.sub_table_fk_name:
                     raise ServiceException(message='子表关联的外键名不能为空')
 
 
@@ -483,7 +488,9 @@ class GenTableColumnService:
     """
 
     @classmethod
-    async def get_gen_table_column_list_by_table_id_services(cls, query_db: AsyncSession, table_id: int):
+    async def get_gen_table_column_list_by_table_id_services(
+        cls, query_db: AsyncSession, table_id: int
+    ) -> list[GenTableColumnModel]:
         """
         获取业务表字段列表信息service
 
