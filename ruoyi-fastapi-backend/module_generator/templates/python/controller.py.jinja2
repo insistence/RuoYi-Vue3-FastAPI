@@ -135,7 +135,7 @@ async def edit_{{ moduleName }}_{{ businessName }}(
 async def delete_{{ moduleName }}_{{ businessName }}(
     request: Request,
     {{ pk_field }}s: Annotated[str, Path(description='需要删除的{{ pk_field_comment }}')],
-    Annotated[AsyncSession, DBSessionDependency()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_{{ businessName }} = Delete{{ BusinessName }}Model({{ pkField }}s={{ pk_field }}s)
     delete_{{ businessName }}_result = await {{ BusinessName }}Service.delete_{{ businessName }}_services(query_db, delete_{{ businessName }})
