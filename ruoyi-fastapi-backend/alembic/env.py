@@ -1,7 +1,8 @@
 import asyncio
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, MutableMapping
 from logging.config import fileConfig
+from typing import Literal
 
 from alembic import context
 from alembic.migration import MigrationContext
@@ -64,6 +65,15 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    def include_name(
+        name: str | None,
+        type_: Literal['schema', 'table', 'column', 'index', 'unique_constraint', 'foreign_key_constraint'],
+        parent_names: MutableMapping[Literal['schema_name', 'table_name', 'schema_qualified_table_name'], str | None],
+    ) -> bool:
+        if type_ == 'table':
+            return name in target_metadata.tables
+        return True
+
     def process_revision_directives(
         context: MigrationContext,
         revision: str | Iterable[str | None] | Iterable[str],
@@ -87,6 +97,7 @@ def do_run_migrations(connection: Connection) -> None:
         compare_type=True,
         compare_server_default=True,
         transaction_per_migration=True,
+        include_name=include_name,
         process_revision_directives=process_revision_directives,
     )
 
