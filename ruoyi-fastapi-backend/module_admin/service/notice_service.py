@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +18,7 @@ class NoticeService:
     @classmethod
     async def get_notice_list_services(
         cls, query_db: AsyncSession, query_object: NoticePageQueryModel, is_page: bool = True
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         获取通知公告列表信息service
 

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from datetime import datetime, time
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import ColumnElement, and_, delete, desc, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +20,7 @@ class RoleDao:
     """
 
     @classmethod
-    async def get_role_by_name(cls, db: AsyncSession, role_name: str) -> Union[SysRole, None]:
+    async def get_role_by_name(cls, db: AsyncSession, role_name: str) -> SysRole | None:
         """
         根据角色名获取在用角色信息
 
@@ -44,7 +44,7 @@ class RoleDao:
         return query_role_info
 
     @classmethod
-    async def get_role_by_info(cls, db: AsyncSession, role: RoleModel) -> Union[SysRole, None]:
+    async def get_role_by_info(cls, db: AsyncSession, role: RoleModel) -> SysRole | None:
         """
         根据角色参数获取角色信息
 
@@ -72,7 +72,7 @@ class RoleDao:
         return query_role_info
 
     @classmethod
-    async def get_role_by_id(cls, db: AsyncSession, role_id: int) -> Union[SysRole, None]:
+    async def get_role_by_id(cls, db: AsyncSession, role_id: int) -> SysRole | None:
         """
         根据角色id获取在用角色信息
 
@@ -93,7 +93,7 @@ class RoleDao:
         return role_info
 
     @classmethod
-    async def get_role_detail_by_id(cls, db: AsyncSession, role_id: int) -> Union[SysRole, None]:
+    async def get_role_detail_by_id(cls, db: AsyncSession, role_id: int) -> SysRole | None:
         """
         根据role_id获取角色详细信息
 
@@ -132,7 +132,7 @@ class RoleDao:
     @classmethod
     async def get_role_list(
         cls, db: AsyncSession, query_object: RolePageQueryModel, data_scope_sql: ColumnElement, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取角色列表信息
 
@@ -164,7 +164,7 @@ class RoleDao:
             .order_by(SysRole.role_sort)
             .distinct()
         )
-        role_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        role_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -330,7 +330,7 @@ class RoleDao:
         await db.execute(delete(SysRoleDept).where(SysRoleDept.role_id.in_([role_dept.role_id])))
 
     @classmethod
-    async def count_user_role_dao(cls, db: AsyncSession, role_id: int) -> Union[int, None]:
+    async def count_user_role_dao(cls, db: AsyncSession, role_id: int) -> int | None:
         """
         根据角色id查询角色关联用户数量
 

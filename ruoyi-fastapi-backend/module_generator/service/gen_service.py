@@ -3,7 +3,7 @@ import json
 import os
 import zipfile
 from datetime import datetime
-from typing import Any, Union
+from typing import Any
 
 import aiofiles
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,7 +36,7 @@ class GenTableService:
     @classmethod
     async def get_gen_table_list_services(
         cls, query_db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         获取代码生成业务表列表信息service
 
@@ -52,7 +52,7 @@ class GenTableService:
     @classmethod
     async def get_gen_db_table_list_services(
         cls, query_db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         获取数据库列表信息service
 
@@ -313,7 +313,7 @@ class GenTableService:
             for table_name in table_names:
                 env = TemplateInitializer.init_jinja2()
                 render_info = await cls.__get_gen_render_info(query_db, table_name)
-                for template_file, output_file in zip(render_info[0], render_info[1]):
+                for template_file, output_file in zip(render_info[0], render_info[1], strict=False):
                     render_content = env.get_template(template_file).render(**render_info[2])
                     zip_file.writestr(output_file, render_content)
 

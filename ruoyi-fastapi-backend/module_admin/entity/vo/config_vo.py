@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal, Optional, Union
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -13,30 +13,30 @@ class ConfigModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    config_id: Optional[int] = Field(default=None, description='参数主键')
-    config_name: Optional[str] = Field(default=None, description='参数名称')
-    config_key: Optional[str] = Field(default=None, description='参数键名')
-    config_value: Optional[str] = Field(default=None, description='参数键值')
-    config_type: Optional[Literal['Y', 'N']] = Field(default=None, description='系统内置（Y是 N否）')
-    create_by: Optional[str] = Field(default=None, description='创建者')
-    create_time: Optional[datetime] = Field(default=None, description='创建时间')
-    update_by: Optional[str] = Field(default=None, description='更新者')
-    update_time: Optional[datetime] = Field(default=None, description='更新时间')
-    remark: Optional[str] = Field(default=None, description='备注')
+    config_id: int | None = Field(default=None, description='参数主键')
+    config_name: str | None = Field(default=None, description='参数名称')
+    config_key: str | None = Field(default=None, description='参数键名')
+    config_value: str | None = Field(default=None, description='参数键值')
+    config_type: Literal['Y', 'N'] | None = Field(default=None, description='系统内置（Y是 N否）')
+    create_by: str | None = Field(default=None, description='创建者')
+    create_time: datetime | None = Field(default=None, description='创建时间')
+    update_by: str | None = Field(default=None, description='更新者')
+    update_time: datetime | None = Field(default=None, description='更新时间')
+    remark: str | None = Field(default=None, description='备注')
 
     @NotBlank(field_name='config_key', message='参数名称不能为空')
     @Size(field_name='config_key', min_length=0, max_length=100, message='参数名称长度不能超过100个字符')
-    def get_config_key(self) -> Union[str, None]:
+    def get_config_key(self) -> str | None:
         return self.config_key
 
     @NotBlank(field_name='config_name', message='参数键名不能为空')
     @Size(field_name='config_name', min_length=0, max_length=100, message='参数键名长度不能超过100个字符')
-    def get_config_name(self) -> Union[str, None]:
+    def get_config_name(self) -> str | None:
         return self.config_name
 
     @NotBlank(field_name='config_value', message='参数键值不能为空')
     @Size(field_name='config_value', min_length=0, max_length=500, message='参数键值长度不能超过500个字符')
-    def get_config_value(self) -> Union[str, None]:
+    def get_config_value(self) -> str | None:
         return self.config_value
 
     def validate_fields(self) -> None:
@@ -50,8 +50,8 @@ class ConfigQueryModel(ConfigModel):
     参数配置管理不分页查询模型
     """
 
-    begin_time: Optional[str] = Field(default=None, description='开始时间')
-    end_time: Optional[str] = Field(default=None, description='结束时间')
+    begin_time: str | None = Field(default=None, description='开始时间')
+    end_time: str | None = Field(default=None, description='结束时间')
 
 
 class ConfigPageQueryModel(ConfigQueryModel):

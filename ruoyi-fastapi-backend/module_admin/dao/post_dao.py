@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ class PostDao:
     """
 
     @classmethod
-    async def get_post_by_id(cls, db: AsyncSession, post_id: int) -> Union[SysPost, None]:
+    async def get_post_by_id(cls, db: AsyncSession, post_id: int) -> SysPost | None:
         """
         根据岗位id获取在用岗位详细信息
 
@@ -33,7 +33,7 @@ class PostDao:
         return post_info
 
     @classmethod
-    async def get_post_detail_by_id(cls, db: AsyncSession, post_id: int) -> Union[SysPost, None]:
+    async def get_post_detail_by_id(cls, db: AsyncSession, post_id: int) -> SysPost | None:
         """
         根据岗位id获取岗位详细信息
 
@@ -46,7 +46,7 @@ class PostDao:
         return post_info
 
     @classmethod
-    async def get_post_detail_by_info(cls, db: AsyncSession, post: PostModel) -> Union[SysPost, None]:
+    async def get_post_detail_by_info(cls, db: AsyncSession, post: PostModel) -> SysPost | None:
         """
         根据岗位参数获取岗位信息
 
@@ -73,7 +73,7 @@ class PostDao:
     @classmethod
     async def get_post_list(
         cls, db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取岗位列表信息
 
@@ -92,7 +92,7 @@ class PostDao:
             .order_by(SysPost.post_sort)
             .distinct()
         )
-        post_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        post_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -136,7 +136,7 @@ class PostDao:
         await db.execute(delete(SysPost).where(SysPost.post_id.in_([post.post_id])))
 
     @classmethod
-    async def count_user_post_dao(cls, db: AsyncSession, post_id: int) -> Union[int, None]:
+    async def count_user_post_dao(cls, db: AsyncSession, post_id: int) -> int | None:
         """
         根据岗位id查询岗位关联的用户数量
 

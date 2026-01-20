@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Literal, Optional, Union
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
@@ -17,7 +17,7 @@ class TokenData(BaseModel):
     token解析结果
     """
 
-    user_id: Union[int, None] = Field(default=None, description='用户ID')
+    user_id: int | None = Field(default=None, description='用户ID')
 
 
 class UserModel(BaseModel):
@@ -27,27 +27,27 @@ class UserModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    user_id: Optional[int] = Field(default=None, description='用户ID')
-    dept_id: Optional[int] = Field(default=None, description='部门ID')
-    user_name: Optional[str] = Field(default=None, description='用户账号')
-    nick_name: Optional[str] = Field(default=None, description='用户昵称')
-    user_type: Optional[str] = Field(default=None, description='用户类型（00系统用户）')
-    email: Optional[str] = Field(default=None, description='用户邮箱')
-    phonenumber: Optional[str] = Field(default=None, description='手机号码')
-    sex: Optional[Literal['0', '1', '2']] = Field(default=None, description='用户性别（0男 1女 2未知）')
-    avatar: Optional[str] = Field(default=None, description='头像地址')
-    password: Optional[str] = Field(default=None, description='密码')
-    status: Optional[Literal['0', '1']] = Field(default=None, description='帐号状态（0正常 1停用）')
-    del_flag: Optional[Literal['0', '2']] = Field(default=None, description='删除标志（0代表存在 2代表删除）')
-    login_ip: Optional[str] = Field(default=None, description='最后登录IP')
-    login_date: Optional[datetime] = Field(default=None, description='最后登录时间')
-    pwd_update_date: Optional[datetime] = Field(default=None, description='密码最后更新时间')
-    create_by: Optional[str] = Field(default=None, description='创建者')
-    create_time: Optional[datetime] = Field(default=None, description='创建时间')
-    update_by: Optional[str] = Field(default=None, description='更新者')
-    update_time: Optional[datetime] = Field(default=None, description='更新时间')
-    remark: Optional[str] = Field(default=None, description='备注')
-    admin: Optional[bool] = Field(default=False, description='是否为admin')
+    user_id: int | None = Field(default=None, description='用户ID')
+    dept_id: int | None = Field(default=None, description='部门ID')
+    user_name: str | None = Field(default=None, description='用户账号')
+    nick_name: str | None = Field(default=None, description='用户昵称')
+    user_type: str | None = Field(default=None, description='用户类型（00系统用户）')
+    email: str | None = Field(default=None, description='用户邮箱')
+    phonenumber: str | None = Field(default=None, description='手机号码')
+    sex: Literal['0', '1', '2'] | None = Field(default=None, description='用户性别（0男 1女 2未知）')
+    avatar: str | None = Field(default=None, description='头像地址')
+    password: str | None = Field(default=None, description='密码')
+    status: Literal['0', '1'] | None = Field(default=None, description='帐号状态（0正常 1停用）')
+    del_flag: Literal['0', '2'] | None = Field(default=None, description='删除标志（0代表存在 2代表删除）')
+    login_ip: str | None = Field(default=None, description='最后登录IP')
+    login_date: datetime | None = Field(default=None, description='最后登录时间')
+    pwd_update_date: datetime | None = Field(default=None, description='密码最后更新时间')
+    create_by: str | None = Field(default=None, description='创建者')
+    create_time: datetime | None = Field(default=None, description='创建时间')
+    update_by: str | None = Field(default=None, description='更新者')
+    update_time: datetime | None = Field(default=None, description='更新时间')
+    remark: str | None = Field(default=None, description='备注')
+    admin: bool | None = Field(default=False, description='是否为admin')
 
     @model_validator(mode='after')
     def check_password(self) -> 'UserModel':
@@ -67,21 +67,21 @@ class UserModel(BaseModel):
     @Xss(field_name='user_name', message='用户账号不能包含脚本字符')
     @NotBlank(field_name='user_name', message='用户账号不能为空')
     @Size(field_name='user_name', min_length=0, max_length=30, message='用户账号长度不能超过30个字符')
-    def get_user_name(self) -> Union[str, None]:
+    def get_user_name(self) -> str | None:
         return self.user_name
 
     @Xss(field_name='nick_name', message='用户昵称不能包含脚本字符')
     @Size(field_name='nick_name', min_length=0, max_length=30, message='用户昵称长度不能超过30个字符')
-    def get_nick_name(self) -> Union[str, None]:
+    def get_nick_name(self) -> str | None:
         return self.nick_name
 
     @Network(field_name='email', field_type='EmailStr', message='邮箱格式不正确')
     @Size(field_name='email', min_length=0, max_length=50, message='邮箱长度不能超过50个字符')
-    def get_email(self) -> Union[str, None]:
+    def get_email(self) -> str | None:
         return self.email
 
     @Size(field_name='phonenumber', min_length=0, max_length=11, message='手机号码长度不能超过11个字符')
-    def get_phonenumber(self) -> Union[str, None]:
+    def get_phonenumber(self) -> str | None:
         return self.phonenumber
 
     def validate_fields(self) -> None:
@@ -96,7 +96,7 @@ class UserRowModel(UserModel):
     用户列表行数据模型
     """
 
-    dept: Optional[DeptModel] = Field(default=None, description='部门信息')
+    dept: DeptModel | None = Field(default=None, description='部门信息')
 
 
 class UserRoleModel(BaseModel):
@@ -106,8 +106,8 @@ class UserRoleModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    user_id: Optional[int] = Field(default=None, description='用户ID')
-    role_id: Optional[int] = Field(default=None, description='角色ID')
+    user_id: int | None = Field(default=None, description='用户ID')
+    role_id: int | None = Field(default=None, description='角色ID')
 
 
 class UserPostModel(BaseModel):
@@ -117,15 +117,15 @@ class UserPostModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    user_id: Optional[int] = Field(default=None, description='用户ID')
-    post_id: Optional[int] = Field(default=None, description='岗位ID')
+    user_id: int | None = Field(default=None, description='用户ID')
+    post_id: int | None = Field(default=None, description='岗位ID')
 
 
 class UserInfoModel(UserModel):
-    post_ids: Optional[Union[str, None]] = Field(default=None, description='岗位ID信息')
-    role_ids: Optional[Union[str, None]] = Field(default=None, description='角色ID信息')
-    dept: Optional[Union[DeptModel, None]] = Field(default=None, description='部门信息')
-    role: Optional[list[Union[RoleModel, None]]] = Field(default=[], description='角色信息')
+    post_ids: str | None | None = Field(default=None, description='岗位ID信息')
+    role_ids: str | None | None = Field(default=None, description='角色ID信息')
+    dept: DeptModel | None | None = Field(default=None, description='部门信息')
+    role: list[RoleModel | None] | None = Field(default=[], description='角色信息')
 
 
 class CurrentUserModel(BaseModel):
@@ -133,7 +133,7 @@ class CurrentUserModel(BaseModel):
 
     permissions: list = Field(description='权限信息')
     roles: list = Field(description='角色信息')
-    user: Union[UserInfoModel, None] = Field(description='用户信息')
+    user: UserInfoModel | None = Field(description='用户信息')
     is_default_modify_pwd: bool = Field(default=False, description='是否初始密码修改提醒')
     is_password_expired: bool = Field(default=False, description='密码是否过期提醒')
 
@@ -145,11 +145,11 @@ class UserDetailModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    data: Optional[Union[UserInfoModel, None]] = Field(default=None, description='用户信息')
-    post_ids: Optional[list] = Field(default=None, description='岗位ID信息')
-    posts: list[Union[PostModel, None]] = Field(description='岗位信息')
-    role_ids: Optional[list] = Field(default=None, description='角色ID信息')
-    roles: list[Union[RoleModel, None]] = Field(description='角色信息')
+    data: UserInfoModel | None | None = Field(default=None, description='用户信息')
+    post_ids: list | None = Field(default=None, description='岗位ID信息')
+    posts: list[PostModel | None] = Field(description='岗位信息')
+    role_ids: list | None = Field(default=None, description='角色ID信息')
+    roles: list[RoleModel | None] = Field(description='角色信息')
 
 
 class UserProfileModel(BaseModel):
@@ -159,9 +159,9 @@ class UserProfileModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    data: Union[UserInfoModel, None] = Field(description='用户信息')
-    post_group: Union[str, None] = Field(description='岗位信息')
-    role_group: Union[str, None] = Field(description='角色信息')
+    data: UserInfoModel | None = Field(description='用户信息')
+    post_group: str | None = Field(description='岗位信息')
+    role_group: str | None = Field(description='角色信息')
 
 
 class AvatarModel(BaseModel):
@@ -179,8 +179,8 @@ class UserQueryModel(UserModel):
     用户管理不分页查询模型
     """
 
-    begin_time: Optional[str] = Field(default=None, description='开始时间')
-    end_time: Optional[str] = Field(default=None, description='结束时间')
+    begin_time: str | None = Field(default=None, description='开始时间')
+    end_time: str | None = Field(default=None, description='结束时间')
 
 
 class UserPageQueryModel(UserQueryModel):
@@ -197,9 +197,9 @@ class AddUserModel(UserModel):
     新增用户模型
     """
 
-    role_ids: Optional[list] = Field(default=[], description='角色ID信息')
-    post_ids: Optional[list] = Field(default=[], description='岗位ID信息')
-    type: Optional[str] = Field(default=None, description='操作类型')
+    role_ids: list | None = Field(default=[], description='角色ID信息')
+    post_ids: list | None = Field(default=[], description='岗位ID信息')
+    type: str | None = Field(default=None, description='操作类型')
 
 
 class EditUserModel(AddUserModel):
@@ -207,7 +207,7 @@ class EditUserModel(AddUserModel):
     编辑用户模型
     """
 
-    role: Optional[list] = Field(default=[], description='角色信息')
+    role: list | None = Field(default=[], description='角色信息')
 
 
 class ResetPasswordModel(BaseModel):
@@ -217,8 +217,8 @@ class ResetPasswordModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    old_password: Optional[str] = Field(default=None, description='旧密码')
-    new_password: Optional[str] = Field(default=None, description='新密码')
+    old_password: str | None = Field(default=None, description='旧密码')
+    new_password: str | None = Field(default=None, description='新密码')
 
     @model_validator(mode='after')
     def check_new_password(self) -> 'ResetPasswordModel':
@@ -233,9 +233,9 @@ class ResetUserModel(UserModel):
     重置用户密码模型
     """
 
-    old_password: Optional[str] = Field(default=None, description='旧密码')
-    sms_code: Optional[str] = Field(default=None, description='验证码')
-    session_id: Optional[str] = Field(default=None, description='会话id')
+    old_password: str | None = Field(default=None, description='旧密码')
+    sms_code: str | None = Field(default=None, description='验证码')
+    session_id: str | None = Field(default=None, description='会话id')
 
 
 class DeleteUserModel(BaseModel):
@@ -246,8 +246,8 @@ class DeleteUserModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     user_ids: str = Field(description='需要删除的用户ID')
-    update_by: Optional[str] = Field(default=None, description='更新者')
-    update_time: Optional[datetime] = Field(default=None, description='更新时间')
+    update_by: str | None = Field(default=None, description='更新者')
+    update_time: datetime | None = Field(default=None, description='更新时间')
 
 
 class UserRoleQueryModel(UserModel):
@@ -255,7 +255,7 @@ class UserRoleQueryModel(UserModel):
     用户角色关联管理不分页查询模型
     """
 
-    role_id: Optional[int] = Field(default=None, description='角色ID')
+    role_id: int | None = Field(default=None, description='角色ID')
 
 
 class UserRolePageQueryModel(UserRoleQueryModel):
@@ -272,7 +272,7 @@ class SelectedRoleModel(RoleModel):
     是否选择角色模型
     """
 
-    flag: Optional[bool] = Field(default=False, description='选择标识')
+    flag: bool | None = Field(default=False, description='选择标识')
 
 
 class UserRoleResponseModel(BaseModel):
@@ -282,7 +282,7 @@ class UserRoleResponseModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    roles: list[Union[SelectedRoleModel, None]] = Field(default=[], description='角色信息')
+    roles: list[SelectedRoleModel | None] = Field(default=[], description='角色信息')
     user: UserInfoModel = Field(description='用户信息')
 
 
@@ -293,7 +293,7 @@ class CrudUserRoleModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    user_id: Optional[int] = Field(default=None, description='用户ID')
-    user_ids: Optional[str] = Field(default=None, description='用户ID信息')
-    role_id: Optional[int] = Field(default=None, description='角色ID')
-    role_ids: Optional[str] = Field(default=None, description='角色ID信息')
+    user_id: int | None = Field(default=None, description='用户ID')
+    user_ids: str | None = Field(default=None, description='用户ID信息')
+    role_id: int | None = Field(default=None, description='角色ID')
+    role_ids: str | None = Field(default=None, description='角色ID信息')

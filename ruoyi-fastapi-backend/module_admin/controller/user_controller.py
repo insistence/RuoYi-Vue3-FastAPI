@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Literal
 
 import aiofiles
 from fastapi import File, Form, Path, Query, Request, Response, UploadFile
@@ -290,7 +290,7 @@ async def query_detail_system_user(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysUser)],
-    user_id: Optional[Union[int, Literal['']]] = '',
+    user_id: int | Literal[''] | None = '',
 ) -> Response:
     if user_id and not current_user.user.admin:
         await UserService.check_user_data_scope_services(query_db, user_id, data_scope_sql)

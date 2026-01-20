@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any
 
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +24,7 @@ class JobService:
     @classmethod
     async def get_job_list_services(
         cls, query_db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         获取定时任务列表信息service
 

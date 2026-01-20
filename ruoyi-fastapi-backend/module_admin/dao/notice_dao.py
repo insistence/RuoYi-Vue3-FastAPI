@@ -1,5 +1,5 @@
 from datetime import datetime, time
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ class NoticeDao:
     """
 
     @classmethod
-    async def get_notice_detail_by_id(cls, db: AsyncSession, notice_id: int) -> Union[SysNotice, None]:
+    async def get_notice_detail_by_id(cls, db: AsyncSession, notice_id: int) -> SysNotice | None:
         """
         根据通知公告id获取通知公告详细信息
 
@@ -29,7 +29,7 @@ class NoticeDao:
         return notice_info
 
     @classmethod
-    async def get_notice_detail_by_info(cls, db: AsyncSession, notice: NoticeModel) -> Union[SysNotice, None]:
+    async def get_notice_detail_by_info(cls, db: AsyncSession, notice: NoticeModel) -> SysNotice | None:
         """
         根据通知公告参数获取通知公告信息
 
@@ -56,7 +56,7 @@ class NoticeDao:
     @classmethod
     async def get_notice_list(
         cls, db: AsyncSession, query_object: NoticePageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取通知公告列表信息
 
@@ -81,7 +81,7 @@ class NoticeDao:
             .order_by(SysNotice.notice_id)
             .distinct()
         )
-        notice_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        notice_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

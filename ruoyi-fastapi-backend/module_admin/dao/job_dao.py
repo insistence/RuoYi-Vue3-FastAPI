@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ class JobDao:
     """
 
     @classmethod
-    async def get_job_detail_by_id(cls, db: AsyncSession, job_id: int) -> Union[SysJob, None]:
+    async def get_job_detail_by_id(cls, db: AsyncSession, job_id: int) -> SysJob | None:
         """
         根据定时任务id获取定时任务详细信息
 
@@ -29,7 +29,7 @@ class JobDao:
         return job_info
 
     @classmethod
-    async def get_job_detail_by_info(cls, db: AsyncSession, job: JobModel) -> Union[SysJob, None]:
+    async def get_job_detail_by_info(cls, db: AsyncSession, job: JobModel) -> SysJob | None:
         """
         根据定时任务参数获取定时任务信息
 
@@ -60,7 +60,7 @@ class JobDao:
     @classmethod
     async def get_job_list(
         cls, db: AsyncSession, query_object: JobPageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取定时任务列表信息
 
@@ -79,7 +79,7 @@ class JobDao:
             .order_by(SysJob.job_id)
             .distinct()
         )
-        job_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        job_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from fastapi import Depends, Request, params
 from sqlalchemy import ColumnElement, func, or_, select
 
@@ -24,8 +22,8 @@ class GetDataScope:
     def __init__(
         self,
         query_alias: Base,
-        user_alias: Optional[str] = 'user_id',
-        dept_alias: Optional[str] = 'dept_id',
+        user_alias: str | None = 'user_id',
+        dept_alias: str | None = 'dept_id',
     ) -> None:
         """
         获取当前用户数据权限对应的查询sql语句
@@ -100,8 +98,8 @@ class GetDataScope:
 
 def DataScopeDependency(  # noqa: N802
     query_alias: Base,
-    user_alias: Optional[str] = 'user_id',
-    dept_alias: Optional[str] = 'dept_id',
+    user_alias: str | None = 'user_id',
+    dept_alias: str | None = 'dept_id',
 ) -> params.Depends:
     """
     当前用户数据权限依赖

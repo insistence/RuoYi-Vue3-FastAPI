@@ -1,6 +1,6 @@
 from copy import deepcopy
 from datetime import date, datetime
-from typing import Any, Union
+from typing import Any
 
 from dateutil.parser import parse
 
@@ -62,7 +62,7 @@ class TimeFormatUtil:
     """
 
     @classmethod
-    def format_time(cls, time_info: Union[str, datetime], fmt: str = '%Y-%m-%d %H:%M:%S') -> str:
+    def format_time(cls, time_info: str | datetime, fmt: str = '%Y-%m-%d %H:%M:%S') -> str:
         """
         格式化时间字符串或datetime对象为指定格式
 
@@ -82,7 +82,7 @@ class TimeFormatUtil:
         return format_date
 
     @classmethod
-    def parse_date(cls, time_str: str) -> Union[date, str]:
+    def parse_date(cls, time_str: str) -> date | str:
         """
         解析时间字符串提取日期部分
 

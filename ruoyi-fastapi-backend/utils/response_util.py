@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import status
 from fastapi.encoders import jsonable_encoder
@@ -20,13 +20,13 @@ class ResponseUtil:
     def success(
         cls,
         msg: str = '操作成功',
-        data: Optional[Any] = None,
-        rows: Optional[Any] = None,
-        dict_content: Optional[dict] = None,
-        model_content: Optional[BaseModel] = None,
-        headers: Optional[Mapping[str, str]] = None,
-        media_type: Optional[str] = None,
-        background: Optional[BackgroundTask] = None,
+        data: Any | None = None,
+        rows: Any | None = None,
+        dict_content: dict | None = None,
+        model_content: BaseModel | None = None,
+        headers: Mapping[str, str] | None = None,
+        media_type: str | None = None,
+        background: BackgroundTask | None = None,
     ) -> Response:
         """
         成功响应方法
@@ -66,13 +66,13 @@ class ResponseUtil:
     def failure(
         cls,
         msg: str = '操作失败',
-        data: Optional[Any] = None,
-        rows: Optional[Any] = None,
-        dict_content: Optional[dict] = None,
-        model_content: Optional[BaseModel] = None,
-        headers: Optional[Mapping[str, str]] = None,
-        media_type: Optional[str] = None,
-        background: Optional[BackgroundTask] = None,
+        data: Any | None = None,
+        rows: Any | None = None,
+        dict_content: dict | None = None,
+        model_content: BaseModel | None = None,
+        headers: Mapping[str, str] | None = None,
+        media_type: str | None = None,
+        background: BackgroundTask | None = None,
     ) -> Response:
         """
         失败响应方法
@@ -112,13 +112,13 @@ class ResponseUtil:
     def unauthorized(
         cls,
         msg: str = '登录信息已过期，访问系统资源失败',
-        data: Optional[Any] = None,
-        rows: Optional[Any] = None,
-        dict_content: Optional[dict] = None,
-        model_content: Optional[BaseModel] = None,
-        headers: Optional[Mapping[str, str]] = None,
-        media_type: Optional[str] = None,
-        background: Optional[BackgroundTask] = None,
+        data: Any | None = None,
+        rows: Any | None = None,
+        dict_content: dict | None = None,
+        model_content: BaseModel | None = None,
+        headers: Mapping[str, str] | None = None,
+        media_type: str | None = None,
+        background: BackgroundTask | None = None,
     ) -> Response:
         """
         未认证响应方法
@@ -158,13 +158,13 @@ class ResponseUtil:
     def forbidden(
         cls,
         msg: str = '该用户无此接口权限',
-        data: Optional[Any] = None,
-        rows: Optional[Any] = None,
-        dict_content: Optional[dict] = None,
-        model_content: Optional[BaseModel] = None,
-        headers: Optional[Mapping[str, str]] = None,
-        media_type: Optional[str] = None,
-        background: Optional[BackgroundTask] = None,
+        data: Any | None = None,
+        rows: Any | None = None,
+        dict_content: dict | None = None,
+        model_content: BaseModel | None = None,
+        headers: Mapping[str, str] | None = None,
+        media_type: str | None = None,
+        background: BackgroundTask | None = None,
     ) -> Response:
         """
         未授权响应方法
@@ -204,13 +204,13 @@ class ResponseUtil:
     def error(
         cls,
         msg: str = '接口异常',
-        data: Optional[Any] = None,
-        rows: Optional[Any] = None,
-        dict_content: Optional[dict] = None,
-        model_content: Optional[BaseModel] = None,
-        headers: Optional[Mapping[str, str]] = None,
-        media_type: Optional[str] = None,
-        background: Optional[BackgroundTask] = None,
+        data: Any | None = None,
+        rows: Any | None = None,
+        dict_content: dict | None = None,
+        model_content: BaseModel | None = None,
+        headers: Mapping[str, str] | None = None,
+        media_type: str | None = None,
+        background: BackgroundTask | None = None,
     ) -> Response:
         """
         错误响应方法
@@ -251,9 +251,9 @@ class ResponseUtil:
         cls,
         *,
         data: Any = None,
-        headers: Optional[Mapping[str, str]] = None,
-        media_type: Optional[str] = None,
-        background: Optional[BackgroundTask] = None,
+        headers: Mapping[str, str] | None = None,
+        media_type: str | None = None,
+        background: BackgroundTask | None = None,
     ) -> Response:
         """
         流式响应方法

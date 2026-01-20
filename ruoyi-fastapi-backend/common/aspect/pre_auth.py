@@ -1,5 +1,5 @@
 import re
-from typing import Literal, Optional, TypedDict, Union
+from typing import Literal, TypedDict
 
 from fastapi import Depends, Request, params
 from fastapi.security import OAuth2PasswordBearer
@@ -37,7 +37,7 @@ class PreAuth:
     登录认证前置校验依赖类
     """
 
-    def __init__(self, exclude_routes: Optional[list[ExcludeRoute]] = None) -> None:
+    def __init__(self, exclude_routes: list[ExcludeRoute] | None = None) -> None:
         """
         初始化登录认证前置校验依赖
 
@@ -80,7 +80,7 @@ class PreAuth:
         # 添加开始和结束锚点，确保精确匹配
         return re.compile(f'^{pattern_str}$')
 
-    async def __call__(self, request: Request, db: AsyncSession = Depends(get_db)) -> Union[CurrentUserModel, None]:
+    async def __call__(self, request: Request, db: AsyncSession = Depends(get_db)) -> CurrentUserModel | None:
         """
         执行登录认证校验
 
@@ -125,7 +125,7 @@ class PreAuth:
         return current_user
 
 
-def PreAuthDependency(exclude_routes: Optional[list[ExcludeRoute]] = None) -> params.Depends:  # noqa: N802
+def PreAuthDependency(exclude_routes: list[ExcludeRoute] | None = None) -> params.Depends:  # noqa: N802
     """
     登录认证前置校验依赖
 

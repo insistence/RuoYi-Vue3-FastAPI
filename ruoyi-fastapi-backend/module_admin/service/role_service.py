@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,7 +62,7 @@ class RoleService:
         query_object: RolePageQueryModel,
         data_scope_sql: ColumnElement,
         is_page: bool = False,
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         获取角色列表信息service
 

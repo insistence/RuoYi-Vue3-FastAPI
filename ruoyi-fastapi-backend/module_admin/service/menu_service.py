@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +23,7 @@ class MenuService:
 
     @classmethod
     async def get_menu_tree_services(
-        cls, query_db: AsyncSession, current_user: Optional[CurrentUserModel] = None
+        cls, query_db: AsyncSession, current_user: CurrentUserModel | None = None
     ) -> list[dict[str, Any]]:
         """
         获取菜单树信息service
@@ -42,7 +42,7 @@ class MenuService:
 
     @classmethod
     async def get_role_menu_tree_services(
-        cls, query_db: AsyncSession, role_id: int, current_user: Optional[CurrentUserModel] = None
+        cls, query_db: AsyncSession, role_id: int, current_user: CurrentUserModel | None = None
     ) -> RoleMenuQueryModel:
         """
         根据角色id获取菜单树信息service
@@ -65,7 +65,7 @@ class MenuService:
 
     @classmethod
     async def get_menu_list_services(
-        cls, query_db: AsyncSession, page_object: MenuQueryModel, current_user: Optional[CurrentUserModel] = None
+        cls, query_db: AsyncSession, page_object: MenuQueryModel, current_user: CurrentUserModel | None = None
     ) -> list[dict[str, Any]]:
         """
         获取菜单列表信息service
@@ -197,7 +197,7 @@ class MenuService:
             MenuTreeModel(id=item.menu_id, label=item.menu_name, parentId=item.parent_id) for item in permission_list
         ]
         # 转成id为key的字典
-        mapping: dict[int, MenuTreeModel] = dict(zip([i.id for i in _permission_list], _permission_list))
+        mapping: dict[int, MenuTreeModel] = dict(zip([i.id for i in _permission_list], _permission_list, strict=False))
 
         # 树容器
         container: list[MenuTreeModel] = []

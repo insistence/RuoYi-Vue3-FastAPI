@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any
 
 from fastapi import Request
 from redis import asyncio as aioredis
@@ -22,7 +22,7 @@ class ConfigService:
     @classmethod
     async def get_config_list_services(
         cls, query_db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         获取参数配置列表信息service
 
