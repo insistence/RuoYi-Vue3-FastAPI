@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from typing import Union
 
 from sqlalchemy import ColumnElement, bindparam, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +15,7 @@ class DeptDao:
     """
 
     @classmethod
-    async def get_dept_by_id(cls, db: AsyncSession, dept_id: int) -> Union[SysDept, None]:
+    async def get_dept_by_id(cls, db: AsyncSession, dept_id: int) -> SysDept | None:
         """
         根据部门id获取在用部门信息
 
@@ -29,7 +28,7 @@ class DeptDao:
         return dept_info
 
     @classmethod
-    async def get_dept_detail_by_id(cls, db: AsyncSession, dept_id: int) -> Union[SysDept, None]:
+    async def get_dept_detail_by_id(cls, db: AsyncSession, dept_id: int) -> SysDept | None:
         """
         根据部门id获取部门详细信息
 
@@ -46,7 +45,7 @@ class DeptDao:
         return dept_info
 
     @classmethod
-    async def get_dept_detail_by_info(cls, db: AsyncSession, dept: DeptModel) -> Union[SysDept, None]:
+    async def get_dept_detail_by_info(cls, db: AsyncSession, dept: DeptModel) -> SysDept | None:
         """
         根据部门参数获取部门信息
 
@@ -260,7 +259,7 @@ class DeptDao:
         )
 
     @classmethod
-    async def count_normal_children_dept_dao(cls, db: AsyncSession, dept_id: int) -> Union[int, None]:
+    async def count_normal_children_dept_dao(cls, db: AsyncSession, dept_id: int) -> int | None:
         """
         根据部门id查询查询所有子部门（正常状态）的数量
 
@@ -279,7 +278,7 @@ class DeptDao:
         return normal_children_dept_count
 
     @classmethod
-    async def count_children_dept_dao(cls, db: AsyncSession, dept_id: int) -> Union[int, None]:
+    async def count_children_dept_dao(cls, db: AsyncSession, dept_id: int) -> int | None:
         """
         根据部门id查询查询所有子部门（所有状态）的数量
 
@@ -299,7 +298,7 @@ class DeptDao:
         return children_dept_count
 
     @classmethod
-    async def count_dept_user_dao(cls, db: AsyncSession, dept_id: int) -> Union[int, None]:
+    async def count_dept_user_dao(cls, db: AsyncSession, dept_id: int) -> int | None:
         """
         根据部门id查询查询部门下的用户数量
 

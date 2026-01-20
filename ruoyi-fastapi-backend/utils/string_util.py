@@ -1,5 +1,3 @@
-from typing import Union
-
 from common.constant import CommonConstant
 
 
@@ -9,7 +7,7 @@ class StringUtil:
     """
 
     @classmethod
-    def is_blank(cls, string: Union[str, None]) -> bool:
+    def is_blank(cls, string: str | None) -> bool:
         """
         校验字符串是否为''或全空格
 

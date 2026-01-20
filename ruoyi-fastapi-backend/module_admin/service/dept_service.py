@@ -218,7 +218,7 @@ class DeptService:
             DeptTreeModel(id=item.dept_id, label=item.dept_name, parentId=item.parent_id) for item in permission_list
         ]
         # 转成id为key的字典
-        mapping: dict[int, DeptTreeModel] = dict(zip([i.id for i in _permission_list], _permission_list))
+        mapping: dict[int, DeptTreeModel] = dict(zip([i.id for i in _permission_list], _permission_list, strict=False))
 
         # 树容器
         container: list[DeptTreeModel] = []

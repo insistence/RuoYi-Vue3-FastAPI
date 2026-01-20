@@ -1,5 +1,5 @@
 from datetime import datetime, time
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +16,7 @@ class ConfigDao:
     """
 
     @classmethod
-    async def get_config_detail_by_id(cls, db: AsyncSession, config_id: int) -> Union[SysConfig, None]:
+    async def get_config_detail_by_id(cls, db: AsyncSession, config_id: int) -> SysConfig | None:
         """
         根据参数配置id获取参数配置详细信息
 
@@ -29,7 +29,7 @@ class ConfigDao:
         return config_info
 
     @classmethod
-    async def get_config_detail_by_info(cls, db: AsyncSession, config: ConfigModel) -> Union[SysConfig, None]:
+    async def get_config_detail_by_info(cls, db: AsyncSession, config: ConfigModel) -> SysConfig | None:
         """
         根据参数配置参数获取参数配置信息
 
@@ -55,7 +55,7 @@ class ConfigDao:
     @classmethod
     async def get_config_list(
         cls, db: AsyncSession, query_object: ConfigPageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取参数配置列表信息
 
@@ -80,7 +80,7 @@ class ConfigDao:
             .order_by(SysConfig.config_id)
             .distinct()
         )
-        config_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        config_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

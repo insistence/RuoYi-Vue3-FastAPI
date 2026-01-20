@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from datetime import datetime, time
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import Row, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +26,7 @@ class GenTableDao:
     """
 
     @classmethod
-    async def get_gen_table_by_id(cls, db: AsyncSession, table_id: int) -> Union[GenTable, None]:
+    async def get_gen_table_by_id(cls, db: AsyncSession, table_id: int) -> GenTable | None:
         """
         根据业务表id获取需要生成的业务表信息
 
@@ -47,7 +47,7 @@ class GenTableDao:
         return gen_table_info
 
     @classmethod
-    async def get_gen_table_by_name(cls, db: AsyncSession, table_name: str) -> Union[GenTable, None]:
+    async def get_gen_table_by_name(cls, db: AsyncSession, table_name: str) -> GenTable | None:
         """
         根据业务表名称获取需要生成的业务表信息
 
@@ -95,7 +95,7 @@ class GenTableDao:
     @classmethod
     async def get_gen_table_list(
         cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取代码生成业务表列表信息
 
@@ -123,7 +123,7 @@ class GenTableDao:
             )
             .distinct()
         )
-        gen_table_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        gen_table_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 
@@ -132,7 +132,7 @@ class GenTableDao:
     @classmethod
     async def get_gen_db_table_list(
         cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取数据库列表信息
 
@@ -186,7 +186,7 @@ class GenTableDao:
         query = select(
             text(query_sql).bindparams(**query_object.model_dump(exclude_none=True, exclude={'page_num', 'page_size'}))
         )
-        gen_db_table_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        gen_db_table_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

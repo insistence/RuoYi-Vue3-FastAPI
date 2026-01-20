@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from typing import Union
 
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +15,7 @@ class MenuDao:
     """
 
     @classmethod
-    async def get_menu_detail_by_id(cls, db: AsyncSession, menu_id: int) -> Union[SysMenu, None]:
+    async def get_menu_detail_by_id(cls, db: AsyncSession, menu_id: int) -> SysMenu | None:
         """
         根据菜单id获取菜单详细信息
 
@@ -29,7 +28,7 @@ class MenuDao:
         return menu_info
 
     @classmethod
-    async def get_menu_detail_by_info(cls, db: AsyncSession, menu: MenuModel) -> Union[SysMenu, None]:
+    async def get_menu_detail_by_info(cls, db: AsyncSession, menu: MenuModel) -> SysMenu | None:
         """
         根据菜单参数获取菜单信息
 
@@ -199,7 +198,7 @@ class MenuDao:
         await db.execute(delete(SysMenu).where(SysMenu.menu_id.in_([menu.menu_id])))
 
     @classmethod
-    async def has_child_by_menu_id_dao(cls, db: AsyncSession, menu_id: int) -> Union[int, None]:
+    async def has_child_by_menu_id_dao(cls, db: AsyncSession, menu_id: int) -> int | None:
         """
         根据菜单id查询菜单关联子菜单的数量
 
@@ -214,7 +213,7 @@ class MenuDao:
         return menu_count
 
     @classmethod
-    async def check_menu_exist_role_dao(cls, db: AsyncSession, menu_id: int) -> Union[int, None]:
+    async def check_menu_exist_role_dao(cls, db: AsyncSession, menu_id: int) -> int | None:
         """
         根据菜单id查询菜单关联角色数量
 

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta
-from typing import Annotated, Optional
+from typing import Annotated
 
 import jwt
 from fastapi import Depends, Request, Response
@@ -168,7 +168,7 @@ async def register_user(
     description='用于用户退出登录',
     response_model=ResponseBaseModel,
 )
-async def logout(request: Request, token: Annotated[Optional[str], Depends(oauth2_scheme)]) -> Response:
+async def logout(request: Request, token: Annotated[str | None, Depends(oauth2_scheme)]) -> Response:
     payload = jwt.decode(
         token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}
     )

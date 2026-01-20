@@ -1,8 +1,9 @@
 import importlib
 import json
 from asyncio import iscoroutinefunction
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 from apscheduler.events import EVENT_ALL, SchedulerEvent
 from apscheduler.executors.asyncio import AsyncIOExecutor
@@ -34,7 +35,7 @@ class MyCronTrigger(CronTrigger):
     WEEKDAY_COUNT = 5
 
     @classmethod
-    def from_crontab(cls, expr: str, timezone: Optional[str] = None) -> 'MyCronTrigger':
+    def from_crontab(cls, expr: str, timezone: str | None = None) -> 'MyCronTrigger':
         values = expr.split()
         if len(values) != cls.CRON_EXPRESSION_LENGTH_MIN and len(values) != cls.CRON_EXPRESSION_LENGTH_MAX:
             raise ValueError(f'Wrong number of fields; got {len(values)}, expected 6 or 7')
@@ -166,7 +167,7 @@ class SchedulerUtil:
         return getattr(module, func_name)
 
     @classmethod
-    def get_scheduler_job(cls, job_id: Union[str, int]) -> Job:
+    def get_scheduler_job(cls, job_id: str | int) -> Job:
         """
         根据任务id获取任务对象
 
@@ -233,7 +234,7 @@ class SchedulerUtil:
         )
 
     @classmethod
-    def remove_scheduler_job(cls, job_id: Union[str, int]) -> None:
+    def remove_scheduler_job(cls, job_id: str | int) -> None:
         """
         根据任务id移除任务
 

@@ -2,7 +2,7 @@ import io
 import os
 import re
 from collections.abc import Generator, Sequence
-from typing import Any, Literal, Union, overload
+from typing import Any, Literal, overload
 
 import pandas as pd
 from openpyxl import Workbook
@@ -51,7 +51,7 @@ class SqlalchemyUtil:
 
     @classmethod
     def base_to_dict(
-        cls, obj: Union[Base, dict], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
+        cls, obj: Base | dict, transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
     ) -> dict:
         """
         将sqlalchemy模型对象转换为字典
@@ -91,7 +91,7 @@ class SqlalchemyUtil:
     @overload
     def serialize_result(
         cls, result: Row, transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
-    ) -> Union[dict[str, Any], list[dict[Any, Any]]]: ...
+    ) -> dict[str, Any] | list[dict[Any, Any]]: ...
 
     @classmethod
     @overload
@@ -109,7 +109,7 @@ class SqlalchemyUtil:
     @overload
     def serialize_result(
         cls, result: Sequence[Row], transform_case: Literal['no_case', 'snake_to_camel', 'camel_to_snake'] = 'no_case'
-    ) -> list[Union[dict[str, Any], list[dict[Any, Any]]]]: ...
+    ) -> list[dict[str, Any] | list[dict[Any, Any]]]: ...
 
     @classmethod
     @overload
@@ -152,7 +152,7 @@ class SqlalchemyUtil:
         return result
 
     @classmethod
-    def get_server_default_null(cls, dialect_name: str, need_explicit_null: bool = True) -> Union[TextClause, None]:
+    def get_server_default_null(cls, dialect_name: str, need_explicit_null: bool = True) -> TextClause | None:
         """
         根据数据库方言动态返回值为null的server_default
 
@@ -193,7 +193,7 @@ class CamelCaseUtil:
 
     @classmethod
     @overload
-    def transform_result(cls, result: Row) -> Union[dict[str, Any], list[dict[Any, Any]]]: ...
+    def transform_result(cls, result: Row) -> dict[str, Any] | list[dict[Any, Any]]: ...
 
     @classmethod
     @overload
@@ -205,7 +205,7 @@ class CamelCaseUtil:
 
     @classmethod
     @overload
-    def transform_result(cls, result: Sequence[Row]) -> list[Union[dict[str, Any], list[dict[Any, Any]]]]: ...
+    def transform_result(cls, result: Sequence[Row]) -> list[dict[str, Any] | list[dict[Any, Any]]]: ...
 
     @classmethod
     @overload
@@ -253,7 +253,7 @@ class SnakeCaseUtil:
 
     @classmethod
     @overload
-    def transform_result(cls, result: Row) -> Union[dict[str, Any], list[dict[Any, Any]]]: ...
+    def transform_result(cls, result: Row) -> dict[str, Any] | list[dict[Any, Any]]: ...
 
     @classmethod
     @overload
@@ -265,7 +265,7 @@ class SnakeCaseUtil:
 
     @classmethod
     @overload
-    def transform_result(cls, result: Sequence[Row]) -> list[Union[dict[str, Any], list[dict[Any, Any]]]]: ...
+    def transform_result(cls, result: Sequence[Row]) -> list[dict[str, Any] | list[dict[Any, Any]]]: ...
 
     @classmethod
     @overload

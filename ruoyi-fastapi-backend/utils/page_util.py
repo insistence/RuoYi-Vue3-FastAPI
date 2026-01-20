@@ -1,5 +1,5 @@
 import math
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import Row, Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +40,7 @@ class PageUtil:
     @classmethod
     async def paginate(
         cls, db: AsyncSession, query: Select, page_num: int, page_size: int, is_page: bool = False
-    ) -> Union[PageModel, list[Union[dict[str, Any], list[dict[Any, Any]]]]]:
+    ) -> PageModel | list[dict[str, Any] | list[dict[Any, Any]]]:
         """
         输入查询语句和分页信息，返回分页数据列表结果
 

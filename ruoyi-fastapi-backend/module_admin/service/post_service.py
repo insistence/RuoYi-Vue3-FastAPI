@@ -1,4 +1,4 @@
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,7 +19,7 @@ class PostService:
     @classmethod
     async def get_post_list_services(
         cls, query_db: AsyncSession, query_object: PostPageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         获取岗位列表信息service
 

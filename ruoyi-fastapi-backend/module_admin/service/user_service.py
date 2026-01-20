@@ -1,6 +1,6 @@
 import io
 from datetime import datetime
-from typing import Any, Union
+from typing import Any
 
 import pandas as pd
 from fastapi import Request, UploadFile
@@ -53,7 +53,7 @@ class UserService:
         query_object: UserPageQueryModel,
         data_scope_sql: ColumnElement,
         is_page: bool = False,
-    ) -> Union[PageModel[UserRowModel], list[dict[str, Any]]]:
+    ) -> PageModel[UserRowModel] | list[dict[str, Any]]:
         """
         获取用户列表信息service
 
@@ -272,7 +272,7 @@ class UserService:
             raise ServiceException(message='传入用户id为空')
 
     @classmethod
-    async def user_detail_services(cls, query_db: AsyncSession, user_id: Union[int, str]) -> UserDetailModel:
+    async def user_detail_services(cls, query_db: AsyncSession, user_id: int | str) -> UserDetailModel:
         """
         获取用户详细信息service
 
@@ -666,9 +666,7 @@ class UserService:
             raise ServiceException(message='传入用户角色关联信息为空')
 
     @classmethod
-    async def detail_user_role_services(
-        cls, query_db: AsyncSession, page_object: UserRoleModel
-    ) -> Union[SysUserRole, None]:
+    async def detail_user_role_services(cls, query_db: AsyncSession, page_object: UserRoleModel) -> SysUserRole | None:
         """
         获取用户关联角色详细信息service
 

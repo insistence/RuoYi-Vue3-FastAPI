@@ -2,7 +2,6 @@ import asyncio
 import os
 from collections.abc import Iterable
 from logging.config import fileConfig
-from typing import Optional, Union
 
 from alembic import context
 from alembic.migration import MigrationContext
@@ -67,7 +66,7 @@ def run_migrations_offline() -> None:
 def do_run_migrations(connection: Connection) -> None:
     def process_revision_directives(
         context: MigrationContext,
-        revision: Union[str, Iterable[Optional[str]], Iterable[str]],
+        revision: str | Iterable[str | None] | Iterable[str],
         directives: list[MigrationScript],
     ) -> None:
         script = directives[0]

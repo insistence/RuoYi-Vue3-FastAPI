@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Generic, Optional, TypeVar, Union
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
 from pydantic.alias_generators import to_camel
@@ -17,7 +17,7 @@ class CrudResponseModel(BaseModel):
 
     is_success: bool = Field(description='操作是否成功')
     message: str = Field(description='响应信息')
-    result: Optional[Any] = Field(default=None, description='响应结果')
+    result: Any | None = Field(default=None, description='响应结果')
 
 
 class ResponseBaseModel(BaseModel):
@@ -38,7 +38,7 @@ class DynamicResponseModel(ResponseBaseModel, Generic[T]):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    def __class_getitem__(cls, item: Any) -> Union[Any, Self]:
+    def __class_getitem__(cls, item: Any) -> Any | Self:
         """
         当使用 DynamicResponseModel[Item] 语法时，动态创建一个包含所有字段的新模型
         """

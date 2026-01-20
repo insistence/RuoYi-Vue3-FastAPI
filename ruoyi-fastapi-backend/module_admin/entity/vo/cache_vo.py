@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -11,9 +11,9 @@ class CacheMonitorModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    command_stats: Optional[list] = Field(default=[], description='命令统计')
-    db_size: Optional[int] = Field(default=None, description='Key数量')
-    info: Optional[dict] = Field(default={}, description='Redis信息')
+    command_stats: list | None = Field(default=[], description='命令统计')
+    db_size: int | None = Field(default=None, description='Key数量')
+    info: dict | None = Field(default={}, description='Redis信息')
 
 
 class CacheInfoModel(BaseModel):
@@ -23,7 +23,7 @@ class CacheInfoModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    cache_key: Optional[str] = Field(default=None, description='缓存键名')
-    cache_name: Optional[str] = Field(default=None, description='缓存名称')
-    cache_value: Optional[Any] = Field(default=None, description='缓存内容')
-    remark: Optional[str] = Field(default=None, description='备注')
+    cache_key: str | None = Field(default=None, description='缓存键名')
+    cache_name: str | None = Field(default=None, description='缓存名称')
+    cache_value: Any | None = Field(default=None, description='缓存内容')
+    remark: str | None = Field(default=None, description='备注')

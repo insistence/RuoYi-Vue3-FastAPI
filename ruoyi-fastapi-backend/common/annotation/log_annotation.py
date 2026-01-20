@@ -1,10 +1,10 @@
 import inspect
 import json
 import time
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable, Literal, Optional, TypeVar
+from typing import Any, Literal, TypeVar
 
 import httpx
 from async_lru import alru_cache
@@ -38,7 +38,7 @@ class Log:
         self,
         title: str,
         business_type: BusinessType,
-        log_type: Optional[Literal['login', 'operation']] = 'operation',
+        log_type: Literal['login', 'operation'] | None = 'operation',
     ) -> None:
         """
         日志装饰器

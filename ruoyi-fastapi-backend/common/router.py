@@ -1,9 +1,9 @@
 import importlib
 import os
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from enum import Enum
-from typing import Annotated, Any, Callable, Literal, Optional, Union
+from typing import Annotated, Any, Literal
 
 from annotated_doc import Doc
 from fastapi import FastAPI, params
@@ -51,7 +51,7 @@ class APIRouterPro(APIRouter):
         order_num: Annotated[int, Doc('An optional order number for the router.')] = 100,
         auto_register: Annotated[bool, Doc('An optional auto register flag for the router.')] = True,
         tags: Annotated[
-            Optional[list[Union[str, Enum]]],
+            list[str | Enum] | None,
             Doc(
                 """
                 A list of tags to be applied to all the *path operations* in this
@@ -65,7 +65,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = None,
         dependencies: Annotated[
-            Optional[Sequence[params.Depends]],
+            Sequence[params.Depends] | None,
             Doc(
                 """
                 A list of dependencies (using `Depends()`) to be applied to all the
@@ -88,7 +88,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = Default(JSONResponse),
         responses: Annotated[
-            Optional[dict[Union[int, str], dict[str, Any]]],
+            dict[int | str, dict[str, Any]] | None,
             Doc(
                 """
                 Additional responses to be shown in OpenAPI.
@@ -104,7 +104,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = None,
         callbacks: Annotated[
-            Optional[list[BaseRoute]],
+            list[BaseRoute] | None,
             Doc(
                 """
                 OpenAPI callbacks that should apply to all *path operations* in this
@@ -118,7 +118,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = None,
         routes: Annotated[
-            Optional[list[BaseRoute]],
+            list[BaseRoute] | None,
             Doc(
                 """
                 **Note**: you probably shouldn't use this parameter, it is inherited
@@ -149,7 +149,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = True,
         default: Annotated[
-            Optional[ASGIApp],
+            ASGIApp | None,
             Doc(
                 """
                 Default function handler for this router. Used to handle
@@ -158,7 +158,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = None,
         dependency_overrides_provider: Annotated[
-            Optional[Any],
+            Any | None,
             Doc(
                 """
                 Only used internally by FastAPI to handle dependency overrides.
@@ -180,7 +180,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = APIRoute,
         on_startup: Annotated[
-            Optional[Sequence[Callable[[], Any]]],
+            Sequence[Callable[[], Any]] | None,
             Doc(
                 """
                 A list of startup event handler functions.
@@ -192,7 +192,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = None,
         on_shutdown: Annotated[
-            Optional[Sequence[Callable[[], Any]]],
+            Sequence[Callable[[], Any]] | None,
             Doc(
                 """
                 A list of shutdown event handler functions.
@@ -207,7 +207,7 @@ class APIRouterPro(APIRouter):
         # the generic to Lifespan[AppType] is the type of the top level application
         # which the router cannot know statically, so we use typing.Any
         lifespan: Annotated[
-            Optional[Lifespan[Any]],
+            Lifespan[Any] | None,
             Doc(
                 """
                 A `Lifespan` context manager handler. This replaces `startup` and
@@ -219,7 +219,7 @@ class APIRouterPro(APIRouter):
             ),
         ] = None,
         deprecated: Annotated[
-            Optional[bool],
+            bool | None,
             Doc(
                 """
                 Mark all *path operations* in this router as deprecated.
@@ -357,7 +357,7 @@ class RouterRegister:
         """
 
         # 按规则排序路由
-        def sort_key(item: tuple[str, APIRouter]) -> Union[tuple[Literal[0], int, str], tuple[Literal[1], str]]:
+        def sort_key(item: tuple[str, APIRouter]) -> tuple[Literal[0], int, str] | tuple[Literal[1], str]:
             attr_name, router = item
             # APIRouterPro实例按order_num排序，序号越小越靠前
             if isinstance(router, APIRouterPro):

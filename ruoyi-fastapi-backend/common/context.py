@@ -1,6 +1,6 @@
 import re
 from contextvars import ContextVar, Token
-from typing import Literal, Optional, Union
+from typing import Literal
 
 from exceptions.exception import LoginException
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -8,14 +8,10 @@ from module_admin.entity.vo.user_vo import CurrentUserModel
 # 定义上下文变量
 # 存储当前请求的编译后的排除路由模式列表
 current_exclude_patterns: ContextVar[
-    Optional[
-        list[
-            dict[str, Union[str, list[Literal['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']], re.Pattern]]
-        ]
-    ]
+    list[dict[str, str | list[Literal['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']] | re.Pattern]] | None
 ] = ContextVar('current_exclude_patterns', default=None)
 # 存储当前用户信息
-current_user: ContextVar[Optional[CurrentUserModel]] = ContextVar('current_user', default=None)
+current_user: ContextVar[CurrentUserModel | None] = ContextVar('current_user', default=None)
 
 
 class RequestContext:
@@ -26,7 +22,7 @@ class RequestContext:
     @staticmethod
     def set_current_exclude_patterns(
         exclude_patterns: list[
-            dict[str, Union[str, list[Literal['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']], re.Pattern]]
+            dict[str, str | list[Literal['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']] | re.Pattern]
         ],
     ) -> Token:
         """
@@ -39,7 +35,7 @@ class RequestContext:
 
     @staticmethod
     def get_current_exclude_patterns() -> list[
-        dict[str, Union[str, list[Literal['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']], re.Pattern]]
+        dict[str, str | list[Literal['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS']] | re.Pattern]
     ]:
         """
         获取当前请求的编译后的排除路由模式列表
