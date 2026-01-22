@@ -22,7 +22,7 @@ from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
 ai_chat_controller = APIRouterPro(
-    prefix='/ai/chat', order_num=101, tags=['AI管理-AI对话'], dependencies=[PreAuthDependency()]
+    prefix='/ai/chat', order_num=19, tags=['AI管理-AI对话'], dependencies=[PreAuthDependency()]
 )
 
 
