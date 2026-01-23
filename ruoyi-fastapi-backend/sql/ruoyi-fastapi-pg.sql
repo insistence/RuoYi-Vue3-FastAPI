@@ -242,10 +242,11 @@ comment on table sys_menu is '菜单权限表';
 -- 初始化-菜单信息表数据
 -- ----------------------------
 -- 一级菜单
-insert into sys_menu values(1, '系统管理', 0, '1', 'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', current_timestamp, '', null, '系统管理目录');
-insert into sys_menu values(2, '系统监控', 0, '2', 'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', current_timestamp, '', null, '系统监控目录');
-insert into sys_menu values(3, '系统工具', 0, '3', 'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', current_timestamp, '', null, '系统工具目录');
-insert into sys_menu values(4, '若依官网', 0, '4', 'http://ruoyi.vip', null, '', '', 0, 0, 'M', '0', '0', '', 'guide',    'admin', current_timestamp, '', null, '若依官网地址');
+insert into sys_menu values(1,  '系统管理', 0, '1',  'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', current_timestamp, '', null, '系统管理目录');
+insert into sys_menu values(2,  '系统监控', 0, '2',  'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', current_timestamp, '', null, '系统监控目录');
+insert into sys_menu values(3,  '系统工具', 0, '3',  'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', current_timestamp, '', null, '系统工具目录');
+insert into sys_menu values(4,  'AI 管理', 0, '4',  'ai',               null, '', '', 1, 0, 'M', '0', '0', '', 'bug',      'admin', current_timestamp, '', null, 'AI 管理目录');
+insert into sys_menu values(99, '若依官网', 0, '99', 'http://ruoyi.vip', null, '', '', 0, 0, 'M', '0', '0', '', 'guide',    'admin', current_timestamp, '', null, '若依官网地址');
 -- 二级菜单
 insert into sys_menu values(100,  '用户管理', 1,   '1', 'user',       'system/user/index',        '', '', 1, 0, 'C', '0', '0', 'system:user:list',        'user',          'admin', current_timestamp, '', null, '用户管理菜单');
 insert into sys_menu values(101,  '角色管理', 1,   '2', 'role',       'system/role/index',        '', '', 1, 0, 'C', '0', '0', 'system:role:list',        'peoples',       'admin', current_timestamp, '', null, '角色管理菜单');
@@ -265,6 +266,8 @@ insert into sys_menu values(114,  '缓存列表', 2,   '6', 'cacheList',  'monit
 insert into sys_menu values(115,  '表单构建', 3,   '1', 'build',      'tool/build/index',         '', '', 1, 0, 'C', '0', '0', 'tool:build:list',         'build',         'admin', current_timestamp, '', null, '表单构建菜单');
 insert into sys_menu values(116,  '代码生成', 3,   '2', 'gen',        'tool/gen/index',           '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',           'code',          'admin', current_timestamp, '', null, '代码生成菜单');
 insert into sys_menu values(117,  '系统接口', 3,   '3', 'swagger',    'tool/swagger/index',       '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',       'swagger',       'admin', current_timestamp, '', null, '系统接口菜单');
+insert into sys_menu values(118,  '模型管理', 4,   '1', 'model',      'ai/model/index',           '', '', 1, 0, 'C', '0', '0', 'ai:model:list',           'form',          'admin', current_timestamp, '', null, '模型管理菜单');
+insert into sys_menu values(119,  'AI 对话', 4,   '2', 'chat',       'ai/chat/index',            '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',            'wechat',        'admin', current_timestamp, '', null, 'AI 对话菜单');
 -- 三级菜单
 insert into sys_menu values(500,  '操作日志', 108, '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', current_timestamp, '', null, '操作日志菜单');
 insert into sys_menu values(501,  '登录日志', 108, '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', current_timestamp, '', null, '登录日志菜单');
@@ -342,6 +345,11 @@ insert into sys_menu values(1057, '生成删除', 116, '3', '#', '', '', '', 1, 
 insert into sys_menu values(1058, '导入代码', 116, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:import',            '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1059, '预览代码', 116, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:preview',           '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1060, '生成代码', 116, '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:code',              '#', 'admin', current_timestamp, '', null, '');
+-- 模型管理按钮
+insert into sys_menu values(1061, '模型查询', 118, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:query',             '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1062, '模型新增', 118, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:add',               '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1063, '模型修改', 118, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:edit',              '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1064, '模型删除', 118, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:remove',            '#', 'admin', current_timestamp, '', null, '');
 
 -- ----------------------------
 -- 6、用户和角色关联表  用户N-1角色
@@ -581,17 +589,18 @@ comment on table sys_dict_type is '字典类型表';
 -- ----------------------------
 -- 初始化-字典类型表数据
 -- ----------------------------
-insert into sys_dict_type values(1,  '用户性别',   'sys_user_sex',        '0', 'admin', current_timestamp, '', null, '用户性别列表');
-insert into sys_dict_type values(2,  '菜单状态',   'sys_show_hide',       '0', 'admin', current_timestamp, '', null, '菜单状态列表');
-insert into sys_dict_type values(3,  '系统开关',   'sys_normal_disable',  '0', 'admin', current_timestamp, '', null, '系统开关列表');
-insert into sys_dict_type values(4,  '任务状态',   'sys_job_status',      '0', 'admin', current_timestamp, '', null, '任务状态列表');
-insert into sys_dict_type values(5,  '任务分组',   'sys_job_group',       '0', 'admin', current_timestamp, '', null, '任务分组列表');
-insert into sys_dict_type values(6,  '任务执行器', 'sys_job_executor',    '0', 'admin', current_timestamp, '', null, '任务执行器列表');
-insert into sys_dict_type values(7,  '系统是否',   'sys_yes_no',          '0', 'admin', current_timestamp, '', null, '系统是否列表');
-insert into sys_dict_type values(8,  '通知类型',   'sys_notice_type',     '0', 'admin', current_timestamp, '', null, '通知类型列表');
+insert into sys_dict_type values(1,  '用户性别',     'sys_user_sex',        '0', 'admin', current_timestamp, '', null, '用户性别列表');
+insert into sys_dict_type values(2,  '菜单状态',     'sys_show_hide',       '0', 'admin', current_timestamp, '', null, '菜单状态列表');
+insert into sys_dict_type values(3,  '系统开关',     'sys_normal_disable',  '0', 'admin', current_timestamp, '', null, '系统开关列表');
+insert into sys_dict_type values(4,  '任务状态',     'sys_job_status',      '0', 'admin', current_timestamp, '', null, '任务状态列表');
+insert into sys_dict_type values(5,  '任务分组',     'sys_job_group',       '0', 'admin', current_timestamp, '', null, '任务分组列表');
+insert into sys_dict_type values(6,  '任务执行器',   'sys_job_executor',    '0', 'admin', current_timestamp, '', null, '任务执行器列表');
+insert into sys_dict_type values(7,  '系统是否',     'sys_yes_no',          '0', 'admin', current_timestamp, '', null, '系统是否列表');
+insert into sys_dict_type values(8,  '通知类型',     'sys_notice_type',     '0', 'admin', current_timestamp, '', null, '通知类型列表');
 insert into sys_dict_type values(9,  '通知状态', 	 'sys_notice_status',   '0', 'admin', current_timestamp, '', null, '通知状态列表');
-insert into sys_dict_type values(10,  '操作类型', 	 'sys_oper_type',     '0', 'admin', current_timestamp, '', null, '操作类型列表');
-insert into sys_dict_type values(11, '系统状态',   'sys_common_status',   '0', 'admin', current_timestamp, '', null, '登录状态列表');
+insert into sys_dict_type values(10,  '操作类型', 	 'sys_oper_type',       '0', 'admin', current_timestamp, '', null, '操作类型列表');
+insert into sys_dict_type values(11, '系统状态',     'sys_common_status',   '0', 'admin', current_timestamp, '', null, '登录状态列表');
+insert into sys_dict_type values(12, 'AI模型提供商', 'ai_provider_type',    '0', 'admin', current_timestamp, '', null, 'AI模型提供商列表');
 
 -- ----------------------------
 -- 12、字典数据表
@@ -634,38 +643,75 @@ comment on table sys_dict_data is '字典数据表';
 -- ----------------------------
 -- 初始化-字典数据表数据
 -- ----------------------------
-insert into sys_dict_data values(1,  1,  '男',       '0',           'sys_user_sex',        '',   '',        'Y', '0', 'admin', current_timestamp, '', null, '性别男');
-insert into sys_dict_data values(2,  2,  '女',       '1',           'sys_user_sex',        '',   '',        'N', '0', 'admin', current_timestamp, '', null, '性别女');
-insert into sys_dict_data values(3,  3,  '未知',     '2',           'sys_user_sex',        '',   '',        'N', '0', 'admin', current_timestamp, '', null, '性别未知');
-insert into sys_dict_data values(4,  1,  '显示',     '0',           'sys_show_hide',       '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '显示菜单');
-insert into sys_dict_data values(5,  2,  '隐藏',     '1',           'sys_show_hide',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '隐藏菜单');
-insert into sys_dict_data values(6,  1,  '正常',     '0',           'sys_normal_disable',  '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
-insert into sys_dict_data values(7,  2,  '停用',     '1',           'sys_normal_disable',  '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
-insert into sys_dict_data values(8,  1,  '正常',     '0',           'sys_job_status',      '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
-insert into sys_dict_data values(9,  2,  '暂停',     '1',           'sys_job_status',      '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
-insert into sys_dict_data values(10, 1,  '默认',     'default',     'sys_job_group',       '',   '',        'Y', '0', 'admin', current_timestamp, '', null, '默认分组');
-insert into sys_dict_data values(11, 2,  '数据库',   'sqlalchemy',  'sys_job_group',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, '数据库分组');
-insert into sys_dict_data values(12, 3,  'redis',    'redis',  			'sys_job_group',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, 'reids分组');
-insert into sys_dict_data values(13, 1,  '默认',     'default',  		'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '线程池');
-insert into sys_dict_data values(14, 2,  '进程池',   'processpool', 'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '进程池');
-insert into sys_dict_data values(15, 1,  '是',       'Y',       		'sys_yes_no',          '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '系统默认是');
-insert into sys_dict_data values(16, 2,  '否',       'N',       		'sys_yes_no',          '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '系统默认否');
-insert into sys_dict_data values(17, 1,  '通知',     '1',       		'sys_notice_type',     '',   'warning', 'Y', '0', 'admin', current_timestamp, '', null, '通知');
-insert into sys_dict_data values(18, 2,  '公告',     '2',       		'sys_notice_type',     '',   'success', 'N', '0', 'admin', current_timestamp, '', null, '公告');
-insert into sys_dict_data values(19, 1,  '正常',     '0',       		'sys_notice_status',   '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
-insert into sys_dict_data values(20, 2,  '关闭',     '1',       		'sys_notice_status',   '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '关闭状态');
-insert into sys_dict_data values(21, 99, '其他',     '0',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '其他操作');
-insert into sys_dict_data values(22, 1,  '新增',     '1',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '新增操作');
-insert into sys_dict_data values(23, 2,  '修改',     '2',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '修改操作');
-insert into sys_dict_data values(24, 3,  '删除',     '3',       		'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '删除操作');
-insert into sys_dict_data values(25, 4,  '授权',     '4',       		'sys_oper_type',       '',   'primary', 'N', '0', 'admin', current_timestamp, '', null, '授权操作');
-insert into sys_dict_data values(26, 5,  '导出',     '5',       		'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '导出操作');
-insert into sys_dict_data values(27, 6,  '导入',     '6',       		'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '导入操作');
-insert into sys_dict_data values(28, 7,  '强退',     '7',       		'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '强退操作');
-insert into sys_dict_data values(29, 8,  '生成代码', '8',       		'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '生成操作');
-insert into sys_dict_data values(30, 9,  '清空数据', '9',       		'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '清空操作');
-insert into sys_dict_data values(31, 1,  '成功',     '0',       		'sys_common_status',   '',   'primary', 'N', '0', 'admin', current_timestamp, '', null, '正常状态');
-insert into sys_dict_data values(32, 2,  '失败',     '1',       		'sys_common_status',   '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
+insert into sys_dict_data values(1,  1,  '男',               '0',             'sys_user_sex',        '',   '',        'Y', '0', 'admin', current_timestamp, '', null, '性别男');
+insert into sys_dict_data values(2,  2,  '女',               '1',             'sys_user_sex',        '',   '',        'N', '0', 'admin', current_timestamp, '', null, '性别女');
+insert into sys_dict_data values(3,  3,  '未知',             '2',             'sys_user_sex',        '',   '',        'N', '0', 'admin', current_timestamp, '', null, '性别未知');
+insert into sys_dict_data values(4,  1,  '显示',             '0',             'sys_show_hide',       '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '显示菜单');
+insert into sys_dict_data values(5,  2,  '隐藏',             '1',             'sys_show_hide',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '隐藏菜单');
+insert into sys_dict_data values(6,  1,  '正常',             '0',             'sys_normal_disable',  '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
+insert into sys_dict_data values(7,  2,  '停用',             '1',             'sys_normal_disable',  '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
+insert into sys_dict_data values(8,  1,  '正常',             '0',              'sys_job_status',      '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
+insert into sys_dict_data values(9,  2,  '暂停',             '1',              'sys_job_status',      '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
+insert into sys_dict_data values(10, 1,  '默认',             'default',        'sys_job_group',       '',   '',        'Y', '0', 'admin', current_timestamp, '', null, '默认分组');
+insert into sys_dict_data values(11, 2,  '数据库',           'sqlalchemy',      'sys_job_group',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, '数据库分组');
+insert into sys_dict_data values(12, 3,  'redis',           'redis',  			'sys_job_group',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, 'reids分组');
+insert into sys_dict_data values(13, 1,  '默认',             'default',  		'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '线程池');
+insert into sys_dict_data values(14, 2,  '进程池',           'processpool',     'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '进程池');
+insert into sys_dict_data values(15, 1,  '是',               'Y',       		'sys_yes_no',          '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '系统默认是');
+insert into sys_dict_data values(16, 2,  '否',               'N',       		'sys_yes_no',          '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '系统默认否');
+insert into sys_dict_data values(17, 1,  '通知',             '1',       		'sys_notice_type',     '',   'warning', 'Y', '0', 'admin', current_timestamp, '', null, '通知');
+insert into sys_dict_data values(18, 2,  '公告',             '2',       		'sys_notice_type',     '',   'success', 'N', '0', 'admin', current_timestamp, '', null, '公告');
+insert into sys_dict_data values(19, 1,  '正常',             '0',       		'sys_notice_status',   '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
+insert into sys_dict_data values(20, 2,  '关闭',             '1',       		'sys_notice_status',   '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '关闭状态');
+insert into sys_dict_data values(21, 99, '其他',             '0',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '其他操作');
+insert into sys_dict_data values(22, 1,  '新增',             '1',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '新增操作');
+insert into sys_dict_data values(23, 2,  '修改',             '2',       		'sys_oper_type',       '',   'info',    'N', '0', 'admin', current_timestamp, '', null, '修改操作');
+insert into sys_dict_data values(24, 3,  '删除',             '3',       		'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '删除操作');
+insert into sys_dict_data values(25, 4,  '授权',             '4',       		'sys_oper_type',       '',   'primary', 'N', '0', 'admin', current_timestamp, '', null, '授权操作');
+insert into sys_dict_data values(26, 5,  '导出',             '5',       		'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '导出操作');
+insert into sys_dict_data values(27, 6,  '导入',             '6',       		'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '导入操作');
+insert into sys_dict_data values(28, 7,  '强退',             '7',       		'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '强退操作');
+insert into sys_dict_data values(29, 8,  '生成代码',          '8',       		 'sys_oper_type',       '',   'warning', 'N', '0', 'admin', current_timestamp, '', null, '生成操作');
+insert into sys_dict_data values(30, 9,  '清空数据',          '9',       		 'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '清空操作');
+insert into sys_dict_data values(31, 1,  '成功',             '0',       		'sys_common_status',   '',   'primary', 'N', '0', 'admin', current_timestamp, '', null, '正常状态');
+insert into sys_dict_data values(32, 2,  '失败',             '1',       		'sys_common_status',   '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
+insert into sys_dict_data values(33, 1,  'AIMLAPI',         'AIMLAPI',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'AIMLAPI');
+insert into sys_dict_data values(34, 2,  'Anthropic',       'Anthropic',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Anthropic');
+insert into sys_dict_data values(35, 3,  'Cerebras',        'Cerebras',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Cerebras');
+insert into sys_dict_data values(36, 4,  'CerebrasOpenAI',  'CerebrasOpenAI',   'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'CerebrasOpenAI');
+insert into sys_dict_data values(37, 5,  'Cohere',          'Cohere',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Cohere');
+insert into sys_dict_data values(38, 6,  'CometAPI',        'CometAPI',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'CometAPI');
+insert into sys_dict_data values(39, 7,  'DashScope',       'DashScope',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DashScope');
+insert into sys_dict_data values(40, 8,  'DeepInfra',       'DeepInfra',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DeepInfra');
+insert into sys_dict_data values(41, 9,  'DeepSeek',        'DeepSeek',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DeepSeek');
+insert into sys_dict_data values(42, 10,  'Fireworks',       'Fireworks',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Fireworks');
+insert into sys_dict_data values(43, 11,  'Google',          'Google',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Google');
+insert into sys_dict_data values(44, 12,  'Groq',            'Groq',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Groq');
+insert into sys_dict_data values(45, 13,  'HuggingFace',     'HuggingFace',      'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'HuggingFace');
+insert into sys_dict_data values(46, 14,  'LangDB',          'LangDB',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LangDB');
+insert into sys_dict_data values(47, 15,  'LiteLLM',         'LiteLLM',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LiteLLM');
+insert into sys_dict_data values(48, 16,  'LiteLLMOpenAI',   'LiteLLMOpenAI',    'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LiteLLMOpenAI');
+insert into sys_dict_data values(49, 17,  'LlamaCpp',        'LlamaCpp',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LlamaCpp');
+insert into sys_dict_data values(50, 18,  'LMStudio',        'LMStudio',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LMStudio');
+insert into sys_dict_data values(51, 19,  'Meta',            'Meta',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Meta');
+insert into sys_dict_data values(52, 20,  'Mistral',         'Mistral',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Mistral');
+insert into sys_dict_data values(53, 21,  'N1N',             'N1N',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'N1N');
+insert into sys_dict_data values(54, 22,  'Nebius',          'Nebius',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nebius');
+insert into sys_dict_data values(55, 23,  'Nexus',           'Nexus',            'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nexus');
+insert into sys_dict_data values(56, 24,  'Nvidia',          'Nvidia',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nvidia');
+insert into sys_dict_data values(57, 25,  'Ollama',          'Ollama',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Ollama');
+insert into sys_dict_data values(58, 26,  'OpenAI',          'OpenAI',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenAI');
+insert into sys_dict_data values(59, 27,  'OpenAIResponses', 'OpenAIResponses',  'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenAIResponses');
+insert into sys_dict_data values(60, 28,  'OpenRouter',      'OpenRouter',       'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenRouter');
+insert into sys_dict_data values(61, 29,  'Perplexity',      'Perplexity',       'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Perplexity');
+insert into sys_dict_data values(62, 30,  'Portkey',         'Portkey',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Portkey');
+insert into sys_dict_data values(63, 31,  'Requesty',        'Requesty',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Requesty');
+insert into sys_dict_data values(64, 32,  'Sambanova',       'Sambanova',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Sambanova');
+insert into sys_dict_data values(65, 33,  'SiliconFlow',     'SiliconFlow',      'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'SiliconFlow');
+insert into sys_dict_data values(66, 34,  'Together',        'Together',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Together');
+insert into sys_dict_data values(67, 35,  'Vercel',          'Vercel',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Vercel');
+insert into sys_dict_data values(68, 36,  'VLLM',            'VLLM',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'VLLM');
+insert into sys_dict_data values(69, 37,  'xAI',             'xAI',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'xAI');
 
 -- ----------------------------
 -- 13、参数配置表
@@ -962,6 +1008,82 @@ comment on column gen_table_column.create_time is '创建时间';
 comment on column gen_table_column.update_by is '更新者';
 comment on column gen_table_column.update_time is '更新时间';
 comment on table gen_table_column is '代码生成业务表字段';
+
+-- ----------------------------
+-- 20、AI模型表
+-- ----------------------------
+drop table if exists ai_models;
+create table ai_models (
+  model_id          bigserial       not null,
+  model_code        varchar(100)    not null,
+  model_name        varchar(100)    default null,
+  provider          varchar(50)     not null,
+  model_sort        int4            not null,
+  api_key           varchar(255)    default null,
+  base_url          varchar(255)    default null,
+  model_type        varchar(50)     default null,
+  max_tokens        integer         default null,
+  temperature       float           default null,
+  support_reasoning char(1)         default 'N',
+  support_images    char(1)         default 'N',
+  status            char(1)         default '0',
+  create_by         varchar(64)     default '',
+  create_time       timestamp(0),
+  update_by         varchar(64)     default '',
+  update_time       timestamp(0),
+  remark            varchar(500)    default null,
+  primary key (model_id)
+);
+comment on table ai_models is 'AI模型表';
+comment on column ai_models.model_id is '模型主键';
+comment on column ai_models.model_code is '模型编码';
+comment on column ai_models.model_name is '模型名称';
+comment on column ai_models.provider is '提供商';
+comment on column ai_models.model_sort is '显示顺序';
+comment on column ai_models.api_key is 'API Key';
+comment on column ai_models.base_url is 'Base URL';
+comment on column ai_models.model_type is '模型类型';
+comment on column ai_models.max_tokens is '最大输出token';
+comment on column ai_models.temperature is '默认温度';
+comment on column ai_models.support_reasoning is '是否支持推理';
+comment on column ai_models.support_images is '是否支持图片';
+comment on column ai_models.status is '模型状态';
+comment on column ai_models.create_by is '创建者';
+comment on column ai_models.create_time is '创建时间';
+comment on column ai_models.update_by is '更新者';
+comment on column ai_models.update_time is '更新时间';
+comment on column ai_models.remark is '备注';
+
+-- ----------------------------
+-- 21、AI对话配置表
+-- ----------------------------
+drop table if exists ai_chat_config;
+create table ai_chat_config (
+  chat_config_id          bigserial      not null,
+  user_id                 bigint         not null unique,
+  temperature             float          default null,
+  add_history_to_context  char(1)        default '0',
+  num_history_runs        int4           default null,
+  system_prompt           text           default null,
+  metrics_default_visible char(1)        default '0',
+  vision_enabled          char(1)        default '1',
+  image_max_size_mb       int4           default null,
+  create_time             timestamp(0),
+  update_time             timestamp(0),
+  primary key (chat_config_id)
+);
+comment on table ai_chat_config is 'AI对话配置表';
+comment on column ai_chat_config.chat_config_id is '配置主键';
+comment on column ai_chat_config.user_id is '用户ID';
+comment on column ai_chat_config.temperature is '默认温度';
+comment on column ai_chat_config.add_history_to_context is '是否添加历史记录(0是, 1否)';
+comment on column ai_chat_config.num_history_runs is '历史记录条数';
+comment on column ai_chat_config.system_prompt is '系统提示词';
+comment on column ai_chat_config.metrics_default_visible is '默认显示指标(0是, 1否)';
+comment on column ai_chat_config.vision_enabled is '是否开启视觉(0是, 1否)';
+comment on column ai_chat_config.image_max_size_mb is '图片最大大小(MB)';
+comment on column ai_chat_config.create_time is '创建时间';
+comment on column ai_chat_config.update_time is '更新时间';
 
 CREATE OR REPLACE FUNCTION "find_in_set"(int8, varchar)
     RETURNS "pg_catalog"."bool" AS $BODY$
