@@ -48,6 +48,8 @@ class AiModels(Base):
     support_reasoning = Column(CHAR(1), server_default='N', comment='是否支持推理')
     support_images = Column(CHAR(1), server_default='N', comment='是否支持图片')
     status = Column(CHAR(1), server_default='0', comment='模型状态')
+    user_id = Column(BigInteger, nullable=True, comment='用户ID')
+    dept_id = Column(BigInteger, nullable=True, comment='部门ID')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')

@@ -26,6 +26,8 @@ class AiModelModel(BaseModel):
     support_images: Literal['Y', 'N'] | None = Field(default=None, description='是否支持图片')
     model_type: str | None = Field(default=None, description='模型类型')
     status: Literal['0', '1'] | None = Field(default=None, description='模型状态')
+    user_id: int | None = Field(default=None, description='用户ID')
+    dept_id: int | None = Field(default=None, description='部门ID')
     create_by: str | None = Field(default=None, description='创建者')
     create_time: datetime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')

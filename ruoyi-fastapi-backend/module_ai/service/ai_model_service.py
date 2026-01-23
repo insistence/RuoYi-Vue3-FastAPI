@@ -1,5 +1,6 @@
 from typing import Any
 
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
@@ -15,23 +16,50 @@ class AiModelService:
     """
 
     @classmethod
-    async def get_ai_model_list(
-        cls, query_db: AsyncSession, query_object: AiModelPageQueryModel, is_page: bool = False
+    async def get_ai_model_list_services(
+        cls,
+        query_db: AsyncSession,
+        query_object: AiModelPageQueryModel,
+        data_scope_sql: ColumnElement,
+        is_page: bool = False,
     ) -> PageModel | list[dict[str, Any]]:
         """
         获取AI模型列表信息service
 
         :param query_db: orm对象
         :param query_object: 查询参数对象
+        :param data_scope_sql: 数据权限对应的查询sql语句
         :param is_page: 是否开启分页
         :return: AI模型列表信息对象
         """
-        ai_model_list_result = await AiModelDao.get_ai_model_list(query_db, query_object, is_page)
+        ai_model_list_result = await AiModelDao.get_ai_model_list(query_db, query_object, data_scope_sql, is_page)
 
         return ai_model_list_result
 
     @classmethod
-    async def add_ai_model(cls, query_db: AsyncSession, page_object: AiModelModel) -> CrudResponseModel:
+    async def check_ai_model_data_scope_services(
+        cls,
+        query_db: AsyncSession,
+        model_id: int,
+        data_scope_sql: ColumnElement,
+    ) -> CrudResponseModel:
+        """
+        校验用户是否有AI模型数据权限service
+
+        :param query_db: orm对象
+        :param model_id: 模型主键
+        :param data_scope_sql: 数据权限对应的查询sql语句
+        :return: 校验结果
+        """
+        ai_models = await AiModelDao.get_ai_model_list(
+            query_db, AiModelModel(modelId=model_id), data_scope_sql, is_page=False
+        )
+        if ai_models:
+            return CrudResponseModel(is_success=True, message='校验通过')
+        raise ServiceException(message='没有权限访问AI模型数据')
+
+    @classmethod
+    async def add_ai_model_services(cls, query_db: AsyncSession, page_object: AiModelModel) -> CrudResponseModel:
         """
         新增AI模型信息service
 
@@ -49,7 +77,7 @@ class AiModelService:
             raise e
 
     @classmethod
-    async def edit_ai_model(cls, query_db: AsyncSession, page_object: AiModelModel) -> CrudResponseModel:
+    async def edit_ai_model_services(cls, query_db: AsyncSession, page_object: AiModelModel) -> CrudResponseModel:
         """
         编辑AI模型信息service
 
@@ -71,7 +99,7 @@ class AiModelService:
             raise ServiceException(message='AI模型不存在')
 
     @classmethod
-    async def delete_ai_model(cls, query_db: AsyncSession, page_object: DeleteAiModelModel) -> CrudResponseModel:
+    async def delete_ai_model_services(cls, query_db: AsyncSession, page_object: DeleteAiModelModel) -> CrudResponseModel:
         """
         删除AI模型信息service
 

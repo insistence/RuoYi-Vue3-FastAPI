@@ -1,6 +1,6 @@
 from typing import Any
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import ColumnElement, delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
@@ -29,22 +29,26 @@ class AiModelDao:
 
     @classmethod
     async def get_ai_model_list(
-        cls, db: AsyncSession, query_object: AiModelPageQueryModel, is_page: bool = False
+        cls, db: AsyncSession, query_object: AiModelPageQueryModel, data_scope_sql: ColumnElement, is_page: bool = False
     ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取AI模型列表信息
 
         :param db: orm对象
         :param query_object: 查询参数对象
+        :param data_scope_sql: 数据权限对应的查询sql语句
         :param is_page: 是否开启分页
         :return: AI模型列表信息对象
         """
         query = (
             select(AiModels)
             .where(
+                AiModels.model_id == query_object.model_id if query_object.model_id else True,
+                AiModels.model_name.like(f'%{query_object.model_name}%') if query_object.model_name else True,
                 AiModels.model_code.like(f'%{query_object.model_code}%') if query_object.model_code else True,
                 AiModels.provider == query_object.provider if query_object.provider else True,
                 AiModels.status == query_object.status if query_object.status else True,
+                data_scope_sql,
             )
             .order_by(AiModels.model_sort)
         )
