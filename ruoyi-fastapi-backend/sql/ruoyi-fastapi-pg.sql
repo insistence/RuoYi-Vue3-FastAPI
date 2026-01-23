@@ -1027,6 +1027,8 @@ create table ai_models (
   support_reasoning char(1)         default 'N',
   support_images    char(1)         default 'N',
   status            char(1)         default '0',
+  user_id           bigint,
+  dept_id           bigint,
   create_by         varchar(64)     default '',
   create_time       timestamp(0),
   update_by         varchar(64)     default '',
@@ -1048,6 +1050,8 @@ comment on column ai_models.temperature is '默认温度';
 comment on column ai_models.support_reasoning is '是否支持推理';
 comment on column ai_models.support_images is '是否支持图片';
 comment on column ai_models.status is '模型状态';
+comment on column ai_models.user_id is '用户ID';
+comment on column ai_models.dept_id is '部门ID';
 comment on column ai_models.create_by is '创建者';
 comment on column ai_models.create_time is '创建时间';
 comment on column ai_models.update_by is '更新者';

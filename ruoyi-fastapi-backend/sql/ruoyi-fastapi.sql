@@ -780,6 +780,8 @@ create table ai_models (
   support_reasoning char(1)         default 'N'                comment '是否支持推理',
   support_images    char(1)         default 'N'                comment '是否支持图片',
   status            char(1)         default '0'                comment '模型状态',
+  user_id           bigint(20)                                 comment '用户ID',
+  dept_id           bigint(20)                                 comment '部门ID',
   create_by         varchar(64)     default ''                 comment '创建者',
   create_time       datetime                                   comment '创建时间',
   update_by         varchar(64)     default ''                 comment '更新者',
