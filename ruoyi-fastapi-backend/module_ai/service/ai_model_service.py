@@ -8,6 +8,7 @@ from exceptions.exception import ServiceException
 from module_ai.dao.ai_model_dao import AiModelDao
 from module_ai.entity.vo.ai_model_vo import AiModelModel, AiModelPageQueryModel, DeleteAiModelModel
 from utils.common_util import CamelCaseUtil
+from utils.crypto_util import CryptoUtil
 
 
 class AiModelService:
@@ -33,6 +34,11 @@ class AiModelService:
         :return: AI模型列表信息对象
         """
         ai_model_list_result = await AiModelDao.get_ai_model_list(query_db, query_object, data_scope_sql, is_page)
+        rows = ai_model_list_result.rows if isinstance(ai_model_list_result, PageModel) else ai_model_list_result
+
+        for row in rows:
+            if 'apiKey' in row:
+                row['apiKey'] = '********' * 3
 
         return ai_model_list_result
 
@@ -69,6 +75,8 @@ class AiModelService:
         :return: 新增AI模型校验结果
         """
         try:
+            if page_object.api_key:
+                page_object.api_key = CryptoUtil.encrypt(page_object.api_key)
             await AiModelDao.add_ai_model_dao(query_db, page_object)
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='新增成功')
@@ -86,6 +94,13 @@ class AiModelService:
         :return: 编辑AI模型校验结果
         """
         edit_ai_model = page_object.model_dump(exclude_unset=True)
+        if page_object.api_key:
+            if page_object.api_key == '********' * 3:
+                if 'api_key' in edit_ai_model:
+                    del edit_ai_model['api_key']
+            else:
+                edit_ai_model['api_key'] = CryptoUtil.encrypt(page_object.api_key)
+
         ai_model_info = await cls.ai_model_detail_services(query_db, page_object.model_id)
         if ai_model_info.model_id:
             try:
@@ -99,7 +114,9 @@ class AiModelService:
             raise ServiceException(message='AI模型不存在')
 
     @classmethod
-    async def delete_ai_model_services(cls, query_db: AsyncSession, page_object: DeleteAiModelModel) -> CrudResponseModel:
+    async def delete_ai_model_services(
+        cls, query_db: AsyncSession, page_object: DeleteAiModelModel
+    ) -> CrudResponseModel:
         """
         删除AI模型信息service
 
@@ -131,5 +148,8 @@ class AiModelService:
         """
         ai_model = await AiModelDao.get_ai_model_detail_by_id(query_db, model_id=model_id)
         result = AiModelModel(**CamelCaseUtil.transform_result(ai_model)) if ai_model else AiModelModel()
+
+        if result.api_key:
+            result.api_key = '********' * 3
 
         return result

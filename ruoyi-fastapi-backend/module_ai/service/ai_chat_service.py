@@ -32,6 +32,7 @@ from module_ai.entity.vo.ai_chat_vo import (
 from module_ai.entity.vo.ai_model_vo import AiModelModel
 from utils.ai_util import AiUtil
 from utils.common_util import CamelCaseUtil
+from utils.crypto_util import CryptoUtil
 
 if TYPE_CHECKING:
     from agno.models.message import Message
@@ -106,11 +107,13 @@ class AiChatService:
         :param num_history: 历史消息轮数
         :return: Agent对象
         """
+        real_api_key = CryptoUtil.decrypt(model_config.api_key)
+
         model = AiUtil.get_model_from_factory(
             provider=model_config.provider,
             model_code=model_config.model_code,
             model_name=model_config.model_name,
-            api_key=model_config.api_key,
+            api_key=real_api_key,
             base_url=model_config.base_url,
             temperature=temperature,
             max_tokens=model_config.max_tokens,
