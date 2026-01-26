@@ -56,12 +56,11 @@ async def get_ai_model_list(
 )
 async def get_ai_model_all(
     request: Request,
-    ai_model_query: Annotated[AiModelModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> Response:
     # 获取不分页数据
-    ai_model_page_query = AiModelPageQueryModel(**ai_model_query.model_dump(by_alias=True))
+    ai_model_page_query = AiModelPageQueryModel(status='0')
     result = await AiModelService.get_ai_model_list_services(
         query_db, ai_model_page_query, data_scope_sql, is_page=False
     )
@@ -133,16 +132,16 @@ async def edit_ai_model(
 @Log(title='AI模型管理', business_type=BusinessType.DELETE)
 async def delete_ai_model(
     request: Request,
-    ai_model_ids: Annotated[str, Path()],
+    model_ids: Annotated[str, Path(description='需要删除的模型ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> Response:
-    model_ids = ai_model_ids.split(',')
-    for model_id in model_ids:
+    model_id_list = model_ids.split(',')
+    for model_id in model_id_list:
         if not current_user.user.admin:
             await AiModelService.check_ai_model_data_scope_services(query_db, int(model_id), data_scope_sql)
-    delete_ai_model = DeleteAiModelModel(modelIds=ai_model_ids)
+    delete_ai_model = DeleteAiModelModel(modelIds=model_ids)
     delete_ai_model_result = await AiModelService.delete_ai_model_services(query_db, delete_ai_model)
     logger.info(delete_ai_model_result.message)
 
@@ -158,7 +157,7 @@ async def delete_ai_model(
 )
 async def get_ai_model_detail(
     request: Request,
-    model_id: Annotated[int, Path()],
+    model_id: Annotated[int, Path(description='模型ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],

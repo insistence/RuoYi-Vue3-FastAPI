@@ -10,11 +10,10 @@ export function listModel(query) {
 }
 
 // 查询所有AI模型列表
-export function listModelAll(query) {
+export function listModelAll() {
   return request({
     url: "/ai/model/all",
     method: "get",
-    params: query,
   });
 }
 

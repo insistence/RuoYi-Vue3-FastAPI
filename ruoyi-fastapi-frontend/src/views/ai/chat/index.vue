@@ -551,7 +551,7 @@ function formatTime(timeStr) {
 }
 
 function getModels() {
-  listModelAll({ status: "0" }).then((res) => {
+  listModelAll().then((res) => {
     modelOptions.value = res.data;
     if (modelOptions.value.length > 0) {
       currentModelId.value = modelOptions.value[0].modelId;

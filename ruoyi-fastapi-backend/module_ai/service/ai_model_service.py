@@ -124,7 +124,7 @@ class AiModelService:
         :param page_object: 删除AI模型对象
         :return: 删除AI模型校验结果
         """
-        if page_object.notice_ids:
+        if page_object.model_ids:
             model_id_list = page_object.model_ids.split(',')
             try:
                 for model_id in model_id_list:
