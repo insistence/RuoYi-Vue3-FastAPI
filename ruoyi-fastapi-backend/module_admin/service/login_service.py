@@ -40,7 +40,7 @@ class CustomOAuth2PasswordRequestForm(OAuth2PasswordRequestForm):
 
     def __init__(
         self,
-        grant_type: str = Form(default=None, regex='password'),
+        grant_type: str = Form(default=None, pattern='password'),
         username: str = Form(),
         password: str = Form(),
         scope: str = Form(default=''),
