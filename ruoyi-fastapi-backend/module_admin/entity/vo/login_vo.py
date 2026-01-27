@@ -40,6 +40,12 @@ class Token(BaseModel):
     token_type: str = Field(description='token类型')
 
 
+class LoginToken(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    token: str = Field(description='token信息')
+
+
 class CaptchaCode(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 

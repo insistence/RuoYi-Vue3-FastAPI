@@ -13,7 +13,7 @@ from common.enums import BusinessType, RedisInitKeyConfig
 from common.router import APIRouterPro
 from common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from config.env import AppConfig, JwtConfig
-from module_admin.entity.vo.login_vo import RouterModel, Token, UserLogin, UserRegister
+from module_admin.entity.vo.login_vo import LoginToken, RouterModel, Token, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
 from module_admin.service.user_service import UserService
@@ -27,7 +27,7 @@ login_controller = APIRouterPro(order_num=1, tags=['登录模块'])
     '/login',
     summary='登录接口',
     description='用于用户登录',
-    response_model=DynamicResponseModel[Token],
+    response_model=DynamicResponseModel[LoginToken] | Token,
 )
 @Log(title='用户登录', business_type=BusinessType.OTHER, log_type='login')
 async def login(
