@@ -7,7 +7,7 @@
 from datetime import datetime, time
 {% endif %}
 {% endfor %}
-from typing import Any, Union
+from typing import Any
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +32,7 @@ class {{ BusinessName }}Dao:
     """
 
     @classmethod
-    async def get_{{ businessName }}_detail_by_id(cls, db: AsyncSession, {{ pk_field }}: int) -> Union[{{ ClassName }}, None]:
+    async def get_{{ businessName }}_detail_by_id(cls, db: AsyncSession, {{ pk_field }}: int) -> {{ ClassName }} | None:
         """
         根据{{ pk_field_comment }}获取{{ functionName }}详细信息
 
@@ -61,7 +61,7 @@ class {{ BusinessName }}Dao:
         return {{ businessName }}_info
 
     @classmethod
-    async def get_{{ businessName }}_detail_by_info(cls, db: AsyncSession, {{ businessName }}: {{ BusinessName }}Model) -> Union[{{ ClassName }}, None]:
+    async def get_{{ businessName }}_detail_by_info(cls, db: AsyncSession, {{ businessName }}: {{ BusinessName }}Model) -> {{ ClassName }} | None:
         """
         根据{{ functionName }}参数获取{{ functionName }}信息
 
@@ -90,7 +90,7 @@ class {{ BusinessName }}Dao:
     @classmethod
     async def get_{{ businessName }}_list(
         cls, db: AsyncSession, query_object: {{ BusinessName }}PageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取{{ functionName }}列表信息
 
@@ -138,7 +138,7 @@ class {{ BusinessName }}Dao:
             .order_by({{ ClassName }}.{{ pk_field }})
             .distinct()
         )
-        {{ businessName }}_list: Union[PageModel, list[dict[str, Any]]] = await PageUtil.paginate(
+        {{ businessName }}_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
 

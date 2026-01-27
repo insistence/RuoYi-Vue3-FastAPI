@@ -2,7 +2,7 @@
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
 {% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
 {% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
-from typing import Any, Union
+from typing import Any
 
 {% if dicts %}
 from fastapi import Request
@@ -29,7 +29,7 @@ class {{ BusinessName }}Service:
     @classmethod
     async def get_{{ businessName }}_list_services(
         cls, query_db: AsyncSession, query_object: {{ BusinessName }}PageQueryModel, is_page: bool = False
-    ) -> Union[PageModel, list[dict[str, Any]]]:
+    ) -> PageModel | list[dict[str, Any]]:
         """
         获取{{ functionName }}列表信息service
 
