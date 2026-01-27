@@ -4,7 +4,7 @@
 {% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
 {% set need_import_datetime = namespace(has_datetime=False) %}
 {% for column in columns %}
-{% if column.python_field in ["createTime", "updatetime"] %}
+{% if column.python_field in ["createTime", "updateTime"] %}
 {% set need_import_datetime.has_datetime = True %}
 {% endif %}
 {% endfor %}

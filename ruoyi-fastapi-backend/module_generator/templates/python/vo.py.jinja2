@@ -23,11 +23,6 @@
 {% for vo_import in voImportList %}
 {{ vo_import }}
 {% endfor %}
-{% if table.sub %}
-from typing import List, Optional
-{% else %}
-from typing import Optional, Union
-{% endif %}
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -45,7 +40,7 @@ class {{ BusinessName }}BaseModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     {% for column in columns %}
-    {{ column.column_name }}: Optional[{{ column.python_type }}] = Field(default=None, description='{{ column.column_comment }}')
+    {{ column.column_name }}: {{ column.python_type }} | None = Field(default=None, description='{{ column.column_comment }}')
     {% endfor %}
 
     {% for column in columns %}
@@ -53,7 +48,7 @@ class {{ BusinessName }}BaseModel(BaseModel):
     {% set parentheseIndex = column.column_comment.find("（") %}
     {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
     @NotBlank(field_name='{{ column.column_name }}', message='{{ comment }}不能为空')
-    def get_{{ column.column_name }}(self) -> Union[{{ column.python_type }}, None]:
+    def get_{{ column.column_name }}(self) -> {{ column.python_type }} | None:
         return self.{{ column.column_name }}
     {% if not loop.last %}{{ "\n" }}{% endif %}
     {% endif %}
@@ -78,11 +73,11 @@ class {{ BusinessName }}Model({% if table.sub %}{{ BusinessName }}BaseModel{% el
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     {% for column in columns %}
-    {{ column.column_name }}: Optional[{{ column.python_type }}] = Field(default=None, description='{{ column.column_comment }}')
+    {{ column.column_name }}: {{ column.python_type }} | None = Field(default=None, description='{{ column.column_comment }}')
     {% endfor %}
     {% endif %}
     {% if table.sub %}
-    {{ subclassName }}_list: Optional[List['{{ subTable.business_name | capitalize }}Model']] = Field(default=None, description='子表列信息')
+    {{ subclassName }}_list: list['{{ subTable.business_name | capitalize }}Model'] | None = Field(default=None, description='子表列信息')
     {% endif %}
 
     {% if not table.sub %}
@@ -91,7 +86,7 @@ class {{ BusinessName }}Model({% if table.sub %}{{ BusinessName }}BaseModel{% el
     {% set parentheseIndex = column.column_comment.find("（") %}
     {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
     @NotBlank(field_name='{{ column.column_name }}', message='{{ comment }}不能为空')
-    def get_{{ column.column_name }}(self) -> Union[{{ column.python_type }}, None]:
+    def get_{{ column.column_name }}(self) -> {{ column.python_type }} | None:
         return self.{{ column.column_name }}
     {% if not loop.last %}{{ "\n" }}{% endif %}
     {% endif %}
@@ -117,7 +112,7 @@ class {{ subTable.business_name | capitalize }}Model(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     {% for sub_column in subTable.columns %}
-    {{ sub_column.column_name }}: Optional[{{ sub_column.python_type }}] = Field(default=None, description='{{ sub_column.column_comment}}')
+    {{ sub_column.column_name }}: {{ sub_column.python_type }} | None = Field(default=None, description='{{ sub_column.column_comment}}')
     {% endfor %}
 
     {% for sub_column in subTable.columns %}
@@ -125,7 +120,7 @@ class {{ subTable.business_name | capitalize }}Model(BaseModel):
     {% set parentheseIndex = sub_column.column_comment.find("（") %}
     {% set comment = sub_column.column_comment[:parentheseIndex] if parentheseIndex != -1 else sub_column.column_comment %}
     @NotBlank(field_name='{{ sub_column.column_name }}', message='{{ comment }}不能为空')
-    def get_{{ sub_column.column_name }}(self) -> Union[{{ column.python_type }}, None]:
+    def get_{{ sub_column.column_name }}(self) -> {{ sub_column.python_type }} | None:
         return self.{{ sub_column.column_name }}
     {% if not loop.last %}{{ "\n" }}{% endif %}
     {% endif %}
@@ -149,8 +144,8 @@ class {{ BusinessName }}QueryModel({% if table.sub %}{{ BusinessName }}BaseModel
     {% if vo_field_daterange.has_daterange %}
     {% for column in columns %}
     {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
-    begin_{{ column.column_name  }}: Optional[str] = Field(default=None, description='开始{{ column.column_comment }}')
-    end_{{ column.column_name  }}: Optional[str] = Field(default=None, description='结束{{ column.column_comment }}')
+    begin_{{ column.column_name  }}: str | None = Field(default=None, description='开始{{ column.column_comment }}')
+    end_{{ column.column_name  }}: str | None = Field(default=None, description='结束{{ column.column_comment }}')
     {% endif %}
     {% endfor %}
     {% else %}
