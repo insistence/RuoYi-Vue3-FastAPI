@@ -20,9 +20,10 @@ class SwaggerTest(BasePageTest):
         # 获取 iframe 内容框架
         frame = self.page.frame_locator('iframe')
 
-        # 验证 iframe 内部的标题包含 "RuoYi-FastAPI"
+        # 后端未禁用Swagger时，验证 iframe 内部的标题包含 "RuoYi-FastAPI"
+        # 当前生产环境已默认禁用Swagger，此处验证标题是否包含默认禁用提示
         h1_locator = frame.locator('h1')
-        await expect(h1_locator).to_contain_text('RuoYi-FastAPI', timeout=15000)
+        await expect(h1_locator).to_contain_text('Swagger UI has been disabled. Please enable it first.', timeout=15000)
 
 
 @pytest.mark.asyncio

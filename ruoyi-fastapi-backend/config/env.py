@@ -23,6 +23,8 @@ class AppSettings(BaseSettings):
     app_reload: bool = True
     app_ip_location_query: bool = True
     app_same_time_login: bool = True
+    app_disable_swagger: bool = False
+    app_disable_redoc: bool = False
 
 
 class JwtSettings(BaseSettings):
