@@ -1,12 +1,10 @@
 import io
 import os
 import re
-import socket
 from collections.abc import Generator, Sequence
 from typing import Any, Literal, overload
 
 import pandas as pd
-import psutil
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
@@ -44,53 +42,6 @@ def worship() -> None:
 //             佛祖保佑       永不宕机      永无BUG                  //
 ////////////////////////////////////////////////////////////////////
     """)
-
-
-class IPUtil:
-    """
-    IP工具类
-    """
-
-    @classmethod
-    def get_local_ip(cls) -> str:
-        """
-        获取本机Local IP
-        """
-        try:
-            for snics in psutil.net_if_addrs().values():
-                for snic in snics:
-                    if snic.family == socket.AF_INET and snic.address.startswith('127.'):
-                        return snic.address
-        except Exception:
-            pass
-
-        return '127.0.0.1'
-
-    @classmethod
-    def get_network_ips(cls) -> list[str]:
-        """
-        获取本机Network IP列表
-        """
-        network_ips = []
-        try:
-            for snics in psutil.net_if_addrs().values():
-                network_ips.extend(
-                    snic.address
-                    for snic in snics
-                    if snic.family == socket.AF_INET and not snic.address.startswith('127.')
-                )
-        except Exception:
-            pass
-
-        if not network_ips:
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                    s.connect(('8.8.8.8', 80))
-                    network_ips.append(s.getsockname()[0])
-            except Exception:
-                network_ips = ['127.0.0.1']
-
-        return network_ips
 
 
 class SqlalchemyUtil:
