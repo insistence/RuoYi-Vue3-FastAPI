@@ -21,6 +21,7 @@ class AppSettings(BaseSettings):
     app_port: int = 9099
     app_version: str = '1.0.0'
     app_reload: bool = True
+    app_workers: int = 1
     app_ip_location_query: bool = True
     app_same_time_login: bool = True
     app_disable_swagger: bool = False

@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.redis = await RedisUtil.create_redis_pool()
     await RedisUtil.init_sys_dict(app.state.redis)
     await RedisUtil.init_sys_config(app.state.redis)
-    await SchedulerUtil.init_system_scheduler()
+    await SchedulerUtil.init_system_scheduler(app.state.redis)
     logger.info(f'🚀 {AppConfig.app_name}启动成功')
     host = AppConfig.app_host
     port = AppConfig.app_port
