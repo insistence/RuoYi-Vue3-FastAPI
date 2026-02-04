@@ -133,6 +133,16 @@ class JobConstant:
     JOB_WHITE_LIST = ['module_task']
 
 
+class LockConstant:
+    """
+    分布式锁常量
+    """
+
+    APP_STARTUP_LOCK_KEY = 'app:startup:lock'
+    LOCK_EXPIRE_SECONDS = 60
+    LOCK_RENEWAL_INTERVAL = 20
+
+
 class MenuConstant:
     """
     菜单常量
