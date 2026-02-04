@@ -1,8 +1,10 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from common.constant import LockConstant
 from common.router import auto_register_routers
 from config.env import AppConfig
 from config.get_db import init_create_table
@@ -10,52 +12,119 @@ from config.get_redis import RedisUtil
 from config.get_scheduler import SchedulerUtil
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
+from module_admin.service.log_service import LogAggregatorService
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
 from utils.log_util import logger
-from utils.server_util import APIDocsUtil, IPUtil
+from utils.server_util import APIDocsUtil, IPUtil, StartupUtil
+
+
+async def _start_background_tasks(app: FastAPI, startup_log_enabled: bool) -> None:
+    """
+    启动应用后台任务
+
+    :param app: FastAPI对象
+    :param startup_log_enabled: 是否启用启动日志输出
+    :return: None
+    """
+    if startup_log_enabled:
+        app.state.lock_renewal_task = StartupUtil.start_lock_renewal(
+            redis=app.state.redis,
+            lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
+            worker_id=SchedulerUtil._worker_id,
+            lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
+            interval_seconds=LockConstant.LOCK_RENEWAL_INTERVAL,
+            on_lock_lost=SchedulerUtil.on_lock_lost,
+        )
+    await SchedulerUtil.init_system_scheduler(app.state.redis)
+    app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
+
+
+async def _stop_background_tasks(app: FastAPI) -> None:
+    """
+    停止应用后台任务并释放资源
+
+    :param app: FastAPI对象
+    :return: None
+    """
+    log_task = getattr(app.state, 'log_aggregator_task', None)
+    if log_task:
+        log_task.cancel()
+        try:
+            await log_task
+        except asyncio.CancelledError:
+            pass
+    lock_task = getattr(app.state, 'lock_renewal_task', None)
+    if lock_task:
+        lock_task.cancel()
+        try:
+            await lock_task
+        except asyncio.CancelledError:
+            pass
+    await RedisUtil.close_redis_pool(app)
+    await SchedulerUtil.close_system_scheduler()
 
 
 # 生命周期事件
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    logger.info(f'⏰️ {AppConfig.app_name}开始启动')
-    worship()
-    await init_create_table()
-    app.state.redis = await RedisUtil.create_redis_pool()
-    await RedisUtil.init_sys_dict(app.state.redis)
-    await RedisUtil.init_sys_config(app.state.redis)
-    await SchedulerUtil.init_system_scheduler(app.state.redis)
-    logger.info(f'🚀 {AppConfig.app_name}启动成功')
-    host = AppConfig.app_host
-    port = AppConfig.app_port
-    if host == '0.0.0.0':
-        local_ip = IPUtil.get_local_ip()
-        network_ips = IPUtil.get_network_ips()
-    else:
-        local_ip = host
-        network_ips = [host]
+    """
+    应用生命周期管理
 
-    app_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}</cyan>']
-    app_links.extend(f'📡 Network:  <cyan>http://{ip}:{port}</cyan>' for ip in network_ips)
-    logger.opt(colors=True).info('💻 应用地址:\n' + '\n'.join(app_links))
+    :param app: FastAPI对象
+    :return: None
+    """
+    app.state.redis = await RedisUtil.create_redis_pool(log_enabled=False)
+    startup_log_enabled = await StartupUtil.acquire_startup_log_gate(
+        redis=app.state.redis,
+        lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
+        worker_id=SchedulerUtil._worker_id,
+        lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
+    )
+    app.state.startup_log_enabled = startup_log_enabled
 
-    if not AppConfig.app_disable_swagger:
-        swagger_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.docs_url()}</cyan>']
-        swagger_links.extend(
-            f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.docs_url()}</cyan>' for ip in network_ips
-        )
-        logger.opt(colors=True).info('📄 Swagger文档:\n' + '\n'.join(swagger_links))
+    with logger.contextualize(startup_phase=True, startup_log_enabled=startup_log_enabled):
+        logger.info(f'⏰️ {AppConfig.app_name}开始启动')
+        if startup_log_enabled:
+            worship()
+        await init_create_table()
+        await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
+        await RedisUtil.init_sys_dict(app.state.redis)
+        await RedisUtil.init_sys_config(app.state.redis)
+        await _start_background_tasks(app, startup_log_enabled)
 
-    if not AppConfig.app_disable_redoc:
-        redoc_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.redoc_url()}</cyan>']
-        redoc_links.extend(
-            f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
-        )
-        logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
+    if startup_log_enabled:
+        logger.info(f'🚀 {AppConfig.app_name}启动成功')
+        host = AppConfig.app_host
+        port = AppConfig.app_port
+        if host == '0.0.0.0':
+            local_ip = IPUtil.get_local_ip()
+            network_ips = IPUtil.get_network_ips()
+        else:
+            local_ip = host
+            network_ips = [host]
+
+        app_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}</cyan>']
+        app_links.extend(f'📡 Network:  <cyan>http://{ip}:{port}</cyan>' for ip in network_ips)
+        logger.opt(colors=True).info('💻 应用地址:\n' + '\n'.join(app_links))
+
+        if not AppConfig.app_disable_swagger:
+            swagger_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.docs_url()}</cyan>']
+            swagger_links.extend(
+                f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.docs_url()}</cyan>' for ip in network_ips
+            )
+            logger.opt(colors=True).info('📄 Swagger文档:\n' + '\n'.join(swagger_links))
+
+        if not AppConfig.app_disable_redoc:
+            redoc_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.redoc_url()}</cyan>']
+            redoc_links.extend(
+                f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
+            )
+            logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
     yield
-    await RedisUtil.close_redis_pool(app)
-    await SchedulerUtil.close_system_scheduler()
+    shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
+    with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
+        await _stop_background_tasks(app)
 
 
 def create_app() -> FastAPI:

@@ -1,10 +1,19 @@
+import asyncio
+import hashlib
+import json
+import os
+import uuid
 from typing import Any
 
 from fastapi import Request
+from redis import asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
+from config.database import AsyncSessionLocal
+from config.env import LogConfig
 from exceptions.exception import ServiceException
+from middlewares.trace_middleware.ctx import TraceCtx
 from module_admin.dao.log_dao import LoginLogDao, OperationLogDao
 from module_admin.entity.vo.log_vo import (
     DeleteLoginLogModel,
@@ -17,6 +26,7 @@ from module_admin.entity.vo.log_vo import (
 )
 from module_admin.service.dict_service import DictDataService
 from utils.excel_util import ExcelUtil
+from utils.log_util import logger
 
 
 class OperationLogService:
@@ -261,3 +271,223 @@ class LoginLogService:
         binary_data = ExcelUtil.export_list2excel(login_log_list, mapping_dict)
 
         return binary_data
+
+
+class LogQueueService:
+    @classmethod
+    def _build_event_id(cls, request_id: str, log_type: str, source: str) -> str:
+        """
+        生成日志事件唯一标识
+
+        :param request_id: 请求唯一标识
+        :param log_type: 日志类型
+        :param source: 日志来源
+        :return: 事件唯一标识
+        """
+        if not request_id:
+            return uuid.uuid4().hex
+        base = f'{request_id}:{log_type}:{source}'
+        return hashlib.md5(base.encode('utf-8')).hexdigest()
+
+    @classmethod
+    async def _xadd_event(cls, redis: aioredis.Redis, event_type: str, payload: dict, source: str) -> None:
+        """
+        写入日志事件到Redis Streams
+
+        :param redis: Redis连接对象
+        :param event_type: 事件类型
+        :param payload: 事件负载
+        :param source: 日志来源
+        :return: None
+        """
+        request_id = TraceCtx.get_request_id()
+        trace_id = TraceCtx.get_trace_id()
+        span_id = TraceCtx.get_span_id()
+        event_id = cls._build_event_id(request_id, event_type, source)
+        await redis.xadd(
+            LogConfig.log_stream_key,
+            {
+                'event_id': event_id,
+                'event_type': event_type,
+                'request_id': request_id,
+                'trace_id': trace_id,
+                'span_id': span_id,
+                'payload': json.dumps(payload, ensure_ascii=False, default=str),
+            },
+            maxlen=LogConfig.log_stream_maxlen,
+            approximate=True,
+        )
+
+    @classmethod
+    async def enqueue_login_log(cls, request: Request, login_log: LogininforModel, source: str) -> None:
+        """
+        登录日志入队
+
+        :param request: Request对象
+        :param login_log: 登录日志模型
+        :param source: 日志来源
+        :return: None
+        """
+        payload = login_log.model_dump(by_alias=True, exclude_none=True)
+        await cls._xadd_event(request.app.state.redis, 'login', payload, source)
+
+    @classmethod
+    async def enqueue_operation_log(cls, request: Request, operation_log: OperLogModel, source: str) -> None:
+        """
+        操作日志入队
+
+        :param request: Request对象
+        :param operation_log: 操作日志模型
+        :param source: 日志来源
+        :return: None
+        """
+        payload = operation_log.model_dump(by_alias=True, exclude_none=True)
+        await cls._xadd_event(request.app.state.redis, 'operation', payload, source)
+
+
+class LogAggregatorService:
+    @classmethod
+    async def _ensure_group(cls, redis: aioredis.Redis) -> None:
+        """
+        初始化消费组
+
+        :param redis: Redis连接对象
+        :return: None
+        """
+        try:
+            await redis.xgroup_create(
+                name=LogConfig.log_stream_key,
+                groupname=LogConfig.log_stream_group,
+                id='0-0',
+                mkstream=True,
+            )
+        except Exception as exc:
+            if 'BUSYGROUP' not in str(exc):
+                raise
+
+    @classmethod
+    async def _acquire_dedup(cls, redis: aioredis.Redis, event_id: str) -> bool:
+        """
+        获取去重锁
+
+        :param redis: Redis连接对象
+        :param event_id: 事件唯一标识
+        :return: 是否获取成功
+        """
+        if not event_id:
+            return False
+        key = f'{LogConfig.log_stream_dedup_prefix}:{event_id}'
+        return await redis.set(key, '1', nx=True, ex=LogConfig.log_stream_dedup_ttl)
+
+    @classmethod
+    async def _release_dedup(cls, redis: aioredis.Redis, event_id: str) -> None:
+        """
+        释放去重锁
+
+        :param redis: Redis连接对象
+        :param event_id: 事件唯一标识
+        :return: None
+        """
+        if not event_id:
+            return
+        await redis.delete(f'{LogConfig.log_stream_dedup_prefix}:{event_id}')
+
+    @classmethod
+    async def _claim_pending(cls, redis: aioredis.Redis, consumer_name: str) -> None:
+        if LogConfig.log_stream_claim_idle_ms <= 0:
+            return
+        start_id = '0-0'
+        while True:
+            result = await redis.xautoclaim(
+                name=LogConfig.log_stream_key,
+                groupname=LogConfig.log_stream_group,
+                consumername=consumer_name,
+                min_idle_time=LogConfig.log_stream_claim_idle_ms,
+                start_id=start_id,
+                count=LogConfig.log_stream_claim_batch_size,
+            )
+            if not result:
+                return
+            next_start_id, messages = result[0], result[1]
+            if messages:
+                await cls._process_messages(redis, LogConfig.log_stream_key, messages)
+            if not messages or next_start_id == start_id:
+                return
+            start_id = next_start_id
+
+    @classmethod
+    async def consume_stream(cls, redis: aioredis.Redis) -> None:
+        """
+        消费日志队列
+
+        :param redis: Redis连接对象
+        :return: None
+        """
+        await cls._ensure_group(redis)
+        consumer_name = f'{LogConfig.log_stream_consumer_prefix}-{os.getpid()}-{uuid.uuid4().hex[:6]}'
+        last_claim_time = 0.0
+        while True:
+            try:
+                now = asyncio.get_running_loop().time()
+                if now - last_claim_time >= LogConfig.log_stream_claim_interval_ms / 1000:
+                    await cls._claim_pending(redis, consumer_name)
+                    last_claim_time = now
+                result = await redis.xreadgroup(
+                    groupname=LogConfig.log_stream_group,
+                    consumername=consumer_name,
+                    streams={LogConfig.log_stream_key: '>'},
+                    count=LogConfig.log_stream_batch_size,
+                    block=LogConfig.log_stream_block_ms,
+                )
+                if not result:
+                    continue
+                for stream_name, messages in result:
+                    await cls._process_messages(redis, stream_name, messages)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.error(f'日志聚合消费异常: {exc}')
+                await asyncio.sleep(1)
+
+    @classmethod
+    async def _process_messages(cls, redis: aioredis.Redis, stream_name: str, messages: list[tuple[str, dict]]) -> None:
+        """
+        处理消息并落库
+
+        :param redis: Redis连接对象
+        :param stream_name: Stream名称
+        :param messages: 消息列表
+        :return: None
+        """
+        if not messages:
+            return
+        async with AsyncSessionLocal() as session:
+            ack_ids: list[str] = []
+            dedup_event_ids: list[str] = []
+            try:
+                for message_id, data in messages:
+                    event_type = data.get('event_type')
+                    event_id = data.get('event_id')
+                    payload_raw = data.get('payload') or '{}'
+                    if event_type not in {'login', 'operation'}:
+                        ack_ids.append(message_id)
+                        continue
+                    acquired = await cls._acquire_dedup(redis, event_id)
+                    if not acquired:
+                        ack_ids.append(message_id)
+                        continue
+                    dedup_event_ids.append(event_id)
+                    payload = json.loads(payload_raw)
+                    if event_type == 'login':
+                        await LoginLogDao.add_login_log_dao(session, LogininforModel(**payload))
+                    elif event_type == 'operation':
+                        await OperationLogDao.add_operation_log_dao(session, OperLogModel(**payload))
+                    ack_ids.append(message_id)
+                if ack_ids:
+                    await session.commit()
+                    await redis.xack(stream_name, LogConfig.log_stream_group, *ack_ids)
+            except Exception:
+                await session.rollback()
+                for event_id in dedup_event_ids:
+                    await cls._release_dedup(redis, event_id)
+                raise
