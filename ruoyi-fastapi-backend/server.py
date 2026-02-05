@@ -19,12 +19,11 @@ from utils.log_util import logger
 from utils.server_util import APIDocsUtil, IPUtil, StartupUtil
 
 
-async def _start_background_tasks(app: FastAPI, startup_log_enabled: bool) -> None:
+async def _start_background_tasks(app: FastAPI) -> None:
     """
     启动应用后台任务
 
     :param app: FastAPI对象
-    :param startup_log_enabled: 是否启用启动日志输出
     :return: None
     """
     await SchedulerUtil.init_system_scheduler(app.state.redis)
@@ -94,7 +93,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
         await RedisUtil.init_sys_dict(app.state.redis)
         await RedisUtil.init_sys_config(app.state.redis)
-        await _start_background_tasks(app, startup_log_enabled)
+        await _start_background_tasks(app)
 
     if startup_log_enabled:
         # 短暂等待确保下面的启动日志在最后打印
