@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from common.constant import LockConstant
 from common.router import auto_register_routers
 from config.env import AppConfig
-from config.get_db import init_create_table
+from config.get_db import close_async_engine, init_create_table
 from config.get_redis import RedisUtil
 from config.get_scheduler import SchedulerUtil
 from exceptions.handle import handle_exception
@@ -63,6 +63,7 @@ async def _stop_background_tasks(app: FastAPI) -> None:
             pass
     await RedisUtil.close_redis_pool(app)
     await SchedulerUtil.close_system_scheduler()
+    await close_async_engine()
 
 
 # 生命周期事件
@@ -94,6 +95,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await _start_background_tasks(app, startup_log_enabled)
 
     if startup_log_enabled:
+        # 短暂等待确保下面的启动日志在最后打印
+        await asyncio.sleep(0.5)
         logger.info(f'🚀 {AppConfig.app_name}启动成功')
         host = AppConfig.app_host
         port = AppConfig.app_port

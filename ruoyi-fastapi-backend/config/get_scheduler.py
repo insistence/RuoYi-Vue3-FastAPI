@@ -18,13 +18,19 @@ from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from redis import asyncio as aioredis
-from sqlalchemy.engine import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 import module_task  # noqa: F401
 from common.constant import LockConstant
-from config.database import AsyncSessionLocal, quote_plus
-from config.env import DataBaseConfig, LogConfig, RedisConfig
+from config.database import (
+    SYNC_SQLALCHEMY_DATABASE_URL,
+    create_async_db_engine,
+    create_async_session_local,
+    create_sync_db_engine,
+    create_sync_session_local,
+)
+from config.env import LogConfig, RedisConfig
 from module_admin.dao.job_dao import JobDao
 from module_admin.entity.vo.job_vo import JobLogModel, JobModel
 from module_admin.service.job_log_service import JobLogService
@@ -90,24 +96,9 @@ class MyCronTrigger(CronTrigger):
             diff += 1
 
 
-SQLALCHEMY_DATABASE_URL = (
-    f'mysql+pymysql://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
-    f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
-)
-if DataBaseConfig.db_type == 'postgresql':
-    SQLALCHEMY_DATABASE_URL = (
-        f'postgresql+psycopg2://{DataBaseConfig.db_username}:{quote_plus(DataBaseConfig.db_password)}@'
-        f'{DataBaseConfig.db_host}:{DataBaseConfig.db_port}/{DataBaseConfig.db_database}'
-    )
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    echo=DataBaseConfig.db_echo,
-    max_overflow=DataBaseConfig.db_max_overflow,
-    pool_size=DataBaseConfig.db_pool_size,
-    pool_recycle=DataBaseConfig.db_pool_recycle,
-    pool_timeout=DataBaseConfig.db_pool_timeout,
-)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+jobstore_engine: Engine = create_sync_db_engine(echo=False)
+listener_engine: Engine = create_sync_db_engine()
+SessionLocal = create_sync_session_local(listener_engine)
 redis_config = {
     'host': RedisConfig.redis_host,
     'port': RedisConfig.redis_port,
@@ -117,7 +108,7 @@ redis_config = {
 }
 job_stores = {
     'default': MemoryJobStore(),
-    'sqlalchemy': SQLAlchemyJobStore(url=SQLALCHEMY_DATABASE_URL, engine=engine),
+    'sqlalchemy': SQLAlchemyJobStore(url=SYNC_SQLALCHEMY_DATABASE_URL, engine=jobstore_engine),
     'redis': RedisJobStore(**redis_config),
 }
 executors = {'default': AsyncIOExecutor(), 'processpool': ProcessPoolExecutor(5)}
@@ -147,6 +138,9 @@ class SchedulerUtil:
     _sync_min_interval_seconds: float = 2.0
     _reacquire_task: asyncio.Task | None = None
     _reacquire_interval_seconds: float = 5.0
+    _sync_async_engine: AsyncEngine | None = None
+    _sync_async_sessionmaker: Any | None = None
+    _disposed_sync_engines: bool = False
 
     @classmethod
     async def init_system_scheduler(cls, redis: aioredis.Redis) -> None:
@@ -172,7 +166,7 @@ class SchedulerUtil:
             scheduler.start()
 
             # 加载数据库中的定时任务
-            async with AsyncSessionLocal() as session:
+            async with cls._get_sync_async_session() as session:
                 job_list = await JobDao.get_job_list_for_scheduler(session)
                 for item in job_list:
                     cls._add_job_to_scheduler(item)
@@ -235,6 +229,8 @@ class SchedulerUtil:
             cls._sync_pending = False
         if getattr(scheduler, 'running', False):
             scheduler.shutdown()
+        await cls._dispose_sync_async_engine()
+        cls._dispose_sync_engines()
         cls._ensure_reacquire_task()
 
     @classmethod
@@ -246,7 +242,7 @@ class SchedulerUtil:
             return
 
         try:
-            async with AsyncSessionLocal() as session:
+            async with cls._get_sync_async_session() as session:
                 db_jobs_all = await JobDao.get_all_job_list_for_scheduler(session)
                 db_jobs_enabled = [job for job in db_jobs_all if job.status == '0']
                 db_enabled_ids = {str(job.job_id) for job in db_jobs_enabled}
@@ -397,6 +393,43 @@ class SchedulerUtil:
         if cls._sync_task and not cls._sync_task.done():
             return
         cls._sync_task = asyncio.create_task(cls._run_sync_loop())
+
+    @classmethod
+    def _get_sync_async_session(cls) -> Any:
+        """
+        获取同步任务使用的异步 Session
+
+        :return: 异步 Session
+        """
+        if not cls._sync_async_sessionmaker:
+            cls._sync_async_engine = create_async_db_engine(echo=False)
+            cls._sync_async_sessionmaker = create_async_session_local(cls._sync_async_engine)
+        return cls._sync_async_sessionmaker()
+
+    @classmethod
+    async def _dispose_sync_async_engine(cls) -> None:
+        """
+        释放同步任务使用的异步 Engine
+
+        :return: None
+        """
+        if cls._sync_async_engine:
+            await cls._sync_async_engine.dispose()
+            cls._sync_async_engine = None
+            cls._sync_async_sessionmaker = None
+
+    @classmethod
+    def _dispose_sync_engines(cls) -> None:
+        """
+        释放 Scheduler 使用的同步 Engine
+
+        :return: None
+        """
+        if cls._disposed_sync_engines:
+            return
+        jobstore_engine.dispose()
+        listener_engine.dispose()
+        cls._disposed_sync_engines = True
 
     @classmethod
     def _ensure_reacquire_task(cls) -> None:
@@ -572,6 +605,8 @@ class SchedulerUtil:
             except asyncio.CancelledError:
                 pass
             cls._reacquire_task = None
+        await cls._dispose_sync_async_engine()
+        cls._dispose_sync_engines()
         if cls._lock_lost_task:
             cls._lock_lost_task.cancel()
             try:
