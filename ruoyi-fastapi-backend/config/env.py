@@ -93,7 +93,7 @@ class LogSettings(BaseSettings):
     log_stream_dedup_ttl: int = 3600
     log_stream_dedup_prefix: str = 'log:dedup'
 
-    loguru_json: bool = True
+    loguru_json: bool = False
     loguru_level: str = 'INFO'
     loguru_stdout: bool = True
     log_file_enabled: bool = True
@@ -101,9 +101,9 @@ class LogSettings(BaseSettings):
     loguru_rotation: str = '50MB'
     loguru_retention: str = '30 days'
     loguru_compression: str = 'zip'
-    log_instance_id: str = ''
-    log_service_name: str = ''
-    log_worker_id: str = ''
+    log_instance_id: str = 'prod'
+    log_service_name: str = 'ruoyi-fastapi-backend'
+    log_worker_id: str = 'auto'
 
 
 class GenSettings:
