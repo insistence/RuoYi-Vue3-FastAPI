@@ -208,36 +208,47 @@ class SchedulerUtil:
         )
 
         if acquired:
-            cls._is_leader = True
-            logger.info(f'🎯 Worker {cls._worker_id} 持有 Application 锁，开始启动定时任务...')
-            # 懒加载配置 scheduler
-            cls._configure_scheduler()
-            scheduler.start()
-
-            # 加载数据库中的定时任务
-            async with cls._get_sync_async_session() as session:
-                job_list = await JobDao.get_job_list_for_scheduler(session)
-                for item in job_list:
-                    cls._add_job_to_scheduler(item)
-
-            # 添加事件监听器
-            scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
-
-            # 添加任务状态同步任务（每30秒从数据库同步一次任务状态）
-            scheduler.add_job(
-                func=cls.request_scheduler_sync,
-                trigger='interval',
-                seconds=30,
-                id='_scheduler_job_sync',
-                name='Scheduler任务同步',
-                replace_existing=True,
-            )
-            cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
-
-            logger.info('✅️ 系统初始定时任务加载成功')
+            await cls._start_scheduler_as_leader(redis)
         else:
             cls._is_leader = False
             logger.info(f'⏸️ Worker {cls._worker_id} 未持有 Application 锁，跳过 Scheduler 启动')
+
+    @classmethod
+    async def _start_scheduler_as_leader(cls, redis: aioredis.Redis) -> None:
+        """
+        以 Leader 身份启动 Scheduler（内部方法，调用前需确保已持有锁）
+
+        :param redis: Redis连接对象
+        :return: None
+        """
+        cls._is_leader = True
+        cls._disposed_sync_engines = False
+        logger.info(f'🎯 Worker {cls._worker_id} 持有 Application 锁，开始启动定时任务...')
+        # 懒加载配置 scheduler
+        cls._configure_scheduler()
+        scheduler.start()
+
+        # 加载数据库中的定时任务
+        async with cls._get_sync_async_session() as session:
+            job_list = await JobDao.get_job_list_for_scheduler(session)
+            for item in job_list:
+                cls._add_job_to_scheduler(item)
+
+        # 添加事件监听器
+        scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
+
+        # 添加任务状态同步任务（每30秒从数据库同步一次任务状态）
+        scheduler.add_job(
+            func=cls.request_scheduler_sync,
+            trigger='interval',
+            seconds=30,
+            id='_scheduler_job_sync',
+            name='Scheduler任务同步',
+            replace_existing=True,
+        )
+        cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
+
+        logger.info('✅️ 系统初始定时任务加载成功')
 
     @classmethod
     def on_lock_lost(cls) -> None:
@@ -517,7 +528,8 @@ class SchedulerUtil:
                     lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
                 )
                 if acquired:
-                    await cls.init_system_scheduler(cls._redis)
+                    # 直接调用 _start_scheduler_as_leader，避免重复获取锁
+                    await cls._start_scheduler_as_leader(cls._redis)
                     return
                 await asyncio.sleep(cls._reacquire_interval_seconds)
         except asyncio.CancelledError:
