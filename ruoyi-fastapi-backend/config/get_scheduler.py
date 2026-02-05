@@ -145,6 +145,8 @@ class SchedulerUtil:
     _last_sync_at: datetime | None = None
     _sync_debounce_seconds: float = 0.5
     _sync_min_interval_seconds: float = 2.0
+    _reacquire_task: asyncio.Task | None = None
+    _reacquire_interval_seconds: float = 5.0
 
     @classmethod
     async def init_system_scheduler(cls, redis: aioredis.Redis) -> None:
@@ -233,6 +235,7 @@ class SchedulerUtil:
             cls._sync_pending = False
         if getattr(scheduler, 'running', False):
             scheduler.shutdown()
+        cls._ensure_reacquire_task()
 
     @classmethod
     async def _sync_jobs_from_database(cls) -> None:
@@ -396,6 +399,46 @@ class SchedulerUtil:
         cls._sync_task = asyncio.create_task(cls._run_sync_loop())
 
     @classmethod
+    def _ensure_reacquire_task(cls) -> None:
+        """
+        启动锁重新竞争任务
+
+        :return: None
+        """
+        if not cls._redis:
+            return
+        if cls._reacquire_task and not cls._reacquire_task.done():
+            return
+        cls._reacquire_task = asyncio.create_task(cls._run_reacquire_loop())
+
+    @classmethod
+    async def _run_reacquire_loop(cls) -> None:
+        """
+        循环尝试重新获取锁并恢复调度器
+
+        :return: None
+        """
+        try:
+            while not cls._is_leader:
+                if not cls._redis:
+                    await asyncio.sleep(cls._reacquire_interval_seconds)
+                    continue
+                acquired = await StartupUtil.acquire_startup_log_gate(
+                    redis=cls._redis,
+                    lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
+                    worker_id=cls._worker_id,
+                    lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
+                )
+                if acquired:
+                    await cls.init_system_scheduler(cls._redis)
+                    return
+                await asyncio.sleep(cls._reacquire_interval_seconds)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            cls._reacquire_task = None
+
+    @classmethod
     async def _run_sync_loop(cls) -> None:
         """
         执行同步调度循环
@@ -522,6 +565,13 @@ class SchedulerUtil:
                 pass
             cls._sync_task = None
             cls._sync_pending = False
+        if cls._reacquire_task:
+            cls._reacquire_task.cancel()
+            try:
+                await cls._reacquire_task
+            except asyncio.CancelledError:
+                pass
+            cls._reacquire_task = None
         if cls._lock_lost_task:
             cls._lock_lost_task.cancel()
             try:

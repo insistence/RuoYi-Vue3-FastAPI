@@ -385,14 +385,17 @@ class StartupUtil:
 
         async def _loop() -> None:
             while True:
-                current_holder = await redis.get(lock_key)
-                if current_holder == worker_id:
-                    await redis.expire(lock_key, lock_expire_seconds)
+                try:
+                    current_holder = await redis.get(lock_key)
+                    if current_holder == worker_id:
+                        await redis.expire(lock_key, lock_expire_seconds)
+                        await asyncio.sleep(interval_seconds)
+                        continue
+                    if on_lock_lost:
+                        on_lock_lost()
+                    break
+                except Exception:
                     await asyncio.sleep(interval_seconds)
-                    continue
-                if on_lock_lost:
-                    on_lock_lost()
-                break
 
         return asyncio.create_task(_loop())
 
