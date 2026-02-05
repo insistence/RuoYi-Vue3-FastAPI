@@ -27,15 +27,6 @@ async def _start_background_tasks(app: FastAPI, startup_log_enabled: bool) -> No
     :param startup_log_enabled: 是否启用启动日志输出
     :return: None
     """
-    if startup_log_enabled:
-        app.state.lock_renewal_task = StartupUtil.start_lock_renewal(
-            redis=app.state.redis,
-            lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
-            worker_id=SchedulerUtil._worker_id,
-            lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
-            interval_seconds=LockConstant.LOCK_RENEWAL_INTERVAL,
-            on_lock_lost=SchedulerUtil.on_lock_lost,
-        )
     await SchedulerUtil.init_system_scheduler(app.state.redis)
     app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
 
@@ -83,6 +74,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
     )
     app.state.startup_log_enabled = startup_log_enabled
+
+    # 获取锁成功后立即启动锁续期任务，避免初始化时间过长导致锁过期
+    if startup_log_enabled:
+        app.state.lock_renewal_task = StartupUtil.start_lock_renewal(
+            redis=app.state.redis,
+            lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
+            worker_id=SchedulerUtil._worker_id,
+            lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
+            interval_seconds=LockConstant.LOCK_RENEWAL_INTERVAL,
+            on_lock_lost=SchedulerUtil.on_lock_lost,
+        )
 
     with logger.contextualize(startup_phase=True, startup_log_enabled=startup_log_enabled):
         logger.info(f'⏰️ {AppConfig.app_name}开始启动')

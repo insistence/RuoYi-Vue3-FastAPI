@@ -96,9 +96,6 @@ class MyCronTrigger(CronTrigger):
             diff += 1
 
 
-jobstore_engine: Engine = create_sync_db_engine(echo=False)
-listener_engine: Engine = create_sync_db_engine()
-SessionLocal = create_sync_session_local(listener_engine)
 redis_config = {
     'host': RedisConfig.redis_host,
     'port': RedisConfig.redis_port,
@@ -106,15 +103,9 @@ redis_config = {
     'password': RedisConfig.redis_password,
     'db': RedisConfig.redis_database,
 }
-job_stores = {
-    'default': MemoryJobStore(),
-    'sqlalchemy': SQLAlchemyJobStore(url=SYNC_SQLALCHEMY_DATABASE_URL, engine=jobstore_engine),
-    'redis': RedisJobStore(**redis_config),
-}
 executors = {'default': AsyncIOExecutor(), 'processpool': ProcessPoolExecutor(5)}
 job_defaults = {'coalesce': False, 'max_instance': 1}
 scheduler = AsyncIOScheduler()
-scheduler.configure(jobstores=job_stores, executors=executors, job_defaults=job_defaults)
 
 
 class SchedulerUtil:
@@ -142,6 +133,62 @@ class SchedulerUtil:
     _sync_async_sessionmaker: Any | None = None
     _disposed_sync_engines: bool = False
 
+    # 懒加载的同步 Engine 和 SessionLocal
+    _jobstore_engine: Engine | None = None
+    _listener_engine: Engine | None = None
+    _session_local: Any | None = None
+    _scheduler_configured: bool = False
+
+    @classmethod
+    def _get_jobstore_engine(cls) -> Engine:
+        """
+        懒加载获取 jobstore 使用的同步 Engine
+
+        :return: 同步 Engine
+        """
+        if cls._jobstore_engine is None:
+            cls._jobstore_engine = create_sync_db_engine(echo=False)
+        return cls._jobstore_engine
+
+    @classmethod
+    def _get_listener_engine(cls) -> Engine:
+        """
+        懒加载获取 listener 使用的同步 Engine
+
+        :return: 同步 Engine
+        """
+        if cls._listener_engine is None:
+            cls._listener_engine = create_sync_db_engine()
+        return cls._listener_engine
+
+    @classmethod
+    def _get_session_local(cls) -> Any:
+        """
+        懒加载获取同步 SessionLocal
+
+        :return: SessionLocal
+        """
+        if cls._session_local is None:
+            cls._session_local = create_sync_session_local(cls._get_listener_engine())
+        return cls._session_local
+
+    @classmethod
+    def _configure_scheduler(cls) -> None:
+        """
+        配置 scheduler（懒加载 jobstore）
+
+        :return: None
+        """
+        if cls._scheduler_configured:
+            return
+        job_stores = {
+            'default': MemoryJobStore(),
+            'sqlalchemy': SQLAlchemyJobStore(url=SYNC_SQLALCHEMY_DATABASE_URL, engine=cls._get_jobstore_engine()),
+            'redis': RedisJobStore(**redis_config),
+        }
+        scheduler.configure(jobstores=job_stores, executors=executors, job_defaults=job_defaults)
+        cls._scheduler_configured = True
+
     @classmethod
     async def init_system_scheduler(cls, redis: aioredis.Redis) -> None:
         """
@@ -163,6 +210,8 @@ class SchedulerUtil:
         if acquired:
             cls._is_leader = True
             logger.info(f'🎯 Worker {cls._worker_id} 持有 Application 锁，开始启动定时任务...')
+            # 懒加载配置 scheduler
+            cls._configure_scheduler()
             scheduler.start()
 
             # 加载数据库中的定时任务
@@ -427,8 +476,13 @@ class SchedulerUtil:
         """
         if cls._disposed_sync_engines:
             return
-        jobstore_engine.dispose()
-        listener_engine.dispose()
+        if cls._jobstore_engine:
+            cls._jobstore_engine.dispose()
+            cls._jobstore_engine = None
+        if cls._listener_engine:
+            cls._listener_engine.dispose()
+            cls._listener_engine = None
+        cls._session_local = None
         cls._disposed_sync_engines = True
 
     @classmethod
@@ -516,23 +570,96 @@ class SchedulerUtil:
         :param redis: Redis连接对象
         :return: None
         """
-        pubsub = redis.pubsub()
-        await pubsub.subscribe(cls._sync_channel)
+        while True:
+            pubsub = redis.pubsub()
+            try:
+                await pubsub.subscribe(cls._sync_channel)
+                async for message in pubsub.listen():
+                    if not cls._is_leader:
+                        continue
+                    if message.get('type') != 'message':
+                        continue
+                    await cls.request_scheduler_sync()
+            except asyncio.CancelledError:
+                await pubsub.unsubscribe(cls._sync_channel)
+                await pubsub.close()
+                raise
+            except Exception as e:
+                logger.error(f'❌ Scheduler 同步监听异常: {e}，5秒后重试...')
+                await pubsub.close()
+                await asyncio.sleep(5)
+            finally:
+                try:
+                    await pubsub.close()
+                except Exception:
+                    pass
+
+    @classmethod
+    async def _execute_async_job_with_log(
+        cls, job_func: Callable[..., Any], job_info: JobModel, args: list, kwargs: dict
+    ) -> None:
+        """
+        执行异步任务并记录日志
+
+        :param job_func: 任务函数
+        :param job_info: 任务对象信息
+        :param args: 位置参数
+        :param kwargs: 关键字参数
+        :return: None
+        """
+        status = '0'
+        exception_info = ''
+        job_executor = job_info.job_executor
+        if iscoroutinefunction(job_func):
+            job_executor = 'default'
         try:
-            async for message in pubsub.listen():
-                if not cls._is_leader:
-                    continue
-                if message.get('type') != 'message':
-                    continue
-                await cls.request_scheduler_sync()
-        except asyncio.CancelledError:
-            await pubsub.unsubscribe(cls._sync_channel)
-            await pubsub.close()
-            raise
+            await job_func(*args, **kwargs)
         except Exception as e:
-            logger.error(f'❌ Scheduler 同步监听异常: {e}')
+            status = '1'
+            exception_info = str(e)
+            logger.error(f'❌ 异步执行任务 {job_info.job_name} 失败: {e}')
         finally:
-            await pubsub.close()
+            cls._record_job_execution_log(job_info, job_executor, status, exception_info)
+
+    @classmethod
+    def _record_job_execution_log(cls, job_info: JobModel, job_executor: str, status: str, exception_info: str) -> None:
+        """
+        记录任务执行日志（用于非 Leader Worker 直接执行任务时）
+
+        :param job_info: 任务对象信息
+        :param job_executor: 任务执行器
+        :param status: 执行状态 0-成功 1-失败
+        :param exception_info: 异常信息
+        :return: None
+        """
+        try:
+            job_args = job_info.job_args if job_info.job_args else ''
+            job_kwargs = job_info.job_kwargs if job_info.job_kwargs else '{}'
+            job_trigger = str(MyCronTrigger.from_crontab(job_info.cron_expression)) if job_info.cron_expression else ''
+            job_message = (
+                f'事件类型: DirectExecution(非Leader), 任务ID: {job_info.job_id}, '
+                f'任务名称: {job_info.job_name}, 执行于{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+            )
+            job_log = JobLogModel(
+                jobName=job_info.job_name,
+                jobGroup=job_info.job_group,
+                jobExecutor=job_executor,
+                invokeTarget=job_info.invoke_target,
+                jobArgs=job_args,
+                jobKwargs=job_kwargs,
+                jobTrigger=job_trigger,
+                jobMessage=job_message,
+                status=status,
+                exceptionInfo=exception_info,
+                createTime=datetime.now(),
+            )
+            session = cls._get_session_local()()
+            try:
+                JobLogService.add_job_log_services(session, job_log)
+            finally:
+                session.close()
+        except Exception as e:
+            logger.error(f'❌ 记录任务执行日志失败: {e}')
 
     @classmethod
     def _prepare_scheduler_job_add(cls, job_info: JobModel) -> dict[str, Any]:
@@ -677,15 +804,23 @@ class SchedulerUtil:
         # 非应用锁 worker：直接执行函数（不通过 scheduler）
         if not cls._is_leader:
             logger.info(f'📍 当前 Worker 未持有 Application 锁，直接执行任务 {job_info.job_name}')
+            args = job_info.job_args.split(',') if job_info.job_args else []
+            kwargs = json.loads(job_info.job_kwargs) if job_info.job_kwargs else {}
+            status = '0'
+            exception_info = ''
             try:
-                args = job_info.job_args.split(',') if job_info.job_args else []
-                kwargs = json.loads(job_info.job_kwargs) if job_info.job_kwargs else {}
                 if iscoroutinefunction(job_func):
-                    asyncio.create_task(job_func(*args, **kwargs))  # noqa: RUF006
+                    asyncio.create_task(cls._execute_async_job_with_log(job_func, job_info, args, kwargs))  # noqa: RUF006
                 else:
                     job_func(*args, **kwargs)
             except Exception as e:
+                status = '1'
+                exception_info = str(e)
                 logger.error(f'❌ 直接执行任务 {job_info.job_name} 失败: {e}')
+            finally:
+                # 同步任务记录日志（异步任务在 _execute_async_job_with_log 中记录）
+                if not iscoroutinefunction(job_func):
+                    cls._record_job_execution_log(job_info, job_executor, status, exception_info)
             return
 
         # 应用锁 worker：通过 scheduler 执行
@@ -774,7 +909,7 @@ class SchedulerUtil:
                         exceptionInfo=exception_info,
                         createTime=datetime.now(),
                     )
-                    session = SessionLocal()
+                    session = cls._get_session_local()()
                     try:
                         JobLogService.add_job_log_services(session, job_log)
                     finally:
