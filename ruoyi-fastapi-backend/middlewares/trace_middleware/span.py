@@ -45,6 +45,7 @@ class Span:
         if message['type'] == 'http.response.start':
             message['headers'].append((b'request-id', TraceCtx.get_request_id().encode()))
             message['headers'].append((b'trace-id', TraceCtx.get_trace_id().encode()))
+            message['headers'].append((b'span-id', TraceCtx.get_span_id().encode()))
         return message
 
 

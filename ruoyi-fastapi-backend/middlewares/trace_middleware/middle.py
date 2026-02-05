@@ -2,6 +2,7 @@ from functools import wraps
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from .ctx import TraceCtx
 from .span import Span, get_current_span
 
 
@@ -39,4 +40,7 @@ class TraceASGIMiddleware:
                 await span.response(message)
                 await send(message)
 
-            await self.app(scope, handle_outgoing_receive, handle_outgoing_request)
+            try:
+                await self.app(scope, handle_outgoing_receive, handle_outgoing_request)
+            finally:
+                TraceCtx.clear()
