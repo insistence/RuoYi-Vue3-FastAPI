@@ -3,6 +3,7 @@ import platform
 import socket
 import time
 
+import anyio
 import psutil
 
 from module_admin.entity.vo.server_vo import CpuInfo, MemoryInfo, PyInfo, ServerMonitorModel, SysFiles, SysInfo
@@ -41,7 +42,7 @@ class ServerService:
         os_name = platform.platform()
         computer_name = platform.node()
         os_arch = platform.machine()
-        user_dir = os.path.abspath(os.getcwd())
+        user_dir = str(await anyio.Path.cwd())
         sys = SysInfo(
             computerIp=computer_ip, computerName=computer_name, osArch=os_arch, osName=os_name, userDir=user_dir
         )

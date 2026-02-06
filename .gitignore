@@ -143,3 +143,12 @@ cython_debug/
 # VSCode
 .vscode/
 
+# AI Editor
+.agent/
+.claude/
+.codebuddy/
+.codex/
+.cursor/
+.opencode/
+.qoder/
+.trae/

@@ -126,7 +126,7 @@ class GenUtils:
         param package_name: 包名
         :return: 模块名
         """
-        return package_name.split('.')[-1]
+        return package_name.rsplit('.', maxsplit=1)[-1]
 
     @classmethod
     def get_business_name(cls, table_name: str) -> str:
@@ -136,7 +136,7 @@ class GenUtils:
         param table_name: 业务表名
         :return: 业务名
         """
-        return table_name.split('_')[-1]
+        return table_name.rsplit('_', maxsplit=1)[-1]
 
     @classmethod
     def convert_class_name(cls, table_name: str) -> str:
@@ -186,7 +186,7 @@ class GenUtils:
         :return: 数据库类型
         """
         if '(' in column_type:
-            return column_type.split('(')[0]
+            return column_type.split('(', maxsplit=1)[0]
         return column_type
 
     @classmethod

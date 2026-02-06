@@ -98,6 +98,18 @@ class JobDao:
         return job_list
 
     @classmethod
+    async def get_all_job_list_for_scheduler(cls, db: AsyncSession) -> Sequence[SysJob]:
+        """
+        获取全部定时任务列表信息
+
+        :param db: orm对象
+        :return: 定时任务列表信息对象
+        """
+        job_list = (await db.execute(select(SysJob).distinct())).scalars().all()
+
+        return job_list
+
+    @classmethod
     async def add_job_dao(cls, db: AsyncSession, job: JobModel) -> SysJob:
         """
         新增定时任务数据库操作

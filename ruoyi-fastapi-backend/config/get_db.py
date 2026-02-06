@@ -26,3 +26,12 @@ async def init_create_table() -> None:
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info('✅️ 数据库连接成功')
+
+
+async def close_async_engine() -> None:
+    """
+    应用关闭时释放数据库连接池
+
+    :return:
+    """
+    await async_engine.dispose()

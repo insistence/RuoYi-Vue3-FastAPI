@@ -16,13 +16,14 @@ class RedisUtil:
     """
 
     @classmethod
-    async def create_redis_pool(cls) -> aioredis.Redis:
+    async def create_redis_pool(cls, log_enabled: bool = True, log_start_enabled: bool | None = None) -> aioredis.Redis:
         """
         应用启动时初始化redis连接
 
+        :param log_enabled: 是否输出日志
+        :param log_start_enabled: 是否输出开始连接日志
         :return: Redis连接对象
         """
-        logger.info('🔎 开始连接redis...')
         redis = await aioredis.from_url(
             url=f'redis://{RedisConfig.redis_host}',
             port=RedisConfig.redis_port,
@@ -32,19 +33,45 @@ class RedisUtil:
             encoding='utf-8',
             decode_responses=True,
         )
+        if log_start_enabled is None:
+            log_start_enabled = log_enabled
+        if log_enabled or log_start_enabled:
+            await cls.check_redis_connection(redis, log_enabled=log_enabled, log_start_enabled=log_start_enabled)
+        return redis
+
+    @classmethod
+    async def check_redis_connection(
+        cls, redis: aioredis.Redis, log_enabled: bool = True, log_start_enabled: bool | None = None
+    ) -> None:
+        """
+        检查redis连接状态
+
+        :param redis: redis对象
+        :param log_enabled: 是否输出日志
+        :param log_start_enabled: 是否输出开始连接日志
+        :return: None
+        """
+        if log_start_enabled is None:
+            log_start_enabled = log_enabled
+        if log_start_enabled:
+            logger.info('🔎 开始连接redis...')
         try:
             connection = await redis.ping()
+            if not log_enabled:
+                return
             if connection:
                 logger.info('✅️ redis连接成功')
             else:
                 logger.error('❌️ redis连接失败')
         except AuthenticationError as e:
-            logger.error(f'❌️ redis用户名或密码错误，详细错误信息：{e}')
+            if log_enabled:
+                logger.error(f'❌️ redis用户名或密码错误，详细错误信息：{e}')
         except RedisTimeoutError as e:
-            logger.error(f'❌️ redis连接超时，详细错误信息：{e}')
+            if log_enabled:
+                logger.error(f'❌️ redis连接超时，详细错误信息：{e}')
         except RedisError as e:
-            logger.error(f'❌️ redis连接错误，详细错误信息：{e}')
-        return redis
+            if log_enabled:
+                logger.error(f'❌️ redis连接错误，详细错误信息：{e}')
 
     @classmethod
     async def close_redis_pool(cls, app: FastAPI) -> None:

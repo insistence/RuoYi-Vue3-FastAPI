@@ -21,6 +21,7 @@ class AppSettings(BaseSettings):
     app_port: int = 9099
     app_version: str = '1.0.0'
     app_reload: bool = True
+    app_workers: int = 1
     app_ip_location_query: bool = True
     app_same_time_login: bool = True
     app_disable_swagger: bool = False
@@ -73,6 +74,36 @@ class RedisSettings(BaseSettings):
     redis_username: str = ''
     redis_password: str = ''
     redis_database: int = 2
+
+
+class LogSettings(BaseSettings):
+    """
+    日志与队列配置
+    """
+
+    log_stream_key: str = 'log:stream'
+    log_stream_group: str = 'log_aggregator'
+    log_stream_consumer_prefix: str = 'worker'
+    log_stream_batch_size: int = 100
+    log_stream_block_ms: int = 2000
+    log_stream_maxlen: int = 100000
+    log_stream_claim_idle_ms: int = 60000
+    log_stream_claim_interval_ms: int = 5000
+    log_stream_claim_batch_size: int = 100
+    log_stream_dedup_ttl: int = 3600
+    log_stream_dedup_prefix: str = 'log:dedup'
+
+    loguru_json: bool = False
+    loguru_level: str = 'INFO'
+    loguru_stdout: bool = True
+    log_file_enabled: bool = True
+    log_file_base_dir: str = 'logs'
+    loguru_rotation: str = '50MB'
+    loguru_retention: str = '30 days'
+    loguru_compression: str = 'zip'
+    log_instance_id: str = 'prod'
+    log_service_name: str = 'ruoyi-fastapi-backend'
+    log_worker_id: str = 'auto'
 
 
 class GenSettings:
@@ -184,6 +215,12 @@ class GetConfig:
         # 实例化Redis配置模型
         return RedisSettings()
 
+    def get_log_config(self) -> LogSettings:
+        """
+        获取日志配置
+        """
+        return LogSettings()
+
     def get_gen_config(self) -> GenSettings:
         """
         获取代码生成配置
@@ -243,6 +280,8 @@ JwtConfig = get_config.get_jwt_config()
 DataBaseConfig = get_config.get_database_config()
 # Redis配置
 RedisConfig = get_config.get_redis_config()
+# 日志配置
+LogConfig = get_config.get_log_config()
 # 代码生成配置
 GenConfig = get_config.get_gen_config()
 # 上传配置

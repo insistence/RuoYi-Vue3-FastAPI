@@ -1,5 +1,8 @@
+import asyncio
 import ipaddress
+import os
 import socket
+import uuid
 from collections.abc import Callable
 
 import psutil
@@ -7,6 +10,7 @@ from fastapi import FastAPI, Request, applications
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse
+from redis import asyncio as aioredis
 
 from config.env import AppConfig
 
@@ -331,6 +335,93 @@ class APIDocsUtil:
             app.add_route(url, redirect_handler, include_in_schema=False)
         for url in redoc_urls:
             app.add_route(url, redoc_handler, include_in_schema=False)
+
+
+class StartupUtil:
+    """
+    启动门禁工具类
+    """
+
+    @classmethod
+    async def acquire_startup_log_gate(
+        cls, redis: aioredis.Redis, lock_key: str, worker_id: str, lock_expire_seconds: int
+    ) -> bool:
+        """
+        获取启动日志门禁
+
+        :param redis: Redis连接对象
+        :param lock_key: 分布式锁key
+        :param worker_id: 当前worker标识
+        :param lock_expire_seconds: 锁过期时间
+        :return: 是否获得启动日志输出权
+        """
+        acquired = await redis.set(lock_key, worker_id, nx=True, ex=lock_expire_seconds)
+        if acquired:
+            return True
+        current_holder = await redis.get(lock_key)
+        return current_holder == worker_id
+
+    @classmethod
+    def start_lock_renewal(
+        cls,
+        redis: aioredis.Redis,
+        lock_key: str,
+        worker_id: str,
+        lock_expire_seconds: int,
+        interval_seconds: int,
+        on_lock_lost: Callable[[], None] | None = None,
+    ) -> asyncio.Task:
+        """
+        启动分布式锁续期任务
+
+        :param redis: Redis连接对象
+        :param lock_key: 分布式锁key
+        :param worker_id: 当前worker标识
+        :param lock_expire_seconds: 锁过期时间
+        :param interval_seconds: 续期间隔时间
+        :param on_lock_lost: 失去锁时的回调
+        :return: 异步任务对象
+        """
+
+        async def _loop() -> None:
+            while True:
+                try:
+                    current_holder = await redis.get(lock_key)
+                    if current_holder == worker_id:
+                        await redis.expire(lock_key, lock_expire_seconds)
+                        await asyncio.sleep(interval_seconds)
+                        continue
+                    if on_lock_lost:
+                        on_lock_lost()
+                    break
+                except Exception:
+                    await asyncio.sleep(interval_seconds)
+
+        return asyncio.create_task(_loop())
+
+
+class WorkerIdUtil:
+    """
+    Worker标识生成工具类
+    """
+
+    _worker_id: str | None = None
+
+    @classmethod
+    def get_worker_id(cls, configured_worker_id: str | None) -> str:
+        """
+        获取当前worker标识
+
+        :param configured_worker_id: 配置的worker标识
+        :return: 当前worker标识
+        """
+        if cls._worker_id:
+            return cls._worker_id
+        worker_id = configured_worker_id
+        if not worker_id or worker_id.lower() == 'auto':
+            worker_id = f'{os.getpid()}-{uuid.uuid4().hex[:6]}'
+        cls._worker_id = worker_id
+        return worker_id
 
 
 class IPUtil:
