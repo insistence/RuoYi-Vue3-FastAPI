@@ -293,7 +293,7 @@ class TemplateUtils:
         :return: 数据库类型
         """
         if '(' in column_type:
-            return column_type.split('(')[0]
+            return column_type.split('(', maxsplit=1)[0]
         return column_type
 
     @classmethod
