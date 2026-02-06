@@ -24,6 +24,7 @@ class AppSettings(BaseSettings):
     app_workers: int = 1
     app_ip_location_query: bool = True
     app_same_time_login: bool = True
+    app_demo_mode: bool = False
     app_disable_swagger: bool = False
     app_disable_redoc: bool = False
 
