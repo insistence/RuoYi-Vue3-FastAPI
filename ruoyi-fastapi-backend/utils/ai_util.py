@@ -151,7 +151,7 @@ class AiUtil:
             **kwargs,
         }
         params = {k: v for k, v in params.items() if v is not None}
-        if provider == 'ollama':
+        if provider == 'Ollama':
             params['host'] = base_url
         if provider == 'DashScope' and not base_url:
             params['base_url'] = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
