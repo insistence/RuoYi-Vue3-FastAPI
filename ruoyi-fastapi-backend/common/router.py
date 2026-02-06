@@ -331,21 +331,18 @@ class RouterRegister:
             relative_path = os.path.relpath(file_path, self.project_root)
             module_name = relative_path.replace(os.sep, '.')[:-3]
 
-            try:
-                # 动态导入模块
-                module = importlib.import_module(module_name)
-                # 遍历模块属性，寻找APIRouter和APIRouterPro实例
-                for attr_name in dir(module):
-                    attr = getattr(module, attr_name)
-                    # 对于APIRouterPro实例，只有当auto_register=True时才添加
-                    if isinstance(attr, APIRouterPro):
-                        if attr.auto_register:
-                            routers.append((attr_name, attr))
-                    # 对于APIRouter实例，直接添加
-                    elif isinstance(attr, APIRouter):
+            # 动态导入模块
+            module = importlib.import_module(module_name)
+            # 遍历模块属性，寻找APIRouter和APIRouterPro实例
+            for attr_name in dir(module):
+                attr = getattr(module, attr_name)
+                # 对于APIRouterPro实例，只有当auto_register=True时才添加
+                if isinstance(attr, APIRouterPro):
+                    if attr.auto_register:
                         routers.append((attr_name, attr))
-            except Exception as e:
-                print(f'Error importing module {module_name}: {e}')
+                # 对于APIRouter实例，直接添加
+                elif isinstance(attr, APIRouter):
+                    routers.append((attr_name, attr))
         return routers
 
     def _sort_routers(self, routers: list[tuple[str, APIRouter]]) -> list[tuple[str, APIRouter]]:
