@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 
+from config.env import AppConfig
 from middlewares.context_middleware import add_context_cleanup_middleware
 from middlewares.cors_middleware import add_cors_middleware
+from middlewares.demo_mode_middleware import add_demo_mode_middleware
 from middlewares.gzip_middleware import add_gzip_middleware
 from middlewares.trace_middleware import add_trace_middleware
 
@@ -18,3 +20,6 @@ def handle_middleware(app: FastAPI) -> None:
     add_gzip_middleware(app)
     # 加载trace中间件
     add_trace_middleware(app)
+    if AppConfig.app_demo_mode:
+        # 加载演示模式中间件
+        add_demo_mode_middleware(app)
