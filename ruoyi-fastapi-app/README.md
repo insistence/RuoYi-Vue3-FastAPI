@@ -19,7 +19,7 @@
 ## 快速开始
 
 > [!IMPORTANT]
-> 推荐使用 `"node": "^20.19.0 || >=22.12.0"` 的 Node.js 版本进行开发! 
+> 推荐使用 `"node": "^20.19.0 || >=22.12.0"` 的 Node.js 版本进行开发!
 >
 > 另外谨慎升级 `package.json` 中锁定的 `pinia`/`vue`/`@vue/*` 相关包的版本，新版本可能 `uni-app` 没有兼容，造成一些奇怪的 bug
 
@@ -63,7 +63,7 @@
 
 ## tailwindcss 生态
 
-详见：https://github.com/aniftyco/awesome-tailwindcss
+详见：<https://github.com/aniftyco/awesome-tailwindcss>
 
 你可以在这里找到许多现成的UI，组件模板。
 
