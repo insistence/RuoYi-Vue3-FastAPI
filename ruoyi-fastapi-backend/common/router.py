@@ -308,7 +308,9 @@ class RouterRegister:
         """
         controller_files = []
         # 遍历所有目录，查找controller目录
-        for root, _dirs, files in os.walk(self.project_root):
+        for root, dirs, files in os.walk(self.project_root):
+            # 排除不需要扫描的目录，提高扫描速度
+            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'venv', '.venv', 'node_modules', '.idea', '.vscode'}]
             # 检查当前目录是否为controller目录
             if os.path.basename(root) == 'controller':
                 # 遍历controller目录下的所有py文件

@@ -474,7 +474,8 @@ class IPUtil:
         preferred_ip = None
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                s.connect(('8.8.8.8', 80))
+                # 使用国内DNS (阿里DNS) 避免连接超时
+                s.connect(('223.5.5.5', 80))
                 preferred_ip = s.getsockname()[0]
         except Exception:
             pass
