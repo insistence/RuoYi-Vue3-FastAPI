@@ -103,7 +103,6 @@ redis_config = {
     'password': RedisConfig.redis_password,
     'db': RedisConfig.redis_database,
 }
-executors = {'default': AsyncIOExecutor(), 'processpool': ProcessPoolExecutor(5)}
 job_defaults = {'coalesce': False, 'max_instance': 1}
 scheduler = AsyncIOScheduler()
 
@@ -186,6 +185,7 @@ class SchedulerUtil:
             'sqlalchemy': SQLAlchemyJobStore(url=SYNC_SQLALCHEMY_DATABASE_URL, engine=cls._get_jobstore_engine()),
             'redis': RedisJobStore(**redis_config),
         }
+        executors = {'default': AsyncIOExecutor(), 'processpool': ProcessPoolExecutor(5)}
         scheduler.configure(jobstores=job_stores, executors=executors, job_defaults=job_defaults)
         cls._scheduler_configured = True
 

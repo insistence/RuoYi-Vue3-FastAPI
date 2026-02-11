@@ -1,91 +1,100 @@
-from agno.db.base import AsyncBaseDb
-from agno.db.mysql import AsyncMySQLDb
-from agno.db.postgres import AsyncPostgresDb
-from agno.models.aimlapi import AIMLAPI
-from agno.models.anthropic import Claude
-from agno.models.base import Model
-from agno.models.cerebras import Cerebras, CerebrasOpenAI
-from agno.models.cohere import Cohere
-from agno.models.cometapi import CometAPI
-from agno.models.dashscope import DashScope
-from agno.models.deepinfra import DeepInfra
-from agno.models.deepseek import DeepSeek
-from agno.models.fireworks import Fireworks
-from agno.models.google import Gemini
-from agno.models.groq import Groq
-from agno.models.huggingface import HuggingFace
-from agno.models.langdb import LangDB
-from agno.models.litellm import LiteLLM, LiteLLMOpenAI
-from agno.models.llama_cpp import LlamaCpp
-from agno.models.lmstudio import LMStudio
-from agno.models.meta import Llama
-from agno.models.mistral import MistralChat
-from agno.models.n1n import N1N
-from agno.models.nebius import Nebius
-from agno.models.nexus import Nexus
-from agno.models.nvidia import Nvidia
-from agno.models.ollama import Ollama
-from agno.models.openai import OpenAIChat
-from agno.models.openai.responses import OpenAIResponses
-from agno.models.openrouter import OpenRouter
-from agno.models.perplexity import Perplexity
-from agno.models.portkey import Portkey
-from agno.models.requesty import Requesty
-from agno.models.sambanova import Sambanova
-from agno.models.siliconflow import Siliconflow
-from agno.models.together import Together
-from agno.models.vercel import V0
-from agno.models.vllm import VLLM
-from agno.models.xai import xAI
+from importlib import import_module
+from typing import TYPE_CHECKING
 
 from config.database import async_engine
 from config.env import DataBaseConfig
 
-provider_model_map: dict[str, type[Model]] = {
-    'AIMLAPI': AIMLAPI,
-    'Anthropic': Claude,
-    'Cerebras': Cerebras,
-    'CerebrasOpenAI': CerebrasOpenAI,
-    'Cohere': Cohere,
-    'CometAPI': CometAPI,
-    'DashScope': DashScope,
-    'DeepInfra': DeepInfra,
-    'DeepSeek': DeepSeek,
-    'Fireworks': Fireworks,
-    'Google': Gemini,
-    'Groq': Groq,
-    'HuggingFace': HuggingFace,
-    'LangDB': LangDB,
-    'LiteLLM': LiteLLM,
-    'LiteLLMOpenAI': LiteLLMOpenAI,
-    'LlamaCpp': LlamaCpp,
-    'LMStudio': LMStudio,
-    'Meta': Llama,
-    'Mistral': MistralChat,
-    'N1N': N1N,
-    'Nebius': Nebius,
-    'Nexus': Nexus,
-    'Nvidia': Nvidia,
-    'Ollama': Ollama,
-    'OpenAI': OpenAIChat,
-    'OpenAIResponses': OpenAIResponses,
-    'OpenRouter': OpenRouter,
-    'Perplexity': Perplexity,
-    'Portkey': Portkey,
-    'Requesty': Requesty,
-    'Sambanova': Sambanova,
-    'SiliconFlow': Siliconflow,
-    'Together': Together,
-    'Vercel': V0,
-    'VLLM': VLLM,
-    'xAI': xAI,
+if TYPE_CHECKING:
+    from agno.db.base import AsyncBaseDb
+    from agno.models.base import Model
+
+# 提供商名称 -> (模块路径, 类名) 的映射，延迟导入避免启动时加载所有AI SDK
+_PROVIDER_REGISTRY: dict[str, tuple[str, str]] = {
+    'AIMLAPI': ('agno.models.aimlapi', 'AIMLAPI'),
+    'Anthropic': ('agno.models.anthropic', 'Claude'),
+    'Cerebras': ('agno.models.cerebras', 'Cerebras'),
+    'CerebrasOpenAI': ('agno.models.cerebras', 'CerebrasOpenAI'),
+    'Cohere': ('agno.models.cohere', 'Cohere'),
+    'CometAPI': ('agno.models.cometapi', 'CometAPI'),
+    'DashScope': ('agno.models.dashscope', 'DashScope'),
+    'DeepInfra': ('agno.models.deepinfra', 'DeepInfra'),
+    'DeepSeek': ('agno.models.deepseek', 'DeepSeek'),
+    'Fireworks': ('agno.models.fireworks', 'Fireworks'),
+    'Google': ('agno.models.google', 'Gemini'),
+    'Groq': ('agno.models.groq', 'Groq'),
+    'HuggingFace': ('agno.models.huggingface', 'HuggingFace'),
+    'LangDB': ('agno.models.langdb', 'LangDB'),
+    'LiteLLM': ('agno.models.litellm', 'LiteLLM'),
+    'LiteLLMOpenAI': ('agno.models.litellm', 'LiteLLMOpenAI'),
+    'LlamaCpp': ('agno.models.llama_cpp', 'LlamaCpp'),
+    'LMStudio': ('agno.models.lmstudio', 'LMStudio'),
+    'Meta': ('agno.models.meta', 'Llama'),
+    'Mistral': ('agno.models.mistral', 'MistralChat'),
+    'N1N': ('agno.models.n1n', 'N1N'),
+    'Nebius': ('agno.models.nebius', 'Nebius'),
+    'Nexus': ('agno.models.nexus', 'Nexus'),
+    'Nvidia': ('agno.models.nvidia', 'Nvidia'),
+    'Ollama': ('agno.models.ollama', 'Ollama'),
+    'OpenAI': ('agno.models.openai', 'OpenAIChat'),
+    'OpenAIResponses': ('agno.models.openai.responses', 'OpenAIResponses'),
+    'OpenRouter': ('agno.models.openrouter', 'OpenRouter'),
+    'Perplexity': ('agno.models.perplexity', 'Perplexity'),
+    'Portkey': ('agno.models.portkey', 'Portkey'),
+    'Requesty': ('agno.models.requesty', 'Requesty'),
+    'Sambanova': ('agno.models.sambanova', 'Sambanova'),
+    'SiliconFlow': ('agno.models.siliconflow', 'Siliconflow'),
+    'Together': ('agno.models.together', 'Together'),
+    'Vercel': ('agno.models.vercel', 'V0'),
+    'VLLM': ('agno.models.vllm', 'VLLM'),
+    'xAI': ('agno.models.xai', 'xAI'),
 }
 
-
-storage_engine_map: dict[str, type[AsyncBaseDb]] = {
-    'mysql': AsyncMySQLDb,
-    'postgresql': AsyncPostgresDb,
+# 存储引擎名称 -> (模块路径, 类名) 的映射
+_STORAGE_ENGINE_REGISTRY: dict[str, tuple[str, str]] = {
+    'mysql': ('agno.db.mysql', 'AsyncMySQLDb'),
+    'postgresql': ('agno.db.postgres', 'AsyncPostgresDb'),
 }
+
+# 已加载的提供商类缓存，避免重复import_module
+_provider_class_cache: dict[str, 'type[Model]'] = {}
+_storage_class_cache: dict[str, 'type[AsyncBaseDb]'] = {}
+
+
+def _resolve_provider_class(provider: str) -> 'type[Model] | None':
+    """
+    按需加载并缓存提供商模型类
+
+    :param provider: 提供商名称
+    :return: 模型类，未找到返回None
+    """
+    if provider in _provider_class_cache:
+        return _provider_class_cache[provider]
+    entry = _PROVIDER_REGISTRY.get(provider)
+    if entry is None:
+        return None
+    module_path, class_name = entry
+    cls = getattr(import_module(module_path), class_name)
+    _provider_class_cache[provider] = cls
+    return cls
+
+
+def _resolve_storage_class(db_type: str) -> 'type[AsyncBaseDb]':
+    """
+    按需加载并缓存存储引擎类
+
+    :param db_type: 数据库类型
+    :return: 存储引擎类
+    """
+    if db_type in _storage_class_cache:
+        return _storage_class_cache[db_type]
+    entry = _STORAGE_ENGINE_REGISTRY.get(db_type)
+    if entry is None:
+        # 默认使用MySQL
+        entry = _STORAGE_ENGINE_REGISTRY['mysql']
+    module_path, class_name = entry
+    cls = getattr(import_module(module_path), class_name)
+    _storage_class_cache[db_type] = cls
+    return cls
 
 
 class AiUtil:
@@ -94,13 +103,13 @@ class AiUtil:
     """
 
     @classmethod
-    def get_storage_engine(cls) -> AsyncBaseDb:
+    def get_storage_engine(cls) -> 'AsyncBaseDb':
         """
         获取存储引擎实例
 
         :return: 存储引擎实例
         """
-        storage_engine_class = storage_engine_map.get(DataBaseConfig.db_type, AsyncMySQLDb)
+        storage_engine_class = _resolve_storage_class(DataBaseConfig.db_type)
 
         return storage_engine_class(
             db_engine=async_engine,
@@ -128,7 +137,7 @@ class AiUtil:
         temperature: float | None = None,
         max_tokens: int | None = None,
         **kwargs,
-    ) -> Model:
+    ) -> 'Model':
         """
         从工厂获取模型实例
 
@@ -155,6 +164,9 @@ class AiUtil:
             params['host'] = base_url
         if provider == 'DashScope' and not base_url:
             params['base_url'] = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-        model_class = provider_model_map.get(provider, OpenAIChat)
+        model_class = _resolve_provider_class(provider)
+        if model_class is None:
+            # 未知提供商，回退到OpenAI
+            model_class = _resolve_provider_class('OpenAI')
 
         return model_class(**params)

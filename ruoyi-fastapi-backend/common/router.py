@@ -1,3 +1,4 @@
+import glob
 import importlib
 import os
 import sys
@@ -306,17 +307,8 @@ class RouterRegister:
 
         :return: py文件路径列表
         """
-        controller_files = []
-        # 遍历所有目录，查找controller目录
-        for root, _dirs, files in os.walk(self.project_root):
-            # 检查当前目录是否为controller目录
-            if os.path.basename(root) == 'controller':
-                # 遍历controller目录下的所有py文件
-                for file in files:
-                    if file.endswith('.py') and not file.startswith('__'):
-                        file_path = os.path.join(root, file)
-                        controller_files.append(file_path)
-        return controller_files
+        pattern = os.path.join(self.project_root, '*', 'controller', '[!_]*.py')
+        return sorted(glob.glob(pattern))
 
     def _import_module_and_get_routers(self, controller_files: list[str]) -> list[tuple[str, APIRouter]]:
         """
@@ -333,9 +325,8 @@ class RouterRegister:
 
             # 动态导入模块
             module = importlib.import_module(module_name)
-            # 遍历模块属性，寻找APIRouter和APIRouterPro实例
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
+            # 直接遍历模块__dict__，只检查模块自身定义的属性
+            for attr_name, attr in module.__dict__.items():
                 # 对于APIRouterPro实例，只有当auto_register=True时才添加
                 if isinstance(attr, APIRouterPro):
                     if attr.auto_register:
