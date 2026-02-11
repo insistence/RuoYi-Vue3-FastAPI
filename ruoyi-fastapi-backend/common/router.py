@@ -1,3 +1,4 @@
+import glob
 import importlib
 import os
 import sys
@@ -289,41 +290,6 @@ class RouterRegister:
     路由注册器，用于自动注册所有controller目录下的路由
     """
 
-    _SKIP_DIRS: frozenset[str] = frozenset(
-        {
-            '.git',
-            '__pycache__',
-            'venv',
-            '.venv',
-            'node_modules',
-            '.idea',
-            '.vscode',
-            '.pytest_cache',
-            '.mypy_cache',
-            '.ruff_cache',
-            '.tox',
-            '.nox',
-            'dist',
-            'build',
-            'site-packages',
-            '.eggs',
-            '.cache',
-            '.coverage',
-            '.ipynb_checkpoints',
-            '.gradle',
-            '.pnpm-store',
-            '.yarn',
-            '.next',
-            '.nuxt',
-            'coverage',
-            'logs',
-            'log',
-            'tmp',
-            'temp',
-            'vfadmin',
-        }
-    )
-
     def __init__(self, app: FastAPI) -> None:
         """
         初始化路由注册器
@@ -341,19 +307,8 @@ class RouterRegister:
 
         :return: py文件路径列表
         """
-        controller_files = []
-        # 遍历所有目录，查找controller目录
-        for root, dirs, files in os.walk(self.project_root):
-            # 排除不需要扫描的目录，提高扫描速度
-            dirs[:] = [d for d in dirs if d not in self._SKIP_DIRS]
-            # 检查当前目录是否为controller目录
-            if os.path.basename(root) == 'controller':
-                # 遍历controller目录下的所有py文件
-                for file in files:
-                    if file.endswith('.py') and not file.startswith('__'):
-                        file_path = os.path.join(root, file)
-                        controller_files.append(file_path)
-        return controller_files
+        pattern = os.path.join(self.project_root, '*', 'controller', '[!_]*.py')
+        return sorted(glob.glob(pattern))
 
     def _import_module_and_get_routers(self, controller_files: list[str]) -> list[tuple[str, APIRouter]]:
         """
@@ -370,9 +325,8 @@ class RouterRegister:
 
             # 动态导入模块
             module = importlib.import_module(module_name)
-            # 遍历模块属性，寻找APIRouter和APIRouterPro实例
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
+            # 直接遍历模块__dict__，只检查模块自身定义的属性
+            for attr_name, attr in module.__dict__.items():
                 # 对于APIRouterPro实例，只有当auto_register=True时才添加
                 if isinstance(attr, APIRouterPro):
                     if attr.auto_register:
