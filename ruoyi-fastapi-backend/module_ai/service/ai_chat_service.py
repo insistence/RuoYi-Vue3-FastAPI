@@ -5,6 +5,11 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from agno.agent import Agent
+from agno.db.base import SessionType
+from agno.media import Image
+from agno.run.agent import RunEvent, RunOutput, RunOutputEvent
+from agno.run.cancel import acancel_run
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel
@@ -30,10 +35,7 @@ from utils.common_util import CamelCaseUtil
 from utils.crypto_util import CryptoUtil
 
 if TYPE_CHECKING:
-    from agno.agent import Agent
-    from agno.media import Image
     from agno.models.message import Message
-    from agno.run.agent import RunOutputEvent
     from agno.run.team import TeamRunOutput
     from agno.run.workflow import WorkflowRunOutput
     from agno.session import Session
@@ -92,7 +94,7 @@ class AiChatService:
         session_id: str,
         add_history: bool,
         num_history: int,
-    ) -> 'Agent':
+    ) -> Agent:
         """
         构建对话Agent对象
 
@@ -105,8 +107,6 @@ class AiChatService:
         :param num_history: 历史消息轮数
         :return: Agent对象
         """
-        from agno.agent import Agent
-
         real_api_key = CryptoUtil.decrypt(model_config.api_key)
 
         model = AiUtil.get_model_from_factory(
@@ -144,8 +144,6 @@ class AiChatService:
         :param user_config: 用户配置对象
         :return: 运行参数字典
         """
-        from agno.media import Image
-
         run_kwargs: dict[str, Any] = {'stream': True, 'stream_events': True}
         if not chat_req.images or not user_config.vision_enabled:
             return run_kwargs
@@ -164,7 +162,7 @@ class AiChatService:
         return run_kwargs
 
     @classmethod
-    def _convert_images_to_upload_paths(cls, images: list['Image'] | None) -> list[str] | None:
+    def _convert_images_to_upload_paths(cls, images: list[Image] | None) -> list[str] | None:
         """
         将Agno Image对象列表转换为前端可访问的上传路径列表
 
@@ -203,7 +201,7 @@ class AiChatService:
     @classmethod
     async def _stream_agent(
         cls,
-        agent: 'Agent',
+        agent: Agent,
         chat_req: AiChatRequestModel,
         run_kwargs: dict[str, Any],
         is_reasoning: bool,
@@ -219,8 +217,6 @@ class AiChatService:
         :param session_id: 会话ID
         :return: SSE消息生成器
         """
-        from agno.run.agent import RunEvent, RunOutputEvent
-
         full_response = ''
         full_reasoning = ''
         try:
@@ -361,9 +357,6 @@ class AiChatService:
         :param user_id: 用户ID
         :return: 用户会话列表
         """
-        from agno.db.base import SessionType
-        from agno.session import Session
-
         # 获取Agno会话列表
         storage = AiUtil.get_storage_engine()
         sessions: list[Session] = await storage.get_sessions(
@@ -413,13 +406,6 @@ class AiChatService:
         :param session_id: 会话ID
         :return: 会话消息详情
         """
-        from agno.db.base import SessionType
-        from agno.models.message import Message
-        from agno.run.agent import RunOutput
-        from agno.run.team import TeamRunOutput
-        from agno.run.workflow import WorkflowRunOutput
-        from agno.session import Session
-
         storage = AiUtil.get_storage_engine()
         session: Session | None = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT)
 
@@ -491,8 +477,6 @@ class AiChatService:
         :param run_id: 运行ID
         :return: 取消结果
         """
-        from agno.run.cancel import acancel_run
-
         cancel_result = await acancel_run(run_id)
         if not cancel_result:
             raise ServiceException(message='取消运行失败')

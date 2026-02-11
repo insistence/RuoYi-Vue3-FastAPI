@@ -1,11 +1,10 @@
 import io
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import pandas as pd
-    from openpyxl import Workbook
-    from openpyxl.styles import PatternFill
-    from openpyxl.worksheet.datavalidation import DataValidation
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 
 class ExcelUtil:
@@ -35,8 +34,6 @@ class ExcelUtil:
         :param mapping_dict: 映射字典
         :return: list数据对应excel的二进制数据
         """
-        import pandas as pd
-
         mapping_data = cls.__mapping_list(list_data, mapping_dict)
         df = pd.DataFrame(mapping_data)
         binary_data = io.BytesIO()
@@ -55,11 +52,6 @@ class ExcelUtil:
         :param option_list: 选择器格式的表头预设的选项列表
         :return: 模板excel的二进制数据
         """
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, PatternFill
-        from openpyxl.utils import get_column_letter
-        from openpyxl.worksheet.datavalidation import DataValidation
-
         # 创建Excel工作簿
         wb = Workbook()
         # 选择默认的活动工作表

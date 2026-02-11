@@ -2,20 +2,19 @@ import io
 import os
 import re
 from collections.abc import Generator, Sequence
-from typing import TYPE_CHECKING, Any, Literal, overload
+from typing import Any, Literal, overload
 
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy.engine.row import Row
 from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.sql.expression import TextClause, null
 
 from config.database import Base
 from config.env import CachePathConfig
-
-if TYPE_CHECKING:
-    import pandas as pd
-    from openpyxl import Workbook
-    from openpyxl.styles import PatternFill
-    from openpyxl.worksheet.datavalidation import DataValidation
 
 
 def worship() -> None:
@@ -318,8 +317,6 @@ def export_list2excel(list_data: list) -> bytes:
     :param list_data: 数据列表
     :return: 字典信息对应excel的二进制数据
     """
-    import pandas as pd
-
     df = pd.DataFrame(list_data)
     binary_data = io.BytesIO()
     df.to_excel(binary_data, index=False, engine='openpyxl')
@@ -337,11 +334,6 @@ def get_excel_template(header_list: list, selector_header_list: list, option_lis
     :param option_list: 选择器格式的表头预设的选项列表
     :return: 模板excel的二进制数据
     """
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, PatternFill
-    from openpyxl.utils import get_column_letter
-    from openpyxl.worksheet.datavalidation import DataValidation
-
     # 创建Excel工作簿
     wb = Workbook()
     # 选择默认的活动工作表
