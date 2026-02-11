@@ -37,7 +37,7 @@
             :body-style="{ padding: 0 }"
           >
             <template #extra>
-              <a href=""> <span style="color: #1890ff">全部项目</span> </a>
+              <a href=""> <span style="color: var(--el-color-primary)">全部项目</span> </a>
             </template>
             <a-card-grid
               v-for="item in projectNotice"
@@ -88,11 +88,11 @@
                         <span class="event">
                           <span>{{ item.template1 }}</span
                           >&nbsp;
-                          <a href="" style="color: #1890ff">
+                          <a href="" style="color: var(--el-color-primary)">
                             {{ item?.group?.name }} </a
                           >&nbsp; <span>{{ item.template2 }}</span
                           >&nbsp;
-                          <a href="" style="color: #1890ff">
+                          <a href="" style="color: var(--el-color-primary)">
                             {{ item?.project?.name }}
                           </a>
                         </span>
@@ -512,7 +512,7 @@ onBeforeUnmount(() => {
 .activitiesList {
   padding: 0 24px 8px 24px;
   .username {
-    color: rgba(0, 0, 0, 0.65);
+    color: var(--el-text-color-regular);
   }
   .event {
     font-weight: normal;
@@ -523,7 +523,7 @@ onBeforeUnmount(() => {
   display: flex;
   padding: 12px;
   margin-bottom: 24px;
-  box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px;
+  box-shadow: var(--el-box-shadow-light);
   .avatar {
     flex: 0 1 72px;
     & > span {
@@ -538,11 +538,11 @@ onBeforeUnmount(() => {
     top: 4px;
     flex: 1 1 auto;
     margin-left: 24px;
-    color: rgba(0, 0, 0, 0.45);
+    color: var(--el-text-color-secondary);
     line-height: 22px;
     .contentTitle {
       margin-bottom: 12px;
-      color: rgba(0, 0, 0, 0.85);
+      color: var(--el-text-color-primary);
       font-weight: 500;
       font-size: 20px;
       line-height: 28px;
@@ -561,17 +561,17 @@ onBeforeUnmount(() => {
     padding: 0 32px;
     > p:first-child {
       margin-bottom: 4px;
-      color: rgba(0, 0, 0, 0.45);
+      color: var(--el-text-color-secondary);
       font-size: 14px;
       line-height: 22px;
     }
     > p {
       margin: 0;
-      color: rgba(0, 0, 0, 0.85);
+      color: var(--el-text-color-primary);
       font-size: 30px;
       line-height: 38px;
       > span {
-        color: rgba(0, 0, 0, 0.45);
+        color: var(--el-text-color-secondary);
         font-size: 20px;
       }
     }
@@ -581,7 +581,7 @@ onBeforeUnmount(() => {
       right: 0;
       width: 1px;
       height: 40px;
-      background-color: #e8e8e8;
+      background-color: var(--el-border-color);
       content: "";
     }
     &:last-child {
@@ -598,7 +598,7 @@ onBeforeUnmount(() => {
     display: block;
     height: 24px;
     margin: 12px 0;
-    color: rgba(0, 0, 0, 0.65);
+    color: var(--el-text-color-regular);
     transition: all 0.3s;
     .textOverflow();
     .member {
@@ -608,7 +608,7 @@ onBeforeUnmount(() => {
       vertical-align: top;
     }
     &:hover {
-      color: #1890ff;
+      color: var(--el-color-primary);
     }
   }
 }
@@ -617,7 +617,7 @@ onBeforeUnmount(() => {
   :deep(.ant-card-meta-description) {
     height: 44px;
     overflow: hidden;
-    color: rgba(0, 0, 0, 0.45);
+    color: var(--el-text-color-secondary);
     line-height: 22px;
   }
   .cardTitle {
@@ -626,12 +626,12 @@ onBeforeUnmount(() => {
       display: inline-block;
       height: 24px;
       margin-left: 12px;
-      color: rgba(0, 0, 0, 0.85);
+      color: var(--el-text-color-primary);
       font-size: 14px;
       line-height: 24px;
       vertical-align: top;
       &:hover {
-        color: #1890ff;
+        color: var(--el-color-primary);
       }
     }
   }
@@ -650,22 +650,22 @@ onBeforeUnmount(() => {
     a {
       display: inline-block;
       flex: 1 1 0;
-      color: rgba(0, 0, 0, 0.45);
+      color: var(--el-text-color-secondary);
       .textOverflow();
       &:hover {
-        color: #1890ff;
+        color: var(--el-color-primary);
       }
     }
     .datetime {
       flex: 0 0 auto;
       float: right;
-      color: rgba(0, 0, 0, 0.25);
+      color: var(--el-text-color-placeholder);
     }
   }
 }
 
 .datetime {
-  color: rgba(0, 0, 0, 0.25);
+  color: var(--el-text-color-placeholder);
 }
 
 @media screen and (max-width: 1200px) and (min-width: 992px) {

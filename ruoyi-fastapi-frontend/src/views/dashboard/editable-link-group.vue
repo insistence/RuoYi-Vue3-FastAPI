@@ -58,10 +58,10 @@ const links = [
     display: inline-block;
     width: 25%;
     margin-bottom: 13px;
-    color: rgba(0, 0, 0, 0.65);
+    color: var(--el-text-color-regular);
     font-size: 14px;
     &:hover {
-      color: #1890ff;
+      color: var(--el-color-primary);
     }
   }
 }
