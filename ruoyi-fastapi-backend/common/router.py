@@ -289,6 +289,41 @@ class RouterRegister:
     路由注册器，用于自动注册所有controller目录下的路由
     """
 
+    _SKIP_DIRS: frozenset[str] = frozenset(
+        {
+            '.git',
+            '__pycache__',
+            'venv',
+            '.venv',
+            'node_modules',
+            '.idea',
+            '.vscode',
+            '.pytest_cache',
+            '.mypy_cache',
+            '.ruff_cache',
+            '.tox',
+            '.nox',
+            'dist',
+            'build',
+            'site-packages',
+            '.eggs',
+            '.cache',
+            '.coverage',
+            '.ipynb_checkpoints',
+            '.gradle',
+            '.pnpm-store',
+            '.yarn',
+            '.next',
+            '.nuxt',
+            'coverage',
+            'logs',
+            'log',
+            'tmp',
+            'temp',
+            'vfadmin',
+        }
+    )
+
     def __init__(self, app: FastAPI) -> None:
         """
         初始化路由注册器
@@ -310,7 +345,7 @@ class RouterRegister:
         # 遍历所有目录，查找controller目录
         for root, dirs, files in os.walk(self.project_root):
             # 排除不需要扫描的目录，提高扫描速度
-            dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'venv', '.venv', 'node_modules', '.idea', '.vscode'}]
+            dirs[:] = [d for d in dirs if d not in self._SKIP_DIRS]
             # 检查当前目录是否为controller目录
             if os.path.basename(root) == 'controller':
                 # 遍历controller目录下的所有py文件
