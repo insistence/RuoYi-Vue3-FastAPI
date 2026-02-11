@@ -429,6 +429,9 @@ class IPUtil:
     IP工具类
     """
 
+    _PREFERRED_DNS_HOSTS: tuple[str, str] = ('223.5.5.5', '8.8.8.8')
+    _DNS_CONNECT_TIMEOUT = 1
+
     @classmethod
     def get_local_ip(cls) -> str:
         """
@@ -472,13 +475,15 @@ class IPUtil:
 
         # 优先显示首选出站IP
         preferred_ip = None
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-                # 使用国内DNS (阿里DNS) 避免连接超时
-                s.connect(('223.5.5.5', 80))
-                preferred_ip = s.getsockname()[0]
-        except Exception:
-            pass
+        for dns_host in cls._PREFERRED_DNS_HOSTS:
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                    s.settimeout(cls._DNS_CONNECT_TIMEOUT)
+                    s.connect((dns_host, 80))
+                    preferred_ip = s.getsockname()[0]
+                    break
+            except Exception:
+                continue
 
         if preferred_ip:
             if preferred_ip in network_ips:
