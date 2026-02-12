@@ -60,47 +60,47 @@ _provider_class_cache: dict[str, 'type[Model]'] = {}
 _storage_class_cache: dict[str, 'type[AsyncBaseDb]'] = {}
 
 
-def _resolve_provider_class(provider: str) -> 'type[Model] | None':
-    """
-    按需加载并缓存提供商模型类
-
-    :param provider: 提供商名称
-    :return: 模型类，未找到返回None
-    """
-    if provider in _provider_class_cache:
-        return _provider_class_cache[provider]
-    entry = _PROVIDER_REGISTRY.get(provider)
-    if entry is None:
-        return None
-    module_path, class_name = entry
-    cls = getattr(import_module(module_path), class_name)
-    _provider_class_cache[provider] = cls
-    return cls
-
-
-def _resolve_storage_class(db_type: str) -> 'type[AsyncBaseDb]':
-    """
-    按需加载并缓存存储引擎类
-
-    :param db_type: 数据库类型
-    :return: 存储引擎类
-    """
-    if db_type in _storage_class_cache:
-        return _storage_class_cache[db_type]
-    entry = _STORAGE_ENGINE_REGISTRY.get(db_type)
-    if entry is None:
-        # 默认使用MySQL
-        entry = _STORAGE_ENGINE_REGISTRY['mysql']
-    module_path, class_name = entry
-    cls = getattr(import_module(module_path), class_name)
-    _storage_class_cache[db_type] = cls
-    return cls
-
-
 class AiUtil:
     """
     AI工具类
     """
+
+    @classmethod
+    def _resolve_provider_class(cls, provider: str) -> 'type[Model] | None':
+        """
+        按需加载并缓存提供商模型类
+
+        :param provider: 提供商名称
+        :return: 模型类，未找到返回None
+        """
+        if provider in _provider_class_cache:
+            return _provider_class_cache[provider]
+        entry = _PROVIDER_REGISTRY.get(provider)
+        if entry is None:
+            return None
+        module_path, class_name = entry
+        provider_cls = getattr(import_module(module_path), class_name)
+        _provider_class_cache[provider] = provider_cls
+        return provider_cls
+
+    @classmethod
+    def _resolve_storage_class(cls, db_type: str) -> 'type[AsyncBaseDb]':
+        """
+        按需加载并缓存存储引擎类
+
+        :param db_type: 数据库类型
+        :return: 存储引擎类
+        """
+        if db_type in _storage_class_cache:
+            return _storage_class_cache[db_type]
+        entry = _STORAGE_ENGINE_REGISTRY.get(db_type)
+        if entry is None:
+            # 默认使用MySQL
+            entry = _STORAGE_ENGINE_REGISTRY['mysql']
+        module_path, class_name = entry
+        storage_cls = getattr(import_module(module_path), class_name)
+        _storage_class_cache[db_type] = storage_cls
+        return storage_cls
 
     @classmethod
     def get_storage_engine(cls) -> 'AsyncBaseDb':
@@ -109,7 +109,7 @@ class AiUtil:
 
         :return: 存储引擎实例
         """
-        storage_engine_class = _resolve_storage_class(DataBaseConfig.db_type)
+        storage_engine_class = cls._resolve_storage_class(DataBaseConfig.db_type)
 
         return storage_engine_class(
             db_engine=async_engine,
@@ -164,9 +164,9 @@ class AiUtil:
             params['host'] = base_url
         if provider == 'DashScope' and not base_url:
             params['base_url'] = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
-        model_class = _resolve_provider_class(provider)
+        model_class = cls._resolve_provider_class(provider)
         if model_class is None:
             # 未知提供商，回退到OpenAI
-            model_class = _resolve_provider_class('OpenAI')
+            model_class = cls._resolve_provider_class('OpenAI')
 
         return model_class(**params)

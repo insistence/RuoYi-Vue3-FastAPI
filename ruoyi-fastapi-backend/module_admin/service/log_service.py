@@ -274,6 +274,10 @@ class LoginLogService:
 
 
 class LogQueueService:
+    """
+    日志队列服务
+    """
+
     @classmethod
     def _build_event_id(cls, request_id: str, log_type: str, source: str) -> str:
         """
@@ -346,6 +350,10 @@ class LogQueueService:
 
 
 class LogAggregatorService:
+    """
+    日志聚合消费服务
+    """
+
     @classmethod
     async def _ensure_group(cls, redis: aioredis.Redis) -> None:
         """
@@ -394,6 +402,13 @@ class LogAggregatorService:
 
     @classmethod
     async def _claim_pending(cls, redis: aioredis.Redis, consumer_name: str) -> None:
+        """
+        认领并处理超时未确认的消息
+
+        :param redis: Redis连接对象
+        :param consumer_name: 消费者名称
+        :return: None
+        """
         if LogConfig.log_stream_claim_idle_ms <= 0:
             return
         start_id = '0-0'

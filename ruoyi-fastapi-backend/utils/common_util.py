@@ -15,10 +15,11 @@ from sqlalchemy.sql.expression import TextClause, null
 
 from config.database import Base
 from config.env import CachePathConfig
+from utils.log_util import logger
 
 
 def worship() -> None:
-    print(r"""
+    logger.info(r"""
 ////////////////////////////////////////////////////////////////////
 //                          _ooOoo_                               //
 //                         o8888888o                              //

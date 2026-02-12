@@ -1,158 +1,168 @@
 <template>
   <div>
-    <div class="pageHeaderContent">
-      <div class="avatar">
-        <a-avatar size="large" :src="currentUser.avatar" />
+    <AConfigProvider
+      :theme="{
+        algorithm: settingsStore.isDark
+          ? theme.darkAlgorithm
+          : theme.defaultAlgorithm,
+      }"
+    >
+      <div class="pageHeaderContent">
+        <div class="avatar">
+          <a-avatar size="large" :src="currentUser.avatar" />
+        </div>
+        <div class="content">
+          <div class="contentTitle">
+            早安，
+            {{ currentUser.name }}
+            ，祝你开心每一天！
+          </div>
+          <div>{{ currentUser.title }} |{{ currentUser.group }}</div>
+        </div>
+        <div class="extraContent">
+          <div class="statItem">
+            <a-statistic title="项目数" :value="56" />
+          </div>
+          <div class="statItem">
+            <a-statistic title="团队内排名" :value="8" suffix="/ 24" />
+          </div>
+          <div class="statItem">
+            <a-statistic title="项目访问" :value="2223" />
+          </div>
+        </div>
       </div>
-      <div class="content">
-        <div class="contentTitle">
-          早安，
-          {{ currentUser.name }}
-          ，祝你开心每一天！
-        </div>
-        <div>{{ currentUser.title }} |{{ currentUser.group }}</div>
-      </div>
-      <div class="extraContent">
-        <div class="statItem">
-          <a-statistic title="项目数" :value="56" />
-        </div>
-        <div class="statItem">
-          <a-statistic title="团队内排名" :value="8" suffix="/ 24" />
-        </div>
-        <div class="statItem">
-          <a-statistic title="项目访问" :value="2223" />
-        </div>
-      </div>
-    </div>
 
-    <div style="padding: 10px">
-      <a-row :gutter="24">
-        <a-col :xl="16" :lg="24" :md="24" :sm="24" :xs="24">
-          <a-card
-            class="projectList"
-            :style="{ marginBottom: '24px' }"
-            title="进行中的项目"
-            :bordered="false"
-            :loading="false"
-            :body-style="{ padding: 0 }"
-          >
-            <template #extra>
-              <a href=""> <span style="color: var(--el-color-primary)">全部项目</span> </a>
-            </template>
-            <a-card-grid
-              v-for="item in projectNotice"
-              :key="item.id"
-              class="projectGrid"
+      <div style="padding: 10px">
+        <a-row :gutter="24">
+          <a-col :xl="16" :lg="24" :md="24" :sm="24" :xs="24">
+            <a-card
+              class="projectList"
+              :style="{ marginBottom: '24px' }"
+              title="进行中的项目"
+              :bordered="false"
+              :loading="false"
+              :body-style="{ padding: 0 }"
             >
-              <a-card
-                :body-style="{ padding: 0 }"
-                style="box-shadow: none"
-                :bordered="false"
-              >
-                <a-card-meta :description="item.description" class="w-full">
-                  <template #title>
-                    <div class="cardTitle">
-                      <a-avatar size="small" :src="item.logo" />
-                      <a :href="item.href">
-                        {{ item.title }}
-                      </a>
-                    </div>
-                  </template>
-                </a-card-meta>
-                <div class="projectItemContent">
-                  <a :href="item.memberLink">
-                    {{ item.member || "" }}
-                  </a>
-                  <span class="datetime" ml-2 :title="item.updatedAt">
-                    {{ item.updatedAt }}
-                  </span>
-                </div>
-              </a-card>
-            </a-card-grid>
-          </a-card>
-          <a-card
-            :body-style="{ padding: 0 }"
-            :bordered="false"
-            class="activeCard"
-            title="动态"
-            :loading="false"
-          >
-            <a-list :data-source="activities" class="activitiesList">
-              <template #renderItem="{ item }">
-                <a-list-item :key="item.id">
-                  <a-list-item-meta>
-                    <template #title>
-                      <span>
-                        <a class="username">{{ item.user.name }}</a
-                        >&nbsp;
-                        <span class="event">
-                          <span>{{ item.template1 }}</span
-                          >&nbsp;
-                          <a href="" style="color: var(--el-color-primary)">
-                            {{ item?.group?.name }} </a
-                          >&nbsp; <span>{{ item.template2 }}</span
-                          >&nbsp;
-                          <a href="" style="color: var(--el-color-primary)">
-                            {{ item?.project?.name }}
-                          </a>
-                        </span>
-                      </span>
-                    </template>
-                    <template #avatar>
-                      <a-avatar :src="item.user.avatar" />
-                    </template>
-                    <template #description>
-                      <span class="datetime" :title="item.updatedAt">
-                        {{ item.updatedAt }}
-                      </span>
-                    </template>
-                  </a-list-item-meta>
-                </a-list-item>
+              <template #extra>
+                <a href="">
+                  <span style="color: var(--el-color-primary)">全部项目</span>
+                </a>
               </template>
-            </a-list>
-          </a-card>
-        </a-col>
-        <a-col :xl="8" :lg="24" :md="24" :sm="24" :xs="24">
-          <a-card
-            :style="{ marginBottom: '24px' }"
-            title="快速开始 / 便捷导航"
-            :bordered="false"
-            :body-style="{ padding: 0 }"
-          >
-            <EditableLinkGroup />
-          </a-card>
-          <a-card
-            :style="{ marginBottom: '24px' }"
-            :bordered="false"
-            title="XX 指数"
-          >
-            <div class="chart">
-              <div ref="radarContainer" />
-            </div>
-          </a-card>
-          <a-card
-            :body-style="{ paddingTop: '12px', paddingBottom: '12px' }"
-            :bordered="false"
-            title="团队"
-          >
-            <div class="members">
-              <a-row :gutter="48">
-                <a-col
-                  v-for="item in projectNotice"
-                  :key="`members-item-${item.id}`"
-                  :span="12"
+              <a-card-grid
+                v-for="item in projectNotice"
+                :key="item.id"
+                class="projectGrid"
+              >
+                <a-card
+                  :body-style="{ padding: 0 }"
+                  style="box-shadow: none"
+                  :bordered="false"
                 >
-                  <a :href="item.href">
-                    <a-avatar :src="item.logo" size="small" />
-                    <span class="member">{{ item.member }}</span>
-                  </a>
-                </a-col>
-              </a-row>
-            </div>
-          </a-card>
-        </a-col>
-      </a-row>
-    </div>
+                  <a-card-meta :description="item.description" class="w-full">
+                    <template #title>
+                      <div class="cardTitle">
+                        <a-avatar size="small" :src="item.logo" />
+                        <a :href="item.href">
+                          {{ item.title }}
+                        </a>
+                      </div>
+                    </template>
+                  </a-card-meta>
+                  <div class="projectItemContent">
+                    <a :href="item.memberLink">
+                      {{ item.member || "" }}
+                    </a>
+                    <span class="datetime" ml-2 :title="item.updatedAt">
+                      {{ item.updatedAt }}
+                    </span>
+                  </div>
+                </a-card>
+              </a-card-grid>
+            </a-card>
+            <a-card
+              :body-style="{ padding: 0 }"
+              :bordered="false"
+              class="activeCard"
+              title="动态"
+              :loading="false"
+            >
+              <a-list :data-source="activities" class="activitiesList">
+                <template #renderItem="{ item }">
+                  <a-list-item :key="item.id">
+                    <a-list-item-meta>
+                      <template #title>
+                        <span>
+                          <a class="username">{{ item.user.name }}</a
+                          >&nbsp;
+                          <span class="event">
+                            <span>{{ item.template1 }}</span
+                            >&nbsp;
+                            <a href="" style="color: var(--el-color-primary)">
+                              {{ item?.group?.name }} </a
+                            >&nbsp; <span>{{ item.template2 }}</span
+                            >&nbsp;
+                            <a href="" style="color: var(--el-color-primary)">
+                              {{ item?.project?.name }}
+                            </a>
+                          </span>
+                        </span>
+                      </template>
+                      <template #avatar>
+                        <a-avatar :src="item.user.avatar" />
+                      </template>
+                      <template #description>
+                        <span class="datetime" :title="item.updatedAt">
+                          {{ item.updatedAt }}
+                        </span>
+                      </template>
+                    </a-list-item-meta>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </a-card>
+          </a-col>
+          <a-col :xl="8" :lg="24" :md="24" :sm="24" :xs="24">
+            <a-card
+              :style="{ marginBottom: '24px' }"
+              title="快速开始 / 便捷导航"
+              :bordered="false"
+              :body-style="{ padding: 0 }"
+            >
+              <EditableLinkGroup />
+            </a-card>
+            <a-card
+              :style="{ marginBottom: '24px' }"
+              :bordered="false"
+              title="XX 指数"
+            >
+              <div class="chart">
+                <div ref="radarContainer" />
+              </div>
+            </a-card>
+            <a-card
+              :body-style="{ paddingTop: '12px', paddingBottom: '12px' }"
+              :bordered="false"
+              title="团队"
+            >
+              <div class="members">
+                <a-row :gutter="48">
+                  <a-col
+                    v-for="item in projectNotice"
+                    :key="`members-item-${item.id}`"
+                    :span="12"
+                  >
+                    <a :href="item.href">
+                      <a-avatar :src="item.logo" size="small" />
+                      <span class="member">{{ item.member }}</span>
+                    </a>
+                  </a-col>
+                </a-row>
+              </div>
+            </a-card>
+          </a-col>
+        </a-row>
+      </div>
+    </AConfigProvider>
   </div>
 </template>
 
@@ -168,8 +178,10 @@ import {
   ListItem,
   ListItemMeta,
   Avatar,
+  ConfigProvider,
+  theme,
 } from "ant-design-vue";
-import 'ant-design-vue/dist/reset.css';
+import "ant-design-vue/dist/reset.css";
 
 export default {
   components: {
@@ -183,14 +195,17 @@ export default {
     AListItem: ListItem,
     AListItemMeta: ListItemMeta,
     AAvatar: Avatar,
+    AConfigProvider: ConfigProvider,
   },
 };
 </script>
 
-
 <script setup>
 import { Radar } from "@antv/g2plot";
 import EditableLinkGroup from "./editable-link-group.vue";
+import useSettingsStore from "@/store/modules/settings";
+
+const settingsStore = useSettingsStore();
 
 defineOptions({
   name: "DashBoard",
@@ -251,8 +266,7 @@ const projectNotice = [
     id: "xxx5",
     title: "Bootstrap",
     logo: "https://gw.alipayobjects.com/zos/rmsportal/siCrBXXhmvTQGWPNLBow.png",
-    description:
-      "凛冬将至",
+    description: "凛冬将至",
     updatedAt: "6 年前",
     member: "高逼格设计天团",
     href: "",
