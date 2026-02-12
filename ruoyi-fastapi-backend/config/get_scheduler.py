@@ -30,7 +30,7 @@ from config.database import (
     create_sync_db_engine,
     create_sync_session_local,
 )
-from config.env import LogConfig, RedisConfig
+from config.env import AppConfig, LogConfig, RedisConfig
 from module_admin.dao.job_dao import JobDao
 from module_admin.entity.vo.job_vo import JobLogModel, JobModel
 from module_admin.service.job_log_service import JobLogService
@@ -190,6 +190,15 @@ class SchedulerUtil:
         cls._scheduler_configured = True
 
     @classmethod
+    def _should_enable_scheduler_sync(cls) -> bool:
+        """
+        判断是否需要启用多 worker 的任务状态同步机制
+
+        :return: 是否开启定时同步与监听
+        """
+        return not AppConfig.app_reload and AppConfig.app_workers > 1
+
+    @classmethod
     async def init_system_scheduler(cls, redis: aioredis.Redis) -> None:
         """
         应用启动时初始化定时任务（使用分布式锁确保只有一个worker启动scheduler）
@@ -237,16 +246,17 @@ class SchedulerUtil:
         # 添加事件监听器
         scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
 
-        # 添加任务状态同步任务（每30秒从数据库同步一次任务状态）
-        scheduler.add_job(
-            func=cls.request_scheduler_sync,
-            trigger='interval',
-            seconds=30,
-            id='_scheduler_job_sync',
-            name='Scheduler任务同步',
-            replace_existing=True,
-        )
-        cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
+        if cls._should_enable_scheduler_sync():
+            # 添加任务状态同步任务（每30秒从数据库同步一次任务状态）
+            scheduler.add_job(
+                func=cls.request_scheduler_sync,
+                trigger='interval',
+                seconds=30,
+                id='_scheduler_job_sync',
+                name='Scheduler任务同步',
+                replace_existing=True,
+            )
+            cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
 
         logger.info('✅️ 系统初始定时任务加载成功')
 
