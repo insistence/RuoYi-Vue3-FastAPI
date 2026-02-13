@@ -17,7 +17,7 @@
         <img alt="Ruff Check" src="https://github.com/insistence/RuoYi-Vue3-FastAPI/workflows/Ruff Check/badge.svg">
     </a>
     <a href="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI">
-        <img alt="project version" src="https://img.shields.io/badge/version-1.8.1-brightgreen.svg">
+        <img alt="project version" src="https://img.shields.io/badge/version-1.9.0-brightgreen.svg">
     </a>
     <a href="https://github.com/astral-sh/ruff">
         <img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json">
@@ -26,8 +26,9 @@
         <img alt="LICENSE" src="https://img.shields.io/github/license/mashape/apistatus.svg">
     </a>
     <img alt="node version" src="https://img.shields.io/badge/node-≥18-blue">
-    <img alt="python version" src="https://img.shields.io/badge/python-≥3.9-blue">
+    <img alt="python version" src="https://img.shields.io/badge/python-≥3.10-blue">
     <img alt="mysql version" src="https://img.shields.io/badge/MySQL-≥5.7-blue">
+    <img alt="redis version" src="https://img.shields.io/badge/redis-≥6.2-blue">
 </p>
 
 ## 平台简介
@@ -35,6 +36,7 @@
 RuoYi-Vue3-FastAPI是一套全部开源的快速开发平台，毫无保留给个人及企业免费使用。
 
 * 前端采用Vue3、Element Plus，基于<u>[RuoYi-Vue3](https://github.com/yangzongzhuan/RuoYi-Vue3)</u>前端项目修改。
+* 移动端采用uni-app、Vue3、Vite，内置tailwindcss，基于<u>[RuoYi-App](https://github.com/yangzongzhuan/RuoYi-App)</u>项目修改。
 * 后端采用FastAPI、sqlalchemy、MySQL（PostgreSQL）、Redis、OAuth2 & Jwt。
 * 权限认证使用OAuth2 & Jwt，支持多终端认证系统。
 * 支持加载动态权限菜单，多方式轻松权限控制。
@@ -44,7 +46,7 @@ RuoYi-Vue3-FastAPI是一套全部开源的快速开发平台，毫无保留给�
 * 纯Python版本：
   * Gitte仓库地址：<https://gitee.com/insistence2022/dash-fastapi-admin>
   * GitHub仓库地址：<https://github.com/insistence/Dash-FastAPI-Admin>
-* 特别鸣谢：<u>[RuoYi-Vue3](https://github.com/yangzongzhuan/RuoYi-Vue3)</u>
+* 特别鸣谢：<u>[RuoYi-Vue3](https://github.com/yangzongzhuan/RuoYi-Vue3)</u>、<u>[RuoYi-App](https://github.com/yangzongzhuan/RuoYi-App)</u>
 
 ## 内置功能
 
@@ -65,93 +67,116 @@ RuoYi-Vue3-FastAPI是一套全部开源的快速开发平台，毫无保留给�
 15. 在线构建器：拖动表单元素生成相应的HTML代码。
 16. 系统接口：根据业务代码自动生成相关的api接口文档。
 17. 代码生成：配置数据库表信息一键生成前后端代码（python、sql、vue、js），支持下载。
+18. AI管理：提供AI模型管理和AI对话功能。
 
 ## 演示图
 
 <table>
     <tr>
         <td>
-            <img alt="login" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/login.png">
+            <img alt="login" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/login.png">
         </td>
         <td>
-            <img alt="dashboard" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/dashboard.png">
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <img alt="user" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/user.png">
-        </td>
-        <td>
-            <img alt="role" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/role.png">
+            <img alt="dashboard" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/dashboard.png">
         </td>
     </tr>
     <tr>
         <td>
-            <img alt="menu" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/menu.png">
+            <img alt="user" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/user.png">
         </td>
         <td>
-            <img alt="dept" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/dept.png">
+            <img alt="role" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/role.png">
         </td>
     </tr>
     <tr>
         <td>
-            <img alt=""post src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/post.png">
+            <img alt="menu" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/menu.png">
         </td>
         <td>
-            <img alt="dict" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/dict.png">
+            <img alt="dept" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/dept.png">
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <img alt=""post src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/post.png">
+        </td>
+        <td>
+            <img alt="dict" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/dict.png">
         </td>
     </tr>  
     <tr>
         <td>
-            <img alt="config" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/config.png">
+            <img alt="config" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/config.png">
         </td>
         <td>
-            <img alt="notice" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/notice.png">
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <img alt="operLog" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/operLog.png">
-        </td>
-        <td>
-            <img alt="loginLog" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/loginLog.png">
+            <img alt="notice" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/notice.png">
         </td>
     </tr>
     <tr>
         <td>
-            <img alt="online" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/online.png">
+            <img alt="operLog" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/operLog.png">
         </td>
         <td>
-            <img alt="job" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/job.png">
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <img alt="server" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/server.png">
-        </td>
-        <td>
-            <img alt="cache" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/cache.png">
+            <img alt="loginLog" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/loginLog.png">
         </td>
     </tr>
     <tr>
         <td>
-            <img alt="cacheList" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/cacheList.png">
+            <img alt="online" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/online.png">
         </td>
         <td>
-            <img alt="form" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/form.png">
-        </td>
-    </tr>
-    <tr>
-        <td>
-            <img alt="api" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/api.png">
-        </td>
-        <td>
-            <img alt="gen" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/gen.png">
+            <img alt="job" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/job.png">
         </td>
     </tr>
     <tr>
         <td>
-            <img alt="profile" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/profile.png">
+            <img alt="server" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/server.png">
+        </td>
+        <td>
+            <img alt="cache" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/cache.png">
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <img alt="cacheList" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/cacheList.png">
+        </td>
+        <td>
+            <img alt="form" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/form.png">
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <img alt="api" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/api.png">
+        </td>
+        <td>
+            <img alt="gen" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/gen.png">
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <img alt="aiModel" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/aiModel.png">
+        </td>
+        <td>
+            <img alt="aiChat" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/aiChat.png">
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <img alt="profile" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/web/profile.png">
+        </td>
+    </tr>
+</table>
+
+<table>
+    <tr>
+        <td>
+            <img alt="applogin" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/app/login.png">
+        </td>
+        <td>
+            <img alt="appWorkbench" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/app/workbench.png">
+        </td>
+        <td>
+            <img alt="appProfile" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/vue3/app/profile.png">
         </td>
     </tr>
 </table>
@@ -189,6 +214,25 @@ npm install --registry=https://registry.npmmirror.com
 # 启动服务
 npm run dev 或 yarn dev
 ```
+
+#### 移动端
+
+```bash
+# 进入移动端目录
+cd ruoyi-fastapi-app
+
+# 安装依赖
+npm install -g pnpm
+pnpm install
+
+# 启动 H5
+pnpm dev:h5
+
+# 启动微信小程序
+pnpm dev:mp-weixin
+```
+
+移动端详细文档请参考：[ruoyi-fastapi-app/README.md](./ruoyi-fastapi-app/README.md)
 
 #### 后端
 
@@ -267,15 +311,15 @@ docker compose -f docker-compose.pg.yml up -d --build
 <table>
     <tr>
         <td>
-            <img alt="zsxq" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/zsxq.jpg">
+            <img alt="zsxq" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/common/zsxq.jpg">
         </td>
         <td>
-            <img alt="zanzhu" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/zanzhu.jpg">
+            <img alt="zanzhu" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/common/zanzhu.jpg">
         </td>
     </tr>
     <tr>
         <td>
-            <img alt="wxcode" src="https://gitee.com/insistence2022/RuoYi-Vue-FastAPI/raw/master/demo-pictures/wxcode.jpg">
+            <img alt="wxcode" src="https://gitee.com/insistence2022/ruoyi-fastapi-pictures/raw/master/common/wxcode.jpg">
         </td>
     </tr>
 </table>
