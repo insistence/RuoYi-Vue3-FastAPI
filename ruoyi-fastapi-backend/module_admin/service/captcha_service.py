@@ -34,8 +34,13 @@ class CaptchaService:
             result = num1 + num2
         elif operational_character == '-':
             result = num1 - num2
-        else:
+            if result < 0: # 非负数结果的验证码更友好一些
+                num1, num2 = num2, num1
+                result = num1 - num2
+        elif operational_character == '*':
             result = num1 * num2
+        else:
+            raise ValueError('不支持的运算符')
         # 绘制文本
         text = f'{num1} {operational_character} {num2} = ?'
         draw.text((25, 15), text, fill='blue', font=font)
