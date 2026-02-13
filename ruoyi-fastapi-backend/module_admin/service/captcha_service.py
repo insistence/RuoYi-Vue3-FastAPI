@@ -34,7 +34,7 @@ class CaptchaService:
             result = num1 + num2
         elif operational_character == '-':
             result = num1 - num2
-            if result < 0: # 非负数结果的验证码更友好一些
+            if result < 0:  # 非负数结果的验证码更友好一些
                 num1, num2 = num2, num1
                 result = num1 - num2
         elif operational_character == '*':
