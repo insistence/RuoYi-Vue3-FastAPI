@@ -16,6 +16,8 @@ from starlette.routing import BaseRoute
 from starlette.types import ASGIApp, Lifespan
 from typing_extensions import deprecated
 
+from config.env import AppConfig
+
 
 class APIRouterPro(APIRouter):
     """
@@ -308,7 +310,41 @@ class RouterRegister:
         :return: py文件路径列表
         """
         pattern = os.path.join(self.project_root, '*', 'controller', '[!_]*.py')
-        return sorted(glob.glob(pattern))
+        files = glob.glob(pattern)
+        # 去重并保持顺序 VSCode 调试模式 + Uvicorn 热重载 环境下，可能返回重复的文件路径。 ：os.path.join(self.project_root, '*', 'controller', '[!_]*.py') 中的 * 可能匹配到符号链接指向的同一物理目录，导致同一个文件通过不同路径（真实路径 vs 链接路径）被重复匹配。
+        return sorted(dict.fromkeys(files))
+
+    def _exclude_controller_file_and_manual_import_routers(
+        self, all_file_names: list[str]
+    ) -> tuple[list[str], list[tuple[str, APIRouter]]]:
+        """
+        排除指定的controller文件，并手动导入路由实例（性能比较烂的朋友在debug+reload的时候可以快一点）
+
+        :param file_name: 要排除的controller文件名
+        :return: 路由实例列表
+        """
+        exclude_file_names = [
+            'ai_chat_controller.py',
+            'ai_model_controller.py',
+        ]
+
+        if not exclude_file_names:
+            return all_file_names, []
+
+        all_file_names_exclude = []  # 过滤后的文件名列表
+        all_file_names_exclude = [
+            fname for fname in all_file_names if not any(exclude in fname for exclude in exclude_file_names)
+        ]
+
+        routers = []
+        # 手动导入路由实例
+        from module_ai.controller import ai_chat_controller, ai_model_controller  # noqa: PLC0415
+
+        # 这个文件太大了，电脑性能很差的用户动态导入会很久5s+
+        routers.append(('module_ai.controller.ai_chat_controller', ai_chat_controller.ai_chat_controller))
+        routers.append(('module_ai.controller.ai_model_controller', ai_model_controller.ai_model_controller))
+
+        return all_file_names_exclude, routers
 
     def _import_module_and_get_routers(self, controller_files: list[str]) -> list[tuple[str, APIRouter]]:
         """
@@ -318,6 +354,11 @@ class RouterRegister:
         :return: 路由实例列表
         """
         routers = []
+
+        if AppConfig.app_manual_import_routers:
+            controller_files, manual_routers = self._exclude_controller_file_and_manual_import_routers(controller_files)
+            routers.extend(manual_routers)
+
         for file_path in controller_files:
             # 计算模块路径
             relative_path = os.path.relpath(file_path, self.project_root)
