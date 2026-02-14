@@ -27,7 +27,6 @@ class AppSettings(BaseSettings):
     app_demo_mode: bool = False
     app_disable_swagger: bool = False
     app_disable_redoc: bool = False
-    app_manual_import_routers: bool = False
 
 
 class JwtSettings(BaseSettings):
