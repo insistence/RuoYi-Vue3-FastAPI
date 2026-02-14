@@ -1,8 +1,8 @@
 from fastapi import Request
-from config.env import AppConfig
 
 from common.enums import RedisInitKeyConfig
 from common.vo import CrudResponseModel
+from config.env import AppConfig
 from config.get_redis import RedisUtil
 from module_admin.entity.vo.cache_vo import CacheInfoModel, CacheMonitorModel
 
@@ -127,7 +127,7 @@ class CacheService:
         return CrudResponseModel(is_success=True, message='所有缓存清除成功')
 
     @classmethod
-    async def clear_usercache_by_id(cls, request: Request, user_id: int):
+    async def clear_usercache_by_id(cls, request: Request, user_id: int) -> bool:
         """
         根据用户ID清除用户信息缓存service
 
@@ -137,14 +137,14 @@ class CacheService:
         """
         if not AppConfig.app_enable_user_cache:
             return False
-        
+
         cache_key = f'{RedisInitKeyConfig.USER_INFO.key}:{user_id}'
         await request.app.state.redis.delete(cache_key)
 
         return True
 
     @classmethod
-    async def clear_usercache_all(cls, request: Request):
+    async def clear_usercache_all(cls, request: Request) -> bool:
         """
         清除所有用户信息缓存service
 

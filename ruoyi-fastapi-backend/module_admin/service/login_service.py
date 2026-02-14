@@ -25,13 +25,13 @@ from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.login_vo import MenuTreeModel, MetaModel, RouterModel, SmsCode, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import AddUserModel, CurrentUserModel, ResetUserModel, TokenData, UserInfoModel
-from module_admin.service.user_service import UserService
 from module_admin.service.cache_service import CacheService
+from module_admin.service.user_service import UserService
 from utils.common_util import CamelCaseUtil
+from utils.json_util import ComplexEncoder
 from utils.log_util import logger
 from utils.message_util import message_service
 from utils.pwd_util import PwdUtil
-from utils.json_util import ComplexEncoder
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='login')
 
@@ -219,7 +219,7 @@ class LoginService:
             return None
 
         role_id_list = [item.role_id for item in query_user.get('user_role_info')]
-        if 1 in role_id_list:  # noqa: SIM108
+        if 1 in role_id_list:
             permissions = ['*:*:*']
         else:
             permissions = [row.perms for row in query_user.get('user_menu_info') if row.perms]

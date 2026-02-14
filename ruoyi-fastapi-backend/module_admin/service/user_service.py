@@ -32,11 +32,11 @@ from module_admin.entity.vo.user_vo import (
     UserRoleResponseModel,
     UserRowModel,
 )
+from module_admin.service.cache_service import CacheService
 from module_admin.service.config_service import ConfigService
 from module_admin.service.dept_service import DeptService
 from module_admin.service.post_service import PostService
 from module_admin.service.role_service import RoleService
-from module_admin.service.cache_service import CacheService
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
 from utils.pwd_util import PwdUtil
