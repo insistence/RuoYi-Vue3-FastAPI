@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant, MenuConstant
@@ -12,6 +13,7 @@ from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuTreeModel
 from module_admin.entity.vo.role_vo import RoleMenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
+from module_admin.service.cache_service import CacheService
 from utils.common_util import CamelCaseUtil
 from utils.string_util import StringUtil
 
@@ -118,7 +120,9 @@ class MenuService:
             raise e
 
     @classmethod
-    async def edit_menu_services(cls, query_db: AsyncSession, page_object: MenuModel) -> CrudResponseModel:
+    async def edit_menu_services(
+        cls, request: Request, query_db: AsyncSession, page_object: MenuModel
+    ) -> CrudResponseModel:
         """
         编辑菜单信息service
 
@@ -138,6 +142,7 @@ class MenuService:
             try:
                 await MenuDao.edit_menu_dao(query_db, edit_menu)
                 await query_db.commit()
+                await CacheService.clear_usercache_all(request)
                 return CrudResponseModel(is_success=True, message='更新成功')
             except Exception as e:
                 await query_db.rollback()
@@ -146,7 +151,9 @@ class MenuService:
             raise ServiceException(message='菜单不存在')
 
     @classmethod
-    async def delete_menu_services(cls, query_db: AsyncSession, page_object: DeleteMenuModel) -> CrudResponseModel:
+    async def delete_menu_services(
+        cls, request: Request, query_db: AsyncSession, page_object: DeleteMenuModel
+    ) -> CrudResponseModel:
         """
         删除菜单信息service
 
@@ -164,6 +171,7 @@ class MenuService:
                         raise ServiceWarning(message='菜单已分配,不允许删除')
                     await MenuDao.delete_menu_dao(query_db, MenuModel(menuId=menu_id))
                 await query_db.commit()
+                await CacheService.clear_usercache_all(request)
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()

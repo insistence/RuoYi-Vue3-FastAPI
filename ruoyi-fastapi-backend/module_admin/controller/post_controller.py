@@ -86,7 +86,7 @@ async def edit_system_post(
 ) -> Response:
     edit_post.update_by = current_user.user.user_name
     edit_post.update_time = datetime.now()
-    edit_post_result = await PostService.edit_post_services(query_db, edit_post)
+    edit_post_result = await PostService.edit_post_services(request, query_db, edit_post)
     logger.info(edit_post_result.message)
 
     return ResponseUtil.success(msg=edit_post_result.message)
@@ -106,7 +106,7 @@ async def delete_system_post(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_post = DeletePostModel(postIds=post_ids)
-    delete_post_result = await PostService.delete_post_services(query_db, delete_post)
+    delete_post_result = await PostService.delete_post_services(request, query_db, delete_post)
     logger.info(delete_post_result.message)
 
     return ResponseUtil.success(msg=delete_post_result.message)

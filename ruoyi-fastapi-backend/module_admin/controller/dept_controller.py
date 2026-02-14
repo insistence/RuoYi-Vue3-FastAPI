@@ -110,7 +110,7 @@ async def edit_system_dept(
         await DeptService.check_dept_data_scope_services(query_db, edit_dept.dept_id, data_scope_sql)
     edit_dept.update_by = current_user.user.user_name
     edit_dept.update_time = datetime.now()
-    edit_dept_result = await DeptService.edit_dept_services(query_db, edit_dept)
+    edit_dept_result = await DeptService.edit_dept_services(request, query_db, edit_dept)
     logger.info(edit_dept_result.message)
 
     return ResponseUtil.success(msg=edit_dept_result.message)
@@ -139,7 +139,7 @@ async def delete_system_dept(
     delete_dept = DeleteDeptModel(deptIds=dept_ids)
     delete_dept.update_by = current_user.user.user_name
     delete_dept.update_time = datetime.now()
-    delete_dept_result = await DeptService.delete_dept_services(query_db, delete_dept)
+    delete_dept_result = await DeptService.delete_dept_services(request, query_db, delete_dept)
     logger.info(delete_dept_result.message)
 
     return ResponseUtil.success(msg=delete_dept_result.message)

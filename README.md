@@ -246,7 +246,7 @@ pip3 install -r requirements.txt
 pip3 install -r requirements-pg.txt
 
 # 配置环境
-在.env.dev文件中配置开发环境的数据库和redis
+把.env.dev.example修改为.env.dev，并在.env.dev文件中配置开发环境的数据库和redis
 
 # 运行sql文件
 1.新建数据库ruoyi-fastapi(默认，可修改)
