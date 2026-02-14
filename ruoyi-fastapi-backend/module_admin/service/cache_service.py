@@ -135,6 +135,9 @@ class CacheService:
         :param user_id: 用户ID
         :return: 操作缓存响应信息
         """
+        if not AppConfig.app_enable_user_cache:
+            return False
+        
         cache_key = f'{RedisInitKeyConfig.USER_INFO.key}:{user_id}'
         await request.app.state.redis.delete(cache_key)
 
