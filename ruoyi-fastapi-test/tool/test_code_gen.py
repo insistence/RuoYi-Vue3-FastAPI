@@ -49,7 +49,10 @@ class GenTableTest(BasePageTest):
         await search_form.get_by_role('textbox', name='表名称').fill(table_name)
         await search_form.get_by_role('button', name='搜索').click()
         # 等待加载
-        await self.page.wait_for_timeout(500)
+        loading = self.page.locator('.el-loading-mask')
+        if await loading.count() > 0:
+            await expect(loading.first).to_be_hidden(timeout=10000)
+        await self.page.wait_for_timeout(300)
 
     async def import_table(self, table_name: str) -> None:
         """导入表"""
@@ -107,7 +110,17 @@ class GenTableTest(BasePageTest):
 
         # 验证导入成功 (搜索并在列表中看到)
         # 使用 .app-container 限定在主页面表格，避免匹配到弹窗中的隐藏行
-        await self.page.locator('.app-container').locator('tbody tr', has_text=table_name).wait_for()
+        await self.search_table(table_name)
+        row = self.page.locator('.app-container .el-table__body-wrapper tbody tr').filter(
+            has=self.page.get_by_text(table_name, exact=True)
+        )
+        for _i in range(5):
+            try:
+                await expect(row.first).to_be_visible(timeout=3000)
+                break
+            except AssertionError:
+                await self.search_table(table_name)
+        await expect(row.first).to_be_visible(timeout=5000)
 
     async def edit_table(self, table_name: str, remark: str) -> None:
         """编辑表"""

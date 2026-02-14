@@ -1,20 +1,57 @@
 # 更新日志
 
+## RuoYi-Vue3-FastAPI v1.9.0
+
+### 项目依赖
+
+前后端依赖均有升级，请升级依赖或重新创建环境。
+
+### 新增功能
+
+1.新增AI管理模块 ([#69](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/69))。
+2.新增移动端模块 ([#73](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/73))。
+3.新增多worker运行支持 ([#76](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/76))。
+4.应用新增演示模式 ([#78](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/78))。
+
+### BUG修复
+
+1.修复代码生成controller模板删除接口query_db参数异常的问题 ([#63](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/63))。
+2.修复登录接口response_model声明错误 ([#71](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/71))。
+3.修复无法直接通过后端地址访问API文档的问题 ([#74](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/74))。
+4.修复create_app重复执行的问题 ([#84](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/84))。
+
+### 代码重构
+
+1.移除对python3.9的支持 ([#67](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/67))。
+
+### 代码优化
+
+1.优化alembic处理表模型逻辑，避免无关表影响 ([#68](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/68))。
+2.优化代码生成后端模板 ([#72](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/72))。
+3.自动注册路由出错时抛出异常以便于调试 ([#79](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/79))。
+4.优化部分页面字段tooltip说明 (#80)。
+5.优化项目启动速度 ([#82](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/82))。
+6.优化暗黑模式切换效果 ([#83](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/83))。
+7.优化热重载模式或单worker下scheduler的任务状态同步机制 ([#85](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/85))。
+8.优化防重提交间隔时间可自定义 ([#87](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/87))。
+9.优化验证码计算结果为非负数 ([#88](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/88))。
+10.优化ci测试稳定性 ([#90](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/90))。
+
 ## RuoYi-Vue3-FastAPI v1.8.1
 
 ### 新增功能
 
-1.新增E2E测试 (#57)。
+1.新增E2E测试 ([#57](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/57))。
 
 ### BUG修复
 
-1.修复DictTag组件渲染异常的问题 (#59)。
+1.修复DictTag组件渲染异常的问题 ([#59](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/59))。
 
 ### 代码优化
 
-1.优化数据权限依赖 (#55)。
-2.动态导入定时任务函数，移除eval (#56)。
-3.优化pg版本的docker compose配置文件 (#61)。
+1.优化数据权限依赖 ([#55](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/55))。
+2.动态导入定时任务函数，移除eval ([#56](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/56))。
+3.优化pg版本的docker compose配置文件 ([#61](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/61))。
 
 ## RuoYi-Vue3-FastAPI v1.8.0
 
@@ -37,8 +74,8 @@
 
 ### BUG修复
 
-1.修复单账号登录模式下强退功能失效的问题 #52。
-2.确保ApschedulerJobs字段类型与apscheduler默认创建的表字段类型一致 #53。
+1.修复单账号登录模式下强退功能失效的问题 [#52](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/52)。
+2.确保ApschedulerJobs字段类型与apscheduler默认创建的表字段类型一致 [#53](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/53)。
 3.修复磁盘存在异常时服务监控无法正常运行的问题。
 4.移除代码生成表业务表外键，修复无法删除的问题。
 5.修复固定头部时出现的导航栏偏移问题。
@@ -78,7 +115,7 @@
 ### BUG修复
 
 1.修复代码生成controller模板编辑接口异常生成字段的问题。
-2.移除passlib直接使用bcrypt修复密码校验异常的问题 #48 #49。
+2.移除passlib直接使用bcrypt修复密码校验异常的问题 [#48](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/48) [#49](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/49)。
 
 ### 代码优化
 
@@ -115,7 +152,7 @@
 
 ### BUG修复
 
-1.修复logout接口未按照app_same_time_login配置项动态判断的问题 #IBZZ1S。
+1.修复logout接口未按照app_same_time_login配置项动态判断的问题 [#IBZZ1S](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/IBZZ1S)。
 2.修复上传组件被多次引用拖动仅对第一个有效的问题。
 
 ### 代码优化
@@ -144,18 +181,18 @@
 
 ### BUG修复
 
-1.修复日志管理时间查询报错 #27。
-2.修复定时任务状态暂停时执行单次任务会触发cron表达式的问题 #31。
+1.修复日志管理时间查询报错 [#27](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/27)。
+2.修复定时任务状态暂停时执行单次任务会触发cron表达式的问题 [#31](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/31)。
 3.修复修改字典类型时获取dict_code异常的问题。
 4.修复修改字典类型时字典数据更新时间异常的问题。
-5.修复代码生成模板时间查询问题 #28。
+5.修复代码生成模板时间查询问题 [#28](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/28)。
 6.修复用户导出缺失部门名称的问题。
 
 ### 代码优化
 
 1.优化代码生成新增和编辑字段显示和渲染。
 2.pagination更换成flex布局。
-3.优化代码生成vue模板 #23。
+3.优化代码生成vue模板 [#23](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/23)。
 
 ## RuoYi-Vue3-FastAPI v1.6.1
 
@@ -198,7 +235,7 @@ pip install sqlglot[rs]==26.6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 1.修复默认关闭Tags-Views时，内链页面打不开。
 2.修复删除当前登录用户拦截失效的问题。
 3.修复定时任务目标字符串规则校验不全的问题。
-4.修复执行单次任务时会覆盖已启用任务的问题 #IBEKD2。
+4.修复执行单次任务时会覆盖已启用任务的问题 [#IBEKD2](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/IBEKD2)。
 5.修复个人中心特殊字符密码修改失败问题。
 
 ### 代码优化
@@ -231,7 +268,7 @@ pip install sqlglot[rs]==26.6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 ### BUG修复
 
-1.修复DictTag组件控制台抛异常的问题 #IAYSVZ。
+1.修复DictTag组件控制台抛异常的问题 [#IAYSVZ](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/IAYSVZ)。
 2.修复登录日志导出文件名称错误的问题。
 
 ### 代码回滚
@@ -294,7 +331,7 @@ pip install fastapi[all]==0.115.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 ### BUG修复
 
-1.修复分页函数计算has_next错误的问题 #10。
+1.修复分页函数计算has_next错误的问题 [#10](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/10)。
 2.修复定时任务监听函数中事件没有job_id报错的问题。
 
 ### 代码优化
@@ -428,8 +465,8 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 
 ### BUG修复
 
-1.修复编辑定时任务时更新的信息未同步至scheduler的问题 #I9EK56。
-2.修复编辑角色数据权限时后端异常的问题 #I9ENQN。
+1.修复编辑定时任务时更新的信息未同步至scheduler的问题 [#I9EK56](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I9EK56)。
+2.修复编辑角色数据权限时后端异常的问题 [#I9ENQN](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I9ENQN)。
 3.修复菜单配置路由参数不生效的问题。
 4.修复获取路由信息时菜单排序不生效的问题。
 5.修复添加菜单时是否外链和是否缓存回显异常的问题。
@@ -444,8 +481,8 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 
 ### BUG修复
 
-1.修复token本身过期时退出登录接口异常的问题 #I9CBWT。
-2.修复系统版本号或浏览器版本号无法获取时登录异常的问题 #I9CYNM。
+1.修复token本身过期时退出登录接口异常的问题 [#I9CBWT](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I9CBWT)。
+2.修复系统版本号或浏览器版本号无法获取时登录异常的问题 [#I9CYNM](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I9CYNM)。
 
 ## RuoYi-Vue3-FastAPI v1.0.3
 
@@ -455,8 +492,8 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 
 ### BUG修复
 
-1.修复外链菜单无法打开的问题 #I95KBK。
-2.修复添加和编辑菜单页面中是否缓存和是否外链字段回显异常的问题 #I95KBK。
+1.修复外链菜单无法打开的问题 [#I95KBK](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I95KBK)。
+2.修复添加和编辑菜单页面中是否缓存和是否外链字段回显异常的问题 [#I95KBK](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I95KBK)。
 
 ## RuoYi-Vue3-FastAPI v1.0.2
 
