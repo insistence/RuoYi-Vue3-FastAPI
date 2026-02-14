@@ -1,4 +1,4 @@
-.env.dev
+ruoyi-fastapi-backend/.env.dev
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

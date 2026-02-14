@@ -269,8 +269,8 @@ class UserService:
                     await UserDao.delete_user_role_dao(query_db, UserRoleModel(**user_id_dict))
                     await UserDao.delete_user_post_dao(query_db, UserPostModel(**user_id_dict))
                     await UserDao.delete_user_dao(query_db, UserModel(**user_id_dict))
+                    await CacheService.clear_usercache_by_id(request, user_id)
                 await query_db.commit()
-                await CacheService.clear_usercache_by_id(request, page_object.user_id)
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()
