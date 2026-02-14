@@ -120,7 +120,7 @@ async def edit_system_menu(
 ) -> Response:
     edit_menu.update_by = current_user.user.user_name
     edit_menu.update_time = datetime.now()
-    edit_menu_result = await MenuService.edit_menu_services(query_db, edit_menu)
+    edit_menu_result = await MenuService.edit_menu_services(request, query_db, edit_menu)
     logger.info(edit_menu_result.message)
 
     return ResponseUtil.success(msg=edit_menu_result.message)
@@ -140,7 +140,7 @@ async def delete_system_menu(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     delete_menu = DeleteMenuModel(menuIds=menu_ids)
-    delete_menu_result = await MenuService.delete_menu_services(query_db, delete_menu)
+    delete_menu_result = await MenuService.delete_menu_services(request, query_db, delete_menu)
     logger.info(delete_menu_result.message)
 
     return ResponseUtil.success(msg=delete_menu_result.message)

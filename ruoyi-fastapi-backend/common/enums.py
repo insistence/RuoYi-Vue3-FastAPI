@@ -49,3 +49,4 @@ class RedisInitKeyConfig(Enum):
     ACCOUNT_LOCK = {'key': 'account_lock', 'remark': '用户锁定'}
     PASSWORD_ERROR_COUNT = {'key': 'password_error_count', 'remark': '密码错误次数'}
     SMS_CODE = {'key': 'sms_code', 'remark': '短信验证码'}
+    USER_INFO = {'key': 'user', 'remark': '用户信息缓存'}

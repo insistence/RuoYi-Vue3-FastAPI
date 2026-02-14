@@ -73,7 +73,7 @@ async def login(
             ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
         )
     await UserService.edit_user_services(
-        query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status')
+        request, query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status')
     )
     logger.info('登录成功')
     # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
@@ -169,14 +169,19 @@ async def register_user(
     response_model=ResponseBaseModel,
 )
 async def logout(request: Request, token: Annotated[str | None, Depends(oauth2_scheme)]) -> Response:
-    payload = jwt.decode(
-        token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}
-    )
+    try:
+        payload = jwt.decode(
+            token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}
+        )
+    except jwt.InvalidSignatureError:
+        logger.info('Token已过期，无法解析用户信息')
+        return ResponseUtil.success(msg='退出成功')
+
     if AppConfig.app_same_time_login:
         token_id: str = payload.get('session_id')
     else:
         token_id: str = payload.get('user_id')
-    await LoginService.logout_services(request, token_id)
+    await LoginService.logout_services(request, token_id, payload.get('user_id'))
     logger.info('退出成功')
 
     return ResponseUtil.success(msg='退出成功')

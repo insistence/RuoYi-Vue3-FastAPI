@@ -126,7 +126,7 @@ async def edit_system_role(
         await RoleService.check_role_data_scope_services(query_db, str(edit_role.role_id), data_scope_sql)
     edit_role.update_by = current_user.user.user_name
     edit_role.update_time = datetime.now()
-    edit_role_result = await RoleService.edit_role_services(query_db, edit_role)
+    edit_role_result = await RoleService.edit_role_services(request, query_db, edit_role)
     logger.info(edit_role_result.message)
 
     return ResponseUtil.success(msg=edit_role_result.message)
@@ -158,7 +158,7 @@ async def edit_system_role_datascope(
         updateBy=current_user.user.user_name,
         updateTime=datetime.now(),
     )
-    role_data_scope_result = await RoleService.role_datascope_services(query_db, edit_role)
+    role_data_scope_result = await RoleService.role_datascope_services(request, query_db, edit_role)
     logger.info(role_data_scope_result.message)
 
     return ResponseUtil.success(msg=role_data_scope_result.message)
@@ -186,7 +186,7 @@ async def delete_system_role(
             if not current_user.user.admin:
                 await RoleService.check_role_data_scope_services(query_db, role_id, data_scope_sql)
     delete_role = DeleteRoleModel(roleIds=role_ids, updateBy=current_user.user.user_name, updateTime=datetime.now())
-    delete_role_result = await RoleService.delete_role_services(query_db, delete_role)
+    delete_role_result = await RoleService.delete_role_services(request, query_db, delete_role)
     logger.info(delete_role_result.message)
 
     return ResponseUtil.success(msg=delete_role_result.message)
@@ -271,7 +271,7 @@ async def reset_system_role_status(
         updateTime=datetime.now(),
         type='status',
     )
-    edit_role_result = await RoleService.edit_role_services(query_db, edit_role)
+    edit_role_result = await RoleService.edit_role_services(request, query_db, edit_role)
     logger.info(edit_role_result.message)
 
     return ResponseUtil.success(msg=edit_role_result.message)
@@ -336,7 +336,7 @@ async def add_system_role_user(
 ) -> Response:
     if not current_user.user.admin:
         await RoleService.check_role_data_scope_services(query_db, str(add_role_user.role_id), data_scope_sql)
-    add_role_user_result = await UserService.add_user_role_services(query_db, add_role_user)
+    add_role_user_result = await UserService.add_user_role_services(request, query_db, add_role_user)
     logger.info(add_role_user_result.message)
 
     return ResponseUtil.success(msg=add_role_user_result.message)
@@ -355,7 +355,7 @@ async def cancel_system_role_user(
     cancel_user_role: CrudUserRoleModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    cancel_user_role_result = await UserService.delete_user_role_services(query_db, cancel_user_role)
+    cancel_user_role_result = await UserService.delete_user_role_services(request, query_db, cancel_user_role)
     logger.info(cancel_user_role_result.message)
 
     return ResponseUtil.success(msg=cancel_user_role_result.message)
@@ -374,7 +374,9 @@ async def batch_cancel_system_role_user(
     batch_cancel_user_role: Annotated[CrudUserRoleModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
-    batch_cancel_user_role_result = await UserService.delete_user_role_services(query_db, batch_cancel_user_role)
+    batch_cancel_user_role_result = await UserService.delete_user_role_services(
+        request, query_db, batch_cancel_user_role
+    )
     logger.info(batch_cancel_user_role_result.message)
 
     return ResponseUtil.success(msg=batch_cancel_user_role_result.message)

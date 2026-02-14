@@ -36,6 +36,7 @@ from module_admin.service.config_service import ConfigService
 from module_admin.service.dept_service import DeptService
 from module_admin.service.post_service import PostService
 from module_admin.service.role_service import RoleService
+from module_admin.service.cache_service import CacheService
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
 from utils.pwd_util import PwdUtil
@@ -200,7 +201,9 @@ class UserService:
             del edit_user['type']
 
     @classmethod
-    async def edit_user_services(cls, query_db: AsyncSession, page_object: EditUserModel) -> CrudResponseModel:
+    async def edit_user_services(
+        cls, request: Request, query_db: AsyncSession, page_object: EditUserModel
+    ) -> CrudResponseModel:
         """
         编辑用户信息service
 
@@ -235,6 +238,7 @@ class UserService:
                                 query_db, UserPostModel(userId=page_object.user_id, postId=post)
                             )
                 await query_db.commit()
+                await CacheService.clear_usercache_by_id(request, page_object.user_id)
                 return CrudResponseModel(is_success=True, message='更新成功')
             except Exception as e:
                 await query_db.rollback()
@@ -243,7 +247,9 @@ class UserService:
             raise ServiceException(message='用户不存在')
 
     @classmethod
-    async def delete_user_services(cls, query_db: AsyncSession, page_object: DeleteUserModel) -> CrudResponseModel:
+    async def delete_user_services(
+        cls, request: Request, query_db: AsyncSession, page_object: DeleteUserModel
+    ) -> CrudResponseModel:
         """
         删除用户信息service
 
@@ -264,6 +270,7 @@ class UserService:
                     await UserDao.delete_user_post_dao(query_db, UserPostModel(**user_id_dict))
                     await UserDao.delete_user_dao(query_db, UserModel(**user_id_dict))
                 await query_db.commit()
+                await CacheService.clear_usercache_by_id(request, page_object.user_id)
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()
@@ -333,7 +340,9 @@ class UserService:
         )
 
     @classmethod
-    async def reset_user_services(cls, query_db: AsyncSession, page_object: ResetUserModel) -> CrudResponseModel:
+    async def reset_user_services(
+        cls, request: Request, query_db: AsyncSession, page_object: ResetUserModel
+    ) -> CrudResponseModel:
         """
         重置用户密码service
 
@@ -356,6 +365,7 @@ class UserService:
             reset_user['password'] = PwdUtil.get_password_hash(page_object.password)
             await UserDao.edit_user_dao(query_db, reset_user)
             await query_db.commit()
+            await CacheService.clear_usercache_by_id(request, page_object.user_id)
             return CrudResponseModel(is_success=True, message='重置成功')
         except Exception as e:
             await query_db.rollback()
@@ -581,7 +591,9 @@ class UserService:
         return result
 
     @classmethod
-    async def add_user_role_services(cls, query_db: AsyncSession, page_object: CrudUserRoleModel) -> CrudResponseModel:
+    async def add_user_role_services(
+        cls, request: Request, query_db: AsyncSession, page_object: CrudUserRoleModel
+    ) -> CrudResponseModel:
         """
         新增用户关联角色信息service
 
@@ -596,6 +608,7 @@ class UserService:
                 for role_id in role_id_list:
                     await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id))
                 await query_db.commit()
+                await CacheService.clear_usercache_by_id(request, page_object.user_id)
                 return CrudResponseModel(is_success=True, message='分配成功')
             except Exception as e:
                 await query_db.rollback()
@@ -604,6 +617,7 @@ class UserService:
             try:
                 await UserDao.delete_user_role_by_user_and_role_dao(query_db, UserRoleModel(userId=page_object.user_id))
                 await query_db.commit()
+                await CacheService.clear_usercache_by_id(request, page_object.user_id)
                 return CrudResponseModel(is_success=True, message='分配成功')
             except Exception as e:
                 await query_db.rollback()
@@ -618,6 +632,7 @@ class UserService:
                     if user_role:
                         continue
                     await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id))
+                    await CacheService.clear_usercache_by_id(request, user_id)
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='新增成功')
             except Exception as e:
@@ -628,7 +643,7 @@ class UserService:
 
     @classmethod
     async def delete_user_role_services(
-        cls, query_db: AsyncSession, page_object: CrudUserRoleModel
+        cls, request: Request, query_db: AsyncSession, page_object: CrudUserRoleModel
     ) -> CrudResponseModel:
         """
         删除用户关联角色信息service
@@ -644,6 +659,7 @@ class UserService:
                         query_db, UserRoleModel(userId=page_object.user_id, roleId=page_object.role_id)
                     )
                     await query_db.commit()
+                    await CacheService.clear_usercache_by_id(request, page_object.user_id)
                     return CrudResponseModel(is_success=True, message='删除成功')
                 except Exception as e:
                     await query_db.rollback()
@@ -655,6 +671,7 @@ class UserService:
                         await UserDao.delete_user_role_by_user_and_role_dao(
                             query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id)
                         )
+                        await CacheService.clear_usercache_by_id(request, user_id)
                     await query_db.commit()
                     return CrudResponseModel(is_success=True, message='删除成功')
                 except Exception as e:

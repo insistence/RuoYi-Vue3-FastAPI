@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+from fastapi import Request
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,7 @@ from module_admin.dao.dept_dao import DeptDao
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptTreeModel
 from utils.common_util import CamelCaseUtil
+from module_admin.service.cache_service import CacheService
 
 
 class DeptService:
@@ -126,7 +128,9 @@ class DeptService:
             raise e
 
     @classmethod
-    async def edit_dept_services(cls, query_db: AsyncSession, page_object: DeptModel) -> CrudResponseModel:
+    async def edit_dept_services(
+        cls, request: Request, query_db: AsyncSession, page_object: DeptModel
+    ) -> CrudResponseModel:
         """
         编辑部门信息service
 
@@ -160,13 +164,16 @@ class DeptService:
             ):
                 await cls.update_parent_dept_status_normal(query_db, page_object)
             await query_db.commit()
+            await CacheService.clear_usercache_all(request)
             return CrudResponseModel(is_success=True, message='更新成功')
         except Exception as e:
             await query_db.rollback()
             raise e
 
     @classmethod
-    async def delete_dept_services(cls, query_db: AsyncSession, page_object: DeleteDeptModel) -> CrudResponseModel:
+    async def delete_dept_services(
+        cls, request: Request, query_db: AsyncSession, page_object: DeleteDeptModel
+    ) -> CrudResponseModel:
         """
         删除部门信息service
 
@@ -185,6 +192,7 @@ class DeptService:
 
                     await DeptDao.delete_dept_dao(query_db, DeptModel(deptId=dept_id))
                 await query_db.commit()
+                await CacheService.clear_usercache_all(request)
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()

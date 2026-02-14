@@ -1,5 +1,6 @@
 from typing import Any
 
+from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
@@ -9,6 +10,7 @@ from module_admin.dao.post_dao import PostDao
 from module_admin.entity.vo.post_vo import DeletePostModel, PostModel, PostPageQueryModel
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
+from module_admin.service.cache_service import CacheService
 
 
 class PostService:
@@ -84,7 +86,9 @@ class PostService:
             raise e
 
     @classmethod
-    async def edit_post_services(cls, query_db: AsyncSession, page_object: PostModel) -> CrudResponseModel:
+    async def edit_post_services(
+        cls, request: Request, query_db: AsyncSession, page_object: PostModel
+    ) -> CrudResponseModel:
         """
         编辑岗位信息service
 
@@ -102,6 +106,7 @@ class PostService:
             try:
                 await PostDao.edit_post_dao(query_db, edit_post)
                 await query_db.commit()
+                await CacheService.clear_usercache_all(request)
                 return CrudResponseModel(is_success=True, message='更新成功')
             except Exception as e:
                 await query_db.rollback()
@@ -110,7 +115,9 @@ class PostService:
             raise ServiceException(message='岗位不存在')
 
     @classmethod
-    async def delete_post_services(cls, query_db: AsyncSession, page_object: DeletePostModel) -> CrudResponseModel:
+    async def delete_post_services(
+        cls, request: Request, query_db: AsyncSession, page_object: DeletePostModel
+    ) -> CrudResponseModel:
         """
         删除岗位信息service
 
@@ -127,6 +134,7 @@ class PostService:
                         raise ServiceException(message=f'{post.post_name}已分配，不能删除')
                     await PostDao.delete_post_dao(query_db, PostModel(postId=post_id))
                 await query_db.commit()
+                await CacheService.clear_usercache_all(request)
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()
