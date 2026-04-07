@@ -4,9 +4,11 @@ from fastapi import Body, Path, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
+from common.constant import CacheGroup, CacheNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, ResponseBaseModel
@@ -59,6 +61,7 @@ async def send_chat_message(
     description='获取当前用户的AI对话配置',
     response_model=DataResponseModel[AiChatConfigModel],
 )
+@ApiCache(namespace=CacheNamespace.AI_CHAT_CONFIG)
 async def get_user_chat_config(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -77,6 +80,7 @@ async def get_user_chat_config(
     description='保存当前用户的AI对话配置',
     response_model=DataResponseModel[AiChatConfigModel],
 )
+@ApiCacheEvict(namespaces=CacheGroup.AI_CHAT_CONFIG_MUTATION)
 @Log(title='AI对话配置管理', business_type=BusinessType.INSERT)
 async def save_user_chat_config(
     request: Request,

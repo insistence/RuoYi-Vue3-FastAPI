@@ -6,10 +6,12 @@ from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
+from common.constant import CacheGroup, CacheNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
@@ -41,6 +43,7 @@ job_controller = APIRouterPro(
     response_model=PageResponseModel[JobModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:list')],
 )
+@ApiCache(namespace=CacheNamespace.MONITOR_JOB_LIST)
 async def get_system_job_list(
     request: Request,
     job_page_query: Annotated[JobPageQueryModel, Query()],
@@ -61,6 +64,7 @@ async def get_system_job_list(
     dependencies=[UserInterfaceAuthDependency('monitor:job:add')],
 )
 @ValidateFields(validate_model='add_job')
+@ApiCacheEvict(namespaces=CacheGroup.JOB_MUTATION)
 @Log(title='定时任务', business_type=BusinessType.INSERT)
 async def add_system_job(
     request: Request,
@@ -86,6 +90,7 @@ async def add_system_job(
     dependencies=[UserInterfaceAuthDependency('monitor:job:edit')],
 )
 @ValidateFields(validate_model='edit_job')
+@ApiCacheEvict(namespaces=CacheGroup.JOB_MUTATION)
 @Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def edit_system_job(
     request: Request,
@@ -108,6 +113,7 @@ async def edit_system_job(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:changeStatus')],
 )
+@ApiCacheEvict(namespaces=CacheGroup.JOB_MUTATION)
 @Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def change_system_job_status(
     request: Request,
@@ -135,6 +141,7 @@ async def change_system_job_status(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:changeStatus')],
 )
+@ApiCacheEvict(namespaces=CacheGroup.JOB_MUTATION)
 @Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def execute_system_job(
     request: Request,
@@ -154,6 +161,7 @@ async def execute_system_job(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:job:remove')],
 )
+@ApiCacheEvict(namespaces=CacheGroup.JOB_MUTATION)
 @Log(title='定时任务', business_type=BusinessType.DELETE)
 async def delete_system_job(
     request: Request,
@@ -174,6 +182,7 @@ async def delete_system_job(
     response_model=DataResponseModel[JobModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
 )
+@ApiCache(namespace=CacheNamespace.MONITOR_JOB_DETAIL)
 async def query_detail_system_job(
     request: Request,
     job_id: Annotated[int, Path(description='任务ID')],
