@@ -198,7 +198,7 @@ class GenUtils:
         :return: 字段长度
         """
         if '(' in column_type:
-            length = len(column_type.split('(')[1].split(')')[0])
+            length = len(column_type.split('(')[1].split(')', maxsplit=1)[0])
             return length
         return 0
 
@@ -211,7 +211,7 @@ class GenUtils:
         :return: 拆分结果
         """
         if '(' in column_type and ')' in column_type:
-            return column_type.split('(')[1].split(')')[0].split(',')
+            return column_type.split('(')[1].split(')', maxsplit=1)[0].split(',')
         return []
 
     @classmethod
