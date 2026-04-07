@@ -6,9 +6,11 @@ import jwt
 from fastapi import Depends, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.pre_auth import CurrentUserDependency
+from common.constant import CacheGroup, CacheNamespace
 from common.enums import BusinessType, RedisInitKeyConfig
 from common.router import APIRouterPro
 from common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
@@ -29,6 +31,7 @@ login_controller = APIRouterPro(order_num=1, tags=['登录模块'])
     description='用于用户登录',
     response_model=DynamicResponseModel[LoginToken] | Token,
 )
+@ApiCacheEvict(namespaces=CacheGroup.LOGIN_SUCCESS_MUTATION)
 @Log(title='用户登录', business_type=BusinessType.OTHER, log_type='login')
 async def login(
     request: Request,
@@ -90,6 +93,7 @@ async def login(
     description='用于获取当前登录用户的信息',
     response_model=DynamicResponseModel[CurrentUserModel],
 )
+@ApiCache(namespace=CacheNamespace.LOGIN_USER_INFO)
 async def get_login_user_info(
     request: Request, current_user: Annotated[CurrentUserModel, CurrentUserDependency()]
 ) -> Response:
@@ -104,6 +108,7 @@ async def get_login_user_info(
     description='用于获取当前登录用户的路由信息',
     response_model=DataResponseModel[list[RouterModel]],
 )
+@ApiCache(namespace=CacheNamespace.LOGIN_USER_ROUTERS)
 async def get_login_user_routers(
     request: Request,
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
@@ -121,6 +126,7 @@ async def get_login_user_routers(
     description='用于用户注册',
     response_model=DataResponseModel[CrudResponseModel],
 )
+@ApiCacheEvict(namespaces=CacheGroup.USER_ENTITY_MUTATION)
 async def register_user(
     request: Request,
     user_register: UserRegister,
@@ -168,6 +174,7 @@ async def register_user(
     description='用于用户退出登录',
     response_model=ResponseBaseModel,
 )
+@ApiCacheEvict(namespaces=CacheGroup.LOGOUT_MUTATION)
 async def logout(request: Request, token: Annotated[str | None, Depends(oauth2_scheme)]) -> Response:
     payload = jwt.decode(
         token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm], options={'verify_exp': False}

@@ -55,7 +55,9 @@ class UploadUtil:
         :param filename: 文件名称
         :return: 校验结果
         """
-        timestamp = filename.rsplit('.', 1)[0].split('_')[-1].split(UploadConfig.UPLOAD_MACHINE)[0]
+        timestamp = (
+            filename.rsplit('.', 1)[0].rsplit('_', maxsplit=1)[-1].split(UploadConfig.UPLOAD_MACHINE, maxsplit=1)[0]
+        )
         try:
             datetime.strptime(timestamp, '%Y%m%d%H%M%S')
             return True

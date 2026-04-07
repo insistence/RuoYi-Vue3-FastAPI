@@ -143,6 +143,268 @@ class LockConstant:
     LOCK_RENEWAL_INTERVAL = 20
 
 
+class CacheNamespace:
+    """
+    接口缓存命名空间常量
+
+    MONITOR_SERVER_INFO: 服务监控信息缓存
+    MONITOR_JOB_LIST: 定时任务分页列表缓存
+    MONITOR_JOB_DETAIL: 定时任务详情缓存
+    LOGIN_USER_INFO: 登录用户信息缓存
+    LOGIN_USER_ROUTERS: 登录用户路由缓存
+    SYSTEM_MENU_TREE: 菜单树缓存
+    SYSTEM_MENU_ROLE_TREE: 角色菜单树缓存
+    SYSTEM_MENU_LIST: 菜单分页列表缓存
+    SYSTEM_MENU_DETAIL: 菜单详情缓存
+    SYSTEM_DEPT_EDIT_TREE: 部门编辑树缓存
+    SYSTEM_DEPT_LIST: 部门列表缓存
+    SYSTEM_DEPT_DETAIL: 部门详情缓存
+    SYSTEM_POST_LIST: 岗位列表缓存
+    SYSTEM_POST_DETAIL: 岗位详情缓存
+    SYSTEM_NOTICE_LIST: 通知公告列表缓存
+    SYSTEM_NOTICE_DETAIL: 通知公告详情缓存
+    SYSTEM_ROLE_DEPT_TREE: 角色部门树缓存
+    SYSTEM_ROLE_LIST: 角色列表缓存
+    SYSTEM_ROLE_DETAIL: 角色详情缓存
+    SYSTEM_ROLE_ALLOCATED_USER_LIST: 已分配用户角色列表缓存
+    SYSTEM_ROLE_UNALLOCATED_USER_LIST: 未分配用户角色列表缓存
+    SYSTEM_USER_DEPT_TREE: 用户部门树缓存
+    SYSTEM_USER_LIST: 用户列表缓存
+    SYSTEM_USER_PROFILE: 用户个人信息缓存
+    SYSTEM_USER_DETAIL: 用户详情缓存
+    SYSTEM_CONFIG_LIST: 参数配置列表缓存
+    SYSTEM_CONFIG_DETAIL: 参数配置详情缓存
+    SYSTEM_DICT_TYPE_LIST: 字典类型列表缓存
+    SYSTEM_DICT_TYPE_OPTIONS: 字典类型选项缓存
+    SYSTEM_DICT_TYPE_DETAIL: 字典类型详情缓存
+    SYSTEM_DICT_DATA_LIST: 字典数据列表缓存
+    SYSTEM_DICT_DATA_DETAIL: 字典数据详情缓存
+    AI_MODEL_LIST: AI模型列表缓存
+    AI_MODEL_ALL: AI模型全量列表缓存
+    AI_MODEL_DETAIL: AI模型详情缓存
+    AI_CHAT_CONFIG: AI对话配置缓存
+    TOOL_GEN_LIST: 代码生成列表缓存
+    TOOL_GEN_DB_LIST: 代码生成数据源列表缓存
+    TOOL_GEN_DETAIL: 代码生成详情缓存
+    TOOL_GEN_PREVIEW: 代码生成预览缓存
+    """
+
+    MONITOR_SERVER_INFO = 'monitor:server:info'
+    MONITOR_JOB_LIST = 'monitor:job:list'
+    MONITOR_JOB_DETAIL = 'monitor:job:detail'
+
+    LOGIN_USER_INFO = 'login:user:info'
+    LOGIN_USER_ROUTERS = 'login:user:routers'
+
+    SYSTEM_MENU_TREE = 'system:menu:tree'
+    SYSTEM_MENU_ROLE_TREE = 'system:menu:role-tree'
+    SYSTEM_MENU_LIST = 'system:menu:list'
+    SYSTEM_MENU_DETAIL = 'system:menu:detail'
+
+    SYSTEM_DEPT_EDIT_TREE = 'system:dept:edit-tree'
+    SYSTEM_DEPT_LIST = 'system:dept:list'
+    SYSTEM_DEPT_DETAIL = 'system:dept:detail'
+
+    SYSTEM_POST_LIST = 'system:post:list'
+    SYSTEM_POST_DETAIL = 'system:post:detail'
+
+    SYSTEM_NOTICE_LIST = 'system:notice:list'
+    SYSTEM_NOTICE_DETAIL = 'system:notice:detail'
+
+    SYSTEM_ROLE_DEPT_TREE = 'system:role:dept-tree'
+    SYSTEM_ROLE_LIST = 'system:role:list'
+    SYSTEM_ROLE_DETAIL = 'system:role:detail'
+    SYSTEM_ROLE_ALLOCATED_USER_LIST = 'system:role:allocated-user-list'
+    SYSTEM_ROLE_UNALLOCATED_USER_LIST = 'system:role:unallocated-user-list'
+
+    SYSTEM_USER_DEPT_TREE = 'system:user:dept-tree'
+    SYSTEM_USER_LIST = 'system:user:list'
+    SYSTEM_USER_PROFILE = 'system:user:profile'
+    SYSTEM_USER_DETAIL = 'system:user:detail'
+
+    SYSTEM_CONFIG_LIST = 'system:config:list'
+    SYSTEM_CONFIG_DETAIL = 'system:config:detail'
+
+    SYSTEM_DICT_TYPE_LIST = 'system:dict:type-list'
+    SYSTEM_DICT_TYPE_OPTIONS = 'system:dict:type-options'
+    SYSTEM_DICT_TYPE_DETAIL = 'system:dict:type-detail'
+    SYSTEM_DICT_DATA_LIST = 'system:dict:data-list'
+    SYSTEM_DICT_DATA_DETAIL = 'system:dict:data-detail'
+
+    AI_MODEL_LIST = 'ai:model:list'
+    AI_MODEL_ALL = 'ai:model:all'
+    AI_MODEL_DETAIL = 'ai:model:detail'
+    AI_CHAT_CONFIG = 'ai:chat:config'
+
+    TOOL_GEN_LIST = 'tool:gen:list'
+    TOOL_GEN_DB_LIST = 'tool:gen:db-list'
+    TOOL_GEN_DETAIL = 'tool:gen:detail'
+    TOOL_GEN_PREVIEW = 'tool:gen:preview'
+
+
+class CacheGroup:
+    """
+    接口缓存失效分组常量
+
+    PERMISSION_MUTATION: 权限及菜单视图关联缓存失效基础分组
+    DATA_SCOPE_MUTATION: 数据范围相关视图关联缓存失效基础分组
+    MENU_MUTATION: 菜单写操作关联缓存失效分组
+    JOB_MUTATION: 定时任务写操作关联缓存失效分组
+    POST_MUTATION: 岗位写操作关联缓存失效分组
+    NOTICE_MUTATION: 通知公告写操作关联缓存失效分组
+    ROLE_ENTITY_MUTATION: 角色实体信息变更关联缓存失效分组
+    ROLE_PERMISSION_MUTATION: 角色权限变更关联缓存失效分组
+    ROLE_MUTATION: 角色通用写操作关联缓存失效组合分组
+    USER_ENTITY_MUTATION: 用户实体信息变更关联缓存失效分组
+    USER_PERMISSION_MUTATION: 用户权限变更关联缓存失效分组
+    USER_INFO_MUTATION: 用户资料与安全相关写操作关联缓存失效分组
+    LOGIN_SUCCESS_MUTATION: 登录成功后关联缓存失效分组
+    LOGOUT_MUTATION: 登出后关联缓存失效分组
+    CONFIG_MUTATION: 参数配置写操作关联缓存失效分组
+    DICT_TYPE_MUTATION: 字典类型写操作关联缓存失效分组
+    DICT_DATA_MUTATION: 字典数据写操作关联缓存失效分组
+    AI_MODEL_MUTATION: AI模型写操作关联缓存失效分组
+    AI_CHAT_CONFIG_MUTATION: AI对话配置写操作关联缓存失效分组
+    GEN_MUTATION: 代码生成写操作关联缓存失效分组
+    """
+
+    PERMISSION_MUTATION = (
+        CacheNamespace.LOGIN_USER_INFO,
+        CacheNamespace.LOGIN_USER_ROUTERS,
+        CacheNamespace.SYSTEM_MENU_TREE,
+        CacheNamespace.SYSTEM_MENU_ROLE_TREE,
+        CacheNamespace.SYSTEM_MENU_LIST,
+    )
+
+    DATA_SCOPE_MUTATION = (
+        CacheNamespace.LOGIN_USER_INFO,
+        CacheNamespace.SYSTEM_DEPT_EDIT_TREE,
+        CacheNamespace.SYSTEM_DEPT_LIST,
+        CacheNamespace.SYSTEM_DEPT_DETAIL,
+        CacheNamespace.SYSTEM_ROLE_DEPT_TREE,
+        CacheNamespace.SYSTEM_ROLE_LIST,
+        CacheNamespace.SYSTEM_ROLE_DETAIL,
+        CacheNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
+        CacheNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
+        CacheNamespace.SYSTEM_USER_DEPT_TREE,
+        CacheNamespace.SYSTEM_USER_LIST,
+        CacheNamespace.SYSTEM_USER_DETAIL,
+        CacheNamespace.SYSTEM_USER_PROFILE,
+        CacheNamespace.AI_MODEL_LIST,
+        CacheNamespace.AI_MODEL_ALL,
+        CacheNamespace.AI_MODEL_DETAIL,
+    )
+
+    MENU_MUTATION = (
+        *PERMISSION_MUTATION,
+        CacheNamespace.SYSTEM_MENU_DETAIL,
+    )
+
+    JOB_MUTATION = (
+        CacheNamespace.MONITOR_JOB_LIST,
+        CacheNamespace.MONITOR_JOB_DETAIL,
+    )
+
+    POST_MUTATION = (
+        CacheNamespace.SYSTEM_POST_LIST,
+        CacheNamespace.SYSTEM_POST_DETAIL,
+        CacheNamespace.SYSTEM_USER_DETAIL,
+        CacheNamespace.SYSTEM_USER_PROFILE,
+    )
+
+    NOTICE_MUTATION = (
+        CacheNamespace.SYSTEM_NOTICE_LIST,
+        CacheNamespace.SYSTEM_NOTICE_DETAIL,
+    )
+
+    ROLE_ENTITY_MUTATION = (
+        CacheNamespace.SYSTEM_ROLE_DEPT_TREE,
+        CacheNamespace.SYSTEM_ROLE_LIST,
+        CacheNamespace.SYSTEM_ROLE_DETAIL,
+        CacheNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
+        CacheNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
+        CacheNamespace.SYSTEM_MENU_ROLE_TREE,
+        CacheNamespace.SYSTEM_USER_DETAIL,
+    )
+
+    ROLE_PERMISSION_MUTATION = (
+        *ROLE_ENTITY_MUTATION,
+        CacheNamespace.SYSTEM_USER_PROFILE,
+        CacheNamespace.LOGIN_USER_INFO,
+        *PERMISSION_MUTATION,
+    )
+
+    ROLE_MUTATION = (
+        *ROLE_PERMISSION_MUTATION,
+        *DATA_SCOPE_MUTATION,
+    )
+
+    USER_ENTITY_MUTATION = (
+        CacheNamespace.SYSTEM_USER_LIST,
+        CacheNamespace.SYSTEM_USER_DETAIL,
+        CacheNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
+        CacheNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
+    )
+
+    USER_PERMISSION_MUTATION = (
+        *DATA_SCOPE_MUTATION,
+        *PERMISSION_MUTATION,
+    )
+
+    USER_INFO_MUTATION = (
+        CacheNamespace.SYSTEM_USER_LIST,
+        CacheNamespace.SYSTEM_USER_DETAIL,
+        CacheNamespace.SYSTEM_USER_PROFILE,
+        CacheNamespace.LOGIN_USER_INFO,
+    )
+
+    LOGIN_SUCCESS_MUTATION = (
+        CacheNamespace.SYSTEM_USER_LIST,
+        CacheNamespace.LOGIN_USER_INFO,
+        CacheNamespace.LOGIN_USER_ROUTERS,
+        CacheNamespace.SYSTEM_USER_PROFILE,
+        CacheNamespace.SYSTEM_USER_DETAIL,
+    )
+
+    LOGOUT_MUTATION = (
+        CacheNamespace.LOGIN_USER_INFO,
+        CacheNamespace.LOGIN_USER_ROUTERS,
+    )
+
+    CONFIG_MUTATION = (
+        CacheNamespace.SYSTEM_CONFIG_LIST,
+        CacheNamespace.SYSTEM_CONFIG_DETAIL,
+    )
+
+    DICT_TYPE_MUTATION = (
+        CacheNamespace.SYSTEM_DICT_TYPE_LIST,
+        CacheNamespace.SYSTEM_DICT_TYPE_OPTIONS,
+        CacheNamespace.SYSTEM_DICT_TYPE_DETAIL,
+        CacheNamespace.SYSTEM_DICT_DATA_LIST,
+        CacheNamespace.SYSTEM_DICT_DATA_DETAIL,
+    )
+
+    DICT_DATA_MUTATION = (
+        CacheNamespace.SYSTEM_DICT_DATA_LIST,
+        CacheNamespace.SYSTEM_DICT_DATA_DETAIL,
+    )
+
+    AI_MODEL_MUTATION = (
+        CacheNamespace.AI_MODEL_LIST,
+        CacheNamespace.AI_MODEL_ALL,
+        CacheNamespace.AI_MODEL_DETAIL,
+    )
+
+    AI_CHAT_CONFIG_MUTATION = (CacheNamespace.AI_CHAT_CONFIG,)
+
+    GEN_MUTATION = (
+        CacheNamespace.TOOL_GEN_LIST,
+        CacheNamespace.TOOL_GEN_DB_LIST,
+        CacheNamespace.TOOL_GEN_DETAIL,
+        CacheNamespace.TOOL_GEN_PREVIEW,
+    )
+
+
 class MenuConstant:
     """
     菜单常量
