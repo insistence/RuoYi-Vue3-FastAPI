@@ -27,6 +27,7 @@ class AppSettings(BaseSettings):
     app_demo_mode: bool = False
     app_disable_swagger: bool = False
     app_disable_redoc: bool = False
+    app_enable_user_cache: bool = True
 
 
 class JwtSettings(BaseSettings):

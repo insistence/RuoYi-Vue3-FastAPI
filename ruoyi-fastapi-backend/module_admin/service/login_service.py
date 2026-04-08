@@ -1,3 +1,4 @@
+import json
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -24,8 +25,10 @@ from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.login_vo import MenuTreeModel, MetaModel, RouterModel, SmsCode, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import AddUserModel, CurrentUserModel, ResetUserModel, TokenData, UserInfoModel
+from module_admin.service.cache_service import CacheService
 from module_admin.service.user_service import UserService
 from utils.common_util import CamelCaseUtil
+from utils.json_util import ComplexEncoder
 from utils.log_util import logger
 from utils.message_util import message_service
 from utils.pwd_util import PwdUtil
@@ -168,6 +171,9 @@ class LoginService:
         if login_user.code != str(captcha_value):
             logger.warning('验证码错误')
             raise LoginException(data='', message='验证码错误')
+
+        # 验证成功/失败后删除验证码缓存
+        await request.app.state.redis.delete(f'{RedisInitKeyConfig.CAPTCHA_CODES.key}:{login_user.uuid}')
         return True
 
     @classmethod
@@ -187,6 +193,61 @@ class LoginService:
         to_encode.update({'exp': expire})
         encoded_jwt = jwt.encode(to_encode, JwtConfig.jwt_secret_key, algorithm=JwtConfig.jwt_algorithm)
         return encoded_jwt
+
+    @classmethod
+    async def __get_user_by_id_cache(cls, request: Request, db: AsyncSession, user_id: int) -> dict[str, Any]:
+        """
+        根据user_id获取用户信息（启用缓存）
+
+        :param request: 当前请求对象
+        :param db: orm对象
+        :param user_id: 用户id
+        :return: 当前user_id的用户信息对象
+        """
+        if AppConfig.app_enable_user_cache:
+            cached_user_info = await request.app.state.redis.get(f'{RedisInitKeyConfig.USER_INFO.key}:{user_id}')
+            if cached_user_info:
+                await request.app.state.redis.expire(
+                    f'{RedisInitKeyConfig.USER_INFO.key}:{user_id}',
+                    timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
+                )
+                user_data = json.loads(cached_user_info)
+                return user_data
+
+        query_user = await UserDao.get_user_by_id(db, user_id=user_id)
+        if query_user is None:
+            return None
+
+        role_id_list = [item.role_id for item in query_user.get('user_role_info')]
+        if 1 in role_id_list:
+            permissions = ['*:*:*']
+        else:
+            permissions = [row.perms for row in query_user.get('user_menu_info') if row.perms]
+
+        post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])
+        role_ids = ','.join([str(row.role_id) for row in query_user.get('user_role_info')])
+        roles = [row.role_key for row in query_user.get('user_role_info')]
+
+        query_user['permissions'] = permissions
+        query_user['post_ids'] = post_ids
+        query_user['role_ids'] = role_ids
+        query_user['roles'] = roles
+
+        # 不输出部门信息
+        if 'user_menu_info' in query_user:
+            del query_user['user_menu_info']
+
+        user_data_info = json.dumps(query_user, cls=ComplexEncoder, ensure_ascii=False, indent=2)
+        user_data = json.loads(user_data_info)
+
+        if AppConfig.app_enable_user_cache:
+            await request.app.state.redis.set(
+                f'{RedisInitKeyConfig.USER_INFO.key}:{user_id}',
+                user_data_info,
+                ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
+            )
+
+        return user_data
 
     @classmethod
     async def get_current_user(
@@ -217,7 +278,7 @@ class LoginService:
         except InvalidTokenError as e:
             logger.warning('用户token已失效，请重新登录')
             raise AuthException(data='', message='用户token已失效，请重新登录') from e
-        query_user = await UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
+        query_user = await cls.__get_user_by_id_cache(request, query_db, user_id=token_data.user_id)
         if query_user.get('user_basic_info') is None:
             logger.warning('用户token不合法')
             raise AuthException(data='', message='用户token不合法')
@@ -242,28 +303,20 @@ class LoginService:
                     ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
                 )
 
-            role_id_list = [item.role_id for item in query_user.get('user_role_info')]
-            if 1 in role_id_list:  # noqa: SIM108
-                permissions = ['*:*:*']
-            else:
-                permissions = [row.perms for row in query_user.get('user_menu_info')]
-            post_ids = ','.join([str(row.post_id) for row in query_user.get('user_post_info')])
-            role_ids = ','.join([str(row.role_id) for row in query_user.get('user_role_info')])
-            roles = [row.role_key for row in query_user.get('user_role_info')]
             is_default_modify_pwd = await cls.__init_password_is_modify(
-                request, query_user.get('user_basic_info').pwd_update_date
+                request, query_user.get('user_basic_info').get('pwd_update_date')
             )
             is_password_expired = await cls.__password_is_expired(
-                request, query_user.get('user_basic_info').pwd_update_date
+                request, query_user.get('user_basic_info').get('pwd_update_date')
             )
 
             current_user = CurrentUserModel(
-                permissions=permissions,
-                roles=roles,
+                permissions=query_user.get('permissions'),
+                roles=query_user.get('roles'),
                 user=UserInfoModel(
                     **CamelCaseUtil.transform_result(query_user.get('user_basic_info')),
-                    postIds=post_ids,
-                    roleIds=role_ids,
+                    postIds=query_user.get('post_ids'),
+                    roleIds=query_user.get('roleIds'),
                     dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
                     role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
                 ),
@@ -504,7 +557,7 @@ class LoginService:
         if forget_user.sms_code == redis_sms_result:
             forget_user.password = PwdUtil.get_password_hash(forget_user.password)
             forget_user.user_id = (await UserDao.get_user_by_name(query_db, forget_user.user_name)).user_id
-            edit_result = await UserService.reset_user_services(query_db, forget_user)
+            edit_result = await UserService.reset_user_services(request, query_db, forget_user)
             result = edit_result.dict()
         elif not redis_sms_result:
             result = {'is_success': False, 'message': '短信验证码已过期'}
@@ -515,7 +568,7 @@ class LoginService:
         return CrudResponseModel(**result)
 
     @classmethod
-    async def logout_services(cls, request: Request, token_id: str) -> bool:
+    async def logout_services(cls, request: Request, token_id: str, user_id: str) -> bool:
         """
         退出登录services
 
@@ -526,6 +579,7 @@ class LoginService:
         await request.app.state.redis.delete(f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{token_id}')
         # await request.app.state.redis.delete(f'{current_user.user.user_id}_access_token')
         # await request.app.state.redis.delete(f'{current_user.user.user_id}_session_id')
+        await CacheService.clear_usercache_by_id(request, user_id)
 
         return True
 

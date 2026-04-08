@@ -159,7 +159,7 @@ async def edit_system_user(
         )
     edit_user.update_by = current_user.user.user_name
     edit_user.update_time = datetime.now()
-    edit_user_result = await UserService.edit_user_services(query_db, edit_user)
+    edit_user_result = await UserService.edit_user_services(request, query_db, edit_user)
     logger.info(edit_user_result.message)
 
     return ResponseUtil.success(msg=edit_user_result.message)
@@ -192,7 +192,7 @@ async def delete_system_user(
             if not current_user.user.admin:
                 await UserService.check_user_data_scope_services(query_db, int(user_id), data_scope_sql)
     delete_user = DeleteUserModel(userIds=user_ids, updateBy=current_user.user.user_name, updateTime=datetime.now())
-    delete_user_result = await UserService.delete_user_services(query_db, delete_user)
+    delete_user_result = await UserService.delete_user_services(request, query_db, delete_user)
     logger.info(delete_user_result.message)
 
     return ResponseUtil.success(msg=delete_user_result.message)
@@ -225,7 +225,7 @@ async def reset_system_user_pwd(
         updateTime=datetime.now(),
         type='pwd',
     )
-    edit_user_result = await UserService.edit_user_services(query_db, edit_user)
+    edit_user_result = await UserService.edit_user_services(request, query_db, edit_user)
     logger.info(edit_user_result.message)
 
     return ResponseUtil.success(msg=edit_user_result.message)
@@ -257,7 +257,7 @@ async def change_system_user_status(
         updateTime=datetime.now(),
         type='status',
     )
-    edit_user_result = await UserService.edit_user_services(query_db, edit_user)
+    edit_user_result = await UserService.edit_user_services(request, query_db, edit_user)
     logger.info(edit_user_result.message)
 
     return ResponseUtil.success(msg=edit_user_result.message)
@@ -345,7 +345,7 @@ async def change_system_user_profile_avatar(
             updateTime=datetime.now(),
             type='avatar',
         )
-        edit_user_result = await UserService.edit_user_services(query_db, edit_user)
+        edit_user_result = await UserService.edit_user_services(request, query_db, edit_user)
         logger.info(edit_user_result.message)
 
         return ResponseUtil.success(model_content=AvatarModel(imgUrl=edit_user.avatar), msg=edit_user_result.message)
@@ -376,7 +376,7 @@ async def change_system_user_profile_info(
         postIds=current_user.user.post_ids.split(',') if current_user.user.post_ids else [],
         role=current_user.user.role,
     )
-    edit_user_result = await UserService.edit_user_services(query_db, edit_user)
+    edit_user_result = await UserService.edit_user_services(request, query_db, edit_user)
     logger.info(edit_user_result.message)
 
     return ResponseUtil.success(msg=edit_user_result.message)
@@ -404,7 +404,7 @@ async def reset_system_user_password(
         updateBy=current_user.user.user_name,
         updateTime=datetime.now(),
     )
-    reset_user_result = await UserService.reset_user_services(query_db, reset_user)
+    reset_user_result = await UserService.reset_user_services(request, query_db, reset_user)
     logger.info(reset_user_result.message)
 
     return ResponseUtil.success(msg=reset_user_result.message)
@@ -535,7 +535,7 @@ async def update_system_role_user(
         await UserService.check_user_data_scope_services(query_db, user_id, user_data_scope_sql)
         await RoleService.check_role_data_scope_services(query_db, role_ids, role_data_scope_sql)
     add_user_role_result = await UserService.add_user_role_services(
-        query_db, CrudUserRoleModel(userId=user_id, roleIds=role_ids)
+        request, query_db, CrudUserRoleModel(userId=user_id, roleIds=role_ids)
     )
     logger.info(add_user_role_result.message)
 

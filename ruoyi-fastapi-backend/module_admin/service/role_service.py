@@ -1,5 +1,6 @@
 from typing import Any
 
+from fastapi import Request
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,6 +19,7 @@ from module_admin.entity.vo.role_vo import (
     RolePageQueryModel,
 )
 from module_admin.entity.vo.user_vo import UserInfoModel, UserRolePageQueryModel
+from module_admin.service.cache_service import CacheService
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
 
@@ -167,7 +169,9 @@ class RoleService:
             raise e
 
     @classmethod
-    async def edit_role_services(cls, query_db: AsyncSession, page_object: AddRoleModel) -> CrudResponseModel:
+    async def edit_role_services(
+        cls, request: Request, query_db: AsyncSession, page_object: AddRoleModel
+    ) -> CrudResponseModel:
         """
         编辑角色信息service
 
@@ -197,6 +201,7 @@ class RoleService:
                                 query_db, RoleMenuModel(roleId=page_object.role_id, menuId=menu)
                             )
                 await query_db.commit()
+                await CacheService.clear_usercache_all(request)
                 return CrudResponseModel(is_success=True, message='更新成功')
             except Exception as e:
                 await query_db.rollback()
@@ -205,7 +210,9 @@ class RoleService:
             raise ServiceException(message='角色不存在')
 
     @classmethod
-    async def role_datascope_services(cls, query_db: AsyncSession, page_object: AddRoleModel) -> CrudResponseModel:
+    async def role_datascope_services(
+        cls, request: Request, query_db: AsyncSession, page_object: AddRoleModel
+    ) -> CrudResponseModel:
         """
         分配角色数据权限service
 
@@ -225,6 +232,7 @@ class RoleService:
                             query_db, RoleDeptModel(roleId=page_object.role_id, deptId=dept)
                         )
                 await query_db.commit()
+                await CacheService.clear_usercache_all(request)
                 return CrudResponseModel(is_success=True, message='分配成功')
             except Exception as e:
                 await query_db.rollback()
@@ -233,7 +241,9 @@ class RoleService:
             raise ServiceException(message='角色不存在')
 
     @classmethod
-    async def delete_role_services(cls, query_db: AsyncSession, page_object: DeleteRoleModel) -> CrudResponseModel:
+    async def delete_role_services(
+        cls, request: Request, query_db: AsyncSession, page_object: DeleteRoleModel
+    ) -> CrudResponseModel:
         """
         删除角色信息service
 
@@ -257,6 +267,7 @@ class RoleService:
                     await RoleDao.delete_role_dept_dao(query_db, RoleDeptModel(**role_id_dict))
                     await RoleDao.delete_role_dao(query_db, RoleModel(**role_id_dict))
                 await query_db.commit()
+                await CacheService.clear_usercache_all(request)
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
                 await query_db.rollback()
