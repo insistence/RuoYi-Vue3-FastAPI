@@ -35,8 +35,10 @@ jobs:
         run: |
           # Save original Dockerfile.my
           cp ruoyi-fastapi-backend/Dockerfile.my ruoyi-fastapi-backend/Dockerfile.my.bak
-          # Create temporary Dockerfile with target Python version
-          sed "s/FROM python:3.10/FROM python:${{ matrix.python-version }}/g" ruoyi-fastapi-backend/Dockerfile.my.bak > ruoyi-fastapi-backend/Dockerfile.my
+          # Create temporary Dockerfile with target Python version and default PyPI index
+          sed -e "s/FROM python:3.10/FROM python:${{ matrix.python-version }}/g" \
+              -e 's| -i https://pypi.tuna.tsinghua.edu.cn/simple||g' \
+              ruoyi-fastapi-backend/Dockerfile.my.bak > ruoyi-fastapi-backend/Dockerfile.my
 
       - name: Start services with docker-compose
         run: |
@@ -114,10 +116,12 @@ jobs:
 
       - name: Create temporary Dockerfile with Python ${{ matrix.python-version }}
         run: |
-          # Save original Dockerfile.my
-          cp ruoyi-fastapi-backend/Dockerfile.my ruoyi-fastapi-backend/Dockerfile.my.bak
-          # Create temporary Dockerfile with target Python version
-          sed "s/FROM python:3.10/FROM python:${{ matrix.python-version }}/g" ruoyi-fastapi-backend/Dockerfile.my.bak > ruoyi-fastapi-backend/Dockerfile.my
+          # Save original Dockerfile.pg
+          cp ruoyi-fastapi-backend/Dockerfile.pg ruoyi-fastapi-backend/Dockerfile.pg.bak
+          # Create temporary Dockerfile with target Python version and default PyPI index
+          sed -e "s/FROM python:3.10/FROM python:${{ matrix.python-version }}/g" \
+              -e 's| -i https://pypi.tuna.tsinghua.edu.cn/simple||g' \
+              ruoyi-fastapi-backend/Dockerfile.pg.bak > ruoyi-fastapi-backend/Dockerfile.pg
 
       - name: Start services with docker-compose
         run: |
@@ -163,8 +167,8 @@ jobs:
           cd ruoyi-fastapi-test
           docker compose -f docker-compose.test.pg.yml down
 
-      - name: Restore original Dockerfile.my
+      - name: Restore original Dockerfile.pg
         if: always()
         run: |
-          # Restore original Dockerfile.my after test
-          mv ruoyi-fastapi-backend/Dockerfile.my.bak ruoyi-fastapi-backend/Dockerfile.my
+          # Restore original Dockerfile.pg after test
+          mv ruoyi-fastapi-backend/Dockerfile.pg.bak ruoyi-fastapi-backend/Dockerfile.pg

@@ -11,11 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitBypassConfig, ApiRateLimitPreset
 from common.aspect.data_scope import DataScopeDependency
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
@@ -62,7 +63,7 @@ user_controller = APIRouterPro(
     response_model=DataResponseModel[list[DeptTreeModel]],
     dependencies=[UserInterfaceAuthDependency('system:user:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_USER_DEPT_TREE)
+@ApiCache(namespace=ApiNamespace.SYSTEM_USER_DEPT_TREE)
 async def get_system_dept_tree(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -81,7 +82,7 @@ async def get_system_dept_tree(
     response_model=PageResponseModel[UserRowModel],
     dependencies=[UserInterfaceAuthDependency('system:user:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_USER_LIST)
+@ApiCache(namespace=ApiNamespace.SYSTEM_USER_LIST)
 async def get_system_user_list(
     request: Request,
     user_page_query: Annotated[UserPageQueryModel, Query()],
@@ -105,7 +106,7 @@ async def get_system_user_list(
     dependencies=[UserInterfaceAuthDependency('system:user:add')],
 )
 @ValidateFields(validate_model='add_user')
-@ApiCacheEvict(namespaces=CacheGroup.USER_ENTITY_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.USER_ENTITY_MUTATION)
 @Log(title='用户管理', business_type=BusinessType.INSERT)
 async def add_system_user(
     request: Request,
@@ -139,7 +140,7 @@ async def add_system_user(
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )
 @ValidateFields(validate_model='edit_user')
-@ApiCacheEvict(namespaces=CacheGroup.USER_PERMISSION_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.USER_PERMISSION_MUTATION)
 @Log(title='用户管理', business_type=BusinessType.UPDATE)
 async def edit_system_user(
     request: Request,
@@ -172,7 +173,7 @@ async def edit_system_user(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:remove')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.USER_ENTITY_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.USER_ENTITY_MUTATION)
 @Log(title='用户管理', business_type=BusinessType.DELETE)
 async def delete_system_user(
     request: Request,
@@ -205,7 +206,7 @@ async def delete_system_user(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:resetPwd')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.USER_INFO_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.USER_INFO_MUTATION)
 @Log(title='用户管理', business_type=BusinessType.UPDATE)
 async def reset_system_user_pwd(
     request: Request,
@@ -238,7 +239,7 @@ async def reset_system_user_pwd(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.USER_INFO_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.USER_INFO_MUTATION)
 @Log(title='用户管理', business_type=BusinessType.UPDATE)
 async def change_system_user_status(
     request: Request,
@@ -269,7 +270,7 @@ async def change_system_user_status(
     description='用于获取当前登录用户的个人信息',
     response_model=DynamicResponseModel[UserProfileModel],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_USER_PROFILE)
+@ApiCache(namespace=ApiNamespace.SYSTEM_USER_PROFILE)
 async def query_detail_system_user_profile(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -295,7 +296,7 @@ async def query_detail_system_user_profile(
     response_model=DynamicResponseModel[UserDetailModel],
     dependencies=[UserInterfaceAuthDependency('system:user:query')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_USER_DETAIL)
+@ApiCache(namespace=ApiNamespace.SYSTEM_USER_DETAIL)
 async def query_detail_system_user(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -317,7 +318,8 @@ async def query_detail_system_user(
     description='用于修改当前登录用户的头像',
     response_model=DynamicResponseModel[AvatarModel],
 )
-@ApiCacheEvict(namespaces=CacheGroup.USER_INFO_MUTATION)
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_USER_PROFILE_AVATAR, preset=ApiRateLimitPreset.USER_RESOURCE_UPLOAD)
+@ApiCacheEvict(namespaces=ApiGroup.USER_INFO_MUTATION)
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def change_system_user_profile_avatar(
     request: Request,
@@ -358,7 +360,7 @@ async def change_system_user_profile_avatar(
     description='用于修改当前登录用户的个人信息',
     response_model=ResponseBaseModel,
 )
-@ApiCacheEvict(namespaces=CacheGroup.USER_INFO_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.USER_INFO_MUTATION)
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def change_system_user_profile_info(
     request: Request,
@@ -388,7 +390,7 @@ async def change_system_user_profile_info(
     description='用于修改当前登录用户的密码',
     response_model=ResponseBaseModel,
 )
-@ApiCacheEvict(namespaces=CacheGroup.USER_INFO_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.USER_INFO_MUTATION)
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def reset_system_user_password(
     request: Request,
@@ -417,7 +419,12 @@ async def reset_system_user_password(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:import')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.DATA_SCOPE_MUTATION)
+@ApiRateLimit(
+    namespace=ApiNamespace.SYSTEM_USER_IMPORT,
+    preset=ApiRateLimitPreset.USER_RESOURCE_IMPORT,
+    bypass=ApiRateLimitBypassConfig(roles=('admin',)),
+)
+@ApiCacheEvict(namespaces=ApiGroup.DATA_SCOPE_MUTATION)
 @Log(title='用户管理', business_type=BusinessType.IMPORT)
 async def batch_import_system_user(
     request: Request,
@@ -475,6 +482,7 @@ async def export_system_user_template(
     },
     dependencies=[UserInterfaceAuthDependency('system:user:export')],
 )
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_USER_EXPORT, preset=ApiRateLimitPreset.USER_RESOURCE_EXPORT)
 @Log(title='用户管理', business_type=BusinessType.EXPORT)
 async def export_system_user_list(
     request: Request,
@@ -520,7 +528,7 @@ async def get_system_allocated_role_list(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:user:edit')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.USER_PERMISSION_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.USER_PERMISSION_MUTATION)
 @Log(title='用户管理', business_type=BusinessType.GRANT)
 async def update_system_role_user(
     request: Request,

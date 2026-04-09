@@ -12,7 +12,7 @@ from common.aspect.data_scope import DataScopeDependency
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
@@ -35,7 +35,7 @@ ai_model_controller = APIRouterPro(
     response_model=PageResponseModel[AiModelModel],
     dependencies=[UserInterfaceAuthDependency('ai:model:list')],
 )
-@ApiCache(namespace=CacheNamespace.AI_MODEL_LIST)
+@ApiCache(namespace=ApiNamespace.AI_MODEL_LIST)
 async def get_ai_model_list(
     request: Request,
     ai_model_page_query: Annotated[AiModelPageQueryModel, Query()],
@@ -57,7 +57,7 @@ async def get_ai_model_list(
     description='用于获取AI模型不分页列表',
     response_model=DataResponseModel[AiModelModel],
 )
-@ApiCache(namespace=CacheNamespace.AI_MODEL_ALL)
+@ApiCache(namespace=ApiNamespace.AI_MODEL_ALL)
 async def get_ai_model_all(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -81,7 +81,7 @@ async def get_ai_model_all(
     dependencies=[UserInterfaceAuthDependency('ai:model:add')],
 )
 @ValidateFields(validate_model='add_ai_model')
-@ApiCacheEvict(namespaces=CacheGroup.AI_MODEL_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.AI_MODEL_MUTATION)
 @Log(title='AI模型管理', business_type=BusinessType.INSERT)
 async def add_ai_model(
     request: Request,
@@ -109,7 +109,7 @@ async def add_ai_model(
     dependencies=[UserInterfaceAuthDependency('ai:model:edit')],
 )
 @ValidateFields(validate_model='edit_ai_model')
-@ApiCacheEvict(namespaces=CacheGroup.AI_MODEL_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.AI_MODEL_MUTATION)
 @Log(title='AI模型管理', business_type=BusinessType.UPDATE)
 async def edit_ai_model(
     request: Request,
@@ -135,7 +135,7 @@ async def edit_ai_model(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('ai:model:remove')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.AI_MODEL_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.AI_MODEL_MUTATION)
 @Log(title='AI模型管理', business_type=BusinessType.DELETE)
 async def delete_ai_model(
     request: Request,
@@ -162,7 +162,7 @@ async def delete_ai_model(
     response_model=DataResponseModel[AiModelModel],
     dependencies=[UserInterfaceAuthDependency('ai:model:query')],
 )
-@ApiCache(namespace=CacheNamespace.AI_MODEL_DETAIL)
+@ApiCache(namespace=ApiNamespace.AI_MODEL_DETAIL)
 async def get_ai_model_detail(
     request: Request,
     model_id: Annotated[int, Path(description='模型ID')],

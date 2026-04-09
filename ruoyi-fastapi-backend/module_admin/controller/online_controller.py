@@ -4,9 +4,11 @@ from fastapi import Path, Query, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
+from common.constant import ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import ResponseBaseModel
@@ -47,6 +49,7 @@ async def get_monitor_online_list(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:online:forceLogout')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_ONLINE_FORCE_LOGOUT, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='在线用户', business_type=BusinessType.FORCE)
 async def delete_monitor_online(
     request: Request,

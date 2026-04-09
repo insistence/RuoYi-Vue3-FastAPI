@@ -5,9 +5,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.log_annotation import Log
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
+from common.constant import ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import PageResponseModel, ResponseBaseModel
@@ -58,6 +60,7 @@ async def get_system_operation_log_list(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:remove')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_OPERLOG_CLEAN, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='操作日志', business_type=BusinessType.CLEAN)
 async def clear_system_operation_log(
     request: Request, query_db: Annotated[AsyncSession, DBSessionDependency()]
@@ -75,6 +78,7 @@ async def clear_system_operation_log(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:remove')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_OPERLOG_DELETE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='操作日志', business_type=BusinessType.DELETE)
 async def delete_system_operation_log(
     request: Request,
@@ -105,6 +109,7 @@ async def delete_system_operation_log(
     },
     dependencies=[UserInterfaceAuthDependency('monitor:operlog:export')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_OPERLOG_EXPORT, preset=ApiRateLimitPreset.USER_RESOURCE_EXPORT)
 @Log(title='操作日志', business_type=BusinessType.EXPORT)
 async def export_system_operation_log_list(
     request: Request,
@@ -151,6 +156,7 @@ async def get_system_login_log_list(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:remove')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_LOGININFO_CLEAN, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='登录日志', business_type=BusinessType.CLEAN)
 async def clear_system_login_log(
     request: Request, query_db: Annotated[AsyncSession, DBSessionDependency()]
@@ -168,6 +174,7 @@ async def clear_system_login_log(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:remove')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_LOGININFO_DELETE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='登录日志', business_type=BusinessType.DELETE)
 async def delete_system_login_log(
     request: Request,
@@ -188,6 +195,7 @@ async def delete_system_login_log(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:unlock')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_LOGININFO_UNLOCK, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='账户解锁', business_type=BusinessType.OTHER)
 async def unlock_system_user(
     request: Request,
@@ -216,6 +224,7 @@ async def unlock_system_user(
     },
     dependencies=[UserInterfaceAuthDependency('monitor:logininfor:export')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_LOGININFO_EXPORT, preset=ApiRateLimitPreset.USER_RESOURCE_EXPORT)
 @Log(title='登录日志', business_type=BusinessType.EXPORT)
 async def export_system_login_log_list(
     request: Request,

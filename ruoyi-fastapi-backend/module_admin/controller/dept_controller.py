@@ -12,7 +12,7 @@ from common.aspect.data_scope import DataScopeDependency
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, ResponseBaseModel
@@ -35,7 +35,7 @@ dept_controller = APIRouterPro(
     response_model=DataResponseModel[list[DeptModel]],
     dependencies=[UserInterfaceAuthDependency('system:dept:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_DEPT_EDIT_TREE)
+@ApiCache(namespace=ApiNamespace.SYSTEM_DEPT_EDIT_TREE)
 async def get_system_dept_tree_for_edit_option(
     request: Request,
     dept_id: Annotated[int, Path(description='部门id')],
@@ -56,7 +56,7 @@ async def get_system_dept_tree_for_edit_option(
     response_model=DataResponseModel[list[DeptModel]],
     dependencies=[UserInterfaceAuthDependency('system:dept:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_DEPT_LIST)
+@ApiCache(namespace=ApiNamespace.SYSTEM_DEPT_LIST)
 async def get_system_dept_list(
     request: Request,
     dept_query: Annotated[DeptQueryModel, Query()],
@@ -77,7 +77,7 @@ async def get_system_dept_list(
     dependencies=[UserInterfaceAuthDependency('system:dept:add')],
 )
 @ValidateFields(validate_model='add_dept')
-@ApiCacheEvict(namespaces=CacheGroup.DATA_SCOPE_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.DATA_SCOPE_MUTATION)
 @Log(title='部门管理', business_type=BusinessType.INSERT)
 async def add_system_dept(
     request: Request,
@@ -103,7 +103,7 @@ async def add_system_dept(
     dependencies=[UserInterfaceAuthDependency('system:dept:edit')],
 )
 @ValidateFields(validate_model='edit_dept')
-@ApiCacheEvict(namespaces=CacheGroup.DATA_SCOPE_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.DATA_SCOPE_MUTATION)
 @Log(title='部门管理', business_type=BusinessType.UPDATE)
 async def edit_system_dept(
     request: Request,
@@ -129,7 +129,7 @@ async def edit_system_dept(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:dept:remove')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.DATA_SCOPE_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.DATA_SCOPE_MUTATION)
 @Log(title='部门管理', business_type=BusinessType.DELETE)
 async def delete_system_dept(
     request: Request,
@@ -159,7 +159,7 @@ async def delete_system_dept(
     response_model=DataResponseModel[DeptModel],
     dependencies=[UserInterfaceAuthDependency('system:dept:query')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_DEPT_DETAIL)
+@ApiCache(namespace=ApiNamespace.SYSTEM_DEPT_DETAIL)
 async def query_detail_system_dept(
     request: Request,
     dept_id: Annotated[int, Path(description='部门id')],

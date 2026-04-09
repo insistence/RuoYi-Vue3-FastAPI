@@ -8,10 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
@@ -34,7 +35,7 @@ config_controller = APIRouterPro(
     response_model=PageResponseModel[ConfigModel],
     dependencies=[UserInterfaceAuthDependency('system:config:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_CONFIG_LIST)
+@ApiCache(namespace=ApiNamespace.SYSTEM_CONFIG_LIST)
 async def get_system_config_list(
     request: Request,
     config_page_query: Annotated[ConfigPageQueryModel, Query()],
@@ -55,7 +56,7 @@ async def get_system_config_list(
     dependencies=[UserInterfaceAuthDependency('system:config:add')],
 )
 @ValidateFields(validate_model='add_config')
-@ApiCacheEvict(namespaces=CacheGroup.CONFIG_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.CONFIG_MUTATION)
 @Log(title='参数管理', business_type=BusinessType.INSERT)
 async def add_system_config(
     request: Request,
@@ -81,7 +82,7 @@ async def add_system_config(
     dependencies=[UserInterfaceAuthDependency('system:config:edit')],
 )
 @ValidateFields(validate_model='edit_config')
-@ApiCacheEvict(namespaces=CacheGroup.CONFIG_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.CONFIG_MUTATION)
 @Log(title='参数管理', business_type=BusinessType.UPDATE)
 async def edit_system_config(
     request: Request,
@@ -104,6 +105,7 @@ async def edit_system_config(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:remove')],
 )
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_CONFIG_REFRESH_CACHE, preset=ApiRateLimitPreset.USER_COMMON_MUTATION)
 @Log(title='参数管理', business_type=BusinessType.UPDATE)
 async def refresh_system_config(
     request: Request,
@@ -122,7 +124,7 @@ async def refresh_system_config(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:config:remove')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.CONFIG_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.CONFIG_MUTATION)
 @Log(title='参数管理', business_type=BusinessType.DELETE)
 async def delete_system_config(
     request: Request,
@@ -143,7 +145,7 @@ async def delete_system_config(
     response_model=DataResponseModel[ConfigModel],
     dependencies=[UserInterfaceAuthDependency('system:config:query')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_CONFIG_DETAIL)
+@ApiCache(namespace=ApiNamespace.SYSTEM_CONFIG_DETAIL)
 async def query_detail_system_config(
     request: Request,
     config_id: Annotated[int, Path(description='参数主键')],
@@ -184,6 +186,7 @@ async def query_system_config(request: Request, config_key: str) -> Response:
     },
     dependencies=[UserInterfaceAuthDependency('system:config:export')],
 )
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_CONFIG_EXPORT, preset=ApiRateLimitPreset.USER_RESOURCE_EXPORT)
 @Log(title='参数管理', business_type=BusinessType.EXPORT)
 async def export_system_config_list(
     request: Request,

@@ -2,8 +2,10 @@ from typing import Annotated
 
 from fastapi import Path, Request, Response
 
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
+from common.constant import ApiNamespace
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, ResponseBaseModel
 from module_admin.entity.vo.cache_vo import CacheInfoModel, CacheMonitorModel
@@ -87,6 +89,7 @@ async def get_monitor_cache_value(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_CACHE_CLEAR_NAME, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 async def clear_monitor_cache_name(
     request: Request, cache_name: Annotated[str, Path(description='缓存名称')]
 ) -> Response:
@@ -103,6 +106,7 @@ async def clear_monitor_cache_name(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_CACHE_CLEAR_KEY, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 async def clear_monitor_cache_key(request: Request, cache_key: Annotated[str, Path(description='缓存键')]) -> Response:
     clear_cache_key_result = await CacheService.clear_cache_monitor_cache_key_services(request, cache_key)
     logger.info(clear_cache_key_result.message)
@@ -117,6 +121,7 @@ async def clear_monitor_cache_key(request: Request, cache_key: Annotated[str, Pa
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('monitor:cache:list')],
 )
+@ApiRateLimit(namespace=ApiNamespace.MONITOR_CACHE_CLEAR_ALL, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 async def clear_monitor_cache_all(request: Request) -> Response:
     clear_cache_all_result = await CacheService.clear_cache_monitor_all_services(request)
     logger.info(clear_cache_all_result.message)

@@ -1,5 +1,4 @@
 import hashlib
-import inspect
 import json
 from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime
@@ -14,8 +13,10 @@ from typing_extensions import ParamSpec
 
 from common.constant import HttpStatusConstant
 from common.context import RequestContext
-from common.enums import RedisInitKeyConfig
+from common.enums import HttpMethod, RedisInitKeyConfig
 from exceptions.exception import LoginException
+from utils.api_annotation_util import ApiAnnotationUtil
+from utils.api_response_header_util import ApiResponseHeaderUtil
 from utils.log_util import logger
 
 P = ParamSpec('P')
@@ -134,59 +135,6 @@ class _ApiCacheSupport:
     接口缓存装饰器共用工具基类
     """
 
-    def _get_request(self, func: Callable[P, Awaitable[R]], *args: P.args, **kwargs: P.kwargs) -> Request | None:
-        """
-        从被装饰函数的入参中提取Request对象
-
-        :param func: 被装饰的异步接口函数
-        :param args: 位置参数
-        :param kwargs: 关键字参数
-        :return: Request对象，未找到时返回None
-        """
-        signature = inspect.signature(func)
-        bound_arguments = signature.bind_partial(*args, **kwargs)
-        for argument in bound_arguments.arguments.values():
-            if isinstance(argument, Request):
-                return argument
-
-        return None
-
-    def _get_redis_client(self, request: Request, skip_message: str) -> aioredis.Redis | None:
-        """
-        从应用状态中获取Redis连接
-
-        :param request: 当前请求对象
-        :param skip_message: 未初始化Redis连接时的日志信息
-        :return: Redis连接对象，未初始化时返回None
-        """
-        redis = getattr(request.app.state, 'redis', None)
-        if redis is None:
-            logger.warning(skip_message)
-
-        return redis
-
-    def _resolve_request_redis(
-        self,
-        func: Callable[P, Awaitable[R]],
-        skip_message: str,
-        *args: P.args,
-        **kwargs: P.kwargs,
-    ) -> tuple[Request | None, aioredis.Redis | None]:
-        """
-        从被装饰函数入参中同时解析Request与Redis连接
-
-        :param func: 被装饰的异步接口函数
-        :param skip_message: 未初始化Redis连接时的日志信息
-        :param args: 位置参数
-        :param kwargs: 关键字参数
-        :return: Request对象与Redis连接对象组成的元组
-        """
-        request = self._get_request(func, *args, **kwargs)
-        if request is None:
-            return None, None
-
-        return request, self._get_redis_client(request, skip_message)
-
     def _load_json_content(self, response_body: str) -> Any | None:
         """
         解析JSON响应体内容
@@ -259,7 +207,7 @@ class ApiCache(_ApiCacheSupport):
         namespace: str,
         expire_seconds: int = 10,
         vary_by_user: bool = True,
-        methods: Sequence[str] | None = None,
+        methods: Sequence[HttpMethod] | None = None,
         cache_response_codes: set[int] | None = None,
     ) -> None:
         """
@@ -268,13 +216,13 @@ class ApiCache(_ApiCacheSupport):
         :param namespace: 缓存命名空间，用于区分不同接口类型
         :param expire_seconds: 缓存过期时间，单位秒
         :param vary_by_user: 是否按当前登录用户隔离缓存
-        :param methods: 允许启用缓存的HTTP方法列表，为None时默认仅缓存GET请求
+        :param methods: 允许启用缓存的HttpMethod枚举列表，为None时默认仅缓存GET请求
         :param cache_response_codes: 允许缓存的业务响应码，为None时默认仅缓存成功响应
         """
         self.namespace = namespace
         self.expire_seconds = expire_seconds
         self.vary_by_user = vary_by_user
-        self.methods = tuple(dict.fromkeys(method.upper() for method in methods)) if methods else ('GET',)
+        self.methods = ApiAnnotationUtil.normalize_http_methods(methods, default_methods=(HttpMethod.GET,))
         self.cache_response_codes = (
             cache_response_codes if cache_response_codes is not None else {HttpStatusConstant.SUCCESS}
         )
@@ -289,7 +237,7 @@ class ApiCache(_ApiCacheSupport):
 
         @wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            request, redis = self._resolve_request_redis(
+            request, redis = ApiAnnotationUtil.resolve_request_redis(
                 func, '当前应用未初始化Redis连接，跳过接口缓存', *args, **kwargs
             )
             if request is None or redis is None:
@@ -304,7 +252,7 @@ class ApiCache(_ApiCacheSupport):
 
             result = await func(*args, **kwargs)
             await self._cache_response(redis, cache_key, result)
-            self._append_cache_header(result, cache_status='MISS')
+            ApiResponseHeaderUtil.merge_headers(request, {'X-Api-Cache': 'MISS'})
 
             return result
 
@@ -452,17 +400,6 @@ class ApiCache(_ApiCacheSupport):
         await redis.set(cache_key, serialized_response, ex=self.expire_seconds)
         logger.debug(f'接口缓存写入成功: {cache_key}')
 
-    def _append_cache_header(self, result: Any, cache_status: str) -> None:
-        """
-        为响应对象追加接口缓存命中状态响应头
-
-        :param result: 原始接口返回结果
-        :param cache_status: 缓存状态标识
-        :return: None
-        """
-        if isinstance(result, Response):
-            result.headers['X-Api-Cache'] = cache_status
-
     def _filter_response_headers(self, headers: dict[str, str]) -> dict[str, str]:
         """
         过滤不适合直接回放的响应头
@@ -529,7 +466,9 @@ class ApiCacheEvict(_ApiCacheSupport):
         @wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             result = await func(*args, **kwargs)
-            _, redis = self._resolve_request_redis(func, '当前应用未初始化Redis连接，跳过接口缓存失效', *args, **kwargs)
+            _, redis = ApiAnnotationUtil.resolve_request_redis(
+                func, '当前应用未初始化Redis连接，跳过接口缓存失效', *args, **kwargs
+            )
             if redis is None:
                 return result
 

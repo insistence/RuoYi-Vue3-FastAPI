@@ -3,7 +3,9 @@ from typing import Annotated
 from fastapi import BackgroundTasks, File, Query, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.pre_auth import PreAuthDependency
+from common.constant import ApiNamespace
 from common.router import APIRouterPro
 from common.vo import DynamicResponseModel
 from module_admin.entity.vo.common_vo import UploadResponseModel
@@ -20,6 +22,7 @@ common_controller = APIRouterPro(prefix='/common', order_num=16, tags=['通用�
     description='用于上传文件',
     response_model=DynamicResponseModel[UploadResponseModel],
 )
+@ApiRateLimit(namespace=ApiNamespace.COMMON_UPLOAD, preset=ApiRateLimitPreset.COMMON_UPLOAD)
 async def common_upload(request: Request, file: Annotated[UploadFile, File(...)]) -> Response:
     upload_result = await CommonService.upload_service(request, file)
     logger.info('上传成功')

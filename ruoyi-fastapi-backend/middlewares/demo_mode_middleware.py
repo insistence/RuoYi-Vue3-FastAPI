@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
+from utils.client_ip_util import ClientIPUtil
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
@@ -44,7 +45,7 @@ class DemoModeMiddleware(BaseHTTPMiddleware):
                     f'{request.base_url!s}tool/gen/createTable',
                 )
             ):
-                operate_ip = request.headers.get('X-Forwarded-For')
+                operate_ip = ClientIPUtil.get_client_ip(request)
                 logger.warning(
                     '请求IP:{}||请求API:{}||请求方法:{}||请求结果:演示模式，不允许操作！', operate_ip, url_path, method
                 )
