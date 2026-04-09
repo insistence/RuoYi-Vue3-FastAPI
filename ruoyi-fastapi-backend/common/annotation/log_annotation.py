@@ -20,6 +20,7 @@ from config.env import AppConfig
 from exceptions.exception import LoginException, ServiceException, ServiceWarning
 from module_admin.entity.vo.log_vo import LogininforModel, OperLogModel
 from module_admin.service.log_service import LogQueueService
+from utils.client_ip_util import ClientIPUtil
 from utils.dependency_util import DependencyUtil
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
@@ -69,7 +70,7 @@ class Log:
             # 获取请求的url
             oper_url = request.url.path
             # 获取请求ip
-            oper_ip = request.headers.get('X-Forwarded-For')
+            oper_ip = ClientIPUtil.get_client_ip(request)
             # 获取请求ip归属区域
             oper_location = await self._get_oper_location(oper_ip)
             # 获取请求参数

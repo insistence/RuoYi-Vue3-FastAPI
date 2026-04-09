@@ -9,11 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.data_scope import DataScopeDependency
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
@@ -47,7 +48,7 @@ role_controller = APIRouterPro(
     response_model=DynamicResponseModel[RoleDeptQueryModel],
     dependencies=[UserInterfaceAuthDependency('system:role:query')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_ROLE_DEPT_TREE)
+@ApiCache(namespace=ApiNamespace.SYSTEM_ROLE_DEPT_TREE)
 async def get_system_role_dept_tree(
     request: Request,
     role_id: Annotated[int, Path(description='角色ID')],
@@ -69,7 +70,7 @@ async def get_system_role_dept_tree(
     response_model=PageResponseModel[RoleModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_ROLE_LIST)
+@ApiCache(namespace=ApiNamespace.SYSTEM_ROLE_LIST)
 async def get_system_role_list(
     request: Request,
     role_page_query: Annotated[RolePageQueryModel, Query()],
@@ -92,7 +93,7 @@ async def get_system_role_list(
     dependencies=[UserInterfaceAuthDependency('system:role:add')],
 )
 @ValidateFields(validate_model='add_role')
-@ApiCacheEvict(namespaces=CacheGroup.ROLE_ENTITY_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.ROLE_ENTITY_MUTATION)
 @Log(title='角色管理', business_type=BusinessType.INSERT)
 async def add_system_role(
     request: Request,
@@ -118,7 +119,7 @@ async def add_system_role(
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
 @ValidateFields(validate_model='edit_role')
-@ApiCacheEvict(namespaces=CacheGroup.ROLE_PERMISSION_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.ROLE_PERMISSION_MUTATION)
 @Log(title='角色管理', business_type=BusinessType.UPDATE)
 async def edit_system_role(
     request: Request,
@@ -145,7 +146,7 @@ async def edit_system_role(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.DATA_SCOPE_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.DATA_SCOPE_MUTATION)
 @Log(title='角色管理', business_type=BusinessType.GRANT)
 async def edit_system_role_datascope(
     request: Request,
@@ -178,7 +179,7 @@ async def edit_system_role_datascope(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:remove')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.ROLE_ENTITY_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.ROLE_ENTITY_MUTATION)
 @Log(title='角色管理', business_type=BusinessType.DELETE)
 async def delete_system_role(
     request: Request,
@@ -207,7 +208,7 @@ async def delete_system_role(
     response_model=DataResponseModel[RoleModel],
     dependencies=[UserInterfaceAuthDependency('system:role:query')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_ROLE_DETAIL)
+@ApiCache(namespace=ApiNamespace.SYSTEM_ROLE_DETAIL)
 async def query_detail_system_role(
     request: Request,
     role_id: Annotated[int, Path(description='角色ID')],
@@ -238,6 +239,7 @@ async def query_detail_system_role(
     },
     dependencies=[UserInterfaceAuthDependency('system:role:export')],
 )
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_ROLE_EXPORT, preset=ApiRateLimitPreset.USER_RESOURCE_EXPORT)
 @Log(title='角色管理', business_type=BusinessType.EXPORT)
 async def export_system_role_list(
     request: Request,
@@ -262,7 +264,7 @@ async def export_system_role_list(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.ROLE_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.ROLE_MUTATION)
 @Log(title='角色管理', business_type=BusinessType.UPDATE)
 async def reset_system_role_status(
     request: Request,
@@ -294,7 +296,7 @@ async def reset_system_role_status(
     response_model=PageResponseModel[UserInfoModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST)
+@ApiCache(namespace=ApiNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST)
 async def get_system_allocated_user_list(
     request: Request,
     user_role: Annotated[UserRolePageQueryModel, Query()],
@@ -316,7 +318,7 @@ async def get_system_allocated_user_list(
     response_model=PageResponseModel[UserInfoModel],
     dependencies=[UserInterfaceAuthDependency('system:role:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST)
+@ApiCache(namespace=ApiNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST)
 async def get_system_unallocated_user_list(
     request: Request,
     user_role: Annotated[UserRolePageQueryModel, Query()],
@@ -338,7 +340,8 @@ async def get_system_unallocated_user_list(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.ROLE_MUTATION)
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_ROLE_AUTH_USER_SELECT_ALL, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.ROLE_MUTATION)
 @Log(title='角色管理', business_type=BusinessType.GRANT)
 async def add_system_role_user(
     request: Request,
@@ -362,7 +365,8 @@ async def add_system_role_user(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.ROLE_MUTATION)
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_ROLE_AUTH_USER_CANCEL, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.ROLE_MUTATION)
 @Log(title='角色管理', business_type=BusinessType.GRANT)
 async def cancel_system_role_user(
     request: Request,
@@ -382,7 +386,8 @@ async def cancel_system_role_user(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:role:edit')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.ROLE_MUTATION)
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_ROLE_AUTH_USER_CANCEL_ALL, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.ROLE_MUTATION)
 @Log(title='角色管理', business_type=BusinessType.GRANT)
 async def batch_cancel_system_role_user(
     request: Request,

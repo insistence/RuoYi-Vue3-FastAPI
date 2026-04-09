@@ -10,7 +10,7 @@ from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
@@ -32,7 +32,7 @@ notice_controller = APIRouterPro(
     response_model=PageResponseModel[NoticeModel],
     dependencies=[UserInterfaceAuthDependency('system:notice:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_NOTICE_LIST)
+@ApiCache(namespace=ApiNamespace.SYSTEM_NOTICE_LIST)
 async def get_system_notice_list(
     request: Request,
     notice_page_query: Annotated[NoticePageQueryModel, Query()],
@@ -53,7 +53,7 @@ async def get_system_notice_list(
     dependencies=[UserInterfaceAuthDependency('system:notice:add')],
 )
 @ValidateFields(validate_model='add_notice')
-@ApiCacheEvict(namespaces=CacheGroup.NOTICE_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.NOTICE_MUTATION)
 @Log(title='通知公告', business_type=BusinessType.INSERT)
 async def add_system_notice(
     request: Request,
@@ -79,7 +79,7 @@ async def add_system_notice(
     dependencies=[UserInterfaceAuthDependency('system:notice:edit')],
 )
 @ValidateFields(validate_model='edit_notice')
-@ApiCacheEvict(namespaces=CacheGroup.NOTICE_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.NOTICE_MUTATION)
 @Log(title='通知公告', business_type=BusinessType.UPDATE)
 async def edit_system_notice(
     request: Request,
@@ -102,7 +102,7 @@ async def edit_system_notice(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:notice:remove')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.NOTICE_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.NOTICE_MUTATION)
 @Log(title='通知公告', business_type=BusinessType.DELETE)
 async def delete_system_notice(
     request: Request,
@@ -123,7 +123,7 @@ async def delete_system_notice(
     response_model=DataResponseModel[NoticeModel],
     dependencies=[UserInterfaceAuthDependency('system:notice:query')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_NOTICE_DETAIL)
+@ApiCache(namespace=ApiNamespace.SYSTEM_NOTICE_DETAIL)
 async def query_detail_system_post(
     request: Request,
     notice_id: Annotated[int, Path(description='公告ID')],

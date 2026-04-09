@@ -8,10 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitBypassConfig, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import RoleInterfaceAuthDependency, UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
@@ -40,7 +41,7 @@ gen_controller = APIRouterPro(prefix='/tool/gen', order_num=17, tags=['代码生
     response_model=PageResponseModel[GenTableRowModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:list')],
 )
-@ApiCache(namespace=CacheNamespace.TOOL_GEN_LIST)
+@ApiCache(namespace=ApiNamespace.TOOL_GEN_LIST)
 async def get_gen_table_list(
     request: Request,
     gen_page_query: Annotated[GenTablePageQueryModel, Query()],
@@ -60,7 +61,7 @@ async def get_gen_table_list(
     response_model=PageResponseModel[GenTableDbRowModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:list')],
 )
-@ApiCache(namespace=CacheNamespace.TOOL_GEN_DB_LIST)
+@ApiCache(namespace=ApiNamespace.TOOL_GEN_DB_LIST)
 async def get_gen_db_table_list(
     request: Request,
     gen_page_query: Annotated[GenTablePageQueryModel, Query()],
@@ -80,7 +81,12 @@ async def get_gen_db_table_list(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:import')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.GEN_MUTATION)
+@ApiRateLimit(
+    namespace=ApiNamespace.TOOL_GEN_IMPORT_TABLE,
+    preset=ApiRateLimitPreset.USER_RESOURCE_GENERATE,
+    bypass=ApiRateLimitBypassConfig(roles=('admin',)),
+)
+@ApiCacheEvict(namespaces=ApiGroup.GEN_MUTATION)
 @Log(title='代码生成', business_type=BusinessType.IMPORT)
 async def import_gen_table(
     request: Request,
@@ -104,7 +110,7 @@ async def import_gen_table(
     dependencies=[UserInterfaceAuthDependency('tool:gen:edit')],
 )
 @ValidateFields(validate_model='edit_gen_table')
-@ApiCacheEvict(namespaces=CacheGroup.GEN_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.GEN_MUTATION)
 @Log(title='代码生成', business_type=BusinessType.UPDATE)
 async def edit_gen_table(
     request: Request,
@@ -128,7 +134,7 @@ async def edit_gen_table(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:remove')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.GEN_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.GEN_MUTATION)
 @Log(title='代码生成', business_type=BusinessType.DELETE)
 async def delete_gen_table(
     request: Request,
@@ -149,7 +155,12 @@ async def delete_gen_table(
     response_model=ResponseBaseModel,
     dependencies=[RoleInterfaceAuthDependency('admin')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.GEN_MUTATION)
+@ApiRateLimit(
+    namespace=ApiNamespace.TOOL_GEN_CREATE_TABLE,
+    preset=ApiRateLimitPreset.USER_RESOURCE_GENERATE,
+    bypass=ApiRateLimitBypassConfig(roles=('admin',)),
+)
+@ApiCacheEvict(namespaces=ApiGroup.GEN_MUTATION)
 @Log(title='创建表', business_type=BusinessType.OTHER)
 async def create_table(
     request: Request,
@@ -178,6 +189,11 @@ async def create_table(
     },
     dependencies=[UserInterfaceAuthDependency('tool:gen:code')],
 )
+@ApiRateLimit(
+    namespace=ApiNamespace.TOOL_GEN_BATCH_GEN_CODE,
+    preset=ApiRateLimitPreset.USER_RESOURCE_DOWNLOAD,
+    bypass=ApiRateLimitBypassConfig(roles=('admin',)),
+)
 @Log(title='代码生成', business_type=BusinessType.GENCODE)
 async def batch_gen_code(
     request: Request,
@@ -198,7 +214,12 @@ async def batch_gen_code(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('tool:gen:code')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.GEN_MUTATION)
+@ApiRateLimit(
+    namespace=ApiNamespace.TOOL_GEN_GEN_CODE_LOCAL,
+    preset=ApiRateLimitPreset.USER_RESOURCE_GENERATE,
+    bypass=ApiRateLimitBypassConfig(roles=('admin',)),
+)
+@ApiCacheEvict(namespaces=ApiGroup.GEN_MUTATION)
 @Log(title='代码生成', business_type=BusinessType.GENCODE)
 async def gen_code_local(
     request: Request,
@@ -221,7 +242,7 @@ async def gen_code_local(
     response_model=DataResponseModel[GenTableDetailModel],
     dependencies=[UserInterfaceAuthDependency('tool:gen:query')],
 )
-@ApiCache(namespace=CacheNamespace.TOOL_GEN_DETAIL)
+@ApiCache(namespace=ApiNamespace.TOOL_GEN_DETAIL)
 async def query_detail_gen_table(
     request: Request,
     table_id: Annotated[int, Path(description='表编号')],
@@ -243,7 +264,7 @@ async def query_detail_gen_table(
     response_model=DataResponseModel[dict[str, str]],
     dependencies=[UserInterfaceAuthDependency('tool:gen:preview')],
 )
-@ApiCache(namespace=CacheNamespace.TOOL_GEN_PREVIEW)
+@ApiCache(namespace=ApiNamespace.TOOL_GEN_PREVIEW)
 async def preview_code(
     request: Request,
     table_id: Annotated[int, Path(description='表编号')],
@@ -262,7 +283,8 @@ async def preview_code(
     response_model=DataResponseModel[str],
     dependencies=[UserInterfaceAuthDependency('tool:gen:edit')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.GEN_MUTATION)
+@ApiRateLimit(namespace=ApiNamespace.TOOL_GEN_SYNC_DB, preset=ApiRateLimitPreset.USER_RESOURCE_SYNC)
+@ApiCacheEvict(namespaces=ApiGroup.GEN_MUTATION)
 @Log(title='代码生成', business_type=BusinessType.UPDATE)
 async def sync_db(
     request: Request,

@@ -27,6 +27,8 @@ class AppSettings(BaseSettings):
     app_demo_mode: bool = False
     app_disable_swagger: bool = False
     app_disable_redoc: bool = False
+    app_trusted_proxy_ips: str = '127.0.0.1,::1'
+    app_trusted_proxy_hops: int = 1
 
 
 class JwtSettings(BaseSettings):

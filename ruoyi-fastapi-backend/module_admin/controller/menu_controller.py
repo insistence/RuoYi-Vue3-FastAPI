@@ -10,7 +10,7 @@ from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, ResponseBaseModel
@@ -32,7 +32,7 @@ menu_controller = APIRouterPro(
     description='用于获取当前用户可见的菜单树',
     response_model=DataResponseModel[list[MenuTreeModel]],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_MENU_TREE)
+@ApiCache(namespace=ApiNamespace.SYSTEM_MENU_TREE)
 async def get_system_menu_tree(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -50,7 +50,7 @@ async def get_system_menu_tree(
     description='用于获取指定角色可见的菜单树',
     response_model=DynamicResponseModel[RoleMenuQueryModel],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_MENU_ROLE_TREE)
+@ApiCache(namespace=ApiNamespace.SYSTEM_MENU_ROLE_TREE)
 async def get_system_role_menu_tree(
     request: Request,
     role_id: Annotated[int, Path(description='角色ID')],
@@ -70,7 +70,7 @@ async def get_system_role_menu_tree(
     response_model=DataResponseModel[list[MenuModel]],
     dependencies=[UserInterfaceAuthDependency('system:menu:list')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_MENU_LIST)
+@ApiCache(namespace=ApiNamespace.SYSTEM_MENU_LIST)
 async def get_system_menu_list(
     request: Request,
     menu_query: Annotated[MenuQueryModel, Query()],
@@ -91,7 +91,7 @@ async def get_system_menu_list(
     dependencies=[UserInterfaceAuthDependency('system:menu:add')],
 )
 @ValidateFields(validate_model='add_menu')
-@ApiCacheEvict(namespaces=CacheGroup.MENU_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.MENU_MUTATION)
 @Log(title='菜单管理', business_type=BusinessType.INSERT)
 async def add_system_menu(
     request: Request,
@@ -117,7 +117,7 @@ async def add_system_menu(
     dependencies=[UserInterfaceAuthDependency('system:menu:edit')],
 )
 @ValidateFields(validate_model='edit_menu')
-@ApiCacheEvict(namespaces=CacheGroup.MENU_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.MENU_MUTATION)
 @Log(title='菜单管理', business_type=BusinessType.UPDATE)
 async def edit_system_menu(
     request: Request,
@@ -140,7 +140,7 @@ async def edit_system_menu(
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:menu:remove')],
 )
-@ApiCacheEvict(namespaces=CacheGroup.MENU_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.MENU_MUTATION)
 @Log(title='菜单管理', business_type=BusinessType.DELETE)
 async def delete_system_menu(
     request: Request,
@@ -161,7 +161,7 @@ async def delete_system_menu(
     response_model=DataResponseModel[MenuModel],
     dependencies=[UserInterfaceAuthDependency('system:menu:query')],
 )
-@ApiCache(namespace=CacheNamespace.SYSTEM_MENU_DETAIL)
+@ApiCache(namespace=ApiNamespace.SYSTEM_MENU_DETAIL)
 async def query_detail_system_menu(
     request: Request,
     menu_id: Annotated[int, Path(description='菜单ID')],

@@ -25,6 +25,7 @@ from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.login_vo import MenuTreeModel, MetaModel, RouterModel, SmsCode, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import AddUserModel, CurrentUserModel, ResetUserModel, TokenData, UserInfoModel
 from module_admin.service.user_service import UserService
+from utils.client_ip_util import ClientIPUtil
 from utils.common_util import CamelCaseUtil
 from utils.log_util import logger
 from utils.message_util import message_service
@@ -147,7 +148,7 @@ class LoginService:
         """
         black_ip_value = await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.login.blackIPList')
         black_ip_list = black_ip_value.split(',') if black_ip_value else []
-        if request.headers.get('X-Forwarded-For') in black_ip_list:
+        if ClientIPUtil.get_client_ip(request) in black_ip_list:
             logger.warning('当前IP禁止登录')
             raise LoginException(data='', message='当前IP禁止登录')
         return True

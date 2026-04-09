@@ -1,6 +1,32 @@
 from enum import Enum
 
 
+class HttpMethod(str, Enum):
+    """
+    HTTP请求方法枚举
+
+    GET: 获取资源
+    POST: 创建资源
+    PUT: 整体更新资源
+    DELETE: 删除资源
+    PATCH: 局部更新资源
+    HEAD: 获取响应头
+    OPTIONS: 获取允许的方法信息
+    TRACE: 回显诊断请求
+    CONNECT: 建立隧道连接
+    """
+
+    GET = 'GET'
+    POST = 'POST'
+    PUT = 'PUT'
+    DELETE = 'DELETE'
+    PATCH = 'PATCH'
+    HEAD = 'HEAD'
+    OPTIONS = 'OPTIONS'
+    TRACE = 'TRACE'
+    CONNECT = 'CONNECT'
+
+
 class BusinessType(Enum):
     """
     业务操作类型
@@ -46,6 +72,7 @@ class RedisInitKeyConfig(Enum):
     SYS_DICT = {'key': 'sys_dict', 'remark': '数据字典'}
     SYS_CONFIG = {'key': 'sys_config', 'remark': '配置信息'}
     API_CACHE = {'key': 'api_cache', 'remark': '接口响应缓存'}
+    API_RATE_LIMIT = {'key': 'api_rate_limit', 'remark': '接口限流'}
     CAPTCHA_CODES = {'key': 'captcha_codes', 'remark': '图片验证码'}
     ACCOUNT_LOCK = {'key': 'account_lock', 'remark': '用户锁定'}
     PASSWORD_ERROR_COUNT = {'key': 'password_error_count', 'remark': '密码错误次数'}

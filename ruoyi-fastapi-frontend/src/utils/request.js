@@ -110,6 +110,15 @@ service.interceptors.response.use(res => {
   },
   error => {
     console.log('err' + error)
+    const response = error.response
+    const responseStatus = response?.status
+    const responseCode = response?.data?.code
+    const responseMsg = response?.data?.msg
+    if (responseMsg) {
+      const messageType = responseStatus === 429 || responseCode === 429 ? 'warning' : 'error'
+      ElMessage({ message: responseMsg, type: messageType, duration: 5 * 1000 })
+      return Promise.reject(new Error(responseMsg))
+    }
     let { message } = error;
     if (message == "Network Error") {
       message = "后端接口连接异常";

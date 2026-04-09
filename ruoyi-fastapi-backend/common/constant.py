@@ -53,6 +53,7 @@ class HttpStatusConstant:
     BAD_METHOD: 不允许的http方法
     CONFLICT: 资源冲突，或者资源被锁
     UNSUPPORTED_TYPE: 不支持的数据，媒体类型
+    TOO_MANY_REQUESTS: 请求过于频繁
     ERROR: 系统内部错误
     NOT_IMPLEMENTED: 接口未实现
     WARN: 系统警告消息
@@ -72,6 +73,7 @@ class HttpStatusConstant:
     BAD_METHOD = 405
     CONFLICT = 409
     UNSUPPORTED_TYPE = 415
+    TOO_MANY_REQUESTS = 429
     ERROR = 500
     NOT_IMPLEMENTED = 501
     WARN = 601
@@ -143,194 +145,287 @@ class LockConstant:
     LOCK_RENEWAL_INTERVAL = 20
 
 
-class CacheNamespace:
+class ApiNamespace:
     """
-    接口缓存命名空间常量
+    接口注解通用命名空间常量
 
-    MONITOR_SERVER_INFO: 服务监控信息缓存
-    MONITOR_JOB_LIST: 定时任务分页列表缓存
-    MONITOR_JOB_DETAIL: 定时任务详情缓存
-    LOGIN_USER_INFO: 登录用户信息缓存
-    LOGIN_USER_ROUTERS: 登录用户路由缓存
-    SYSTEM_MENU_TREE: 菜单树缓存
-    SYSTEM_MENU_ROLE_TREE: 角色菜单树缓存
-    SYSTEM_MENU_LIST: 菜单分页列表缓存
-    SYSTEM_MENU_DETAIL: 菜单详情缓存
-    SYSTEM_DEPT_EDIT_TREE: 部门编辑树缓存
-    SYSTEM_DEPT_LIST: 部门列表缓存
-    SYSTEM_DEPT_DETAIL: 部门详情缓存
-    SYSTEM_POST_LIST: 岗位列表缓存
-    SYSTEM_POST_DETAIL: 岗位详情缓存
-    SYSTEM_NOTICE_LIST: 通知公告列表缓存
-    SYSTEM_NOTICE_DETAIL: 通知公告详情缓存
-    SYSTEM_ROLE_DEPT_TREE: 角色部门树缓存
-    SYSTEM_ROLE_LIST: 角色列表缓存
-    SYSTEM_ROLE_DETAIL: 角色详情缓存
-    SYSTEM_ROLE_ALLOCATED_USER_LIST: 已分配用户角色列表缓存
-    SYSTEM_ROLE_UNALLOCATED_USER_LIST: 未分配用户角色列表缓存
-    SYSTEM_USER_DEPT_TREE: 用户部门树缓存
-    SYSTEM_USER_LIST: 用户列表缓存
-    SYSTEM_USER_PROFILE: 用户个人信息缓存
-    SYSTEM_USER_DETAIL: 用户详情缓存
-    SYSTEM_CONFIG_LIST: 参数配置列表缓存
-    SYSTEM_CONFIG_DETAIL: 参数配置详情缓存
-    SYSTEM_DICT_TYPE_LIST: 字典类型列表缓存
-    SYSTEM_DICT_TYPE_OPTIONS: 字典类型选项缓存
-    SYSTEM_DICT_TYPE_DETAIL: 字典类型详情缓存
-    SYSTEM_DICT_DATA_LIST: 字典数据列表缓存
-    SYSTEM_DICT_DATA_DETAIL: 字典数据详情缓存
-    AI_MODEL_LIST: AI模型列表缓存
-    AI_MODEL_ALL: AI模型全量列表缓存
-    AI_MODEL_DETAIL: AI模型详情缓存
-    AI_CHAT_CONFIG: AI对话配置缓存
-    TOOL_GEN_LIST: 代码生成列表缓存
-    TOOL_GEN_DB_LIST: 代码生成数据源列表缓存
-    TOOL_GEN_DETAIL: 代码生成详情缓存
-    TOOL_GEN_PREVIEW: 代码生成预览缓存
+    这一组常量统一提供给 `ApiCache`、`ApiCacheEvict`、`ApiRateLimit`
+    等接口注解使用，用同一套“模块:功能”命名规则收敛缓存和限流场景。
+
+    LOGIN: 登录接口命名空间
+    REGISTER: 注册接口命名空间
+    LOGIN_USER_INFO: 登录用户信息接口命名空间
+    LOGIN_USER_ROUTERS: 登录用户路由接口命名空间
+    CAPTCHA_IMAGE: 图片验证码接口命名空间
+    COMMON_UPLOAD: 通用上传接口命名空间
+
+    MONITOR_SERVER_INFO: 服务监控信息接口命名空间
+    MONITOR_CACHE_CLEAR_NAME: 缓存名称清理接口命名空间
+    MONITOR_CACHE_CLEAR_KEY: 缓存键清理接口命名空间
+    MONITOR_CACHE_CLEAR_ALL: 缓存全量清理接口命名空间
+    MONITOR_ONLINE_FORCE_LOGOUT: 在线用户强退接口命名空间
+    MONITOR_OPERLOG_CLEAN: 操作日志清空接口命名空间
+    MONITOR_OPERLOG_DELETE: 操作日志删除接口命名空间
+    MONITOR_OPERLOG_EXPORT: 操作日志导出接口命名空间
+    MONITOR_LOGININFO_CLEAN: 登录日志清空接口命名空间
+    MONITOR_LOGININFO_DELETE: 登录日志删除接口命名空间
+    MONITOR_LOGININFO_UNLOCK: 账户解锁接口命名空间
+    MONITOR_LOGININFO_EXPORT: 登录日志导出接口命名空间
+    MONITOR_JOB_LIST: 定时任务分页列表接口命名空间
+    MONITOR_JOB_DETAIL: 定时任务详情接口命名空间
+    MONITOR_JOB_RUN: 定时任务执行接口命名空间
+    MONITOR_JOB_DELETE: 定时任务删除接口命名空间
+    MONITOR_JOB_EXPORT: 定时任务导出接口命名空间
+    MONITOR_JOB_LOG_CLEAN: 定时任务日志清空接口命名空间
+    MONITOR_JOB_LOG_DELETE: 定时任务日志删除接口命名空间
+    MONITOR_JOB_LOG_EXPORT: 定时任务日志导出接口命名空间
+
+    SYSTEM_DEPT_EDIT_TREE: 部门编辑树接口命名空间
+    SYSTEM_DEPT_LIST: 部门列表接口命名空间
+    SYSTEM_DEPT_DETAIL: 部门详情接口命名空间
+    SYSTEM_CONFIG_LIST: 参数配置列表接口命名空间
+    SYSTEM_CONFIG_DETAIL: 参数配置详情接口命名空间
+    SYSTEM_CONFIG_REFRESH_CACHE: 参数缓存刷新接口命名空间
+    SYSTEM_CONFIG_EXPORT: 参数导出接口命名空间
+    SYSTEM_DICT_TYPE_LIST: 字典类型列表接口命名空间
+    SYSTEM_DICT_TYPE_OPTIONS: 字典类型选项接口命名空间
+    SYSTEM_DICT_TYPE_DETAIL: 字典类型详情接口命名空间
+    SYSTEM_DICT_REFRESH_CACHE: 字典缓存刷新接口命名空间
+    SYSTEM_DICT_TYPE_EXPORT: 字典类型导出接口命名空间
+    SYSTEM_DICT_DATA_LIST: 字典数据列表接口命名空间
+    SYSTEM_DICT_DATA_DETAIL: 字典数据详情接口命名空间
+    SYSTEM_DICT_DATA_EXPORT: 字典数据导出接口命名空间
+    SYSTEM_MENU_TREE: 菜单树接口命名空间
+    SYSTEM_MENU_ROLE_TREE: 角色菜单树接口命名空间
+    SYSTEM_MENU_LIST: 菜单分页列表接口命名空间
+    SYSTEM_MENU_DETAIL: 菜单详情接口命名空间
+    SYSTEM_NOTICE_LIST: 通知公告列表接口命名空间
+    SYSTEM_NOTICE_DETAIL: 通知公告详情接口命名空间
+    SYSTEM_POST_LIST: 岗位列表接口命名空间
+    SYSTEM_POST_DETAIL: 岗位详情接口命名空间
+    SYSTEM_POST_EXPORT: 岗位导出接口命名空间
+    SYSTEM_ROLE_DEPT_TREE: 角色部门树接口命名空间
+    SYSTEM_ROLE_LIST: 角色列表接口命名空间
+    SYSTEM_ROLE_DETAIL: 角色详情接口命名空间
+    SYSTEM_ROLE_ALLOCATED_USER_LIST: 已分配用户角色列表接口命名空间
+    SYSTEM_ROLE_UNALLOCATED_USER_LIST: 未分配用户角色列表接口命名空间
+    SYSTEM_ROLE_EXPORT: 角色导出接口命名空间
+    SYSTEM_ROLE_AUTH_USER_SELECT_ALL: 角色批量分配用户接口命名空间
+    SYSTEM_ROLE_AUTH_USER_CANCEL: 角色取消分配用户接口命名空间
+    SYSTEM_ROLE_AUTH_USER_CANCEL_ALL: 角色批量取消分配用户接口命名空间
+    SYSTEM_USER_DEPT_TREE: 用户部门树接口命名空间
+    SYSTEM_USER_LIST: 用户列表接口命名空间
+    SYSTEM_USER_PROFILE: 用户个人信息接口命名空间
+    SYSTEM_USER_DETAIL: 用户详情接口命名空间
+    SYSTEM_USER_PROFILE_AVATAR: 用户头像上传接口命名空间
+    SYSTEM_USER_IMPORT: 用户导入接口命名空间
+    SYSTEM_USER_EXPORT: 用户导出接口命名空间
+
+    AI_MODEL_LIST: AI模型列表接口命名空间
+    AI_MODEL_ALL: AI模型全量列表接口命名空间
+    AI_MODEL_DETAIL: AI模型详情接口命名空间
+    AI_CHAT_CONFIG: AI对话配置接口命名空间
+    AI_CHAT_SEND: AI对话发送接口命名空间
+    AI_CHAT_CANCEL: AI对话取消接口命名空间
+
+    TOOL_GEN_LIST: 代码生成列表接口命名空间
+    TOOL_GEN_DB_LIST: 代码生成数据源列表接口命名空间
+    TOOL_GEN_DETAIL: 代码生成详情接口命名空间
+    TOOL_GEN_PREVIEW: 代码生成预览接口命名空间
+    TOOL_GEN_IMPORT_TABLE: 代码生成导入表接口命名空间
+    TOOL_GEN_CREATE_TABLE: 代码生成建表接口命名空间
+    TOOL_GEN_BATCH_GEN_CODE: 代码生成批量下载接口命名空间
+    TOOL_GEN_GEN_CODE_LOCAL: 代码生成到本地接口命名空间
+    TOOL_GEN_SYNC_DB: 代码生成同步库结构接口命名空间
     """
 
-    MONITOR_SERVER_INFO = 'monitor:server:info'
-    MONITOR_JOB_LIST = 'monitor:job:list'
-    MONITOR_JOB_DETAIL = 'monitor:job:detail'
-
+    LOGIN = 'login'
+    REGISTER = 'register'
     LOGIN_USER_INFO = 'login:user:info'
     LOGIN_USER_ROUTERS = 'login:user:routers'
+    CAPTCHA_IMAGE = 'captcha:image'
+    COMMON_UPLOAD = 'common:upload'
+
+    MONITOR_SERVER_INFO = 'monitor:server:info'
+    MONITOR_CACHE_CLEAR_NAME = 'monitor:cache:clear-name'
+    MONITOR_CACHE_CLEAR_KEY = 'monitor:cache:clear-key'
+    MONITOR_CACHE_CLEAR_ALL = 'monitor:cache:clear-all'
+    MONITOR_ONLINE_FORCE_LOGOUT = 'monitor:online:force-logout'
+    MONITOR_OPERLOG_CLEAN = 'monitor:operlog:clean'
+    MONITOR_OPERLOG_DELETE = 'monitor:operlog:delete'
+    MONITOR_OPERLOG_EXPORT = 'monitor:operlog:export'
+    MONITOR_LOGININFO_CLEAN = 'monitor:logininfor:clean'
+    MONITOR_LOGININFO_DELETE = 'monitor:logininfor:delete'
+    MONITOR_LOGININFO_UNLOCK = 'monitor:logininfor:unlock'
+    MONITOR_LOGININFO_EXPORT = 'monitor:logininfor:export'
+    MONITOR_JOB_LIST = 'monitor:job:list'
+    MONITOR_JOB_DETAIL = 'monitor:job:detail'
+    MONITOR_JOB_RUN = 'monitor:job:run'
+    MONITOR_JOB_DELETE = 'monitor:job:delete'
+    MONITOR_JOB_EXPORT = 'monitor:job:export'
+    MONITOR_JOB_LOG_CLEAN = 'monitor:job-log:clean'
+    MONITOR_JOB_LOG_DELETE = 'monitor:job-log:delete'
+    MONITOR_JOB_LOG_EXPORT = 'monitor:job-log:export'
+
+    SYSTEM_DEPT_EDIT_TREE = 'system:dept:edit-tree'
+    SYSTEM_DEPT_LIST = 'system:dept:list'
+    SYSTEM_DEPT_DETAIL = 'system:dept:detail'
+
+    SYSTEM_CONFIG_LIST = 'system:config:list'
+    SYSTEM_CONFIG_DETAIL = 'system:config:detail'
+    SYSTEM_CONFIG_REFRESH_CACHE = 'system:config:refresh-cache'
+    SYSTEM_CONFIG_EXPORT = 'system:config:export'
+
+    SYSTEM_DICT_TYPE_LIST = 'system:dict:type-list'
+    SYSTEM_DICT_TYPE_OPTIONS = 'system:dict:type-options'
+    SYSTEM_DICT_TYPE_DETAIL = 'system:dict:type-detail'
+    SYSTEM_DICT_REFRESH_CACHE = 'system:dict:refresh-cache'
+    SYSTEM_DICT_TYPE_EXPORT = 'system:dict:type-export'
+    SYSTEM_DICT_DATA_LIST = 'system:dict:data-list'
+    SYSTEM_DICT_DATA_DETAIL = 'system:dict:data-detail'
+    SYSTEM_DICT_DATA_EXPORT = 'system:dict:data-export'
 
     SYSTEM_MENU_TREE = 'system:menu:tree'
     SYSTEM_MENU_ROLE_TREE = 'system:menu:role-tree'
     SYSTEM_MENU_LIST = 'system:menu:list'
     SYSTEM_MENU_DETAIL = 'system:menu:detail'
 
-    SYSTEM_DEPT_EDIT_TREE = 'system:dept:edit-tree'
-    SYSTEM_DEPT_LIST = 'system:dept:list'
-    SYSTEM_DEPT_DETAIL = 'system:dept:detail'
+    SYSTEM_NOTICE_LIST = 'system:notice:list'
+    SYSTEM_NOTICE_DETAIL = 'system:notice:detail'
 
     SYSTEM_POST_LIST = 'system:post:list'
     SYSTEM_POST_DETAIL = 'system:post:detail'
-
-    SYSTEM_NOTICE_LIST = 'system:notice:list'
-    SYSTEM_NOTICE_DETAIL = 'system:notice:detail'
+    SYSTEM_POST_EXPORT = 'system:post:export'
 
     SYSTEM_ROLE_DEPT_TREE = 'system:role:dept-tree'
     SYSTEM_ROLE_LIST = 'system:role:list'
     SYSTEM_ROLE_DETAIL = 'system:role:detail'
     SYSTEM_ROLE_ALLOCATED_USER_LIST = 'system:role:allocated-user-list'
     SYSTEM_ROLE_UNALLOCATED_USER_LIST = 'system:role:unallocated-user-list'
+    SYSTEM_ROLE_EXPORT = 'system:role:export'
+    SYSTEM_ROLE_AUTH_USER_SELECT_ALL = 'system:role:auth-user-select-all'
+    SYSTEM_ROLE_AUTH_USER_CANCEL = 'system:role:auth-user-cancel'
+    SYSTEM_ROLE_AUTH_USER_CANCEL_ALL = 'system:role:auth-user-cancel-all'
 
     SYSTEM_USER_DEPT_TREE = 'system:user:dept-tree'
     SYSTEM_USER_LIST = 'system:user:list'
     SYSTEM_USER_PROFILE = 'system:user:profile'
     SYSTEM_USER_DETAIL = 'system:user:detail'
-
-    SYSTEM_CONFIG_LIST = 'system:config:list'
-    SYSTEM_CONFIG_DETAIL = 'system:config:detail'
-
-    SYSTEM_DICT_TYPE_LIST = 'system:dict:type-list'
-    SYSTEM_DICT_TYPE_OPTIONS = 'system:dict:type-options'
-    SYSTEM_DICT_TYPE_DETAIL = 'system:dict:type-detail'
-    SYSTEM_DICT_DATA_LIST = 'system:dict:data-list'
-    SYSTEM_DICT_DATA_DETAIL = 'system:dict:data-detail'
+    SYSTEM_USER_PROFILE_AVATAR = 'system:user:profile-avatar'
+    SYSTEM_USER_IMPORT = 'system:user:import'
+    SYSTEM_USER_EXPORT = 'system:user:export'
 
     AI_MODEL_LIST = 'ai:model:list'
     AI_MODEL_ALL = 'ai:model:all'
     AI_MODEL_DETAIL = 'ai:model:detail'
     AI_CHAT_CONFIG = 'ai:chat:config'
+    AI_CHAT_SEND = 'ai:chat:send'
+    AI_CHAT_CANCEL = 'ai:chat:cancel'
 
     TOOL_GEN_LIST = 'tool:gen:list'
     TOOL_GEN_DB_LIST = 'tool:gen:db-list'
     TOOL_GEN_DETAIL = 'tool:gen:detail'
     TOOL_GEN_PREVIEW = 'tool:gen:preview'
 
+    TOOL_GEN_IMPORT_TABLE = 'tool:gen:import-table'
+    TOOL_GEN_CREATE_TABLE = 'tool:gen:create-table'
+    TOOL_GEN_BATCH_GEN_CODE = 'tool:gen:batch-gen-code'
+    TOOL_GEN_GEN_CODE_LOCAL = 'tool:gen:gen-code-local'
+    TOOL_GEN_SYNC_DB = 'tool:gen:sync-db'
 
-class CacheGroup:
+
+class ApiGroup:
     """
-    接口缓存失效分组常量
+    接口命名空间分组常量
 
-    PERMISSION_MUTATION: 权限及菜单视图关联缓存失效基础分组
-    DATA_SCOPE_MUTATION: 数据范围相关视图关联缓存失效基础分组
-    MENU_MUTATION: 菜单写操作关联缓存失效分组
-    JOB_MUTATION: 定时任务写操作关联缓存失效分组
-    POST_MUTATION: 岗位写操作关联缓存失效分组
-    NOTICE_MUTATION: 通知公告写操作关联缓存失效分组
-    ROLE_ENTITY_MUTATION: 角色实体信息变更关联缓存失效分组
-    ROLE_PERMISSION_MUTATION: 角色权限变更关联缓存失效分组
-    ROLE_MUTATION: 角色通用写操作关联缓存失效组合分组
-    USER_ENTITY_MUTATION: 用户实体信息变更关联缓存失效分组
-    USER_PERMISSION_MUTATION: 用户权限变更关联缓存失效分组
-    USER_INFO_MUTATION: 用户资料与安全相关写操作关联缓存失效分组
-    LOGIN_SUCCESS_MUTATION: 登录成功后关联缓存失效分组
-    LOGOUT_MUTATION: 登出后关联缓存失效分组
-    CONFIG_MUTATION: 参数配置写操作关联缓存失效分组
-    DICT_TYPE_MUTATION: 字典类型写操作关联缓存失效分组
-    DICT_DATA_MUTATION: 字典数据写操作关联缓存失效分组
-    AI_MODEL_MUTATION: AI模型写操作关联缓存失效分组
-    AI_CHAT_CONFIG_MUTATION: AI对话配置写操作关联缓存失效分组
-    GEN_MUTATION: 代码生成写操作关联缓存失效分组
+    当前主要用于 `ApiCacheEvict` 批量清理关联命名空间，分组成员均来自
+    `ApiNamespace`，按业务写操作影响范围收敛管理。
+
+    PERMISSION_MUTATION: 权限与菜单视图关联命名空间分组
+    DATA_SCOPE_MUTATION: 数据范围相关视图关联命名空间分组
+    MENU_MUTATION: 菜单写操作关联命名空间分组
+    JOB_MUTATION: 定时任务写操作关联命名空间分组
+    POST_MUTATION: 岗位写操作关联命名空间分组
+    NOTICE_MUTATION: 通知公告写操作关联命名空间分组
+    ROLE_ENTITY_MUTATION: 角色实体信息变更关联命名空间分组
+    ROLE_PERMISSION_MUTATION: 角色权限变更关联命名空间分组
+    ROLE_MUTATION: 角色通用写操作关联命名空间组合分组
+    USER_ENTITY_MUTATION: 用户实体信息变更关联命名空间分组
+    USER_PERMISSION_MUTATION: 用户权限变更关联命名空间分组
+    USER_INFO_MUTATION: 用户资料与安全相关写操作关联命名空间分组
+    LOGIN_SUCCESS_MUTATION: 登录成功后关联命名空间分组
+    LOGOUT_MUTATION: 登出后关联命名空间分组
+    CONFIG_MUTATION: 参数配置写操作关联命名空间分组
+    DICT_TYPE_MUTATION: 字典类型写操作关联命名空间分组
+    DICT_DATA_MUTATION: 字典数据写操作关联命名空间分组
+    AI_MODEL_MUTATION: AI模型写操作关联命名空间分组
+    AI_CHAT_CONFIG_MUTATION: AI对话配置写操作关联命名空间分组
+    GEN_MUTATION: 代码生成写操作关联命名空间分组
     """
 
     PERMISSION_MUTATION = (
-        CacheNamespace.LOGIN_USER_INFO,
-        CacheNamespace.LOGIN_USER_ROUTERS,
-        CacheNamespace.SYSTEM_MENU_TREE,
-        CacheNamespace.SYSTEM_MENU_ROLE_TREE,
-        CacheNamespace.SYSTEM_MENU_LIST,
+        ApiNamespace.LOGIN_USER_INFO,
+        ApiNamespace.LOGIN_USER_ROUTERS,
+        ApiNamespace.SYSTEM_MENU_TREE,
+        ApiNamespace.SYSTEM_MENU_ROLE_TREE,
+        ApiNamespace.SYSTEM_MENU_LIST,
     )
 
     DATA_SCOPE_MUTATION = (
-        CacheNamespace.LOGIN_USER_INFO,
-        CacheNamespace.SYSTEM_DEPT_EDIT_TREE,
-        CacheNamespace.SYSTEM_DEPT_LIST,
-        CacheNamespace.SYSTEM_DEPT_DETAIL,
-        CacheNamespace.SYSTEM_ROLE_DEPT_TREE,
-        CacheNamespace.SYSTEM_ROLE_LIST,
-        CacheNamespace.SYSTEM_ROLE_DETAIL,
-        CacheNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
-        CacheNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
-        CacheNamespace.SYSTEM_USER_DEPT_TREE,
-        CacheNamespace.SYSTEM_USER_LIST,
-        CacheNamespace.SYSTEM_USER_DETAIL,
-        CacheNamespace.SYSTEM_USER_PROFILE,
-        CacheNamespace.AI_MODEL_LIST,
-        CacheNamespace.AI_MODEL_ALL,
-        CacheNamespace.AI_MODEL_DETAIL,
+        ApiNamespace.LOGIN_USER_INFO,
+        ApiNamespace.SYSTEM_DEPT_EDIT_TREE,
+        ApiNamespace.SYSTEM_DEPT_LIST,
+        ApiNamespace.SYSTEM_DEPT_DETAIL,
+        ApiNamespace.SYSTEM_ROLE_DEPT_TREE,
+        ApiNamespace.SYSTEM_ROLE_LIST,
+        ApiNamespace.SYSTEM_ROLE_DETAIL,
+        ApiNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
+        ApiNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
+        ApiNamespace.SYSTEM_USER_DEPT_TREE,
+        ApiNamespace.SYSTEM_USER_LIST,
+        ApiNamespace.SYSTEM_USER_DETAIL,
+        ApiNamespace.SYSTEM_USER_PROFILE,
+        ApiNamespace.AI_MODEL_LIST,
+        ApiNamespace.AI_MODEL_ALL,
+        ApiNamespace.AI_MODEL_DETAIL,
     )
 
     MENU_MUTATION = (
         *PERMISSION_MUTATION,
-        CacheNamespace.SYSTEM_MENU_DETAIL,
+        ApiNamespace.SYSTEM_MENU_DETAIL,
     )
 
     JOB_MUTATION = (
-        CacheNamespace.MONITOR_JOB_LIST,
-        CacheNamespace.MONITOR_JOB_DETAIL,
+        ApiNamespace.MONITOR_JOB_LIST,
+        ApiNamespace.MONITOR_JOB_DETAIL,
     )
 
     POST_MUTATION = (
-        CacheNamespace.SYSTEM_POST_LIST,
-        CacheNamespace.SYSTEM_POST_DETAIL,
-        CacheNamespace.SYSTEM_USER_DETAIL,
-        CacheNamespace.SYSTEM_USER_PROFILE,
+        ApiNamespace.SYSTEM_POST_LIST,
+        ApiNamespace.SYSTEM_POST_DETAIL,
+        ApiNamespace.SYSTEM_USER_DETAIL,
+        ApiNamespace.SYSTEM_USER_PROFILE,
     )
 
     NOTICE_MUTATION = (
-        CacheNamespace.SYSTEM_NOTICE_LIST,
-        CacheNamespace.SYSTEM_NOTICE_DETAIL,
+        ApiNamespace.SYSTEM_NOTICE_LIST,
+        ApiNamespace.SYSTEM_NOTICE_DETAIL,
     )
 
     ROLE_ENTITY_MUTATION = (
-        CacheNamespace.SYSTEM_ROLE_DEPT_TREE,
-        CacheNamespace.SYSTEM_ROLE_LIST,
-        CacheNamespace.SYSTEM_ROLE_DETAIL,
-        CacheNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
-        CacheNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
-        CacheNamespace.SYSTEM_MENU_ROLE_TREE,
-        CacheNamespace.SYSTEM_USER_DETAIL,
+        ApiNamespace.SYSTEM_ROLE_DEPT_TREE,
+        ApiNamespace.SYSTEM_ROLE_LIST,
+        ApiNamespace.SYSTEM_ROLE_DETAIL,
+        ApiNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
+        ApiNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
+        ApiNamespace.SYSTEM_MENU_ROLE_TREE,
+        ApiNamespace.SYSTEM_USER_DETAIL,
     )
 
     ROLE_PERMISSION_MUTATION = (
         *ROLE_ENTITY_MUTATION,
-        CacheNamespace.SYSTEM_USER_PROFILE,
-        CacheNamespace.LOGIN_USER_INFO,
+        ApiNamespace.SYSTEM_USER_PROFILE,
+        ApiNamespace.LOGIN_USER_INFO,
         *PERMISSION_MUTATION,
     )
 
@@ -340,10 +435,10 @@ class CacheGroup:
     )
 
     USER_ENTITY_MUTATION = (
-        CacheNamespace.SYSTEM_USER_LIST,
-        CacheNamespace.SYSTEM_USER_DETAIL,
-        CacheNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
-        CacheNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
+        ApiNamespace.SYSTEM_USER_LIST,
+        ApiNamespace.SYSTEM_USER_DETAIL,
+        ApiNamespace.SYSTEM_ROLE_ALLOCATED_USER_LIST,
+        ApiNamespace.SYSTEM_ROLE_UNALLOCATED_USER_LIST,
     )
 
     USER_PERMISSION_MUTATION = (
@@ -352,56 +447,56 @@ class CacheGroup:
     )
 
     USER_INFO_MUTATION = (
-        CacheNamespace.SYSTEM_USER_LIST,
-        CacheNamespace.SYSTEM_USER_DETAIL,
-        CacheNamespace.SYSTEM_USER_PROFILE,
-        CacheNamespace.LOGIN_USER_INFO,
+        ApiNamespace.SYSTEM_USER_LIST,
+        ApiNamespace.SYSTEM_USER_DETAIL,
+        ApiNamespace.SYSTEM_USER_PROFILE,
+        ApiNamespace.LOGIN_USER_INFO,
     )
 
     LOGIN_SUCCESS_MUTATION = (
-        CacheNamespace.SYSTEM_USER_LIST,
-        CacheNamespace.LOGIN_USER_INFO,
-        CacheNamespace.LOGIN_USER_ROUTERS,
-        CacheNamespace.SYSTEM_USER_PROFILE,
-        CacheNamespace.SYSTEM_USER_DETAIL,
+        ApiNamespace.SYSTEM_USER_LIST,
+        ApiNamespace.LOGIN_USER_INFO,
+        ApiNamespace.LOGIN_USER_ROUTERS,
+        ApiNamespace.SYSTEM_USER_PROFILE,
+        ApiNamespace.SYSTEM_USER_DETAIL,
     )
 
     LOGOUT_MUTATION = (
-        CacheNamespace.LOGIN_USER_INFO,
-        CacheNamespace.LOGIN_USER_ROUTERS,
+        ApiNamespace.LOGIN_USER_INFO,
+        ApiNamespace.LOGIN_USER_ROUTERS,
     )
 
     CONFIG_MUTATION = (
-        CacheNamespace.SYSTEM_CONFIG_LIST,
-        CacheNamespace.SYSTEM_CONFIG_DETAIL,
+        ApiNamespace.SYSTEM_CONFIG_LIST,
+        ApiNamespace.SYSTEM_CONFIG_DETAIL,
     )
 
     DICT_TYPE_MUTATION = (
-        CacheNamespace.SYSTEM_DICT_TYPE_LIST,
-        CacheNamespace.SYSTEM_DICT_TYPE_OPTIONS,
-        CacheNamespace.SYSTEM_DICT_TYPE_DETAIL,
-        CacheNamespace.SYSTEM_DICT_DATA_LIST,
-        CacheNamespace.SYSTEM_DICT_DATA_DETAIL,
+        ApiNamespace.SYSTEM_DICT_TYPE_LIST,
+        ApiNamespace.SYSTEM_DICT_TYPE_OPTIONS,
+        ApiNamespace.SYSTEM_DICT_TYPE_DETAIL,
+        ApiNamespace.SYSTEM_DICT_DATA_LIST,
+        ApiNamespace.SYSTEM_DICT_DATA_DETAIL,
     )
 
     DICT_DATA_MUTATION = (
-        CacheNamespace.SYSTEM_DICT_DATA_LIST,
-        CacheNamespace.SYSTEM_DICT_DATA_DETAIL,
+        ApiNamespace.SYSTEM_DICT_DATA_LIST,
+        ApiNamespace.SYSTEM_DICT_DATA_DETAIL,
     )
 
     AI_MODEL_MUTATION = (
-        CacheNamespace.AI_MODEL_LIST,
-        CacheNamespace.AI_MODEL_ALL,
-        CacheNamespace.AI_MODEL_DETAIL,
+        ApiNamespace.AI_MODEL_LIST,
+        ApiNamespace.AI_MODEL_ALL,
+        ApiNamespace.AI_MODEL_DETAIL,
     )
 
-    AI_CHAT_CONFIG_MUTATION = (CacheNamespace.AI_CHAT_CONFIG,)
+    AI_CHAT_CONFIG_MUTATION = (ApiNamespace.AI_CHAT_CONFIG,)
 
     GEN_MUTATION = (
-        CacheNamespace.TOOL_GEN_LIST,
-        CacheNamespace.TOOL_GEN_DB_LIST,
-        CacheNamespace.TOOL_GEN_DETAIL,
-        CacheNamespace.TOOL_GEN_PREVIEW,
+        ApiNamespace.TOOL_GEN_LIST,
+        ApiNamespace.TOOL_GEN_DB_LIST,
+        ApiNamespace.TOOL_GEN_DETAIL,
+        ApiNamespace.TOOL_GEN_PREVIEW,
     )
 
 

@@ -6,9 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
+from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
-from common.constant import CacheGroup, CacheNamespace
+from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, ResponseBaseModel
@@ -42,6 +43,7 @@ ai_chat_controller = APIRouterPro(
         }
     },
 )
+@ApiRateLimit(namespace=ApiNamespace.AI_CHAT_SEND, preset=ApiRateLimitPreset.USER_INTERACTIVE_HIGH_FREQ)
 async def send_chat_message(
     request: Request,
     chat_req: AiChatRequestModel,
@@ -61,7 +63,7 @@ async def send_chat_message(
     description='获取当前用户的AI对话配置',
     response_model=DataResponseModel[AiChatConfigModel],
 )
-@ApiCache(namespace=CacheNamespace.AI_CHAT_CONFIG)
+@ApiCache(namespace=ApiNamespace.AI_CHAT_CONFIG)
 async def get_user_chat_config(
     request: Request,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
@@ -80,7 +82,7 @@ async def get_user_chat_config(
     description='保存当前用户的AI对话配置',
     response_model=DataResponseModel[AiChatConfigModel],
 )
-@ApiCacheEvict(namespaces=CacheGroup.AI_CHAT_CONFIG_MUTATION)
+@ApiCacheEvict(namespaces=ApiGroup.AI_CHAT_CONFIG_MUTATION)
 @Log(title='AI对话配置管理', business_type=BusinessType.INSERT)
 async def save_user_chat_config(
     request: Request,
@@ -151,6 +153,7 @@ async def get_chat_session_detail(
     description='取消正在进行的对话',
     response_model=ResponseBaseModel,
 )
+@ApiRateLimit(namespace=ApiNamespace.AI_CHAT_CANCEL, preset=ApiRateLimitPreset.USER_INTERACTIVE_HIGH_FREQ)
 async def cancel_chat_run(
     request: Request,
     run_id: Annotated[str, Body(embed=True, description='运行ID', alias='runId')],
