@@ -24,6 +24,9 @@ services:
     container_name: ruoyi-backend-my-test
     ports:
       - "9099:9099"
+    environment:
+      TRANSPORT_CRYPTO_ENABLED: "false"
+      TRANSPORT_CRYPTO_MODE: "off"
     depends_on:
       ruoyi-mysql:
         condition: service_healthy

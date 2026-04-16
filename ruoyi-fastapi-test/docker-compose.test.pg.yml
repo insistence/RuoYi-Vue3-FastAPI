@@ -24,6 +24,9 @@ services:
     container_name: ruoyi-backend-pg-test
     ports:
       - "9099:9099"
+    environment:
+      TRANSPORT_CRYPTO_ENABLED: "false"
+      TRANSPORT_CRYPTO_MODE: "off"
     depends_on:
       ruoyi-pg:
         condition: service_healthy
