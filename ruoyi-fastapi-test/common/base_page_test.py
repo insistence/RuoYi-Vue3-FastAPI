@@ -79,8 +79,13 @@ class BasePageTest:
 
     async def wait_for_table_row(self, row_text: str, timeout: int = 10000) -> None:
         """等待表格行出现"""
-        row = self.page.locator('tbody tr').filter(has_text=row_text).first
+        row = self.page.locator('.el-table__body-wrapper tbody tr').filter(has_text=row_text).first
         await expect(row).to_be_visible(timeout=timeout)
+
+    async def wait_for_table_row_hidden(self, row_text: str, timeout: int = 10000) -> None:
+        """等待表格行消失"""
+        row = self.page.locator('.el-table__body-wrapper tbody tr').filter(has_text=row_text)
+        await expect(row).to_have_count(0, timeout=timeout)
 
     async def query_selector(self, selector: str) -> any:
         """查询选择器元素"""

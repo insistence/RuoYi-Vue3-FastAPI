@@ -43,8 +43,8 @@ class DictManagementTest(BasePageTest):
         ):
             await dialog.get_by_role('button', name='确 定').click()
 
-        # 验证成功
-        await self.wait_for_message('新增成功', timeout=10000)
+        await dialog.wait_for(state='hidden', timeout=10000)
+        await self.wait_for_table_row(dict_name, timeout=10000)
 
     async def search_dict_type(self, dict_name: str, dict_type: str) -> None:
         """搜索字典类型"""
@@ -79,7 +79,7 @@ class DictManagementTest(BasePageTest):
         ):
             await dialog.get_by_role('button', name='确 定').click()
 
-        await self.wait_for_message('修改成功', timeout=10000)
+        await dialog.wait_for(state='hidden', timeout=10000)
 
     async def manage_dict_data(self, dict_type: str, data: dict) -> None:
         """管理字典数据"""
@@ -149,7 +149,7 @@ class DictManagementTest(BasePageTest):
             timeout=10000,
         ):
             await dialog.get_by_role('button', name='确 定').click()
-        await self.wait_for_message('新增成功', timeout=10000)
+        await dialog.wait_for(state='hidden', timeout=10000)
         await self.wait_for_table_row(label)
 
     async def edit_dict_data(self, label: str, remark: str) -> None:
@@ -168,7 +168,7 @@ class DictManagementTest(BasePageTest):
         ):
             await dialog.get_by_role('button', name='确 定').click()
 
-        await self.wait_for_message('修改成功', timeout=10000)
+        await dialog.wait_for(state='hidden', timeout=10000)
 
     async def delete_dict_data(self, label: str) -> None:
         """删除字典数据"""
@@ -181,7 +181,7 @@ class DictManagementTest(BasePageTest):
             timeout=10000,
         ):
             await self.page.get_by_role('button', name='确定').click()
-        await self.wait_for_message('删除成功', timeout=10000)
+        await self.wait_for_table_row_hidden(label, timeout=10000)
 
     async def delete_dict_type(self, dict_name: str) -> None:
         """删除字典类型"""
@@ -196,7 +196,7 @@ class DictManagementTest(BasePageTest):
             timeout=10000,
         ):
             await self.page.get_by_role('button', name='确定').click()
-        await self.wait_for_message('删除成功', timeout=10000)
+        await self.wait_for_table_row_hidden(dict_name, timeout=10000)
 
     async def test_dict_crud_operations(self) -> None:
         """测试字典管理全流程"""

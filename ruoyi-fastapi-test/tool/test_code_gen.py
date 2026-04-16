@@ -66,20 +66,15 @@ class GenTableTest(BasePageTest):
         await dialog.get_by_role('button', name='搜索').click()
 
         # 等待搜索结果
-        await dialog.locator(f"tr:has-text('{table_name}')").wait_for()
+        target_row = dialog.locator('tbody tr').filter(has=self.page.get_by_text(table_name, exact=True)).first
+        await target_row.wait_for()
 
-        # 选中行
-        row = dialog.locator('tr').filter(has=self.page.get_by_text(table_name, exact=True))
-
-        # 点击复选框
-        checkbox = row.locator('.el-checkbox')
-        await checkbox.click()
+        # 点击行本身，触发 row-click -> toggleRowSelection
+        await target_row.click()
 
         # 验证已选中
-        # Element Plus checkbox 选中时，最外层 label.el-checkbox 会有 is-checked 类
+        checkbox = target_row.locator('.el-checkbox').first
         await expect(checkbox).to_have_class(re.compile(r'is-checked'))
-
-        await self.page.wait_for_timeout(500)
 
         async with self.page.expect_response(
             lambda response: '/tool/gen/importTable' in response.url and response.request.method == 'POST',
@@ -87,30 +82,8 @@ class GenTableTest(BasePageTest):
         ):
             await dialog.get_by_role('button', name='确 定').click()
 
-        # 检查是否有"请选择要导入的表"错误
-        try:
-            await expect(self.page.get_by_text('请选择要导入的表')).to_be_visible(timeout=2000)
-            print("ERROR: Selection failed, '请选择要导入的表' appeared.")
-        except AssertionError:
-            pass
-
         # 等待一会，让弹窗自动关闭
         await expect(dialog).to_be_hidden(timeout=10000)
-
-        # 如果弹窗还在，尝试关闭它以免阻塞后续操作
-        if await dialog.is_visible():
-            print('WARNING: Import dialog still visible after timeout. Forcing close.')
-            # Check for error messages
-            if await self.page.locator('.el-message--error').count() > 0:
-                msg = await self.page.locator('.el-message--error').all_inner_texts()
-                print(f'ERROR MESSAGE: {msg}')
-
-            # 点击取消关闭弹窗
-            await dialog.get_by_role('button', name='取 消').click()
-            await expect(dialog).to_be_hidden()
-
-            # 手动刷新列表
-            await self.page.get_by_role('button', name='搜索').click()
 
         # 验证导入成功 (搜索并在列表中看到)
         # 使用 .app-container 限定在主页面表格，避免匹配到弹窗中的隐藏行
