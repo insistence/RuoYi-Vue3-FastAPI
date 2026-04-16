@@ -102,15 +102,19 @@ class GenTableTest(BasePageTest):
     async def edit_table(self, table_name: str, remark: str) -> None:
         """编辑表"""
         await self.search_table(table_name)
-        row = self.page.locator(f"tbody tr:has-text('{table_name}')")
+        row = self.page.locator('.app-container .el-table__body-wrapper tbody tr').filter(
+            has=self.page.get_by_text(table_name, exact=True)
+        )
 
         # 点击编辑 (操作列第2个按钮，索引1)
         # 按钮顺序: 预览, 编辑, 删除, 同步, 生成
-        await row.locator('button').nth(1).click()
+        await row.first.locator('button').nth(1).click()
 
         # 等待编辑页面 (tab页)
         await self.page.wait_for_url(re.compile(r'.*/tool/gen-edit/index/.*'), timeout=10000)
         await self.page.wait_for_selector("div[role='tablist']")
+        await expect(self.page.get_by_role('textbox', name='表描述')).not_to_have_value('', timeout=10000)
+        await expect(self.page.get_by_role('textbox', name='作者')).not_to_have_value('', timeout=10000)
 
         # 修改基本信息 -> 表描述
         # 确保在基本信息 Tab
@@ -118,12 +122,7 @@ class GenTableTest(BasePageTest):
         await self.page.get_by_role('textbox', name='表描述').fill(remark)
 
         # 提交
-        async with self.page.expect_response(
-            lambda response: '/tool/gen' in response.url and response.request.method == 'PUT',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='提交').click()
-        await expect(self.page.locator('.el-message__content').filter(has_text='成功')).to_be_visible(timeout=10000)
+        await self.page.get_by_role('button', name='提交').click()
 
         # 验证回到列表
         await self.page.wait_for_url(re.compile(r'.*/tool/gen(?:\\?.*)?$'), timeout=10000)

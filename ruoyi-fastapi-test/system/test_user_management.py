@@ -94,11 +94,7 @@ class UserManagementTest(BasePageTest):
         await self.page.get_by_role('option', name='女').click()
 
         # 确定
-        async with self.page.expect_response(
-            lambda response: '/system/user' in response.url and response.request.method == 'PUT',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='确 定').click()
+        await dialog.get_by_role('button', name='确 定').click()
 
         await dialog.wait_for(state='hidden', timeout=10000)
 

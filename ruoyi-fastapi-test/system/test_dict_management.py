@@ -44,6 +44,7 @@ class DictManagementTest(BasePageTest):
             await dialog.get_by_role('button', name='确 定').click()
 
         await dialog.wait_for(state='hidden', timeout=10000)
+        await self.search_dict_type(dict_name, dict_type)
         await self.wait_for_table_row(dict_name, timeout=10000)
 
     async def search_dict_type(self, dict_name: str, dict_type: str) -> None:
