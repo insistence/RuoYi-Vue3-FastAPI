@@ -7,6 +7,7 @@ from middlewares.cors_middleware import add_cors_middleware
 from middlewares.demo_mode_middleware import add_demo_mode_middleware
 from middlewares.gzip_middleware import add_gzip_middleware
 from middlewares.trace_middleware import add_trace_middleware
+from middlewares.transport_crypto_middleware import add_transport_crypto_middleware
 
 
 def handle_middleware(app: FastAPI) -> None:
@@ -26,3 +27,5 @@ def handle_middleware(app: FastAPI) -> None:
     if AppConfig.app_demo_mode:
         # 加载演示模式中间件
         add_demo_mode_middleware(app)
+    # 加载传输层请求解密/响应加密中间件
+    add_transport_crypto_middleware(app)

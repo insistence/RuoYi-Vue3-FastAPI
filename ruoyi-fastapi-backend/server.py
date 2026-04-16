@@ -17,6 +17,7 @@ from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
 from utils.log_util import logger
 from utils.server_util import APIDocsUtil, IPUtil, StartupUtil
+from utils.transport_crypto_util import TransportKeyProvider
 
 
 async def _start_background_tasks(app: FastAPI) -> None:
@@ -89,6 +90,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f'⏰️ {AppConfig.app_name}开始启动')
         if startup_log_enabled:
             worship()
+        TransportKeyProvider.validate_runtime_configuration()
         await init_create_table()
         await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
         await RedisUtil.init_sys_dict(app.state.redis)

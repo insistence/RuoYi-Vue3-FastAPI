@@ -11,6 +11,11 @@ def add_cors_middleware(app: FastAPI) -> None:
     """
     # 前端页面url
     origins = ['*']
+    expose_headers = [
+        'x-body-encrypted',
+        'x-key-id',
+        'x-encrypt-alg',
+    ]
 
     # 后台api允许跨域
     app.add_middleware(
@@ -19,4 +24,5 @@ def add_cors_middleware(app: FastAPI) -> None:
         allow_credentials=True,
         allow_methods=['*'],
         allow_headers=['*'],
+        expose_headers=expose_headers,
     )

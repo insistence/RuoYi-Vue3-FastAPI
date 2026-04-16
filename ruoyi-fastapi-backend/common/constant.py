@@ -158,6 +158,8 @@ class ApiNamespace:
     LOGIN_USER_ROUTERS: 登录用户路由接口命名空间
     CAPTCHA_IMAGE: 图片验证码接口命名空间
     COMMON_UPLOAD: 通用上传接口命名空间
+    TRANSPORT_CRYPTO_PUBLIC_KEY: 传输层加密公钥接口命名空间
+    TRANSPORT_CRYPTO_FRONTEND_CONFIG: 传输层加密前端配置接口命名空间
 
     MONITOR_SERVER_INFO: 服务监控信息接口命名空间
     MONITOR_CACHE_CLEAR_NAME: 缓存名称清理接口命名空间
@@ -245,6 +247,8 @@ class ApiNamespace:
     LOGIN_USER_ROUTERS = 'login:user:routers'
     CAPTCHA_IMAGE = 'captcha:image'
     COMMON_UPLOAD = 'common:upload'
+    TRANSPORT_CRYPTO_PUBLIC_KEY = 'transport-crypto:public-key'
+    TRANSPORT_CRYPTO_FRONTEND_CONFIG = 'transport-crypto:frontend-config'
 
     MONITOR_SERVER_INFO = 'monitor:server:info'
     MONITOR_CACHE_CLEAR_NAME = 'monitor:cache:clear-name'
