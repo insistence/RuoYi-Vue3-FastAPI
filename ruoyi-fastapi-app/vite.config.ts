@@ -4,6 +4,36 @@ import { UnifiedViteWeappTailwindcssPlugin } from "weapp-tailwindcss/vite";
 import { WeappTailwindcssDisabled } from "./platform";
 import postcssPlugins from "./postcss.config";
 
+function patchNodeForgeMiniProgramRuntime() {
+  return {
+    name: "patch-node-forge-mini-program-runtime",
+    enforce: "pre",
+    transform(code: string, id: string) {
+      if (id.includes("node-forge/lib/util.js")) {
+        return {
+          code: code.replace(
+            /return typeof self === 'undefined' \? window : self;/,
+            "return typeof globalThis !== 'undefined' ? globalThis : (typeof self === 'undefined' ? (typeof window === 'undefined' ? {} : window) : self);",
+          ),
+          map: null,
+        };
+      }
+
+      if (id.includes("node-forge/lib/random.js")) {
+        return {
+          code: code.replace(
+            /var _crypto = globalScope\.crypto \|\| globalScope\.msCrypto;/,
+            "var _crypto = (globalScope && (globalScope.crypto || globalScope.msCrypto)) || null;",
+          ),
+          map: null,
+        };
+      }
+
+      return null;
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(async () => {
   // 新版本的 unplugin-auto-import 改成了只有 esm 格式的产物，而 uni-app 目前必须 cjs 格式
@@ -14,6 +44,7 @@ export default defineConfig(async () => {
     // uvtw 一定要放在 uni 后面
     plugins: [
       uni(),
+      patchNodeForgeMiniProgramRuntime(),
       UnifiedViteWeappTailwindcssPlugin({
         rem2rpx: true,
         disabled: WeappTailwindcssDisabled,

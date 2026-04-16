@@ -61,6 +61,7 @@ class ApiRateLimitPreset:
     ANON_AUTH_LOGIN: 匿名登录类接口限流预设
     ANON_AUTH_REGISTER: 匿名注册类接口限流预设
     ANON_AUTH_CAPTCHA: 匿名验证码类接口限流预设
+    ANON_PUBLIC_METADATA: 匿名公开元数据接口限流预设
     COMMON_UPLOAD: 通用上传接口限流预设
     USER_INTERACTIVE_HIGH_FREQ: 用户高频交互接口限流预设
     USER_RESOURCE_EXECUTION: 用户执行类接口限流预设
@@ -92,6 +93,13 @@ class ApiRateLimitPreset:
     ANON_AUTH_CAPTCHA = ApiRateLimitPresetConfig(
         name='ANON_AUTH_CAPTCHA',
         limit=36,
+        window_seconds=60,
+        algorithm='sliding_window',
+        fail_strategy='local_fallback',
+    )
+    ANON_PUBLIC_METADATA = ApiRateLimitPresetConfig(
+        name='ANON_PUBLIC_METADATA',
+        limit=30,
         window_seconds=60,
         algorithm='sliding_window',
         fail_strategy='local_fallback',

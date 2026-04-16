@@ -109,6 +109,32 @@ class LogSettings(BaseSettings):
     log_worker_id: str = 'auto'
 
 
+class TransportCryptoSettings(BaseSettings):
+    """
+    传输层加解密配置
+    """
+
+    transport_crypto_enabled: bool = True
+    transport_crypto_mode: Literal['off', 'optional', 'required'] = 'optional'
+    transport_crypto_algorithm: str = 'RSA_OAEP_AES_256_GCM'
+    transport_crypto_kid: str = 'default'
+    transport_crypto_public_key: str = ''
+    transport_crypto_private_key: str = ''
+    transport_crypto_legacy_key_pairs: str = '[]'
+    transport_crypto_rsa_key_size: int = 2048
+    transport_crypto_public_key_ttl_seconds: int = 3600
+    transport_crypto_frontend_config_ttl_seconds: int = 300
+    transport_crypto_max_get_url_length: int = 4096
+    transport_crypto_clock_skew_seconds: int = 120
+    transport_crypto_replay_ttl_seconds: int = 300
+    transport_crypto_enabled_paths: str = ''
+    transport_crypto_required_paths: str = ''
+    transport_crypto_exclude_paths: str = (
+        '/openapi.json,/docs,/docs/oauth2-redirect,/redoc,'
+        '/transport/crypto/frontend-config,/transport/crypto/public-key,/common/download,/common/download/resource'
+    )
+
+
 class GenSettings:
     """
     代码生成配置
@@ -224,6 +250,12 @@ class GetConfig:
         """
         return LogSettings()
 
+    def get_transport_crypto_config(self) -> TransportCryptoSettings:
+        """
+        获取传输层加解密配置
+        """
+        return TransportCryptoSettings()
+
     def get_gen_config(self) -> GenSettings:
         """
         获取代码生成配置
@@ -285,6 +317,8 @@ DataBaseConfig = get_config.get_database_config()
 RedisConfig = get_config.get_redis_config()
 # 日志配置
 LogConfig = get_config.get_log_config()
+# 传输层加解密配置
+TransportCryptoConfig = get_config.get_transport_crypto_config()
 # 代码生成配置
 GenConfig = get_config.get_gen_config()
 # 上传配置
