@@ -47,12 +47,12 @@ class GenTableTest(BasePageTest):
         # 确保在主搜索表单中搜索
         search_form = self.page.locator('.el-form').first
         await search_form.get_by_role('textbox', name='表名称').fill(table_name)
-        await search_form.get_by_role('button', name='搜索').click()
-        # 等待加载
-        loading = self.page.locator('.el-loading-mask')
-        if await loading.count() > 0:
-            await expect(loading.first).to_be_hidden(timeout=10000)
-        await self.page.wait_for_timeout(300)
+        async with self.page.expect_response(
+            lambda response: '/tool/gen/list' in response.url and response.request.method == 'GET',
+            timeout=10000,
+        ):
+            await search_form.get_by_role('button', name='搜索').click()
+        await self.wait_for_loading_complete()
 
     async def import_table(self, table_name: str) -> None:
         """导入表"""
@@ -81,7 +81,11 @@ class GenTableTest(BasePageTest):
 
         await self.page.wait_for_timeout(500)
 
-        await dialog.get_by_role('button', name='确 定').click()
+        async with self.page.expect_response(
+            lambda response: '/tool/gen/importTable' in response.url and response.request.method == 'POST',
+            timeout=10000,
+        ):
+            await dialog.get_by_role('button', name='确 定').click()
 
         # 检查是否有"请选择要导入的表"错误
         try:
@@ -91,7 +95,7 @@ class GenTableTest(BasePageTest):
             pass
 
         # 等待一会，让弹窗自动关闭
-        await self.page.wait_for_timeout(5000)
+        await expect(dialog).to_be_hidden(timeout=10000)
 
         # 如果弹窗还在，尝试关闭它以免阻塞后续操作
         if await dialog.is_visible():
@@ -132,6 +136,7 @@ class GenTableTest(BasePageTest):
         await row.locator('button').nth(1).click()
 
         # 等待编辑页面 (tab页)
+        await self.page.wait_for_url(re.compile(r'.*/tool/gen-edit/index/.*'), timeout=10000)
         await self.page.wait_for_selector("div[role='tablist']")
 
         # 修改基本信息 -> 表描述
@@ -140,9 +145,15 @@ class GenTableTest(BasePageTest):
         await self.page.get_by_role('textbox', name='表描述').fill(remark)
 
         # 提交
-        await self.page.get_by_role('button', name='提交').click()
+        async with self.page.expect_response(
+            lambda response: '/tool/gen' in response.url and response.request.method == 'PUT',
+            timeout=10000,
+        ):
+            await self.page.get_by_role('button', name='提交').click()
+        await expect(self.page.locator('.el-message__content').filter(has_text='成功')).to_be_visible(timeout=10000)
 
         # 验证回到列表
+        await self.page.wait_for_url(re.compile(r'.*/tool/gen(?:\\?.*)?$'), timeout=10000)
         await self.wait_for_selector('.app-container')
         # 验证描述已更新
         await self.search_table(table_name)
@@ -191,7 +202,11 @@ class GenTableTest(BasePageTest):
             await btns.nth(2).click(force=True)
 
             # 处理确认弹窗
-            await self.page.get_by_role('button', name='确定').click()
+            async with self.page.expect_response(
+                lambda response: '/tool/gen/' in response.url and response.request.method == 'DELETE',
+                timeout=10000,
+            ):
+                await self.page.get_by_role('button', name='确定').click()
 
             # 等待删除成功提示
             # 使用 specific selector 避免匹配到代码预览中的文本

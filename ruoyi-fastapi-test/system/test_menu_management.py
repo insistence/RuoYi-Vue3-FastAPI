@@ -37,20 +37,28 @@ class MenuManagementTest(BasePageTest):
         await dialog.get_by_role('textbox', name='路由地址').fill(path)
 
         # 提交
-        await dialog.get_by_role('button', name='确 定').click()
+        async with self.page.expect_response(
+            lambda response: '/system/menu' in response.url and response.request.method == 'POST',
+            timeout=10000,
+        ):
+            await dialog.get_by_role('button', name='确 定').click()
 
         # 验证成功提示
-        await self.wait_for_selector("div:has-text('新增成功')", timeout=10000)
+        await self.wait_for_message('新增成功', timeout=10000)
 
     async def search_menu(self, menu_name: str) -> None:
         """搜索菜单"""
         # 填写搜索条件
         # 使用 first 匹配搜索表单（通常在顶部），避免匹配到隐藏对话框中的同名字段
         await self.page.locator('form').first.get_by_role('textbox', name='菜单名称').fill(menu_name)
-        await self.page.get_by_role('button', name='搜索').click()
-
-        # 等待表格刷新（简单等待）
-        await self.page.wait_for_timeout(1000)
+        async with self.page.expect_response(
+            lambda response: '/system/menu/list' in response.url and response.request.method == 'GET',
+            timeout=10000,
+        ):
+            await self.page.get_by_role('button', name='搜索').click()
+        await self.wait_for_loading_complete()
+        if menu_name:
+            await self.wait_for_table_row(menu_name)
 
     async def create_sub_menu(self, parent_name: str, menu_name: str, path: str, order_num: str) -> None:
         """在指定目录下创建子菜单"""
@@ -73,10 +81,14 @@ class MenuManagementTest(BasePageTest):
         await dialog.get_by_role('textbox', name='路由地址').fill(path)
 
         # 提交
-        await dialog.get_by_role('button', name='确 定').click()
+        async with self.page.expect_response(
+            lambda response: '/system/menu' in response.url and response.request.method == 'POST',
+            timeout=10000,
+        ):
+            await dialog.get_by_role('button', name='确 定').click()
 
         # 验证成功
-        await self.wait_for_selector("div:has-text('新增成功')", timeout=10000)
+        await self.wait_for_message('新增成功', timeout=10000)
 
     async def edit_sub_menu(self, menu_name: str, new_path: str) -> None:
         """修改子菜单"""
@@ -90,23 +102,32 @@ class MenuManagementTest(BasePageTest):
         dialog = self.page.locator('.el-dialog')
 
         await dialog.get_by_role('textbox', name='路由地址').fill(new_path)
-        await self.page.get_by_role('button', name='确 定').click()
+        async with self.page.expect_response(
+            lambda response: '/system/menu' in response.url and response.request.method == 'PUT',
+            timeout=10000,
+        ):
+            await self.page.get_by_role('button', name='确 定').click()
 
-        await self.wait_for_selector("div:has-text('修改成功')", timeout=10000)
+        await self.wait_for_message('修改成功', timeout=10000)
 
     async def delete_menus(self, menu_names: list[str]) -> None:
         """删除菜单（列表）"""
         for name in menu_names:
             await self.search_menu(name)
             row = self.page.locator('tbody tr').filter(has_text=name).first
+            await self.wait_for_table_row(name)
 
             # 点击删除
             await row.get_by_role('button', name='删除').click()
 
             # 确认删除
-            await self.page.get_by_role('button', name='确定').click()
+            async with self.page.expect_response(
+                lambda response: '/system/menu/' in response.url and response.request.method == 'DELETE',
+                timeout=10000,
+            ):
+                await self.page.get_by_role('button', name='确定').click()
 
-            await self.wait_for_selector("div:has-text('删除成功')", timeout=10000)
+            await self.wait_for_message('删除成功', timeout=10000)
 
     async def test_menu_crud_operations(self) -> None:
         """测试菜单增删改查流程"""

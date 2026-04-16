@@ -62,24 +62,30 @@ class UserManagementTest(BasePageTest):
         await dialog.locator('div.el-form-item').filter(has_text='备注').get_by_role('textbox').fill('测试用户')
 
         # 点击确定
-        await self.page.get_by_role('button', name='确 定').click()
+        async with self.page.expect_response(
+            lambda response: '/system/user' in response.url and response.request.method == 'POST',
+            timeout=10000,
+        ):
+            await self.page.get_by_role('button', name='确 定').click()
         # 等待成功消息
-        await self.wait_for_selector("div:has-text('成功')", timeout=10000)
+        await self.wait_for_message('新增成功', timeout=10000)
 
     async def search_user(self, user_name: str) -> None:
         """搜索用户"""
         search_form = self.page.locator('form').first
         await search_form.get_by_role('textbox', name='用户名称').fill(user_name)
-        await search_form.get_by_role('button', name='搜索').click()
-
-        # 等待加载
-        await self.page.wait_for_timeout(1000)
+        async with self.page.expect_response(
+            lambda response: '/system/user/list' in response.url and response.request.method == 'GET',
+            timeout=10000,
+        ):
+            await search_form.get_by_role('button', name='搜索').click()
+        await self.wait_for_loading_complete()
 
     async def edit_user(self) -> None:
         """编辑用户"""
         # 点击修改按钮 (第一行)
         row = self.page.locator('tbody tr').first
-        await row.get_by_role('button').nth(0).click()
+        await row.get_by_role('button', name='修改').click()
 
         dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
@@ -89,10 +95,14 @@ class UserManagementTest(BasePageTest):
         await self.page.get_by_role('option', name='女').click()
 
         # 确定
-        await self.page.get_by_role('button', name='确 定').click()
+        async with self.page.expect_response(
+            lambda response: '/system/user' in response.url and response.request.method == 'PUT',
+            timeout=10000,
+        ):
+            await self.page.get_by_role('button', name='确 定').click()
 
         # 等待成功提示
-        await self.wait_for_selector('div:has-text("修改成功")', timeout=10000)
+        await self.wait_for_message('修改成功', timeout=10000)
 
     async def change_user_status(self) -> None:
         """修改用户状态"""
@@ -101,30 +111,42 @@ class UserManagementTest(BasePageTest):
         await switch.click()
 
         # 确认对话框
-        await self.page.get_by_role('button', name='确定').click()
-        await self.wait_for_selector('div:has-text("成功")', timeout=5000)
+        async with self.page.expect_response(
+            lambda response: '/system/user/changeStatus' in response.url and response.request.method == 'PUT',
+            timeout=10000,
+        ):
+            await self.page.get_by_role('button', name='确定').click()
+        await self.wait_for_message('成功', timeout=10000)
 
         # 再次点击恢复
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_loading_complete()
         await switch.click()
-        await self.page.get_by_role('button', name='确定').click()
-        await self.wait_for_selector('div:has-text("成功")', timeout=5000)
+        async with self.page.expect_response(
+            lambda response: '/system/user/changeStatus' in response.url and response.request.method == 'PUT',
+            timeout=10000,
+        ):
+            await self.page.get_by_role('button', name='确定').click()
+        await self.wait_for_message('成功', timeout=10000)
 
     async def delete_user(self) -> None:
         """删除用户"""
         # 点击删除按钮 (第一行第二个按钮)
         row = self.page.locator('tbody tr').first
-        await row.get_by_role('button').nth(1).click()
+        await row.get_by_role('button', name='删除').click()
 
         # 确认删除
-        await self.page.get_by_role('button', name='确定').click()
+        async with self.page.expect_response(
+            lambda response: '/system/user/' in response.url and response.request.method == 'DELETE',
+            timeout=10000,
+        ):
+            await self.page.get_by_role('button', name='确定').click()
 
         # 等待成功提示
-        await self.wait_for_selector('div:has-text("删除成功")', timeout=10000)
+        await self.wait_for_message('删除成功', timeout=10000)
 
         # 重置搜索
         await self.page.get_by_role('button', name='重置').click()
-        await self.page.wait_for_timeout(1000)
+        await self.wait_for_loading_complete()
 
     async def test_user_crud_operations(self) -> None:
         """测试用户管理增删查改"""
@@ -140,6 +162,7 @@ class UserManagementTest(BasePageTest):
 
         # 验证新增结果
         await self.search_user(data['user_name'])
+        await self.wait_for_table_row(data['user_name'])
         rows = await self.get_table_total_rows()
         assert rows >= 1, '新增后搜索应有结果'
 
