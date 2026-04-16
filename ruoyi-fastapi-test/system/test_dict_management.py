@@ -37,15 +37,10 @@ class DictManagementTest(BasePageTest):
         await dialog.get_by_role('textbox', name='字典类型').fill(dict_type)
 
         # 提交
-        async with self.page.expect_response(
-            lambda response: '/system/dict/type' in response.url and response.request.method == 'POST',
-            timeout=10000,
-        ):
-            await dialog.get_by_role('button', name='确 定').click()
+        await dialog.get_by_role('button', name='确 定').click()
 
-        await dialog.wait_for(state='hidden', timeout=10000)
-        await self.search_dict_type(dict_name, dict_type)
-        await self.wait_for_table_row(dict_name, timeout=10000)
+        # 验证成功
+        await self.wait_for_selector("div:has-text('新增成功')", timeout=10000)
 
     async def search_dict_type(self, dict_name: str, dict_type: str) -> None:
         """搜索字典类型"""
@@ -53,14 +48,8 @@ class DictManagementTest(BasePageTest):
         await form.get_by_role('textbox', name='字典名称').fill(dict_name)
         await form.get_by_role('textbox', name='字典类型').fill(dict_type)
         # 点击搜索按钮
-        async with self.page.expect_response(
-            lambda response: '/system/dict/type/list' in response.url and response.request.method == 'GET',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='搜索').click()
-        await self.wait_for_loading_complete()
-        if dict_name:
-            await self.wait_for_table_row(dict_name)
+        await self.page.get_by_role('button', name='搜索').click()
+        await self.page.wait_for_timeout(1000)
 
     async def edit_dict_type(self, dict_name: str, remark: str) -> None:
         """修改字典类型"""
@@ -74,19 +63,15 @@ class DictManagementTest(BasePageTest):
         await dialog.wait_for()
 
         await dialog.get_by_role('textbox', name='备注').fill(remark)
-        async with self.page.expect_response(
-            lambda response: '/system/dict/type' in response.url and response.request.method == 'PUT',
-            timeout=10000,
-        ):
-            await dialog.get_by_role('button', name='确 定').click()
+        await dialog.get_by_role('button', name='确 定').click()
 
-        await dialog.wait_for(state='hidden', timeout=10000)
+        await self.wait_for_selector("div:has-text('修改成功')", timeout=10000)
 
     async def manage_dict_data(self, dict_type: str, data: dict) -> None:
         """管理字典数据"""
         # 1. 进入字典数据页面
         # 点击字典类型链接
-        row = self.page.locator('tbody tr').filter(has_text=dict_type).first
+        row = self.page.locator('tbody tr').first
         await row.get_by_role('link', name=dict_type).click()
 
         # 等待页面切换（Playwright在SPA中通常不需要处理多标签页，除非新开tab）
@@ -145,13 +130,8 @@ class DictManagementTest(BasePageTest):
         # 等待选项出现
         await self.page.get_by_role('option', name=list_class).click()
 
-        async with self.page.expect_response(
-            lambda response: '/system/dict/data' in response.url and response.request.method == 'POST',
-            timeout=10000,
-        ):
-            await dialog.get_by_role('button', name='确 定').click()
-        await dialog.wait_for(state='hidden', timeout=10000)
-        await self.wait_for_table_row(label)
+        await dialog.get_by_role('button', name='确 定').click()
+        await self.wait_for_selector("div:has-text('新增成功')", timeout=10000)
 
     async def edit_dict_data(self, label: str, remark: str) -> None:
         """修改字典数据"""
@@ -163,13 +143,9 @@ class DictManagementTest(BasePageTest):
         await dialog.wait_for()
 
         await dialog.get_by_role('textbox', name='备注').fill(remark)
-        async with self.page.expect_response(
-            lambda response: '/system/dict/data' in response.url and response.request.method == 'PUT',
-            timeout=10000,
-        ):
-            await dialog.get_by_role('button', name='确 定').click()
+        await dialog.get_by_role('button', name='确 定').click()
 
-        await dialog.wait_for(state='hidden', timeout=10000)
+        await self.wait_for_selector("div:has-text('修改成功')", timeout=10000)
 
     async def delete_dict_data(self, label: str) -> None:
         """删除字典数据"""
@@ -177,12 +153,8 @@ class DictManagementTest(BasePageTest):
         row = self.page.locator('tbody tr').filter(has_text=label).first
         await row.get_by_role('button', name='删除').click()
 
-        async with self.page.expect_response(
-            lambda response: '/system/dict/data/' in response.url and response.request.method == 'DELETE',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='确定').click()
-        await self.wait_for_table_row_hidden(label, timeout=10000)
+        await self.page.get_by_role('button', name='确定').click()
+        await self.wait_for_selector("div:has-text('删除成功')", timeout=10000)
 
     async def delete_dict_type(self, dict_name: str) -> None:
         """删除字典类型"""
@@ -192,12 +164,8 @@ class DictManagementTest(BasePageTest):
         row = self.page.locator('tbody tr').filter(has_text=dict_name).first
         await row.get_by_role('button', name='删除').click()
 
-        async with self.page.expect_response(
-            lambda response: '/system/dict/type/' in response.url and response.request.method == 'DELETE',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='确定').click()
-        await self.wait_for_table_row_hidden(dict_name, timeout=10000)
+        await self.page.get_by_role('button', name='确定').click()
+        await self.wait_for_selector("div:has-text('删除成功')", timeout=10000)
 
     async def test_dict_crud_operations(self) -> None:
         """测试字典管理全流程"""

@@ -1,6 +1,5 @@
 import re
 
-from playwright.async_api import expect
 from playwright.async_api._context_manager import PlaywrightContextManager
 
 from common.login_helper import LoginHelper
@@ -57,35 +56,6 @@ class BasePageTest:
     async def wait_for_selector(self, selector: str, timeout: int = 10000) -> None:
         """等待选择器出现"""
         await self.page.wait_for_selector(selector, timeout=timeout)
-
-    async def wait_for_loading_complete(self, timeout: int = 10000) -> None:
-        """等待页面中的 Element Plus loading 遮罩消失"""
-        await self.page.wait_for_function(
-            """
-            () => !Array.from(document.querySelectorAll('.el-loading-mask')).some(
-              (element) => {
-                const style = window.getComputedStyle(element)
-                return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0
-              }
-            )
-            """,
-            timeout=timeout,
-        )
-
-    async def wait_for_message(self, message_text: str, timeout: int = 10000) -> None:
-        """等待 Element Plus 消息提示出现"""
-        message = self.page.locator('.el-message__content').filter(has_text=message_text).last
-        await expect(message).to_be_visible(timeout=timeout)
-
-    async def wait_for_table_row(self, row_text: str, timeout: int = 10000) -> None:
-        """等待表格行出现"""
-        row = self.page.locator('.el-table__body-wrapper tbody tr').filter(has_text=row_text).first
-        await expect(row).to_be_visible(timeout=timeout)
-
-    async def wait_for_table_row_hidden(self, row_text: str, timeout: int = 10000) -> None:
-        """等待表格行消失"""
-        row = self.page.locator('.el-table__body-wrapper tbody tr').filter(has_text=row_text)
-        await expect(row).to_have_count(0, timeout=timeout)
 
     async def query_selector(self, selector: str) -> any:
         """查询选择器元素"""

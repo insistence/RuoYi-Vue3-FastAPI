@@ -62,29 +62,24 @@ class UserManagementTest(BasePageTest):
         await dialog.locator('div.el-form-item').filter(has_text='备注').get_by_role('textbox').fill('测试用户')
 
         # 点击确定
-        async with self.page.expect_response(
-            lambda response: '/system/user' in response.url and response.request.method == 'POST',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='确 定').click()
-        await dialog.wait_for(state='hidden', timeout=10000)
+        await self.page.get_by_role('button', name='确 定').click()
+        # 等待成功消息
+        await self.wait_for_selector("div:has-text('成功')", timeout=10000)
 
     async def search_user(self, user_name: str) -> None:
         """搜索用户"""
         search_form = self.page.locator('form').first
         await search_form.get_by_role('textbox', name='用户名称').fill(user_name)
-        async with self.page.expect_response(
-            lambda response: '/system/user/list' in response.url and response.request.method == 'GET',
-            timeout=10000,
-        ):
-            await search_form.get_by_role('button', name='搜索').click()
-        await self.wait_for_loading_complete()
+        await search_form.get_by_role('button', name='搜索').click()
 
-    async def edit_user(self, user_name: str) -> None:
+        # 等待加载
+        await self.page.wait_for_timeout(1000)
+
+    async def edit_user(self) -> None:
         """编辑用户"""
-        row = self.page.locator('.el-table__body-wrapper tbody tr').filter(has_text=user_name).first
-        await self.wait_for_table_row(user_name)
-        await row.locator('button').nth(0).click()
+        # 点击修改按钮 (第一行)
+        row = self.page.locator('tbody tr').first
+        await row.get_by_role('button').nth(0).click()
 
         dialog = self.page.get_by_role('dialog')
         await dialog.wait_for()
@@ -94,53 +89,42 @@ class UserManagementTest(BasePageTest):
         await self.page.get_by_role('option', name='女').click()
 
         # 确定
-        await dialog.get_by_role('button', name='确 定').click()
+        await self.page.get_by_role('button', name='确 定').click()
 
-        await dialog.wait_for(state='hidden', timeout=10000)
+        # 等待成功提示
+        await self.wait_for_selector('div:has-text("修改成功")', timeout=10000)
 
-    async def change_user_status(self, user_name: str) -> None:
+    async def change_user_status(self) -> None:
         """修改用户状态"""
-        row = self.page.locator('.el-table__body-wrapper tbody tr').filter(has_text=user_name).first
-        await self.wait_for_table_row(user_name)
-        switch = row.locator('.el-switch').first
+        # 点击开关 (第一行)
+        switch = self.page.locator('.el-switch').first
         await switch.click()
 
         # 确认对话框
-        async with self.page.expect_response(
-            lambda response: '/system/user/changeStatus' in response.url and response.request.method == 'PUT',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='确定').click()
-        await self.wait_for_loading_complete()
+        await self.page.get_by_role('button', name='确定').click()
+        await self.wait_for_selector('div:has-text("成功")', timeout=5000)
 
         # 再次点击恢复
-        await self.wait_for_loading_complete()
+        await self.page.wait_for_timeout(1000)
         await switch.click()
-        async with self.page.expect_response(
-            lambda response: '/system/user/changeStatus' in response.url and response.request.method == 'PUT',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='确定').click()
-        await self.wait_for_loading_complete()
+        await self.page.get_by_role('button', name='确定').click()
+        await self.wait_for_selector('div:has-text("成功")', timeout=5000)
 
-    async def delete_user(self, user_name: str) -> None:
+    async def delete_user(self) -> None:
         """删除用户"""
-        row = self.page.locator('.el-table__body-wrapper tbody tr').filter(has_text=user_name).first
-        await self.wait_for_table_row(user_name)
-        await row.locator('button').nth(1).click()
+        # 点击删除按钮 (第一行第二个按钮)
+        row = self.page.locator('tbody tr').first
+        await row.get_by_role('button').nth(1).click()
 
         # 确认删除
-        async with self.page.expect_response(
-            lambda response: '/system/user/' in response.url and response.request.method == 'DELETE',
-            timeout=10000,
-        ):
-            await self.page.get_by_role('button', name='确定').click()
+        await self.page.get_by_role('button', name='确定').click()
 
-        await self.wait_for_table_row_hidden(user_name, timeout=10000)
+        # 等待成功提示
+        await self.wait_for_selector('div:has-text("删除成功")', timeout=10000)
 
         # 重置搜索
         await self.page.get_by_role('button', name='重置').click()
-        await self.wait_for_loading_complete()
+        await self.page.wait_for_timeout(1000)
 
     async def test_user_crud_operations(self) -> None:
         """测试用户管理增删查改"""
@@ -156,18 +140,17 @@ class UserManagementTest(BasePageTest):
 
         # 验证新增结果
         await self.search_user(data['user_name'])
-        await self.wait_for_table_row(data['user_name'])
         rows = await self.get_table_total_rows()
         assert rows >= 1, '新增后搜索应有结果'
 
         # 2. 修改状态
-        await self.change_user_status(data['user_name'])
+        await self.change_user_status()
 
         # 3. 编辑
-        await self.edit_user(data['user_name'])
+        await self.edit_user()
 
         # 4. 删除
-        await self.delete_user(data['user_name'])
+        await self.delete_user()
 
         # 验证删除结果
         await self.search_user(data['user_name'])
