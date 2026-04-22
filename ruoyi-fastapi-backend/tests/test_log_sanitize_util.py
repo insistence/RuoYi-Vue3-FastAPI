@@ -97,6 +97,14 @@ def test_sanitize_text_masks_configured_secret_fields() -> None:
     assert sanitized.count('******') >= expected_mask_count
 
 
+def test_sanitize_stringified_json_preserves_newlines_after_masking() -> None:
+    text = '{\n  "password": "123456",\n  "userName": "admin"\n}'
+
+    sanitized = LogSanitizer.sanitize_data({'operParam': text})
+
+    assert sanitized['operParam'] == '{\n  "password": "******",\n  "userName": "admin"\n}'
+
+
 def test_sanitize_text_masks_configured_partial_fields() -> None:
     text = 'email=admin@example.com phonenumber=13812345678 mobile="13812345679"'
 

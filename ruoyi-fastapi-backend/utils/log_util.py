@@ -208,15 +208,15 @@ class LogSanitizer:
                 except (SyntaxError, ValueError):
                     pass
                 else:
-                    sanitized_value = cls.sanitize_data(parsed_value, field_name)
-                    if isinstance(sanitized_value, (dict, list)):
-                        return json.dumps(sanitized_value, ensure_ascii=False)
-                    return sanitized_value
+                    return cls._dump_sanitized_structured_text(
+                        cls.sanitize_data(parsed_value, field_name),
+                        original_text=value,
+                    )
             else:
-                sanitized_value = cls.sanitize_data(parsed_value, field_name)
-                if isinstance(sanitized_value, (dict, list)):
-                    return json.dumps(sanitized_value, ensure_ascii=False)
-                return sanitized_value
+                return cls._dump_sanitized_structured_text(
+                    cls.sanitize_data(parsed_value, field_name),
+                    original_text=value,
+                )
 
         sanitized_text = value
         for pattern in cls._KV_PATTERNS:
@@ -258,6 +258,20 @@ class LogSanitizer:
         normalized_key = cls._normalize_key(match.groupdict().get('key', ''))
         masked_value = cls._mask_partial_value(match.group('value'), normalized_key)
         return f'{prefix}{quote}{masked_value}{quote}'
+
+    @staticmethod
+    def _dump_sanitized_structured_text(sanitized_value: Any, original_text: str) -> Any:
+        """
+        将脱敏后的结构化数据恢复为文本，并尽量保持原始换行风格
+
+        :param sanitized_value: 脱敏后的结构化数据
+        :param original_text: 原始文本
+        :return: 文本或原始值
+        """
+        if isinstance(sanitized_value, (dict, list)):
+            indent = 2 if '\n' in original_text or '\r' in original_text else None
+            return json.dumps(sanitized_value, ensure_ascii=False, indent=indent)
+        return sanitized_value
 
     @classmethod
     def _should_fully_mask_field(
