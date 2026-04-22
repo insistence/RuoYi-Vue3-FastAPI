@@ -84,6 +84,15 @@ class LogSettings(BaseSettings):
     日志与队列配置
     """
 
+    log_mask_enabled: bool = True
+    log_mask_placeholder: str = '******'
+    log_mask_fields: str = (
+        'password,old_password,new_password,confirm_password,api_key,token,access_token,refresh_token,'
+        'authorization,client_secret,secret,secret_key,private_key,private_key_pem,credential,credentials,'
+        'sms_code,captcha_code,system_prompt'
+    )
+    log_partial_mask_fields: str = 'phonenumber,phone,mobile,email'
+    log_config_secret_patterns: str = 'password,token,secret,key,private,credential,access,jwt,captcha,sms'
     log_stream_key: str = 'log:stream'
     log_stream_group: str = 'log_aggregator'
     log_stream_consumer_prefix: str = 'worker'
@@ -291,7 +300,7 @@ class GetConfig:
             parser = argparse.ArgumentParser(description='命令行参数')
             parser.add_argument('--env', type=str, default='', help='运行环境')
             # 解析命令行参数
-            args = parser.parse_args()
+            args, _ = parser.parse_known_args()
             # 设置环境变量，如果未设置命令行参数，默认APP_ENV为dev
             os.environ['APP_ENV'] = args.env if args.env else 'dev'
         # 读取运行环境

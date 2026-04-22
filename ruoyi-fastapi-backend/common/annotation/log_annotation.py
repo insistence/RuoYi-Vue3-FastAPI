@@ -2,7 +2,9 @@ import inspect
 import json
 import time
 from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from datetime import datetime
+from enum import Enum
 from functools import wraps
 from typing import Any, Literal, TypeVar
 
@@ -22,36 +24,131 @@ from module_admin.entity.vo.log_vo import LogininforModel, OperLogModel
 from module_admin.service.log_service import LogQueueService
 from utils.client_ip_util import ClientIPUtil
 from utils.dependency_util import DependencyUtil
-from utils.log_util import logger
+from utils.log_util import LogSanitizer, logger
 from utils.response_util import ResponseUtil
 
 P = ParamSpec('P')
 R = TypeVar('R')
 
 
+class _LogFieldRoot(str, Enum):
+    """
+    日志字段路径根节点
+    """
+
+    def field(self, *parts: str) -> str:
+        """
+        生成 include 字段路径
+
+        :param parts: 后续字段路径片段
+        :return: 完整字段路径
+        """
+        return '.'.join((self.value, *parts)) if parts else self.value
+
+
+class RequestLogFieldRoot(_LogFieldRoot):
+    """
+    请求日志字段路径支持的根节点
+    """
+
+    PATH_PARAMS = 'path_params'
+    QUERY_PARAMS = 'query_params'
+    JSON_BODY = 'json_body'
+    FORM_DATA = 'form_data'
+    FILES = 'files'
+    RAW_BODY = 'raw_body'
+
+
+class ResponseLogFieldRoot(_LogFieldRoot):
+    """
+    响应日志字段路径推荐的根节点
+    """
+
+    CODE = 'code'
+    MSG = 'msg'
+    DATA = 'data'
+    ROWS = 'rows'
+    SUCCESS = 'success'
+    TIME = 'time'
+
+
 class Log:
     """
     日志装饰器
+
+    支持的日志模式:
+    - `full`: 记录脱敏后的完整载荷
+    - `none`: 不记录对应方向的载荷
+    - `summary`: 仅记录摘要信息，如顶层键、状态码、rows数量等
+    - `include`: 仅记录白名单字段，适合高敏感接口
+    - `exclude`: 记录完整载荷后排除少数字段，适合中敏感接口
+
+    模式建议:
+    - 普通后台管理接口可使用`full`
+    - 包含大量字段但只关心结构时使用`summary`
+    - 包含密钥、密码、提示词、配置项等高敏感字段时优先使用`include`
+    - 字段较多但只需排除极少数字段时可使用`exclude`
+    - 完全无需保留请求体或响应体时使用`none`
+
+    include / exclude 模式字段路径规则:
+    - 使用`.`分隔路径，如`json_body.modelCode`、`data.userId`
+    - 请求日志推荐根节点：`path_params`、`query_params`、`json_body`、`form_data`、`files`、`raw_body`
+    - 响应日志推荐根节点：`code`、`msg`、`data`、`rows`、`success`、`time`
+    - 字段名优先按原样精确匹配，若未命中会自动尝试 snake_case、camelCase、kebab-case 归一化匹配
+    - 数组使用数字下标，如`rows.0.userName`
+    - 当前不支持通配符
+    - 推荐优先使用`RequestLogFieldRoot.JSON_BODY.field(...)`和`ResponseLogFieldRoot.DATA.field(...)`构造字段路径
+
+    示例:
+    - `request_include_fields=(RequestLogFieldRoot.JSON_BODY.field('model_code'),)`
+    - `response_include_fields=(ResponseLogFieldRoot.DATA.field('userName'),)`
+    - `request_exclude_fields=('json_body.api_key',)`
     """
+
+    _REQUEST_INCLUDE_ROOTS = tuple(item.value for item in RequestLogFieldRoot)
+    _RESPONSE_INCLUDE_ROOTS = tuple(item.value for item in ResponseLogFieldRoot)
+    _MISSING = object()
+    _AMBIGUOUS = object()
 
     def __init__(
         self,
         title: str,
         business_type: BusinessType,
         log_type: Literal['login', 'operation'] | None = 'operation',
+        request_log_mode: Literal['full', 'none', 'summary', 'include', 'exclude'] = 'full',
+        response_log_mode: Literal['full', 'none', 'summary', 'include', 'exclude'] = 'full',
+        request_include_fields: tuple[str, ...] | None = None,
+        response_include_fields: tuple[str, ...] | None = None,
+        request_exclude_fields: tuple[str, ...] | None = None,
+        response_exclude_fields: tuple[str, ...] | None = None,
     ) -> None:
         """
         日志装饰器
 
         :param title: 当前日志装饰器装饰的模块标题
         :param business_type: 业务类型（OTHER其它 INSERT新增 UPDATE修改 DELETE删除 GRANT授权 EXPORT导出 IMPORT导入 FORCE强退 GENCODE生成代码 CLEAN清空数据）
-        :param log_type: 日志类型（login表示登录日志，operation表示为操作日志）
+        :param log_type: 日志类型；`login`表示登录日志，仅落登录信息，`operation`表示操作日志，会落请求/响应摘要与操作人信息
+        :param request_log_mode: 请求日志记录模式；`full`记录脱敏后的完整请求，`none`不记录请求体，`summary`记录请求摘要，`include`仅记录request_include_fields指定的字段，`exclude`记录完整请求后排除request_exclude_fields指定的字段
+        :param response_log_mode: 响应日志记录模式；`full`记录脱敏后的完整响应，`none`不记录响应体，`summary`记录响应摘要，`include`仅记录response_include_fields指定的字段，`exclude`记录完整响应后排除response_exclude_fields指定的字段
+        :param request_include_fields: 请求日志白名单字段路径，仅在request_log_mode='include'时生效；推荐从path_params/query_params/json_body/form_data/files/raw_body开始，字段名支持 snake_case 与 camelCase 自动兼容
+        :param response_include_fields: 响应日志白名单字段路径，仅在response_log_mode='include'时生效；推荐从code/msg/data/rows/success/time开始，字段名支持 snake_case 与 camelCase 自动兼容
+        :param request_exclude_fields: 请求日志排除字段路径，仅在request_log_mode='exclude'时生效；推荐从path_params/query_params/json_body/form_data/files/raw_body开始，字段名支持 snake_case 与 camelCase 自动兼容
+        :param response_exclude_fields: 响应日志排除字段路径，仅在response_log_mode='exclude'时生效；推荐从code/msg/data/rows/success/time开始，字段名支持 snake_case 与 camelCase 自动兼容
         :return:
         """
         self.title = title
         self.business_type = business_type.value
         self.log_type = log_type
+        self.request_log_mode = request_log_mode
+        self.response_log_mode = response_log_mode
+        self.request_include_fields = request_include_fields or ()
+        self.response_include_fields = response_include_fields or ()
+        self.request_exclude_fields = request_exclude_fields or ()
+        self.response_exclude_fields = response_exclude_fields or ()
         self._oper_param_len = 2000
+        self._warned_field_path_warnings: set[str] = set()
+        self._validate_request_field_paths_strict()
+        self._warn_invalid_field_path_config()
 
     def __call__(self, func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @wraps(func)
@@ -64,7 +161,7 @@ class Log:
             request = get_function_parameters_value_by_name(func, request_name_list[0], *args, **kwargs)
             DependencyUtil.check_exclude_routes(request, err_msg='当前路由不在认证规则内，不可使用Log装饰器')
             request_method = request.method
-            user_agent = request.headers.get('User-Agent')
+            user_agent = request.headers.get('User-Agent') or ''
             # 获取操作类型
             operator_type = self._get_oper_type(user_agent)
             # 获取请求的url
@@ -74,7 +171,14 @@ class Log:
             # 获取请求ip归属区域
             oper_location = await self._get_oper_location(oper_ip)
             # 获取请求参数
-            oper_param = await self._get_request_params(request)
+            oper_param_payload = LogSanitizer.sanitize_data(await self._get_request_params(request))
+            oper_param = self._build_log_text(
+                oper_param_payload,
+                self.request_log_mode,
+                self.request_include_fields,
+                self.request_exclude_fields,
+                payload_kind='request',
+            )
             # 日志表请求参数字段长度最大为2000，因此在此处判断长度
             if len(oper_param) > self._oper_param_len:
                 oper_param = '请求参数过长'
@@ -100,10 +204,18 @@ class Log:
             # 判断请求是否来自api文档
             request_from_swagger, request_from_redoc = self._is_request_from_swagger_or_redoc(request)
             # 根据响应结果的类型使用不同的方法获取响应结果参数
-            result_dict = self._get_result_dict(result, request_from_swagger, request_from_redoc)
-            json_result = json.dumps(result_dict, ensure_ascii=False)
+            sanitized_result_dict = LogSanitizer.sanitize_data(
+                self._get_result_dict(result, request_from_swagger, request_from_redoc)
+            )
+            json_result = self._build_log_text(
+                sanitized_result_dict,
+                self.response_log_mode,
+                self.response_include_fields,
+                self.response_exclude_fields,
+                payload_kind='response',
+            )
             # 根据响应结果获取响应状态及异常信息
-            status, error_msg = self._get_status_and_error_msg(result_dict)
+            status, error_msg = self._get_status_and_error_msg(sanitized_result_dict)
             # 根据日志类型向对应的日志表插入数据
             if self.log_type == 'login':
                 # 登录请求来自于api文档时不记录登录日志，其余情况则记录
@@ -116,7 +228,7 @@ class Log:
                             'loginTime': oper_time,
                             'userName': user.username,
                             'status': str(status),
-                            'msg': result_dict.get('msg'),
+                            'msg': sanitized_result_dict.get('msg') or '',
                         }
                     )
 
@@ -172,10 +284,11 @@ class Log:
         :param user_agent: 用户代理字符串
         :return: 操作类型
         """
+        user_agent_text = user_agent or ''
         operator_type = 0
-        if 'Windows' in user_agent or 'Macintosh' in user_agent or 'Linux' in user_agent:
+        if 'Windows' in user_agent_text or 'Macintosh' in user_agent_text or 'Linux' in user_agent_text:
             operator_type = 1
-        if 'Mobile' in user_agent or 'Android' in user_agent or 'iPhone' in user_agent:
+        if 'Mobile' in user_agent_text or 'Android' in user_agent_text or 'iPhone' in user_agent_text:
             operator_type = 2
 
         return operator_type
@@ -193,12 +306,12 @@ class Log:
 
         return oper_location
 
-    async def _get_request_params(self, request: Request) -> str:
+    async def _get_request_params(self, request: Request) -> dict[str, Any]:
         """
         获取请求参数
 
         :param request: Request对象
-        :return: 格式化后的请求参数字符串
+        :return: 结构化请求参数
         """
         params = {}
 
@@ -212,40 +325,568 @@ class Log:
 
         # JSON请求
         if 'application/json' in content_type:
-            json_body = await request.json()
-            if json_body:
-                params['json_body'] = json_body
+            params.update(await self._get_json_request_params(request, content_type))
 
         # 表单数据
         elif 'multipart/form-data' in content_type or 'application/x-www-form-urlencoded' in content_type:
-            form_data = await request.form()
-            if form_data:
-                # 过滤掉文件对象，只保留普通表单字段
-                form_dict = {key: value for key, value in form_data.items() if not hasattr(value, 'filename')}
-                if form_dict:
-                    params['form_data'] = form_dict
-
-                # 仅在multipart时尝试处理文件
-                if 'multipart/form-data' in content_type:
-                    file_info = {}
-                    for key, value in form_data.items():
-                        if hasattr(value, 'filename'):
-                            file_info[key] = {
-                                'filename': value.filename,
-                                'content_type': value.content_type,
-                                'size': value.size,
-                                'headers': dict(value.headers),
-                            }
-                    if file_info:
-                        params['files'] = file_info
+            params.update(await self._get_form_request_params(request, content_type))
 
         # 其他文本请求
         elif 'application/octet-stream' not in content_type:
-            body = await request.body()
-            if body:
-                params['raw_body'] = body.decode('utf-8')
+            params.update(await self._get_raw_request_params(request))
 
-        return json.dumps(params, ensure_ascii=False, indent=2) if params else ''
+        return params
+
+    async def _get_json_request_params(self, request: Request, content_type: str) -> dict[str, Any]:
+        """
+        获取 JSON 请求参数，解析失败时自动降级为原始文本
+
+        :param request: Request对象
+        :param content_type: 请求头中的 content-type
+        :return: 结构化请求参数
+        """
+        params = {}
+        try:
+            json_body = await request.json()
+        except Exception as exc:
+            logger.warning(
+                'Log装饰器请求体解析失败，已降级为raw_body记录，path={}, content_type={}, error_type={}',
+                request.url.path,
+                content_type,
+                type(exc).__name__,
+            )
+            params.update(await self._get_raw_request_params(request))
+        else:
+            if json_body:
+                params['json_body'] = json_body
+        return params
+
+    async def _get_form_request_params(self, request: Request, content_type: str) -> dict[str, Any]:
+        """
+        获取表单请求参数
+
+        :param request: Request对象
+        :param content_type: 请求头中的 content-type
+        :return: 结构化请求参数
+        """
+        params = {}
+        form_data = await request.form()
+        if not form_data:
+            return params
+
+        # 过滤掉文件对象，只保留普通表单字段
+        form_dict = {key: value for key, value in form_data.items() if not hasattr(value, 'filename')}
+        if form_dict:
+            params['form_data'] = form_dict
+
+        # 仅在multipart时尝试处理文件
+        if 'multipart/form-data' not in content_type:
+            return params
+
+        file_info = {}
+        for key, value in form_data.items():
+            if hasattr(value, 'filename'):
+                file_info[key] = {
+                    'filename': value.filename,
+                    'content_type': value.content_type,
+                    'size': value.size,
+                    'headers': dict(value.headers),
+                }
+        if file_info:
+            params['files'] = file_info
+        return params
+
+    async def _get_raw_request_params(self, request: Request) -> dict[str, Any]:
+        """
+        获取原始文本请求参数
+
+        :param request: Request对象
+        :return: 原始文本请求参数
+        """
+        body = await request.body()
+        if not body:
+            return {}
+        return {'raw_body': self._decode_request_body(body)}
+
+    @staticmethod
+    def _decode_request_body(body: bytes) -> str:
+        """
+        安全解码请求体，避免日志采集影响主流程
+
+        :param body: 原始请求体字节
+        :return: 解码后的请求体文本
+        """
+        return body.decode('utf-8', errors='replace')
+
+    def _build_log_text(
+        self,
+        payload: Any,
+        mode: Literal['full', 'none', 'summary', 'include', 'exclude'],
+        include_fields: tuple[str, ...],
+        exclude_fields: tuple[str, ...],
+        payload_kind: Literal['request', 'response'],
+    ) -> str:
+        """
+        根据日志策略构建日志文本
+
+        :param payload: 已完成脱敏的日志载荷
+        :param mode: 日志记录模式
+        :param include_fields: 白名单字段路径
+        :param exclude_fields: 排除字段路径
+        :param payload_kind: 载荷类型
+        :return: 日志文本
+        """
+        if mode == 'none' or not payload:
+            return ''
+        if mode == 'summary':
+            log_payload = self._build_summary_payload(payload, payload_kind)
+        elif mode == 'include':
+            log_payload = self._extract_include_fields(payload, include_fields, payload_kind)
+        elif mode == 'exclude':
+            log_payload = self._exclude_fields(payload, exclude_fields, payload_kind)
+        else:
+            log_payload = payload
+        return json.dumps(log_payload, ensure_ascii=False, indent=2) if log_payload else ''
+
+    def _build_summary_payload(self, payload: Any, payload_kind: Literal['request', 'response']) -> dict[str, Any]:
+        """
+        构建摘要日志载荷
+
+        :param payload: 原始载荷
+        :param payload_kind: 载荷类型
+        :return: 摘要日志载荷
+        """
+        summary_payload: dict[str, Any] = {
+            'mode': 'summary',
+            'kind': payload_kind,
+        }
+        if not isinstance(payload, dict):
+            summary_payload['type'] = type(payload).__name__
+            return summary_payload
+        summary_payload['keys'] = list(payload.keys())
+        if payload_kind == 'request':
+            summary_payload.update(
+                {
+                    'path_param_keys': self._get_mapping_keys(payload.get('path_params')),
+                    'query_param_keys': self._get_mapping_keys(payload.get('query_params')),
+                    'json_body_keys': self._get_mapping_keys(payload.get('json_body')),
+                    'form_data_keys': self._get_mapping_keys(payload.get('form_data')),
+                    'file_fields': self._get_mapping_keys(payload.get('files')),
+                    'raw_body_length': len(payload.get('raw_body', '')) if payload.get('raw_body') else 0,
+                }
+            )
+        else:
+            summary_payload.update(
+                {
+                    'code': payload.get('code'),
+                    'msg': self._get_result_message(payload),
+                    'data_keys': self._get_mapping_keys(payload.get('data')),
+                    'rows_count': len(payload.get('rows')) if isinstance(payload.get('rows'), list) else 0,
+                }
+            )
+        return summary_payload
+
+    def _extract_include_fields(
+        self,
+        payload: Any,
+        include_fields: tuple[str, ...],
+        payload_kind: Literal['request', 'response'],
+    ) -> dict[str, Any]:
+        """
+        提取白名单字段日志载荷
+
+        :param payload: 原始载荷
+        :param include_fields: 白名单字段路径
+        :param payload_kind: 载荷类型
+        :return: 提取后的日志载荷
+        """
+        selected_fields = {}
+        for field_path in include_fields:
+            field_value = self._get_field_value_by_path(payload, field_path)
+            if field_value is not self._MISSING:
+                selected_fields[field_path] = field_value
+            else:
+                self._warn_missing_field_path(payload, field_path, payload_kind, strategy='include')
+        return {
+            'mode': 'include',
+            'selected': selected_fields,
+        }
+
+    def _exclude_fields(
+        self,
+        payload: Any,
+        exclude_fields: tuple[str, ...],
+        payload_kind: Literal['request', 'response'],
+    ) -> Any:
+        """
+        排除指定字段后返回日志载荷
+
+        :param payload: 原始载荷
+        :param exclude_fields: 排除字段路径
+        :param payload_kind: 载荷类型
+        :return: 排除后的日志载荷
+        """
+        if not exclude_fields or not isinstance(payload, (dict, list)):
+            return payload
+        filtered_payload = deepcopy(payload)
+        for field_path in self._sort_field_paths_for_exclude(exclude_fields):
+            if not self._remove_field_by_path(filtered_payload, field_path):
+                self._warn_missing_field_path(payload, field_path, payload_kind, strategy='exclude')
+        return filtered_payload
+
+    def _warn_missing_field_path(
+        self,
+        payload: Any,
+        field_path: str,
+        payload_kind: Literal['request', 'response'],
+        strategy: Literal['include', 'exclude'],
+    ) -> None:
+        """
+        记录未命中的字段路径告警，同一路径仅提示一次
+
+        :param payload: 原始载荷
+        :param field_path: 字段路径
+        :param payload_kind: 载荷类型
+        :param strategy: 当前字段路径策略
+        :return: None
+        """
+        warning_key = f'{strategy}:{payload_kind}:{field_path}'
+        if warning_key in self._warned_field_path_warnings:
+            return
+        self._warned_field_path_warnings.add(warning_key)
+        kind_text = '请求' if payload_kind == 'request' else '响应'
+        reason = self._describe_missing_field_path(payload, field_path)
+        if strategy == 'include':
+            logger.warning(
+                f'Log装饰器字段白名单未命中：{kind_text}日志字段路径`{field_path}`已忽略。'
+                f'{reason}若该字段为可选字段，可忽略此提示。'
+            )
+        else:
+            logger.warning(
+                f'Log装饰器字段排除路径未命中：{kind_text}日志字段路径`{field_path}`未生效。'
+                f'{reason}若该字段为可选字段，可忽略此提示。'
+            )
+
+    def _describe_missing_field_path(self, payload: Any, field_path: str) -> str:
+        """
+        描述字段路径未命中的原因
+
+        :param payload: 原始载荷
+        :param field_path: 字段路径
+        :return: 原因描述
+        """
+        current_value = payload
+        traversed_parts: list[str] = []
+        for part in field_path.split('.'):
+            traversed_path = '.'.join(traversed_parts) or '<root>'
+            if isinstance(current_value, dict):
+                mapping_value = self._get_mapping_value_by_part(current_value, part)
+                if mapping_value is self._MISSING:
+                    available_keys = ', '.join(map(str, current_value.keys())) if current_value else '无'
+                    return f'在`{traversed_path}`下未找到字段`{part}`，可用字段：{available_keys}。'
+                if mapping_value is self._AMBIGUOUS:
+                    ambiguous_keys = ', '.join(
+                        str(key)
+                        for key in current_value
+                        if self._normalize_include_key(str(key)) == self._normalize_include_key(part)
+                    )
+                    return (
+                        f'在`{traversed_path}`下字段`{part}`存在命名冲突，'
+                        f'可匹配字段：{ambiguous_keys}；请改用精确字段名。'
+                    )
+                current_value = mapping_value
+            elif isinstance(current_value, list):
+                if not part.isdigit():
+                    return f'在`{traversed_path}`处当前值为列表，字段片段`{part}`应为数字下标。'
+                current_index = int(part)
+                if current_index >= len(current_value):
+                    return f'在`{traversed_path}`处列表长度为{len(current_value)}，下标`{part}`越界。'
+                current_value = current_value[current_index]
+            else:
+                current_type = type(current_value).__name__ if current_value is not None else 'None'
+                return f'在`{traversed_path}`处当前值类型为`{current_type}`，无法继续匹配后续路径。'
+            traversed_parts.append(part)
+        return ''
+
+    def _warn_invalid_field_path_config(self) -> None:
+        """
+        记录字段路径配置告警，帮助开发者发现路径误配
+
+        :return: None
+        """
+        warnings = [
+            *self._collect_field_path_warnings(
+                mode=self.request_log_mode,
+                include_fields=self.request_include_fields,
+                exclude_fields=self.request_exclude_fields,
+                payload_kind='request',
+            ),
+            *self._collect_field_path_warnings(
+                mode=self.response_log_mode,
+                include_fields=self.response_include_fields,
+                exclude_fields=self.response_exclude_fields,
+                payload_kind='response',
+            ),
+        ]
+        for warning in warnings:
+            logger.warning(f'Log装饰器字段路径配置提示：{warning}')
+
+    def _validate_request_field_paths_strict(self) -> None:
+        """
+        严格校验请求日志字段路径根节点
+
+        :return: None
+        """
+        field_paths = ()
+        if self.request_log_mode == 'include':
+            field_paths = self.request_include_fields
+        elif self.request_log_mode == 'exclude':
+            field_paths = self.request_exclude_fields
+        for field_path in field_paths:
+            if not field_path:
+                continue
+            root_part = field_path.split('.', 1)[0]
+            if self._resolve_include_root(root_part, self._REQUEST_INCLUDE_ROOTS) is None:
+                raise ValueError(
+                    f'请求日志字段路径`{field_path}`使用了不支持的根节点`{root_part}`；'
+                    f'仅支持：{", ".join(self._REQUEST_INCLUDE_ROOTS)}'
+                )
+
+    def _collect_field_path_warnings(
+        self,
+        mode: Literal['full', 'none', 'summary', 'include', 'exclude'],
+        include_fields: tuple[str, ...],
+        exclude_fields: tuple[str, ...],
+        payload_kind: Literal['request', 'response'],
+    ) -> list[str]:
+        """
+        收集字段路径配置告警信息
+
+        :param mode: 日志记录模式
+        :param include_fields: 白名单字段路径列表
+        :param exclude_fields: 排除字段路径列表
+        :param payload_kind: 载荷类型
+        :return: 告警信息列表
+        """
+        warnings = []
+        kind_text = '请求' if payload_kind == 'request' else '响应'
+        recommended_roots = self._REQUEST_INCLUDE_ROOTS if payload_kind == 'request' else self._RESPONSE_INCLUDE_ROOTS
+        if mode == 'include' and not include_fields:
+            warnings.append(
+                f'{kind_text}日志已启用include模式，但未配置白名单字段；推荐根节点：{", ".join(recommended_roots)}'
+            )
+        if mode == 'exclude' and not exclude_fields:
+            warnings.append(
+                f'{kind_text}日志已启用exclude模式，但未配置排除字段；推荐根节点：{", ".join(recommended_roots)}'
+            )
+        if mode != 'include' and include_fields:
+            warnings.append(f'{kind_text}日志配置了白名单字段，但当前模式为{mode}，这些字段不会生效')
+        if mode != 'exclude' and exclude_fields:
+            warnings.append(f'{kind_text}日志配置了排除字段，但当前模式为{mode}，这些字段不会生效')
+        for field_path in include_fields:
+            path_warning = self._validate_field_path(field_path, payload_kind, strategy='include')
+            if path_warning:
+                warnings.append(path_warning)
+        for field_path in exclude_fields:
+            path_warning = self._validate_field_path(field_path, payload_kind, strategy='exclude')
+            if path_warning:
+                warnings.append(path_warning)
+
+        return warnings
+
+    def _validate_field_path(
+        self,
+        field_path: str,
+        payload_kind: Literal['request', 'response'],
+        strategy: Literal['include', 'exclude'],
+    ) -> str | None:
+        """
+        校验单个字段路径
+
+        :param field_path: 字段路径
+        :param payload_kind: 载荷类型
+        :param strategy: 当前字段路径策略
+        :return: 告警信息
+        """
+        kind_text = '请求' if payload_kind == 'request' else '响应'
+        recommended_roots = self._REQUEST_INCLUDE_ROOTS if payload_kind == 'request' else self._RESPONSE_INCLUDE_ROOTS
+        strategy_text = '白名单字段路径' if strategy == 'include' else '排除字段路径'
+        if not field_path:
+            return f'{kind_text}日志存在空{strategy_text}；推荐根节点：{", ".join(recommended_roots)}'
+        parts = field_path.split('.')
+        if any(not part for part in parts):
+            return f'{kind_text}日志{strategy_text}`{field_path}`格式不合法，请使用`.`分隔的完整路径'
+        canonical_root = self._resolve_include_root(parts[0], recommended_roots)
+        if canonical_root is None:
+            return (
+                f'{kind_text}日志{strategy_text}`{field_path}`未使用推荐根节点`{parts[0]}`；'
+                f'推荐根节点：{", ".join(recommended_roots)}'
+            )
+        return None
+
+    def _get_field_value_by_path(self, payload: Any, field_path: str) -> Any:
+        """
+        通过字段路径获取字段值
+
+        :param payload: 原始载荷
+        :param field_path: 字段路径
+        :return: 字段值
+        """
+        current_value = payload
+        for part in field_path.split('.'):
+            if isinstance(current_value, dict):
+                mapping_value = self._get_mapping_value_by_part(current_value, part)
+                if mapping_value is self._MISSING or mapping_value is self._AMBIGUOUS:
+                    return self._MISSING
+                current_value = mapping_value
+            elif isinstance(current_value, list) and part.isdigit():
+                current_index = int(part)
+                if current_index >= len(current_value):
+                    return self._MISSING
+                current_value = current_value[current_index]
+            else:
+                return self._MISSING
+        return current_value
+
+    def _get_mapping_value_by_part(self, payload: dict[str, Any], part: str) -> Any:
+        """
+        从字典中按字段片段获取值，支持 snake_case / camelCase / kebab-case 自动兼容
+
+        :param payload: 当前字典载荷
+        :param part: 当前路径片段
+        :return: 字段值
+        """
+        if part in payload:
+            return payload[part]
+        normalized_part = self._normalize_include_key(part)
+        matched_keys = [key for key in payload if self._normalize_include_key(str(key)) == normalized_part]
+        if len(matched_keys) == 1:
+            return payload[matched_keys[0]]
+        if len(matched_keys) > 1:
+            return self._AMBIGUOUS
+        return self._MISSING
+
+    @staticmethod
+    def _sort_field_paths_for_exclude(field_paths: tuple[str, ...]) -> list[str]:
+        """
+        对 exclude 字段路径排序，优先处理更深层路径和更大的列表下标，避免列表删除时发生索引位移
+
+        :param field_paths: 原始字段路径
+        :return: 排序后的字段路径列表
+        """
+        return sorted(field_paths, key=Log._build_exclude_sort_key, reverse=True)
+
+    @staticmethod
+    def _build_exclude_sort_key(field_path: str) -> tuple[int, tuple[tuple[int, int | str], ...]]:
+        """
+        构建 exclude 字段路径排序键
+
+        :param field_path: 字段路径
+        :return: 排序键
+        """
+        parts = field_path.split('.')
+        normalized_parts: tuple[tuple[int, int | str], ...] = tuple(
+            (1, int(part)) if part.isdigit() else (0, part) for part in parts
+        )
+        return len(parts), normalized_parts
+
+    def _remove_field_by_path(self, payload: Any, field_path: str) -> bool:
+        """
+        按路径移除字段
+
+        :param payload: 原始载荷
+        :param field_path: 字段路径
+        :return: 是否移除成功
+        """
+        if not field_path:
+            return False
+        current_value = payload
+        parts = field_path.split('.')
+        for part in parts[:-1]:
+            if isinstance(current_value, dict):
+                mapping_value = self._get_mapping_value_by_part(current_value, part)
+                if mapping_value is self._MISSING or mapping_value is self._AMBIGUOUS:
+                    return False
+                current_value = mapping_value
+            elif isinstance(current_value, list) and part.isdigit():
+                current_index = int(part)
+                if current_index >= len(current_value):
+                    return False
+                current_value = current_value[current_index]
+            else:
+                return False
+
+        target_part = parts[-1]
+        if isinstance(current_value, dict):
+            resolved_key = self._resolve_mapping_key_by_part(current_value, target_part)
+            if resolved_key is self._MISSING or resolved_key is self._AMBIGUOUS:
+                return False
+            del current_value[resolved_key]
+            return True
+        if isinstance(current_value, list) and target_part.isdigit():
+            current_index = int(target_part)
+            if current_index >= len(current_value):
+                return False
+            current_value.pop(current_index)
+            return True
+        return False
+
+    def _resolve_mapping_key_by_part(self, payload: dict[str, Any], part: str) -> str | object:
+        """
+        解析字段片段在字典中的真实键名
+
+        :param payload: 当前字典载荷
+        :param part: 当前路径片段
+        :return: 真实键名或哨兵值
+        """
+        if part in payload:
+            return part
+        normalized_part = self._normalize_include_key(part)
+        matched_keys = [key for key in payload if self._normalize_include_key(str(key)) == normalized_part]
+        if len(matched_keys) == 1:
+            return matched_keys[0]
+        if len(matched_keys) > 1:
+            return self._AMBIGUOUS
+        return self._MISSING
+
+    @staticmethod
+    def _resolve_include_root(
+        root: RequestLogFieldRoot | ResponseLogFieldRoot | str, candidates: tuple[str, ...]
+    ) -> str | None:
+        """
+        解析 include 根节点到标准写法
+
+        :param root: 原始根节点
+        :param candidates: 候选根节点
+        :return: 标准根节点
+        """
+        normalized_root = Log._normalize_include_key(str(root))
+        for candidate in candidates:
+            if Log._normalize_include_key(candidate) == normalized_root:
+                return candidate
+        return None
+
+    @staticmethod
+    def _normalize_include_key(field_name: str) -> str:
+        """
+        标准化 include 字段名
+
+        :param field_name: 原始字段名
+        :return: 标准化后的字段名
+        """
+        return ''.join(char.lower() for char in field_name if char.isalnum())
+
+    @staticmethod
+    def _get_mapping_keys(payload: Any) -> list[str]:
+        """
+        获取字典载荷的键列表
+
+        :param payload: 原始载荷
+        :return: 键列表
+        """
+        if isinstance(payload, dict):
+            return list(payload.keys())
+        return []
 
     def _get_login_log(
         self, user_agent: Any, oper_ip: str, oper_location: str, oper_time: datetime, origin_kwargs: dict
@@ -262,7 +903,7 @@ class Log:
         """
         login_log = {}
         if self.log_type == 'login':
-            user_agent_info = parse(user_agent)
+            user_agent_info = parse(user_agent or '')
             browser = f'{user_agent_info.browser.family}'
             system_os = f'{user_agent_info.os.family}'
             if user_agent_info.browser.version != ():
@@ -303,9 +944,19 @@ class Log:
         if result_dict.get('code') == HTTP_200_OK:
             status = 0
         else:
-            error_msg = result_dict.get('msg')
+            error_msg = self._get_result_message(result_dict)
 
         return status, error_msg
+
+    @staticmethod
+    def _get_result_message(result_dict: dict[str, Any]) -> Any:
+        """
+        获取响应结果中的消息字段，兼容 msg / message 两种写法
+
+        :param result_dict: 操作结果字典
+        :return: 消息内容
+        """
+        return result_dict.get('msg') if result_dict.get('msg') is not None else result_dict.get('message')
 
     def _is_request_from_swagger_or_redoc(self, request: Request) -> tuple[bool, bool]:
         """

@@ -26,7 +26,7 @@ from module_admin.entity.vo.log_vo import (
 )
 from module_admin.service.dict_service import DictDataService
 from utils.excel_util import ExcelUtil
-from utils.log_util import logger
+from utils.log_util import LogSanitizer, logger
 
 
 class OperationLogService:
@@ -332,7 +332,7 @@ class LogQueueService:
         :param source: 日志来源
         :return: None
         """
-        payload = login_log.model_dump(by_alias=True, exclude_none=True)
+        payload = LogSanitizer.sanitize_data(login_log.model_dump(by_alias=True, exclude_none=True))
         await cls._xadd_event(request.app.state.redis, 'login', payload, source)
 
     @classmethod
@@ -345,7 +345,7 @@ class LogQueueService:
         :param source: 日志来源
         :return: None
         """
-        payload = operation_log.model_dump(by_alias=True, exclude_none=True)
+        payload = LogSanitizer.sanitize_data(operation_log.model_dump(by_alias=True, exclude_none=True))
         await cls._xadd_event(request.app.state.redis, 'operation', payload, source)
 
 

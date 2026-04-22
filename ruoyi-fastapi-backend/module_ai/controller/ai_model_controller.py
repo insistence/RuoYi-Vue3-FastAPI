@@ -7,7 +7,7 @@ from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
-from common.annotation.log_annotation import Log
+from common.annotation.log_annotation import Log, RequestLogFieldRoot
 from common.aspect.data_scope import DataScopeDependency
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
@@ -82,7 +82,12 @@ async def get_ai_model_all(
 )
 @ValidateFields(validate_model='add_ai_model')
 @ApiCacheEvict(namespaces=ApiGroup.AI_MODEL_MUTATION)
-@Log(title='AI模型管理', business_type=BusinessType.INSERT)
+@Log(
+    title='AI模型管理',
+    business_type=BusinessType.INSERT,
+    request_log_mode='exclude',
+    request_exclude_fields=(RequestLogFieldRoot.JSON_BODY.field('api_key'),),
+)
 async def add_ai_model(
     request: Request,
     add_ai_model: AiModelModel,
@@ -110,7 +115,12 @@ async def add_ai_model(
 )
 @ValidateFields(validate_model='edit_ai_model')
 @ApiCacheEvict(namespaces=ApiGroup.AI_MODEL_MUTATION)
-@Log(title='AI模型管理', business_type=BusinessType.UPDATE)
+@Log(
+    title='AI模型管理',
+    business_type=BusinessType.UPDATE,
+    request_log_mode='exclude',
+    request_exclude_fields=(RequestLogFieldRoot.JSON_BODY.field('api_key'),),
+)
 async def edit_ai_model(
     request: Request,
     edit_ai_model: AiModelModel,
