@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir -r requirements-pg.txt -i https://pypi.tuna.tsing
 EXPOSE 9099
 
 # 启动命令
-CMD ["python", "app.py", "--env=dockerpg"]
+CMD ["ruoyi", "app", "run", "--env=dockerpg"]

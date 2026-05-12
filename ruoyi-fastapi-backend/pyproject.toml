@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ruoyi-fastapi-backend-cli"
+version = "1.9.0"
+description = "RuoYi FastAPI backend internal CLI entrypoint"
+requires-python = ">=3.10"
+
+[project.scripts]
+ruoyi = "cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["cli*"]

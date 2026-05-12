@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua
 EXPOSE 9099
 
 # 启动命令
-CMD ["python", "app.py", "--env=dockermy"]
+CMD ["ruoyi", "app", "run", "--env=dockermy"]

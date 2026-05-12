@@ -30,4 +30,6 @@ redis==7.1.0
 ruff==0.15.0
 SQLAlchemy[asyncio]==2.0.46
 sqlglot[rs]==28.10.0
+textual==8.2.5
 user-agents==2.2.0
+.
