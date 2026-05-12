@@ -92,7 +92,13 @@ def test_collect_app_page_snapshot_builds_env_config_and_route_sections(
                         },
                         'zsh': {'supported': True, 'detected': False, 'autoDiscovery': False},
                         'fish': {'supported': True, 'detected': False, 'autoDiscovery': True},
-                        'powershell': {'supported': False, 'detected': False, 'autoDiscovery': False},
+                        'powershell': {
+                            'supported': True,
+                            'detected': False,
+                            'autoDiscovery': False,
+                            'sourceCommand': '. "/tmp/ruoyi.ps1"',
+                            'recommendedInstallCommand': 'ruoyi completion install --shell=powershell --activate',
+                        },
                     },
                 }
             )

@@ -57,7 +57,7 @@ class CompletionDoctorService:
             target_file = self.installer_service.resolve_completion_target(shell_name)
             rc_file = self.installer_service.resolve_completion_rc_file(shell_name)
             source_command = None
-            if shell_spec.supported and shell_spec.generator == 'click':
+            if shell_spec.supported and shell_spec.generator in {'click', 'custom'}:
                 source_command = self.installer_service.build_source_command(target_file, shell_name)
             recommended_install_command = f'ruoyi completion install --shell={shell_name}'
             if shell_spec.supported and not shell_spec.auto_discovery:

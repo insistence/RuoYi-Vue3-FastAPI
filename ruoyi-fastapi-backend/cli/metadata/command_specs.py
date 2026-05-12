@@ -18,7 +18,7 @@ class CompletionShellSpec:
 
     name: str
     description: str
-    generator: Literal['click', 'unsupported']
+    generator: Literal['click', 'custom', 'unsupported']
     default_target: str
     default_rc_file: str | None
     auto_discovery: bool
@@ -87,11 +87,11 @@ DEFAULT_COMPLETION_SHELL_SPECS: dict[str, CompletionShellSpec] = {
     'powershell': CompletionShellSpec(
         name='powershell',
         description='Windows PowerShell / PowerShell 7 completion',
-        generator='unsupported',
+        generator='custom',
         default_target='Documents/PowerShell/Profile/ruoyi.ps1',
         default_rc_file='Documents/PowerShell/Microsoft.PowerShell_profile.ps1',
         auto_discovery=False,
-        supported=False,
+        supported=True,
     ),
 }
 

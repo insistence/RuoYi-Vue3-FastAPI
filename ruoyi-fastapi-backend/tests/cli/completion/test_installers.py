@@ -26,6 +26,7 @@ def test_build_source_command_uses_shell_runtime_policy() -> None:
         installer.build_source_command(target_file, 'fish')
         == 'status --is-interactive; and source /tmp/ruoyi-completion'
     )
+    assert installer.build_source_command(target_file, 'powershell') == '. "/tmp/ruoyi-completion"'
 
 
 def test_make_bash_completion_script_compatible_wraps_legacy_instructions() -> None:
@@ -90,3 +91,22 @@ def test_render_completion_script_uses_runtime_policy_transformer(monkeypatch: M
     rendered_script = installer.render_completion_script(typer.Typer(), 'bash')
 
     assert rendered_script == 'transformed::raw-script'
+
+
+def test_render_powershell_completion_script_contains_native_completer() -> None:
+    """
+    校验 PowerShell completion 脚本会注册原生命令补全器。
+
+    :return: None
+    """
+    installer = CompletionInstallerService()
+    root_cli = typer.Typer()
+
+    @root_cli.command()
+    def demo() -> None:
+        return None
+
+    rendered_script = installer.render_completion_script(root_cli, 'powershell')
+
+    assert 'Register-ArgumentCompleter -Native -CommandName ruoyi' in rendered_script
+    assert '$env:_RUOYI_COMPLETE = "powershell_complete"' in rendered_script

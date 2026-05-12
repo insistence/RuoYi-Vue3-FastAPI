@@ -442,19 +442,21 @@ ruoyi completion doctor --output=json
 ruoyi completion show bash
 ruoyi completion show zsh
 ruoyi completion show fish
+ruoyi completion show powershell
 ruoyi completion install --activate
 ruoyi completion install --shell=bash
 ruoyi completion install --shell=zsh --activate
 ruoyi completion install --shell=fish
+ruoyi completion install --shell=powershell --activate
 ```
 
 说明：
 
-- 当前版本已支持 `bash`、`zsh`、`fish`
-- `powershell` 会出现在诊断结果中，但当前版本暂未实现脚本生成与安装
+- 当前版本已支持 `bash`、`zsh`、`fish`、`powershell`
 - `install` 在未传 `--shell` 时会优先自动识别当前 shell
 - `install` 默认写入 shell 对应的默认脚本位置
 - Bash 和 Zsh 如需自动加载，建议配合 `--activate`
+- PowerShell 如需自动加载，建议配合 `--activate`
 - Bash 脚本已对旧版本 Bash 做兼容处理，若之前已安装过脚本，请重新执行一次 `ruoyi completion install --activate`
 - `completion doctor` 会给出推荐安装命令和 source 建议
 - 当前已补充的上下文补全包括 `--env`、`cache_name`、`cache_key`、`config_key`、`db --revision`、`gen` 业务表名、`gen` 数据库表名、`gen --sql-file`、`gen --output-file`、`job_name`、`job_id`

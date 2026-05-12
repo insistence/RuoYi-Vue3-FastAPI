@@ -11,6 +11,7 @@ import typer.main
 from click.shell_completion import BashComplete, FishComplete, ZshComplete
 
 from cli.completion.providers import COMPLETION_PROVIDER_GATEWAY, CompletionProviderGateway
+from cli.completion.shells import PowerShellComplete, ensure_custom_completion_classes_registered
 from cli.exit_codes import ARGUMENT_ERROR, RUNTIME_ERROR
 from cli.metadata import COMPLETION_SHELL_SPEC_REGISTRY, CompletionShellSpec, CompletionShellSpecRegistry
 
@@ -107,6 +108,16 @@ class CompletionInstallerShellSupport:
         """
         return f'status --is-interactive; and source {target_file}'
 
+    @staticmethod
+    def build_powershell_source_command(target_file: Path) -> str:
+        """
+        构建 PowerShell 使用的 source 命令。
+
+        :param target_file: completion 脚本文件路径
+        :return: source 命令
+        """
+        return f'. "{target_file}"'
+
 
 @dataclass(frozen=True)
 class CompletionShellRuntimePolicy:
@@ -165,6 +176,12 @@ DEFAULT_COMPLETION_SHELL_RUNTIME_POLICIES = CompletionShellRuntimePolicyRegistry
             script_transformer=CompletionInstallerShellSupport.keep_script_text,
             source_command_builder=CompletionInstallerShellSupport.build_fish_source_command,
         ),
+        'powershell': CompletionShellRuntimePolicy(
+            name='powershell',
+            click_completion_class=PowerShellComplete,
+            script_transformer=CompletionInstallerShellSupport.keep_script_text,
+            source_command_builder=CompletionInstallerShellSupport.build_powershell_source_command,
+        ),
     }
 )
 
@@ -199,6 +216,7 @@ class CompletionInstallerService:
         self.completion_provider_gateway = completion_provider_gateway or COMPLETION_PROVIDER_GATEWAY
         self.shell_spec_registry = shell_spec_registry or COMPLETION_SHELL_SPEC_REGISTRY
         self.shell_runtime_policy_registry = shell_runtime_policy_registry or DEFAULT_COMPLETION_SHELL_RUNTIME_POLICIES
+        ensure_custom_completion_classes_registered()
 
     def resolve_completion_shell_spec(self, shell: str) -> CompletionShellSpec:
         """
@@ -249,7 +267,7 @@ class CompletionInstallerService:
         :raises typer.BadParameter: 当前 shell 未实现脚本生成时抛出异常
         """
         shell_spec = self.resolve_completion_shell_spec(shell)
-        if not shell_spec.supported or shell_spec.generator != 'click':
+        if not shell_spec.supported or shell_spec.generator not in {'click', 'custom'}:
             raise typer.BadParameter(f'{shell_spec.name} completion 当前版本未实现')
 
         runtime_policy = self.resolve_shell_runtime_policy(shell_spec.name)

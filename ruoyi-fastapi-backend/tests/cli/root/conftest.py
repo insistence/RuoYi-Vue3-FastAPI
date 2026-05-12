@@ -45,7 +45,7 @@ def run_cli_completion_command(
     def _run_cli_completion_command(
         *,
         comp_words: str,
-        comp_cword: int,
+        comp_cword: int | str,
         instruction: str = 'bash_complete',
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.run(

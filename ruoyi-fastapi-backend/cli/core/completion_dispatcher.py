@@ -5,6 +5,8 @@ import typer
 from click.shell_completion import shell_complete as click_shell_complete
 from typer.completion import shell_complete as typer_shell_complete
 
+from cli.completion.shells import ensure_custom_completion_classes_registered
+
 
 @dataclass(frozen=True)
 class CompletionInstructionSupport:
@@ -98,6 +100,7 @@ class CompletionDispatcher:
         :param cli: Typer 根应用
         :return: None
         """
+        ensure_custom_completion_classes_registered()
         instruction = self.instruction_reader.read_instruction()
         if not instruction:
             return
