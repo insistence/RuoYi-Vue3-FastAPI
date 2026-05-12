@@ -169,7 +169,7 @@ Widget {
 #workspace-main {
     padding: 1 2 1 1;
     background: #050c15;
-    border: round #11283a;
+    border: round #18425d;
     margin: 1 1 1 0;
     overflow-x: auto;
     overflow-y: auto;
@@ -191,7 +191,7 @@ Widget {
 #detail-body {
     height: auto;
     margin-top: 1;
-    border: double #11283a;
+    border: double #18425d;
     background: #06111b;
     padding: 1;
     overflow-x: auto;
@@ -201,7 +201,7 @@ Widget {
 #browser-body {
     height: auto;
     margin-top: 1;
-    border: double #11283a;
+    border: double #18425d;
     background: #06111b;
     padding: 1;
     overflow-x: auto;

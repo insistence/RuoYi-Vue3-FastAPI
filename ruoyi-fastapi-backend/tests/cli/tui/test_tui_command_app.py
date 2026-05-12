@@ -94,6 +94,85 @@ def test_open_view_switches_to_expected_action(tui_modules: SimpleNamespace) -> 
     assert calls == ['jobs', 'app', 'ops', 'crypto', 'dashboard']
 
 
+def test_workspace_header_render_includes_particle_line(tui_modules: SimpleNamespace) -> None:
+    header = tui_modules.cli_tui_widgets.WorkspaceHeader('dev', 'dashboard')
+
+    rendered = header.render()
+    rendered_text = rendered.plain
+
+    assert rendered.__class__.__name__ == 'Text'
+    assert 'RuoYi 控制台' in rendered_text
+    assert '环境 DEV · 页面 总览' in rendered_text
+    assert any(symbol in rendered_text for symbol in ('█', '▓', '▒', '░', '·', '─'))
+
+
+def test_workspace_header_centers_title_using_runtime_width(tui_modules: SimpleNamespace) -> None:
+    header = tui_modules.cli_tui_widgets.WorkspaceHeader('dev', 'dashboard')
+    header.styles.width = 140
+
+    first_line = header.render().plain.splitlines()[0]
+
+    assert first_line.startswith(' ')
+    assert 'RuoYi 控制台' in first_line
+
+
+def test_workspace_header_keeps_title_alignment_stable_across_frames(
+    monkeypatch: MonkeyPatch,
+    tui_modules: SimpleNamespace,
+) -> None:
+    header = tui_modules.cli_tui_widgets.WorkspaceHeader('dev', 'dashboard')
+    monotonic_values = iter([10.0, 10.0, 11.0, 11.0])
+    workspace_module = importlib.import_module('cli.tui.widgets.workspace')
+    monkeypatch.setattr(workspace_module, 'monotonic', lambda: next(monotonic_values))
+
+    first_line_a = header.render().plain.splitlines()[0]
+    first_line_b = header.render().plain.splitlines()[0]
+
+    assert first_line_a.index('RuoYi 控制台') == first_line_b.index('RuoYi 控制台')
+
+
+def test_workspace_hero_pulses_border_with_expected_palette(
+    monkeypatch: MonkeyPatch,
+    tui_modules: SimpleNamespace,
+) -> None:
+    hero = tui_modules.cli_tui_widgets.WorkspaceHero(
+        title='标题',
+        subtitle='副标题',
+        env='dev',
+        active_view='dashboard',
+        summary='摘要',
+        refreshed_at='2026-05-12 12:00:00',
+    )
+    workspace_module = importlib.import_module('cli.tui.widgets.workspace')
+    monkeypatch.setattr(workspace_module, 'monotonic', lambda: 10.0)
+    original_border_text = str(hero.styles.border)
+
+    hero._pulse_border()
+
+    border_text = str(hero.styles.border)
+
+    assert 'double' in border_text
+    assert border_text != original_border_text
+
+
+def test_workspace_hero_render_uses_rich_text_for_title_glow(tui_modules: SimpleNamespace) -> None:
+    hero = tui_modules.cli_tui_widgets.WorkspaceHero(
+        title='标题',
+        subtitle='副标题',
+        env='dev',
+        active_view='dashboard',
+        summary='摘要',
+        refreshed_at='2026-05-12 12:00:00',
+    )
+
+    rendered = hero._build_render_text()
+
+    assert rendered.__class__.__name__ == 'Text'
+    assert '标题' in rendered.plain
+    assert '副标题' in rendered.plain
+    assert '运行摘要 · 摘要' in rendered.plain
+
+
 def test_tui_app_runner_runs_created_application(tui_modules: SimpleNamespace) -> None:
     recorded_envs: list[str] = []
     recorded_runs: list[str] = []

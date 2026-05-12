@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime
+from math import sin
+from time import monotonic
 
+from rich.text import Text
 from textual.message import Message
 from textual.widgets import Label, ListItem, ListView, Static
 
@@ -158,7 +161,7 @@ class NavigationListItem(ListItem):
     NavigationListItem {
         padding: 0 1;
         margin-bottom: 1;
-        border: round #123148;
+        border: round #18425d;
         background: #07131f;
         color: #89b9c9;
         height: auto;
@@ -169,7 +172,7 @@ class NavigationListItem(ListItem):
     }
 
     NavigationListItem.is-active {
-        border: round #1db9d1;
+        border: round #38d8ff;
         background: #0a1e2d;
         color: #e4fbff;
     }
@@ -282,6 +285,8 @@ class WorkspaceHero(Static):
         color: #e9fcff;
     }
     """
+    _BORDER_PHASES = ('#2fb8df', '#38d8ff', '#62ecff', '#38d8ff')
+    _TITLE_GLOW_PALETTE = ('#7be8ff', '#b4f6ff', '#e9fdff', '#b4f6ff')
 
     def __init__(
         self,
@@ -310,23 +315,62 @@ class WorkspaceHero(Static):
         self.refreshed_at = refreshed_at
         super().__init__(self._build_render_text(), id='workspace-hero', markup=False)
 
-    def _build_render_text(self) -> str:
+    def on_mount(self) -> None:
+        """
+        在组件挂载后启动低频边框呼吸动效。
+
+        :return: None
+        """
+        self.set_interval(0.9, self._pulse_border, name='pulse workspace hero border')
+
+    def _pulse_border(self) -> None:
+        """
+        以低频节奏切换 Hero 边框颜色。
+
+        :return: None
+        """
+        phase_index = int(monotonic() * 1.1) % len(self._BORDER_PHASES)
+        self.styles.border = ('double', self._BORDER_PHASES[phase_index])
+
+    @classmethod
+    def _build_title_text(cls, title: str) -> Text:
+        """
+        构建 Hero 标题渐变文本。
+
+        :param title: 标题文本
+        :return: 富文本标题
+        """
+        rendered = Text()
+        palette_size = len(cls._TITLE_GLOW_PALETTE)
+        for index, char in enumerate(title):
+            rendered.append(char, style=f'bold {cls._TITLE_GLOW_PALETTE[index % palette_size]}')
+        return rendered
+
+    def _build_render_text(self) -> Text:
         """
         构建顶部摘要文本。
 
-        :return: 渲染文本
+        :return: 渲染富文本
         """
-        return '\n'.join(
-            TUI_COPY.build_workspace_hero_lines(
-                view_label=TUI_COPY.render_view_label(self.active_view),
-                title=self.title,
-                subtitle=self.subtitle,
-                env=self.env,
-                summary=self.summary,
-                refreshed_at=self.refreshed_at,
-                shortcut_hint=TUI_KEYMAP_REGISTRY.hero_shortcut_hint,
-            )
+        lines = TUI_COPY.build_workspace_hero_lines(
+            view_label=TUI_COPY.render_view_label(self.active_view),
+            title=self.title,
+            subtitle=self.subtitle,
+            env=self.env,
+            summary=self.summary,
+            refreshed_at=self.refreshed_at,
+            shortcut_hint=TUI_KEYMAP_REGISTRY.hero_shortcut_hint,
         )
+        rendered = Text()
+        for index, line in enumerate(lines):
+            if index:
+                rendered.append('\n')
+            if line.startswith('标题 · '):
+                rendered.append('标题 · ', style='bold #8fd9e8')
+                rendered.append_text(self._build_title_text(line.removeprefix('标题 · ')))
+                continue
+            rendered.append(line, style='bold #e9fcff' if index == 0 else '#d7f7ff')
+        return rendered
 
 
 class WorkspaceHeader(Static):
@@ -348,6 +392,40 @@ class WorkspaceHeader(Static):
         text-style: bold;
     }
     """
+    _HEADER_LINE_COUNT = 2
+    _SCANLINE_WIDTH = 16
+    _HEADER_HORIZONTAL_PADDING = 4
+    _HEADER_FALLBACK_WIDTH = 108
+    _SCANLINE_BASE_STYLE = '#1c5368'
+    _SCANLINE_GLOW_STYLES = {
+        '·': '#8ef7ff',
+        '░': '#62ecff',
+        '▒': '#4ee4ff',
+        '▓': '#2cc9ff',
+        '█': '#dffcff',
+    }
+
+    @classmethod
+    def build_scanline_text(cls, phase: float, width: int) -> Text:
+        """
+        构建页眉扫描线文本。
+
+        通过单个高亮扫描头和两侧衰减尾迹，营造简洁的霓虹扫线效果。
+
+        :param phase: 当前动画相位
+        :param width: 扫描线宽度
+        :return: 带颜色层次的扫描线文本
+        """
+        cells = ['─'] * width
+        head_position = int(((sin(phase * 0.82) + 1) / 2) * (width - 1))
+        for offset, symbol in ((-2, '·'), (-1, '░'), (0, '█'), (1, '▓'), (2, '▒')):
+            position = head_position + offset
+            if 0 <= position < width:
+                cells[position] = symbol
+        rendered = Text()
+        for symbol in cells:
+            rendered.append(symbol, style=cls._SCANLINE_GLOW_STYLES.get(symbol, cls._SCANLINE_BASE_STYLE))
+        return rendered
 
     def __init__(self, env: str, active_view: str) -> None:
         """
@@ -367,23 +445,80 @@ class WorkspaceHeader(Static):
 
         :return: None
         """
-        self.set_interval(1, self.refresh, name='update workspace header')
+        self.set_interval(0.18, self.refresh, name='update workspace header')
 
-    def render(self) -> str:
+    def build_scanline_text_label(self) -> Text:
+        """
+        构建扫描线文本。
+
+        :return: 扫描线文本
+        """
+        phase = monotonic() * 2.1
+        return self.build_scanline_text(phase, self._SCANLINE_WIDTH)
+
+    def build_symmetric_effects(self) -> tuple[Text, Text]:
+        """
+        构建标题两侧的对称动效文本。
+
+        左右两侧都使用固定宽度，确保标题中心点稳定，不随动效变化漂移。
+
+        :return: 左右动效文本
+        """
+        left_effect = self.build_scanline_text_label()
+        right_effect = Text()
+        for span_symbol in reversed(left_effect.plain):
+            right_effect.append(
+                span_symbol,
+                style=self._SCANLINE_GLOW_STYLES.get(span_symbol, self._SCANLINE_BASE_STYLE),
+            )
+        return left_effect, right_effect
+
+    def build_centered_title_line(self, title_text: str) -> Text:
+        """
+        构建居中的标题装饰行。
+
+        标题左右分别放置镜像扫描线动效，中间保留标题主体。
+
+        :param title_text: 标题主体文本
+        :return: 居中后的富文本标题行
+        """
+        left_effect, right_effect = self.build_symmetric_effects()
+        decorated_title = Text()
+        decorated_title.append_text(left_effect)
+        decorated_title.append('  ')
+        decorated_title.append(title_text, style='bold #e8fdff')
+        decorated_title.append('  ')
+        decorated_title.append_text(right_effect)
+        available_width = self.size.width - self._HEADER_HORIZONTAL_PADDING
+        if available_width <= 0:
+            available_width = self._HEADER_FALLBACK_WIDTH
+        centered = Text(
+            ' ' * max((max(available_width, len(decorated_title.plain)) - len(decorated_title.plain)) // 2, 0)
+        )
+        centered.append_text(decorated_title)
+        return centered
+
+    def render(self) -> Text:
         """
         渲染顶部状态栏文本。
 
-        :return: 渲染文本
+        :return: 渲染富文本
         """
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        return '\n'.join(
-            TUI_COPY.build_workspace_header_lines(
-                env=self.env,
-                view_label=TUI_COPY.render_view_label(self.active_view),
-                timestamp=timestamp,
-                shortcut_hint=TUI_KEYMAP_REGISTRY.global_shortcut_hint,
-            )
+        lines = TUI_COPY.build_workspace_header_lines(
+            env=self.env,
+            view_label=TUI_COPY.render_view_label(self.active_view),
+            timestamp=timestamp,
+            shortcut_hint=TUI_KEYMAP_REGISTRY.global_shortcut_hint,
         )
+        rendered = Text()
+        if len(lines) >= self._HEADER_LINE_COUNT:
+            rendered.append_text(self.build_centered_title_line(lines[0]))
+            rendered.append('\n')
+            rendered.append(lines[1], style='bold #c7f6ff')
+            return rendered
+        rendered.append('\n'.join(lines), style='bold #c7f6ff')
+        return rendered
 
 
 class SectionListItem(ListItem):
