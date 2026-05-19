@@ -2,10 +2,12 @@ import asyncio
 import json
 import os
 import sys
+from collections.abc import Iterator
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from fastapi import Request
 from loguru import logger as _logger
 
@@ -15,6 +17,12 @@ from common.annotation.log_annotation import Log, RequestLogFieldRoot, ResponseL
 from common.enums import BusinessType
 from config.env import LogConfig
 from utils.log_util import LoggerInitializer, LogSanitizer, _build_text_assignment_patterns, _build_text_key_pattern
+
+
+@pytest.fixture(autouse=True)
+def enable_log_mask_for_tests() -> Iterator[None]:
+    with patch.object(LogConfig, 'log_mask_enabled', True):
+        yield
 
 
 def test_sanitize_nested_log_payload() -> None:
@@ -95,6 +103,14 @@ def test_sanitize_text_masks_configured_secret_fields() -> None:
     assert 'cred-123' not in sanitized
     assert 'cred-list' not in sanitized
     assert sanitized.count('******') >= expected_mask_count
+
+
+def test_sanitize_text_key_pattern_does_not_cross_lines() -> None:
+    text = 'header\nprivate\n    key=value\nfooter'
+
+    sanitized = LogSanitizer.sanitize_text(text)
+
+    assert sanitized == text
 
 
 def test_sanitize_stringified_json_preserves_newlines_after_masking() -> None:
@@ -206,6 +222,48 @@ def test_build_json_payload_sanitizes_exception_and_extra() -> None:
     assert payload['extra']['authorization'] == '******'
 
 
+def test_json_log_formatter_emits_valid_json_record() -> None:
+    initializer = LoggerInitializer()
+    outputs = []
+    test_logger = _logger.patch(initializer._patch_record)
+    test_logger.remove()
+    test_logger.add(
+        lambda message: outputs.append(str(message)),
+        format=initializer._json_log_formatter,
+        filter=initializer._filter,
+    )
+
+    test_logger.info('hello password=123456')
+
+    assert len(outputs) == 1
+    payload = json.loads(outputs[0])
+    assert payload['message'] == 'hello password=******'
+    assert payload['level'] == 'INFO'
+
+
+def test_json_log_formatter_does_not_leak_internal_payload_between_handlers() -> None:
+    initializer = LoggerInitializer()
+    first_outputs = []
+    second_outputs = []
+    test_logger = _logger.patch(initializer._patch_record)
+    test_logger.remove()
+    test_logger.add(
+        lambda message: first_outputs.append(str(message)),
+        format=initializer._json_log_formatter,
+        filter=initializer._filter,
+    )
+    test_logger.add(
+        lambda message: second_outputs.append(str(message)),
+        format=initializer._json_log_formatter,
+        filter=initializer._filter,
+    )
+
+    test_logger.info('hello')
+
+    assert 'json_payload' not in json.loads(first_outputs[0])['extra']
+    assert 'json_payload' not in json.loads(second_outputs[0])['extra']
+
+
 def test_plain_log_formatter_sanitizes_exception_traceback() -> None:
     initializer = LoggerInitializer()
     outputs = []
@@ -230,6 +288,26 @@ def test_plain_log_formatter_sanitizes_exception_traceback() -> None:
     assert 'abc.def' not in output
     assert 'ValueError' in output
     assert '******' in output
+
+
+def test_plain_log_formatter_separates_consecutive_records() -> None:
+    initializer = LoggerInitializer()
+    outputs = []
+    expected_output_count = 2
+    test_logger = _logger.patch(initializer._patch_record)
+    test_logger.remove()
+    test_logger.add(
+        lambda message: outputs.append(str(message)),
+        format=initializer._plain_log_formatter,
+        filter=initializer._filter,
+    )
+
+    test_logger.info('first')
+    test_logger.info('second')
+
+    assert len(outputs) == expected_output_count
+    assert outputs[0].endswith('\n')
+    assert 'first\n' in ''.join(outputs)
 
 
 def test_get_request_params_returns_structured_payload() -> None:
@@ -770,3 +848,18 @@ def test_build_summary_payload_supports_message_field_fallback() -> None:
     assert summary_payload['msg'] == '获取成功'
     assert status == 1
     assert error_msg == '获取失败'
+
+
+def test_log_decorator_truncates_oversized_json_result() -> None:
+    log_decorator = Log(title='测试日志', business_type=BusinessType.OTHER)
+    json_result = log_decorator._build_log_text(
+        {'code': 200, 'data': {'content': 'x' * 2100}},
+        mode='full',
+        include_fields=(),
+        exclude_fields=(),
+        payload_kind='response',
+    )
+
+    limited_json_result = log_decorator._limit_log_text(json_result, log_decorator._json_result_len, '返回参数过长')
+
+    assert limited_json_result == '返回参数过长'

@@ -146,6 +146,7 @@ class Log:
         self.request_exclude_fields = request_exclude_fields or ()
         self.response_exclude_fields = response_exclude_fields or ()
         self._oper_param_len = 2000
+        self._json_result_len = 2000
         self._warned_field_path_warnings: set[str] = set()
         self._validate_request_field_paths_strict()
         self._warn_invalid_field_path_config()
@@ -180,8 +181,7 @@ class Log:
                 payload_kind='request',
             )
             # 日志表请求参数字段长度最大为2000，因此在此处判断长度
-            if len(oper_param) > self._oper_param_len:
-                oper_param = '请求参数过长'
+            oper_param = self._limit_log_text(oper_param, self._oper_param_len, '请求参数过长')
 
             # 获取操作时间
             oper_time = datetime.now()
@@ -214,6 +214,8 @@ class Log:
                 self.response_exclude_fields,
                 payload_kind='response',
             )
+            # 日志表返回参数字段长度最大为2000，因此在此处判断长度
+            json_result = self._limit_log_text(json_result, self._json_result_len, '返回参数过长')
             # 根据响应结果获取响应状态及异常信息
             status, error_msg = self._get_status_and_error_msg(sanitized_result_dict)
             # 根据日志类型向对应的日志表插入数据
@@ -276,6 +278,18 @@ class Log:
         func_path = f'{module_path}.{func.__name__}()'
 
         return func_path
+
+    @staticmethod
+    def _limit_log_text(log_text: str, max_length: int, overflow_text: str) -> str:
+        """
+        限制日志文本长度，避免超过日志表字段长度
+
+        :param log_text: 原始日志文本
+        :param max_length: 最大长度
+        :param overflow_text: 超长时替代文本
+        :return: 处理后的日志文本
+        """
+        return overflow_text if len(log_text) > max_length else log_text
 
     def _get_oper_type(self, user_agent: Any) -> int:
         """

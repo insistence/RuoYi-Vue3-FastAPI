@@ -38,7 +38,7 @@ def _build_text_key_pattern(field_name: str) -> str:
     tokens = _split_field_tokens(field_name)
     if not tokens:
         return re.escape(field_name)
-    return r'[\s._-]*'.join(re.escape(token) for token in tokens)
+    return r'[^\S\r\n._-]*[._-]*[^\S\r\n._-]*'.join(re.escape(token) for token in tokens)
 
 
 def _build_text_assignment_patterns(key_pattern: str) -> list[re.Pattern[str]]:
@@ -520,7 +520,7 @@ class LoggerInitializer:
             'function': record['function'],
             'line': record['line'],
             'exception': exception,
-            'extra': record['extra'],
+            'extra': {key: value for key, value in record['extra'].items() if key != 'json_payload'},
         }
 
     def _json_log_formatter(self, record: dict) -> str:
@@ -530,7 +530,8 @@ class LoggerInitializer:
         :param record: Loguru 日志记录字典
         :return: JSON 格式文本
         """
-        return json.dumps(self._build_json_payload(record), ensure_ascii=False, default=str) + '\n'
+        record['extra']['json_payload'] = json.dumps(self._build_json_payload(record), ensure_ascii=False, default=str)
+        return '{extra[json_payload]}\n'
 
     def _plain_log_formatter(self, record: dict) -> str:
         """
@@ -548,7 +549,7 @@ class LoggerInitializer:
             '<blue>{extra[worker_id]}</blue> | '
             '<level>{level: <8}</level> | '
             '<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - '
-            '<level>{message}</level>{extra[sanitized_exception]}'
+            '<level>{message}</level>{extra[sanitized_exception]}\n'
         )
 
     def _patch_record(self, record: dict) -> dict:
