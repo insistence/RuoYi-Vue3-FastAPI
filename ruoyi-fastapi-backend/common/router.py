@@ -373,12 +373,51 @@ class RouterRegister:
         """
         # 查找所有controller目录下的py文件
         controller_files = self._find_controller_files()
+        self._register_controller_files(controller_files)
+
+    def _register_controller_files(self, controller_files: list[str]) -> None:
+        """
+        注册指定 controller 文件中的路由。
+
+        :param controller_files: controller文件路径列表
+        :return: None
+        """
         # 导入模块并获取路由实例
         routers = self._import_module_and_get_routers(controller_files)
         # 按规则排序路由
         sorted_routers = self._sort_routers(routers)
         # 注册路由到FastAPI应用
         self._register_routers_to_app(sorted_routers)
+
+    def _find_plugin_controller_files(self, plugin_ids: Sequence[str] | None = None) -> list[str]:
+        """
+        查找插件 controller 目录下的路由文件。
+
+        :param plugin_ids: 插件ID列表，未传入时扫描所有插件
+        :return: 插件controller文件路径列表
+        """
+        plugins_root = os.path.join(self.project_root, 'plugins')
+        if plugin_ids:
+            controller_dirs = [os.path.join(plugins_root, plugin_id, 'controller') for plugin_id in plugin_ids]
+        else:
+            controller_dirs = glob.glob(os.path.join(plugins_root, '*', 'controller'))
+
+        controller_files = []
+        for controller_dir in controller_dirs:
+            if not os.path.isdir(controller_dir):
+                continue
+            controller_files.extend(glob.glob(os.path.join(controller_dir, '[!_]*.py')))
+
+        return sorted(controller_files)
+
+    def register_plugin_routers(self, plugin_ids: Sequence[str] | None = None) -> None:
+        """
+        自动注册插件 controller 目录下的路由。
+
+        :param plugin_ids: 插件ID列表，未传入时注册所有插件路由
+        :return: None
+        """
+        self._register_controller_files(self._find_plugin_controller_files(plugin_ids))
 
 
 def auto_register_routers(app: FastAPI) -> None:
@@ -391,3 +430,15 @@ def auto_register_routers(app: FastAPI) -> None:
     # 使用路由注册器进行注册
     router_register = RouterRegister(app)
     router_register.register_routers()
+
+
+def auto_register_plugin_routers(app: FastAPI, plugin_ids: Sequence[str] | None = None) -> None:
+    """
+    自动注册插件 controller 目录下的路由。
+
+    :param app: FastAPI对象
+    :param plugin_ids: 插件ID列表，未传入时注册所有插件路由
+    :return: None
+    """
+    router_register = RouterRegister(app)
+    router_register.register_plugin_routers(plugin_ids)

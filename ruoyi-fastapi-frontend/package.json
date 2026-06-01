@@ -10,7 +10,8 @@
     "build:prod": "vite build",
     "build:docker": "vite build --mode docker",
     "build:stage": "vite build --mode staging",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:plugin": "node tests/pluginViewResolver.test.js && node tests/pluginPlanFormatter.test.js && node tests/tansParams.test.js"
   },
   "repository": {
     "type": "git",

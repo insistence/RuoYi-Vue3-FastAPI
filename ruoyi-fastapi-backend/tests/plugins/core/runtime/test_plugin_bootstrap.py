@@ -1,0 +1,150 @@
+import sys
+from pathlib import Path
+
+BACKEND_ROOT = Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(BACKEND_ROOT))
+
+from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
+from plugins.core.runtime.bootstrap import PluginRuntimeBuilder  # noqa: E402
+
+
+def write_manifest(plugin_dir: Path, content: str) -> None:
+    """
+    写入测试插件清单。
+
+    :param plugin_dir: 插件目录
+    :param content: 清单内容
+    :return: None
+    """
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / 'plugin.yaml').write_text(content, encoding='utf-8')
+
+
+def test_plugin_runtime_builder_builds_registry_from_backend_plugins(tmp_path: Path) -> None:
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+""",
+    )
+
+    registry = PluginRuntimeBuilder(backend_root).build_registry()
+
+    plugin = registry.get_plugin('demo')
+    assert plugin is not None
+    assert plugin.enabled is True
+
+
+def test_plugin_runtime_builder_returns_empty_registry_when_plugins_root_missing(tmp_path: Path) -> None:
+    registry = PluginRuntimeBuilder(tmp_path / 'backend').build_registry()
+
+    assert registry.list_plugins() == []
+
+
+def test_plugin_runtime_builder_merges_database_plugin_state(tmp_path: Path) -> None:
+    """
+    校验运行时构建器会合并数据库插件状态。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+""",
+    )
+    database_plugin = PluginModel(
+        pluginId='demo',
+        pluginName='演示插件',
+        version='1.0.0',
+        installedVersion='1.0.0',
+        enabled='1',
+        status='disabled',
+    )
+
+    registry = PluginRuntimeBuilder(backend_root).build_registry([database_plugin])
+    plugin = registry.get_plugin('demo')
+
+    assert plugin is not None
+    assert plugin.enabled is False
+    assert plugin.status == 'disabled'
+
+
+def test_plugin_runtime_builder_imports_enabled_plugin_entities(tmp_path: Path) -> None:
+    """
+    校验运行时构建器可以导入启用插件实体。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_dir = backend_root / 'plugins' / 'sample_entity'
+    write_manifest(
+        plugin_dir,
+        """
+id: sample_entity
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.sample_entity
+""",
+    )
+    entity_do_dir = plugin_dir / 'entity' / 'do'
+    entity_do_dir.mkdir(parents=True)
+    (entity_do_dir / 'demo_do.py').write_text('DEMO_PLUGIN_ENTITY_IMPORTED = True\n', encoding='utf-8')
+    builder = PluginRuntimeBuilder(backend_root)
+    registry = builder.build_registry()
+
+    import_result = builder.import_plugin_entities(registry)
+
+    assert import_result.imported_count == 1
+    assert import_result.failures == []
+    assert sys.modules['plugins.sample_entity.entity.do.demo_do'].DEMO_PLUGIN_ENTITY_IMPORTED is True
+
+
+def test_plugin_runtime_builder_reports_failed_plugin_entity_import(tmp_path: Path) -> None:
+    """
+    校验运行时构建器会按插件返回实体导入失败结果。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_dir = backend_root / 'plugins' / 'broken_entity'
+    write_manifest(
+        plugin_dir,
+        """
+id: broken_entity
+name: 异常插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.broken_entity
+""",
+    )
+    entity_do_dir = plugin_dir / 'entity' / 'do'
+    entity_do_dir.mkdir(parents=True)
+    (entity_do_dir / 'broken_do.py').write_text("raise RuntimeError('broken entity')\n", encoding='utf-8')
+    builder = PluginRuntimeBuilder(backend_root)
+    registry = builder.build_registry()
+
+    import_result = builder.import_plugin_entities(registry)
+
+    assert import_result.imported_count == 0
+    assert len(import_result.failures) == 1
+    assert import_result.failures[0].plugin_id == 'broken_entity'
+    assert 'broken entity' in import_result.failures[0].error_message

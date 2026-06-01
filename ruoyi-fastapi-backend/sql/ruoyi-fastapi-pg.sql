@@ -245,7 +245,6 @@ comment on table sys_menu is '菜单权限表';
 insert into sys_menu values(1,  '系统管理', 0, '1',  'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', current_timestamp, '', null, '系统管理目录');
 insert into sys_menu values(2,  '系统监控', 0, '2',  'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', current_timestamp, '', null, '系统监控目录');
 insert into sys_menu values(3,  '系统工具', 0, '3',  'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', current_timestamp, '', null, '系统工具目录');
-insert into sys_menu values(4,  'AI 管理', 0, '4',  'ai',               null, '', '', 1, 0, 'M', '0', '0', '', 'bug',      'admin', current_timestamp, '', null, 'AI 管理目录');
 insert into sys_menu values(99, '若依官网', 0, '99', 'http://ruoyi.vip', null, '', '', 0, 0, 'M', '0', '0', '', 'guide',    'admin', current_timestamp, '', null, '若依官网地址');
 -- 二级菜单
 insert into sys_menu values(100,  '用户管理', 1,   '1', 'user',                'system/user/index',                 '', '', 1, 0, 'C', '0', '0', 'system:user:list',                 'user',          'admin', current_timestamp, '', null, '用户管理菜单');
@@ -257,18 +256,17 @@ insert into sys_menu values(105,  '字典管理', 1,   '6', 'dict',             
 insert into sys_menu values(106,  '参数设置', 1,   '7', 'config',              'system/config/index',               '', '', 1, 0, 'C', '0', '0', 'system:config:list',               'edit',          'admin', current_timestamp, '', null, '参数设置菜单');
 insert into sys_menu values(107,  '通知公告', 1,   '8', 'notice',              'system/notice/index',               '', '', 1, 0, 'C', '0', '0', 'system:notice:list',               'message',       'admin', current_timestamp, '', null, '通知公告菜单');
 insert into sys_menu values(108,  '日志管理', 1,   '9', 'log',                 '',                                  '', '', 1, 0, 'M', '0', '0', '',                                 'log',           'admin', current_timestamp, '', null, '日志管理菜单');
+insert into sys_menu values(119,  '插件管理', 1,  '10', 'plugin',              'system/plugin/index',               '', '', 1, 0, 'C', '0', '0', 'system:plugin:list',               'component',     'admin', current_timestamp, '', null, '插件管理菜单');
 insert into sys_menu values(109,  '在线用户', 2,   '1', 'online',              'monitor/online/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:online:list',              'online',        'admin', current_timestamp, '', null, '在线用户菜单');
 insert into sys_menu values(110,  '定时任务', 2,   '2', 'job',                 'monitor/job/index',                 '', '', 1, 0, 'C', '0', '0', 'monitor:job:list',                 'job',           'admin', current_timestamp, '', null, '定时任务菜单');
 insert into sys_menu values(111,  '数据监控', 2,   '3', 'druid',               'monitor/druid/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list',               'druid',         'admin', current_timestamp, '', null, '数据监控菜单');
 insert into sys_menu values(112,  '服务监控', 2,   '4', 'server',              'monitor/server/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:server:list',              'server',        'admin', current_timestamp, '', null, '服务监控菜单');
 insert into sys_menu values(113,  '缓存监控', 2,   '5', 'cache',               'monitor/cache/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis',         'admin', current_timestamp, '', null, '缓存监控菜单');
 insert into sys_menu values(114,  '缓存列表', 2,   '6', 'cacheList',           'monitor/cache/list',                '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis-list',    'admin', current_timestamp, '', null, '缓存列表菜单');
-insert into sys_menu values(120,  '传输加密', 2,   '7', 'transportCrypto',     'monitor/transportCrypto/index',     '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list',     'chart',         'admin', current_timestamp, '', null, '传输加密监控菜单');
+insert into sys_menu values(118,  '传输加密', 2,   '7', 'transportCrypto',     'monitor/transportCrypto/index',     '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list',     'chart',         'admin', current_timestamp, '', null, '传输加密监控菜单');
 insert into sys_menu values(115,  '表单构建', 3,   '1', 'build',               'tool/build/index',                  '', '', 1, 0, 'C', '0', '0', 'tool:build:list',                  'build',         'admin', current_timestamp, '', null, '表单构建菜单');
 insert into sys_menu values(116,  '代码生成', 3,   '2', 'gen',                 'tool/gen/index',                    '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                    'code',          'admin', current_timestamp, '', null, '代码生成菜单');
 insert into sys_menu values(117,  '系统接口', 3,   '3', 'swagger',             'tool/swagger/index',                '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',                'swagger',       'admin', current_timestamp, '', null, '系统接口菜单');
-insert into sys_menu values(118,  '模型管理', 4,   '1', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'form',          'admin', current_timestamp, '', null, '模型管理菜单');
-insert into sys_menu values(119,  'AI 对话', 4,   '2', 'chat',                'ai/chat/index',                     '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                     'wechat',        'admin', current_timestamp, '', null, 'AI 对话菜单');
 -- 三级菜单
 insert into sys_menu values(500,  '操作日志', 108, '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', current_timestamp, '', null, '操作日志菜单');
 insert into sys_menu values(501,  '登录日志', 108, '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', current_timestamp, '', null, '登录日志菜单');
@@ -346,11 +344,11 @@ insert into sys_menu values(1057, '生成删除', 116, '3', '#', '', '', '', 1, 
 insert into sys_menu values(1058, '导入代码', 116, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:import',            '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1059, '预览代码', 116, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:preview',           '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1060, '生成代码', 116, '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:code',              '#', 'admin', current_timestamp, '', null, '');
--- 模型管理按钮
-insert into sys_menu values(1061, '模型查询', 118, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:query',             '#', 'admin', current_timestamp, '', null, '');
-insert into sys_menu values(1062, '模型新增', 118, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:add',               '#', 'admin', current_timestamp, '', null, '');
-insert into sys_menu values(1063, '模型修改', 118, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:edit',              '#', 'admin', current_timestamp, '', null, '');
-insert into sys_menu values(1064, '模型删除', 118, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:remove',            '#', 'admin', current_timestamp, '', null, '');
+-- 插件管理按钮
+insert into sys_menu values(1061, '插件查询', 119, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:query',        '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1062, '插件修改', 119, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:edit',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1063, '插件列表', 119, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:list',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1064, '插件导出', 119, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:export',       '#', 'admin', current_timestamp, '', null, '');
 
 -- ----------------------------
 -- 6、用户和角色关联表  用户N-1角色
@@ -390,7 +388,6 @@ comment on table sys_role_menu is '角色和菜单关联表';
 insert into sys_role_menu values (2, 1);
 insert into sys_role_menu values (2, 2);
 insert into sys_role_menu values (2, 3);
-insert into sys_role_menu values (2, 4);
 insert into sys_role_menu values (2, 100);
 insert into sys_role_menu values (2, 101);
 insert into sys_role_menu values (2, 102);
@@ -400,13 +397,14 @@ insert into sys_role_menu values (2, 105);
 insert into sys_role_menu values (2, 106);
 insert into sys_role_menu values (2, 107);
 insert into sys_role_menu values (2, 108);
+insert into sys_role_menu values (2, 119);
 insert into sys_role_menu values (2, 109);
 insert into sys_role_menu values (2, 110);
 insert into sys_role_menu values (2, 111);
 insert into sys_role_menu values (2, 112);
 insert into sys_role_menu values (2, 113);
 insert into sys_role_menu values (2, 114);
-insert into sys_role_menu values (2, 120);
+insert into sys_role_menu values (2, 118);
 insert into sys_role_menu values (2, 115);
 insert into sys_role_menu values (2, 116);
 insert into sys_role_menu values (2, 117);
@@ -473,6 +471,10 @@ insert into sys_role_menu values (2, 1057);
 insert into sys_role_menu values (2, 1058);
 insert into sys_role_menu values (2, 1059);
 insert into sys_role_menu values (2, 1060);
+insert into sys_role_menu values (2, 1061);
+insert into sys_role_menu values (2, 1062);
+insert into sys_role_menu values (2, 1063);
+insert into sys_role_menu values (2, 1064);
 
 -- ----------------------------
 -- 8、角色和部门关联表  角色1-N部门
@@ -602,7 +604,7 @@ insert into sys_dict_type values(8,  '通知类型',     'sys_notice_type',     
 insert into sys_dict_type values(9,  '通知状态', 	 'sys_notice_status',   '0', 'admin', current_timestamp, '', null, '通知状态列表');
 insert into sys_dict_type values(10,  '操作类型', 	 'sys_oper_type',       '0', 'admin', current_timestamp, '', null, '操作类型列表');
 insert into sys_dict_type values(11, '系统状态',     'sys_common_status',   '0', 'admin', current_timestamp, '', null, '登录状态列表');
-insert into sys_dict_type values(12, 'AI模型提供商', 'ai_provider_type',    '0', 'admin', current_timestamp, '', null, 'AI模型提供商列表');
+insert into sys_dict_type values(12, '插件操作类型', 'plugin_operation_type', '0', 'admin', current_timestamp, '', null, '插件操作类型列表');
 
 -- ----------------------------
 -- 12、字典数据表
@@ -677,43 +679,21 @@ insert into sys_dict_data values(29, 8,  '生成代码',          '8',       		 
 insert into sys_dict_data values(30, 9,  '清空数据',          '9',       		 'sys_oper_type',       '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '清空操作');
 insert into sys_dict_data values(31, 1,  '成功',             '0',       		'sys_common_status',   '',   'primary', 'N', '0', 'admin', current_timestamp, '', null, '正常状态');
 insert into sys_dict_data values(32, 2,  '失败',             '1',       		'sys_common_status',   '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
-insert into sys_dict_data values(33, 1,  'AIMLAPI',         'AIMLAPI',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'AIMLAPI');
-insert into sys_dict_data values(34, 2,  'Anthropic',       'Anthropic',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Anthropic');
-insert into sys_dict_data values(35, 3,  'Cerebras',        'Cerebras',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Cerebras');
-insert into sys_dict_data values(36, 4,  'CerebrasOpenAI',  'CerebrasOpenAI',   'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'CerebrasOpenAI');
-insert into sys_dict_data values(37, 5,  'Cohere',          'Cohere',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Cohere');
-insert into sys_dict_data values(38, 6,  'CometAPI',        'CometAPI',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'CometAPI');
-insert into sys_dict_data values(39, 7,  'DashScope',       'DashScope',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DashScope');
-insert into sys_dict_data values(40, 8,  'DeepInfra',       'DeepInfra',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DeepInfra');
-insert into sys_dict_data values(41, 9,  'DeepSeek',        'DeepSeek',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'DeepSeek');
-insert into sys_dict_data values(42, 10,  'Fireworks',       'Fireworks',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Fireworks');
-insert into sys_dict_data values(43, 11,  'Google',          'Google',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Google');
-insert into sys_dict_data values(44, 12,  'Groq',            'Groq',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Groq');
-insert into sys_dict_data values(45, 13,  'HuggingFace',     'HuggingFace',      'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'HuggingFace');
-insert into sys_dict_data values(46, 14,  'LangDB',          'LangDB',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LangDB');
-insert into sys_dict_data values(47, 15,  'LiteLLM',         'LiteLLM',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LiteLLM');
-insert into sys_dict_data values(48, 16,  'LiteLLMOpenAI',   'LiteLLMOpenAI',    'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LiteLLMOpenAI');
-insert into sys_dict_data values(49, 17,  'LlamaCpp',        'LlamaCpp',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LlamaCpp');
-insert into sys_dict_data values(50, 18,  'LMStudio',        'LMStudio',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'LMStudio');
-insert into sys_dict_data values(51, 19,  'Meta',            'Meta',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Meta');
-insert into sys_dict_data values(52, 20,  'Mistral',         'Mistral',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Mistral');
-insert into sys_dict_data values(53, 21,  'N1N',             'N1N',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'N1N');
-insert into sys_dict_data values(54, 22,  'Nebius',          'Nebius',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nebius');
-insert into sys_dict_data values(55, 23,  'Nexus',           'Nexus',            'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nexus');
-insert into sys_dict_data values(56, 24,  'Nvidia',          'Nvidia',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Nvidia');
-insert into sys_dict_data values(57, 25,  'Ollama',          'Ollama',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Ollama');
-insert into sys_dict_data values(58, 26,  'OpenAI',          'OpenAI',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenAI');
-insert into sys_dict_data values(59, 27,  'OpenAIResponses', 'OpenAIResponses',  'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenAIResponses');
-insert into sys_dict_data values(60, 28,  'OpenRouter',      'OpenRouter',       'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'OpenRouter');
-insert into sys_dict_data values(61, 29,  'Perplexity',      'Perplexity',       'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Perplexity');
-insert into sys_dict_data values(62, 30,  'Portkey',         'Portkey',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Portkey');
-insert into sys_dict_data values(63, 31,  'Requesty',        'Requesty',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Requesty');
-insert into sys_dict_data values(64, 32,  'Sambanova',       'Sambanova',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Sambanova');
-insert into sys_dict_data values(65, 33,  'SiliconFlow',     'SiliconFlow',      'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'SiliconFlow');
-insert into sys_dict_data values(66, 34,  'Together',        'Together',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Together');
-insert into sys_dict_data values(67, 35,  'Vercel',          'Vercel',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'Vercel');
-insert into sys_dict_data values(68, 36,  'VLLM',            'VLLM',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'VLLM');
-insert into sys_dict_data values(69, 37,  'xAI',             'xAI',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', current_timestamp, '', null, 'xAI');
+insert into sys_dict_data values(33, 1,   '安装',            'install',          'plugin_operation_type', '',  'primary', 'N', '0', 'admin', current_timestamp, '', null, '插件安装');
+insert into sys_dict_data values(34, 2,   '启用',            'enable',           'plugin_operation_type', '',  'success', 'N', '0', 'admin', current_timestamp, '', null, '插件启用');
+insert into sys_dict_data values(35, 3,   '停用',            'disable',          'plugin_operation_type', '',  'warning', 'N', '0', 'admin', current_timestamp, '', null, '插件停用');
+insert into sys_dict_data values(36, 4,   '升级',            'upgrade',          'plugin_operation_type', '',  'primary', 'N', '0', 'admin', current_timestamp, '', null, '插件升级');
+insert into sys_dict_data values(37, 5,   '卸载',            'uninstall',        'plugin_operation_type', '',  'danger',  'N', '0', 'admin', current_timestamp, '', null, '插件卸载');
+insert into sys_dict_data values(38, 6,   '清理',            'purge',            'plugin_operation_type', '',  'danger',  'N', '0', 'admin', current_timestamp, '', null, '插件清理');
+insert into sys_dict_data values(39, 7,   '批量',            'batch',            'plugin_operation_type', '',  'info',    'N', '0', 'admin', current_timestamp, '', null, '插件批量操作');
+insert into sys_dict_data values(40, 8,   '批量安装',         'batch_install',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', current_timestamp, '', null, '插件批量安装');
+insert into sys_dict_data values(41, 9,   '批量启用',         'batch_enable',     'plugin_operation_type', '',  'success', 'N', '0', 'admin', current_timestamp, '', null, '插件批量启用');
+insert into sys_dict_data values(42, 10,  '批量升级',         'batch_upgrade',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', current_timestamp, '', null, '插件批量升级');
+insert into sys_dict_data values(43, 11,  '配置保存',         'config_set',       'plugin_operation_type', '',  'primary', 'N', '0', 'admin', current_timestamp, '', null, '插件配置保存');
+insert into sys_dict_data values(44, 12,  '配置更新',         'config_update',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', current_timestamp, '', null, '插件配置更新');
+insert into sys_dict_data values(45, 13,  '配置导入',         'config_import',    'plugin_operation_type', '',  'warning', 'N', '0', 'admin', current_timestamp, '', null, '插件配置导入');
+insert into sys_dict_data values(46, 14,  '配置导出',         'config_export',    'plugin_operation_type', '',  'warning', 'N', '0', 'admin', current_timestamp, '', null, '插件配置导出');
+insert into sys_dict_data values(47, 99,  '未知操作',         'unknown',          'plugin_operation_type', '',  'info',    'N', '0', 'admin', current_timestamp, '', null, '插件未知操作');
 
 -- ----------------------------
 -- 13、参数配置表
@@ -756,6 +736,7 @@ insert into sys_config values(5, '账号自助-是否开启用户注册功能', 
 insert into sys_config values(6, '用户登录-黑名单列表',           'sys.login.blackIPList',         '',              'Y', 'admin', current_timestamp, '', null, '设置登录IP黑名单限制，多个匹配项以;分隔，支持匹配（*通配、网段）');
 insert into sys_config values(7, '用户管理-初始密码修改策略',     'sys.account.initPasswordModify',  '1',             'Y', 'admin', current_timestamp, '', null, '0：初始密码修改策略关闭，没有任何提示，1：提醒用户，如果未修改初始密码，则在登录时就会提醒修改密码对话框');
 insert into sys_config values(8, '用户管理-账号密码更新周期',     'sys.account.passwordValidateDays', '0',             'Y', 'admin', current_timestamp, '', null, '密码更新周期（填写数字，数据初始化值为0不限制，若修改必须为大于0小于365的正整数），如果超过这个周期登录系统时，则在登录时就会提醒修改密码对话框');
+insert into sys_config values(9, '插件管理-操作审计保留天数',     'sys.plugin.operationLogRetentionDays', '180',       'Y', 'admin', current_timestamp, '', null, '插件操作审计日志默认保留天数，0表示清理当前时间之前的全部日志');
 
 -- ----------------------------
 -- 14、系统访问记录
@@ -1012,84 +993,146 @@ comment on column gen_table_column.update_time is '更新时间';
 comment on table gen_table_column is '代码生成业务表字段';
 
 -- ----------------------------
--- 20、AI模型表
 -- ----------------------------
-drop table if exists ai_models;
-create table ai_models (
-  model_id          bigserial       not null,
-  model_code        varchar(100)    not null,
-  model_name        varchar(100)    default null,
-  provider          varchar(50)     not null,
-  model_sort        int4            not null,
-  api_key           varchar(255)    default null,
-  base_url          varchar(255)    default null,
-  model_type        varchar(50)     default null,
-  max_tokens        integer         default null,
-  temperature       float           default null,
-  support_reasoning char(1)         default 'N',
-  support_images    char(1)         default 'N',
-  status            char(1)         default '0',
-  user_id           bigint,
-  dept_id           bigint,
-  create_by         varchar(64)     default '',
-  create_time       timestamp(0),
-  update_by         varchar(64)     default '',
-  update_time       timestamp(0),
-  remark            varchar(500)    default null,
-  primary key (model_id)
+-- 20、插件信息表
+-- ----------------------------
+drop table if exists sys_plugin;
+create table sys_plugin (
+  plugin_id          varchar(64)    not null,
+  plugin_name        varchar(128)   not null,
+  version            varchar(32)    not null,
+  installed_version  varchar(32)    default null,
+  enabled            char(1)        not null default '0',
+  status             varchar(32)    not null default 'discovered',
+  source             varchar(32)    not null default 'local',
+  backend_path       varchar(255)   default null,
+  frontend_path      varchar(255)   default null,
+  last_error         varchar(1000)  default null,
+  description        varchar(500)   default null,
+  create_by          varchar(64)    default '',
+  create_time        timestamp(0),
+  update_by          varchar(64)    default '',
+  update_time        timestamp(0),
+  remark             varchar(500)   default null,
+  primary key (plugin_id)
 );
-comment on table ai_models is 'AI模型表';
-comment on column ai_models.model_id is '模型主键';
-comment on column ai_models.model_code is '模型编码';
-comment on column ai_models.model_name is '模型名称';
-comment on column ai_models.provider is '提供商';
-comment on column ai_models.model_sort is '显示顺序';
-comment on column ai_models.api_key is 'API Key';
-comment on column ai_models.base_url is 'Base URL';
-comment on column ai_models.model_type is '模型类型';
-comment on column ai_models.max_tokens is '最大输出token';
-comment on column ai_models.temperature is '默认温度';
-comment on column ai_models.support_reasoning is '是否支持推理';
-comment on column ai_models.support_images is '是否支持图片';
-comment on column ai_models.status is '模型状态';
-comment on column ai_models.user_id is '用户ID';
-comment on column ai_models.dept_id is '部门ID';
-comment on column ai_models.create_by is '创建者';
-comment on column ai_models.create_time is '创建时间';
-comment on column ai_models.update_by is '更新者';
-comment on column ai_models.update_time is '更新时间';
-comment on column ai_models.remark is '备注';
+comment on table sys_plugin is '插件信息表';
+comment on column sys_plugin.plugin_id is '插件ID';
+comment on column sys_plugin.plugin_name is '插件名称';
+comment on column sys_plugin.version is '当前源码版本';
+comment on column sys_plugin.installed_version is '已安装版本';
+comment on column sys_plugin.enabled is '是否启用（0启用 1停用）';
+comment on column sys_plugin.status is '插件状态';
+comment on column sys_plugin.source is '插件来源';
+comment on column sys_plugin.backend_path is '后端插件相对路径';
+comment on column sys_plugin.frontend_path is '前端插件相对路径';
+comment on column sys_plugin.last_error is '最近一次错误信息';
+comment on column sys_plugin.description is '插件说明';
+comment on column sys_plugin.create_by is '创建者';
+comment on column sys_plugin.create_time is '创建时间';
+comment on column sys_plugin.update_by is '更新者';
+comment on column sys_plugin.update_time is '更新时间';
+comment on column sys_plugin.remark is '备注';
 
 -- ----------------------------
--- 21、AI对话配置表
+-- 21、插件和菜单关联表
 -- ----------------------------
-drop table if exists ai_chat_config;
-create table ai_chat_config (
-  chat_config_id          bigserial      not null,
-  user_id                 bigint         not null unique,
-  temperature             float          default null,
-  add_history_to_context  char(1)        default '0',
-  num_history_runs        int4           default null,
-  system_prompt           text           default null,
-  metrics_default_visible char(1)        default '0',
-  vision_enabled          char(1)        default '1',
-  image_max_size_mb       int4           default null,
-  create_time             timestamp(0),
-  update_time             timestamp(0),
-  primary key (chat_config_id)
+drop table if exists sys_plugin_menu;
+create table sys_plugin_menu (
+  plugin_id          varchar(64)    not null,
+  menu_id            bigint         not null,
+  menu_key           varchar(255)   not null,
+  create_time        timestamp(0),
+  primary key (plugin_id, menu_id)
 );
-comment on table ai_chat_config is 'AI对话配置表';
-comment on column ai_chat_config.chat_config_id is '配置主键';
-comment on column ai_chat_config.user_id is '用户ID';
-comment on column ai_chat_config.temperature is '默认温度';
-comment on column ai_chat_config.add_history_to_context is '是否添加历史记录(0是, 1否)';
-comment on column ai_chat_config.num_history_runs is '历史记录条数';
-comment on column ai_chat_config.system_prompt is '系统提示词';
-comment on column ai_chat_config.metrics_default_visible is '默认显示指标(0是, 1否)';
-comment on column ai_chat_config.vision_enabled is '是否开启视觉(0是, 1否)';
-comment on column ai_chat_config.image_max_size_mb is '图片最大大小(MB)';
-comment on column ai_chat_config.create_time is '创建时间';
-comment on column ai_chat_config.update_time is '更新时间';
+comment on table sys_plugin_menu is '插件和菜单关联表';
+comment on column sys_plugin_menu.plugin_id is '插件ID';
+comment on column sys_plugin_menu.menu_id is '菜单ID';
+comment on column sys_plugin_menu.menu_key is '插件内菜单自然键';
+comment on column sys_plugin_menu.create_time is '创建时间';
+
+-- ----------------------------
+-- 22、插件 migration 执行历史表
+-- ----------------------------
+drop table if exists sys_plugin_migration;
+create table sys_plugin_migration (
+  plugin_id           varchar(64)   not null,
+  migration_path      varchar(255)  not null,
+  migration_checksum  varchar(64)   not null,
+  version             varchar(32)   default null,
+  statement_count     int4          not null default 0,
+  create_time         timestamp(0),
+  primary key (plugin_id, migration_path)
+);
+comment on table sys_plugin_migration is '插件 migration 执行历史表';
+comment on column sys_plugin_migration.plugin_id is '插件ID';
+comment on column sys_plugin_migration.migration_path is 'migration 相对路径';
+comment on column sys_plugin_migration.migration_checksum is 'migration 内容校验值';
+comment on column sys_plugin_migration.version is '执行时插件版本';
+comment on column sys_plugin_migration.statement_count is 'SQL 语句数量';
+comment on column sys_plugin_migration.create_time is '执行时间';
+
+-- ----------------------------
+-- 23、插件配置表
+-- ----------------------------
+drop table if exists sys_plugin_config;
+create table sys_plugin_config (
+  plugin_id          varchar(64)   not null,
+  config_key         varchar(128)  not null,
+  config_label       varchar(128)  default null,
+  config_type        varchar(32)   not null default 'string',
+  config_value       text,
+  default_value      text,
+  required           char(1)       not null default '1',
+  secret             char(1)       not null default '1',
+  options            text,
+  description        varchar(500)  default null,
+  create_time        timestamp(0),
+  update_time        timestamp(0),
+  primary key (plugin_id, config_key)
+);
+comment on table sys_plugin_config is '插件配置表';
+comment on column sys_plugin_config.plugin_id is '插件ID';
+comment on column sys_plugin_config.config_key is '配置键名';
+comment on column sys_plugin_config.config_label is '配置展示名称';
+comment on column sys_plugin_config.config_type is '配置值类型';
+comment on column sys_plugin_config.config_value is '配置值';
+comment on column sys_plugin_config.default_value is '默认配置值';
+comment on column sys_plugin_config.required is '是否必填（0是 1否）';
+comment on column sys_plugin_config.secret is '是否敏感（0是 1否）';
+comment on column sys_plugin_config.options is '配置选项JSON';
+comment on column sys_plugin_config.description is '配置说明';
+comment on column sys_plugin_config.create_time is '创建时间';
+comment on column sys_plugin_config.update_time is '更新时间';
+
+-- ----------------------------
+-- 24、插件批量操作审计日志表
+-- ----------------------------
+drop table if exists sys_plugin_operation_log;
+create table sys_plugin_operation_log (
+  operation_id       bigserial      not null,
+  operation          varchar(32)    not null,
+  plugin_ids         text,
+  dry_run            char(1)        not null default '1',
+  continue_on_error  char(1)        not null default '1',
+  status             varchar(32)    not null,
+  summary            text,
+  result             text,
+  create_time        timestamp(0),
+  remark             varchar(500)   default null,
+  primary key (operation_id)
+);
+comment on table sys_plugin_operation_log is '插件批量操作审计日志表';
+comment on column sys_plugin_operation_log.operation_id is '操作日志ID';
+comment on column sys_plugin_operation_log.operation is '操作类型';
+comment on column sys_plugin_operation_log.plugin_ids is '目标插件ID JSON';
+comment on column sys_plugin_operation_log.dry_run is '是否预演（0是 1否）';
+comment on column sys_plugin_operation_log.continue_on_error is '失败后是否继续（0是 1否）';
+comment on column sys_plugin_operation_log.status is '执行状态';
+comment on column sys_plugin_operation_log.summary is '执行汇总JSON';
+comment on column sys_plugin_operation_log.result is '完整执行结果JSON';
+comment on column sys_plugin_operation_log.create_time is '创建时间';
+comment on column sys_plugin_operation_log.remark is '备注';
 
 CREATE OR REPLACE FUNCTION "find_in_set"(int8, varchar)
     RETURNS "pg_catalog"."bool" AS $BODY$

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from cli.runtime.base import RUNTIME_ENVIRONMENT, RuntimeEnvironmentService
@@ -47,7 +48,24 @@ class AppRuntimeService:
         :return: FastAPI 应用实例
         """
         server_module = self.infrastructure_gateway.get_server_module()
-        return server_module.create_app()
+        app = server_module.create_app()
+        self._register_application_routers(server_module, app)
+
+        return app
+
+    @staticmethod
+    def _register_application_routers(server_module: Any, app: Any) -> None:
+        """
+        为 CLI 路由查看场景注册应用路由。
+
+        :param server_module: server 模块
+        :param app: FastAPI 应用实例
+        :return: None
+        """
+        register_application_routers = getattr(server_module, '_register_application_routers', None)
+        if register_application_routers is None:
+            return
+        asyncio.run(register_application_routers(app))
 
     def get_app_config_snapshot(self) -> dict[str, Any]:
         """

@@ -132,7 +132,7 @@ class JobConstant:
         '}',
         ' ',
     ]
-    JOB_WHITE_LIST = ['module_task']
+    JOB_WHITE_LIST = ['module_task', 'plugins']
 
 
 class LockConstant:

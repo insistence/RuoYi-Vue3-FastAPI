@@ -1,0 +1,124 @@
+id: ai
+name: AI 管理
+version: 0.1.0
+description: AI model management and chat plugin.
+enabled: false
+
+backend:
+  module: plugins.ai
+  routers:
+    autoScan: true
+  migrations:
+    - migrations/mysql/001_init.sql
+    - migrations/postgresql/001_init.sql
+  seeds:
+    - seeds/mysql/ai_provider_type.sql
+    - seeds/postgresql/ai_provider_type.sql
+  jobs: []
+
+frontend:
+  basePath: ai
+  pluginId: ai
+  viewsPath: views
+  apiPath: api
+  delivery:
+    type: source
+    buildRequired: true
+  menus:
+    - name: AI 管理
+      path: ai
+      component: Layout
+      perms: ''
+      type: M
+      orderNum: 4
+      icon: ai-manage
+      children:
+        - name: 模型管理
+          path: model
+          component: plugin/ai/model/index
+          perms: ai:model:list
+          type: C
+          orderNum: 1
+          icon: ai-model
+        - name: AI 对话
+          path: chat
+          component: plugin/ai/chat/index
+          perms: ai:chat:list
+          type: C
+          orderNum: 2
+          icon: ai-chat
+
+permissions:
+  - ai:model:list
+  - ai:model:add
+  - ai:model:edit
+  - ai:model:remove
+  - ai:model:query
+  - ai:chat:list
+
+dependencies:
+  python:
+    - agno==2.4.8
+    - anthropic==0.78.0
+    - cerebras-cloud-sdk==1.67.0
+    - cohere==5.20.4
+    - google-genai==1.62.0
+    - groq==1.0.0
+    - litellm==1.81.8
+    - llama-api-client==0.6.0
+    - mistralai==1.12.0
+    - ollama==0.6.1
+    - openai==2.17.0
+    - portkey-ai==2.1.0
+  npm:
+    - '@antv/infographic^0.2.13'
+    - katex>=0.16.27
+    - markstream-vue>=0.0.7-beta.6
+    - mermaid>=11.12.2
+    - shiki^3.21.0
+    - stream-markdown>=0.0.14
+    - stream-monaco>=0.0.17
+  npmDev:
+    - vite-plugin-monaco-editor-esm==2.0.2
+  plugins: []
+
+config:
+  items:
+    - key: provider
+      label: 默认模型供应商
+      type: select
+      default: openai
+      required: true
+      description: AI 插件默认使用的模型供应商
+      options:
+        - label: OpenAI
+          value: openai
+        - label: Mistral
+          value: mistral
+    - key: default_model
+      label: 默认模型
+      type: string
+      default: gpt-4o-mini
+      required: true
+      description: AI 对话默认模型名称
+    - key: temperature
+      label: 默认温度
+      type: number
+      default: 0.7
+      description: AI 对话默认采样温度
+    - key: timeout_seconds
+      label: 请求超时时间
+      type: number
+      default: 60
+      description: AI 请求默认超时时间，单位秒
+    - key: stream_enabled
+      label: 启用流式输出
+      type: boolean
+      default: true
+      description: 是否默认启用流式输出
+    - key: api_key
+      label: 默认 API Key
+      type: password
+      default: ''
+      secret: true
+      description: 可选的默认 API Key，建议生产环境按供应商单独配置

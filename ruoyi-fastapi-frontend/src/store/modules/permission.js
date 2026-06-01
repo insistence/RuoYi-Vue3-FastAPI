@@ -4,9 +4,12 @@ import { getRouters } from '@/api/menu'
 import Layout from '@/layout/index'
 import ParentView from '@/components/ParentView'
 import InnerLink from '@/layout/components/InnerLink'
+import { resolvePluginViewPath } from '@/utils/pluginViewResolver'
 
-// 匹配views里面所有的.vue文件
-const modules = import.meta.glob('./../../views/**/*.vue')
+// 匹配内置 views 和插件 views 里面所有的 .vue 文件
+const builtinModules = import.meta.glob('./../../views/**/*.vue')
+const pluginModules = import.meta.glob('./../../../plugins/*/views/**/*.vue')
+const missingView = () => import('@/views/error/404')
 
 const usePermissionStore = defineStore(
   'permission',
@@ -113,15 +116,30 @@ export function filterDynamicRoutes(routes) {
   return res
 }
 
+/**
+ * 加载后端菜单声明的 Vue 页面组件。
+ * @param {string} view 后端返回的组件路径。
+ * @returns {Function} Vue 异步组件加载函数。
+ */
 export const loadView = (view) => {
-  let res;
-  for (const path in modules) {
-    const dir = path.split('views/')[1].split('.vue')[0];
+  if (view.startsWith('plugin/')) {
+    const pluginViewPath = resolvePluginViewPath(view)
+    if (pluginModules[pluginViewPath]) {
+      return () => pluginModules[pluginViewPath]()
+    }
+    console.warn(`[plugin] view not found: ${view}`)
+    return missingView
+  }
+
+  for (const path in builtinModules) {
+    const dir = path.split('views/')[1].split('.vue')[0]
     if (dir === view) {
-      res = () => modules[path]();
+      return () => builtinModules[path]()
     }
   }
-  return res
+
+  console.warn(`[router] view not found: ${view}`)
+  return missingView
 }
 
 export default usePermissionStore

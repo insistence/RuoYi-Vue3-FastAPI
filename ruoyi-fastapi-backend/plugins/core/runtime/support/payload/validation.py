@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
+from plugins.core.validation.result import PluginValidationLevelResolver
+
+if TYPE_CHECKING:
+    from plugins.core.validation.dependencies import DependencyCheckItem, DependencyCheckResult
+    from plugins.core.validation.menus import PluginMenuConflictItem
+    from plugins.core.validation.plugin_deps import PluginDependencyCheckItem
+    from plugins.core.validation.result import PluginValidationIssue
+    from plugins.core.validation.structure import PluginStructureCheckItem
+
+
+class PluginValidationPayloadMixin:
+    """
+    插件依赖、结构、manifest 和菜单冲突检查结果负载构建能力。
+    """
+
+    @staticmethod
+    def build_dependency_item(item: DependencyCheckItem) -> dict[str, Any]:
+        """
+        构建依赖检查项负载。
+
+        :param item: 依赖检查项
+        :return: 依赖检查项负载
+        """
+        return {
+            'kind': item.kind,
+            'requirement': item.requirement,
+            'name': item.name,
+            'installed': item.installed,
+            'versionSatisfied': item.version_satisfied,
+            'installedVersion': item.installed_version,
+            'requiredVersion': item.required_version,
+            'ok': item.ok,
+            'status': item.status,
+            'level': PluginValidationLevelResolver.from_ok(item.ok),
+            'message': item.message,
+        }
+
+    @staticmethod
+    def build_plugin_dependency_item(item: PluginDependencyCheckItem) -> dict[str, Any]:
+        """
+        构建插件间依赖检查项负载。
+
+        :param item: 插件间依赖检查项
+        :return: 插件间依赖检查项负载
+        """
+        return {
+            'pluginId': item.plugin_id,
+            'dependencyId': item.dependency_id,
+            'requiredVersion': item.required_version,
+            'installedVersion': item.installed_version,
+            'status': item.status,
+            'ok': item.ok,
+            'level': PluginValidationLevelResolver.from_ok(item.ok),
+            'message': item.message,
+        }
+
+    @staticmethod
+    def build_validation_issue(item: PluginValidationIssue) -> dict[str, Any]:
+        """
+        构建统一校验问题项负载。
+
+        :param item: 统一校验问题项
+        :return: 统一校验问题项负载
+        """
+        return {
+            'level': item.level,
+            'category': item.category,
+            'kind': item.kind,
+            'path': item.path,
+            'ok': item.ok,
+            'message': item.message,
+            'suggestion': item.suggestion,
+        }
+
+    @staticmethod
+    def build_structure_item(item: PluginStructureCheckItem) -> dict[str, Any]:
+        """
+        构建结构检查项负载。
+
+        :param item: 结构检查项
+        :return: 结构检查项负载
+        """
+        return {
+            'kind': item.kind,
+            'path': item.path,
+            'ok': item.ok,
+            'level': item.level,
+            'message': item.message,
+            'suggestion': item.suggestion,
+        }
+
+    @staticmethod
+    def build_menu_conflict_item(item: PluginMenuConflictItem) -> dict[str, Any]:
+        """
+        构建菜单冲突检查项负载。
+
+        :param item: 菜单冲突检查项
+        :return: 菜单冲突检查项负载
+        """
+        return {
+            'kind': item.kind,
+            'pluginId': item.plugin_id,
+            'conflictPluginId': item.conflict_plugin_id,
+            'value': item.value,
+            'ok': False,
+            'level': 'error',
+            'message': item.message,
+        }
+
+    @classmethod
+    def build_dependency_check_payload(
+        cls,
+        plugin_id: str,
+        dependency_result: DependencyCheckResult,
+    ) -> dict[str, Any]:
+        """
+        构建插件依赖检查负载。
+
+        :param plugin_id: 插件ID
+        :param dependency_result: 依赖检查结果
+        :return: 插件依赖检查负载
+        """
+        return {
+            'ok': dependency_result.ok,
+            'message': '插件依赖已满足' if dependency_result.ok else '插件依赖存在问题',
+            'pluginId': plugin_id,
+            'dependencyOk': dependency_result.ok,
+            'dependencies': [cls.build_dependency_item(item) for item in dependency_result.items],
+            'missingDependencies': [item.name for item in dependency_result.missing_items],
+            'unsatisfiedDependencies': [item.name for item in dependency_result.unsatisfied_items],
+            'exit_code': SUCCESS if dependency_result.ok else DEPENDENCY_ERROR,
+        }
+
+    @staticmethod
+    def build_check_item(plugin_id: str, precheck: Any) -> dict[str, Any]:
+        """
+        构建插件检查单项负载。
+
+        :param plugin_id: 插件ID
+        :param precheck: 插件操作预检上下文
+        :return: 插件检查单项负载
+        """
+        return {
+            'pluginId': plugin_id,
+            'ok': precheck.ok,
+            **precheck.check_payload,
+        }
+
+    @staticmethod
+    def build_check_payload(checks: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        构建插件检查聚合负载。
+
+        :param checks: 插件检查单项负载列表
+        :return: 插件检查聚合负载
+        """
+        ok = all(check['ok'] for check in checks)
+        return {
+            'ok': ok,
+            'message': '插件检查通过' if ok else '插件检查存在问题',
+            'count': len(checks),
+            'checks': checks,
+            'exit_code': SUCCESS if ok else DEPENDENCY_ERROR,
+        }
