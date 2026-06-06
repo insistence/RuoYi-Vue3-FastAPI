@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-import module_task  # noqa: F401
 from apscheduler.events import EVENT_ALL, SchedulerEvent
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.executors.pool import ProcessPoolExecutor
@@ -18,6 +17,11 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from redis import asyncio as aioredis
+from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+import module_task  # noqa: F401
 from common.constant import LockConstant
 from config.database import (
     SYNC_SQLALCHEMY_DATABASE_URL,
@@ -30,9 +34,6 @@ from config.env import AppConfig, LogConfig, RedisConfig
 from module_admin.dao.job_dao import JobDao
 from module_admin.entity.vo.job_vo import JobLogModel, JobModel
 from module_admin.service.job_log_service import JobLogService
-from redis import asyncio as aioredis
-from sqlalchemy.engine import Engine
-from sqlalchemy.ext.asyncio import AsyncEngine
 from utils.log_util import logger
 from utils.server_util import StartupUtil, WorkerIdUtil
 
