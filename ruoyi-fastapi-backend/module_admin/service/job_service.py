@@ -1,15 +1,14 @@
 from typing import Any
 
-from fastapi import Request
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from common.constant import CommonConstant, JobConstant
 from common.vo import CrudResponseModel, PageModel
 from config.get_scheduler import SchedulerUtil
 from exceptions.exception import ServiceException
+from fastapi import Request
 from module_admin.dao.job_dao import JobDao
 from module_admin.entity.vo.job_vo import DeleteJobModel, EditJobModel, JobModel, JobPageQueryModel
 from module_admin.service.dict_service import DictDataService
+from sqlalchemy.ext.asyncio import AsyncSession
 from utils.common_util import CamelCaseUtil
 from utils.cron_util import CronUtil
 from utils.excel_util import ExcelUtil
@@ -162,7 +161,6 @@ class JobService:
         :param page_object: 定时任务对象
         :return: 执行一次定时任务结果
         """
-        SchedulerUtil.remove_scheduler_job(job_id=page_object.job_id)
         job_info = await cls.job_detail_services(query_db, page_object.job_id)
         if job_info:
             SchedulerUtil.execute_scheduler_job_once(job_info=job_info)
