@@ -2,13 +2,23 @@ from typing import Any
 
 from plugins.core.runtime.support import PluginRuntimePayloadBuilder
 
+from .dependency_container import PluginRuntimeDependencies
 
-class PluginAuditOperationMixin:
+
+class PluginAuditUseCase:
     """
-    插件操作审计和失败状态记录操作。
+    插件操作审计和失败状态记录 use case。
     """
 
-    async def _record_plugin_operation_log(
+    def __init__(self, dependencies: PluginRuntimeDependencies) -> None:
+        """
+        初始化插件审计 use case。
+
+        :param dependencies: 插件运行时依赖容器
+        """
+        self.dependencies = dependencies
+
+    async def record_plugin_operation_log(
         self,
         payload: dict[str, Any],
         *,
@@ -25,8 +35,9 @@ class PluginAuditOperationMixin:
         :param continue_on_error: 失败后是否继续执行后续插件
         :return: None
         """
-        async_session_local = self.infrastructure_gateway.get_async_session_local()
-        plugin_service = self.infrastructure_gateway.get_plugin_service()
+        gateway = self.dependencies.state_gateway
+        async_session_local = gateway.get_async_session_local()
+        plugin_service = gateway.get_plugin_service()
         async with async_session_local() as session:
             await plugin_service.add_plugin_operation_log_services(
                 session,
@@ -36,7 +47,7 @@ class PluginAuditOperationMixin:
             )
             await session.commit()
 
-    async def _record_plugin_failure_state(
+    async def record_plugin_failure_state(
         self,
         payload: dict[str, Any],
         default_message: str,
@@ -58,8 +69,9 @@ class PluginAuditOperationMixin:
 
         error_message = PluginRuntimePayloadBuilder.build_failure_state_message(payload, default_message)
         try:
-            async_session_local = self.infrastructure_gateway.get_async_session_local()
-            plugin_service = self.infrastructure_gateway.get_plugin_service()
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
                 result = await plugin_service.mark_plugin_error_services(session, plugin_id, error_message)
                 if getattr(result, 'is_success', False):

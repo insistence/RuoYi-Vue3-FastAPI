@@ -8,6 +8,69 @@ from .payload import PluginPayloadBuilder
 
 
 @dataclass(frozen=True)
+class PluginPrecheckOperationPayload:
+    """
+    插件预检操作片段结构化负载。
+    """
+
+    precheck: 'PluginPrecheckContext'
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有安装和升级操作通用负载片段契约。
+
+        :return: 安装和升级操作通用负载片段
+        """
+        return {
+            'manifestOk': self.precheck.manifest_result.ok,
+            'dependencyOk': self.precheck.dependency_result.ok,
+            'pluginDependencyOk': self.precheck.plugin_dependency_result.ok,
+            'structureOk': self.precheck.structure_result.ok,
+            'menuConflictOk': self.precheck.menu_conflict_result.ok,
+            'manifestIssues': self.precheck.manifest_issues,
+            'manifestWarnings': self.precheck.manifest_warnings,
+            'pluginDependencyErrors': self.precheck.plugin_dependency_errors,
+            'structureErrors': self.precheck.structure_errors,
+            'menuConflicts': self.precheck.menu_conflicts,
+            'dependencies': self.precheck.dependencies,
+            'pluginDependencies': self.precheck.plugin_dependencies,
+        }
+
+
+@dataclass(frozen=True)
+class PluginPrecheckCheckPayload:
+    """
+    插件预检检查片段结构化负载。
+    """
+
+    precheck: 'PluginPrecheckContext'
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件检查命令通用负载片段契约。
+
+        :return: 插件检查命令通用负载片段
+        """
+        return {
+            'manifestOk': self.precheck.manifest_result.ok,
+            'dependencyOk': self.precheck.dependency_result.ok,
+            'pluginDependencyOk': self.precheck.plugin_dependency_result.ok,
+            'structureOk': self.precheck.structure_result.ok,
+            'menuConflictOk': self.precheck.menu_conflict_result.ok,
+            'dependencies': self.precheck.dependencies,
+            'pluginDependencies': self.precheck.plugin_dependencies,
+            'pluginDependencyErrors': self.precheck.plugin_dependency_errors,
+            'manifestIssues': self.precheck.manifest_issues,
+            'manifestWarnings': self.precheck.manifest_warnings,
+            'structure': self.precheck.structure,
+            'missingDependencies': self.precheck.missing_dependencies,
+            'unsatisfiedDependencies': self.precheck.unsatisfied_dependencies,
+            'structureErrors': self.precheck.structure_errors,
+            'menuConflicts': self.precheck.menu_conflicts,
+        }
+
+
+@dataclass(frozen=True)
 class PluginPrecheckContext:
     """
     插件操作预检上下文。
@@ -116,20 +179,7 @@ class PluginPrecheckContext:
 
         :return: 安装和升级操作通用负载片段
         """
-        return {
-            'manifestOk': self.manifest_result.ok,
-            'dependencyOk': self.dependency_result.ok,
-            'pluginDependencyOk': self.plugin_dependency_result.ok,
-            'structureOk': self.structure_result.ok,
-            'menuConflictOk': self.menu_conflict_result.ok,
-            'manifestIssues': self.manifest_issues,
-            'manifestWarnings': self.manifest_warnings,
-            'pluginDependencyErrors': self.plugin_dependency_errors,
-            'structureErrors': self.structure_errors,
-            'menuConflicts': self.menu_conflicts,
-            'dependencies': self.dependencies,
-            'pluginDependencies': self.plugin_dependencies,
-        }
+        return PluginPrecheckOperationPayload(self).to_payload()
 
     @property
     def check_payload(self) -> dict[str, Any]:
@@ -138,20 +188,4 @@ class PluginPrecheckContext:
 
         :return: 插件检查命令通用负载片段
         """
-        return {
-            'manifestOk': self.manifest_result.ok,
-            'dependencyOk': self.dependency_result.ok,
-            'pluginDependencyOk': self.plugin_dependency_result.ok,
-            'structureOk': self.structure_result.ok,
-            'menuConflictOk': self.menu_conflict_result.ok,
-            'dependencies': self.dependencies,
-            'pluginDependencies': self.plugin_dependencies,
-            'pluginDependencyErrors': self.plugin_dependency_errors,
-            'manifestIssues': self.manifest_issues,
-            'manifestWarnings': self.manifest_warnings,
-            'structure': self.structure,
-            'missingDependencies': self.missing_dependencies,
-            'unsatisfiedDependencies': self.unsatisfied_dependencies,
-            'structureErrors': self.structure_errors,
-            'menuConflicts': self.menu_conflicts,
-        }
+        return PluginPrecheckCheckPayload(self).to_payload()

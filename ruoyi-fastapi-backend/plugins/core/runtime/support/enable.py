@@ -1,9 +1,155 @@
+from dataclasses import dataclass
 from typing import Any
 
 from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, RUNTIME_ERROR
 from plugins.core.validation.plugin_deps import PluginDependencyCheckResult
 
 from .payload import PluginPayloadBuilder
+
+
+@dataclass(frozen=True)
+class PluginEnableDependencyPayload:
+    """
+    插件启停依赖检查结构化负载。
+    """
+
+    plugin_dependency_result: PluginDependencyCheckResult
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件启停依赖检查 payload 契约。
+
+        :return: 插件启停依赖检查 payload
+        """
+        return {
+            'pluginDependencyOk': self.plugin_dependency_result.ok,
+            'pluginDependencyErrors': [
+                PluginPayloadBuilder.build_plugin_dependency_item(item)
+                for item in self.plugin_dependency_result.failed_items
+            ],
+            'pluginDependencies': [
+                PluginPayloadBuilder.build_plugin_dependency_item(item) for item in self.plugin_dependency_result.items
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class PluginEnableDependencyBlockerPayload:
+    """
+    插件启停依赖阻断结构化负载。
+    """
+
+    plugin_id: str
+    operation: str
+    enabled: bool
+    dependency_payload: dict[str, Any]
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件启停依赖阻断 payload 契约。
+
+        :return: 插件启停依赖阻断 payload
+        """
+        plugin_dependency_ok = bool(self.dependency_payload.get('pluginDependencyOk', True))
+        return {
+            'ok': False,
+            'message': '插件间依赖检查失败，启用已中止',
+            'pluginId': self.plugin_id,
+            'operation': self.operation,
+            'enabled': self.enabled,
+            'dryRun': False,
+            'actions': PluginPayloadBuilder.build_enabled_actions(self.enabled, plugin_dependency_ok),
+            **self.dependency_payload,
+            'exit_code': DEPENDENCY_ERROR,
+        }
+
+
+@dataclass(frozen=True)
+class PluginEnableStatePayload:
+    """
+    插件启停状态结构化负载。
+    """
+
+    plugin_id: str
+    operation: str
+    enabled: bool
+    dry_run: bool
+    ok: bool
+    message: str
+    dependency_payload: dict[str, Any]
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件启停 payload 契约。
+
+        :return: 插件启停 payload
+        """
+        plugin_dependency_ok = bool(self.dependency_payload.get('pluginDependencyOk', True))
+        return {
+            'ok': self.ok,
+            'message': self.message,
+            'pluginId': self.plugin_id,
+            'operation': self.operation,
+            'enabled': self.enabled,
+            'dryRun': self.dry_run,
+            'actions': PluginPayloadBuilder.build_enabled_actions(self.enabled, plugin_dependency_ok),
+            **self.dependency_payload,
+        }
+
+
+@dataclass(frozen=True)
+class PluginEnableUpdateFailurePayload:
+    """
+    插件启停写入失败结构化负载。
+    """
+
+    plugin_id: str
+    operation: str
+    enabled: bool
+    message: str
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件启停写入失败 payload 契约。
+
+        :return: 插件启停写入失败 payload
+        """
+        return {
+            'ok': False,
+            'message': self.message,
+            'pluginId': self.plugin_id,
+            'operation': self.operation,
+            'enabled': self.enabled,
+            'dryRun': False,
+            'exit_code': RUNTIME_ERROR,
+        }
+
+
+@dataclass(frozen=True)
+class PluginSafeUninstallPayload:
+    """
+    插件安全卸载结构化负载。
+    """
+
+    result: dict[str, Any]
+    dry_run: bool
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件安全卸载 payload 契约。
+
+        :return: 插件安全卸载 payload
+        """
+        return {
+            **self.result,
+            'operation': 'uninstall',
+            'message': '插件卸载演练完成，未执行实际写入'
+            if self.dry_run
+            else self.result.get('message', '插件卸载完成'),
+            'safeMode': True,
+            'removesSource': False,
+            'removesMenus': True,
+        }
 
 
 class PluginEnablePayloadBuilder:
@@ -21,16 +167,7 @@ class PluginEnablePayloadBuilder:
         :param plugin_dependency_result: 插件间依赖检查结果
         :return: 插件启用依赖检查负载
         """
-        return {
-            'pluginDependencyOk': plugin_dependency_result.ok,
-            'pluginDependencyErrors': [
-                PluginPayloadBuilder.build_plugin_dependency_item(item)
-                for item in plugin_dependency_result.failed_items
-            ],
-            'pluginDependencies': [
-                PluginPayloadBuilder.build_plugin_dependency_item(item) for item in plugin_dependency_result.items
-            ],
-        }
+        return PluginEnableDependencyPayload(plugin_dependency_result).to_payload()
 
     @staticmethod
     def build_dependency_blocker_payload(
@@ -49,18 +186,12 @@ class PluginEnablePayloadBuilder:
         :param dependency_payload: 插件依赖检查负载
         :return: 插件启用依赖阻断负载
         """
-        plugin_dependency_ok = bool(dependency_payload.get('pluginDependencyOk', True))
-        return {
-            'ok': False,
-            'message': '插件间依赖检查失败，启用已中止',
-            'pluginId': plugin_id,
-            'operation': operation,
-            'enabled': enabled,
-            'dryRun': False,
-            'actions': PluginPayloadBuilder.build_enabled_actions(enabled, plugin_dependency_ok),
-            **dependency_payload,
-            'exit_code': DEPENDENCY_ERROR,
-        }
+        return PluginEnableDependencyBlockerPayload(
+            plugin_id=plugin_id,
+            operation=operation,
+            enabled=enabled,
+            dependency_payload=dependency_payload,
+        ).to_payload()
 
     @staticmethod
     def build_dry_run_payload(
@@ -79,17 +210,15 @@ class PluginEnablePayloadBuilder:
         :param dependency_payload: 插件依赖检查负载
         :return: 插件启停预演负载
         """
-        plugin_dependency_ok = bool(dependency_payload.get('pluginDependencyOk', True))
-        return {
-            'ok': True,
-            'message': '插件启停演练完成，未执行实际写入',
-            'pluginId': plugin_id,
-            'operation': operation,
-            'enabled': enabled,
-            'dryRun': True,
-            'actions': PluginPayloadBuilder.build_enabled_actions(enabled, plugin_dependency_ok),
-            **dependency_payload,
-        }
+        return PluginEnableStatePayload(
+            plugin_id=plugin_id,
+            operation=operation,
+            enabled=enabled,
+            dry_run=True,
+            ok=True,
+            message='插件启停演练完成，未执行实际写入',
+            dependency_payload=dependency_payload,
+        ).to_payload()
 
     @staticmethod
     def build_update_failure_payload(
@@ -108,15 +237,12 @@ class PluginEnablePayloadBuilder:
         :param message: 失败提示
         :return: 插件启停写入失败负载
         """
-        return {
-            'ok': False,
-            'message': message,
-            'pluginId': plugin_id,
-            'operation': operation,
-            'enabled': enabled,
-            'dryRun': False,
-            'exit_code': RUNTIME_ERROR,
-        }
+        return PluginEnableUpdateFailurePayload(
+            plugin_id=plugin_id,
+            operation=operation,
+            enabled=enabled,
+            message=message,
+        ).to_payload()
 
     @staticmethod
     def build_success_payload(
@@ -137,17 +263,15 @@ class PluginEnablePayloadBuilder:
         :param dependency_payload: 插件依赖检查负载
         :return: 插件启停成功负载
         """
-        plugin_dependency_ok = bool(dependency_payload.get('pluginDependencyOk', True))
-        return {
-            'ok': True,
-            'message': message,
-            'pluginId': plugin_id,
-            'operation': operation,
-            'enabled': enabled,
-            'dryRun': False,
-            'actions': PluginPayloadBuilder.build_enabled_actions(enabled, plugin_dependency_ok),
-            **dependency_payload,
-        }
+        return PluginEnableStatePayload(
+            plugin_id=plugin_id,
+            operation=operation,
+            enabled=enabled,
+            dry_run=False,
+            ok=True,
+            message=message,
+            dependency_payload=dependency_payload,
+        ).to_payload()
 
     @staticmethod
     def build_uninstall_payload(result: dict[str, Any], *, dry_run: bool) -> dict[str, Any]:
@@ -158,11 +282,4 @@ class PluginEnablePayloadBuilder:
         :param dry_run: 是否预演
         :return: 插件安全卸载负载
         """
-        return {
-            **result,
-            'operation': 'uninstall',
-            'message': '插件卸载演练完成，未执行实际写入' if dry_run else result.get('message', '插件卸载完成'),
-            'safeMode': True,
-            'removesSource': False,
-            'removesMenus': True,
-        }
+        return PluginSafeUninstallPayload(result=result, dry_run=dry_run).to_payload()

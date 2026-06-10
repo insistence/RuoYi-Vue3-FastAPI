@@ -18,19 +18,19 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
         :return: None
         """
         self.plugin_service = plugin_service
-        self.infrastructure_gateway: Any | None = None
+        self.model_gateway: Any | None = None
 
     @classmethod
-    def with_gateway(cls, plugin_service: Any, infrastructure_gateway: Any) -> 'PluginDatabaseMigrationHistoryStore':
+    def with_model_gateway(cls, plugin_service: Any, model_gateway: Any) -> 'PluginDatabaseMigrationHistoryStore':
         """
-        使用基础设施网关构建 migration 历史存储。
+        使用模型工厂网关构建 migration 历史存储。
 
         :param plugin_service: 插件服务类
-        :param infrastructure_gateway: 插件基础设施网关
+        :param model_gateway: 插件管理模型工厂网关
         :return: migration 历史存储
         """
         store = cls(plugin_service)
-        store.infrastructure_gateway = infrastructure_gateway
+        store.model_gateway = model_gateway
         return store
 
     async def get_checksum(self, query_db: Any, plugin_id: str, migration_path: str) -> str | None:
@@ -71,7 +71,7 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
         """
         await self.plugin_service.add_plugin_migration_services(
             query_db,
-            self.infrastructure_gateway.build_migration_record(
+            self.model_gateway.build_migration_record(
                 plugin_id,
                 migration_path,
                 checksum,

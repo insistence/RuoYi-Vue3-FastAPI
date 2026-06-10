@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,90 @@ from plugins.core.validation.dependencies import (
 )
 
 from .payload import PluginPayloadBuilder
+
+
+@dataclass(frozen=True)
+class PluginDependencyInstallPayload:
+    """
+    插件依赖安装结构化负载。
+    """
+
+    plugin_id: str
+    dependency_ok: bool
+    dependencies: list[dict[str, Any]]
+    missing_dependencies: list[str]
+    unsatisfied_dependencies: list[str]
+    dry_run: bool
+    plan: list[dict[str, Any]]
+    ok: bool
+    message: str
+    exit_code: int
+    results: list[dict[str, Any]] = field(default_factory=list)
+
+    @classmethod
+    def from_dependency_result(
+        cls,
+        *,
+        plugin_id: str,
+        dependency_result: DependencyCheckResult,
+        install_plan_items: list[DependencyInstallPlanItem],
+        dry_run: bool,
+        ok: bool,
+        message: str,
+        exit_code: int,
+        results: list[dict[str, Any]] | None = None,
+    ) -> 'PluginDependencyInstallPayload':
+        """
+        从依赖检查结果构建结构化安装负载。
+
+        :param plugin_id: 插件ID
+        :param dependency_result: 依赖检查结果
+        :param install_plan_items: 依赖安装计划项列表
+        :param dry_run: 是否预演
+        :param ok: 操作是否成功
+        :param message: 操作消息
+        :param exit_code: 退出码
+        :param results: 安装结果列表
+        :return: 插件依赖安装结构化负载
+        """
+        return cls(
+            plugin_id=plugin_id,
+            dependency_ok=dependency_result.ok,
+            dependencies=[PluginPayloadBuilder.build_dependency_item(item) for item in dependency_result.items],
+            missing_dependencies=[item.name for item in dependency_result.missing_items],
+            unsatisfied_dependencies=[item.name for item in dependency_result.unsatisfied_items],
+            dry_run=dry_run,
+            plan=[PluginPayloadBuilder.build_dependency_install_plan_item(item) for item in install_plan_items],
+            ok=ok,
+            message=message,
+            exit_code=exit_code,
+            results=results or [],
+        )
+
+    def to_payload(self, *, include_results: bool = False) -> dict[str, Any]:
+        """
+        序列化为现有插件依赖安装 payload 契约。
+
+        :param include_results: 是否包含安装执行结果
+        :return: 插件依赖安装 payload
+        """
+        payload = {
+            'ok': self.ok,
+            'message': self.message,
+            'pluginId': self.plugin_id,
+            'dependencyOk': self.dependency_ok,
+            'dependencies': self.dependencies,
+            'missingDependencies': self.missing_dependencies,
+            'unsatisfiedDependencies': self.unsatisfied_dependencies,
+            'exit_code': self.exit_code,
+            'dryRun': self.dry_run,
+            'plan': self.plan,
+            'planCount': len(self.plan),
+        }
+        if include_results:
+            payload['results'] = self.results
+
+        return payload
 
 
 class PluginDependencyInstallPayloadBuilder:
@@ -37,13 +122,15 @@ class PluginDependencyInstallPayloadBuilder:
         :param dry_run: 是否预演
         :return: 插件依赖安装基础负载
         """
-        plan_items = [PluginPayloadBuilder.build_dependency_install_plan_item(item) for item in install_plan_items]
-        return {
-            **PluginPayloadBuilder.build_dependency_check_payload(plugin_id, dependency_result),
-            'dryRun': dry_run,
-            'plan': plan_items,
-            'planCount': len(plan_items),
-        }
+        return PluginDependencyInstallPayload.from_dependency_result(
+            plugin_id=plugin_id,
+            dependency_result=dependency_result,
+            install_plan_items=install_plan_items,
+            dry_run=dry_run,
+            ok=dependency_result.ok,
+            message='插件依赖已满足' if dependency_result.ok else '插件依赖存在问题',
+            exit_code=SUCCESS if dependency_result.ok else DEPENDENCY_ERROR,
+        ).to_payload()
 
     @classmethod
     def build_dry_run_payload(
@@ -60,17 +147,15 @@ class PluginDependencyInstallPayloadBuilder:
         :param install_plan_items: 依赖安装计划项列表
         :return: 插件依赖安装预演负载
         """
-        return {
-            **cls.build_base_payload(
-                plugin_id,
-                dependency_result,
-                install_plan_items,
-                dry_run=True,
-            ),
-            'ok': True,
-            'message': '插件依赖安装演练完成，未执行实际安装',
-            'exit_code': SUCCESS,
-        }
+        return PluginDependencyInstallPayload.from_dependency_result(
+            plugin_id=plugin_id,
+            dependency_result=dependency_result,
+            install_plan_items=install_plan_items,
+            dry_run=True,
+            ok=True,
+            message='插件依赖安装演练完成，未执行实际安装',
+            exit_code=SUCCESS,
+        ).to_payload()
 
     @classmethod
     def build_satisfied_payload(
@@ -87,17 +172,15 @@ class PluginDependencyInstallPayloadBuilder:
         :param install_plan_items: 依赖安装计划项列表
         :return: 插件依赖已满足负载
         """
-        return {
-            **cls.build_base_payload(
-                plugin_id,
-                dependency_result,
-                install_plan_items,
-                dry_run=False,
-            ),
-            'ok': True,
-            'message': '插件依赖已满足，无需安装',
-            'results': [],
-        }
+        return PluginDependencyInstallPayload.from_dependency_result(
+            plugin_id=plugin_id,
+            dependency_result=dependency_result,
+            install_plan_items=install_plan_items,
+            dry_run=False,
+            ok=True,
+            message='插件依赖已满足，无需安装',
+            exit_code=SUCCESS,
+        ).to_payload(include_results=True)
 
     @classmethod
     def build_execution_payload(
@@ -117,18 +200,16 @@ class PluginDependencyInstallPayloadBuilder:
         :return: 插件依赖安装执行结果负载
         """
         install_ok = all(result['returnCode'] == 0 for result in install_results)
-        return {
-            **cls.build_base_payload(
-                plugin_id,
-                dependency_result,
-                install_plan_items,
-                dry_run=False,
-            ),
-            'ok': install_ok,
-            'message': '插件依赖安装完成' if install_ok else '插件依赖安装存在失败项',
-            'results': install_results,
-            'exit_code': SUCCESS if install_ok else DEPENDENCY_ERROR,
-        }
+        return PluginDependencyInstallPayload.from_dependency_result(
+            plugin_id=plugin_id,
+            dependency_result=dependency_result,
+            install_plan_items=install_plan_items,
+            dry_run=False,
+            ok=install_ok,
+            message='插件依赖安装完成' if install_ok else '插件依赖安装存在失败项',
+            exit_code=SUCCESS if install_ok else DEPENDENCY_ERROR,
+            results=install_results,
+        ).to_payload(include_results=True)
 
 
 class PluginNpmPackageJsonSynchronizer:

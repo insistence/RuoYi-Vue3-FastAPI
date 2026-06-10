@@ -1,7 +1,33 @@
+from dataclasses import dataclass
 from typing import Any
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.manifest.menu_tree import PluginMenuTree
+
+
+@dataclass(frozen=True)
+class PluginDocumentationPayload:
+    """
+    插件文档结构化负载。
+    """
+
+    plugin_id: str
+    markdown: str
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件文档 payload 契约。
+
+        :return: 插件文档 payload
+        """
+        return {
+            'ok': True,
+            'message': '插件文档生成完成',
+            'pluginId': self.plugin_id,
+            'format': 'markdown',
+            'markdown': self.markdown,
+            'length': len(self.markdown),
+        }
 
 
 class PluginDocumentationBuilder:
@@ -21,14 +47,7 @@ class PluginDocumentationBuilder:
         :return: 插件文档生成负载
         """
         markdown = cls.build_markdown(discovered_plugin)
-        return {
-            'ok': True,
-            'message': '插件文档生成完成',
-            'pluginId': plugin_id,
-            'format': 'markdown',
-            'markdown': markdown,
-            'length': len(markdown),
-        }
+        return PluginDocumentationPayload(plugin_id=plugin_id, markdown=markdown).to_payload()
 
     @classmethod
     def build_markdown(cls, discovered_plugin: DiscoveredPlugin) -> str:

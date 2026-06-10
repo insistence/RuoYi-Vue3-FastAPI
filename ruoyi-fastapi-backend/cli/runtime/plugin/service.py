@@ -1,3 +1,4 @@
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -5,9 +6,22 @@ from cli.exit_codes import RUNTIME_ERROR, SUCCESS
 
 from .gateway import PluginRuntimeGateway
 from .scaffold import PluginScaffoldBuilder
-from .support import PluginTestPayloadBuilder, PluginTestPlanBuilder
+from .support import CliPluginRuntimeExceptionPayload, PluginTestPayloadBuilder, PluginTestPlanBuilder
 
 PYTEST_COMMAND_TIMEOUT_SECONDS = 120
+
+
+@dataclass(frozen=True)
+class CliPluginRuntimeDependencies:
+    """
+    CLI 插件运行时依赖容器。
+    """
+
+    runtime_environment: object | None = None
+    dependency_checker: object | None = None
+    state_gateway: object | None = None
+    model_gateway: object | None = None
+    command_gateway: object | None = None
 
 
 class CliPluginRuntimeService:
@@ -25,7 +39,9 @@ class CliPluginRuntimeService:
         runtime_error_code: int = RUNTIME_ERROR,
         runtime_environment: object | None = None,
         dependency_checker: object | None = None,
-        infrastructure_gateway: object | None = None,
+        state_gateway: object | None = None,
+        model_gateway: object | None = None,
+        command_gateway: object | None = None,
         plugin_gateway: PluginRuntimeGateway | None = None,
     ) -> None:
         """
@@ -35,16 +51,22 @@ class CliPluginRuntimeService:
         :param runtime_error_code: CLI 运行失败退出码
         :param runtime_environment: 插件运行时环境服务
         :param dependency_checker: 插件依赖检查器
-        :param infrastructure_gateway: 插件基础设施网关
+        :param state_gateway: 插件管理状态网关
+        :param model_gateway: 插件管理模型工厂网关
+        :param command_gateway: 插件命令执行网关
         :param plugin_gateway: 插件 CLI 运行时网关
         :return: None
         """
         self.success_code = success_code
         self.runtime_error_code = runtime_error_code
         self.plugin_gateway = plugin_gateway or PluginRuntimeGateway()
-        self.runtime_environment = runtime_environment
-        self.dependency_checker = dependency_checker
-        self.infrastructure_gateway = infrastructure_gateway
+        self.dependencies = CliPluginRuntimeDependencies(
+            runtime_environment=runtime_environment,
+            dependency_checker=dependency_checker,
+            state_gateway=state_gateway,
+            model_gateway=model_gateway,
+            command_gateway=command_gateway,
+        )
         self._core_runtime: Any | None = None
 
     @property
@@ -58,8 +80,10 @@ class CliPluginRuntimeService:
             runtime_service_class = self.plugin_gateway.get_core_runtime_service_class()
             self._core_runtime = runtime_service_class(
                 runtime_environment=self._resolve_runtime_environment(),
-                dependency_checker=self.dependency_checker,
-                infrastructure_gateway=self._resolve_infrastructure_gateway(),
+                dependency_checker=self.dependencies.dependency_checker,
+                state_gateway=self._resolve_state_gateway(),
+                model_gateway=self._resolve_model_gateway(),
+                command_gateway=self._resolve_command_gateway(),
             )
         return self._core_runtime
 
@@ -69,21 +93,56 @@ class CliPluginRuntimeService:
 
         :return: 插件核心运行时环境服务
         """
-        if self.runtime_environment is not None:
-            return self.runtime_environment
-        self.runtime_environment = self.plugin_gateway.get_core_runtime_environment()
-        return self.runtime_environment
+        if self.dependencies.runtime_environment is not None:
+            return self.dependencies.runtime_environment
+        runtime_environment = self.plugin_gateway.get_core_runtime_environment()
+        self.dependencies = replace(self.dependencies, runtime_environment=runtime_environment)
+        return runtime_environment
 
-    def _resolve_infrastructure_gateway(self) -> object:
+    def _resolve_management_gateway(self) -> object:
         """
-        解析插件核心运行时基础设施网关。
+        解析插件管理运行时适配器。
 
-        :return: 插件核心运行时基础设施网关
+        :return: 插件管理运行时适配器
         """
-        if self.infrastructure_gateway is not None:
-            return self.infrastructure_gateway
-        self.infrastructure_gateway = self.plugin_gateway.get_management_runtime_gateway()
-        return self.infrastructure_gateway
+        management_gateway = self.plugin_gateway.get_management_runtime_gateway()
+        self.dependencies = replace(
+            self.dependencies,
+            state_gateway=self.dependencies.state_gateway or management_gateway,
+            model_gateway=self.dependencies.model_gateway or management_gateway,
+            command_gateway=self.dependencies.command_gateway or management_gateway,
+        )
+        return management_gateway
+
+    def _resolve_state_gateway(self) -> object:
+        """
+        解析插件核心运行时状态网关。
+
+        :return: 插件核心运行时状态网关
+        """
+        if self.dependencies.state_gateway is None:
+            self._resolve_management_gateway()
+        return self.dependencies.state_gateway
+
+    def _resolve_model_gateway(self) -> object:
+        """
+        解析插件核心运行时模型工厂网关。
+
+        :return: 插件核心运行时模型工厂网关
+        """
+        if self.dependencies.model_gateway is None:
+            self._resolve_management_gateway()
+        return self.dependencies.model_gateway
+
+    def _resolve_command_gateway(self) -> object:
+        """
+        解析插件核心运行时命令执行网关。
+
+        :return: 插件核心运行时命令执行网关
+        """
+        if self.dependencies.command_gateway is None:
+            self._resolve_management_gateway()
+        return self.dependencies.command_gateway
 
     def _delegate(self, method_name: str, *args: object, **kwargs: object) -> Any:
         """
@@ -120,9 +179,7 @@ class CliPluginRuntimeService:
             'success_code',
             'runtime_error_code',
             'plugin_gateway',
-            'runtime_environment',
-            'dependency_checker',
-            'infrastructure_gateway',
+            'dependencies',
         }:
             return
         core_runtime = self.__dict__.get('_core_runtime')
@@ -137,10 +194,10 @@ class CliPluginRuntimeService:
         :param exc: 异常对象
         :return: 异常负载
         """
-        return {
-            **self.plugin_gateway.build_exception_payload(message, exc),
-            'exit_code': self.runtime_error_code,
-        }
+        return CliPluginRuntimeExceptionPayload(
+            self.plugin_gateway.build_exception_payload(message, exc),
+            failure_code=self.runtime_error_code,
+        ).to_payload()
 
     def list_plugins(self) -> dict[str, Any]:
         """
@@ -371,12 +428,14 @@ class CliPluginRuntimeService:
         :return: 插件测试执行结果负载
         """
         try:
-            backend_root = Path(self.runtime_environment.get_backend_dir())
+            runtime_environment = self._resolve_runtime_environment()
+            command_gateway = self._resolve_command_gateway()
+            backend_root = Path(runtime_environment.get_backend_dir())
             frontend_root = backend_root.parent / 'ruoyi-fastapi-frontend'
             test_plan_builder = PluginTestPlanBuilder(
                 backend_root=backend_root,
                 frontend_root=frontend_root,
-                python_executable=self.runtime_environment.get_python_executable(),
+                python_executable=runtime_environment.get_python_executable(),
                 timeout=PYTEST_COMMAND_TIMEOUT_SECONDS,
             )
             targets = test_plan_builder.build(
@@ -398,7 +457,7 @@ class CliPluginRuntimeService:
 
             results = []
             for target in targets:
-                completed = self.infrastructure_gateway.run_command(
+                completed = command_gateway.run_command(
                     target.command,
                     str(target.workdir),
                     timeout=target.timeout,
@@ -450,7 +509,8 @@ class CliPluginRuntimeService:
         :return: 插件创建结果负载
         """
         try:
-            scaffold = PluginScaffoldBuilder(Path(self.runtime_environment.get_backend_dir()))
+            runtime_environment = self._resolve_runtime_environment()
+            scaffold = PluginScaffoldBuilder(Path(runtime_environment.get_backend_dir()))
             scaffold_plan = scaffold.build_plan(
                 plugin_id,
                 template=template,

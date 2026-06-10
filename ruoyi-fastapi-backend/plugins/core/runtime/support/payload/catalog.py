@@ -1,14 +1,134 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from plugins.core.discovery.registry import RegisteredPlugin
 from plugins.core.manifest.menu_tree import PluginMenuTree
 
+from .validation import PluginValidationPayloadMixin
+
 if TYPE_CHECKING:
     from plugins.core.discovery.scanner import DiscoveredPlugin
     from plugins.core.manifest.schema import PluginMenuManifest
     from plugins.core.validation.dependencies import DependencyCheckItem
+
+
+@dataclass(frozen=True)
+class PluginCatalogListPayload:
+    """
+    插件目录列表结构化负载。
+    """
+
+    plugins: list[RegisteredPlugin]
+    builder: type[Any] | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件列表 payload 契约。
+
+        :return: 插件列表 payload
+        """
+        builder = self.builder or _get_default_catalog_builder()
+        plugin_items = [
+            builder.build_plugin_summary(plugin.discovered_plugin, plugin.enabled, plugin.status)
+            for plugin in self.plugins
+        ]
+        return {'ok': True, 'count': len(plugin_items), 'plugins': plugin_items}
+
+
+@dataclass(frozen=True)
+class PluginCatalogInfoPayload:
+    """
+    插件目录详情响应结构化负载。
+    """
+
+    plugin: RegisteredPlugin | DiscoveredPlugin
+    dependency_items: list[DependencyCheckItem]
+    builder: type[Any] | None = None
+    database_error: str | None = None
+    capability: object | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件详情响应 payload 契约。
+
+        :return: 插件详情响应 payload
+        """
+        builder = self.builder or _get_default_catalog_builder()
+        return {
+            'ok': True,
+            'plugin': builder.build_plugin_detail(
+                self.plugin,
+                self.dependency_items,
+                database_error=self.database_error,
+                capability=self.capability,
+            ),
+        }
+
+
+@dataclass(frozen=True)
+class PluginCatalogSummaryPayload:
+    """
+    插件目录摘要结构化负载。
+    """
+
+    plugin: DiscoveredPlugin
+    enabled: bool
+    status: str
+    capability: object | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件摘要 payload 契约。
+
+        :return: 插件摘要 payload
+        """
+        manifest = self.plugin.manifest
+        return {
+            'pluginId': manifest.id,
+            'name': manifest.name,
+            'version': manifest.version,
+            'enabled': self.enabled,
+            'status': self.status,
+            'description': manifest.description,
+            'backendPath': str(self.plugin.backend_path),
+            'menuCount': PluginMenuTree.count(manifest.frontend.menus),
+            'permissionCount': len(manifest.permissions),
+            'capability': self.capability.to_payload() if self.capability else None,
+        }
+
+
+@dataclass(frozen=True)
+class PluginCatalogDatabaseStatePayload:
+    """
+    插件目录数据库状态结构化负载。
+    """
+
+    database_plugin: object | None
+    database_error: str | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件数据库状态 payload 契约。
+
+        :return: 插件数据库状态 payload
+        """
+        if self.database_error:
+            return {
+                'available': False,
+                'installed': False,
+                'error': self.database_error,
+            }
+
+        return {
+            'available': True,
+            'installed': self.database_plugin is not None,
+            'installedVersion': getattr(self.database_plugin, 'installed_version', None),
+            'enabled': getattr(self.database_plugin, 'enabled', None),
+            'status': getattr(self.database_plugin, 'status', None),
+            'lastError': getattr(self.database_plugin, 'last_error', None),
+        }
 
 
 class PluginCatalogPayloadMixin:
@@ -24,10 +144,7 @@ class PluginCatalogPayloadMixin:
         :param plugins: 已注册插件列表
         :return: 插件列表负载
         """
-        plugin_items = [
-            cls.build_plugin_summary(plugin.discovered_plugin, plugin.enabled, plugin.status) for plugin in plugins
-        ]
-        return {'ok': True, 'count': len(plugin_items), 'plugins': plugin_items}
+        return PluginCatalogListPayload(plugins, builder=cls).to_payload()
 
     @classmethod
     def build_plugin_info_payload(
@@ -46,15 +163,13 @@ class PluginCatalogPayloadMixin:
         :param database_error: 数据库状态读取错误信息
         :return: 插件详情响应负载
         """
-        return {
-            'ok': True,
-            'plugin': cls.build_plugin_detail(
-                plugin,
-                dependency_items,
-                database_error=database_error,
-                capability=capability,
-            ),
-        }
+        return PluginCatalogInfoPayload(
+            plugin,
+            dependency_items,
+            builder=cls,
+            database_error=database_error,
+            capability=capability,
+        ).to_payload()
 
     @classmethod
     def build_plugin_summary(
@@ -72,20 +187,12 @@ class PluginCatalogPayloadMixin:
         :param status: 插件状态
         :return: 插件摘要负载
         """
-        manifest = plugin.manifest
-
-        return {
-            'pluginId': manifest.id,
-            'name': manifest.name,
-            'version': manifest.version,
-            'enabled': enabled,
-            'status': status,
-            'description': manifest.description,
-            'backendPath': str(plugin.backend_path),
-            'menuCount': PluginMenuTree.count(manifest.frontend.menus),
-            'permissionCount': len(manifest.permissions),
-            'capability': capability.to_payload() if capability else None,
-        }
+        return PluginCatalogSummaryPayload(
+            plugin,
+            enabled=enabled,
+            status=status,
+            capability=capability,
+        ).to_payload()
 
     @classmethod
     def build_plugin_detail(
@@ -251,18 +358,19 @@ class PluginCatalogPayloadMixin:
         :param database_error: 数据库状态读取错误信息
         :return: 数据库状态负载
         """
-        if database_error:
-            return {
-                'available': False,
-                'installed': False,
-                'error': database_error,
-            }
+        return PluginCatalogDatabaseStatePayload(database_plugin, database_error).to_payload()
 
-        return {
-            'available': True,
-            'installed': database_plugin is not None,
-            'installedVersion': getattr(database_plugin, 'installed_version', None),
-            'enabled': getattr(database_plugin, 'enabled', None),
-            'status': getattr(database_plugin, 'status', None),
-            'lastError': getattr(database_plugin, 'last_error', None),
-        }
+
+class _DefaultCatalogPayloadBuilder(PluginCatalogPayloadMixin, PluginValidationPayloadMixin):
+    """
+    catalog 模型直接序列化时使用的最小组合 builder。
+    """
+
+
+def _get_default_catalog_builder() -> type[Any]:
+    """
+    获取 catalog 模型直接序列化时使用的默认 builder。
+
+    :return: 默认 catalog 组合 builder
+    """
+    return _DefaultCatalogPayloadBuilder

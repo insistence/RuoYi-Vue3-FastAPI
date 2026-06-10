@@ -1,61 +1,135 @@
+from dataclasses import dataclass
 from typing import Any
 
 
-class PluginConfigPayloadBuilder:
+@dataclass(frozen=True)
+class PluginConfigStatePayload:
     """
-    插件配置负载构建器。
-
-    使用 Builder 模式集中处理配置诊断摘要、配置导出和配置变更审计负载。
+    插件配置状态结构化负载。
     """
 
-    @staticmethod
-    def build_read_payload(plugin_id: str, configs: list[Any]) -> dict[str, Any]:
-        """
-        构建插件配置读取负载。
+    plugin_id: str
+    message: str
+    configs: list[Any]
+    operation: str | None = None
 
-        :param plugin_id: 插件ID
-        :param configs: 插件配置模型列表
-        :return: 插件配置读取负载
+    def to_payload(self) -> dict[str, Any]:
         """
-        return {
+        序列化为现有插件配置读取/更新 payload 契约。
+
+        :return: 插件配置读取/更新 payload
+        """
+        payload = {
             'ok': True,
-            'message': '插件配置读取完成',
-            'pluginId': plugin_id,
-            'configs': [config.model_dump(by_alias=True) for config in configs],
+            'message': self.message,
+            'pluginId': self.plugin_id,
+            'configs': [config.model_dump(by_alias=True) for config in self.configs],
         }
+        if self.operation is not None:
+            payload['operation'] = self.operation
+        return payload
 
-    @staticmethod
-    def build_export_failure_payload(
-        plugin_id: str,
-        payload: dict[str, Any],
-        *,
-        reveal_secret: bool,
-    ) -> dict[str, Any]:
+
+@dataclass(frozen=True)
+class PluginConfigExportFailurePayload:
+    """
+    插件配置导出失败结构化负载。
+    """
+
+    plugin_id: str
+    payload: dict[str, Any]
+    reveal_secret: bool
+
+    def to_payload(self) -> dict[str, Any]:
         """
-        构建插件配置导出失败负载。
+        序列化为现有插件配置导出失败 payload 契约。
 
-        :param plugin_id: 插件ID
-        :param payload: 配置读取失败负载
-        :param reveal_secret: 是否导出敏感配置明文
-        :return: 插件配置导出失败负载
+        :return: 插件配置导出失败 payload
         """
         return {
-            **payload,
-            'pluginId': plugin_id,
-            'revealSecret': reveal_secret,
+            **self.payload,
+            'pluginId': self.plugin_id,
+            'revealSecret': self.reveal_secret,
             'values': {},
             'metadata': [],
         }
 
-    @staticmethod
-    def build_diagnostic_summary(configs: object) -> dict[str, Any]:
-        """
-        构建插件配置诊断摘要。
 
-        :param configs: 插件配置明细列表
-        :return: 配置诊断摘要
+@dataclass(frozen=True)
+class PluginConfigExportPayload:
+    """
+    插件配置导出结构化负载。
+    """
+
+    plugin_id: str
+    configs: list[object]
+    reveal_secret: bool = False
+
+    def to_payload(self) -> dict[str, Any]:
         """
-        config_items = [config for config in configs if isinstance(config, dict)] if isinstance(configs, list) else []
+        序列化为现有插件配置导出 payload 契约。
+
+        :return: 插件配置导出 payload
+        """
+        config_items = [config for config in self.configs if isinstance(config, dict)]
+        return {
+            'ok': True,
+            'message': '插件配置导出完成',
+            'pluginId': self.plugin_id,
+            'revealSecret': self.reveal_secret,
+            'configs': config_items,
+            'values': {
+                config.get('key'): config.get('value') for config in config_items if isinstance(config.get('key'), str)
+            },
+            'metadata': [self._build_metadata(config) for config in config_items],
+        }
+
+    @staticmethod
+    def _build_metadata(config: dict[str, Any]) -> dict[str, Any]:
+        """
+        构建不包含配置值的导出元数据。
+
+        :param config: 配置项
+        :return: 配置导出元数据
+        """
+        return {
+            key: config.get(key)
+            for key in (
+                'key',
+                'label',
+                'type',
+                'default',
+                'required',
+                'secret',
+                'group',
+                'order',
+                'placeholder',
+                'min',
+                'max',
+                'pattern',
+                'options',
+                'description',
+            )
+        }
+
+
+@dataclass(frozen=True)
+class PluginConfigDiagnosticSummaryPayload:
+    """
+    插件配置诊断摘要结构化负载。
+    """
+
+    configs: object
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件配置诊断摘要 payload 契约。
+
+        :return: 插件配置诊断摘要 payload
+        """
+        config_items = (
+            [config for config in self.configs if isinstance(config, dict)] if isinstance(self.configs, list) else []
+        )
         secret_count = sum(1 for config in config_items if bool(config.get('secret')))
         required_count = sum(1 for config in config_items if bool(config.get('required')))
         missing_required_keys = [
@@ -79,130 +153,64 @@ class PluginConfigPayloadBuilder:
             'masked': secret_count > 0,
         }
 
-    @staticmethod
-    def build_export_payload(
-        plugin_id: str,
-        configs: list[object],
-        *,
-        reveal_secret: bool = False,
-    ) -> dict[str, Any]:
-        """
-        构建插件配置导出负载。
 
-        :param plugin_id: 插件ID
-        :param configs: 插件配置列表
-        :param reveal_secret: 是否导出敏感配置明文
-        :return: 插件配置导出负载
+@dataclass(frozen=True)
+class PluginConfigImportPayload:
+    """
+    插件配置导入结构化负载。
+    """
+
+    plugin_id: str
+    payload: dict[str, Any]
+    values: dict[str, Any]
+
+    def to_payload(self) -> dict[str, Any]:
         """
-        config_items = [config for config in configs if isinstance(config, dict)]
+        序列化为现有插件配置导入 payload 契约。
+
+        :return: 插件配置导入 payload
+        """
+        if self.payload.get('ok', False):
+            return {**self.payload, 'importedKeys': sorted(self.values)}
+
         return {
-            'ok': True,
-            'message': '插件配置导出完成',
-            'pluginId': plugin_id,
-            'revealSecret': reveal_secret,
-            'configs': config_items,
-            'values': {
-                config.get('key'): config.get('value') for config in config_items if isinstance(config.get('key'), str)
-            },
-            'metadata': [
-                {
-                    key: config.get(key)
-                    for key in (
-                        'key',
-                        'label',
-                        'type',
-                        'default',
-                        'required',
-                        'secret',
-                        'group',
-                        'order',
-                        'placeholder',
-                        'min',
-                        'max',
-                        'pattern',
-                        'options',
-                        'description',
-                    )
-                }
-                for config in config_items
-            ],
+            **self.payload,
+            'pluginId': self.payload.get('pluginId', self.plugin_id),
+            'importedKeys': [],
         }
 
-    @classmethod
-    def build_update_payload(
-        cls,
-        plugin_id: str,
-        *,
-        operation: str,
-        message: str,
-        configs: list[Any],
-    ) -> dict[str, Any]:
-        """
-        构建插件配置更新负载。
 
-        :param plugin_id: 插件ID
-        :param operation: 配置操作类型
-        :param message: 成功提示
-        :param configs: 更新后的配置模型列表
-        :return: 插件配置更新负载
-        """
-        return {
-            'ok': True,
-            'message': message,
-            'pluginId': plugin_id,
-            'operation': operation,
-            'configs': [config.model_dump(by_alias=True) for config in configs],
-        }
+@dataclass(frozen=True)
+class PluginConfigAuditPayload:
+    """
+    插件配置审计结构化负载。
+    """
 
-    @staticmethod
-    def build_import_payload(plugin_id: str, payload: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
-        """
-        构建插件配置导入负载。
+    plugin_id: str
+    operation: str
+    values: dict[str, Any]
+    before_configs: list[Any]
+    after_configs: list[Any]
+    message: str
 
-        :param plugin_id: 插件ID
-        :param payload: 配置更新负载
-        :param values: 待导入配置键值
-        :return: 插件配置导入负载
+    def to_payload(self) -> dict[str, Any]:
         """
-        if payload.get('ok', False):
-            return {**payload, 'importedKeys': sorted(values)}
+        序列化为现有插件配置审计 payload 契约。
 
-        return {**payload, 'pluginId': payload.get('pluginId', plugin_id), 'importedKeys': []}
-
-    @classmethod
-    def build_audit_payload(
-        cls,
-        plugin_id: str,
-        *,
-        operation: str,
-        values: dict[str, Any],
-        before_configs: list[Any],
-        after_configs: list[Any],
-        message: str,
-    ) -> dict[str, Any]:
+        :return: 插件配置审计 payload
         """
-        构建插件配置变更审计负载。
-
-        :param plugin_id: 插件ID
-        :param operation: 配置操作类型
-        :param values: 本次请求更新的配置键值
-        :param before_configs: 更新前配置列表
-        :param after_configs: 更新后配置列表
-        :param message: 审计备注信息
-        :return: 插件配置变更审计负载
-        """
-        before_map = cls._build_audit_map(before_configs)
-        after_map = cls._build_audit_map(after_configs)
-        changed_keys = sorted(str(key) for key in values)
+        before_map = self._build_audit_map(self.before_configs)
+        after_map = self._build_audit_map(self.after_configs)
+        changed_keys = sorted(str(key) for key in self.values)
         changed_items = [
-            cls._build_audit_item(key, before_map.get(key, {}), after_map.get(key, {})) for key in changed_keys
+            self._build_audit_item(key, before_map.get(key, {}), after_map.get(key, {})) for key in changed_keys
         ]
 
         return {
             'ok': True,
-            'operation': operation,
-            'pluginId': plugin_id,
-            'message': message,
+            'operation': self.operation,
+            'pluginId': self.plugin_id,
+            'message': self.message,
             'summary': {
                 'changedCount': len(changed_items),
                 'changedKeys': changed_keys,
@@ -262,3 +270,150 @@ class PluginConfigPayloadBuilder:
         :return: 脱敏后的配置值
         """
         return '******' if secret and value is not None else value
+
+
+class PluginConfigPayloadBuilder:
+    """
+    插件配置负载构建器。
+
+    使用 Builder 模式集中处理配置诊断摘要、配置导出和配置变更审计负载。
+    """
+
+    @staticmethod
+    def build_read_payload(plugin_id: str, configs: list[Any]) -> dict[str, Any]:
+        """
+        构建插件配置读取负载。
+
+        :param plugin_id: 插件ID
+        :param configs: 插件配置模型列表
+        :return: 插件配置读取负载
+        """
+        return PluginConfigStatePayload(
+            plugin_id=plugin_id,
+            message='插件配置读取完成',
+            configs=configs,
+        ).to_payload()
+
+    @staticmethod
+    def build_export_failure_payload(
+        plugin_id: str,
+        payload: dict[str, Any],
+        *,
+        reveal_secret: bool,
+    ) -> dict[str, Any]:
+        """
+        构建插件配置导出失败负载。
+
+        :param plugin_id: 插件ID
+        :param payload: 配置读取失败负载
+        :param reveal_secret: 是否导出敏感配置明文
+        :return: 插件配置导出失败负载
+        """
+        return PluginConfigExportFailurePayload(
+            plugin_id=plugin_id,
+            payload=payload,
+            reveal_secret=reveal_secret,
+        ).to_payload()
+
+    @staticmethod
+    def build_diagnostic_summary(configs: object) -> dict[str, Any]:
+        """
+        构建插件配置诊断摘要。
+
+        :param configs: 插件配置明细列表
+        :return: 配置诊断摘要
+        """
+        return PluginConfigDiagnosticSummaryPayload(configs).to_payload()
+
+    @staticmethod
+    def build_export_payload(
+        plugin_id: str,
+        configs: list[object],
+        *,
+        reveal_secret: bool = False,
+    ) -> dict[str, Any]:
+        """
+        构建插件配置导出负载。
+
+        :param plugin_id: 插件ID
+        :param configs: 插件配置列表
+        :param reveal_secret: 是否导出敏感配置明文
+        :return: 插件配置导出负载
+        """
+        return PluginConfigExportPayload(
+            plugin_id=plugin_id,
+            configs=configs,
+            reveal_secret=reveal_secret,
+        ).to_payload()
+
+    @classmethod
+    def build_update_payload(
+        cls,
+        plugin_id: str,
+        *,
+        operation: str,
+        message: str,
+        configs: list[Any],
+    ) -> dict[str, Any]:
+        """
+        构建插件配置更新负载。
+
+        :param plugin_id: 插件ID
+        :param operation: 配置操作类型
+        :param message: 成功提示
+        :param configs: 更新后的配置模型列表
+        :return: 插件配置更新负载
+        """
+        return PluginConfigStatePayload(
+            plugin_id=plugin_id,
+            message=message,
+            configs=configs,
+            operation=operation,
+        ).to_payload()
+
+    @staticmethod
+    def build_import_payload(plugin_id: str, payload: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+        """
+        构建插件配置导入负载。
+
+        :param plugin_id: 插件ID
+        :param payload: 配置更新负载
+        :param values: 待导入配置键值
+        :return: 插件配置导入负载
+        """
+        return PluginConfigImportPayload(
+            plugin_id=plugin_id,
+            payload=payload,
+            values=values,
+        ).to_payload()
+
+    @classmethod
+    def build_audit_payload(
+        cls,
+        plugin_id: str,
+        *,
+        operation: str,
+        values: dict[str, Any],
+        before_configs: list[Any],
+        after_configs: list[Any],
+        message: str,
+    ) -> dict[str, Any]:
+        """
+        构建插件配置变更审计负载。
+
+        :param plugin_id: 插件ID
+        :param operation: 配置操作类型
+        :param values: 本次请求更新的配置键值
+        :param before_configs: 更新前配置列表
+        :param after_configs: 更新后配置列表
+        :param message: 审计备注信息
+        :return: 插件配置变更审计负载
+        """
+        return PluginConfigAuditPayload(
+            plugin_id=plugin_id,
+            operation=operation,
+            values=values,
+            before_configs=before_configs,
+            after_configs=after_configs,
+            message=message,
+        ).to_payload()

@@ -13,11 +13,64 @@ from plugins.core.validation.dependencies import (
     PluginDependencyInstallPlanner,
 )
 
+from .context import PluginRuntimeContextService
+from .dependency_container import PluginRuntimeDependencies
 
-class PluginDependencyOperationMixin:
+
+class PluginDependencyUseCase:
     """
-    插件 Python/npm 依赖检查和安装操作。
+    插件 Python/npm 依赖检查和安装 use case。
     """
+
+    def __init__(self, dependencies: PluginRuntimeDependencies, context: PluginRuntimeContextService) -> None:
+        """
+        初始化插件依赖 use case。
+
+        :param dependencies: 插件运行时依赖容器
+        :param context: 插件运行时上下文服务
+        """
+        self.dependencies = dependencies
+        self.context = context
+
+    def _get_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
+        """
+        根据插件 ID 获取已发现插件。
+
+        :param plugin_id: 插件ID
+        :return: 已发现插件对象
+        """
+        return self.context.get_discovered_plugin(plugin_id)
+
+    def _build_operation_blocked_payload(
+        self,
+        discovered_plugin: DiscoveredPlugin,
+        operation: str,
+        *,
+        dry_run: bool | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        构建运行模式阻断负载。
+
+        :param discovered_plugin: 已发现插件
+        :param operation: 操作类型
+        :param dry_run: 是否预演
+        :return: 阻断负载，不阻断时返回 None
+        """
+        return self.context.build_operation_blocked_payload(discovered_plugin, operation, dry_run=dry_run)
+
+    def _with_plugin_capability(
+        self,
+        payload: dict[str, Any],
+        discovered_plugin: DiscoveredPlugin | None,
+    ) -> dict[str, Any]:
+        """
+        为运行时响应负载附加插件操作能力。
+
+        :param payload: 运行时响应负载
+        :param discovered_plugin: 已发现插件
+        :return: 附加能力后的响应负载
+        """
+        return self.context.with_plugin_capability(payload, discovered_plugin)
 
     def install_plugin_dependencies(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
         """
@@ -39,8 +92,8 @@ class PluginDependencyOperationMixin:
             if blocked_payload:
                 return blocked_payload
 
-            dependency_result = self.dependency_checker.check_manifest(discovered_plugin.manifest)
-            return self._install_plugin_dependencies_from_result(
+            dependency_result = self.dependencies.dependency_checker.check_manifest(discovered_plugin.manifest)
+            return self.install_plugin_dependencies_from_result(
                 plugin_id,
                 dependency_result,
                 dry_run=dry_run,
@@ -49,7 +102,7 @@ class PluginDependencyOperationMixin:
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('安装插件依赖失败', exc)
 
-    def _install_plugin_dependencies_from_result(
+    def install_plugin_dependencies_from_result(
         self,
         plugin_id: str,
         dependency_result: DependencyCheckResult,
@@ -68,7 +121,8 @@ class PluginDependencyOperationMixin:
         """
         discovered_plugin = discovered_plugin or self._get_discovered_plugin(plugin_id)
         install_plan = PluginDependencyInstallPlanner(
-            frontend_root=Path(self.runtime_environment.get_backend_dir()).parent / 'ruoyi-fastapi-frontend'
+            frontend_root=Path(self.dependencies.runtime_environment.get_backend_dir()).parent
+            / 'ruoyi-fastapi-frontend'
         ).build_plan(dependency_result)
         if dry_run:
             payload = PluginDependencyInstallPayloadBuilder.build_dry_run_payload(
@@ -88,7 +142,7 @@ class PluginDependencyOperationMixin:
         install_results = [
             PluginPayloadBuilder.build_dependency_install_result(
                 item,
-                self.infrastructure_gateway.run_command(item.command, item.workdir),
+                self.dependencies.command_gateway.run_command(item.command, item.workdir),
             )
             for item in install_plan.items
         ]

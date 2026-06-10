@@ -33,6 +33,16 @@ class FakeContextFactory:
         """
         return type('FakeContext', (), {'env': env, 'output': output})()
 
+    def build_readonly(self, env: str, output: str) -> Any:
+        """
+        构造只读命令上下文。
+
+        :param env: 环境
+        :param output: 输出格式
+        :return: CLI上下文
+        """
+        return type('FakeContext', (), {'env': env, 'output': output})()
+
 
 class FakeExecutionService:
     """
@@ -95,6 +105,26 @@ class FakePresenter:
         """
         return str(payload)
 
+    @staticmethod
+    def build_check_text(payload: dict[str, Any]) -> str:
+        """
+        构造检查文本。
+
+        :param payload: payload
+        :return: 文本
+        """
+        return str(payload)
+
+    @staticmethod
+    def build_config_text(payload: dict[str, Any]) -> str:
+        """
+        构造配置文本。
+
+        :param payload: payload
+        :return: 文本
+        """
+        return str(payload)
+
 
 class FakePluginRuntime:
     """
@@ -110,6 +140,26 @@ class FakePluginRuntime:
         :return: 安装结果
         """
         return {'ok': False, 'message': '插件安装失败', 'pluginId': plugin_id}
+
+    @staticmethod
+    def check_plugin(plugin_id: str | None = None) -> dict[str, Any]:
+        """
+        返回缺失 ok 字段的检查结果。
+
+        :param plugin_id: 插件ID
+        :return: 检查结果
+        """
+        return {'message': '插件检查结果缺失 ok', 'pluginId': plugin_id}
+
+    async def set_plugin_config(self, plugin_id: str, values: dict[str, Any]) -> dict[str, Any]:
+        """
+        返回失败配置更新结果。
+
+        :param plugin_id: 插件ID
+        :param values: 配置键值
+        :return: 配置更新结果
+        """
+        return {'ok': False, 'message': '插件配置更新失败', 'pluginId': plugin_id, 'values': values}
 
 
 def test_install_plugin_uses_failure_exit_code_when_payload_is_not_ok() -> None:
@@ -130,4 +180,55 @@ def test_install_plugin_uses_failure_exit_code_when_payload_is_not_ok() -> None:
 
     assert execution_service.completed_payload is not None
     assert execution_service.completed_payload['ok'] is False
+    assert execution_service.default_exit_code == DEPENDENCY_ERROR
+
+
+def test_check_plugin_uses_failure_exit_code_when_payload_has_no_ok() -> None:
+    """
+    校验插件检查结果缺失 ok 时 CLI 使用失败退出码。
+
+    :return: None
+    """
+    execution_service = FakeExecutionService()
+    controller = PluginCommandController(
+        context_factory=FakeContextFactory(),
+        execution_service=execution_service,
+        presenter=FakePresenter(),
+        plugin_runtime=FakePluginRuntime(),
+    )
+
+    controller.check_plugin('demo', 'dev', 'text')
+
+    assert execution_service.completed_payload is not None
+    assert 'ok' not in execution_service.completed_payload
+    assert execution_service.default_exit_code == DEPENDENCY_ERROR
+
+
+def test_plugin_config_set_uses_failure_exit_code_when_payload_is_not_ok() -> None:
+    """
+    校验插件配置更新失败时 CLI 使用失败退出码。
+
+    :return: None
+    """
+    execution_service = FakeExecutionService()
+    controller = PluginCommandController(
+        context_factory=FakeContextFactory(),
+        execution_service=execution_service,
+        presenter=FakePresenter(),
+        plugin_runtime=FakePluginRuntime(),
+    )
+
+    controller.plugin_config(
+        'demo',
+        'set',
+        ['provider="openai"'],
+        'dev',
+        'text',
+        allow_prod=False,
+        yes=True,
+    )
+
+    assert execution_service.completed_payload is not None
+    assert execution_service.completed_payload['ok'] is False
+    assert execution_service.completed_payload['values'] == {'provider': 'openai'}
     assert execution_service.default_exit_code == DEPENDENCY_ERROR

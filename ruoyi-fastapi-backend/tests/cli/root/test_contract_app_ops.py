@@ -762,7 +762,7 @@ def test_plugin_uninstall_dry_run_json_output_has_stable_contract(
     assert payload['dryRun'] is True
     assert payload['safeMode'] is True
     assert payload['removesSource'] is False
-    assert payload['removesMenus'] is False
+    assert payload['removesMenus'] is True
     assert isinstance(payload['actions'], list)
 
 

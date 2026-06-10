@@ -1,9 +1,206 @@
+from dataclasses import dataclass
 from typing import Any
 
 from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
 
 from .payload import PluginPayloadBuilder
 from .precheck import PluginPrecheckContext
+
+
+@dataclass(frozen=True)
+class PluginInstallDryRunPayload:
+    """
+    插件安装预演结构化负载。
+    """
+
+    plugin_id: str
+    actions: list[dict[str, Any]]
+    precheck: PluginPrecheckContext
+    message: str = '插件安装演练完成，未执行实际写入'
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件安装预演 payload 契约。
+
+        :return: 插件安装预演 payload
+        """
+        return {
+            'ok': True,
+            'message': self.message,
+            'pluginId': self.plugin_id,
+            'dryRun': True,
+            'actions': self.actions,
+            **self.precheck.operation_payload,
+        }
+
+
+@dataclass(frozen=True)
+class PluginLifecyclePrecheckBlockerPayload:
+    """
+    插件生命周期预检阻断结构化负载。
+    """
+
+    plugin_id: str
+    message: str
+    actions: list[dict[str, Any]]
+    precheck: PluginPrecheckContext
+    dry_run: bool = False
+    extra_payload: dict[str, Any] | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件生命周期预检阻断 payload 契约。
+
+        :return: 插件生命周期预检阻断 payload
+        """
+        return {
+            'ok': False,
+            'message': self.message,
+            'pluginId': self.plugin_id,
+            'dryRun': self.dry_run,
+            **(self.extra_payload or {}),
+            'actions': self.actions,
+            **self.precheck.operation_payload,
+            'exit_code': DEPENDENCY_ERROR,
+        }
+
+
+@dataclass(frozen=True)
+class PluginLifecycleOperationDryRunPayload:
+    """
+    插件生命周期操作预演结构化负载。
+    """
+
+    plugin_id: str
+    operation: str
+    message: str
+    actions: list[dict[str, Any]]
+    precheck: PluginPrecheckContext
+    extra_payload: dict[str, Any] | None = None
+    ok_from_precheck: bool = True
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件生命周期操作预演 payload 契约。
+
+        :return: 插件生命周期操作预演 payload
+        """
+        ok = self.precheck.ok if self.ok_from_precheck else True
+        return {
+            'ok': ok,
+            'message': self.message if ok else '插件操作预检存在问题，未执行实际写入',
+            'pluginId': self.plugin_id,
+            'operation': self.operation,
+            'dryRun': True,
+            **(self.extra_payload or {}),
+            'actions': self.actions,
+            **self.precheck.operation_payload,
+            'precheck': self.precheck.check_payload,
+            'exit_code': SUCCESS if ok else DEPENDENCY_ERROR,
+        }
+
+
+@dataclass(frozen=True)
+class PluginLifecycleMenuConflictPayload:
+    """
+    插件生命周期已安装菜单冲突结构化负载。
+    """
+
+    plugin_id: str
+    message: str
+    actions: list[dict[str, Any]]
+    precheck: PluginPrecheckContext
+    installed_menu_conflicts: list[Any]
+    extra_payload: dict[str, Any] | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件生命周期菜单冲突 payload 契约。
+
+        :return: 插件生命周期菜单冲突 payload
+        """
+        menu_conflicts = [
+            *self.precheck.menu_conflicts,
+            *[PluginPayloadBuilder.build_menu_conflict_item(item) for item in self.installed_menu_conflicts],
+        ]
+        return {
+            'ok': False,
+            'message': self.message,
+            'pluginId': self.plugin_id,
+            'dryRun': False,
+            **(self.extra_payload or {}),
+            'actions': self.actions,
+            **self.precheck.operation_payload,
+            'menuConflicts': menu_conflicts,
+            'menuConflictOk': False,
+            'exit_code': DEPENDENCY_ERROR,
+        }
+
+
+@dataclass(frozen=True)
+class PluginLifecycleUpgradeLatestPayload:
+    """
+    插件生命周期无需升级结构化负载。
+    """
+
+    plugin_id: str
+    version_state: dict[str, Any]
+    precheck: PluginPrecheckContext
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件无需升级 payload 契约。
+
+        :return: 插件无需升级 payload
+        """
+        return {
+            'ok': True,
+            'message': '插件已是最新版本，无需升级',
+            'pluginId': self.plugin_id,
+            'dryRun': False,
+            **self.version_state,
+            'actions': [],
+            **self.precheck.operation_payload,
+        }
+
+
+@dataclass(frozen=True)
+class PluginLifecycleSuccessPayload:
+    """
+    插件生命周期成功结构化负载。
+    """
+
+    plugin_id: str
+    message: str
+    actions: list[dict[str, Any]]
+    precheck: PluginPrecheckContext
+    plugin: Any
+    installed_configs: list[Any]
+    migration_results: list[Any]
+    seed_results: list[Any]
+    hook_result: Any | None
+    extra_payload: dict[str, Any] | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件生命周期成功 payload 契约。
+
+        :return: 插件生命周期成功 payload
+        """
+        return {
+            'ok': True,
+            'message': self.message,
+            'pluginId': self.plugin_id,
+            'dryRun': False,
+            **(self.extra_payload or {}),
+            'actions': self.actions,
+            **self.precheck.operation_payload,
+            'plugin': self.plugin.model_dump(by_alias=True),
+            'configs': [config.model_dump(by_alias=True) for config in self.installed_configs],
+            'migrations': [migration_result.__dict__ for migration_result in self.migration_results],
+            'seeds': [seed_result.__dict__ for seed_result in self.seed_results],
+            'hooks': [self.hook_result.__dict__] if self.hook_result else [],
+        }
 
 
 class PluginLifecyclePayloadBuilder:
@@ -27,14 +224,11 @@ class PluginLifecyclePayloadBuilder:
         :param precheck: 插件操作预检上下文
         :return: 插件安装预演负载
         """
-        return {
-            'ok': True,
-            'message': '插件安装演练完成，未执行实际写入',
-            'pluginId': plugin_id,
-            'dryRun': True,
-            'actions': actions,
-            **precheck.operation_payload,
-        }
+        return PluginInstallDryRunPayload(
+            plugin_id=plugin_id,
+            actions=actions,
+            precheck=precheck,
+        ).to_payload()
 
     @staticmethod
     def build_precheck_blocker_payload(
@@ -57,16 +251,14 @@ class PluginLifecyclePayloadBuilder:
         :param extra_payload: 额外负载
         :return: 插件安装或升级预检阻断负载
         """
-        return {
-            'ok': False,
-            'message': message,
-            'pluginId': plugin_id,
-            'dryRun': dry_run,
-            **(extra_payload or {}),
-            'actions': actions,
-            **precheck.operation_payload,
-            'exit_code': DEPENDENCY_ERROR,
-        }
+        return PluginLifecyclePrecheckBlockerPayload(
+            plugin_id=plugin_id,
+            message=message,
+            actions=actions,
+            precheck=precheck,
+            dry_run=dry_run,
+            extra_payload=extra_payload,
+        ).to_payload()
 
     @classmethod
     def build_first_precheck_blocker_payload(
@@ -170,19 +362,15 @@ class PluginLifecyclePayloadBuilder:
         :param ok_from_precheck: 是否使用预检结果决定操作是否成功
         :return: 操作预演负载
         """
-        ok = precheck.ok if ok_from_precheck else True
-        return {
-            'ok': ok,
-            'message': message if ok else '插件操作预检存在问题，未执行实际写入',
-            'pluginId': plugin_id,
-            'operation': operation,
-            'dryRun': True,
-            **(extra_payload or {}),
-            'actions': actions,
-            **precheck.operation_payload,
-            'precheck': precheck.check_payload,
-            'exit_code': SUCCESS if ok else DEPENDENCY_ERROR,
-        }
+        return PluginLifecycleOperationDryRunPayload(
+            plugin_id=plugin_id,
+            operation=operation,
+            message=message,
+            actions=actions,
+            precheck=precheck,
+            extra_payload=extra_payload,
+            ok_from_precheck=ok_from_precheck,
+        ).to_payload()
 
     @staticmethod
     def build_installed_menu_conflict_payload(
@@ -205,22 +393,14 @@ class PluginLifecyclePayloadBuilder:
         :param extra_payload: 额外负载
         :return: 已安装菜单冲突阻断负载
         """
-        menu_conflicts = [
-            *precheck.menu_conflicts,
-            *[PluginPayloadBuilder.build_menu_conflict_item(item) for item in installed_menu_conflicts],
-        ]
-        return {
-            'ok': False,
-            'message': message,
-            'pluginId': plugin_id,
-            'dryRun': False,
-            **(extra_payload or {}),
-            'actions': actions,
-            **precheck.operation_payload,
-            'menuConflicts': menu_conflicts,
-            'menuConflictOk': False,
-            'exit_code': DEPENDENCY_ERROR,
-        }
+        return PluginLifecycleMenuConflictPayload(
+            plugin_id=plugin_id,
+            message=message,
+            actions=actions,
+            precheck=precheck,
+            installed_menu_conflicts=installed_menu_conflicts,
+            extra_payload=extra_payload,
+        ).to_payload()
 
     @staticmethod
     def build_upgrade_latest_payload(
@@ -236,15 +416,11 @@ class PluginLifecyclePayloadBuilder:
         :param precheck: 插件操作预检上下文
         :return: 插件无需升级负载
         """
-        return {
-            'ok': True,
-            'message': '插件已是最新版本，无需升级',
-            'pluginId': plugin_id,
-            'dryRun': False,
-            **version_state,
-            'actions': [],
-            **precheck.operation_payload,
-        }
+        return PluginLifecycleUpgradeLatestPayload(
+            plugin_id=plugin_id,
+            version_state=version_state,
+            precheck=precheck,
+        ).to_payload()
 
     @staticmethod
     def build_success_payload(
@@ -275,17 +451,15 @@ class PluginLifecyclePayloadBuilder:
         :param extra_payload: 额外负载
         :return: 插件安装或升级成功负载
         """
-        return {
-            'ok': True,
-            'message': message,
-            'pluginId': plugin_id,
-            'dryRun': False,
-            **(extra_payload or {}),
-            'actions': actions,
-            **precheck.operation_payload,
-            'plugin': plugin.model_dump(by_alias=True),
-            'configs': [config.model_dump(by_alias=True) for config in installed_configs],
-            'migrations': [migration_result.__dict__ for migration_result in migration_results],
-            'seeds': [seed_result.__dict__ for seed_result in seed_results],
-            'hooks': [hook_result.__dict__] if hook_result else [],
-        }
+        return PluginLifecycleSuccessPayload(
+            plugin_id=plugin_id,
+            message=message,
+            actions=actions,
+            precheck=precheck,
+            plugin=plugin,
+            installed_configs=installed_configs,
+            migration_results=migration_results,
+            seed_results=seed_results,
+            hook_result=hook_result,
+            extra_payload=extra_payload,
+        ).to_payload()

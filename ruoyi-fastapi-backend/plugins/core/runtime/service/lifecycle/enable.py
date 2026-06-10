@@ -1,18 +1,120 @@
 from pathlib import Path
 from typing import Any
 
+from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.support import (
     PluginEnablePayloadBuilder,
     PluginLifecyclePayloadBuilder,
     PluginPayloadBuilder,
+    PluginPrecheckContext,
     PluginRuntimePayloadBuilder,
 )
 
+from ..context import PluginRuntimeContextService
+from ..dependency_container import PluginRuntimeDependencies
+from .operations import PluginLifecycleRuntimeOperations
 
-class PluginEnableOperationMixin:
+
+class PluginEnableUseCase:
     """
-    插件启停和安全卸载操作。
+    插件启停和安全卸载 use case。
     """
+
+    def __init__(
+        self,
+        dependencies: PluginRuntimeDependencies,
+        runtime_operations: PluginLifecycleRuntimeOperations,
+        context: PluginRuntimeContextService,
+    ) -> None:
+        """
+        初始化插件启停 use case。
+
+        :param dependencies: 插件运行时依赖容器
+        :param runtime_operations: 生命周期工作流所需的运行时协作能力
+        :param context: 插件运行时上下文服务
+        """
+        self.dependencies = dependencies
+        self.runtime_operations = runtime_operations
+        self.context = context
+
+    def _get_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
+        """
+        根据插件 ID 获取已发现插件。
+
+        :param plugin_id: 插件ID
+        :return: 已发现插件对象
+        """
+        return self.context.get_discovered_plugin(plugin_id)
+
+    def _discover_plugins(self, backend_root: Path) -> list[DiscoveredPlugin]:
+        """
+        发现本地插件。
+
+        :param backend_root: 后端项目根目录
+        :return: 已发现插件列表
+        """
+        return self.context.discover_plugins(backend_root)
+
+    def _get_discovered_plugin_from_list(
+        self,
+        discovered_plugins: list[DiscoveredPlugin],
+        plugin_id: str,
+    ) -> DiscoveredPlugin | None:
+        """
+        从已发现插件列表中查找指定插件。
+
+        :param discovered_plugins: 已发现插件列表
+        :param plugin_id: 插件ID
+        :return: 已发现插件对象
+        """
+        return self.context.get_discovered_plugin_from_list(discovered_plugins, plugin_id)
+
+    def _build_operation_blocked_payload(
+        self,
+        discovered_plugin: DiscoveredPlugin,
+        operation: str,
+        *,
+        dry_run: bool | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        构建运行模式阻断负载。
+
+        :param discovered_plugin: 已发现插件
+        :param operation: 操作类型
+        :param dry_run: 是否预演
+        :return: 阻断负载，不阻断时返回 None
+        """
+        return self.context.build_operation_blocked_payload(discovered_plugin, operation, dry_run=dry_run)
+
+    async def _build_precheck_context(
+        self,
+        backend_root: Path,
+        discovered_plugin: DiscoveredPlugin,
+        discovered_plugins: list[DiscoveredPlugin],
+    ) -> PluginPrecheckContext:
+        """
+        构建插件操作预检上下文。
+
+        :param backend_root: 后端项目根目录
+        :param discovered_plugin: 当前插件
+        :param discovered_plugins: 已发现插件列表
+        :return: 插件操作预检上下文
+        """
+        return await self.context.build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
+
+    def _with_plugin_capability(
+        self,
+        payload: dict[str, Any],
+        discovered_plugin: DiscoveredPlugin | None,
+    ) -> dict[str, Any]:
+        """
+        为运行时响应负载附加插件操作能力。
+
+        :param payload: 运行时响应负载
+        :param discovered_plugin: 已发现插件
+        :return: 附加能力后的响应负载
+        """
+        return self.context.with_plugin_capability(payload, discovered_plugin)
 
     async def set_plugin_enabled(
         self,
@@ -33,9 +135,13 @@ class PluginEnableOperationMixin:
         """
         payload = await self._set_plugin_enabled(plugin_id, enabled=enabled, dry_run=dry_run)
         if enabled and not dry_run:
-            await self._record_plugin_failure_state(payload, '插件启用失败')
+            await self.runtime_operations._record_plugin_failure_state(payload, '插件启用失败')
         if record_operation_log and not dry_run:
-            await self._record_plugin_operation_log(payload, dry_run=dry_run, continue_on_error=False)
+            await self.runtime_operations._record_plugin_operation_log(
+                payload,
+                dry_run=dry_run,
+                continue_on_error=False,
+            )
 
         return payload
 
@@ -65,8 +171,9 @@ class PluginEnableOperationMixin:
                         dependency_payload=dependency_payload,
                     )
 
-                async_session_local = self.infrastructure_gateway.get_async_session_local()
-                plugin_service = self.infrastructure_gateway.get_plugin_service()
+                gateway = self.dependencies.state_gateway
+                async_session_local = gateway.get_async_session_local()
+                plugin_service = gateway.get_plugin_service()
                 async with async_session_local() as session:
                     response = await plugin_service.update_plugin_enabled_services(session, plugin_id, enabled)
                     if not response.is_success:
@@ -86,7 +193,7 @@ class PluginEnableOperationMixin:
                     dependency_payload=dependency_payload,
                 )
 
-            backend_root = Path(self.runtime_environment.get_backend_dir())
+            backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
             discovered_plugin = self._get_discovered_plugin_from_list(discovered_plugins, plugin_id)
             if not discovered_plugin:
@@ -123,8 +230,9 @@ class PluginEnableOperationMixin:
                 )
                 return self._with_plugin_capability(payload, discovered_plugin)
 
-            async_session_local = self.infrastructure_gateway.get_async_session_local()
-            plugin_service = self.infrastructure_gateway.get_plugin_service()
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
                 response = await plugin_service.update_plugin_enabled_services(session, plugin_id, enabled)
                 if not response.is_success:
@@ -169,7 +277,11 @@ class PluginEnableOperationMixin:
         result = await self._uninstall_plugin(plugin_id, dry_run=dry_run)
         result = PluginEnablePayloadBuilder.build_uninstall_payload(result, dry_run=dry_run)
         if record_operation_log and not dry_run:
-            await self._record_plugin_operation_log(result, dry_run=dry_run, continue_on_error=False)
+            await self.runtime_operations._record_plugin_operation_log(
+                result,
+                dry_run=dry_run,
+                continue_on_error=False,
+            )
 
         return result
 
@@ -182,7 +294,7 @@ class PluginEnableOperationMixin:
         :return: 插件卸载结果负载
         """
         try:
-            backend_root = Path(self.runtime_environment.get_backend_dir())
+            backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
             discovered_plugin = self._get_discovered_plugin_from_list(discovered_plugins, plugin_id)
             if not discovered_plugin:
@@ -193,8 +305,9 @@ class PluginEnableOperationMixin:
                         enabled=False,
                         dependency_payload={},
                     )
-                async_session_local = self.infrastructure_gateway.get_async_session_local()
-                plugin_service = self.infrastructure_gateway.get_plugin_service()
+                gateway = self.dependencies.state_gateway
+                async_session_local = gateway.get_async_session_local()
+                plugin_service = gateway.get_plugin_service()
                 async with async_session_local() as session:
                     response = await plugin_service.mark_plugin_uninstalled_services(session, plugin_id)
                     if not response.is_success:
@@ -232,8 +345,9 @@ class PluginEnableOperationMixin:
                 )
                 return self._with_plugin_capability(payload, discovered_plugin)
 
-            async_session_local = self.infrastructure_gateway.get_async_session_local()
-            plugin_service = self.infrastructure_gateway.get_plugin_service()
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
                 response = await plugin_service.mark_plugin_uninstalled_services(session, plugin_id)
                 if not response.is_success:

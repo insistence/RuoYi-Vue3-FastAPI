@@ -46,6 +46,24 @@ class FakeRuntimeEnvironment:
         return str(self.backend_dir)
 
     @staticmethod
+    def get_frontend_mode() -> str:
+        """
+        获取测试用前端运行模式。
+
+        :return: 前端运行模式
+        """
+        return 'dev'
+
+    @staticmethod
+    def get_backend_runtime_mode() -> str:
+        """
+        获取测试用后端运行模式。
+
+        :return: 后端运行模式
+        """
+        return 'dev'
+
+    @staticmethod
     def get_python_executable() -> str:
         """
         获取测试用 Python 解释器。
@@ -55,14 +73,14 @@ class FakeRuntimeEnvironment:
         return sys.executable
 
 
-class FakePluginInfrastructureGateway:
+class FakePluginRuntimeGateway:
     """
-    测试用插件 CLI 基础设施网关。
+    测试用插件 CLI 运行时适配器。
     """
 
     def __init__(self) -> None:
         """
-        初始化测试用插件 CLI 基础设施网关。
+        初始化测试用插件 CLI 运行时适配器。
 
         :return: None
         """
@@ -106,16 +124,22 @@ def build_runtime(backend_root: Path) -> CliPluginRuntimeService:
 
 def build_runtime_with_gateway(
     backend_root: Path,
-    gateway: FakePluginInfrastructureGateway,
+    gateway: FakePluginRuntimeGateway,
 ) -> CliPluginRuntimeService:
     """
-    构建带测试基础设施网关的插件 CLI 运行时服务。
+    构建带测试运行时适配器的插件 CLI 运行时服务。
 
     :param backend_root: 后端项目根目录
-    :param gateway: 测试基础设施网关
+    :param gateway: 测试运行时适配器
     :return: 插件 CLI 运行时服务
     """
-    runtime = build_runtime(backend_root)
-    runtime.infrastructure_gateway = gateway
-
-    return runtime
+    return CliPluginRuntimeService(
+        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        dependency_checker=PluginDependencyChecker(
+            python_inspector=PythonDependencyInspector(installed_packages={'openai': '2.17.0'}),
+            npm_inspector=NpmDependencyInspector(installed_packages={'vue': '3.5.26'}),
+        ),
+        state_gateway=gateway,
+        model_gateway=gateway,
+        command_gateway=gateway,
+    )

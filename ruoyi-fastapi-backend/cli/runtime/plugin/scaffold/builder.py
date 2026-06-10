@@ -4,7 +4,7 @@ from typing import Any
 from .backend import PluginBackendScaffoldTemplateBuilder
 from .frontend import PluginFrontendScaffoldTemplateBuilder
 from .options import PluginScaffoldOptions, PluginScaffoldTemplateResolver
-from .payload import PluginScaffoldPayloadBuilder
+from .payload import PluginScaffoldPayloadBuilder, PluginScaffoldPlanPayload
 
 
 class PluginScaffoldBuilder:
@@ -83,22 +83,22 @@ class PluginScaffoldBuilder:
 
         conflicts = [target_dir for target_dir in target_dirs if Path(target_dir).exists()]
 
-        return {
-            'backend': options.backend,
-            'frontend': options.frontend,
-            'template': template or PluginScaffoldTemplateResolver.DEFAULT_TEMPLATE,
-            'migration': options.migration,
-            'seed': options.seed,
-            'job': options.job,
-            'config': options.config,
-            'crud': options.crud,
-            'test': effective_backend_test or effective_frontend_test,
-            'backendTest': effective_backend_test,
-            'frontendTest': effective_frontend_test,
-            'targetDirs': target_dirs,
-            'files': [{'path': str(path), 'content': content} for path, content in files],
-            'conflicts': conflicts,
-        }
+        return PluginScaffoldPlanPayload(
+            template=template or PluginScaffoldTemplateResolver.DEFAULT_TEMPLATE,
+            backend=options.backend,
+            frontend=options.frontend,
+            migration=options.migration,
+            seed=options.seed,
+            job=options.job,
+            config=options.config,
+            crud=options.crud,
+            test=effective_backend_test or effective_frontend_test,
+            backend_test=effective_backend_test,
+            frontend_test=effective_frontend_test,
+            target_dirs=target_dirs,
+            files=files,
+            conflicts=conflicts,
+        ).to_payload()
 
     build_conflict_payload = staticmethod(PluginScaffoldPayloadBuilder.build_conflict_payload)
     build_success_payload = staticmethod(PluginScaffoldPayloadBuilder.build_success_payload)

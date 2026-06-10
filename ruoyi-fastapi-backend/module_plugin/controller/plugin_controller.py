@@ -10,7 +10,7 @@ from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import PreAuthDependency
 from common.enums import BusinessType
 from common.router import APIRouterPro
-from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
+from common.vo import DataResponseModel, PageResponseModel
 from module_plugin.service.plugin_service import PluginOperationService, PluginService
 from plugins.core.management.entity.vo.schemas import (
     PluginBatchActionModel,
@@ -327,7 +327,7 @@ async def query_detail_system_plugin(
     '/{plugin_id}/enable',
     summary='启用插件接口',
     description='用于启用指定插件',
-    response_model=ResponseBaseModel,
+    response_model=DataResponseModel[dict],
     dependencies=[UserInterfaceAuthDependency('system:plugin:edit')],
 )
 @Log(title='插件管理', business_type=BusinessType.UPDATE)
@@ -346,17 +346,15 @@ async def enable_system_plugin(
     """
     enable_plugin_result = await PluginOperationService().set_plugin_enabled_services(plugin_id, enabled=True)
     logger.info(enable_plugin_result.get('message', '插件启用完成'))
-    if not enable_plugin_result.get('ok', False):
-        return ResponseUtil.failure(msg=enable_plugin_result.get('message', '插件启用失败'))
 
-    return ResponseUtil.success(msg=enable_plugin_result.get('message', '插件启用完成'))
+    return _plugin_operation_response(enable_plugin_result, '插件启用完成')
 
 
 @plugin_controller.put(
     '/{plugin_id}/disable',
     summary='停用插件接口',
     description='用于停用指定插件',
-    response_model=ResponseBaseModel,
+    response_model=DataResponseModel[dict],
     dependencies=[UserInterfaceAuthDependency('system:plugin:edit')],
 )
 @Log(title='插件管理', business_type=BusinessType.UPDATE)
@@ -373,10 +371,8 @@ async def disable_system_plugin(
     """
     disable_plugin_result = await PluginOperationService().set_plugin_enabled_services(plugin_id, enabled=False)
     logger.info(disable_plugin_result.get('message', '插件停用完成'))
-    if not disable_plugin_result.get('ok', False):
-        return ResponseUtil.failure(msg=disable_plugin_result.get('message', '插件停用失败'))
 
-    return ResponseUtil.success(msg=disable_plugin_result.get('message', '插件停用完成'))
+    return _plugin_operation_response(disable_plugin_result, '插件停用完成')
 
 
 @plugin_controller.get(

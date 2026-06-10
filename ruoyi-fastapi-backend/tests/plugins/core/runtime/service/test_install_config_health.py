@@ -39,6 +39,39 @@ backend:
     assert result['menuConflicts'] == []
 
 
+def test_plugin_runtime_install_plugin_uses_injected_dependencies(tmp_path: Path) -> None:
+    """
+    校验插件安装使用构造期注入的集中依赖对象。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+""",
+    )
+    create_controller_dir(plugin_root)
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+
+    result = asyncio.run(runtime.install_plugin('demo', record_operation_log=False))
+
+    assert result['ok'] is True
+    assert FakePluginService.upsert_called is True
+    assert FakePluginService.mark_installed_called is True
+    assert gateway.session_local.sessions[0].committed is True
+
+
 def test_plugin_runtime_install_plugin_rejects_manifest_errors(tmp_path: Path) -> None:
     """
     校验插件安装会被 manifest error 阻断。
@@ -62,7 +95,7 @@ compatibility:
 """,
     )
     create_controller_dir(plugin_root)
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
@@ -100,7 +133,7 @@ backend:
     (plugin_root / 'controller').mkdir()
     (plugin_root / 'seeds').mkdir()
     (plugin_root / 'seeds' / 'demo_seed.sql').write_text('select 1;\n', encoding='utf-8')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
@@ -139,7 +172,7 @@ backend:
     (plugin_root / 'controller').mkdir()
     (plugin_root / 'migrations').mkdir()
     (plugin_root / 'migrations' / '001_demo.sql').write_text('select 2;\n', encoding='utf-8')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
@@ -181,7 +214,7 @@ backend:
     (plugin_root / 'migrations').mkdir()
     migration_file = plugin_root / 'migrations' / '001_demo.sql'
     migration_file.write_text('select 2;\n', encoding='utf-8')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
     FakePluginService.migration_checksums = {
@@ -249,7 +282,7 @@ permissions:
     create_controller_dir(sample_root)
     create_frontend_view(backend_root, 'demo')
     create_frontend_view(backend_root, 'sample')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('sample'))
@@ -296,7 +329,7 @@ permissions:
     )
     create_controller_dir(plugin_root)
     create_frontend_view(backend_root, 'demo')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
     FakePluginService.installed_menu_conflicts = [
         SimpleNamespace(
@@ -342,7 +375,7 @@ backend:
     )
     create_controller_dir(plugin_root)
     create_frontend_view(backend_root, 'demo')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
@@ -388,7 +421,7 @@ permissions:
     )
     create_controller_dir(plugin_root)
     create_frontend_view(backend_root, 'demo')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
@@ -430,20 +463,15 @@ dependencies:
     frontend_root = backend_root.parent / 'ruoyi-fastapi-frontend'
     frontend_root.mkdir()
     (frontend_root / 'package.json').write_text('{"dependencies": {}, "devDependencies": {}}\n', encoding='utf-8')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
     expected_plan_count = 3
     runtime = build_runtime_with_gateway(backend_root, gateway)
-    runtime._refresh_dependency_checker = lambda: setattr(
-        runtime,
-        'dependency_checker',
-        PluginDependencyChecker(
-            python_inspector=PythonDependencyInspector(installed_packages={'missing-python': '1.0.0'}),
-            npm_inspector=NpmDependencyInspector(
-                installed_packages={'missing-npm': '1.2.3', 'missing-dev-npm': '4.5.6'}
-            ),
-        ),
+    refreshed_checker = PluginDependencyChecker(
+        python_inspector=PythonDependencyInspector(installed_packages={'missing-python': '1.0.0'}),
+        npm_inspector=NpmDependencyInspector(installed_packages={'missing-npm': '1.2.3', 'missing-dev-npm': '4.5.6'}),
     )
+    runtime._refresh_dependency_checker = lambda: runtime._set_dependency_checker(refreshed_checker)
 
     result = asyncio.run(runtime.install_plugin('demo'))
 
@@ -453,6 +481,7 @@ dependencies:
     assert result['dependencyInstall']['dependencyOk'] is False
     assert result['dependencyInstall']['postCheck']['dependencyOk'] is True
     assert result['dependencyOk'] is True
+    assert runtime.install.context.dependencies.dependency_checker is refreshed_checker
     assert gateway.commands[0][0][1:4] == ['-m', 'pip', 'install']
     assert gateway.commands[0][0][-1] == 'missing-python'
     assert gateway.commands[1][0] == ['npm', 'install', 'missing-npm@>=1.2.3']
@@ -488,7 +517,7 @@ dependencies:
 """,
     )
     create_controller_dir(plugin_root)
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     gateway.completed_process = CompletedProcess(args=[], returncode=1, stdout='', stderr='install failed')
     FakePluginService.reset()
 
@@ -532,7 +561,7 @@ config:
       pattern: '^[a-z]+$'
 """,
     )
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
     runtime = build_runtime_with_gateway(backend_root, gateway)
 
@@ -555,6 +584,200 @@ config:
     assert operation_log.payload['summary']['changedKeys'] == ['provider']
     assert operation_log.payload['summary']['changes'][0]['before'] == 'openai'
     assert operation_log.payload['summary']['changes'][0]['after'] == 'mistral'
+
+
+def test_plugin_runtime_get_plugin_config_delegates_to_config_use_case(tmp_path: Path) -> None:
+    """
+    校验插件配置读取入口委托给组合式配置 use case。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    runtime = build_runtime(tmp_path / 'backend')
+
+    class FakeConfigUseCase:
+        """
+        测试用插件配置 use case。
+        """
+
+        def __init__(self) -> None:
+            """
+            初始化测试用插件配置 use case。
+            """
+            self.plugin_id: str | None = None
+            self.reveal_secret: bool | None = None
+
+        async def get_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> dict:
+            """
+            记录插件配置读取调用。
+
+            :param plugin_id: 插件ID
+            :param reveal_secret: 是否展示敏感配置原值
+            :return: 测试负载
+            """
+            self.plugin_id = plugin_id
+            self.reveal_secret = reveal_secret
+            return {'ok': True, 'pluginId': plugin_id, 'revealSecret': reveal_secret}
+
+    config = FakeConfigUseCase()
+    runtime.config = config
+
+    payload = asyncio.run(runtime.get_plugin_config('demo', reveal_secret=True))
+
+    assert config.plugin_id == 'demo'
+    assert config.reveal_secret is True
+    assert payload == {'ok': True, 'pluginId': 'demo', 'revealSecret': True}
+
+
+def test_plugin_runtime_export_plugin_config_delegates_to_config_use_case(tmp_path: Path) -> None:
+    """
+    校验插件配置导出入口委托给组合式配置 use case。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    runtime = build_runtime(tmp_path / 'backend')
+
+    class FakeConfigUseCase:
+        """
+        测试用插件配置 use case。
+        """
+
+        def __init__(self) -> None:
+            """
+            初始化测试用插件配置 use case。
+            """
+            self.plugin_id: str | None = None
+            self.reveal_secret: bool | None = None
+
+        async def export_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> dict:
+            """
+            记录插件配置导出调用。
+
+            :param plugin_id: 插件ID
+            :param reveal_secret: 是否导出敏感配置明文
+            :return: 测试负载
+            """
+            self.plugin_id = plugin_id
+            self.reveal_secret = reveal_secret
+            return {'ok': True, 'pluginId': plugin_id, 'exported': True, 'revealSecret': reveal_secret}
+
+    config = FakeConfigUseCase()
+    runtime.config = config
+
+    payload = asyncio.run(runtime.export_plugin_config('demo', reveal_secret=True))
+
+    assert config.plugin_id == 'demo'
+    assert config.reveal_secret is True
+    assert payload == {'ok': True, 'pluginId': 'demo', 'exported': True, 'revealSecret': True}
+
+
+def test_plugin_runtime_set_plugin_config_delegates_to_config_use_case(tmp_path: Path) -> None:
+    """
+    校验插件配置更新入口委托给组合式配置 use case。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    runtime = build_runtime(tmp_path / 'backend')
+
+    class FakeConfigUseCase:
+        """
+        测试用插件配置 use case。
+        """
+
+        def __init__(self) -> None:
+            """
+            初始化测试用插件配置 use case。
+            """
+            self.plugin_id: str | None = None
+            self.values: dict[str, object] | None = None
+            self.audit_operation: str | None = None
+            self.success_message: str | None = None
+
+        async def set_plugin_config(
+            self,
+            plugin_id: str,
+            values: dict[str, object],
+            *,
+            audit_operation: str = 'config_set',
+            success_message: str = '插件配置已更新',
+        ) -> dict:
+            """
+            记录插件配置更新调用。
+
+            :param plugin_id: 插件ID
+            :param values: 配置键值
+            :param audit_operation: 审计操作类型
+            :param success_message: 操作成功提示
+            :return: 测试负载
+            """
+            self.plugin_id = plugin_id
+            self.values = values
+            self.audit_operation = audit_operation
+            self.success_message = success_message
+            return {'ok': True, 'pluginId': plugin_id, 'operation': audit_operation}
+
+    config = FakeConfigUseCase()
+    runtime.config = config
+
+    payload = asyncio.run(
+        runtime.set_plugin_config(
+            'demo',
+            {'provider': 'mistral'},
+            audit_operation='custom_set',
+            success_message='已保存',
+        )
+    )
+
+    assert config.plugin_id == 'demo'
+    assert config.values == {'provider': 'mistral'}
+    assert config.audit_operation == 'custom_set'
+    assert config.success_message == '已保存'
+    assert payload == {'ok': True, 'pluginId': 'demo', 'operation': 'custom_set'}
+
+
+def test_plugin_runtime_import_plugin_config_delegates_to_config_use_case(tmp_path: Path) -> None:
+    """
+    校验插件配置导入入口委托给组合式配置 use case。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    runtime = build_runtime(tmp_path / 'backend')
+
+    class FakeConfigUseCase:
+        """
+        测试用插件配置 use case。
+        """
+
+        def __init__(self) -> None:
+            """
+            初始化测试用插件配置 use case。
+            """
+            self.plugin_id: str | None = None
+            self.values: dict[str, object] | None = None
+
+        async def import_plugin_config(self, plugin_id: str, values: dict[str, object]) -> dict:
+            """
+            记录插件配置导入调用。
+
+            :param plugin_id: 插件ID
+            :param values: 待导入配置键值
+            :return: 测试负载
+            """
+            self.plugin_id = plugin_id
+            self.values = values
+            return {'ok': True, 'pluginId': plugin_id, 'importedKeys': sorted(values)}
+
+    config = FakeConfigUseCase()
+    runtime.config = config
+
+    payload = asyncio.run(runtime.import_plugin_config('demo', {'provider': 'mistral'}))
+
+    assert config.plugin_id == 'demo'
+    assert config.values == {'provider': 'mistral'}
+    assert payload == {'ok': True, 'pluginId': 'demo', 'importedKeys': ['provider']}
 
 
 def test_plugin_runtime_export_plugin_config_masks_secret_by_default(tmp_path: Path) -> None:
@@ -583,7 +806,7 @@ config:
       secret: true
 """,
     )
-    runtime = build_runtime_with_gateway(backend_root, FakePluginInfrastructureGateway())
+    runtime = build_runtime_with_gateway(backend_root, FakePluginRuntimeGateway())
 
     masked_result = asyncio.run(runtime.export_plugin_config('demo'))
     plain_result = asyncio.run(runtime.export_plugin_config('demo', reveal_secret=True))
@@ -622,7 +845,7 @@ config:
 """,
     )
     FakePluginService.reset()
-    runtime = build_runtime_with_gateway(backend_root, FakePluginInfrastructureGateway())
+    runtime = build_runtime_with_gateway(backend_root, FakePluginRuntimeGateway())
 
     result = asyncio.run(runtime.import_plugin_config('demo', {'provider': 'mistral'}))
 
@@ -673,7 +896,7 @@ config:
     )
     create_controller_dir(plugin_root)
     create_frontend_view(backend_root, 'demo')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
     FakePluginService.operation_logs = [
         SimpleNamespace(
@@ -712,6 +935,45 @@ config:
     assert result['audit']['available'] is True
     assert result['audit']['count'] == 1
     assert result['audit']['items'][0]['operation'] == 'install'
+
+
+def test_plugin_runtime_diagnose_plugin_delegates_to_query_use_case(tmp_path: Path) -> None:
+    """
+    校验插件诊断入口委托给组合式查询 use case。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    runtime = build_runtime(tmp_path / 'backend')
+
+    class FakeQueryUseCase:
+        """
+        测试用插件查询 use case。
+        """
+
+        def __init__(self) -> None:
+            """
+            初始化测试用插件查询 use case。
+            """
+            self.plugin_id: str | None = None
+
+        async def diagnose_plugin(self, plugin_id: str) -> dict:
+            """
+            记录插件诊断调用。
+
+            :param plugin_id: 插件ID
+            :return: 测试负载
+            """
+            self.plugin_id = plugin_id
+            return {'ok': True, 'pluginId': plugin_id, 'diagnostics': True}
+
+    query = FakeQueryUseCase()
+    runtime.query = query
+
+    payload = asyncio.run(runtime.diagnose_plugin('demo'))
+
+    assert query.plugin_id == 'demo'
+    assert payload == {'ok': True, 'pluginId': 'demo', 'diagnostics': True}
 
 
 def test_plugin_runtime_health_plugin_returns_checker_result(tmp_path: Path) -> None:
@@ -792,7 +1054,7 @@ backend:
         'async def run(query_db):\n    query_db.seed_ran = True\n',
         encoding='utf-8',
     )
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))

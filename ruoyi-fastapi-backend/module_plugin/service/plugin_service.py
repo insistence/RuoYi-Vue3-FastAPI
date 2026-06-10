@@ -26,8 +26,11 @@ class PluginOperationService:
         :param runtime_service: 插件运行时服务
         :return: None
         """
+        runtime_gateway = PluginManagementRuntimeGateway()
         self.runtime_service = runtime_service or PluginRuntimeService(
-            infrastructure_gateway=PluginManagementRuntimeGateway(),
+            state_gateway=runtime_gateway,
+            model_gateway=runtime_gateway,
+            command_gateway=runtime_gateway,
         )
 
     async def check_plugin_services(self, plugin_id: str) -> dict[str, Any]:

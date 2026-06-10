@@ -1,6 +1,62 @@
 # ruff: noqa: F403, F405
 
+import cli.runtime.plugin.scaffold.payload as scaffold_payload_module
+
 from .conftest import *
+
+
+class LazyPluginGateway:
+    """
+    测试用 CLI 插件网关，验证开发者能力可懒解析运行时依赖。
+    """
+
+    def __init__(self, backend_root: Path) -> None:
+        """
+        初始化测试用 CLI 插件网关。
+
+        :param backend_root: 后端项目根目录
+        :return: None
+        """
+        self.backend_root = backend_root
+        self.runtime_environment_requested = False
+
+    def get_core_runtime_environment(self) -> FakeRuntimeEnvironment:
+        """
+        获取测试运行时环境。
+
+        :return: 测试运行时环境
+        """
+        self.runtime_environment_requested = True
+        return FakeRuntimeEnvironment(self.backend_root)
+
+    @staticmethod
+    def build_exception_payload(message: str, exc: Exception) -> dict[str, object]:
+        """
+        构建测试异常负载。
+
+        :param message: 异常消息
+        :param exc: 异常对象
+        :return: 异常负载
+        """
+        return {'ok': False, 'message': message, 'error': str(exc)}
+
+
+def test_plugin_runtime_create_plugin_lazily_resolves_runtime_environment(tmp_path: Path) -> None:
+    """
+    校验插件模板创建会通过 CLI 网关懒解析运行时环境。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    backend_root.mkdir()
+    plugin_gateway = LazyPluginGateway(backend_root)
+    runtime = CliPluginRuntimeService(plugin_gateway=plugin_gateway)
+
+    payload = runtime.create_plugin('demo', dry_run=True)
+
+    assert payload['ok'] is True
+    assert plugin_gateway.runtime_environment_requested is True
 
 
 def test_plugin_runtime_create_plugin_dry_run_does_not_write_files(tmp_path: Path) -> None:
@@ -297,3 +353,106 @@ def test_plugin_scaffold_builder_builds_payloads() -> None:
     assert conflict_payload['ok'] is False
     assert conflict_payload['conflicts'] == ['/tmp/demo']
     assert conflict_payload['exit_code'] == RUNTIME_ERROR
+
+
+def test_plugin_scaffold_plan_payload_model_preserves_existing_contract(tmp_path: Path) -> None:
+    """
+    校验插件模板写入计划结构化负载保持既有 JSON 契约。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    file_path = tmp_path / 'plugins' / 'demo' / 'plugin.yaml'
+    payload_model = getattr(scaffold_payload_module, 'PluginScaffoldPlanPayload', None)
+    assert payload_model is not None
+
+    payload = payload_model(
+        template='minimal',
+        backend=True,
+        frontend=False,
+        migration=False,
+        seed=False,
+        job=False,
+        config=False,
+        crud=False,
+        test=True,
+        backend_test=True,
+        frontend_test=False,
+        target_dirs=[str(tmp_path / 'plugins' / 'demo')],
+        files=[(file_path, 'id: demo\n')],
+        conflicts=[],
+    ).to_payload()
+
+    assert payload == {
+        'backend': True,
+        'frontend': False,
+        'template': 'minimal',
+        'migration': False,
+        'seed': False,
+        'job': False,
+        'config': False,
+        'crud': False,
+        'test': True,
+        'backendTest': True,
+        'frontendTest': False,
+        'targetDirs': [str(tmp_path / 'plugins' / 'demo')],
+        'files': [{'path': str(file_path), 'content': 'id: demo\n'}],
+        'conflicts': [],
+    }
+
+
+def test_plugin_scaffold_success_payload_model_preserves_existing_contract() -> None:
+    """
+    校验插件模板创建成功结构化负载保持既有 JSON 契约。
+
+    :return: None
+    """
+    scaffold_plan = {
+        'template': 'minimal',
+        'backend': True,
+        'frontend': False,
+        'files': [],
+        'conflicts': [],
+    }
+
+    payload_model = getattr(scaffold_payload_module, 'PluginScaffoldSuccessPayload', None)
+    assert payload_model is not None
+
+    payload = payload_model('demo', scaffold_plan, dry_run=True).to_payload()
+
+    assert payload == {
+        'ok': True,
+        'message': '插件模板预演完成',
+        'pluginId': 'demo',
+        'dryRun': True,
+        **scaffold_plan,
+    }
+
+
+def test_plugin_scaffold_conflict_payload_model_preserves_existing_contract() -> None:
+    """
+    校验插件模板目录冲突结构化负载保持既有 JSON 契约。
+
+    :return: None
+    """
+    scaffold_plan = {
+        'template': 'minimal',
+        'backend': True,
+        'frontend': False,
+        'files': [],
+        'conflicts': ['/tmp/demo'],
+    }
+
+    payload_model = getattr(scaffold_payload_module, 'PluginScaffoldConflictPayload', None)
+    assert payload_model is not None
+
+    payload = payload_model('demo', scaffold_plan, dry_run=False, failure_code=RUNTIME_ERROR).to_payload()
+
+    assert payload == {
+        'ok': False,
+        'message': '插件目录已存在，拒绝覆盖',
+        'pluginId': 'demo',
+        'dryRun': False,
+        **scaffold_plan,
+        'exit_code': RUNTIME_ERROR,
+    }

@@ -4,7 +4,7 @@ from typing import Any
 from plugins.core.validation.dependencies import PluginDependencyChecker
 
 from .environment import PluginRuntimeEnvironmentService
-from .gateway import PluginInfrastructureGateway
+from .gateway import PluginCommandRunnerGateway, PluginManagementModelGateway, PluginStateGateway
 
 
 @dataclass(frozen=True)
@@ -15,4 +15,6 @@ class PluginRuntimeDependencies:
 
     runtime_environment: PluginRuntimeEnvironmentService
     dependency_checker: PluginDependencyChecker
-    infrastructure_gateway: PluginInfrastructureGateway | Any
+    state_gateway: PluginStateGateway | Any
+    model_gateway: PluginManagementModelGateway | Any
+    command_gateway: PluginCommandRunnerGateway | Any

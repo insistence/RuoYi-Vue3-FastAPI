@@ -88,22 +88,9 @@ class PluginCommandRunnerGateway(Protocol):
         """
 
 
-class PluginInfrastructureGateway(
-    PluginStateGateway, PluginManagementModelGateway, PluginCommandRunnerGateway, Protocol
-):
+class UnavailablePluginStateGateway:
     """
-    插件运行时基础设施网关协议。
-
-    该协议兼容旧的聚合网关，同时由更窄的状态、模型和命令执行协议组成。
-    """
-
-
-class DefaultPluginInfrastructureGateway:
-    """
-    插件运行时默认基础设施网关。
-
-    默认网关只提供系统命令执行能力；涉及管理数据库状态的操作必须由
-    调用方注入具体适配器后才能执行。
+    不可用的插件管理状态网关。
     """
 
     @staticmethod
@@ -125,6 +112,12 @@ class DefaultPluginInfrastructureGateway:
         :raises RuntimeError: 默认网关不提供插件管理服务适配器
         """
         raise RuntimeError('插件运行时缺少插件管理服务适配器')
+
+
+class UnavailablePluginManagementModelGateway:
+    """
+    不可用的插件管理模型工厂网关。
+    """
 
     @staticmethod
     def build_operation_log_export_query(export_limit: int) -> Any:
@@ -168,6 +161,12 @@ class DefaultPluginInfrastructureGateway:
         :raises RuntimeError: 默认网关不提供管理状态 VO 适配器
         """
         raise RuntimeError('插件运行时缺少 migration 历史记录适配器')
+
+
+class DefaultPluginCommandRunnerGateway:
+    """
+    默认插件命令执行网关。
+    """
 
     @staticmethod
     def run_command(

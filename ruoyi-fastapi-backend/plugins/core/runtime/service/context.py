@@ -6,7 +6,6 @@ from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
 from plugins.core.runtime.capability import PluginRuntimeCapability, PluginRuntimeCapabilityResolver
 from plugins.core.runtime.support import PluginPrecheckContext
-from plugins.core.validation.dependencies import PluginDependencyChecker
 from plugins.core.validation.manifest import PluginManifestChecker
 from plugins.core.validation.menus import PluginMenuConflictChecker
 from plugins.core.validation.plugin_deps import (
@@ -17,42 +16,46 @@ from plugins.core.validation.plugin_deps import (
 )
 from plugins.core.validation.structure import PluginStructureChecker
 
-from .gateway import PluginInfrastructureGateway
+from .dependency_container import PluginRuntimeDependencies
 
 
-class PluginRuntimeContextMixin:
+class PluginRuntimeContextService:
     """
-    插件应用运行时上下文能力。
+    插件应用运行时上下文服务。
 
-    使用 Mixin 模式集中提供插件发现、注册表构建、数据库状态读取和预检上下文构建能力，
-    让具体 runtime service 或后续拆分出的 handler 只关注插件操作编排。
+    集中提供插件发现、注册表构建、数据库状态读取和预检上下文构建能力，
+    让 runtime facade 和组合式 use case 只关注插件操作编排。
     """
 
-    runtime_environment: Any
-    dependency_checker: PluginDependencyChecker
-    infrastructure_gateway: PluginInfrastructureGateway
+    def __init__(self, dependencies: PluginRuntimeDependencies) -> None:
+        """
+        初始化插件运行时上下文服务。
 
-    def _build_registry(self) -> PluginRegistry:
+        :param dependencies: 插件运行时依赖容器
+        """
+        self.dependencies = dependencies
+
+    def build_registry(self) -> PluginRegistry:
         """
         构建本地插件注册表。
 
         :return: 插件注册表
         """
-        backend_root = Path(self.runtime_environment.get_backend_dir())
-        return PluginRegistry.build(self._discover_plugins(backend_root))
+        backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
+        return PluginRegistry.build(self.discover_plugins(backend_root))
 
-    def _get_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
+    def get_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
         """
         根据插件 ID 获取已发现插件。
 
         :param plugin_id: 插件ID
         :return: 已发现插件对象
         """
-        backend_root = Path(self.runtime_environment.get_backend_dir())
-        return self._get_discovered_plugin_from_list(self._discover_plugins(backend_root), plugin_id)
+        backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
+        return self.get_discovered_plugin_from_list(self.discover_plugins(backend_root), plugin_id)
 
     @staticmethod
-    def _get_discovered_plugin_from_list(
+    def get_discovered_plugin_from_list(
         discovered_plugins: list[DiscoveredPlugin],
         plugin_id: str,
     ) -> DiscoveredPlugin | None:
@@ -69,7 +72,7 @@ class PluginRuntimeContextMixin:
 
         return None
 
-    async def _load_database_plugin_state(self, plugin_id: str) -> tuple[Any | None, str | None]:
+    async def load_database_plugin_state(self, plugin_id: str) -> tuple[Any | None, str | None]:
         """
         读取数据库插件状态。
 
@@ -77,61 +80,53 @@ class PluginRuntimeContextMixin:
         :return: 数据库插件状态和错误信息
         """
         try:
-            async_session_local = self.infrastructure_gateway.get_async_session_local()
-            plugin_service = self.infrastructure_gateway.get_plugin_service()
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
                 return await plugin_service.plugin_detail_services(session, plugin_id), None
         except Exception as exc:
             return None, str(exc)
 
-    async def _load_database_plugin_states(self) -> list[Any]:
+    async def load_database_plugin_states(self) -> list[Any]:
         """
         读取数据库插件状态列表。
 
         :return: 数据库插件状态列表
         """
         try:
-            async_session_local = self.infrastructure_gateway.get_async_session_local()
-            plugin_service = self.infrastructure_gateway.get_plugin_service()
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
                 return await plugin_service.get_plugin_list_services(session)
         except Exception:
             return []
 
-    def _load_database_plugin_states_sync(self) -> list[Any]:
+    def load_database_plugin_states_sync(self) -> list[Any]:
         """
         以同步方式读取数据库插件状态列表。
 
         :return: 数据库插件状态列表
         """
-        if not self._has_plugin_dependencies():
+        if not self.has_plugin_dependencies():
             return []
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return asyncio.run(self._load_database_plugin_states())
+            return asyncio.run(self.load_database_plugin_states())
         return []
 
-    def _has_plugin_dependencies(self) -> bool:
+    def has_plugin_dependencies(self) -> bool:
         """
         判断当前本地插件是否声明了插件间依赖。
 
         :return: 是否存在插件间依赖声明
         """
-        backend_root = Path(self.runtime_environment.get_backend_dir())
-        return any(plugin.manifest.dependencies.plugins for plugin in self._discover_plugins(backend_root))
+        backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
+        return any(plugin.manifest.dependencies.plugins for plugin in self.discover_plugins(backend_root))
 
-    def _refresh_dependency_checker(self) -> None:
-        """
-        刷新插件 Python/npm 依赖检查器。
-
-        :return: None
-        """
-        self.dependency_checker = PluginDependencyChecker(
-            frontend_mode=self.runtime_environment.get_frontend_mode(),
-        )
-
-    def _resolve_plugin_capability(self, discovered_plugin: DiscoveredPlugin) -> PluginRuntimeCapability:
+    def resolve_plugin_capability(self, discovered_plugin: DiscoveredPlugin) -> PluginRuntimeCapability:
         """
         解析插件运行时操作能力。
 
@@ -139,11 +134,11 @@ class PluginRuntimeContextMixin:
         :return: 插件运行时能力
         """
         return PluginRuntimeCapabilityResolver(
-            frontend_mode=self.runtime_environment.get_frontend_mode(),
-            backend_runtime_mode=self.runtime_environment.get_backend_runtime_mode(),
+            frontend_mode=self.dependencies.runtime_environment.get_frontend_mode(),
+            backend_runtime_mode=self.dependencies.runtime_environment.get_backend_runtime_mode(),
         ).resolve(discovered_plugin)
 
-    def _with_plugin_capability(
+    def with_plugin_capability(
         self,
         payload: dict[str, Any],
         discovered_plugin: DiscoveredPlugin | None,
@@ -156,10 +151,10 @@ class PluginRuntimeContextMixin:
         :return: 附加能力后的响应负载
         """
         if discovered_plugin:
-            payload['capability'] = self._resolve_plugin_capability(discovered_plugin).to_payload()
+            payload['capability'] = self.resolve_plugin_capability(discovered_plugin).to_payload()
         return payload
 
-    def _build_operation_blocked_payload(
+    def build_operation_blocked_payload(
         self,
         discovered_plugin: DiscoveredPlugin,
         operation: str,
@@ -174,7 +169,7 @@ class PluginRuntimeContextMixin:
         :param dry_run: 是否预演
         :return: 阻断负载，不阻断时返回 None
         """
-        capability = self._resolve_plugin_capability(discovered_plugin)
+        capability = self.resolve_plugin_capability(discovered_plugin)
         if capability.allows(operation):
             return None
         payload = {
@@ -191,7 +186,7 @@ class PluginRuntimeContextMixin:
             payload['dryRun'] = dry_run
         return payload
 
-    async def _check_inter_plugin_dependencies(
+    async def check_inter_plugin_dependencies(
         self,
         discovered_plugin: DiscoveredPlugin,
         discovered_plugins: list[DiscoveredPlugin],
@@ -205,12 +200,12 @@ class PluginRuntimeContextMixin:
         """
         if not discovered_plugin.manifest.dependencies.plugins:
             return PluginDependencyCheckResult(plugin_id=discovered_plugin.manifest.id, items=[])
-        database_plugins = await self._load_database_plugin_states()
+        database_plugins = await self.load_database_plugin_states()
         return InterPluginDependencyChecker(discovered_plugins, database_plugins).check_manifest(
             discovered_plugin.manifest
         )
 
-    async def _build_precheck_context(
+    async def build_precheck_context(
         self,
         backend_root: Path,
         discovered_plugin: DiscoveredPlugin,
@@ -224,9 +219,9 @@ class PluginRuntimeContextMixin:
         :param discovered_plugins: 已发现插件列表
         :return: 插件操作预检上下文
         """
-        dependency_result = self.dependency_checker.check_manifest(discovered_plugin.manifest)
+        dependency_result = self.dependencies.dependency_checker.check_manifest(discovered_plugin.manifest)
         manifest_result = PluginManifestChecker(backend_root=backend_root).check(discovered_plugin.manifest)
-        plugin_dependency_result = await self._check_inter_plugin_dependencies(discovered_plugin, discovered_plugins)
+        plugin_dependency_result = await self.check_inter_plugin_dependencies(discovered_plugin, discovered_plugins)
         structure_result = PluginStructureChecker(backend_root).check(discovered_plugin)
         menu_conflict_result = PluginMenuConflictChecker().check(discovered_plugin, discovered_plugins)
 
@@ -239,7 +234,7 @@ class PluginRuntimeContextMixin:
         )
 
     @staticmethod
-    def _discover_plugins(backend_root: Path) -> list[DiscoveredPlugin]:
+    def discover_plugins(backend_root: Path) -> list[DiscoveredPlugin]:
         """
         发现本地插件。
 

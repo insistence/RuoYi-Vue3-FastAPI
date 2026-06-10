@@ -6,11 +6,33 @@ from plugins.core.runtime.support import (
     PluginRuntimePayloadBuilder,
 )
 
+from .context import PluginRuntimeContextService
+from .dependency_container import PluginRuntimeDependencies
 
-class PluginConfigOperationMixin:
+
+class PluginConfigUseCase:
     """
-    插件配置读取、导出、更新和导入操作。
+    插件配置 use case。
     """
+
+    def __init__(self, dependencies: PluginRuntimeDependencies, context: PluginRuntimeContextService) -> None:
+        """
+        初始化插件配置 use case。
+
+        :param dependencies: 插件运行时依赖容器
+        :param context: 插件运行时上下文服务
+        """
+        self.dependencies = dependencies
+        self.context = context
+
+    def _get_discovered_plugin(self, plugin_id: str) -> Any | None:
+        """
+        根据插件 ID 获取已发现插件。
+
+        :param plugin_id: 插件ID
+        :return: 已发现插件对象
+        """
+        return self.context.get_discovered_plugin(plugin_id)
 
     async def get_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> dict[str, Any]:
         """
@@ -25,8 +47,9 @@ class PluginConfigOperationMixin:
             if not discovered_plugin:
                 return PluginPayloadBuilder.build_plugin_not_found_payload(plugin_id)
 
-            async_session_local = self.infrastructure_gateway.get_async_session_local()
-            plugin_service = self.infrastructure_gateway.get_plugin_service()
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
                 configs = await plugin_service.get_plugin_config_services(
                     session,
@@ -80,8 +103,10 @@ class PluginConfigOperationMixin:
             if not discovered_plugin:
                 return PluginPayloadBuilder.build_plugin_not_found_payload(plugin_id)
 
-            async_session_local = self.infrastructure_gateway.get_async_session_local()
-            plugin_service = self.infrastructure_gateway.get_plugin_service()
+            gateway = self.dependencies.state_gateway
+            model_gateway = self.dependencies.model_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
                 before_configs = await plugin_service.get_plugin_config_services(
                     session,
@@ -91,7 +116,7 @@ class PluginConfigOperationMixin:
                 configs = await plugin_service.update_plugin_config_services(
                     session,
                     discovered_plugin,
-                    self.infrastructure_gateway.build_config_update(values),
+                    model_gateway.build_config_update(values),
                 )
                 audit_payload = PluginConfigPayloadBuilder.build_audit_payload(
                     plugin_id,

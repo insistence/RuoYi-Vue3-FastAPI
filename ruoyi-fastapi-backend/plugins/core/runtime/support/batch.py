@@ -31,6 +31,94 @@ class PluginBatchItemReport:
     suggestion: str
 
 
+@dataclass(frozen=True)
+class PluginBatchDryRunPayload:
+    """
+    插件批量预演结构化负载。
+    """
+
+    plan_payload: dict[str, Any]
+    continue_on_error: bool
+    summary: dict[str, int]
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件批量预演 payload 契约。
+
+        :return: 插件批量预演 payload
+        """
+        return {
+            **self.plan_payload,
+            'message': '插件批量操作演练完成，未执行实际写入',
+            'dryRun': True,
+            'continueOnError': self.continue_on_error,
+            'executed': [],
+            'failed': None,
+            'summary': self.summary,
+        }
+
+
+@dataclass(frozen=True)
+class PluginBatchExecutionPayload:
+    """
+    插件批量执行结构化负载。
+    """
+
+    plan_payload: dict[str, Any]
+    reports: list[PluginBatchItemReport]
+    failed: dict[str, Any] | None
+    continue_on_error: bool
+    message: str
+    summary: dict[str, int]
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件批量执行 payload 契约。
+
+        :return: 插件批量执行 payload
+        """
+        ok = self.failed is None
+        return {
+            **self.plan_payload,
+            'ok': ok,
+            'message': self.message,
+            'dryRun': False,
+            'continueOnError': self.continue_on_error,
+            'executed': [PluginBatchReportBuilder.dump_item_report(report) for report in self.reports],
+            'failed': self.failed,
+            'summary': self.summary,
+            'exit_code': SUCCESS if ok else RUNTIME_ERROR,
+        }
+
+
+@dataclass(frozen=True)
+class PluginBatchPlanBlockedPayload:
+    """
+    插件批量计划阻断结构化负载。
+    """
+
+    plan_payload: dict[str, Any]
+    dry_run: bool
+    continue_on_error: bool
+    summary: dict[str, int]
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件批量计划阻断 payload 契约。
+
+        :return: 插件批量计划阻断 payload
+        """
+        return {
+            **self.plan_payload,
+            'dryRun': self.dry_run,
+            'continueOnError': self.continue_on_error,
+            'executed': [],
+            'failed': None,
+            'summary': self.summary,
+            'message': '插件批量操作计划存在阻塞项，未执行任何写操作',
+        }
+
+
 class PluginBatchReportBuilder:
     """
     插件批量执行报告构建器。
@@ -149,15 +237,12 @@ class PluginBatchReportBuilder:
         :return: 插件批量计划阻断负载
         """
         total = cls._count_planned_items(plan_payload)
-        return {
-            **plan_payload,
-            'dryRun': dry_run,
-            'continueOnError': continue_on_error,
-            'executed': [],
-            'failed': None,
-            'summary': cls.build_summary([], total),
-            'message': '插件批量操作计划存在阻塞项，未执行任何写操作',
-        }
+        return PluginBatchPlanBlockedPayload(
+            plan_payload=plan_payload,
+            dry_run=dry_run,
+            continue_on_error=continue_on_error,
+            summary=cls.build_summary([], total),
+        ).to_payload()
 
     @classmethod
     def build_dry_run_payload(
@@ -174,15 +259,11 @@ class PluginBatchReportBuilder:
         :return: 插件批量执行预演负载
         """
         total = cls._count_planned_items(plan_payload)
-        return {
-            **plan_payload,
-            'message': '插件批量操作演练完成，未执行实际写入',
-            'dryRun': True,
-            'continueOnError': continue_on_error,
-            'executed': [],
-            'failed': None,
-            'summary': cls.build_summary([], total),
-        }
+        return PluginBatchDryRunPayload(
+            plan_payload=plan_payload,
+            continue_on_error=continue_on_error,
+            summary=cls.build_summary([], total),
+        ).to_payload()
 
     @classmethod
     def build_failed_payload(
@@ -218,17 +299,14 @@ class PluginBatchReportBuilder:
         :return: 插件批量执行结果负载
         """
         ok = failed is None
-        return {
-            **plan_payload,
-            'ok': ok,
-            'message': cls.build_batch_message(ok, continue_on_error),
-            'dryRun': False,
-            'continueOnError': continue_on_error,
-            'executed': [cls.dump_item_report(report) for report in reports],
-            'failed': failed,
-            'summary': cls.build_summary(reports, cls._count_planned_items(plan_payload)),
-            'exit_code': SUCCESS if ok else RUNTIME_ERROR,
-        }
+        return PluginBatchExecutionPayload(
+            plan_payload=plan_payload,
+            reports=reports,
+            failed=failed,
+            continue_on_error=continue_on_error,
+            message=cls.build_batch_message(ok, continue_on_error),
+            summary=cls.build_summary(reports, cls._count_planned_items(plan_payload)),
+        ).to_payload()
 
     @staticmethod
     def build_batch_message(ok: bool, continue_on_error: bool) -> str:

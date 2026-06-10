@@ -297,6 +297,47 @@ async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: py
 
 
 @pytest.mark.asyncio
+async def test_enable_system_plugin_returns_runtime_payload_when_not_ok(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    校验启用插件失败时接口透传运行时失败负载。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+
+    class FakePluginOperationService:
+        """
+        测试用插件操作服务。
+        """
+
+        async def set_plugin_enabled_services(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict:
+            """
+            返回失败启用结果。
+
+            :param plugin_id: 插件ID
+            :param enabled: 是否启用
+            :param dry_run: 是否仅预演
+            :return: 插件启用结果
+            """
+            return {'ok': False, 'message': '启用失败', 'pluginId': plugin_id, 'enabled': enabled}
+
+    monkeypatch.setattr(plugin_controller, 'PluginOperationService', FakePluginOperationService)
+
+    response = await plugin_controller.enable_system_plugin(
+        request=build_request('/system/plugin/demo/enable', method='PUT'),
+        plugin_id='demo',
+        query_db=FakeAsyncSession(),
+    )
+    body = load_response_body(response)
+
+    assert response.status_code == HTTP_OK
+    assert body['success'] is False
+    assert body['msg'] == '启用失败'
+    assert body['data']['ok'] is False
+    assert body['data']['pluginId'] == 'demo'
+
+
+@pytest.mark.asyncio
 async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     校验停用插件接口走运行时服务，确保内部事务会被提交。
@@ -321,7 +362,7 @@ async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pyte
             :return: 插件停用结果
             """
             recorded.update({'plugin_id': plugin_id, 'enabled': enabled, 'dry_run': dry_run})
-            return {'ok': True, 'message': '停用成功'}
+            return {'ok': True, 'message': '停用成功', 'pluginId': plugin_id, 'enabled': enabled}
 
     monkeypatch.setattr(plugin_controller, 'PluginOperationService', FakePluginOperationService)
 
@@ -329,9 +370,14 @@ async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pyte
         request=build_request('/system/plugin/demo/disable', method='PUT'),
         plugin_id='demo',
     )
+    body = load_response_body(response)
 
     assert response.status_code == HTTP_OK
     assert recorded == {'plugin_id': 'demo', 'enabled': False, 'dry_run': False}
+    assert body['success'] is True
+    assert body['msg'] == '停用成功'
+    assert body['data']['pluginId'] == 'demo'
+    assert body['data']['enabled'] is False
 
 
 @pytest.mark.asyncio

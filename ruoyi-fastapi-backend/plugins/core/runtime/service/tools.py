@@ -6,11 +6,33 @@ from plugins.core.runtime.support import (
     PluginRuntimePayloadBuilder,
 )
 
+from .context import PluginRuntimeContextService
+from .dependency_container import PluginRuntimeDependencies
 
-class PluginToolOperationMixin:
+
+class PluginToolUseCase:
     """
-    插件运行时工具操作。
+    插件运行时工具 use case。
     """
+
+    def __init__(self, dependencies: PluginRuntimeDependencies, context: PluginRuntimeContextService) -> None:
+        """
+        初始化插件运行时工具 use case。
+
+        :param dependencies: 插件运行时依赖容器
+        :param context: 插件运行时上下文服务
+        """
+        self.dependencies = dependencies
+        self.context = context
+
+    def _get_discovered_plugin(self, plugin_id: str) -> Any | None:
+        """
+        根据插件 ID 获取已发现插件。
+
+        :param plugin_id: 插件ID
+        :return: 已发现插件对象
+        """
+        return self.context.get_discovered_plugin(plugin_id)
 
     def generate_plugin_docs(self, plugin_id: str) -> dict[str, Any]:
         """

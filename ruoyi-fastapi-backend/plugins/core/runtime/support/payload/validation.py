@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
@@ -11,6 +12,81 @@ if TYPE_CHECKING:
     from plugins.core.validation.plugin_deps import PluginDependencyCheckItem
     from plugins.core.validation.result import PluginValidationIssue
     from plugins.core.validation.structure import PluginStructureCheckItem
+
+
+@dataclass(frozen=True)
+class PluginDependencyCheckPayload:
+    """
+    插件依赖检查结构化负载。
+    """
+
+    plugin_id: str
+    dependency_result: DependencyCheckResult
+    builder: type[Any] | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件依赖检查 payload 契约。
+
+        :return: 插件依赖检查 payload
+        """
+        builder = self.builder or PluginValidationPayloadMixin
+        return {
+            'ok': self.dependency_result.ok,
+            'message': '插件依赖已满足' if self.dependency_result.ok else '插件依赖存在问题',
+            'pluginId': self.plugin_id,
+            'dependencyOk': self.dependency_result.ok,
+            'dependencies': [builder.build_dependency_item(item) for item in self.dependency_result.items],
+            'missingDependencies': [item.name for item in self.dependency_result.missing_items],
+            'unsatisfiedDependencies': [item.name for item in self.dependency_result.unsatisfied_items],
+            'exit_code': SUCCESS if self.dependency_result.ok else DEPENDENCY_ERROR,
+        }
+
+
+@dataclass(frozen=True)
+class PluginCheckItemPayload:
+    """
+    插件检查单项结构化负载。
+    """
+
+    plugin_id: str
+    precheck: Any
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件检查单项 payload 契约。
+
+        :return: 插件检查单项 payload
+        """
+        return {
+            'pluginId': self.plugin_id,
+            'ok': self.precheck.ok,
+            **self.precheck.check_payload,
+        }
+
+
+@dataclass(frozen=True)
+class PluginCheckPayload:
+    """
+    插件检查聚合结构化负载。
+    """
+
+    checks: list[dict[str, Any]]
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件检查聚合 payload 契约。
+
+        :return: 插件检查聚合 payload
+        """
+        ok = all(check['ok'] for check in self.checks)
+        return {
+            'ok': ok,
+            'message': '插件检查通过' if ok else '插件检查存在问题',
+            'count': len(self.checks),
+            'checks': self.checks,
+            'exit_code': SUCCESS if ok else DEPENDENCY_ERROR,
+        }
 
 
 class PluginValidationPayloadMixin:
@@ -125,16 +201,7 @@ class PluginValidationPayloadMixin:
         :param dependency_result: 依赖检查结果
         :return: 插件依赖检查负载
         """
-        return {
-            'ok': dependency_result.ok,
-            'message': '插件依赖已满足' if dependency_result.ok else '插件依赖存在问题',
-            'pluginId': plugin_id,
-            'dependencyOk': dependency_result.ok,
-            'dependencies': [cls.build_dependency_item(item) for item in dependency_result.items],
-            'missingDependencies': [item.name for item in dependency_result.missing_items],
-            'unsatisfiedDependencies': [item.name for item in dependency_result.unsatisfied_items],
-            'exit_code': SUCCESS if dependency_result.ok else DEPENDENCY_ERROR,
-        }
+        return PluginDependencyCheckPayload(plugin_id, dependency_result, builder=cls).to_payload()
 
     @staticmethod
     def build_check_item(plugin_id: str, precheck: Any) -> dict[str, Any]:
@@ -145,11 +212,7 @@ class PluginValidationPayloadMixin:
         :param precheck: 插件操作预检上下文
         :return: 插件检查单项负载
         """
-        return {
-            'pluginId': plugin_id,
-            'ok': precheck.ok,
-            **precheck.check_payload,
-        }
+        return PluginCheckItemPayload(plugin_id, precheck).to_payload()
 
     @staticmethod
     def build_check_payload(checks: list[dict[str, Any]]) -> dict[str, Any]:
@@ -159,11 +222,4 @@ class PluginValidationPayloadMixin:
         :param checks: 插件检查单项负载列表
         :return: 插件检查聚合负载
         """
-        ok = all(check['ok'] for check in checks)
-        return {
-            'ok': ok,
-            'message': '插件检查通过' if ok else '插件检查存在问题',
-            'count': len(checks),
-            'checks': checks,
-            'exit_code': SUCCESS if ok else DEPENDENCY_ERROR,
-        }
+        return PluginCheckPayload(checks).to_payload()

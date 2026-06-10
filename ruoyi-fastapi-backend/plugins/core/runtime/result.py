@@ -31,3 +31,13 @@ class PluginOperationResult:
             ok=bool(payload.get('ok', False)),
             message=str(payload.get('message') or default_message),
         )
+
+    def exit_code(self, *, success_exit_code: int, failure_exit_code: int) -> int:
+        """
+        根据插件操作结果选择退出码。
+
+        :param success_exit_code: 成功退出码
+        :param failure_exit_code: 失败退出码
+        :return: 退出码
+        """
+        return success_exit_code if self.ok else failure_exit_code

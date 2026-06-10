@@ -11,23 +11,71 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(BACKEND_ROOT))
 from plugins.core.lifecycle.migration import PluginMigrationRunner  # noqa: E402
 from plugins.core.lifecycle.purge import PluginPurgePlan, PluginPurgePlanItem, PluginPurgePlanner  # noqa: E402
-from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, RUNTIME_ERROR  # noqa: E402
+from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, RUNTIME_ERROR, SUCCESS  # noqa: E402
 from plugins.core.runtime.result import PluginOperationResult  # noqa: E402
 from plugins.core.runtime.service import PluginRuntimeService  # noqa: E402
 from plugins.core.runtime.service.environment import PluginRuntimeEnvironmentService  # noqa: E402
 from plugins.core.runtime.support import (  # noqa: E402
+    PluginAuditItemPayload,
     PluginAuditPayloadBuilder,
+    PluginAuditSnapshotFailurePayload,
+    PluginAuditSnapshotPayload,
+    PluginBatchDryRunPayload,
+    PluginBatchExecutionPayload,
     PluginBatchItemReport,
+    PluginBatchPlanBlockedPayload,
     PluginBatchReportBuilder,
+    PluginCatalogDatabaseStatePayload,
+    PluginCatalogInfoPayload,
+    PluginCatalogListPayload,
+    PluginCatalogSummaryPayload,
+    PluginCheckItemPayload,
+    PluginCheckPayload,
+    PluginConfigAuditPayload,
+    PluginConfigDiagnosticSummaryPayload,
+    PluginConfigExportFailurePayload,
+    PluginConfigExportPayload,
+    PluginConfigImportPayload,
     PluginConfigPayloadBuilder,
+    PluginConfigStatePayload,
+    PluginDependencyCheckPayload,
+    PluginDependencyInstallPayload,
     PluginDependencyInstallPayloadBuilder,
     PluginDocumentationBuilder,
+    PluginDocumentationPayload,
+    PluginEnableDependencyBlockerPayload,
+    PluginEnableDependencyPayload,
     PluginEnablePayloadBuilder,
+    PluginEnableStatePayload,
+    PluginEnableUpdateFailurePayload,
+    PluginInstallDryRunPayload,
+    PluginLifecycleMenuConflictPayload,
+    PluginLifecycleOperationDryRunPayload,
     PluginLifecyclePayloadBuilder,
+    PluginLifecyclePrecheckBlockerPayload,
+    PluginLifecycleSuccessPayload,
+    PluginLifecycleUpgradeLatestPayload,
+    PluginNotFoundPayload,
     PluginNpmPackageJsonSynchronizer,
     PluginPayloadBuilder,
+    PluginPlanPayload,
+    PluginPrecheckCheckPayload,
+    PluginPrecheckContext,
+    PluginPrecheckOperationPayload,
     PluginPurgePayloadBuilder,
+    PluginPurgeStatePayload,
+    PluginRuntimeBatchItemUnsupportedPayload,
+    PluginRuntimeDiagnoseFailurePayload,
+    PluginRuntimeDiagnosePayload,
+    PluginRuntimeExceptionPayload,
+    PluginRuntimeHealthPayload,
+    PluginRuntimeHealthResponsePayload,
+    PluginRuntimeInvalidOperationPayload,
     PluginRuntimePayloadBuilder,
+    PluginRuntimePrecheckPayload,
+    PluginRuntimeUpgradeBlockerPayload,
+    PluginSafeUninstallPayload,
+    PluginUpgradeDryRunPayload,
 )
 from plugins.core.validation.dependencies import (  # noqa: E402
     DependencyCheckItem,
@@ -41,6 +89,7 @@ from plugins.core.validation.plugin_deps import (  # noqa: E402
     PluginDependencyCheckItem,
     PluginDependencyCheckResult,
     PluginDependencyPlan,
+    PluginDependencyPlanBlocker,
     PluginDependencyPlanItem,
 )
 
@@ -612,14 +661,14 @@ class FakePluginService:
         return await cls.build_plugin_purge_plan_services(query_db, discovered_plugin)
 
 
-class FakePluginInfrastructureGateway:
+class FakePluginRuntimeGateway:
     """
-    测试用插件基础设施网关。
+    测试用插件运行时适配器。
     """
 
     def __init__(self) -> None:
         """
-        初始化测试用插件基础设施网关。
+        初始化测试用插件运行时适配器。
         """
         self.session_local = FakeSessionLocal()
         self.completed_process = CompletedProcess(args=[], returncode=0, stdout='1 passed\n', stderr='')
@@ -780,19 +829,25 @@ def build_fake_lifecycle_precheck(ok: bool = True) -> SimpleNamespace:
 
 def build_runtime_with_gateway(
     backend_root: Path,
-    gateway: FakePluginInfrastructureGateway,
+    gateway: FakePluginRuntimeGateway,
 ) -> PluginRuntimeService:
     """
-    构建带测试基础设施网关的插件运行时服务。
+    构建带测试运行时适配器的插件运行时服务。
 
     :param backend_root: 后端项目根目录
-    :param gateway: 测试基础设施网关
+    :param gateway: 测试运行时适配器
     :return: 插件运行时服务
     """
-    runtime = build_runtime(backend_root)
-    runtime.infrastructure_gateway = gateway
-
-    return runtime
+    return PluginRuntimeService(
+        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        dependency_checker=PluginDependencyChecker(
+            python_inspector=PythonDependencyInspector(installed_packages={'openai': '2.17.0'}),
+            npm_inspector=NpmDependencyInspector(installed_packages={'vue': '3.5.26'}),
+        ),
+        state_gateway=gateway,
+        model_gateway=gateway,
+        command_gateway=gateway,
+    )
 
 
 def create_controller_dir(plugin_root: Path) -> None:

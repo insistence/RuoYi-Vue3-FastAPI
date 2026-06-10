@@ -3,6 +3,76 @@
 from .conftest import *
 
 
+class LazyPluginGateway:
+    """
+    测试用 CLI 插件网关，验证测试命令可懒解析运行时依赖。
+    """
+
+    def __init__(self, backend_root: Path, runtime_gateway: FakePluginRuntimeGateway) -> None:
+        """
+        初始化测试用 CLI 插件网关。
+
+        :param backend_root: 后端项目根目录
+        :param runtime_gateway: 测试运行时适配器
+        :return: None
+        """
+        self.backend_root = backend_root
+        self.runtime_gateway = runtime_gateway
+        self.runtime_environment_requested = False
+        self.runtime_gateway_requested = False
+
+    def get_core_runtime_environment(self) -> FakeRuntimeEnvironment:
+        """
+        获取测试运行时环境。
+
+        :return: 测试运行时环境
+        """
+        self.runtime_environment_requested = True
+        return FakeRuntimeEnvironment(self.backend_root)
+
+    def get_management_runtime_gateway(self) -> FakePluginRuntimeGateway:
+        """
+        获取测试运行时适配器。
+
+        :return: 测试运行时适配器
+        """
+        self.runtime_gateway_requested = True
+        return self.runtime_gateway
+
+    @staticmethod
+    def build_exception_payload(message: str, exc: Exception) -> dict[str, object]:
+        """
+        构建测试异常负载。
+
+        :param message: 异常消息
+        :param exc: 异常对象
+        :return: 异常负载
+        """
+        return {'ok': False, 'message': message, 'error': str(exc)}
+
+
+def test_plugin_runtime_test_plugin_lazily_resolves_runtime_dependencies(tmp_path: Path) -> None:
+    """
+    校验插件测试命令会通过 CLI 网关懒解析运行时环境和运行时适配器。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    test_root = backend_root / 'tests' / 'plugins' / 'demo'
+    test_root.mkdir(parents=True)
+    runtime_gateway = FakePluginRuntimeGateway()
+    plugin_gateway = LazyPluginGateway(backend_root, runtime_gateway)
+    runtime = CliPluginRuntimeService(plugin_gateway=plugin_gateway)
+
+    result = runtime.test_plugin('demo')
+
+    assert result['ok'] is True
+    assert plugin_gateway.runtime_environment_requested is True
+    assert plugin_gateway.runtime_gateway_requested is True
+    assert runtime_gateway.commands
+
+
 def test_plugin_runtime_test_plugin_runs_pytest_target(tmp_path: Path) -> None:
     """
     校验插件测试命令会执行插件 pytest 目录。
@@ -13,7 +83,7 @@ def test_plugin_runtime_test_plugin_runs_pytest_target(tmp_path: Path) -> None:
     backend_root = tmp_path / 'backend'
     test_root = backend_root / 'tests' / 'plugins' / 'demo'
     test_root.mkdir(parents=True)
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
 
     result = build_runtime_with_gateway(backend_root, gateway).test_plugin(
         'demo',
@@ -55,7 +125,7 @@ def test_plugin_runtime_test_plugin_runs_backend_and_frontend_targets(tmp_path: 
     backend_test_root.mkdir(parents=True)
     frontend_test_file.parent.mkdir(parents=True)
     frontend_test_file.write_text("console.log('ok')\n", encoding='utf-8')
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
 
     result = build_runtime_with_gateway(backend_root, gateway).test_plugin('demo')
 
@@ -83,7 +153,7 @@ def test_plugin_runtime_test_plugin_can_run_frontend_build_acceptance(tmp_path: 
     backend_test_root = backend_root / 'tests' / 'plugins' / 'demo'
     backend_test_root.mkdir(parents=True)
     frontend_root.mkdir(parents=True)
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
 
     result = build_runtime_with_gateway(backend_root, gateway).test_plugin('demo', frontend_build=True)
 
@@ -125,7 +195,7 @@ def test_plugin_runtime_test_plugin_reports_pytest_failure(tmp_path: Path) -> No
     """
     backend_root = tmp_path / 'backend'
     (backend_root / 'tests' / 'plugins' / 'demo').mkdir(parents=True)
-    gateway = FakePluginInfrastructureGateway()
+    gateway = FakePluginRuntimeGateway()
     gateway.completed_process = CompletedProcess(args=[], returncode=1, stdout='', stderr='failed\n')
 
     result = build_runtime_with_gateway(backend_root, gateway).test_plugin('demo')

@@ -24,6 +24,147 @@ class PluginTestTarget:
     timeout: int
 
 
+@dataclass(frozen=True)
+class PluginTestCommandResultPayload:
+    """
+    插件测试命令执行结果负载。
+    """
+
+    completed: Any
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为既有 CLI payload 契约。
+
+        :return: 插件测试命令执行结果负载
+        """
+        return {
+            'returnCode': self.completed.returncode,
+            'stdout': self.completed.stdout[-4000:] if self.completed.stdout else '',
+            'stderr': self.completed.stderr[-4000:] if self.completed.stderr else '',
+        }
+
+
+@dataclass(frozen=True)
+class PluginTestResultItemPayload:
+    """
+    插件测试单目标执行结果负载。
+    """
+
+    target: PluginTestTarget
+    completed: Any
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为既有 CLI payload 契约。
+
+        :return: 插件测试单目标执行结果负载
+        """
+        return {
+            'kind': self.target.kind,
+            'target': str(self.target.target_path),
+            'command': self.target.command,
+            'workdir': str(self.target.workdir),
+            'test': PluginTestCommandResultPayload(self.completed).to_payload(),
+        }
+
+
+@dataclass(frozen=True)
+class PluginTestMissingPayload:
+    """
+    插件测试目标缺失负载。
+    """
+
+    plugin_id: str
+    expected_paths: list[Path]
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为既有 CLI payload 契约。
+
+        :return: 插件测试目标缺失负载
+        """
+        return {
+            'ok': False,
+            'message': '插件测试目录不存在',
+            'pluginId': self.plugin_id,
+            'targets': [str(path) for path in self.expected_paths],
+        }
+
+
+@dataclass(frozen=True)
+class PluginTestExecutionPayload:
+    """
+    插件测试执行结果负载。
+    """
+
+    plugin_id: str
+    keyword: str
+    maxfail: int
+    quiet: bool
+    frontend_build: bool
+    results: list[dict[str, Any]]
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为既有 CLI payload 契约。
+
+        :return: 插件测试执行结果负载
+        """
+        ok = all(item['test']['returnCode'] == 0 for item in self.results)
+
+        return {
+            'ok': ok,
+            'message': '插件测试执行完成' if ok else '插件测试执行失败',
+            'pluginId': self.plugin_id,
+            'targets': [item['target'] for item in self.results],
+            'keyword': self.keyword,
+            'maxfail': self.maxfail,
+            'quiet': self.quiet,
+            'frontendBuild': self.frontend_build,
+            'results': self.results,
+            'test': self.results[0]['test'] if len(self.results) == 1 else None,
+            'command': self.results[0]['command'] if len(self.results) == 1 else None,
+        }
+
+
+@dataclass(frozen=True)
+class CliPluginRuntimeExceptionPayload:
+    """
+    CLI 插件运行时异常负载。
+    """
+
+    exception_payload: dict[str, Any]
+    failure_code: int = RUNTIME_ERROR
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为既有 CLI payload 契约。
+
+        :return: CLI 插件运行时异常负载
+        """
+        return {**self.exception_payload, 'exit_code': self.failure_code}
+
+
+@dataclass(frozen=True)
+class CliPluginRuntimeExitCodePayload:
+    """
+    CLI 插件运行时退出码负载。
+    """
+
+    payload: dict[str, Any]
+    success_code: int = SUCCESS
+    failure_code: int = RUNTIME_ERROR
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为既有 CLI payload 契约。
+
+        :return: 带退出码的 CLI 插件运行时负载
+        """
+        return {**self.payload, 'exit_code': self.success_code if self.payload.get('ok') else self.failure_code}
+
+
 class PluginTestPlanBuilder:
     """
     插件 CLI 测试计划构建器。
@@ -176,14 +317,10 @@ class PluginTestPayloadBuilder:
         :param completed: 命令执行结果
         :return: 系统命令执行结果负载
         """
-        return {
-            'returnCode': completed.returncode,
-            'stdout': completed.stdout[-4000:] if completed.stdout else '',
-            'stderr': completed.stderr[-4000:] if completed.stderr else '',
-        }
+        return PluginTestCommandResultPayload(completed).to_payload()
 
-    @classmethod
-    def build_result_item(cls, target: PluginTestTarget, completed: Any) -> dict[str, Any]:
+    @staticmethod
+    def build_result_item(target: PluginTestTarget, completed: Any) -> dict[str, Any]:
         """
         构建单个插件测试结果项。
 
@@ -191,13 +328,7 @@ class PluginTestPayloadBuilder:
         :param completed: 命令执行结果
         :return: 插件测试结果项
         """
-        return {
-            'kind': target.kind,
-            'target': str(target.target_path),
-            'command': target.command,
-            'workdir': str(target.workdir),
-            'test': cls.build_command_result(completed),
-        }
+        return PluginTestResultItemPayload(target, completed).to_payload()
 
     @staticmethod
     def with_exit_code(
@@ -214,7 +345,11 @@ class PluginTestPayloadBuilder:
         :param failure_code: 失败退出码
         :return: 带退出码的插件测试负载
         """
-        return {**payload, 'exit_code': success_code if payload.get('ok') else failure_code}
+        return CliPluginRuntimeExitCodePayload(
+            payload,
+            success_code=success_code,
+            failure_code=failure_code,
+        ).to_payload()
 
     @staticmethod
     def build_missing_payload(plugin_id: str, expected_paths: list[Path]) -> dict[str, Any]:
@@ -225,12 +360,7 @@ class PluginTestPayloadBuilder:
         :param expected_paths: 约定测试目录列表
         :return: 插件测试目标缺失负载
         """
-        return {
-            'ok': False,
-            'message': '插件测试目录不存在',
-            'pluginId': plugin_id,
-            'targets': [str(path) for path in expected_paths],
-        }
+        return PluginTestMissingPayload(plugin_id, expected_paths).to_payload()
 
     @staticmethod
     def build_execution_payload(
@@ -253,18 +383,11 @@ class PluginTestPayloadBuilder:
         :param results: 测试结果项列表
         :return: 插件测试执行结果负载
         """
-        ok = all(item['test']['returnCode'] == 0 for item in results)
-
-        return {
-            'ok': ok,
-            'message': '插件测试执行完成' if ok else '插件测试执行失败',
-            'pluginId': plugin_id,
-            'targets': [item['target'] for item in results],
-            'keyword': keyword,
-            'maxfail': maxfail,
-            'quiet': quiet,
-            'frontendBuild': frontend_build,
-            'results': results,
-            'test': results[0]['test'] if len(results) == 1 else None,
-            'command': results[0]['command'] if len(results) == 1 else None,
-        }
+        return PluginTestExecutionPayload(
+            plugin_id=plugin_id,
+            keyword=keyword,
+            maxfail=maxfail,
+            quiet=quiet,
+            frontend_build=frontend_build,
+            results=results,
+        ).to_payload()

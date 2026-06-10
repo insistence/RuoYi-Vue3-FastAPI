@@ -80,21 +80,164 @@ def test_plugin_command_import_does_not_load_plugin_core() -> None:
     assert 'plugins.core.runtime.support' not in sys.modules
 
 
-def test_plugin_workflow_command_modules_do_not_load_plugin_core() -> None:
+def test_plugin_command_registration_modules_do_not_load_plugin_core() -> None:
     """
-    校验 plugin 工作流命令注册模块导入时不加载 controller、插件核心模块和插件 runtime service。
+    校验 plugin 命令注册模块导入时不加载 controller、插件核心模块和插件 runtime service。
 
     :return: None
     """
     unload_plugin_modules()
 
-    importlib.import_module('cli.groups.plugin.workflows')
+    importlib.import_module('cli.groups.plugin.commands.configuration')
+    importlib.import_module('cli.groups.plugin.commands.dependency')
+    importlib.import_module('cli.groups.plugin.commands.developer')
+    importlib.import_module('cli.groups.plugin.commands.discovery')
+    importlib.import_module('cli.groups.plugin.commands.lifecycle')
 
     assert 'cli.groups.plugin.controller' not in sys.modules
     assert 'cli.runtime.plugin.service' not in sys.modules
     assert 'plugins.core.runtime.service' not in sys.modules
     assert 'plugins.core.management.service.gateway' not in sys.modules
     assert 'plugins.core.runtime.support' not in sys.modules
+
+
+def test_plugin_registered_commands_match_workflow_groups() -> None:
+    """
+    校验 plugin 实际注册命令与工作流分组保持一致。
+
+    :return: None
+    """
+    unload_plugin_modules()
+
+    command_module = importlib.import_module('cli.groups.plugin.command')
+    workflow_commands = {
+        'list',
+        'info',
+        'check',
+        'health',
+        'diagnose',
+        'docs',
+        'config',
+        'check-deps',
+        'install-deps',
+        'precheck',
+        'plan',
+        'batch',
+        'install',
+        'upgrade',
+        'enable',
+        'disable',
+        'uninstall',
+        'purge',
+        'test',
+        'create',
+    }
+
+    assert {command.name for command in command_module.app.registered_commands} == workflow_commands
+
+
+def test_plugin_discovery_commands_are_registered_from_workflow_module() -> None:
+    """
+    校验 plugin 发现诊断命令由独立工作流模块注册。
+
+    :return: None
+    """
+    unload_plugin_modules()
+
+    command_module = importlib.import_module('cli.groups.plugin.command')
+    discovery_commands = {'list', 'info', 'check', 'health', 'diagnose', 'docs'}
+    callbacks = {
+        command.name: command.callback
+        for command in command_module.app.registered_commands
+        if command.name in discovery_commands
+    }
+
+    assert set(callbacks) == discovery_commands
+    assert all(callback.__module__ == 'cli.groups.plugin.commands.discovery' for callback in callbacks.values())
+    assert 'cli.groups.plugin.controller' not in sys.modules
+    assert 'plugins.core.runtime.service' not in sys.modules
+
+
+def test_plugin_configuration_command_is_registered_from_workflow_module() -> None:
+    """
+    校验 plugin 配置命令由独立工作流模块注册。
+
+    :return: None
+    """
+    unload_plugin_modules()
+
+    command_module = importlib.import_module('cli.groups.plugin.command')
+    config_command = next(command for command in command_module.app.registered_commands if command.name == 'config')
+
+    assert config_command.callback.__module__ == 'cli.groups.plugin.commands.configuration'
+    assert 'cli.groups.plugin.controller' not in sys.modules
+    assert 'plugins.core.runtime.service' not in sys.modules
+
+
+def test_plugin_dependency_commands_are_registered_from_workflow_module() -> None:
+    """
+    校验 plugin 依赖与预检命令由独立工作流模块注册。
+
+    :return: None
+    """
+    unload_plugin_modules()
+
+    command_module = importlib.import_module('cli.groups.plugin.command')
+    dependency_commands = {'check-deps', 'install-deps', 'precheck', 'plan'}
+    callbacks = {
+        command.name: command.callback
+        for command in command_module.app.registered_commands
+        if command.name in dependency_commands
+    }
+
+    assert set(callbacks) == dependency_commands
+    assert all(callback.__module__ == 'cli.groups.plugin.commands.dependency' for callback in callbacks.values())
+    assert 'cli.groups.plugin.controller' not in sys.modules
+    assert 'plugins.core.runtime.service' not in sys.modules
+
+
+def test_plugin_lifecycle_commands_are_registered_from_workflow_module() -> None:
+    """
+    校验 plugin 生命周期命令由独立工作流模块注册。
+
+    :return: None
+    """
+    unload_plugin_modules()
+
+    command_module = importlib.import_module('cli.groups.plugin.command')
+    lifecycle_commands = {'batch', 'install', 'upgrade', 'enable', 'disable', 'uninstall', 'purge'}
+    callbacks = {
+        command.name: command.callback
+        for command in command_module.app.registered_commands
+        if command.name in lifecycle_commands
+    }
+
+    assert set(callbacks) == lifecycle_commands
+    assert all(callback.__module__ == 'cli.groups.plugin.commands.lifecycle' for callback in callbacks.values())
+    assert 'cli.groups.plugin.controller' not in sys.modules
+    assert 'plugins.core.runtime.service' not in sys.modules
+
+
+def test_plugin_developer_commands_are_registered_from_workflow_module() -> None:
+    """
+    校验 plugin 开发者命令由独立工作流模块注册。
+
+    :return: None
+    """
+    unload_plugin_modules()
+
+    command_module = importlib.import_module('cli.groups.plugin.command')
+    developer_commands = {'test', 'create'}
+    callbacks = {
+        command.name: command.callback
+        for command in command_module.app.registered_commands
+        if command.name in developer_commands
+    }
+
+    assert set(callbacks) == developer_commands
+    assert all(callback.__module__ == 'cli.groups.plugin.commands.developer' for callback in callbacks.values())
+    assert 'cli.groups.plugin.controller' not in sys.modules
+    assert 'plugins.core.runtime.service' not in sys.modules
 
 
 def test_plugin_command_controller_is_created_lazily() -> None:

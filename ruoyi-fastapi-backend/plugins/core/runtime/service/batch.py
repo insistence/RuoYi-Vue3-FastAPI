@@ -1,6 +1,8 @@
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.runtime.capability import PluginRuntimeCapability
 from plugins.core.runtime.support import (
     PluginBatchReportBuilder,
     PluginPayloadBuilder,
@@ -8,11 +10,138 @@ from plugins.core.runtime.support import (
 )
 from plugins.core.validation.plugin_deps import PluginBatchOperation, PluginDependencyPlanBuilder
 
+from .context import PluginRuntimeContextService
+from .dependency_container import PluginRuntimeDependencies
 
-class PluginBatchOperationMixin:
+
+class PluginBatchRuntimeOperations(Protocol):
     """
-    插件批量计划和批量执行操作。
+    批量工作流所需的运行时协作能力。
     """
+
+    async def install_plugin(
+        self,
+        plugin_id: str,
+        *,
+        dry_run: bool = False,
+        record_operation_log: bool = True,
+    ) -> dict[str, Any]:
+        """
+        安装插件。
+
+        :param plugin_id: 插件ID
+        :param dry_run: 是否仅预演
+        :param record_operation_log: 是否记录操作日志
+        :return: 插件安装负载
+        """
+
+    async def set_plugin_enabled(
+        self,
+        plugin_id: str,
+        *,
+        enabled: bool,
+        dry_run: bool = False,
+        record_operation_log: bool = True,
+    ) -> dict[str, Any]:
+        """
+        设置插件启用状态。
+
+        :param plugin_id: 插件ID
+        :param enabled: 是否启用
+        :param dry_run: 是否仅预演
+        :param record_operation_log: 是否记录操作日志
+        :return: 插件启停负载
+        """
+
+    async def upgrade_plugin(
+        self,
+        plugin_id: str,
+        *,
+        dry_run: bool = False,
+        record_operation_log: bool = True,
+    ) -> dict[str, Any]:
+        """
+        升级插件。
+
+        :param plugin_id: 插件ID
+        :param dry_run: 是否仅预演
+        :param record_operation_log: 是否记录操作日志
+        :return: 插件升级负载
+        """
+
+    async def _record_plugin_operation_log(
+        self,
+        payload: dict[str, Any],
+        *,
+        dry_run: bool,
+        continue_on_error: bool,
+    ) -> None:
+        """
+        记录插件操作审计日志。
+
+        :param payload: 插件操作结果负载
+        :param dry_run: 是否预演
+        :param continue_on_error: 失败后是否继续
+        :return: None
+        """
+
+    async def _execute_batch_plugin_item(self, operation: PluginBatchOperation, plugin_id: str) -> dict[str, Any]:
+        """
+        执行单个批量插件操作项。
+
+        :param operation: 批量操作类型
+        :param plugin_id: 插件ID
+        :return: 单插件操作结果负载
+        """
+
+
+class PluginBatchUseCase:
+    """
+    插件批量计划和批量执行 use case。
+    """
+
+    def __init__(
+        self,
+        dependencies: PluginRuntimeDependencies,
+        runtime_operations: PluginBatchRuntimeOperations,
+        context: PluginRuntimeContextService,
+    ) -> None:
+        """
+        初始化插件批量 use case。
+
+        :param dependencies: 插件运行时依赖容器
+        :param runtime_operations: 批量工作流所需的运行时协作能力
+        :param context: 插件运行时上下文服务
+        """
+        self.dependencies = dependencies
+        self.runtime_operations = runtime_operations
+        self.context = context
+
+    def _discover_plugins(self, backend_root: Path) -> list[DiscoveredPlugin]:
+        """
+        发现本地插件。
+
+        :param backend_root: 后端项目根目录
+        :return: 已发现插件列表
+        """
+        return self.context.discover_plugins(backend_root)
+
+    def _load_database_plugin_states_sync(self) -> list[Any]:
+        """
+        以同步方式读取数据库插件状态列表。
+
+        :return: 数据库插件状态列表
+        """
+        return self.context.load_database_plugin_states_sync()
+
+    def _resolve_plugin_capability(self, discovered_plugin: DiscoveredPlugin) -> PluginRuntimeCapability:
+        """
+        解析插件运行时操作能力。
+
+        :param discovered_plugin: 已发现插件
+        :return: 插件运行时能力
+        """
+        return self.context.resolve_plugin_capability(discovered_plugin)
 
     def plan_plugins(
         self,
@@ -34,7 +163,7 @@ class PluginBatchOperationMixin:
                     message=f'插件计划操作不支持：{operation}',
                 )
 
-            backend_root = Path(self.runtime_environment.get_backend_dir())
+            backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
             database_plugins = self._load_database_plugin_states_sync()
             plan = PluginDependencyPlanBuilder(discovered_plugins, database_plugins).build_plan(
@@ -96,7 +225,7 @@ class PluginBatchOperationMixin:
                     continue_on_error=continue_on_error,
                 )
                 if not dry_run:
-                    await self._record_plugin_operation_log(
+                    await self.runtime_operations._record_plugin_operation_log(
                         plan_payload,
                         dry_run=dry_run,
                         continue_on_error=continue_on_error,
@@ -115,7 +244,7 @@ class PluginBatchOperationMixin:
                 report, result = await PluginBatchReportBuilder.run_item(
                     operation,
                     plugin_id,
-                    self._execute_batch_plugin_item,
+                    self.runtime_operations._execute_batch_plugin_item,
                 )
                 reports.append(report)
                 if not report.ok:
@@ -129,7 +258,7 @@ class PluginBatchOperationMixin:
                 failed,
                 continue_on_error=continue_on_error,
             )
-            await self._record_plugin_operation_log(
+            await self.runtime_operations._record_plugin_operation_log(
                 payload,
                 dry_run=dry_run,
                 continue_on_error=continue_on_error,
@@ -139,7 +268,7 @@ class PluginBatchOperationMixin:
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('插件批量操作失败', exc)
 
-    async def _execute_batch_plugin_item(self, operation: PluginBatchOperation, plugin_id: str) -> dict[str, Any]:
+    async def execute_batch_plugin_item(self, operation: PluginBatchOperation, plugin_id: str) -> dict[str, Any]:
         """
         执行单个批量插件操作项。
 
@@ -148,9 +277,14 @@ class PluginBatchOperationMixin:
         :return: 单插件操作结果负载
         """
         if operation == 'install':
-            return await self.install_plugin(plugin_id, dry_run=False, record_operation_log=False)
+            return await self.runtime_operations.install_plugin(plugin_id, dry_run=False, record_operation_log=False)
         if operation == 'enable':
-            return await self.set_plugin_enabled(plugin_id, enabled=True, dry_run=False, record_operation_log=False)
+            return await self.runtime_operations.set_plugin_enabled(
+                plugin_id,
+                enabled=True,
+                dry_run=False,
+                record_operation_log=False,
+            )
         if operation == 'upgrade':
-            return await self.upgrade_plugin(plugin_id, dry_run=False, record_operation_log=False)
+            return await self.runtime_operations.upgrade_plugin(plugin_id, dry_run=False, record_operation_log=False)
         return PluginRuntimePayloadBuilder.build_batch_item_unsupported_payload(operation, plugin_id)

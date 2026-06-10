@@ -1,7 +1,23 @@
-from .catalog import PluginCatalogPayloadMixin
-from .legacy import PluginPayloadBuilder as PluginLegacyPayloadBuilder
-from .plan import PluginPlanPayloadMixin
-from .validation import PluginValidationPayloadMixin
+from .catalog import (
+    PluginCatalogDatabaseStatePayload,
+    PluginCatalogInfoPayload,
+    PluginCatalogListPayload,
+    PluginCatalogPayloadMixin,
+    PluginCatalogSummaryPayload,
+)
+from .legacy import (
+    PluginNotFoundPayload,
+)
+from .legacy import (
+    PluginPayloadBuilder as PluginLegacyPayloadBuilder,
+)
+from .plan import PluginPlanPayload, PluginPlanPayloadMixin, PluginUpgradeDryRunPayload
+from .validation import (
+    PluginCheckItemPayload,
+    PluginCheckPayload,
+    PluginDependencyCheckPayload,
+    PluginValidationPayloadMixin,
+)
 
 
 class PluginPayloadBuilder(
@@ -18,5 +34,15 @@ class PluginPayloadBuilder(
 
 
 __all__ = [
+    'PluginCatalogDatabaseStatePayload',
+    'PluginCatalogInfoPayload',
+    'PluginCatalogListPayload',
+    'PluginCatalogSummaryPayload',
+    'PluginCheckItemPayload',
+    'PluginCheckPayload',
+    'PluginDependencyCheckPayload',
+    'PluginNotFoundPayload',
     'PluginPayloadBuilder',
+    'PluginPlanPayload',
+    'PluginUpgradeDryRunPayload',
 ]

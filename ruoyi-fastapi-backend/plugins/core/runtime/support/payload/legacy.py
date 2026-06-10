@@ -1,6 +1,40 @@
+from dataclasses import dataclass
 from typing import Any
 
 from plugins.core.runtime.exit_codes import RUNTIME_ERROR
+
+
+@dataclass(frozen=True)
+class PluginNotFoundPayload:
+    """
+    插件不存在结构化负载。
+    """
+
+    plugin_id: str
+    operation: str | None = None
+    dry_run: bool | None = None
+    enabled: bool | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        """
+        序列化为现有插件不存在 payload 契约。
+
+        :return: 插件不存在 payload
+        """
+        payload: dict[str, Any] = {
+            'ok': False,
+            'message': f'插件不存在：{self.plugin_id}',
+            'pluginId': self.plugin_id,
+            'exit_code': RUNTIME_ERROR,
+        }
+        if self.operation is not None:
+            payload['operation'] = self.operation
+        if self.dry_run is not None:
+            payload['dryRun'] = self.dry_run
+        if self.enabled is not None:
+            payload['enabled'] = self.enabled
+
+        return payload
 
 
 class PluginPayloadBuilder:
@@ -25,17 +59,9 @@ class PluginPayloadBuilder:
         :param enabled: 是否启用
         :return: 插件不存在负载
         """
-        payload: dict[str, Any] = {
-            'ok': False,
-            'message': f'插件不存在：{plugin_id}',
-            'pluginId': plugin_id,
-            'exit_code': RUNTIME_ERROR,
-        }
-        if operation is not None:
-            payload['operation'] = operation
-        if dry_run is not None:
-            payload['dryRun'] = dry_run
-        if enabled is not None:
-            payload['enabled'] = enabled
-
-        return payload
+        return PluginNotFoundPayload(
+            plugin_id,
+            operation=operation,
+            dry_run=dry_run,
+            enabled=enabled,
+        ).to_payload()

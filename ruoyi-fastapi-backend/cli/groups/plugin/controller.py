@@ -88,13 +88,14 @@ class PluginCommandController:
         :param failure_exit_code: 失败退出码
         :return: None
         """
-        operation_result = PluginOperationResult.from_payload(payload)
-        exit_code = success_exit_code if operation_result.ok else failure_exit_code
         self.execution_service.complete_payload_with_text(
             ctx,
             payload,
             text_builder=text_builder,
-            default_exit_code=exit_code,
+            default_exit_code=PluginOperationResult.from_payload(payload).exit_code(
+                success_exit_code=success_exit_code,
+                failure_exit_code=failure_exit_code,
+            ),
         )
 
     def plugin_info(self, plugin_id: str, env: str, output: str) -> None:
@@ -126,12 +127,10 @@ class PluginCommandController:
         """
         ctx = self.context_factory.build_readonly(env, output)
         payload = self.plugin_runtime.check_plugin(plugin_id)
-        exit_code = SUCCESS if payload.get('ok', False) else DEPENDENCY_ERROR
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_check_text,
-            default_exit_code=exit_code,
         )
 
     def check_plugin_dependencies(self, plugin_id: str, env: str, output: str) -> None:
@@ -145,12 +144,10 @@ class PluginCommandController:
         """
         ctx = self.context_factory.build_readonly(env, output)
         payload = self.plugin_runtime.check_plugin_dependencies(plugin_id)
-        exit_code = SUCCESS if payload.get('ok', False) else DEPENDENCY_ERROR
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_dependency_text,
-            default_exit_code=exit_code,
         )
 
     def precheck_plugin(self, operation: str, plugin_id: str, env: str, output: str) -> None:
@@ -165,12 +162,10 @@ class PluginCommandController:
         """
         ctx = self.context_factory.build_readonly(env, output)
         payload = self.execution_service.run_async(self.plugin_runtime.precheck_plugin_operation(plugin_id, operation))
-        exit_code = SUCCESS if payload.get('ok', False) else DEPENDENCY_ERROR
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_precheck_text,
-            default_exit_code=exit_code,
         )
 
     def health_plugin(self, plugin_id: str, env: str, output: str) -> None:
@@ -184,12 +179,10 @@ class PluginCommandController:
         """
         ctx = self.context_factory.build_readonly(env, output)
         payload = self.execution_service.run_async(self.plugin_runtime.health_plugin(plugin_id))
-        exit_code = SUCCESS if payload.get('ok', False) else DEPENDENCY_ERROR
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_health_text,
-            default_exit_code=exit_code,
         )
 
     def diagnose_plugin(self, plugin_id: str, env: str, output: str, *, output_file: str = '') -> None:
@@ -210,12 +203,10 @@ class PluginCommandController:
                 output_file,
                 failure_message='插件诊断包导出失败',
             )
-        exit_code = SUCCESS if payload.get('ok', False) else DEPENDENCY_ERROR
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_diagnose_text,
-            default_exit_code=exit_code,
         )
 
     def generate_plugin_docs(self, plugin_id: str, env: str, output: str, *, output_file: str = '') -> None:
@@ -237,12 +228,10 @@ class PluginCommandController:
                 content_key='markdown',
                 failure_message='插件文档导出失败',
             )
-        exit_code = SUCCESS if payload.get('ok', False) else DEPENDENCY_ERROR
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_docs_text,
-            default_exit_code=exit_code,
         )
 
     def test_plugin(
@@ -276,12 +265,10 @@ class PluginCommandController:
             quiet=quiet,
             frontend_build=frontend_build,
         )
-        exit_code = SUCCESS if payload.get('ok', False) else DEPENDENCY_ERROR
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_test_text,
-            default_exit_code=exit_code,
         )
 
     def plan_plugins(self, operation: str, plugin_ids: list[str], env: str, output: str) -> None:
@@ -296,12 +283,10 @@ class PluginCommandController:
         """
         ctx = self.context_factory.build_readonly(env, output)
         payload = self.plugin_runtime.plan_plugins(operation, plugin_ids or None)
-        exit_code = SUCCESS if payload.get('ok', False) else DEPENDENCY_ERROR
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_plan_text,
-            default_exit_code=exit_code,
         )
 
     def batch_plugins(
@@ -657,72 +642,29 @@ class PluginCommandController:
         :return: None
         """
         if action == 'get':
-            ctx = self.context_factory.build_readonly(env, output)
-            payload = self.execution_service.run_async(self.plugin_runtime.get_plugin_config(plugin_id))
-            self._complete_plugin_payload(
-                ctx,
-                payload,
-                text_builder=self.presenter.build_config_text,
-            )
+            self._get_plugin_config(plugin_id, env, output)
             return
 
         if action == 'export':
-            ctx = (
-                self.context_factory.build_dangerous(
-                    env,
-                    output,
-                    allow_prod,
-                    yes,
-                    dry_run=True,
-                    command_name='plugin config export',
-                )
-                if reveal_secret
-                else self.context_factory.build_readonly(env, output)
-            )
-            payload = self.execution_service.run_async(
-                self.plugin_runtime.export_plugin_config(plugin_id, reveal_secret=reveal_secret)
-            )
-            if output_file.strip():
-                payload = PluginCommandFileAdapter.write_json_file(
-                    payload,
-                    output_file,
-                    failure_message='插件配置导出失败',
-                )
-            payload['env'] = ctx.env
-            self._complete_plugin_payload(
-                ctx,
-                payload,
-                text_builder=self.presenter.build_config_text,
+            self._export_plugin_config(
+                plugin_id,
+                env,
+                output,
+                allow_prod=allow_prod,
+                yes=yes,
+                reveal_secret=reveal_secret,
+                output_file=output_file,
             )
             return
 
         if action == 'import':
-            ctx = self.context_factory.build_dangerous(
+            self._import_plugin_config(
+                plugin_id,
                 env,
                 output,
-                allow_prod,
-                yes,
-                dry_run=False,
-                command_name='plugin config import',
-            )
-            values_payload = PluginCommandFileAdapter.read_config_import_file(input_file)
-            if not values_payload.get('ok', False):
-                self.execution_service.complete_payload_with_text(
-                    ctx,
-                    {'pluginId': plugin_id, **values_payload},
-                    text_builder=self.presenter.build_config_text,
-                    default_exit_code=ARGUMENT_ERROR,
-                )
-                return
-            payload = self.execution_service.run_async(
-                self.plugin_runtime.import_plugin_config(plugin_id, values_payload.get('values', {}))
-            )
-            payload['env'] = ctx.env
-            self.execution_service.complete_payload_with_text(
-                ctx,
-                payload,
-                text_builder=self.presenter.build_config_text,
-                default_exit_code=SUCCESS,
+                allow_prod=allow_prod,
+                yes=yes,
+                input_file=input_file,
             )
             return
 
@@ -740,6 +682,152 @@ class PluginCommandController:
             )
             return
 
+        self._set_plugin_config(
+            plugin_id,
+            pairs,
+            env,
+            output,
+            allow_prod=allow_prod,
+            yes=yes,
+        )
+
+    def _get_plugin_config(self, plugin_id: str, env: str, output: str) -> None:
+        """
+        读取插件配置。
+
+        :param plugin_id: 插件ID
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :return: None
+        """
+        ctx = self.context_factory.build_readonly(env, output)
+        payload = self.execution_service.run_async(self.plugin_runtime.get_plugin_config(plugin_id))
+        self._complete_plugin_payload(
+            ctx,
+            payload,
+            text_builder=self.presenter.build_config_text,
+        )
+
+    def _export_plugin_config(
+        self,
+        plugin_id: str,
+        env: str,
+        output: str,
+        *,
+        allow_prod: bool,
+        yes: bool,
+        reveal_secret: bool,
+        output_file: str,
+    ) -> None:
+        """
+        导出插件配置。
+
+        :param plugin_id: 插件ID
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param allow_prod: 是否允许生产环境危险命令
+        :param yes: 是否跳过确认
+        :param reveal_secret: 是否导出敏感配置明文
+        :param output_file: 配置导出 JSON 文件路径
+        :return: None
+        """
+        ctx = (
+            self.context_factory.build_dangerous(
+                env,
+                output,
+                allow_prod,
+                yes,
+                dry_run=True,
+                command_name='plugin config export',
+            )
+            if reveal_secret
+            else self.context_factory.build_readonly(env, output)
+        )
+        payload = self.execution_service.run_async(
+            self.plugin_runtime.export_plugin_config(plugin_id, reveal_secret=reveal_secret)
+        )
+        if output_file.strip():
+            payload = PluginCommandFileAdapter.write_json_file(
+                payload,
+                output_file,
+                failure_message='插件配置导出失败',
+            )
+        payload['env'] = ctx.env
+        self._complete_plugin_payload(
+            ctx,
+            payload,
+            text_builder=self.presenter.build_config_text,
+        )
+
+    def _import_plugin_config(
+        self,
+        plugin_id: str,
+        env: str,
+        output: str,
+        *,
+        allow_prod: bool,
+        yes: bool,
+        input_file: str,
+    ) -> None:
+        """
+        导入插件配置。
+
+        :param plugin_id: 插件ID
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param allow_prod: 是否允许生产环境危险命令
+        :param yes: 是否跳过确认
+        :param input_file: 配置导入 JSON 文件路径
+        :return: None
+        """
+        ctx = self.context_factory.build_dangerous(
+            env,
+            output,
+            allow_prod,
+            yes,
+            dry_run=False,
+            command_name='plugin config import',
+        )
+        values_payload = PluginCommandFileAdapter.read_config_import_file(input_file)
+        if not values_payload.get('ok', False):
+            self.execution_service.complete_payload_with_text(
+                ctx,
+                {'pluginId': plugin_id, **values_payload},
+                text_builder=self.presenter.build_config_text,
+                default_exit_code=ARGUMENT_ERROR,
+            )
+            return
+        payload = self.execution_service.run_async(
+            self.plugin_runtime.import_plugin_config(plugin_id, values_payload.get('values', {}))
+        )
+        payload['env'] = ctx.env
+        self._complete_plugin_payload(
+            ctx,
+            payload,
+            text_builder=self.presenter.build_config_text,
+        )
+
+    def _set_plugin_config(
+        self,
+        plugin_id: str,
+        pairs: list[str],
+        env: str,
+        output: str,
+        *,
+        allow_prod: bool,
+        yes: bool,
+    ) -> None:
+        """
+        更新插件配置。
+
+        :param plugin_id: 插件ID
+        :param pairs: 配置键值列表
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param allow_prod: 是否允许生产环境危险命令
+        :param yes: 是否跳过确认
+        :return: None
+        """
         ctx = self.context_factory.build_dangerous(
             env,
             output,
