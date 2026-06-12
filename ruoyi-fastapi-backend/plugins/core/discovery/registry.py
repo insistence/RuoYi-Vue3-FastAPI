@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.state import PluginStateResolver, PluginStateSnapshot
+from plugins.core.types import PluginStateRecord
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,7 @@ class RegisteredPlugin:
     """
 
     discovered_plugin: DiscoveredPlugin
-    database_plugin: Any | None
+    database_plugin: PluginStateRecord | None
     enabled: bool
     status: str
 
@@ -55,7 +55,7 @@ class PluginRegistry:
     def build(
         cls,
         discovered_plugins: list[DiscoveredPlugin],
-        database_plugins: list[Any] | None = None,
+        database_plugins: list[PluginStateRecord] | None = None,
     ) -> 'PluginRegistry':
         """
         根据已发现插件和数据库状态构建插件运行时注册表。
@@ -124,7 +124,7 @@ class PluginRegistry:
     @staticmethod
     def _build_registered_plugin(
         discovered_plugin: DiscoveredPlugin,
-        database_plugin: Any | None,
+        database_plugin: PluginStateRecord | None,
     ) -> RegisteredPlugin:
         """
         构建单个运行时插件快照。
@@ -144,7 +144,7 @@ class PluginRegistry:
         )
 
     @staticmethod
-    def _resolve_enabled(discovered_plugin: DiscoveredPlugin, database_plugin: Any | None) -> bool:
+    def _resolve_enabled(discovered_plugin: DiscoveredPlugin, database_plugin: PluginStateRecord | None) -> bool:
         """
         解析插件启用状态。
 
@@ -157,7 +157,7 @@ class PluginRegistry:
     @staticmethod
     def _resolve_status(
         discovered_plugin: DiscoveredPlugin,
-        database_plugin: Any | None,
+        database_plugin: PluginStateRecord | None,
         enabled: bool,
     ) -> str:
         """

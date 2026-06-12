@@ -1,11 +1,11 @@
 import asyncio
 from pathlib import Path
-from typing import Any
 
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
 from plugins.core.runtime.capability import PluginRuntimeCapability, PluginRuntimeCapabilityResolver
 from plugins.core.runtime.support import PluginPrecheckContext
+from plugins.core.types import PluginStateRecord
 from plugins.core.validation.manifest import PluginManifestChecker
 from plugins.core.validation.menus import PluginMenuConflictChecker
 from plugins.core.validation.plugin_deps import (
@@ -17,6 +17,7 @@ from plugins.core.validation.plugin_deps import (
 from plugins.core.validation.structure import PluginStructureChecker
 
 from .dependency_container import PluginRuntimeDependencies
+from .responses import PluginRuntimeBlockedPayloadDict
 
 
 class PluginRuntimeContextService:
@@ -72,7 +73,7 @@ class PluginRuntimeContextService:
 
         return None
 
-    async def load_database_plugin_state(self, plugin_id: str) -> tuple[Any | None, str | None]:
+    async def load_database_plugin_state(self, plugin_id: str) -> tuple[PluginStateRecord | None, str | None]:
         """
         读取数据库插件状态。
 
@@ -88,7 +89,7 @@ class PluginRuntimeContextService:
         except Exception as exc:
             return None, str(exc)
 
-    async def load_database_plugin_states(self) -> list[Any]:
+    async def load_database_plugin_states(self) -> list[PluginStateRecord]:
         """
         读取数据库插件状态列表。
 
@@ -103,7 +104,7 @@ class PluginRuntimeContextService:
         except Exception:
             return []
 
-    def load_database_plugin_states_sync(self) -> list[Any]:
+    def load_database_plugin_states_sync(self) -> list[PluginStateRecord]:
         """
         以同步方式读取数据库插件状态列表。
 
@@ -140,9 +141,9 @@ class PluginRuntimeContextService:
 
     def with_plugin_capability(
         self,
-        payload: dict[str, Any],
+        payload: dict[str, object],
         discovered_plugin: DiscoveredPlugin | None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """
         为运行时响应负载附加插件操作能力。
 
@@ -160,7 +161,7 @@ class PluginRuntimeContextService:
         operation: str,
         *,
         dry_run: bool | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> PluginRuntimeBlockedPayloadDict | None:
         """
         构建运行模式阻断负载。
 
@@ -172,7 +173,7 @@ class PluginRuntimeContextService:
         capability = self.resolve_plugin_capability(discovered_plugin)
         if capability.allows(operation):
             return None
-        payload = {
+        payload: PluginRuntimeBlockedPayloadDict = {
             'ok': False,
             'status': 'blocked',
             'operation': operation,

@@ -1,10 +1,39 @@
 from dataclasses import dataclass
-from typing import Any
 
+from plugins.core.runtime.support.payload.validation import (
+    DependencyItemPayload,
+    MenuConflictItemPayload,
+    PluginDependencyItemPayload,
+    StructureItemPayload,
+    ValidationIssuePayload,
+)
 from plugins.core.validation.dependencies import DependencyCheckResult
+from plugins.core.validation.manifest import PluginManifestCheckResult
+from plugins.core.validation.menus import PluginMenuConflictResult
 from plugins.core.validation.plugin_deps import PluginDependencyCheckResult
+from plugins.core.validation.structure import PluginStructureCheckResult
 
 from .payload import PluginPayloadBuilder
+
+PrecheckOperationPayloadDict = dict[
+    str,
+    bool
+    | list[DependencyItemPayload]
+    | list[PluginDependencyItemPayload]
+    | list[ValidationIssuePayload]
+    | list[StructureItemPayload]
+    | list[MenuConflictItemPayload],
+]
+PrecheckCheckPayloadDict = dict[
+    str,
+    bool
+    | list[str]
+    | list[DependencyItemPayload]
+    | list[PluginDependencyItemPayload]
+    | list[ValidationIssuePayload]
+    | list[StructureItemPayload]
+    | list[MenuConflictItemPayload],
+]
 
 
 @dataclass(frozen=True)
@@ -15,7 +44,7 @@ class PluginPrecheckOperationPayload:
 
     precheck: 'PluginPrecheckContext'
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PrecheckOperationPayloadDict:
         """
         序列化为现有安装和升级操作通用负载片段契约。
 
@@ -45,7 +74,7 @@ class PluginPrecheckCheckPayload:
 
     precheck: 'PluginPrecheckContext'
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PrecheckCheckPayloadDict:
         """
         序列化为现有插件检查命令通用负载片段契约。
 
@@ -96,18 +125,18 @@ class PluginPrecheckContext:
     """
 
     dependency_result: DependencyCheckResult
-    manifest_result: Any
+    manifest_result: PluginManifestCheckResult
     plugin_dependency_result: PluginDependencyCheckResult
-    structure_result: Any
-    menu_conflict_result: Any
-    manifest_issues: list[dict[str, Any]]
-    manifest_warnings: list[dict[str, Any]]
-    plugin_dependency_errors: list[dict[str, Any]]
-    structure_errors: list[dict[str, Any]]
-    menu_conflicts: list[dict[str, Any]]
-    dependencies: list[dict[str, Any]]
-    plugin_dependencies: list[dict[str, Any]]
-    structure: list[dict[str, Any]]
+    structure_result: PluginStructureCheckResult
+    menu_conflict_result: PluginMenuConflictResult
+    manifest_issues: list[ValidationIssuePayload]
+    manifest_warnings: list[ValidationIssuePayload]
+    plugin_dependency_errors: list[PluginDependencyItemPayload]
+    structure_errors: list[StructureItemPayload]
+    menu_conflicts: list[MenuConflictItemPayload]
+    dependencies: list[DependencyItemPayload]
+    plugin_dependencies: list[PluginDependencyItemPayload]
+    structure: list[StructureItemPayload]
     missing_dependencies: list[str]
     unsatisfied_dependencies: list[str]
 
@@ -115,10 +144,10 @@ class PluginPrecheckContext:
     def build(
         cls,
         dependency_result: DependencyCheckResult,
-        manifest_result: Any,
+        manifest_result: PluginManifestCheckResult,
         plugin_dependency_result: PluginDependencyCheckResult,
-        structure_result: Any,
-        menu_conflict_result: Any,
+        structure_result: PluginStructureCheckResult,
+        menu_conflict_result: PluginMenuConflictResult,
     ) -> 'PluginPrecheckContext':
         """
         从各类检查结果构建预检上下文。
@@ -173,7 +202,7 @@ class PluginPrecheckContext:
         )
 
     @property
-    def operation_payload(self) -> dict[str, Any]:
+    def operation_payload(self) -> PrecheckOperationPayloadDict:
         """
         构建安装和升级操作通用负载片段。
 
@@ -182,7 +211,7 @@ class PluginPrecheckContext:
         return PluginPrecheckOperationPayload(self).to_payload()
 
     @property
-    def check_payload(self) -> dict[str, Any]:
+    def check_payload(self) -> PrecheckCheckPayloadDict:
         """
         构建插件检查命令通用负载片段。
 

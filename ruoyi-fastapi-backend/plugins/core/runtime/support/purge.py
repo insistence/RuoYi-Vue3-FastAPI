@@ -1,9 +1,25 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 from plugins.core.lifecycle.purge import PluginPurgePlan
 
-from .payload import PluginPayloadBuilder
+from .payload import PluginPayloadBuilder, PurgePlanPayload
+
+
+class PluginPurgeStatePayloadDict(TypedDict, total=False):
+    """
+    插件物理清理状态 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    operation: str
+    dryRun: bool
+    safeMode: bool
+    removesSource: bool
+    plan: PurgePlanPayload
+    hooks: list[dict[str, object]]
 
 
 @dataclass(frozen=True)
@@ -16,15 +32,15 @@ class PluginPurgeStatePayload:
     plan: PluginPurgePlan
     dry_run: bool
     message: str
-    hook_result: Any | None = None
+    hook_result: object | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginPurgeStatePayloadDict:
         """
         序列化为现有插件物理清理 payload 契约。
 
         :return: 插件物理清理 payload
         """
-        payload = {
+        payload: PluginPurgeStatePayloadDict = {
             'ok': True,
             'message': self.message,
             'pluginId': self.plugin_id,
@@ -35,7 +51,7 @@ class PluginPurgeStatePayload:
             'plan': PluginPayloadBuilder.build_purge_plan(self.plan),
         }
         if not self.dry_run:
-            payload['hooks'] = [self.hook_result.__dict__] if self.hook_result else []
+            payload['hooks'] = [vars(self.hook_result)] if self.hook_result else []
         return payload
 
 
@@ -47,7 +63,7 @@ class PluginPurgePayloadBuilder:
     """
 
     @staticmethod
-    def build_dry_run_payload(plugin_id: str, plan: PluginPurgePlan) -> dict[str, Any]:
+    def build_dry_run_payload(plugin_id: str, plan: PluginPurgePlan) -> PluginPurgeStatePayloadDict:
         """
         构建插件物理清理预演负载。
 
@@ -66,8 +82,8 @@ class PluginPurgePayloadBuilder:
     def build_success_payload(
         plugin_id: str,
         plan: PluginPurgePlan,
-        hook_result: Any | None,
-    ) -> dict[str, Any]:
+        hook_result: object | None,
+    ) -> PluginPurgeStatePayloadDict:
         """
         构建插件物理清理成功负载。
 

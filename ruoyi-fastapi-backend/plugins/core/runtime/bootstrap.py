@@ -1,11 +1,11 @@
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field
 
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
 from plugins.core.runtime.entities import EntityModuleImporter
+from plugins.core.types import PluginStateRecord
 from utils.log_util import logger
 
 
@@ -62,7 +62,7 @@ class PluginRuntimeBuilder:
 
         return self._discovered_plugins
 
-    def build_registry(self, database_plugins: list[Any] | None = None) -> PluginRegistry:
+    def build_registry(self, database_plugins: list[PluginStateRecord] | None = None) -> PluginRegistry:
         """
         构建插件运行时注册表。
 

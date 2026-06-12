@@ -1,17 +1,200 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Protocol, TypedDict
 
 from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
-from plugins.core.validation.result import PluginValidationLevelResolver
+from plugins.core.validation.result import PluginValidationLevelResolver, ValidationLevel
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from plugins.core.validation.dependencies import DependencyCheckItem, DependencyCheckResult
     from plugins.core.validation.menus import PluginMenuConflictItem
     from plugins.core.validation.plugin_deps import PluginDependencyCheckItem
     from plugins.core.validation.result import PluginValidationIssue
     from plugins.core.validation.structure import PluginStructureCheckItem
+
+
+class DependencyItemPayload(TypedDict):
+    """
+    Python/npm 依赖检查项 payload。
+    """
+
+    kind: str
+    requirement: str
+    name: str
+    installed: bool
+    versionSatisfied: bool
+    installedVersion: str | None
+    requiredVersion: str | None
+    ok: bool
+    status: str
+    level: ValidationLevel
+    message: str
+
+
+class PluginDependencyItemPayload(TypedDict):
+    """
+    插件间依赖检查项 payload。
+    """
+
+    pluginId: str
+    dependencyId: str
+    requiredVersion: str | None
+    installedVersion: str | None
+    status: str
+    ok: bool
+    level: ValidationLevel
+    message: str
+
+
+class ValidationIssuePayload(TypedDict):
+    """
+    manifest 校验问题项 payload。
+    """
+
+    level: ValidationLevel
+    category: str
+    kind: str
+    path: str
+    ok: bool
+    message: str
+    suggestion: str
+
+
+class StructureItemPayload(TypedDict):
+    """
+    插件结构检查项 payload。
+    """
+
+    kind: str
+    path: str
+    ok: bool
+    level: ValidationLevel
+    message: str
+    suggestion: str
+
+
+class MenuConflictItemPayload(TypedDict):
+    """
+    菜单冲突检查项 payload。
+    """
+
+    kind: str
+    pluginId: str
+    conflictPluginId: str | None
+    value: str
+    ok: bool
+    level: ValidationLevel
+    message: str
+
+
+class PluginDependencyCheckPayloadDict(TypedDict):
+    """
+    插件依赖检查 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    dependencyOk: bool
+    dependencies: list[DependencyItemPayload]
+    missingDependencies: list[str]
+    unsatisfiedDependencies: list[str]
+    exit_code: int
+
+
+class PluginCheckItemPayloadDict(TypedDict, total=False):
+    """
+    插件检查单项 payload。
+    """
+
+    pluginId: str
+    ok: bool
+    manifestOk: bool
+    dependencyOk: bool
+    pluginDependencyOk: bool
+    structureOk: bool
+    menuConflictOk: bool
+    dependencies: list[DependencyItemPayload]
+    pluginDependencies: list[PluginDependencyItemPayload]
+    pluginDependencyErrors: list[PluginDependencyItemPayload]
+    manifestIssues: list[ValidationIssuePayload]
+    manifestWarnings: list[ValidationIssuePayload]
+    structure: list[StructureItemPayload]
+    missingDependencies: list[str]
+    unsatisfiedDependencies: list[str]
+    structureErrors: list[StructureItemPayload]
+    menuConflicts: list[MenuConflictItemPayload]
+
+
+class PluginCheckPayloadDict(TypedDict):
+    """
+    插件检查聚合 payload。
+    """
+
+    ok: bool
+    message: str
+    count: int
+    checks: list[PluginCheckItemPayloadDict]
+    exit_code: int
+
+
+class PluginValidationPayloadBuilderProtocol(Protocol):
+    """
+    插件校验 payload builder 协议。
+    """
+
+    @staticmethod
+    def build_dependency_item(item: DependencyCheckItem) -> DependencyItemPayload:
+        """
+        构建依赖检查项负载。
+        """
+        ...
+
+    @staticmethod
+    def build_plugin_dependency_item(item: PluginDependencyCheckItem) -> PluginDependencyItemPayload:
+        """
+        构建插件间依赖检查项负载。
+        """
+        ...
+
+    @staticmethod
+    def build_validation_issue(item: PluginValidationIssue) -> ValidationIssuePayload:
+        """
+        构建统一校验问题项负载。
+        """
+        ...
+
+    @staticmethod
+    def build_structure_item(item: PluginStructureCheckItem) -> StructureItemPayload:
+        """
+        构建结构检查项负载。
+        """
+        ...
+
+    @staticmethod
+    def build_menu_conflict_item(item: PluginMenuConflictItem) -> MenuConflictItemPayload:
+        """
+        构建菜单冲突检查项负载。
+        """
+        ...
+
+
+class PluginCheckPrecheckProtocol(Protocol):
+    """
+    插件检查单项所需的预检上下文协议。
+    """
+
+    ok: bool
+
+    @property
+    def check_payload(self) -> Mapping[str, object]:
+        """
+        获取插件检查命令通用负载片段。
+        """
+        ...
 
 
 @dataclass(frozen=True)
@@ -22,9 +205,9 @@ class PluginDependencyCheckPayload:
 
     plugin_id: str
     dependency_result: DependencyCheckResult
-    builder: type[Any] | None = None
+    builder: type[PluginValidationPayloadBuilderProtocol] | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginDependencyCheckPayloadDict:
         """
         序列化为现有插件依赖检查 payload 契约。
 
@@ -50,9 +233,9 @@ class PluginCheckItemPayload:
     """
 
     plugin_id: str
-    precheck: Any
+    precheck: PluginCheckPrecheckProtocol
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginCheckItemPayloadDict:
         """
         序列化为现有插件检查单项 payload 契约。
 
@@ -71,9 +254,9 @@ class PluginCheckPayload:
     插件检查聚合结构化负载。
     """
 
-    checks: list[dict[str, Any]]
+    checks: list[PluginCheckItemPayloadDict]
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginCheckPayloadDict:
         """
         序列化为现有插件检查聚合 payload 契约。
 
@@ -95,7 +278,7 @@ class PluginValidationPayloadMixin:
     """
 
     @staticmethod
-    def build_dependency_item(item: DependencyCheckItem) -> dict[str, Any]:
+    def build_dependency_item(item: DependencyCheckItem) -> DependencyItemPayload:
         """
         构建依赖检查项负载。
 
@@ -117,7 +300,7 @@ class PluginValidationPayloadMixin:
         }
 
     @staticmethod
-    def build_plugin_dependency_item(item: PluginDependencyCheckItem) -> dict[str, Any]:
+    def build_plugin_dependency_item(item: PluginDependencyCheckItem) -> PluginDependencyItemPayload:
         """
         构建插件间依赖检查项负载。
 
@@ -136,7 +319,7 @@ class PluginValidationPayloadMixin:
         }
 
     @staticmethod
-    def build_validation_issue(item: PluginValidationIssue) -> dict[str, Any]:
+    def build_validation_issue(item: PluginValidationIssue) -> ValidationIssuePayload:
         """
         构建统一校验问题项负载。
 
@@ -154,7 +337,7 @@ class PluginValidationPayloadMixin:
         }
 
     @staticmethod
-    def build_structure_item(item: PluginStructureCheckItem) -> dict[str, Any]:
+    def build_structure_item(item: PluginStructureCheckItem) -> StructureItemPayload:
         """
         构建结构检查项负载。
 
@@ -171,7 +354,7 @@ class PluginValidationPayloadMixin:
         }
 
     @staticmethod
-    def build_menu_conflict_item(item: PluginMenuConflictItem) -> dict[str, Any]:
+    def build_menu_conflict_item(item: PluginMenuConflictItem) -> MenuConflictItemPayload:
         """
         构建菜单冲突检查项负载。
 
@@ -193,7 +376,7 @@ class PluginValidationPayloadMixin:
         cls,
         plugin_id: str,
         dependency_result: DependencyCheckResult,
-    ) -> dict[str, Any]:
+    ) -> PluginDependencyCheckPayloadDict:
         """
         构建插件依赖检查负载。
 
@@ -204,7 +387,7 @@ class PluginValidationPayloadMixin:
         return PluginDependencyCheckPayload(plugin_id, dependency_result, builder=cls).to_payload()
 
     @staticmethod
-    def build_check_item(plugin_id: str, precheck: Any) -> dict[str, Any]:
+    def build_check_item(plugin_id: str, precheck: PluginCheckPrecheckProtocol) -> PluginCheckItemPayloadDict:
         """
         构建插件检查单项负载。
 
@@ -215,7 +398,7 @@ class PluginValidationPayloadMixin:
         return PluginCheckItemPayload(plugin_id, precheck).to_payload()
 
     @staticmethod
-    def build_check_payload(checks: list[dict[str, Any]]) -> dict[str, Any]:
+    def build_check_payload(checks: list[PluginCheckItemPayloadDict]) -> PluginCheckPayloadDict:
         """
         构建插件检查聚合负载。
 

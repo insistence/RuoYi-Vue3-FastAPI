@@ -1,8 +1,21 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Literal, TypedDict
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.manifest.menu_tree import PluginMenuTree
+
+
+class PluginDocumentationPayloadDict(TypedDict):
+    """
+    插件文档生成 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    format: Literal['markdown']
+    markdown: str
+    length: int
 
 
 @dataclass(frozen=True)
@@ -14,7 +27,7 @@ class PluginDocumentationPayload:
     plugin_id: str
     markdown: str
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginDocumentationPayloadDict:
         """
         序列化为现有插件文档 payload 契约。
 
@@ -38,7 +51,7 @@ class PluginDocumentationBuilder:
     """
 
     @classmethod
-    def build_payload(cls, plugin_id: str, discovered_plugin: DiscoveredPlugin) -> dict[str, Any]:
+    def build_payload(cls, plugin_id: str, discovered_plugin: DiscoveredPlugin) -> PluginDocumentationPayloadDict:
         """
         构建插件文档生成负载。
 

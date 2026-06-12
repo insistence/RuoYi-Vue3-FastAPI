@@ -1,5 +1,5 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
 
 
 @dataclass(frozen=True)
@@ -8,14 +8,14 @@ class PluginOperationResult:
     插件操作结果视图。
     """
 
-    payload: dict[str, Any]
+    payload: Mapping[str, object]
     ok: bool
     message: str
 
     @classmethod
     def from_payload(
         cls,
-        payload: dict[str, Any],
+        payload: Mapping[str, object],
         *,
         default_message: str = '插件操作完成',
     ) -> 'PluginOperationResult':

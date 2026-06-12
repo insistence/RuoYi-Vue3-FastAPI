@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin
@@ -12,10 +12,12 @@ from plugins.core.runtime.support import (
     PluginPrecheckContext,
     PluginRuntimePayloadBuilder,
 )
+from plugins.core.types import PluginStateRecord
 
 from ..context import PluginRuntimeContextService
 from ..dependency_container import PluginRuntimeDependencies
 from ..migration_store import PluginDatabaseMigrationHistoryStore
+from ..responses import PluginLifecycleResponse, PluginRuntimeBlockedPayloadDict
 from .operations import PluginLifecycleRuntimeOperations
 
 
@@ -70,7 +72,7 @@ class PluginUpgradeUseCase:
         operation: str,
         *,
         dry_run: bool | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> PluginRuntimeBlockedPayloadDict | None:
         """
         构建运行模式阻断负载。
 
@@ -97,7 +99,7 @@ class PluginUpgradeUseCase:
         """
         return await self.context.build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
 
-    async def _load_database_plugin_state(self, plugin_id: str) -> tuple[Any | None, str | None]:
+    async def _load_database_plugin_state(self, plugin_id: str) -> tuple[PluginStateRecord | None, str | None]:
         """
         读取数据库插件状态。
 
@@ -108,9 +110,9 @@ class PluginUpgradeUseCase:
 
     def _with_plugin_capability(
         self,
-        payload: dict[str, Any],
+        payload: PluginLifecycleResponse,
         discovered_plugin: DiscoveredPlugin | None,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         为运行时响应负载附加插件操作能力。
 
@@ -118,7 +120,10 @@ class PluginUpgradeUseCase:
         :param discovered_plugin: 已发现插件
         :return: 附加能力后的响应负载
         """
-        return self.context.with_plugin_capability(payload, discovered_plugin)
+        return cast(
+            'PluginLifecycleResponse',
+            self.context.with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+        )
 
     async def upgrade_plugin(
         self,
@@ -126,7 +131,7 @@ class PluginUpgradeUseCase:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         升级插件并按需记录审计日志。
 
@@ -136,19 +141,20 @@ class PluginUpgradeUseCase:
         :return: 插件升级结果负载
         """
         payload = await self._upgrade_plugin(plugin_id, dry_run=dry_run)
-        payload['operation'] = 'upgrade'
+        payload_view = cast('dict[str, object]', payload)
+        payload_view['operation'] = 'upgrade'
         if not dry_run:
-            await self.runtime_operations._record_plugin_failure_state(payload, '插件升级失败')
+            await self.runtime_operations._record_plugin_failure_state(payload_view, '插件升级失败')
         if record_operation_log and not dry_run:
             await self.runtime_operations._record_plugin_operation_log(
-                payload,
+                payload_view,
                 dry_run=dry_run,
                 continue_on_error=False,
             )
 
         return payload
 
-    async def _upgrade_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    async def _upgrade_plugin(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
         """
         升级插件。
 

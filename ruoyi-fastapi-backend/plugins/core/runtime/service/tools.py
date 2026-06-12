@@ -1,8 +1,10 @@
-from typing import Any
-
+from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.support import (
     PluginDocumentationBuilder,
+    PluginDocumentationPayloadDict,
+    PluginNotFoundPayloadDict,
     PluginPayloadBuilder,
+    PluginRuntimeExceptionPayloadDict,
     PluginRuntimePayloadBuilder,
 )
 
@@ -25,7 +27,7 @@ class PluginToolUseCase:
         self.dependencies = dependencies
         self.context = context
 
-    def _get_discovered_plugin(self, plugin_id: str) -> Any | None:
+    def _get_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
         """
         根据插件 ID 获取已发现插件。
 
@@ -34,7 +36,9 @@ class PluginToolUseCase:
         """
         return self.context.get_discovered_plugin(plugin_id)
 
-    def generate_plugin_docs(self, plugin_id: str) -> dict[str, Any]:
+    def generate_plugin_docs(
+        self, plugin_id: str
+    ) -> PluginDocumentationPayloadDict | PluginNotFoundPayloadDict | PluginRuntimeExceptionPayloadDict:
         """
         生成插件 Markdown 文档片段。
 

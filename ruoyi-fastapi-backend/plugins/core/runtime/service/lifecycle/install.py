@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.lifecycle.migration import PluginMigrationRunner
@@ -15,6 +15,7 @@ from plugins.core.runtime.support import (
 from ..context import PluginRuntimeContextService
 from ..dependency_container import PluginRuntimeDependencies
 from ..migration_store import PluginDatabaseMigrationHistoryStore
+from ..responses import PluginLifecycleResponse, PluginRuntimeBlockedPayloadDict
 from .operations import PluginLifecycleRuntimeOperations
 
 
@@ -69,7 +70,7 @@ class PluginInstallUseCase:
         operation: str,
         *,
         dry_run: bool | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> PluginRuntimeBlockedPayloadDict | None:
         """
         构建运行模式阻断负载。
 
@@ -98,9 +99,9 @@ class PluginInstallUseCase:
 
     def _with_plugin_capability(
         self,
-        payload: dict[str, Any],
+        payload: PluginLifecycleResponse,
         discovered_plugin: DiscoveredPlugin | None,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         为运行时响应负载附加插件操作能力。
 
@@ -108,7 +109,10 @@ class PluginInstallUseCase:
         :param discovered_plugin: 已发现插件
         :return: 附加能力后的响应负载
         """
-        return self.context.with_plugin_capability(payload, discovered_plugin)
+        return cast(
+            'PluginLifecycleResponse',
+            self.context.with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+        )
 
     async def install_plugin(
         self,
@@ -116,7 +120,7 @@ class PluginInstallUseCase:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         安装插件并按需记录审计日志。
 
@@ -126,19 +130,20 @@ class PluginInstallUseCase:
         :return: 插件安装结果负载
         """
         payload = await self._install_plugin(plugin_id, dry_run=dry_run)
-        payload['operation'] = 'install'
+        payload_view = cast('dict[str, object]', payload)
+        payload_view['operation'] = 'install'
         if not dry_run:
-            await self.runtime_operations._record_plugin_failure_state(payload, '插件安装失败')
+            await self.runtime_operations._record_plugin_failure_state(payload_view, '插件安装失败')
         if record_operation_log and not dry_run:
             await self.runtime_operations._record_plugin_operation_log(
-                payload,
+                payload_view,
                 dry_run=dry_run,
                 continue_on_error=False,
             )
 
         return payload
 
-    async def _install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    async def _install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
         """
         安装插件。
 
@@ -182,19 +187,20 @@ class PluginInstallUseCase:
                 dry_run=False,
                 discovered_plugin=discovered_plugin,
             )
-            if not dependency_install_payload.get('ok', False):
+            dependency_install_view = cast('dict[str, object]', dependency_install_payload)
+            if not dependency_install_view.get('ok', False):
                 return PluginLifecyclePayloadBuilder.build_precheck_blocker_payload(
                     plugin_id,
                     message='插件依赖安装失败，安装已中止',
                     actions=actions,
                     precheck=precheck,
-                    extra_payload={'dependencyInstall': dependency_install_payload},
+                    extra_payload={'dependencyInstall': dependency_install_view},
                 )
             self.runtime_operations._refresh_dependency_checker()
             self.dependencies = self.runtime_operations.dependencies
             self.context = self.runtime_operations.context
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
-            dependency_install_payload['postCheck'] = PluginPayloadBuilder.build_dependency_check_payload(
+            dependency_install_view['postCheck'] = PluginPayloadBuilder.build_dependency_check_payload(
                 plugin_id,
                 precheck.dependency_result,
             )
@@ -209,7 +215,7 @@ class PluginInstallUseCase:
                 plugin_id,
                 actions=actions,
                 precheck=precheck,
-                dependency_install_payload=dependency_install_payload,
+                dependency_install_payload=dependency_install_view,
             )
             if dependency_blocker_payload:
                 return dependency_blocker_payload
@@ -264,7 +270,7 @@ class PluginInstallUseCase:
                 migration_results=migration_results,
                 seed_results=seed_results,
                 hook_result=hook_result,
-                extra_payload={'dependencyInstall': dependency_install_payload},
+                extra_payload={'dependencyInstall': dependency_install_view},
             )
             payload['operation'] = 'install'
             return self._with_plugin_capability(payload, discovered_plugin)

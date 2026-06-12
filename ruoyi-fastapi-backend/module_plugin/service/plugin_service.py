@@ -1,4 +1,4 @@
-from typing import Any
+from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,23 @@ from plugins.core.management.entity.vo.schemas import (
 from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
 from plugins.core.management.service.service import PluginService
 from plugins.core.runtime.service import PluginRuntimeService
+from plugins.core.runtime.service.responses import (
+    PluginBatchResponse,
+    PluginCheckResponse,
+    PluginConfigExportResponse,
+    PluginConfigImportResponse,
+    PluginConfigStateResponse,
+    PluginDependencyCheckResponse,
+    PluginDependencyInstallResponse,
+    PluginDiagnoseResponse,
+    PluginDocumentationResponse,
+    PluginHealthResponse,
+    PluginLifecycleResponse,
+    PluginPlanResponse,
+    PluginPrecheckResponse,
+)
+from plugins.core.runtime.support import PluginAuditPayloadBuilder, PluginAuditSnapshotPayloadDict
+from plugins.core.types import PluginConfigValue
 
 
 class PluginOperationService:
@@ -33,7 +50,7 @@ class PluginOperationService:
             command_gateway=runtime_gateway,
         )
 
-    async def check_plugin_services(self, plugin_id: str) -> dict[str, Any]:
+    async def check_plugin_services(self, plugin_id: str) -> PluginCheckResponse:
         """
         检查插件状态。
 
@@ -42,7 +59,7 @@ class PluginOperationService:
         """
         return self.runtime_service.check_plugin(plugin_id)
 
-    async def precheck_plugin_services(self, plugin_id: str, operation: str) -> dict[str, Any]:
+    async def precheck_plugin_services(self, plugin_id: str, operation: str) -> PluginPrecheckResponse:
         """
         执行插件操作预检。
 
@@ -52,7 +69,7 @@ class PluginOperationService:
         """
         return await self.runtime_service.precheck_plugin_operation(plugin_id, operation)
 
-    async def health_plugin_services(self, plugin_id: str) -> dict[str, Any]:
+    async def health_plugin_services(self, plugin_id: str) -> PluginHealthResponse:
         """
         执行插件健康检查。
 
@@ -61,7 +78,7 @@ class PluginOperationService:
         """
         return await self.runtime_service.health_plugin(plugin_id)
 
-    async def diagnose_plugin_services(self, plugin_id: str) -> dict[str, Any]:
+    async def diagnose_plugin_services(self, plugin_id: str) -> PluginDiagnoseResponse:
         """
         生成插件诊断包。
 
@@ -70,7 +87,7 @@ class PluginOperationService:
         """
         return await self.runtime_service.diagnose_plugin(plugin_id)
 
-    async def generate_plugin_docs_services(self, plugin_id: str) -> dict[str, Any]:
+    async def generate_plugin_docs_services(self, plugin_id: str) -> PluginDocumentationResponse:
         """
         生成插件 Markdown 文档片段。
 
@@ -85,7 +102,7 @@ class PluginOperationService:
         plugin_id: str,
         *,
         audit_limit: int = 5,
-    ) -> dict[str, Any]:
+    ) -> PluginDiagnoseResponse:
         """
         生成包含最近审计记录的插件诊断包。
 
@@ -94,12 +111,12 @@ class PluginOperationService:
         :param audit_limit: 最近审计记录数量
         :return: 插件诊断包负载
         """
-        payload = await self.runtime_service.diagnose_plugin(plugin_id)
+        payload = cast('dict[str, object]', await self.runtime_service.diagnose_plugin(plugin_id))
         payload['audit'] = await self._build_recent_audit_snapshot(query_db, plugin_id, audit_limit=audit_limit)
 
-        return payload
+        return cast('PluginDiagnoseResponse', payload)
 
-    async def install_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    async def install_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
         """
         安装插件。
 
@@ -109,7 +126,7 @@ class PluginOperationService:
         """
         return await self.runtime_service.install_plugin(plugin_id, dry_run=dry_run)
 
-    async def upgrade_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    async def upgrade_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
         """
         升级插件。
 
@@ -119,7 +136,7 @@ class PluginOperationService:
         """
         return await self.runtime_service.upgrade_plugin(plugin_id, dry_run=dry_run)
 
-    async def uninstall_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    async def uninstall_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
         """
         安全卸载插件。
 
@@ -129,7 +146,7 @@ class PluginOperationService:
         """
         return await self.runtime_service.uninstall_plugin(plugin_id, dry_run=dry_run)
 
-    async def purge_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    async def purge_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
         """
         物理清理插件平台元数据。
 
@@ -145,7 +162,7 @@ class PluginOperationService:
         *,
         enabled: bool,
         dry_run: bool = False,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         更新插件启停状态。
 
@@ -156,7 +173,7 @@ class PluginOperationService:
         """
         return await self.runtime_service.set_plugin_enabled(plugin_id, enabled=enabled, dry_run=dry_run)
 
-    async def get_plugin_config_services(self, plugin_id: str) -> dict[str, Any]:
+    async def get_plugin_config_services(self, plugin_id: str) -> PluginConfigStateResponse:
         """
         获取插件配置。
 
@@ -165,7 +182,9 @@ class PluginOperationService:
         """
         return await self.runtime_service.get_plugin_config(plugin_id)
 
-    async def export_plugin_config_services(self, plugin_id: str, *, reveal_secret: bool = False) -> dict[str, Any]:
+    async def export_plugin_config_services(
+        self, plugin_id: str, *, reveal_secret: bool = False
+    ) -> PluginConfigExportResponse:
         """
         导出插件配置快照。
 
@@ -175,7 +194,11 @@ class PluginOperationService:
         """
         return await self.runtime_service.export_plugin_config(plugin_id, reveal_secret=reveal_secret)
 
-    async def import_plugin_config_services(self, plugin_id: str, values: dict[str, Any]) -> dict[str, Any]:
+    async def import_plugin_config_services(
+        self,
+        plugin_id: str,
+        values: dict[str, PluginConfigValue],
+    ) -> PluginConfigImportResponse:
         """
         导入插件配置。
 
@@ -185,7 +208,11 @@ class PluginOperationService:
         """
         return await self.runtime_service.import_plugin_config(plugin_id, values)
 
-    async def update_plugin_config_services(self, plugin_id: str, values: dict[str, Any]) -> dict[str, Any]:
+    async def update_plugin_config_services(
+        self,
+        plugin_id: str,
+        values: dict[str, PluginConfigValue],
+    ) -> PluginConfigStateResponse:
         """
         更新插件配置。
 
@@ -195,7 +222,7 @@ class PluginOperationService:
         """
         return await self.runtime_service.set_plugin_config(plugin_id, values)
 
-    async def check_plugin_dependencies_services(self, plugin_id: str) -> dict[str, Any]:
+    async def check_plugin_dependencies_services(self, plugin_id: str) -> PluginDependencyCheckResponse:
         """
         检查插件依赖。
 
@@ -204,7 +231,7 @@ class PluginOperationService:
         """
         return self.runtime_service.check_plugin_dependencies(plugin_id)
 
-    async def plan_plugins_services(self, operation: str, plugin_ids: list[str] | None = None) -> dict[str, Any]:
+    async def plan_plugins_services(self, operation: str, plugin_ids: list[str] | None = None) -> PluginPlanResponse:
         """
         生成插件批量操作拓扑计划。
 
@@ -221,7 +248,7 @@ class PluginOperationService:
         *,
         dry_run: bool = True,
         continue_on_error: bool = False,
-    ) -> dict[str, Any]:
+    ) -> PluginBatchResponse:
         """
         批量执行插件操作。
 
@@ -238,7 +265,9 @@ class PluginOperationService:
             continue_on_error=continue_on_error,
         )
 
-    async def install_plugin_dependencies_services(self, plugin_id: str, *, dry_run: bool = True) -> dict[str, Any]:
+    async def install_plugin_dependencies_services(
+        self, plugin_id: str, *, dry_run: bool = True
+    ) -> PluginDependencyInstallResponse:
         """
         生成或执行插件依赖安装计划。
 
@@ -271,7 +300,7 @@ class PluginOperationService:
         plugin_id: str,
         *,
         audit_limit: int,
-    ) -> dict[str, Any]:
+    ) -> PluginAuditSnapshotPayloadDict:
         """
         构建插件最近审计记录快照。
 
@@ -284,14 +313,12 @@ class PluginOperationService:
             query_db,
             PluginOperationLogExportQueryModel(exportLimit=max(audit_limit * 3, audit_limit)),
         )
-        recent_logs = [
-            operation_log
-            for operation_log in operation_logs
-            if isinstance(operation_log, PluginOperationLogDetailModel) and plugin_id in operation_log.plugin_ids
-        ][:audit_limit]
-
-        return {
-            'available': True,
-            'count': len(recent_logs),
-            'items': [operation_log.model_dump(by_alias=True) for operation_log in recent_logs],
-        }
+        return PluginAuditPayloadBuilder.build_recent_snapshot_payload(
+            plugin_id,
+            [
+                operation_log
+                for operation_log in operation_logs
+                if isinstance(operation_log, PluginOperationLogDetailModel)
+            ],
+            audit_limit=audit_limit,
+        )

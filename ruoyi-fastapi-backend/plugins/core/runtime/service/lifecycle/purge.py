@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.hooks import PluginHookRunner
@@ -13,6 +13,7 @@ from plugins.core.runtime.support import (
 
 from ..context import PluginRuntimeContextService
 from ..dependency_container import PluginRuntimeDependencies
+from ..responses import PluginLifecycleResponse, PluginRuntimeBlockedPayloadDict
 from .operations import PluginLifecycleRuntimeOperations
 
 
@@ -53,7 +54,7 @@ class PluginPurgeUseCase:
         operation: str,
         *,
         dry_run: bool | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> PluginRuntimeBlockedPayloadDict | None:
         """
         构建运行模式阻断负载。
 
@@ -91,9 +92,9 @@ class PluginPurgeUseCase:
 
     def _with_plugin_capability(
         self,
-        payload: dict[str, Any],
+        payload: PluginLifecycleResponse,
         discovered_plugin: DiscoveredPlugin | None,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         为运行时响应负载附加插件操作能力。
 
@@ -101,7 +102,10 @@ class PluginPurgeUseCase:
         :param discovered_plugin: 已发现插件
         :return: 附加能力后的响应负载
         """
-        return self.context.with_plugin_capability(payload, discovered_plugin)
+        return cast(
+            'PluginLifecycleResponse',
+            self.context.with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+        )
 
     async def purge_plugin(
         self,
@@ -109,7 +113,7 @@ class PluginPurgeUseCase:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         物理清理插件平台元数据并按需记录审计日志。
 
@@ -119,16 +123,17 @@ class PluginPurgeUseCase:
         :return: 插件物理清理结果负载
         """
         payload = await self._purge_plugin(plugin_id, dry_run=dry_run)
+        payload_view = cast('dict[str, object]', payload)
         if record_operation_log and not dry_run:
             await self.runtime_operations._record_plugin_operation_log(
-                payload,
+                payload_view,
                 dry_run=dry_run,
                 continue_on_error=False,
             )
 
         return payload
 
-    async def _purge_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    async def _purge_plugin(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
         """
         物理清理插件平台元数据。
 

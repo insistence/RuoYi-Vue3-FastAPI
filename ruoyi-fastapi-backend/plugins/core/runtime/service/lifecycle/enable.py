@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.support import (
@@ -12,6 +12,7 @@ from plugins.core.runtime.support import (
 
 from ..context import PluginRuntimeContextService
 from ..dependency_container import PluginRuntimeDependencies
+from ..responses import PluginLifecycleResponse, PluginRuntimeBlockedPayloadDict
 from .operations import PluginLifecycleRuntimeOperations
 
 
@@ -75,7 +76,7 @@ class PluginEnableUseCase:
         operation: str,
         *,
         dry_run: bool | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> PluginRuntimeBlockedPayloadDict | None:
         """
         构建运行模式阻断负载。
 
@@ -104,9 +105,9 @@ class PluginEnableUseCase:
 
     def _with_plugin_capability(
         self,
-        payload: dict[str, Any],
+        payload: PluginLifecycleResponse,
         discovered_plugin: DiscoveredPlugin | None,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         为运行时响应负载附加插件操作能力。
 
@@ -114,7 +115,10 @@ class PluginEnableUseCase:
         :param discovered_plugin: 已发现插件
         :return: 附加能力后的响应负载
         """
-        return self.context.with_plugin_capability(payload, discovered_plugin)
+        return cast(
+            'PluginLifecycleResponse',
+            self.context.with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+        )
 
     async def set_plugin_enabled(
         self,
@@ -123,7 +127,7 @@ class PluginEnableUseCase:
         enabled: bool,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         更新插件启停状态并按需记录审计日志。
 
@@ -134,18 +138,21 @@ class PluginEnableUseCase:
         :return: 插件启停结果负载
         """
         payload = await self._set_plugin_enabled(plugin_id, enabled=enabled, dry_run=dry_run)
+        payload_view = cast('dict[str, object]', payload)
         if enabled and not dry_run:
-            await self.runtime_operations._record_plugin_failure_state(payload, '插件启用失败')
+            await self.runtime_operations._record_plugin_failure_state(payload_view, '插件启用失败')
         if record_operation_log and not dry_run:
             await self.runtime_operations._record_plugin_operation_log(
-                payload,
+                payload_view,
                 dry_run=dry_run,
                 continue_on_error=False,
             )
 
         return payload
 
-    async def _set_plugin_enabled(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict[str, Any]:
+    async def _set_plugin_enabled(
+        self, plugin_id: str, *, enabled: bool, dry_run: bool = False
+    ) -> PluginLifecycleResponse:
         """
         更新插件启停状态。
 
@@ -156,7 +163,7 @@ class PluginEnableUseCase:
         """
         operation = 'enable' if enabled else 'disable'
         try:
-            dependency_payload: dict[str, Any] = {}
+            dependency_payload: dict[str, object] = {}
             discovered_plugin = self._get_discovered_plugin(plugin_id)
             if discovered_plugin:
                 blocked_payload = self._build_operation_blocked_payload(discovered_plugin, operation, dry_run=dry_run)
@@ -205,7 +212,10 @@ class PluginEnableUseCase:
                 )
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
             actions = PluginPayloadBuilder.build_enabled_actions(enabled, precheck.plugin_dependency_result.ok)
-            dependency_payload = PluginEnablePayloadBuilder.build_dependency_payload(precheck.plugin_dependency_result)
+            dependency_payload = cast(
+                'dict[str, object]',
+                PluginEnablePayloadBuilder.build_dependency_payload(precheck.plugin_dependency_result),
+            )
             if not dry_run:
                 blocker_payload = PluginLifecyclePayloadBuilder.build_first_precheck_blocker_payload(
                     plugin_id,
@@ -263,7 +273,7 @@ class PluginEnableUseCase:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         安全卸载插件。
 
@@ -275,17 +285,18 @@ class PluginEnableUseCase:
         :return: 插件卸载结果负载
         """
         result = await self._uninstall_plugin(plugin_id, dry_run=dry_run)
-        result = PluginEnablePayloadBuilder.build_uninstall_payload(result, dry_run=dry_run)
+        result = PluginEnablePayloadBuilder.build_uninstall_payload(cast('dict[str, object]', result), dry_run=dry_run)
+        result_view = cast('dict[str, object]', result)
         if record_operation_log and not dry_run:
             await self.runtime_operations._record_plugin_operation_log(
-                result,
+                result_view,
                 dry_run=dry_run,
                 continue_on_error=False,
             )
 
         return result
 
-    async def _uninstall_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    async def _uninstall_plugin(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
         """
         标记插件卸载并停用关联运行资源。
 

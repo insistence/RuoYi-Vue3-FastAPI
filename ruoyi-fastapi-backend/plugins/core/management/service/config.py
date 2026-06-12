@@ -1,9 +1,10 @@
 import json
 import re
-from typing import Any
+from typing import cast
 
 from plugins.core.management.entity.vo.schemas import PluginConfigModel, PluginConfigValueModel
 from plugins.core.manifest.schema import PluginConfigItemManifest
+from plugins.core.types import PluginConfigValue
 
 
 class PluginConfigManager:
@@ -83,7 +84,7 @@ class PluginConfigManager:
         )
 
     @classmethod
-    def serialize_value(cls, value: Any) -> str | None:
+    def serialize_value(cls, value: PluginConfigValue) -> str | None:
         """
         序列化插件配置值。
 
@@ -97,7 +98,7 @@ class PluginConfigManager:
         return json.dumps(value, ensure_ascii=False)
 
     @classmethod
-    def deserialize_value(cls, value: str | None, config_type: str = 'string') -> Any:
+    def deserialize_value(cls, value: str | None, config_type: str = 'string') -> PluginConfigValue:
         """
         反序列化插件配置值。
 
@@ -116,13 +117,13 @@ class PluginConfigManager:
                 return value
         if config_type == 'json':
             try:
-                return json.loads(value)
+                return cast('PluginConfigValue', json.loads(value))
             except json.JSONDecodeError:
                 return value
         return value
 
     @classmethod
-    def deserialize_options(cls, value: str | None) -> list[dict[str, Any]]:
+    def deserialize_options(cls, value: str | None) -> list[dict[str, PluginConfigValue]]:
         """
         反序列化配置选项。
 
@@ -135,10 +136,10 @@ class PluginConfigManager:
             options = json.loads(value)
         except json.JSONDecodeError:
             return []
-        return options if isinstance(options, list) else []
+        return cast('list[dict[str, PluginConfigValue]]', options) if isinstance(options, list) else []
 
     @classmethod
-    def validate_update_value(cls, item: PluginConfigItemManifest, value: Any) -> None:
+    def validate_update_value(cls, item: PluginConfigItemManifest, value: PluginConfigValue) -> None:
         """
         校验配置更新值。
 
@@ -167,7 +168,7 @@ class PluginConfigManager:
             raise ValueError(f'配置 {item.key} 不匹配正则约束')
 
     @classmethod
-    def _validate_number_range(cls, item: PluginConfigItemManifest, value: Any) -> None:
+    def _validate_number_range(cls, item: PluginConfigItemManifest, value: int | float) -> None:
         """
         校验数字配置值范围。
 

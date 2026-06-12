@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Any
 
 from plugins.core.validation.dependencies import PluginDependencyChecker
 
@@ -15,6 +14,6 @@ class PluginRuntimeDependencies:
 
     runtime_environment: PluginRuntimeEnvironmentService
     dependency_checker: PluginDependencyChecker
-    state_gateway: PluginStateGateway | Any
-    model_gateway: PluginManagementModelGateway | Any
-    command_gateway: PluginCommandRunnerGateway | Any
+    state_gateway: PluginStateGateway
+    model_gateway: PluginManagementModelGateway
+    command_gateway: PluginCommandRunnerGateway

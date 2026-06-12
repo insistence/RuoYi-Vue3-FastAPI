@@ -1,9 +1,64 @@
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any
+from typing import TypedDict
 
 from plugins.core.runtime.exit_codes import RUNTIME_ERROR, SUCCESS
 from plugins.core.validation.plugin_deps import PluginBatchOperation
+
+
+class BatchOperationResultPayload(TypedDict, total=False):
+    """
+    批量单项运行时结果 payload。
+    """
+
+    ok: bool
+    message: str
+    exit_code: int
+    pluginDependencyErrors: object
+    structureErrors: object
+    menuConflicts: object
+    error: object
+
+
+class BatchSummaryPayload(TypedDict):
+    """
+    批量执行汇总 payload。
+    """
+
+    total: int
+    succeeded: int
+    failed: int
+    skipped: int
+
+
+class BatchItemReportPayload(TypedDict):
+    """
+    批量单项报告 payload。
+    """
+
+    pluginId: str
+    operation: PluginBatchOperation
+    ok: bool
+    status: str
+    message: str
+    durationMs: int
+    exitCode: int
+    suggestion: str
+
+
+class BatchFailedPayload(BatchItemReportPayload):
+    """
+    批量失败项 payload。
+    """
+
+    result: BatchOperationResultPayload
+
+
+BatchPlanPayload = Mapping[str, object]
+BatchItemRunner = Callable[[PluginBatchOperation, str], Awaitable[BatchOperationResultPayload]]
 
 
 @dataclass(frozen=True)
@@ -37,11 +92,11 @@ class PluginBatchDryRunPayload:
     插件批量预演结构化负载。
     """
 
-    plan_payload: dict[str, Any]
+    plan_payload: BatchPlanPayload
     continue_on_error: bool
-    summary: dict[str, int]
+    summary: BatchSummaryPayload
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> dict[str, object]:
         """
         序列化为现有插件批量预演 payload 契约。
 
@@ -64,14 +119,14 @@ class PluginBatchExecutionPayload:
     插件批量执行结构化负载。
     """
 
-    plan_payload: dict[str, Any]
+    plan_payload: BatchPlanPayload
     reports: list[PluginBatchItemReport]
-    failed: dict[str, Any] | None
+    failed: BatchFailedPayload | None
     continue_on_error: bool
     message: str
-    summary: dict[str, int]
+    summary: BatchSummaryPayload
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> dict[str, object]:
         """
         序列化为现有插件批量执行 payload 契约。
 
@@ -97,12 +152,12 @@ class PluginBatchPlanBlockedPayload:
     插件批量计划阻断结构化负载。
     """
 
-    plan_payload: dict[str, Any]
+    plan_payload: BatchPlanPayload
     dry_run: bool
     continue_on_error: bool
-    summary: dict[str, int]
+    summary: BatchSummaryPayload
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> dict[str, object]:
         """
         序列化为现有插件批量计划阻断 payload 契约。
 
@@ -131,8 +186,8 @@ class PluginBatchReportBuilder:
         cls,
         operation: PluginBatchOperation,
         plugin_id: str,
-        runner: Any,
-    ) -> tuple[PluginBatchItemReport, dict[str, Any]]:
+        runner: BatchItemRunner,
+    ) -> tuple[PluginBatchItemReport, BatchOperationResultPayload]:
         """
         执行单个插件批量操作并构建报告。
 
@@ -153,7 +208,7 @@ class PluginBatchReportBuilder:
         cls,
         operation: PluginBatchOperation,
         plugin_id: str,
-        result: dict[str, Any],
+        result: BatchOperationResultPayload,
         duration_ms: int,
     ) -> PluginBatchItemReport:
         """
@@ -180,7 +235,7 @@ class PluginBatchReportBuilder:
         )
 
     @staticmethod
-    def build_summary(reports: list[PluginBatchItemReport], total: int) -> dict[str, int]:
+    def build_summary(reports: list[PluginBatchItemReport], total: int) -> BatchSummaryPayload:
         """
         构建插件批量执行汇总。
 
@@ -199,7 +254,7 @@ class PluginBatchReportBuilder:
         }
 
     @staticmethod
-    def resolve_executable_plugin_ids(plan_payload: dict[str, Any]) -> list[str]:
+    def resolve_executable_plugin_ids(plan_payload: BatchPlanPayload) -> list[str]:
         """
         从批量计划负载中解析实际执行插件 ID。
 
@@ -210,6 +265,8 @@ class PluginBatchReportBuilder:
         :return: 实际执行插件 ID 列表
         """
         plan = plan_payload.get('plan', {})
+        if not isinstance(plan, Mapping):
+            return []
         requested_plugin_ids = plan.get('requestedPluginIds')
         ordered_plugin_ids = plan.get('orderedPluginIds')
         if not isinstance(requested_plugin_ids, list) or not requested_plugin_ids:
@@ -223,11 +280,11 @@ class PluginBatchReportBuilder:
     @classmethod
     def build_plan_blocked_payload(
         cls,
-        plan_payload: dict[str, Any],
+        plan_payload: BatchPlanPayload,
         *,
         dry_run: bool,
         continue_on_error: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """
         构建插件批量计划阻断负载。
 
@@ -247,10 +304,10 @@ class PluginBatchReportBuilder:
     @classmethod
     def build_dry_run_payload(
         cls,
-        plan_payload: dict[str, Any],
+        plan_payload: BatchPlanPayload,
         *,
         continue_on_error: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """
         构建插件批量执行预演负载。
 
@@ -269,8 +326,8 @@ class PluginBatchReportBuilder:
     def build_failed_payload(
         cls,
         report: PluginBatchItemReport,
-        result: dict[str, Any],
-    ) -> dict[str, Any]:
+        result: BatchOperationResultPayload,
+    ) -> BatchFailedPayload:
         """
         构建插件批量执行失败项负载。
 
@@ -283,12 +340,12 @@ class PluginBatchReportBuilder:
     @classmethod
     def build_execution_payload(
         cls,
-        plan_payload: dict[str, Any],
+        plan_payload: BatchPlanPayload,
         reports: list[PluginBatchItemReport],
-        failed: dict[str, Any] | None,
+        failed: BatchFailedPayload | None,
         *,
         continue_on_error: bool,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """
         构建插件批量执行结果负载。
 
@@ -325,7 +382,7 @@ class PluginBatchReportBuilder:
         return '插件批量操作中止'
 
     @staticmethod
-    def dump_item_report(report: PluginBatchItemReport) -> dict[str, Any]:
+    def dump_item_report(report: PluginBatchItemReport) -> BatchItemReportPayload:
         """
         转换单项报告为插件运行时负载。
 
@@ -347,7 +404,7 @@ class PluginBatchReportBuilder:
     def build_failure_suggestion(
         operation: PluginBatchOperation,
         plugin_id: str,
-        result: dict[str, Any],
+        result: BatchOperationResultPayload,
     ) -> str:
         """
         构建插件批量执行失败建议。
@@ -369,7 +426,7 @@ class PluginBatchReportBuilder:
         return f'先单独执行 ruoyi plugin {operation} {plugin_id} --dry-run 定位失败原因'
 
     @staticmethod
-    def _count_planned_items(plan_payload: dict[str, Any]) -> int:
+    def _count_planned_items(plan_payload: BatchPlanPayload) -> int:
         """
         统计插件批量计划项数量。
 
@@ -377,6 +434,8 @@ class PluginBatchReportBuilder:
         :return: 计划项数量
         """
         plan = plan_payload.get('plan', {})
+        if not isinstance(plan, Mapping):
+            return 0
         requested_plugin_ids = plan.get('requestedPluginIds')
         if isinstance(requested_plugin_ids, list) and requested_plugin_ids:
             return len(requested_plugin_ids)

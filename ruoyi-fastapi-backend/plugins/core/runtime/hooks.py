@@ -99,7 +99,7 @@ class PluginHookRunner:
         return PluginCallableLoader(self.discovered_plugin, label='生命周期钩子').load(hook_path)
 
     @staticmethod
-    def _invoke_hook(hook_callable: LoadedPluginCallable, context: PluginHookContext) -> Any:
+    def _invoke_hook(hook_callable: LoadedPluginCallable, context: PluginHookContext) -> object:
         """
         调用生命周期钩子函数。
 

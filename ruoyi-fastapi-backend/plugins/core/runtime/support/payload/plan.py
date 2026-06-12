@@ -1,23 +1,254 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Protocol, TypedDict
 
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
+from plugins.core.runtime.support.payload.validation import (
+    DependencyItemPayload,
+    MenuConflictItemPayload,
+    PluginDependencyItemPayload,
+    PluginValidationPayloadBuilderProtocol,
+    StructureItemPayload,
+    ValidationIssuePayload,
+)
 from plugins.core.validation.versioning import PluginVersionComparator
 
 from .validation import PluginValidationPayloadMixin
 
 if TYPE_CHECKING:
+    from subprocess import CompletedProcess
+
     from plugins.core.discovery.scanner import DiscoveredPlugin
     from plugins.core.lifecycle.purge import PluginPurgePlan, PluginPurgePlanItem
-    from plugins.core.validation.dependencies import DependencyInstallPlanItem
+    from plugins.core.validation.dependencies import DependencyCheckResult, DependencyInstallPlanItem
     from plugins.core.validation.plugin_deps import (
+        PluginBatchOperation,
+        PluginDependencyCheckResult,
         PluginDependencyPlan,
         PluginDependencyPlanBlocker,
         PluginDependencyPlanItem,
     )
+    from plugins.core.validation.structure import PluginStructureCheckResult
+
+
+class SupportsOk(Protocol):
+    """
+    支持 ok 属性的检查结果协议。
+    """
+
+    ok: bool
+
+
+class PluginPlanBlockerPayload(TypedDict):
+    """
+    插件批量操作计划阻塞项 payload。
+    """
+
+    pluginId: str
+    dependencyId: str
+    status: str
+    message: str
+
+
+class PluginPlanItemPayload(TypedDict):
+    """
+    插件批量操作计划项 payload。
+    """
+
+    pluginId: str
+    name: str
+    version: str
+    operation: PluginBatchOperation
+    order: int
+    requested: bool
+    dependencies: list[str]
+    installedVersion: str | None
+    enabled: str | None
+    status: str | None
+    ready: bool
+    blockers: list[PluginPlanBlockerPayload]
+
+
+class PluginPlanPayloadDict(TypedDict):
+    """
+    插件批量操作拓扑计划 payload。
+    """
+
+    operation: PluginBatchOperation
+    ok: bool
+    requestedPluginIds: list[str]
+    orderedPluginIds: list[str]
+    items: list[PluginPlanItemPayload]
+    blockers: list[PluginPlanBlockerPayload]
+    blockerCount: int
+
+
+class PluginPlanResponsePayload(TypedDict):
+    """
+    插件批量操作计划响应 payload。
+    """
+
+    ok: bool
+    message: str
+    operation: PluginBatchOperation
+    plan: PluginPlanPayloadDict
+    exit_code: int
+
+
+class DependencyInstallPlanItemPayload(TypedDict):
+    """
+    依赖安装计划项 payload。
+    """
+
+    kind: str
+    requirement: str
+    name: str
+    command: list[str]
+    commandText: str
+    workdir: str
+    reason: str
+    status: str
+
+
+class DependencyInstallResultPayload(TypedDict):
+    """
+    依赖安装执行结果 payload。
+    """
+
+    kind: str
+    requirement: str
+    name: str
+    command: list[str]
+    commandText: str
+    workdir: str
+    returnCode: int
+    stdout: str
+    stderr: str
+
+
+class CommandResultPayload(TypedDict):
+    """
+    系统命令执行结果 payload。
+    """
+
+    returnCode: int
+    stdout: str
+    stderr: str
+
+
+class PurgePlanItemPayload(TypedDict):
+    """
+    插件物理清理计划项 payload。
+    """
+
+    name: str
+    label: str
+    enabled: bool
+    destructive: bool
+    count: int
+    target: str
+
+
+class PurgePlanPayload(TypedDict):
+    """
+    插件物理清理计划 payload。
+    """
+
+    pluginId: str
+    removesSource: bool
+    requiresHook: bool
+    destructiveCount: int
+    items: list[PurgePlanItemPayload]
+
+
+class ActionPayload(TypedDict, total=False):
+    """
+    插件操作动作项 payload。
+    """
+
+    name: str
+    label: str
+    enabled: bool
+    count: int
+    ok: bool
+    hook: str | None
+    targetEnabled: bool
+    targetStatus: str
+
+
+class VersionStatePayload(TypedDict):
+    """
+    插件升级版本状态 payload。
+    """
+
+    installed: bool
+    installedVersion: str | None
+    currentVersion: str
+    needsUpgrade: bool
+
+
+class UpgradeDryRunPayloadContext(TypedDict):
+    """
+    插件升级 dry-run payload 上下文。
+    """
+
+    versionState: VersionStatePayload
+    dependencyResult: DependencyCheckResult
+    pluginDependencyResult: PluginDependencyCheckResult
+    structureResult: PluginStructureCheckResult
+    menuConflictResult: SupportsOk
+    manifestOk: bool
+    actions: list[ActionPayload]
+    manifestIssues: list[ValidationIssuePayload]
+    manifestWarnings: list[ValidationIssuePayload]
+    pluginDependencyErrors: list[PluginDependencyItemPayload]
+    structureErrors: list[StructureItemPayload]
+    menuConflicts: list[MenuConflictItemPayload]
+
+
+class UpgradeDryRunPayloadDict(TypedDict):
+    """
+    插件升级 dry-run payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    dryRun: bool
+    installed: bool
+    installedVersion: str | None
+    currentVersion: str
+    needsUpgrade: bool
+    databaseAvailable: bool
+    databaseError: str | None
+    dependencyOk: bool
+    manifestOk: bool
+    pluginDependencyOk: bool
+    structureOk: bool
+    menuConflictOk: bool
+    actions: list[ActionPayload]
+    manifestIssues: list[ValidationIssuePayload]
+    manifestWarnings: list[ValidationIssuePayload]
+    pluginDependencyErrors: list[PluginDependencyItemPayload]
+    structureErrors: list[StructureItemPayload]
+    menuConflicts: list[MenuConflictItemPayload]
+    dependencies: list[DependencyItemPayload]
+    pluginDependencies: list[PluginDependencyItemPayload]
+
+
+class PluginPlanPayloadBuilderProtocol(PluginValidationPayloadBuilderProtocol, Protocol):
+    """
+    插件批量计划 payload builder 协议。
+    """
+
+    @staticmethod
+    def build_plugin_plan(plan: PluginDependencyPlan) -> PluginPlanPayloadDict:
+        """
+        构建插件批量操作拓扑计划负载。
+        """
+        ...
 
 
 @dataclass(frozen=True)
@@ -27,9 +258,9 @@ class PluginPlanPayload:
     """
 
     plan: PluginDependencyPlan
-    builder: type[Any] | None = None
+    builder: type[PluginPlanPayloadBuilderProtocol] | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginPlanResponsePayload:
         """
         序列化为现有插件批量操作计划 payload 契约。
 
@@ -52,11 +283,11 @@ class PluginUpgradeDryRunPayload:
     """
 
     plugin_id: str
-    payload_context: dict[str, Any]
+    payload_context: UpgradeDryRunPayloadContext
     database_error: str | None = None
-    builder: type[Any] | None = None
+    builder: type[PluginPlanPayloadBuilderProtocol] | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> UpgradeDryRunPayloadDict:
         """
         序列化为现有插件升级预演 payload 契约。
 
@@ -100,7 +331,7 @@ class PluginPlanPayloadMixin:
     """
 
     @staticmethod
-    def build_plugin_plan_blocker(item: PluginDependencyPlanBlocker) -> dict[str, Any]:
+    def build_plugin_plan_blocker(item: PluginDependencyPlanBlocker) -> PluginPlanBlockerPayload:
         """
         构建插件批量操作计划阻塞项负载。
 
@@ -115,7 +346,7 @@ class PluginPlanPayloadMixin:
         }
 
     @classmethod
-    def build_plugin_plan_item(cls, item: PluginDependencyPlanItem) -> dict[str, Any]:
+    def build_plugin_plan_item(cls, item: PluginDependencyPlanItem) -> PluginPlanItemPayload:
         """
         构建插件批量操作计划项负载。
 
@@ -138,7 +369,7 @@ class PluginPlanPayloadMixin:
         }
 
     @classmethod
-    def build_plugin_plan(cls, plan: PluginDependencyPlan) -> dict[str, Any]:
+    def build_plugin_plan(cls, plan: PluginDependencyPlan) -> PluginPlanPayloadDict:
         """
         构建插件批量操作拓扑计划负载。
 
@@ -156,7 +387,7 @@ class PluginPlanPayloadMixin:
         }
 
     @classmethod
-    def build_plan_payload(cls, plan: PluginDependencyPlan) -> dict[str, Any]:
+    def build_plan_payload(cls, plan: PluginDependencyPlan) -> PluginPlanResponsePayload:
         """
         构建插件批量操作计划响应负载。
 
@@ -166,7 +397,7 @@ class PluginPlanPayloadMixin:
         return PluginPlanPayload(plan, builder=cls).to_payload()
 
     @staticmethod
-    def build_dependency_install_plan_item(item: DependencyInstallPlanItem) -> dict[str, Any]:
+    def build_dependency_install_plan_item(item: DependencyInstallPlanItem) -> DependencyInstallPlanItemPayload:
         """
         构建依赖安装计划项负载。
 
@@ -185,7 +416,10 @@ class PluginPlanPayloadMixin:
         }
 
     @staticmethod
-    def build_dependency_install_result(item: DependencyInstallPlanItem, completed: Any) -> dict[str, Any]:
+    def build_dependency_install_result(
+        item: DependencyInstallPlanItem,
+        completed: CompletedProcess[str],
+    ) -> DependencyInstallResultPayload:
         """
         构建依赖安装执行结果负载。
 
@@ -206,7 +440,7 @@ class PluginPlanPayloadMixin:
         }
 
     @staticmethod
-    def build_command_result(completed: Any) -> dict[str, Any]:
+    def build_command_result(completed: CompletedProcess[str]) -> CommandResultPayload:
         """
         构建通用系统命令执行结果负载。
 
@@ -220,7 +454,7 @@ class PluginPlanPayloadMixin:
         }
 
     @staticmethod
-    def build_purge_plan_item(item: PluginPurgePlanItem) -> dict[str, Any]:
+    def build_purge_plan_item(item: PluginPurgePlanItem) -> PurgePlanItemPayload:
         """
         构建插件物理清理计划项负载。
 
@@ -237,7 +471,7 @@ class PluginPlanPayloadMixin:
         }
 
     @classmethod
-    def build_purge_plan(cls, plan: PluginPurgePlan) -> dict[str, Any]:
+    def build_purge_plan(cls, plan: PluginPurgePlan) -> PurgePlanPayload:
         """
         构建插件物理清理计划负载。
 
@@ -260,7 +494,7 @@ class PluginPlanPayloadMixin:
         plugin_dependency_ok: bool,
         structure_ok: bool,
         menu_conflict_ok: bool,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ActionPayload]:
         """
         构建插件安装动作计划。
 
@@ -329,7 +563,7 @@ class PluginPlanPayloadMixin:
         plugin_dependency_ok: bool,
         structure_ok: bool,
         menu_conflict_ok: bool,
-    ) -> list[dict[str, Any]]:
+    ) -> list[ActionPayload]:
         """
         构建插件升级动作计划。
 
@@ -396,7 +630,7 @@ class PluginPlanPayloadMixin:
     def build_upgrade_version_state(
         discovered_plugin: DiscoveredPlugin,
         database_plugin: object | None,
-    ) -> dict[str, Any]:
+    ) -> VersionStatePayload:
         """
         构建插件升级版本状态。
 
@@ -417,9 +651,9 @@ class PluginPlanPayloadMixin:
     def build_upgrade_dry_run_payload(
         cls,
         plugin_id: str,
-        payload_context: dict[str, Any],
+        payload_context: UpgradeDryRunPayloadContext,
         database_error: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> UpgradeDryRunPayloadDict:
         """
         构建插件升级 dry-run 负载。
 
@@ -436,7 +670,7 @@ class PluginPlanPayloadMixin:
         ).to_payload()
 
     @staticmethod
-    def build_enabled_actions(enabled: bool, plugin_dependency_ok: bool = True) -> list[dict[str, Any]]:
+    def build_enabled_actions(enabled: bool, plugin_dependency_ok: bool = True) -> list[ActionPayload]:
         """
         构建插件启停动作计划。
 

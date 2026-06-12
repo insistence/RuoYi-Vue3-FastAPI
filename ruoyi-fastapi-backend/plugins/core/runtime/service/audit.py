@@ -1,4 +1,4 @@
-from typing import Any
+from collections.abc import Mapping
 
 from plugins.core.runtime.support import PluginRuntimePayloadBuilder
 
@@ -20,7 +20,7 @@ class PluginAuditUseCase:
 
     async def record_plugin_operation_log(
         self,
-        payload: dict[str, Any],
+        payload: Mapping[str, object],
         *,
         dry_run: bool,
         continue_on_error: bool,
@@ -41,7 +41,7 @@ class PluginAuditUseCase:
         async with async_session_local() as session:
             await plugin_service.add_plugin_operation_log_services(
                 session,
-                payload,
+                dict(payload),
                 dry_run=dry_run,
                 continue_on_error=continue_on_error,
             )
@@ -49,7 +49,7 @@ class PluginAuditUseCase:
 
     async def record_plugin_failure_state(
         self,
-        payload: dict[str, Any],
+        payload: Mapping[str, object],
         default_message: str,
     ) -> None:
         """

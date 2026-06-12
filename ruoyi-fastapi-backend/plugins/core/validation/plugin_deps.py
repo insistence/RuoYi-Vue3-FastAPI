@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.manifest.schema import PluginDependencyManifest, PluginManifest
 from plugins.core.state import PluginStateResolver
+from plugins.core.types import PluginStateRecord
 from plugins.core.validation.dependencies import DependencyRequirementParser
 from plugins.core.validation.versioning import PluginVersionConstraintMatcher
 
@@ -170,7 +171,7 @@ class PluginDependencyChecker:
     def __init__(
         self,
         discovered_plugins: list[DiscoveredPlugin],
-        database_plugins: list[Any] | None = None,
+        database_plugins: list[PluginStateRecord] | None = None,
     ) -> None:
         """
         初始化插件间依赖检查器。
@@ -269,7 +270,8 @@ class PluginDependencyChecker:
 
     @staticmethod
     def _resolve_installed_version(
-        discovered_plugin: DiscoveredPlugin | None, database_plugin: Any | None
+        discovered_plugin: DiscoveredPlugin | None,
+        database_plugin: PluginStateRecord | None,
     ) -> str | None:
         """
         解析依赖插件已安装版本。
@@ -373,7 +375,7 @@ class PluginDependencyPlanBuilder:
     def __init__(
         self,
         discovered_plugins: list[DiscoveredPlugin],
-        database_plugins: list[Any] | None = None,
+        database_plugins: list[PluginStateRecord] | None = None,
     ) -> None:
         """
         初始化插件批量操作拓扑计划生成器。

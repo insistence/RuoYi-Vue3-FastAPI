@@ -1,10 +1,11 @@
 import inspect
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Any
+from typing import Any, cast
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.callable import LoadedPluginCallable, PluginCallableLoader
+from plugins.core.types import JSONObject
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,7 @@ class PluginHealthResult:
     message: str
     checker: str | None
     duration_ms: float
-    details: dict[str, Any]
+    details: JSONObject
     error: str | None = None
 
 
@@ -116,7 +117,7 @@ class PluginHealthChecker:
         return PluginCallableLoader(self.discovered_plugin, label='健康检查').load(checker_path)
 
     @staticmethod
-    def _invoke_checker(checker_callable: LoadedPluginCallable, context: PluginHealthContext) -> Any:
+    def _invoke_checker(checker_callable: LoadedPluginCallable, context: PluginHealthContext) -> object:
         """
         调用健康检查 callable。
 
@@ -131,7 +132,7 @@ class PluginHealthChecker:
 
         return callable_object(context)
 
-    def _normalize_result(self, raw_result: Any, checker_path: str, started_at: float) -> PluginHealthResult:
+    def _normalize_result(self, raw_result: object, checker_path: str, started_at: float) -> PluginHealthResult:
         """
         规范化健康检查返回值。
 
@@ -141,6 +142,7 @@ class PluginHealthChecker:
         :return: 插件健康检查结果
         """
         if isinstance(raw_result, dict):
+            raw_details = raw_result.get('details')
             ok = bool(raw_result.get('ok', raw_result.get('healthy', True)))
             return self._build_result(
                 ok=ok,
@@ -148,7 +150,7 @@ class PluginHealthChecker:
                 message=str(raw_result.get('message') or ('插件健康检查通过' if ok else '插件健康检查未通过')),
                 checker=checker_path,
                 started_at=started_at,
-                details=raw_result.get('details') if isinstance(raw_result.get('details'), dict) else {},
+                details=cast('JSONObject', raw_details) if isinstance(raw_details, dict) else {},
             )
         if isinstance(raw_result, bool):
             return self._build_result(
@@ -175,7 +177,7 @@ class PluginHealthChecker:
         message: str,
         checker: str | None,
         started_at: float,
-        details: dict[str, Any] | None = None,
+        details: JSONObject | None = None,
         error: str | None = None,
     ) -> PluginHealthResult:
         """

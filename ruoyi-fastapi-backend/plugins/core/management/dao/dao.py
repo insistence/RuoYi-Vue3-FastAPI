@@ -105,7 +105,7 @@ class PluginDao:
         :param plugin: 插件信息对象
         :return: 新增后的插件信息对象
         """
-        db_plugin = SysPlugin(**plugin.model_dump(exclude_unset=True))
+        db_plugin = SysPlugin(**plugin.model_dump(exclude_unset=True, exclude={'capability'}))
         db.add(db_plugin)
         await db.flush()
 

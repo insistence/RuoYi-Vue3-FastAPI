@@ -1,17 +1,26 @@
-from pathlib import Path
-from typing import Any, Protocol
+from __future__ import annotations
 
-from plugins.core.discovery.scanner import DiscoveredPlugin
-from plugins.core.runtime.capability import PluginRuntimeCapability
+from pathlib import Path
+from typing import TYPE_CHECKING, Protocol, cast
+
 from plugins.core.runtime.support import (
+    BatchOperationResultPayload,
     PluginBatchReportBuilder,
     PluginPayloadBuilder,
     PluginRuntimePayloadBuilder,
 )
 from plugins.core.validation.plugin_deps import PluginBatchOperation, PluginDependencyPlanBuilder
 
-from .context import PluginRuntimeContextService
-from .dependency_container import PluginRuntimeDependencies
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from plugins.core.discovery.scanner import DiscoveredPlugin
+    from plugins.core.runtime.capability import PluginRuntimeCapability
+    from plugins.core.types import PluginStateRecord
+
+    from .context import PluginRuntimeContextService
+    from .dependency_container import PluginRuntimeDependencies
+    from .responses import PluginBatchResponse, PluginLifecycleResponse, PluginPlanResponse
 
 
 class PluginBatchRuntimeOperations(Protocol):
@@ -25,7 +34,7 @@ class PluginBatchRuntimeOperations(Protocol):
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         安装插件。
 
@@ -42,7 +51,7 @@ class PluginBatchRuntimeOperations(Protocol):
         enabled: bool,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         设置插件启用状态。
 
@@ -59,7 +68,7 @@ class PluginBatchRuntimeOperations(Protocol):
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecycleResponse:
         """
         升级插件。
 
@@ -71,7 +80,7 @@ class PluginBatchRuntimeOperations(Protocol):
 
     async def _record_plugin_operation_log(
         self,
-        payload: dict[str, Any],
+        payload: Mapping[str, object],
         *,
         dry_run: bool,
         continue_on_error: bool,
@@ -85,7 +94,11 @@ class PluginBatchRuntimeOperations(Protocol):
         :return: None
         """
 
-    async def _execute_batch_plugin_item(self, operation: PluginBatchOperation, plugin_id: str) -> dict[str, Any]:
+    async def _execute_batch_plugin_item(
+        self,
+        operation: PluginBatchOperation,
+        plugin_id: str,
+    ) -> BatchOperationResultPayload:
         """
         执行单个批量插件操作项。
 
@@ -126,7 +139,7 @@ class PluginBatchUseCase:
         """
         return self.context.discover_plugins(backend_root)
 
-    def _load_database_plugin_states_sync(self) -> list[Any]:
+    def _load_database_plugin_states_sync(self) -> list[PluginStateRecord]:
         """
         以同步方式读取数据库插件状态列表。
 
@@ -147,7 +160,7 @@ class PluginBatchUseCase:
         self,
         operation: PluginBatchOperation,
         plugin_ids: list[str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> PluginPlanResponse:
         """
         生成插件批量操作拓扑计划。
 
@@ -193,7 +206,7 @@ class PluginBatchUseCase:
                 payload['message'] = '插件批量操作计划存在环境阻断项'
                 payload['capabilityBlockers'] = capability_blockers
                 payload['exit_code'] = 1
-            return payload
+            return cast('PluginPlanResponse', payload)
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('生成插件批量操作计划失败', exc)
 
@@ -204,7 +217,7 @@ class PluginBatchUseCase:
         *,
         dry_run: bool = False,
         continue_on_error: bool = False,
-    ) -> dict[str, Any]:
+    ) -> PluginBatchResponse:
         """
         批量执行插件安装、启用或升级。
 
@@ -217,7 +230,7 @@ class PluginBatchUseCase:
         :return: 插件批量执行结果负载
         """
         try:
-            plan_payload = self.plan_plugins(operation, plugin_ids)
+            plan_payload = cast('dict[str, object]', self.plan_plugins(operation, plugin_ids))
             if not plan_payload.get('ok', False):
                 plan_payload = PluginBatchReportBuilder.build_plan_blocked_payload(
                     plan_payload,
@@ -230,11 +243,14 @@ class PluginBatchUseCase:
                         dry_run=dry_run,
                         continue_on_error=continue_on_error,
                     )
-                return plan_payload
+                return cast('PluginBatchResponse', plan_payload)
             if dry_run:
-                return PluginBatchReportBuilder.build_dry_run_payload(
-                    plan_payload,
-                    continue_on_error=continue_on_error,
+                return cast(
+                    'PluginBatchResponse',
+                    PluginBatchReportBuilder.build_dry_run_payload(
+                        plan_payload,
+                        continue_on_error=continue_on_error,
+                    ),
                 )
 
             reports = []
@@ -264,11 +280,15 @@ class PluginBatchUseCase:
                 continue_on_error=continue_on_error,
             )
 
-            return payload
+            return cast('PluginBatchResponse', payload)
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('插件批量操作失败', exc)
 
-    async def execute_batch_plugin_item(self, operation: PluginBatchOperation, plugin_id: str) -> dict[str, Any]:
+    async def execute_batch_plugin_item(
+        self,
+        operation: PluginBatchOperation,
+        plugin_id: str,
+    ) -> BatchOperationResultPayload:
         """
         执行单个批量插件操作项。
 
@@ -277,14 +297,23 @@ class PluginBatchUseCase:
         :return: 单插件操作结果负载
         """
         if operation == 'install':
-            return await self.runtime_operations.install_plugin(plugin_id, dry_run=False, record_operation_log=False)
+            return cast(
+                'BatchOperationResultPayload',
+                await self.runtime_operations.install_plugin(plugin_id, dry_run=False, record_operation_log=False),
+            )
         if operation == 'enable':
-            return await self.runtime_operations.set_plugin_enabled(
-                plugin_id,
-                enabled=True,
-                dry_run=False,
-                record_operation_log=False,
+            return cast(
+                'BatchOperationResultPayload',
+                await self.runtime_operations.set_plugin_enabled(
+                    plugin_id,
+                    enabled=True,
+                    dry_run=False,
+                    record_operation_log=False,
+                ),
             )
         if operation == 'upgrade':
-            return await self.runtime_operations.upgrade_plugin(plugin_id, dry_run=False, record_operation_log=False)
+            return cast(
+                'BatchOperationResultPayload',
+                await self.runtime_operations.upgrade_plugin(plugin_id, dry_run=False, record_operation_log=False),
+            )
         return PluginRuntimePayloadBuilder.build_batch_item_unsupported_payload(operation, plugin_id)

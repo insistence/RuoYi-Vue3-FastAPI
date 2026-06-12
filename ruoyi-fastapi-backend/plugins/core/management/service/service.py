@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -147,7 +148,7 @@ class PluginService:
         plugin_model = cls._build_plugin_model(discovered_plugin, backend_root, frontend_root, existing_plugin)
 
         if existing_plugin:
-            await PluginDao.update_plugin(query_db, plugin_model.model_dump(exclude_unset=True))
+            await PluginDao.update_plugin(query_db, plugin_model.model_dump(exclude_unset=True, exclude={'capability'}))
         else:
             await PluginDao.add_plugin(query_db, plugin_model)
 
@@ -441,7 +442,7 @@ class PluginService:
     async def add_plugin_operation_log_services(
         cls,
         query_db: AsyncSession,
-        payload: dict[str, Any],
+        payload: Mapping[str, object],
         *,
         dry_run: bool,
         continue_on_error: bool,

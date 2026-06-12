@@ -1,13 +1,15 @@
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.lifecycle.purge import PluginPurgePlan
 from plugins.core.runtime.support import PluginPayloadBuilder, PluginPrecheckContext, PluginRuntimePayloadBuilder
+from plugins.core.types import PluginStateRecord
 from plugins.core.validation.plugin_deps import PluginBatchOperation
 
 from .context import PluginRuntimeContextService
 from .dependency_container import PluginRuntimeDependencies
+from .responses import PluginPrecheckResponse
 
 
 class PluginPrecheckUseCase:
@@ -48,7 +50,7 @@ class PluginPrecheckUseCase:
         """
         return self.context.get_discovered_plugin_from_list(discovered_plugins, plugin_id)
 
-    async def _load_database_plugin_state(self, plugin_id: str) -> tuple[Any | None, str | None]:
+    async def _load_database_plugin_state(self, plugin_id: str) -> tuple[PluginStateRecord | None, str | None]:
         """
         读取数据库插件状态。
 
@@ -75,9 +77,9 @@ class PluginPrecheckUseCase:
 
     def _with_plugin_capability(
         self,
-        payload: dict[str, Any],
+        payload: dict[str, object],
         discovered_plugin: DiscoveredPlugin | None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """
         为运行时响应负载附加插件操作能力。
 
@@ -85,9 +87,11 @@ class PluginPrecheckUseCase:
         :param discovered_plugin: 已发现插件
         :return: 附加能力后的响应负载
         """
-        return self.context.with_plugin_capability(payload, discovered_plugin)
+        return cast('dict[str, object]', self.context.with_plugin_capability(payload, discovered_plugin))
 
-    async def precheck_plugin_operation(self, plugin_id: str, operation: PluginBatchOperation) -> dict[str, Any]:
+    async def precheck_plugin_operation(
+        self, plugin_id: str, operation: PluginBatchOperation
+    ) -> PluginPrecheckResponse:
         """
         执行插件操作预检。
 
@@ -123,7 +127,10 @@ class PluginPrecheckUseCase:
                 database_error=database_error,
                 purge_plan=purge_plan,
             )
-            return self._with_plugin_capability(payload, discovered_plugin)
+            return cast(
+                'PluginPrecheckResponse',
+                self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+            )
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('插件操作预检失败', exc)
 

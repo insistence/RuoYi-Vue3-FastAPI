@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from plugins.core.state import PluginStatus
+from plugins.core.types import PluginConfigValue
 
 PluginEnabled = Literal['0', '1']
 
@@ -152,8 +153,8 @@ class PluginOperationLogDetailModel(BaseModel):
     dry_run: bool = Field(default=False, description='是否预演')
     continue_on_error: bool = Field(default=False, description='失败后是否继续')
     status: str = Field(description='执行状态')
-    summary: dict[str, Any] = Field(default_factory=dict, description='执行汇总')
-    result: dict[str, Any] = Field(default_factory=dict, description='完整执行结果')
+    summary: dict[str, object] = Field(default_factory=dict, description='执行汇总')
+    result: dict[str, object] = Field(default_factory=dict, description='完整执行结果')
     create_time: datetime | None = Field(default=None, description='创建时间')
     remark: str | None = Field(default=None, description='备注')
 
@@ -254,8 +255,8 @@ class PluginConfigValueModel(BaseModel):
     key: str = Field(description='配置键名')
     label: str | None = Field(default=None, description='配置展示名称')
     type: str = Field(default='string', description='配置值类型')
-    value: Any = Field(default=None, description='配置值')
-    default: Any = Field(default=None, description='默认配置值')
+    value: PluginConfigValue = Field(default=None, description='配置值')
+    default: PluginConfigValue = Field(default=None, description='默认配置值')
     required: bool = Field(default=False, description='是否必填')
     secret: bool = Field(default=False, description='是否敏感')
     group: str = Field(default='default', description='配置分组')
@@ -264,7 +265,7 @@ class PluginConfigValueModel(BaseModel):
     min: float | None = Field(default=None, description='数字配置最小值')
     max: float | None = Field(default=None, description='数字配置最大值')
     pattern: str | None = Field(default=None, description='字符串配置正则表达式')
-    options: list[dict[str, Any]] = Field(default_factory=list, description='配置选项列表')
+    options: list[dict[str, PluginConfigValue]] = Field(default_factory=list, description='配置选项列表')
     description: str | None = Field(default=None, description='配置说明')
 
 
@@ -277,7 +278,7 @@ class PluginConfigUpdateModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    values: dict[str, Any] = Field(default_factory=dict, description='待更新的插件配置键值')
+    values: dict[str, PluginConfigValue] = Field(default_factory=dict, description='待更新的插件配置键值')
 
 
 class PluginConfigImportModel(BaseModel):
@@ -289,4 +290,4 @@ class PluginConfigImportModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    values: dict[str, Any] = Field(default_factory=dict, description='待导入的插件配置键值')
+    values: dict[str, PluginConfigValue] = Field(default_factory=dict, description='待导入的插件配置键值')

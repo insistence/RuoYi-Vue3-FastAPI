@@ -1,13 +1,16 @@
-from typing import Any
+from typing import cast
 
+from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.support import (
     PluginConfigPayloadBuilder,
     PluginPayloadBuilder,
     PluginRuntimePayloadBuilder,
 )
+from plugins.core.types import PluginConfigValue
 
 from .context import PluginRuntimeContextService
 from .dependency_container import PluginRuntimeDependencies
+from .responses import PluginConfigExportResponse, PluginConfigImportResponse, PluginConfigStateResponse
 
 
 class PluginConfigUseCase:
@@ -25,7 +28,7 @@ class PluginConfigUseCase:
         self.dependencies = dependencies
         self.context = context
 
-    def _get_discovered_plugin(self, plugin_id: str) -> Any | None:
+    def _get_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
         """
         根据插件 ID 获取已发现插件。
 
@@ -34,7 +37,7 @@ class PluginConfigUseCase:
         """
         return self.context.get_discovered_plugin(plugin_id)
 
-    async def get_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> dict[str, Any]:
+    async def get_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> PluginConfigStateResponse:
         """
         获取插件配置。
 
@@ -62,7 +65,7 @@ class PluginConfigUseCase:
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('读取插件配置失败', exc)
 
-    async def export_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> dict[str, Any]:
+    async def export_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> PluginConfigExportResponse:
         """
         导出插件配置快照。
 
@@ -70,7 +73,7 @@ class PluginConfigUseCase:
         :param reveal_secret: 是否导出敏感配置明文
         :return: 插件配置导出负载
         """
-        payload = await self.get_plugin_config(plugin_id, reveal_secret=reveal_secret)
+        payload = cast('dict[str, object]', await self.get_plugin_config(plugin_id, reveal_secret=reveal_secret))
         if not payload.get('ok', False):
             return PluginConfigPayloadBuilder.build_export_failure_payload(
                 plugin_id,
@@ -84,11 +87,11 @@ class PluginConfigUseCase:
     async def set_plugin_config(
         self,
         plugin_id: str,
-        values: dict[str, Any],
+        values: dict[str, PluginConfigValue],
         *,
         audit_operation: str = 'config_set',
         success_message: str = '插件配置已更新',
-    ) -> dict[str, Any]:
+    ) -> PluginConfigStateResponse:
         """
         更新插件配置。
 
@@ -143,7 +146,9 @@ class PluginConfigUseCase:
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('更新插件配置失败', exc)
 
-    async def import_plugin_config(self, plugin_id: str, values: dict[str, Any]) -> dict[str, Any]:
+    async def import_plugin_config(
+        self, plugin_id: str, values: dict[str, PluginConfigValue]
+    ) -> PluginConfigImportResponse:
         """
         导入插件配置。
 
@@ -151,10 +156,13 @@ class PluginConfigUseCase:
         :param values: 待导入配置键值
         :return: 插件配置导入负载
         """
-        payload = await self.set_plugin_config(
-            plugin_id,
-            values,
-            audit_operation='config_import',
-            success_message='插件配置导入完成',
+        payload = cast(
+            'dict[str, object]',
+            await self.set_plugin_config(
+                plugin_id,
+                values,
+                audit_operation='config_import',
+                success_message='插件配置导入完成',
+            ),
         )
         return PluginConfigPayloadBuilder.build_import_payload(plugin_id, payload, values)

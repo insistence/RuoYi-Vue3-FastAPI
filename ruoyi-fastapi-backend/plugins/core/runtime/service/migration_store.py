@@ -1,6 +1,11 @@
-from typing import Any
+from typing import TYPE_CHECKING
 
 from plugins.core.lifecycle.migration import PluginMigrationHistoryStore
+
+from .gateway import PluginManagementModelGateway, PluginManagementServiceProtocol
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
@@ -10,7 +15,7 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
     使用 Adapter 模式将插件 core runner 需要的历史接口适配到外部 migration 历史服务。
     """
 
-    def __init__(self, plugin_service: Any) -> None:
+    def __init__(self, plugin_service: type[PluginManagementServiceProtocol]) -> None:
         """
         初始化插件数据库 migration 历史存储。
 
@@ -18,10 +23,14 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
         :return: None
         """
         self.plugin_service = plugin_service
-        self.model_gateway: Any | None = None
+        self.model_gateway: PluginManagementModelGateway | None = None
 
     @classmethod
-    def with_model_gateway(cls, plugin_service: Any, model_gateway: Any) -> 'PluginDatabaseMigrationHistoryStore':
+    def with_model_gateway(
+        cls,
+        plugin_service: type[PluginManagementServiceProtocol],
+        model_gateway: PluginManagementModelGateway,
+    ) -> 'PluginDatabaseMigrationHistoryStore':
         """
         使用模型工厂网关构建 migration 历史存储。
 
@@ -33,7 +42,7 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
         store.model_gateway = model_gateway
         return store
 
-    async def get_checksum(self, query_db: Any, plugin_id: str, migration_path: str) -> str | None:
+    async def get_checksum(self, query_db: 'AsyncSession', plugin_id: str, migration_path: str) -> str | None:
         """
         获取已执行 migration 的内容校验值。
 
@@ -51,7 +60,7 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
 
     async def record_success(
         self,
-        query_db: Any,
+        query_db: 'AsyncSession',
         plugin_id: str,
         migration_path: str,
         checksum: str,
@@ -69,6 +78,8 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
         :param statement_count: SQL 语句数量
         :return: None
         """
+        if self.model_gateway is None:
+            raise RuntimeError('插件运行时缺少 migration 历史记录模型网关')
         await self.plugin_service.add_plugin_migration_services(
             query_db,
             self.model_gateway.build_migration_record(

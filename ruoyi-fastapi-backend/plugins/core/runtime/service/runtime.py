@@ -1,3 +1,7 @@
+from collections.abc import Mapping
+from typing import cast
+
+from plugins.core.types import PluginConfigValue
 from plugins.core.validation.dependencies import PluginDependencyChecker
 
 from .audit import PluginAuditUseCase
@@ -18,6 +22,24 @@ from .gateway import (
 from .lifecycle import PluginEnableUseCase, PluginInstallUseCase, PluginPurgeUseCase, PluginUpgradeUseCase
 from .precheck import PluginPrecheckUseCase
 from .query import PluginQueryUseCase
+from .responses import (
+    PluginBatchItemExecutionResponse,
+    PluginBatchResponse,
+    PluginCatalogInfoResponse,
+    PluginCatalogListResponse,
+    PluginCheckResponse,
+    PluginConfigExportResponse,
+    PluginConfigImportResponse,
+    PluginConfigStateResponse,
+    PluginDependencyCheckResponse,
+    PluginDependencyInstallResponse,
+    PluginDiagnoseResponse,
+    PluginDocumentationResponse,
+    PluginHealthResponse,
+    PluginLifecycleResponse,
+    PluginPlanResponse,
+    PluginPrecheckResponse,
+)
 from .tools import PluginToolUseCase
 
 
@@ -112,69 +134,69 @@ class PluginRuntimeService:
             )
         )
 
-    def list_plugins(self) -> dict:
+    def list_plugins(self) -> PluginCatalogListResponse:
         """
         获取本地插件列表。
 
         :return: 插件列表负载
         """
-        return self.query.list_plugins()
+        return cast('PluginCatalogListResponse', self.query.list_plugins())
 
-    def get_plugin_info(self, plugin_id: str) -> dict:
+    def get_plugin_info(self, plugin_id: str) -> PluginCatalogInfoResponse:
         """
         获取插件详情。
 
         :param plugin_id: 插件ID
         :return: 插件详情负载
         """
-        return self.query.get_plugin_info(plugin_id)
+        return cast('PluginCatalogInfoResponse', self.query.get_plugin_info(plugin_id))
 
-    async def get_plugin_info_with_state(self, plugin_id: str) -> dict:
+    async def get_plugin_info_with_state(self, plugin_id: str) -> PluginCatalogInfoResponse:
         """
         获取包含数据库状态的插件详情。
 
         :param plugin_id: 插件ID
         :return: 插件详情负载
         """
-        return await self.query.get_plugin_info_with_state(plugin_id)
+        return cast('PluginCatalogInfoResponse', await self.query.get_plugin_info_with_state(plugin_id))
 
-    def check_plugin(self, plugin_id: str | None = None) -> dict:
+    def check_plugin(self, plugin_id: str | None = None) -> PluginCheckResponse:
         """
         检查插件依赖状态。
 
         :param plugin_id: 插件ID，未传入时检查全部插件
         :return: 插件检查负载
         """
-        return self.query.check_plugin(plugin_id)
+        return cast('PluginCheckResponse', self.query.check_plugin(plugin_id))
 
-    def check_plugin_dependencies(self, plugin_id: str) -> dict:
+    def check_plugin_dependencies(self, plugin_id: str) -> PluginDependencyCheckResponse:
         """
         检查插件依赖状态。
 
         :param plugin_id: 插件ID
         :return: 插件依赖检查负载
         """
-        return self.query.check_plugin_dependencies(plugin_id)
+        return cast('PluginDependencyCheckResponse', self.query.check_plugin_dependencies(plugin_id))
 
-    async def health_plugin(self, plugin_id: str) -> dict:
+    async def health_plugin(self, plugin_id: str) -> PluginHealthResponse:
         """
         执行插件健康检查。
 
         :param plugin_id: 插件ID
         :return: 插件健康检查负载
         """
-        return await self.query.health_plugin(plugin_id)
+        return cast('PluginHealthResponse', await self.query.health_plugin(plugin_id))
 
-    async def diagnose_plugin(self, plugin_id: str) -> dict:
+    async def diagnose_plugin(self, plugin_id: str) -> PluginDiagnoseResponse:
         """
         生成插件诊断包。
 
         :param plugin_id: 插件ID
         :return: 插件诊断包负载
         """
-        return await self.query.diagnose_plugin(plugin_id)
+        return cast('PluginDiagnoseResponse', await self.query.diagnose_plugin(plugin_id))
 
-    async def get_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> dict:
+    async def get_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> PluginConfigStateResponse:
         """
         获取插件配置。
 
@@ -182,9 +204,11 @@ class PluginRuntimeService:
         :param reveal_secret: 是否展示敏感配置原值
         :return: 插件配置负载
         """
-        return await self.config.get_plugin_config(plugin_id, reveal_secret=reveal_secret)
+        return cast(
+            'PluginConfigStateResponse', await self.config.get_plugin_config(plugin_id, reveal_secret=reveal_secret)
+        )
 
-    async def export_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> dict:
+    async def export_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> PluginConfigExportResponse:
         """
         导出插件配置快照。
 
@@ -192,16 +216,18 @@ class PluginRuntimeService:
         :param reveal_secret: 是否导出敏感配置明文
         :return: 插件配置导出负载
         """
-        return await self.config.export_plugin_config(plugin_id, reveal_secret=reveal_secret)
+        return cast(
+            'PluginConfigExportResponse', await self.config.export_plugin_config(plugin_id, reveal_secret=reveal_secret)
+        )
 
     async def set_plugin_config(
         self,
         plugin_id: str,
-        values: dict,
+        values: dict[str, PluginConfigValue],
         *,
         audit_operation: str = 'config_set',
         success_message: str = '插件配置已更新',
-    ) -> dict:
+    ) -> PluginConfigStateResponse:
         """
         更新插件配置。
 
@@ -211,14 +237,19 @@ class PluginRuntimeService:
         :param success_message: 操作成功提示
         :return: 插件配置更新负载
         """
-        return await self.config.set_plugin_config(
-            plugin_id,
-            values,
-            audit_operation=audit_operation,
-            success_message=success_message,
+        return cast(
+            'PluginConfigStateResponse',
+            await self.config.set_plugin_config(
+                plugin_id,
+                values,
+                audit_operation=audit_operation,
+                success_message=success_message,
+            ),
         )
 
-    async def import_plugin_config(self, plugin_id: str, values: dict) -> dict:
+    async def import_plugin_config(
+        self, plugin_id: str, values: dict[str, PluginConfigValue]
+    ) -> PluginConfigImportResponse:
         """
         导入插件配置。
 
@@ -226,9 +257,9 @@ class PluginRuntimeService:
         :param values: 待导入配置键值
         :return: 插件配置导入负载
         """
-        return await self.config.import_plugin_config(plugin_id, values)
+        return cast('PluginConfigImportResponse', await self.config.import_plugin_config(plugin_id, values))
 
-    async def precheck_plugin_operation(self, plugin_id: str, operation: str) -> dict:
+    async def precheck_plugin_operation(self, plugin_id: str, operation: str) -> PluginPrecheckResponse:
         """
         执行插件操作预检。
 
@@ -236,9 +267,9 @@ class PluginRuntimeService:
         :param operation: 操作类型
         :return: 插件操作预检负载
         """
-        return await self.precheck.precheck_plugin_operation(plugin_id, operation)
+        return cast('PluginPrecheckResponse', await self.precheck.precheck_plugin_operation(plugin_id, operation))
 
-    def plan_plugins(self, operation: str, plugin_ids: list[str] | None = None) -> dict:
+    def plan_plugins(self, operation: str, plugin_ids: list[str] | None = None) -> PluginPlanResponse:
         """
         生成插件批量操作拓扑计划。
 
@@ -246,7 +277,7 @@ class PluginRuntimeService:
         :param plugin_ids: 插件ID列表
         :return: 插件批量操作拓扑计划负载
         """
-        return self.batch.plan_plugins(operation, plugin_ids)
+        return cast('PluginPlanResponse', self.batch.plan_plugins(operation, plugin_ids))
 
     async def batch_plugins(
         self,
@@ -255,7 +286,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         continue_on_error: bool = False,
-    ) -> dict:
+    ) -> PluginBatchResponse:
         """
         批量执行插件安装、启用或升级。
 
@@ -265,14 +296,17 @@ class PluginRuntimeService:
         :param continue_on_error: 失败后是否继续执行后续插件
         :return: 插件批量执行结果负载
         """
-        return await self.batch.batch_plugins(
-            operation,
-            plugin_ids,
-            dry_run=dry_run,
-            continue_on_error=continue_on_error,
+        return cast(
+            'PluginBatchResponse',
+            await self.batch.batch_plugins(
+                operation,
+                plugin_ids,
+                dry_run=dry_run,
+                continue_on_error=continue_on_error,
+            ),
         )
 
-    async def _execute_batch_plugin_item(self, operation: str, plugin_id: str) -> dict:
+    async def _execute_batch_plugin_item(self, operation: str, plugin_id: str) -> PluginBatchItemExecutionResponse:
         """
         执行单个批量插件操作项。
 
@@ -280,9 +314,11 @@ class PluginRuntimeService:
         :param plugin_id: 插件ID
         :return: 单插件操作结果负载
         """
-        return await self.batch.execute_batch_plugin_item(operation, plugin_id)
+        return cast(
+            'PluginBatchItemExecutionResponse', await self.batch.execute_batch_plugin_item(operation, plugin_id)
+        )
 
-    def install_plugin_dependencies(self, plugin_id: str, *, dry_run: bool = False) -> dict:
+    def install_plugin_dependencies(self, plugin_id: str, *, dry_run: bool = False) -> PluginDependencyInstallResponse:
         """
         安装插件依赖。
 
@@ -290,7 +326,9 @@ class PluginRuntimeService:
         :param dry_run: 是否仅预演
         :return: 插件依赖安装负载
         """
-        return self.dependency.install_plugin_dependencies(plugin_id, dry_run=dry_run)
+        return cast(
+            'PluginDependencyInstallResponse', self.dependency.install_plugin_dependencies(plugin_id, dry_run=dry_run)
+        )
 
     def _install_plugin_dependencies_from_result(
         self,
@@ -299,7 +337,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         discovered_plugin: object | None = None,
-    ) -> dict:
+    ) -> PluginDependencyInstallResponse:
         """
         根据既有依赖检查结果生成计划并执行依赖安装。
 
@@ -309,16 +347,19 @@ class PluginRuntimeService:
         :param discovered_plugin: 已发现插件
         :return: 插件依赖安装负载
         """
-        return self.dependency.install_plugin_dependencies_from_result(
-            plugin_id,
-            dependency_result,
-            dry_run=dry_run,
-            discovered_plugin=discovered_plugin,
+        return cast(
+            'PluginDependencyInstallResponse',
+            self.dependency.install_plugin_dependencies_from_result(
+                plugin_id,
+                dependency_result,
+                dry_run=dry_run,
+                discovered_plugin=discovered_plugin,
+            ),
         )
 
     async def _record_plugin_operation_log(
         self,
-        payload: dict,
+        payload: Mapping[str, object],
         *,
         dry_run: bool,
         continue_on_error: bool,
@@ -332,12 +373,12 @@ class PluginRuntimeService:
         :return: None
         """
         await self.audit.record_plugin_operation_log(
-            payload,
+            cast('dict[str, object]', payload),
             dry_run=dry_run,
             continue_on_error=continue_on_error,
         )
 
-    async def _record_plugin_failure_state(self, payload: dict, default_message: str) -> None:
+    async def _record_plugin_failure_state(self, payload: Mapping[str, object], default_message: str) -> None:
         """
         记录插件操作失败状态。
 
@@ -345,7 +386,7 @@ class PluginRuntimeService:
         :param default_message: 缺省失败信息
         :return: None
         """
-        await self.audit.record_plugin_failure_state(payload, default_message)
+        await self.audit.record_plugin_failure_state(cast('dict[str, object]', payload), default_message)
 
     async def install_plugin(
         self,
@@ -353,7 +394,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict:
+    ) -> PluginLifecycleResponse:
         """
         安装插件并按需记录审计日志。
 
@@ -362,10 +403,13 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件安装结果负载
         """
-        return await self.install.install_plugin(
-            plugin_id,
-            dry_run=dry_run,
-            record_operation_log=record_operation_log,
+        return cast(
+            'PluginLifecycleResponse',
+            await self.install.install_plugin(
+                plugin_id,
+                dry_run=dry_run,
+                record_operation_log=record_operation_log,
+            ),
         )
 
     async def set_plugin_enabled(
@@ -375,7 +419,7 @@ class PluginRuntimeService:
         enabled: bool,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict:
+    ) -> PluginLifecycleResponse:
         """
         更新插件启停状态并按需记录审计日志。
 
@@ -385,11 +429,14 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件启停结果负载
         """
-        return await self.enable.set_plugin_enabled(
-            plugin_id,
-            enabled=enabled,
-            dry_run=dry_run,
-            record_operation_log=record_operation_log,
+        return cast(
+            'PluginLifecycleResponse',
+            await self.enable.set_plugin_enabled(
+                plugin_id,
+                enabled=enabled,
+                dry_run=dry_run,
+                record_operation_log=record_operation_log,
+            ),
         )
 
     async def uninstall_plugin(
@@ -398,7 +445,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict:
+    ) -> PluginLifecycleResponse:
         """
         安全卸载插件。
 
@@ -407,10 +454,13 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件卸载结果负载
         """
-        return await self.enable.uninstall_plugin(
-            plugin_id,
-            dry_run=dry_run,
-            record_operation_log=record_operation_log,
+        return cast(
+            'PluginLifecycleResponse',
+            await self.enable.uninstall_plugin(
+                plugin_id,
+                dry_run=dry_run,
+                record_operation_log=record_operation_log,
+            ),
         )
 
     async def purge_plugin(
@@ -419,7 +469,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict:
+    ) -> PluginLifecycleResponse:
         """
         物理清理插件平台元数据并按需记录审计日志。
 
@@ -428,10 +478,13 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件物理清理结果负载
         """
-        return await self.purge.purge_plugin(
-            plugin_id,
-            dry_run=dry_run,
-            record_operation_log=record_operation_log,
+        return cast(
+            'PluginLifecycleResponse',
+            await self.purge.purge_plugin(
+                plugin_id,
+                dry_run=dry_run,
+                record_operation_log=record_operation_log,
+            ),
         )
 
     async def upgrade_plugin(
@@ -440,7 +493,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
-    ) -> dict:
+    ) -> PluginLifecycleResponse:
         """
         升级插件并按需记录审计日志。
 
@@ -449,13 +502,16 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件升级结果负载
         """
-        return await self.upgrade.upgrade_plugin(
-            plugin_id,
-            dry_run=dry_run,
-            record_operation_log=record_operation_log,
+        return cast(
+            'PluginLifecycleResponse',
+            await self.upgrade.upgrade_plugin(
+                plugin_id,
+                dry_run=dry_run,
+                record_operation_log=record_operation_log,
+            ),
         )
 
-    def generate_plugin_docs(self, plugin_id: str) -> dict:
+    def generate_plugin_docs(self, plugin_id: str) -> PluginDocumentationResponse:
         """
         生成插件 Markdown 文档片段。
 

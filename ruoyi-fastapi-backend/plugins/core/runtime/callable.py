@@ -1,9 +1,10 @@
 import importlib
 import importlib.util
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import ModuleType
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 
@@ -20,7 +21,7 @@ class LoadedPluginCallable:
 
     module_name: str
     callable_name: str
-    callable_object: Any
+    callable_object: Callable[..., object]
 
 
 class PluginCallableLoader:
@@ -77,7 +78,7 @@ class PluginCallableLoader:
 
         return f'{plugin_module}.{module_path}'
 
-    def import_module(self, module_name: str) -> Any:
+    def import_module(self, module_name: str) -> ModuleType:
         """
         导入插件 callable 模块。
 
@@ -115,7 +116,7 @@ class PluginCallableLoader:
         return module_file if module_file.is_file() else None
 
     @staticmethod
-    def load_module_from_file(module_name: str, module_file: Path) -> Any:
+    def load_module_from_file(module_name: str, module_file: Path) -> ModuleType:
         """
         从文件加载插件 callable 模块。
 

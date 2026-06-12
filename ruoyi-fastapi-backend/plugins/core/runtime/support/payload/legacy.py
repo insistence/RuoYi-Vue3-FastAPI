@@ -1,7 +1,21 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 from plugins.core.runtime.exit_codes import RUNTIME_ERROR
+
+
+class PluginNotFoundPayloadDict(TypedDict, total=False):
+    """
+    插件不存在 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    exit_code: int
+    operation: str
+    dryRun: bool
+    enabled: bool
 
 
 @dataclass(frozen=True)
@@ -15,13 +29,13 @@ class PluginNotFoundPayload:
     dry_run: bool | None = None
     enabled: bool | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginNotFoundPayloadDict:
         """
         序列化为现有插件不存在 payload 契约。
 
         :return: 插件不存在 payload
         """
-        payload: dict[str, Any] = {
+        payload: PluginNotFoundPayloadDict = {
             'ok': False,
             'message': f'插件不存在：{self.plugin_id}',
             'pluginId': self.plugin_id,
@@ -49,7 +63,7 @@ class PluginPayloadBuilder:
         operation: str | None = None,
         dry_run: bool | None = None,
         enabled: bool | None = None,
-    ) -> dict[str, Any]:
+    ) -> PluginNotFoundPayloadDict:
         """
         构建插件不存在负载。
 

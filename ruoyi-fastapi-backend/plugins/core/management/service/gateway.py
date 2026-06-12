@@ -1,6 +1,19 @@
 import subprocess
 from importlib import import_module
-from typing import Any
+from typing import TYPE_CHECKING
+
+from plugins.core.runtime.service.gateway import (
+    AsyncSessionFactoryProtocol,
+    PluginManagementServiceProtocol,
+)
+from plugins.core.types import PluginConfigValue
+
+if TYPE_CHECKING:
+    from plugins.core.management.entity.vo.schemas import (
+        PluginConfigUpdateModel,
+        PluginMigrationModel,
+        PluginOperationLogExportQueryModel,
+    )
 
 
 class PluginManagementRuntimeGateway:
@@ -12,7 +25,7 @@ class PluginManagementRuntimeGateway:
     """
 
     @staticmethod
-    def get_async_session_local() -> Any:
+    def get_async_session_local() -> AsyncSessionFactoryProtocol:
         """
         获取异步数据库会话工厂。
 
@@ -21,7 +34,7 @@ class PluginManagementRuntimeGateway:
         return import_module('config.database').AsyncSessionLocal
 
     @staticmethod
-    def get_plugin_service() -> Any:
+    def get_plugin_service() -> type[PluginManagementServiceProtocol]:
         """
         获取插件服务类。
 
@@ -30,7 +43,7 @@ class PluginManagementRuntimeGateway:
         return import_module('plugins.core.management.service.service').PluginService
 
     @staticmethod
-    def build_operation_log_export_query(export_limit: int) -> Any:
+    def build_operation_log_export_query(export_limit: int) -> 'PluginOperationLogExportQueryModel':
         """
         构建插件操作日志导出查询对象。
 
@@ -41,7 +54,7 @@ class PluginManagementRuntimeGateway:
         return plugin_vo.PluginOperationLogExportQueryModel(exportLimit=export_limit)
 
     @staticmethod
-    def build_config_update(values: dict[str, Any]) -> Any:
+    def build_config_update(values: dict[str, PluginConfigValue]) -> 'PluginConfigUpdateModel':
         """
         构建插件配置更新对象。
 
@@ -58,7 +71,7 @@ class PluginManagementRuntimeGateway:
         checksum: str,
         version: str,
         statement_count: int,
-    ) -> Any:
+    ) -> 'PluginMigrationModel':
         """
         构建插件 migration 执行历史对象。
 

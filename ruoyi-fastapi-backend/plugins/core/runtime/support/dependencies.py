@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
 from plugins.core.validation.dependencies import (
@@ -10,7 +10,39 @@ from plugins.core.validation.dependencies import (
     DependencyRequirementParser,
 )
 
-from .payload import PluginPayloadBuilder
+from .payload import (
+    DependencyInstallPlanItemPayload,
+    DependencyInstallResultPayload,
+    DependencyItemPayload,
+    PluginPayloadBuilder,
+)
+
+
+class PluginDependencyInstallPayloadDict(TypedDict, total=False):
+    """
+    插件依赖安装 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    dependencyOk: bool
+    dependencies: list[DependencyItemPayload]
+    missingDependencies: list[str]
+    unsatisfiedDependencies: list[str]
+    exit_code: int
+    dryRun: bool
+    plan: list[DependencyInstallPlanItemPayload]
+    planCount: int
+    results: list[DependencyInstallResultPayload]
+
+
+class DependencyInstallReturnCodePayload(TypedDict):
+    """
+    依赖安装命令返回码 payload。
+    """
+
+    returnCode: int
 
 
 @dataclass(frozen=True)
@@ -21,15 +53,15 @@ class PluginDependencyInstallPayload:
 
     plugin_id: str
     dependency_ok: bool
-    dependencies: list[dict[str, Any]]
+    dependencies: list[DependencyItemPayload]
     missing_dependencies: list[str]
     unsatisfied_dependencies: list[str]
     dry_run: bool
-    plan: list[dict[str, Any]]
+    plan: list[DependencyInstallPlanItemPayload]
     ok: bool
     message: str
     exit_code: int
-    results: list[dict[str, Any]] = field(default_factory=list)
+    results: list[DependencyInstallResultPayload] = field(default_factory=list)
 
     @classmethod
     def from_dependency_result(
@@ -42,7 +74,7 @@ class PluginDependencyInstallPayload:
         ok: bool,
         message: str,
         exit_code: int,
-        results: list[dict[str, Any]] | None = None,
+        results: list[DependencyInstallResultPayload] | None = None,
     ) -> 'PluginDependencyInstallPayload':
         """
         从依赖检查结果构建结构化安装负载。
@@ -71,14 +103,14 @@ class PluginDependencyInstallPayload:
             results=results or [],
         )
 
-    def to_payload(self, *, include_results: bool = False) -> dict[str, Any]:
+    def to_payload(self, *, include_results: bool = False) -> PluginDependencyInstallPayloadDict:
         """
         序列化为现有插件依赖安装 payload 契约。
 
         :param include_results: 是否包含安装执行结果
         :return: 插件依赖安装 payload
         """
-        payload = {
+        payload: PluginDependencyInstallPayloadDict = {
             'ok': self.ok,
             'message': self.message,
             'pluginId': self.plugin_id,
@@ -112,7 +144,7 @@ class PluginDependencyInstallPayloadBuilder:
         install_plan_items: list[DependencyInstallPlanItem],
         *,
         dry_run: bool,
-    ) -> dict[str, Any]:
+    ) -> PluginDependencyInstallPayloadDict:
         """
         构建插件依赖安装基础负载。
 
@@ -138,7 +170,7 @@ class PluginDependencyInstallPayloadBuilder:
         plugin_id: str,
         dependency_result: DependencyCheckResult,
         install_plan_items: list[DependencyInstallPlanItem],
-    ) -> dict[str, Any]:
+    ) -> PluginDependencyInstallPayloadDict:
         """
         构建插件依赖安装预演负载。
 
@@ -163,7 +195,7 @@ class PluginDependencyInstallPayloadBuilder:
         plugin_id: str,
         dependency_result: DependencyCheckResult,
         install_plan_items: list[DependencyInstallPlanItem],
-    ) -> dict[str, Any]:
+    ) -> PluginDependencyInstallPayloadDict:
         """
         构建插件依赖已满足负载。
 
@@ -188,8 +220,8 @@ class PluginDependencyInstallPayloadBuilder:
         plugin_id: str,
         dependency_result: DependencyCheckResult,
         install_plan_items: list[DependencyInstallPlanItem],
-        install_results: list[dict[str, Any]],
-    ) -> dict[str, Any]:
+        install_results: list[DependencyInstallResultPayload],
+    ) -> PluginDependencyInstallPayloadDict:
         """
         构建插件依赖安装执行结果负载。
 
@@ -224,7 +256,7 @@ class PluginNpmPackageJsonSynchronizer:
     def sync_successful_items(
         cls,
         install_plan_items: list[DependencyInstallPlanItem],
-        install_results: list[dict[str, Any]],
+        install_results: list[DependencyInstallReturnCodePayload],
     ) -> None:
         """
         同步安装成功的 npm 依赖声明。

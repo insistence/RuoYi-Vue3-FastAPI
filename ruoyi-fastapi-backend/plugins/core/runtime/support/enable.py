@@ -1,10 +1,67 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict
 
 from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, RUNTIME_ERROR
 from plugins.core.validation.plugin_deps import PluginDependencyCheckResult
 
-from .payload import PluginPayloadBuilder
+from .payload import ActionPayload, PluginDependencyItemPayload, PluginPayloadBuilder
+
+
+class PluginEnableDependencyPayloadDict(TypedDict):
+    """
+    插件启停依赖检查 payload。
+    """
+
+    pluginDependencyOk: bool
+    pluginDependencyErrors: list[PluginDependencyItemPayload]
+    pluginDependencies: list[PluginDependencyItemPayload]
+
+
+class PluginEnableStatePayloadDict(TypedDict, total=False):
+    """
+    插件启停状态 payload。
+    """
+
+    ok: bool
+    message: object
+    pluginId: str
+    operation: str
+    enabled: bool
+    dryRun: bool
+    actions: list[ActionPayload]
+    pluginDependencyOk: object
+    pluginDependencyErrors: object
+    pluginDependencies: object
+    exit_code: int
+
+
+class PluginEnableUpdateFailurePayloadDict(TypedDict):
+    """
+    插件启停写入失败 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    operation: str
+    enabled: bool
+    dryRun: bool
+    exit_code: int
+
+
+class PluginSafeUninstallPayloadDict(TypedDict, total=False):
+    """
+    插件安全卸载 payload。
+    """
+
+    ok: object
+    message: object
+    pluginId: object
+    operation: str
+    safeMode: bool
+    removesSource: bool
+    removesMenus: bool
 
 
 @dataclass(frozen=True)
@@ -15,7 +72,7 @@ class PluginEnableDependencyPayload:
 
     plugin_dependency_result: PluginDependencyCheckResult
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginEnableDependencyPayloadDict:
         """
         序列化为现有插件启停依赖检查 payload 契约。
 
@@ -42,9 +99,9 @@ class PluginEnableDependencyBlockerPayload:
     plugin_id: str
     operation: str
     enabled: bool
-    dependency_payload: dict[str, Any]
+    dependency_payload: Mapping[str, object]
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginEnableStatePayloadDict:
         """
         序列化为现有插件启停依赖阻断 payload 契约。
 
@@ -76,9 +133,9 @@ class PluginEnableStatePayload:
     dry_run: bool
     ok: bool
     message: str
-    dependency_payload: dict[str, Any]
+    dependency_payload: Mapping[str, object]
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginEnableStatePayloadDict:
         """
         序列化为现有插件启停 payload 契约。
 
@@ -108,7 +165,7 @@ class PluginEnableUpdateFailurePayload:
     enabled: bool
     message: str
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginEnableUpdateFailurePayloadDict:
         """
         序列化为现有插件启停写入失败 payload 契约。
 
@@ -131,10 +188,10 @@ class PluginSafeUninstallPayload:
     插件安全卸载结构化负载。
     """
 
-    result: dict[str, Any]
+    result: Mapping[str, object]
     dry_run: bool
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginSafeUninstallPayloadDict:
         """
         序列化为现有插件安全卸载 payload 契约。
 
@@ -160,7 +217,9 @@ class PluginEnablePayloadBuilder:
     """
 
     @classmethod
-    def build_dependency_payload(cls, plugin_dependency_result: PluginDependencyCheckResult) -> dict[str, Any]:
+    def build_dependency_payload(
+        cls, plugin_dependency_result: PluginDependencyCheckResult
+    ) -> PluginEnableDependencyPayloadDict:
         """
         构建插件启用依赖检查负载。
 
@@ -175,8 +234,8 @@ class PluginEnablePayloadBuilder:
         *,
         operation: str,
         enabled: bool,
-        dependency_payload: dict[str, Any],
-    ) -> dict[str, Any]:
+        dependency_payload: Mapping[str, object],
+    ) -> PluginEnableStatePayloadDict:
         """
         构建插件启用依赖阻断负载。
 
@@ -199,8 +258,8 @@ class PluginEnablePayloadBuilder:
         *,
         operation: str,
         enabled: bool,
-        dependency_payload: dict[str, Any],
-    ) -> dict[str, Any]:
+        dependency_payload: Mapping[str, object],
+    ) -> PluginEnableStatePayloadDict:
         """
         构建插件启停预演负载。
 
@@ -227,7 +286,7 @@ class PluginEnablePayloadBuilder:
         operation: str,
         enabled: bool,
         message: str,
-    ) -> dict[str, Any]:
+    ) -> PluginEnableUpdateFailurePayloadDict:
         """
         构建插件启停写入失败负载。
 
@@ -251,8 +310,8 @@ class PluginEnablePayloadBuilder:
         operation: str,
         enabled: bool,
         message: str,
-        dependency_payload: dict[str, Any],
-    ) -> dict[str, Any]:
+        dependency_payload: Mapping[str, object],
+    ) -> PluginEnableStatePayloadDict:
         """
         构建插件启停成功负载。
 
@@ -274,7 +333,7 @@ class PluginEnablePayloadBuilder:
         ).to_payload()
 
     @staticmethod
-    def build_uninstall_payload(result: dict[str, Any], *, dry_run: bool) -> dict[str, Any]:
+    def build_uninstall_payload(result: Mapping[str, object], *, dry_run: bool) -> PluginSafeUninstallPayloadDict:
         """
         构建插件安全卸载负载。
 

@@ -1,7 +1,9 @@
-from typing import Any, Protocol
+from collections.abc import Mapping
+from typing import Protocol
 
 from ..context import PluginRuntimeContextService
 from ..dependency_container import PluginRuntimeDependencies
+from ..responses import PluginDependencyInstallResponse
 
 
 class PluginLifecycleRuntimeOperations(Protocol):
@@ -14,7 +16,7 @@ class PluginLifecycleRuntimeOperations(Protocol):
 
     async def _record_plugin_operation_log(
         self,
-        payload: dict[str, Any],
+        payload: Mapping[str, object],
         *,
         dry_run: bool,
         continue_on_error: bool,
@@ -28,7 +30,7 @@ class PluginLifecycleRuntimeOperations(Protocol):
         :return: None
         """
 
-    async def _record_plugin_failure_state(self, payload: dict[str, Any], default_message: str) -> None:
+    async def _record_plugin_failure_state(self, payload: Mapping[str, object], default_message: str) -> None:
         """
         记录插件操作失败状态。
 
@@ -44,7 +46,7 @@ class PluginLifecycleRuntimeOperations(Protocol):
         *,
         dry_run: bool = False,
         discovered_plugin: object | None = None,
-    ) -> dict[str, Any]:
+    ) -> PluginDependencyInstallResponse:
         """
         根据既有依赖检查结果生成计划并执行依赖安装。
 

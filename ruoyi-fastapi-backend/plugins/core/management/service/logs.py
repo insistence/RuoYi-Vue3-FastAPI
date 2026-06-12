@@ -1,5 +1,6 @@
 import json
-from typing import Any
+from collections.abc import Mapping
+from typing import cast
 
 from plugins.core.management.entity.vo.schemas import PluginOperationLogDetailModel, PluginOperationLogModel
 
@@ -15,7 +16,7 @@ class PluginOperationLogBuilder:
     def build_export_row(
         operation_log: PluginOperationLogDetailModel,
         operation_dict: dict[str, str] | None = None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """
         构建插件批量操作审计日志导出行。
 
@@ -38,7 +39,7 @@ class PluginOperationLogBuilder:
         }
 
     @classmethod
-    def build_detail(cls, operation_log: dict[str, Any]) -> PluginOperationLogDetailModel:
+    def build_detail(cls, operation_log: Mapping[str, object]) -> PluginOperationLogDetailModel:
         """
         构建插件批量操作审计日志详情。
 
@@ -59,31 +60,31 @@ class PluginOperationLogBuilder:
         )
 
     @staticmethod
-    def deserialize_json_dict(value: str | None) -> dict[str, Any]:
+    def deserialize_json_dict(value: object) -> dict[str, object]:
         """
         反序列化 JSON 字典。
 
         :param value: JSON 字符串
         :return: 字典对象
         """
-        if not value:
+        if not isinstance(value, str) or not value:
             return {}
         try:
             result = json.loads(value)
         except json.JSONDecodeError:
             return {}
 
-        return result if isinstance(result, dict) else {}
+        return cast('dict[str, object]', result) if isinstance(result, dict) else {}
 
     @staticmethod
-    def deserialize_json_list(value: str | None) -> list[str]:
+    def deserialize_json_list(value: object) -> list[str]:
         """
         反序列化 JSON 字符串列表。
 
         :param value: JSON 字符串
         :return: 字符串列表
         """
-        if not value:
+        if not isinstance(value, str) or not value:
             return []
         try:
             result = json.loads(value)
@@ -95,7 +96,7 @@ class PluginOperationLogBuilder:
     @classmethod
     def build_model(
         cls,
-        payload: dict[str, Any],
+        payload: Mapping[str, object],
         *,
         dry_run: bool,
         continue_on_error: bool,
@@ -108,7 +109,8 @@ class PluginOperationLogBuilder:
         :param continue_on_error: 失败后是否继续执行后续插件
         :return: 插件操作审计日志模型
         """
-        summary = payload.get('summary') if isinstance(payload.get('summary'), dict) else {}
+        summary_value = payload.get('summary')
+        summary = cast('dict[str, object]', summary_value) if isinstance(summary_value, dict) else {}
         plugin_ids = cls.resolve_plugin_ids(payload)
 
         return PluginOperationLogModel(
@@ -118,19 +120,20 @@ class PluginOperationLogBuilder:
             continueOnError='0' if continue_on_error else '1',
             status=cls.resolve_status(payload),
             summary=json.dumps(summary, ensure_ascii=False),
-            result=json.dumps(payload, ensure_ascii=False, default=str),
+            result=json.dumps(dict(payload), ensure_ascii=False, default=str),
             remark=str(payload.get('message', ''))[:500] or None,
         )
 
     @staticmethod
-    def resolve_plugin_ids(payload: dict[str, Any]) -> list[str]:
+    def resolve_plugin_ids(payload: Mapping[str, object]) -> list[str]:
         """
         解析插件操作审计日志的目标插件 ID。
 
         :param payload: 插件操作结果负载
         :return: 目标插件 ID 列表
         """
-        plan = payload.get('plan') if isinstance(payload.get('plan'), dict) else {}
+        plan_value = payload.get('plan')
+        plan = cast('dict[str, object]', plan_value) if isinstance(plan_value, dict) else {}
         ordered_plugin_ids = plan.get('orderedPluginIds') if isinstance(plan.get('orderedPluginIds'), list) else []
         if ordered_plugin_ids:
             return [str(plugin_id) for plugin_id in ordered_plugin_ids]
@@ -141,7 +144,7 @@ class PluginOperationLogBuilder:
         return []
 
     @staticmethod
-    def resolve_status(payload: dict[str, Any]) -> str:
+    def resolve_status(payload: Mapping[str, object]) -> str:
         """
         解析插件操作审计状态。
 
@@ -150,10 +153,12 @@ class PluginOperationLogBuilder:
         """
         if payload.get('dryRun'):
             return 'dry_run'
-        plan = payload.get('plan') if isinstance(payload.get('plan'), dict) else {}
+        plan_value = payload.get('plan')
+        plan = cast('dict[str, object]', plan_value) if isinstance(plan_value, dict) else {}
         if plan.get('blockerCount', 0):
             return 'blocked'
-        summary = payload.get('summary') if isinstance(payload.get('summary'), dict) else {}
+        summary_value = payload.get('summary')
+        summary = cast('dict[str, object]', summary_value) if isinstance(summary_value, dict) else {}
         if summary.get('failed', 0):
             return 'failed'
 

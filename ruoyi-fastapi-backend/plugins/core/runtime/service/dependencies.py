@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import cast
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.support import (
@@ -15,6 +15,7 @@ from plugins.core.validation.dependencies import (
 
 from .context import PluginRuntimeContextService
 from .dependency_container import PluginRuntimeDependencies
+from .responses import PluginDependencyInstallResponse, PluginRuntimeBlockedPayloadDict
 
 
 class PluginDependencyUseCase:
@@ -47,7 +48,7 @@ class PluginDependencyUseCase:
         operation: str,
         *,
         dry_run: bool | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> PluginRuntimeBlockedPayloadDict | None:
         """
         构建运行模式阻断负载。
 
@@ -56,13 +57,16 @@ class PluginDependencyUseCase:
         :param dry_run: 是否预演
         :return: 阻断负载，不阻断时返回 None
         """
-        return self.context.build_operation_blocked_payload(discovered_plugin, operation, dry_run=dry_run)
+        return cast(
+            'PluginRuntimeBlockedPayloadDict | None',
+            self.context.build_operation_blocked_payload(discovered_plugin, operation, dry_run=dry_run),
+        )
 
     def _with_plugin_capability(
         self,
-        payload: dict[str, Any],
+        payload: dict[str, object],
         discovered_plugin: DiscoveredPlugin | None,
-    ) -> dict[str, Any]:
+    ) -> dict[str, object]:
         """
         为运行时响应负载附加插件操作能力。
 
@@ -70,9 +74,9 @@ class PluginDependencyUseCase:
         :param discovered_plugin: 已发现插件
         :return: 附加能力后的响应负载
         """
-        return self.context.with_plugin_capability(payload, discovered_plugin)
+        return cast('dict[str, object]', self.context.with_plugin_capability(payload, discovered_plugin))
 
-    def install_plugin_dependencies(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    def install_plugin_dependencies(self, plugin_id: str, *, dry_run: bool = False) -> PluginDependencyInstallResponse:
         """
         安装插件依赖。
 
@@ -109,7 +113,7 @@ class PluginDependencyUseCase:
         *,
         dry_run: bool = False,
         discovered_plugin: DiscoveredPlugin | None = None,
-    ) -> dict[str, Any]:
+    ) -> PluginDependencyInstallResponse:
         """
         根据既有依赖检查结果生成计划并执行依赖安装。
 
@@ -130,14 +134,20 @@ class PluginDependencyUseCase:
                 dependency_result,
                 install_plan.items,
             )
-            return self._with_plugin_capability(payload, discovered_plugin)
+            return cast(
+                'PluginDependencyInstallResponse',
+                self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+            )
         if not install_plan.has_actions:
             payload = PluginDependencyInstallPayloadBuilder.build_satisfied_payload(
                 plugin_id,
                 dependency_result,
                 install_plan.items,
             )
-            return self._with_plugin_capability(payload, discovered_plugin)
+            return cast(
+                'PluginDependencyInstallResponse',
+                self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+            )
 
         install_results = [
             PluginPayloadBuilder.build_dependency_install_result(
@@ -153,4 +163,7 @@ class PluginDependencyUseCase:
             install_plan.items,
             install_results,
         )
-        return self._with_plugin_capability(payload, discovered_plugin)
+        return cast(
+            'PluginDependencyInstallResponse',
+            self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+        )

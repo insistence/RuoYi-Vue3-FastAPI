@@ -1,5 +1,106 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TypedDict, cast
+
+from plugins.core.types import PluginConfigValue, SupportsModelDump
+
+
+class PluginConfigStatePayloadDict(TypedDict, total=False):
+    """
+    插件配置读取/更新 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    configs: list[dict[str, object]]
+    operation: str
+
+
+class PluginConfigExportFailurePayloadDict(TypedDict, total=False):
+    """
+    插件配置导出失败 payload。
+    """
+
+    ok: object
+    message: object
+    pluginId: str
+    revealSecret: bool
+    values: dict[str, PluginConfigValue]
+    metadata: list[dict[str, object]]
+
+
+class PluginConfigExportPayloadDict(TypedDict):
+    """
+    插件配置导出 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    revealSecret: bool
+    configs: list[dict[str, object]]
+    values: dict[str, PluginConfigValue]
+    metadata: list[dict[str, object]]
+
+
+class PluginConfigDiagnosticSummaryPayloadDict(TypedDict):
+    """
+    插件配置诊断摘要 payload。
+    """
+
+    total: int
+    secretCount: int
+    requiredCount: int
+    configuredCount: int
+    missingRequiredCount: int
+    missingRequiredKeys: list[str]
+    masked: bool
+
+
+class PluginConfigImportPayloadDict(TypedDict, total=False):
+    """
+    插件配置导入 payload。
+    """
+
+    ok: object
+    message: object
+    pluginId: object
+    importedKeys: list[str]
+
+
+class PluginConfigAuditChangePayload(TypedDict):
+    """
+    插件配置审计变更项 payload。
+    """
+
+    key: str
+    label: PluginConfigValue
+    secret: bool
+    before: PluginConfigValue
+    after: PluginConfigValue
+
+
+class PluginConfigAuditSummaryPayload(TypedDict):
+    """
+    插件配置审计摘要 payload。
+    """
+
+    changedCount: int
+    changedKeys: list[str]
+    changes: list[PluginConfigAuditChangePayload]
+
+
+class PluginConfigAuditPayloadDict(TypedDict):
+    """
+    插件配置审计 payload。
+    """
+
+    ok: bool
+    operation: str
+    pluginId: str
+    message: str
+    summary: PluginConfigAuditSummaryPayload
 
 
 @dataclass(frozen=True)
@@ -10,20 +111,20 @@ class PluginConfigStatePayload:
 
     plugin_id: str
     message: str
-    configs: list[Any]
+    configs: list[SupportsModelDump]
     operation: str | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginConfigStatePayloadDict:
         """
         序列化为现有插件配置读取/更新 payload 契约。
 
         :return: 插件配置读取/更新 payload
         """
-        payload = {
+        payload: PluginConfigStatePayloadDict = {
             'ok': True,
             'message': self.message,
             'pluginId': self.plugin_id,
-            'configs': [config.model_dump(by_alias=True) for config in self.configs],
+            'configs': [cast('dict[str, object]', config.model_dump(by_alias=True)) for config in self.configs],
         }
         if self.operation is not None:
             payload['operation'] = self.operation
@@ -37,10 +138,10 @@ class PluginConfigExportFailurePayload:
     """
 
     plugin_id: str
-    payload: dict[str, Any]
+    payload: Mapping[str, object]
     reveal_secret: bool
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginConfigExportFailurePayloadDict:
         """
         序列化为现有插件配置导出失败 payload 契约。
 
@@ -65,13 +166,13 @@ class PluginConfigExportPayload:
     configs: list[object]
     reveal_secret: bool = False
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginConfigExportPayloadDict:
         """
         序列化为现有插件配置导出 payload 契约。
 
         :return: 插件配置导出 payload
         """
-        config_items = [config for config in self.configs if isinstance(config, dict)]
+        config_items = [cast('dict[str, object]', config) for config in self.configs if isinstance(config, dict)]
         return {
             'ok': True,
             'message': '插件配置导出完成',
@@ -79,13 +180,15 @@ class PluginConfigExportPayload:
             'revealSecret': self.reveal_secret,
             'configs': config_items,
             'values': {
-                config.get('key'): config.get('value') for config in config_items if isinstance(config.get('key'), str)
+                config.get('key'): cast('PluginConfigValue', config.get('value'))
+                for config in config_items
+                if isinstance(config.get('key'), str)
             },
             'metadata': [self._build_metadata(config) for config in config_items],
         }
 
     @staticmethod
-    def _build_metadata(config: dict[str, Any]) -> dict[str, Any]:
+    def _build_metadata(config: Mapping[str, object]) -> dict[str, object]:
         """
         构建不包含配置值的导出元数据。
 
@@ -121,7 +224,7 @@ class PluginConfigDiagnosticSummaryPayload:
 
     configs: object
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginConfigDiagnosticSummaryPayloadDict:
         """
         序列化为现有插件配置诊断摘要 payload 契约。
 
@@ -161,10 +264,10 @@ class PluginConfigImportPayload:
     """
 
     plugin_id: str
-    payload: dict[str, Any]
-    values: dict[str, Any]
+    payload: Mapping[str, object]
+    values: dict[str, PluginConfigValue]
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginConfigImportPayloadDict:
         """
         序列化为现有插件配置导入 payload 契约。
 
@@ -188,12 +291,12 @@ class PluginConfigAuditPayload:
 
     plugin_id: str
     operation: str
-    values: dict[str, Any]
-    before_configs: list[Any]
-    after_configs: list[Any]
+    values: dict[str, PluginConfigValue]
+    before_configs: list[SupportsModelDump]
+    after_configs: list[SupportsModelDump]
     message: str
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginConfigAuditPayloadDict:
         """
         序列化为现有插件配置审计 payload 契约。
 
@@ -219,19 +322,19 @@ class PluginConfigAuditPayload:
         }
 
     @staticmethod
-    def _build_audit_map(configs: list[Any]) -> dict[str, dict[str, Any]]:
+    def _build_audit_map(configs: list[SupportsModelDump]) -> dict[str, dict[str, PluginConfigValue]]:
         """
         构建按配置键索引的审计配置映射。
 
         :param configs: 插件配置模型列表
         :return: 按配置键索引的配置审计映射
         """
-        config_map: dict[str, dict[str, Any]] = {}
+        config_map: dict[str, dict[str, PluginConfigValue]] = {}
         for config in configs:
             payload = config.model_dump(by_alias=True) if hasattr(config, 'model_dump') else {}
             if not isinstance(payload, dict) or not isinstance(payload.get('key'), str):
                 continue
-            config_map[payload['key']] = payload
+            config_map[payload['key']] = cast('dict[str, PluginConfigValue]', payload)
 
         return config_map
 
@@ -239,9 +342,9 @@ class PluginConfigAuditPayload:
     def _build_audit_item(
         cls,
         key: str,
-        before_config: dict[str, Any],
-        after_config: dict[str, Any],
-    ) -> dict[str, Any]:
+        before_config: dict[str, PluginConfigValue],
+        after_config: dict[str, PluginConfigValue],
+    ) -> PluginConfigAuditChangePayload:
         """
         构建单个配置项的脱敏变更摘要。
 
@@ -261,7 +364,7 @@ class PluginConfigAuditPayload:
         }
 
     @staticmethod
-    def _mask_audit_value(value: Any, secret: bool) -> Any:
+    def _mask_audit_value(value: PluginConfigValue, secret: bool) -> PluginConfigValue:
         """
         对配置审计值执行敏感信息脱敏。
 
@@ -280,7 +383,7 @@ class PluginConfigPayloadBuilder:
     """
 
     @staticmethod
-    def build_read_payload(plugin_id: str, configs: list[Any]) -> dict[str, Any]:
+    def build_read_payload(plugin_id: str, configs: list[SupportsModelDump]) -> PluginConfigStatePayloadDict:
         """
         构建插件配置读取负载。
 
@@ -297,10 +400,10 @@ class PluginConfigPayloadBuilder:
     @staticmethod
     def build_export_failure_payload(
         plugin_id: str,
-        payload: dict[str, Any],
+        payload: Mapping[str, object],
         *,
         reveal_secret: bool,
-    ) -> dict[str, Any]:
+    ) -> PluginConfigExportFailurePayloadDict:
         """
         构建插件配置导出失败负载。
 
@@ -316,7 +419,7 @@ class PluginConfigPayloadBuilder:
         ).to_payload()
 
     @staticmethod
-    def build_diagnostic_summary(configs: object) -> dict[str, Any]:
+    def build_diagnostic_summary(configs: object) -> PluginConfigDiagnosticSummaryPayloadDict:
         """
         构建插件配置诊断摘要。
 
@@ -331,7 +434,7 @@ class PluginConfigPayloadBuilder:
         configs: list[object],
         *,
         reveal_secret: bool = False,
-    ) -> dict[str, Any]:
+    ) -> PluginConfigExportPayloadDict:
         """
         构建插件配置导出负载。
 
@@ -353,8 +456,8 @@ class PluginConfigPayloadBuilder:
         *,
         operation: str,
         message: str,
-        configs: list[Any],
-    ) -> dict[str, Any]:
+        configs: list[SupportsModelDump],
+    ) -> PluginConfigStatePayloadDict:
         """
         构建插件配置更新负载。
 
@@ -372,7 +475,11 @@ class PluginConfigPayloadBuilder:
         ).to_payload()
 
     @staticmethod
-    def build_import_payload(plugin_id: str, payload: dict[str, Any], values: dict[str, Any]) -> dict[str, Any]:
+    def build_import_payload(
+        plugin_id: str,
+        payload: Mapping[str, object],
+        values: dict[str, PluginConfigValue],
+    ) -> PluginConfigImportPayloadDict:
         """
         构建插件配置导入负载。
 
@@ -393,11 +500,11 @@ class PluginConfigPayloadBuilder:
         plugin_id: str,
         *,
         operation: str,
-        values: dict[str, Any],
-        before_configs: list[Any],
-        after_configs: list[Any],
+        values: dict[str, PluginConfigValue],
+        before_configs: list[SupportsModelDump],
+        after_configs: list[SupportsModelDump],
         message: str,
-    ) -> dict[str, Any]:
+    ) -> PluginConfigAuditPayloadDict:
         """
         构建插件配置变更审计负载。
 

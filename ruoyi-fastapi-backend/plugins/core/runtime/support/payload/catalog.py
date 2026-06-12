@@ -1,17 +1,149 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Protocol, TypedDict
 
 from plugins.core.discovery.registry import RegisteredPlugin
 from plugins.core.manifest.menu_tree import PluginMenuTree
 
-from .validation import PluginValidationPayloadMixin
+from .validation import PluginValidationPayloadBuilderProtocol, PluginValidationPayloadMixin
 
 if TYPE_CHECKING:
     from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.manifest.schema import PluginMenuManifest
+    from plugins.core.manifest.schema import PluginConfigItemManifest, PluginJobManifest, PluginMenuManifest
+    from plugins.core.types import PluginConfigValue, PluginStateRecord, SupportsToPayload
     from plugins.core.validation.dependencies import DependencyCheckItem
+
+
+class PluginCatalogSummaryPayloadDict(TypedDict):
+    """
+    插件目录摘要 payload。
+    """
+
+    pluginId: str
+    name: str
+    version: str
+    enabled: bool
+    status: str
+    description: str
+    backendPath: str
+    menuCount: int
+    permissionCount: int
+    capability: dict[str, object] | None
+
+
+class PluginCatalogDatabaseStatePayloadDict(TypedDict, total=False):
+    """
+    插件目录数据库状态 payload。
+    """
+
+    available: bool
+    installed: bool
+    error: str
+    installedVersion: str | None
+    enabled: str | None
+    status: str | None
+    lastError: str | None
+
+
+class PluginManifestConfigItemPayload(TypedDict):
+    """
+    manifest 配置声明 payload。
+    """
+
+    key: str
+    label: str | None
+    type: str
+    default: PluginConfigValue
+    required: bool
+    secret: bool
+    group: str
+    order: int
+    placeholder: str
+    min: float | None
+    max: float | None
+    pattern: str | None
+    description: str
+    options: list[dict[str, PluginConfigValue]]
+
+
+class PluginMenuDiagnosticPlanItemPayload(TypedDict):
+    """
+    菜单诊断计划项 payload。
+    """
+
+    name: str
+    path: str
+    component: str
+    perms: str
+    type: str
+    visible: str
+    status: str
+    children: int
+
+
+class PluginMenuDiagnosticPlanPayload(TypedDict):
+    """
+    菜单诊断计划 payload。
+    """
+
+    total: int
+    permissionCount: int
+    enabledCount: int
+    visibleCount: int
+    items: list[PluginMenuDiagnosticPlanItemPayload]
+
+
+class PluginManifestJobItemPayload(TypedDict):
+    """
+    manifest 定时任务声明 payload。
+    """
+
+    id: str
+    name: str | None
+    callable: str
+    trigger: str
+    cronExpression: str
+    args: list[str]
+    kwargs: dict[str, object]
+    enabled: bool
+    description: str
+    misfirePolicy: str
+    concurrent: str
+    executor: str
+
+
+class PluginCatalogPayloadBuilderProtocol(PluginValidationPayloadBuilderProtocol, Protocol):
+    """
+    插件目录 payload builder 协议。
+    """
+
+    @classmethod
+    def build_plugin_summary(
+        cls,
+        plugin: DiscoveredPlugin,
+        enabled: bool,
+        status: str,
+        capability: SupportsToPayload | None = None,
+    ) -> PluginCatalogSummaryPayloadDict:
+        """
+        构建插件摘要负载。
+        """
+        ...
+
+    @classmethod
+    def build_plugin_detail(
+        cls,
+        plugin: RegisteredPlugin | DiscoveredPlugin,
+        dependency_items: list[DependencyCheckItem],
+        *,
+        database_error: str | None = None,
+        capability: SupportsToPayload | None = None,
+    ) -> dict[str, object]:
+        """
+        构建插件详情负载。
+        """
+        ...
 
 
 @dataclass(frozen=True)
@@ -21,9 +153,9 @@ class PluginCatalogListPayload:
     """
 
     plugins: list[RegisteredPlugin]
-    builder: type[Any] | None = None
+    builder: type[PluginCatalogPayloadBuilderProtocol] | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> dict[str, object]:
         """
         序列化为现有插件列表 payload 契约。
 
@@ -45,11 +177,11 @@ class PluginCatalogInfoPayload:
 
     plugin: RegisteredPlugin | DiscoveredPlugin
     dependency_items: list[DependencyCheckItem]
-    builder: type[Any] | None = None
+    builder: type[PluginCatalogPayloadBuilderProtocol] | None = None
     database_error: str | None = None
-    capability: object | None = None
+    capability: SupportsToPayload | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> dict[str, object]:
         """
         序列化为现有插件详情响应 payload 契约。
 
@@ -76,9 +208,9 @@ class PluginCatalogSummaryPayload:
     plugin: DiscoveredPlugin
     enabled: bool
     status: str
-    capability: object | None = None
+    capability: SupportsToPayload | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginCatalogSummaryPayloadDict:
         """
         序列化为现有插件摘要 payload 契约。
 
@@ -105,10 +237,10 @@ class PluginCatalogDatabaseStatePayload:
     插件目录数据库状态结构化负载。
     """
 
-    database_plugin: object | None
+    database_plugin: PluginStateRecord | None
     database_error: str | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginCatalogDatabaseStatePayloadDict:
         """
         序列化为现有插件数据库状态 payload 契约。
 
@@ -124,10 +256,10 @@ class PluginCatalogDatabaseStatePayload:
         return {
             'available': True,
             'installed': self.database_plugin is not None,
-            'installedVersion': getattr(self.database_plugin, 'installed_version', None),
-            'enabled': getattr(self.database_plugin, 'enabled', None),
-            'status': getattr(self.database_plugin, 'status', None),
-            'lastError': getattr(self.database_plugin, 'last_error', None),
+            'installedVersion': self.database_plugin.installed_version if self.database_plugin else None,
+            'enabled': self.database_plugin.enabled if self.database_plugin else None,
+            'status': self.database_plugin.status if self.database_plugin else None,
+            'lastError': self.database_plugin.last_error if self.database_plugin else None,
         }
 
 
@@ -137,7 +269,7 @@ class PluginCatalogPayloadMixin:
     """
 
     @classmethod
-    def build_plugin_list_payload(cls, plugins: list[RegisteredPlugin]) -> dict[str, Any]:
+    def build_plugin_list_payload(cls, plugins: list[RegisteredPlugin]) -> dict[str, object]:
         """
         构建插件列表负载。
 
@@ -153,8 +285,8 @@ class PluginCatalogPayloadMixin:
         dependency_items: list[DependencyCheckItem],
         *,
         database_error: str | None = None,
-        capability: object | None = None,
-    ) -> dict[str, Any]:
+        capability: SupportsToPayload | None = None,
+    ) -> dict[str, object]:
         """
         构建插件详情响应负载。
 
@@ -177,8 +309,8 @@ class PluginCatalogPayloadMixin:
         plugin: DiscoveredPlugin,
         enabled: bool,
         status: str,
-        capability: object | None = None,
-    ) -> dict[str, Any]:
+        capability: SupportsToPayload | None = None,
+    ) -> PluginCatalogSummaryPayloadDict:
         """
         构建插件摘要负载。
 
@@ -201,8 +333,8 @@ class PluginCatalogPayloadMixin:
         dependency_items: list[DependencyCheckItem],
         *,
         database_error: str | None = None,
-        capability: object | None = None,
-    ) -> dict[str, Any]:
+        capability: SupportsToPayload | None = None,
+    ) -> dict[str, object]:
         """
         构建插件详情负载。
 
@@ -259,7 +391,9 @@ class PluginCatalogPayloadMixin:
         }
 
     @staticmethod
-    def build_manifest_config_items(config_items: list[object]) -> list[dict[str, Any]]:
+    def build_manifest_config_items(
+        config_items: list[PluginConfigItemManifest],
+    ) -> list[PluginManifestConfigItemPayload]:
         """
         构建 manifest 配置声明负载。
 
@@ -287,7 +421,7 @@ class PluginCatalogPayloadMixin:
         ]
 
     @classmethod
-    def build_menu_diagnostic_plan(cls, discovered_plugin: DiscoveredPlugin) -> dict[str, Any]:
+    def build_menu_diagnostic_plan(cls, discovered_plugin: DiscoveredPlugin) -> PluginMenuDiagnosticPlanPayload:
         """
         构建插件菜单诊断计划。
 
@@ -308,7 +442,7 @@ class PluginCatalogPayloadMixin:
         }
 
     @classmethod
-    def _build_menu_plan_item(cls, menu: PluginMenuManifest) -> dict[str, Any]:
+    def _build_menu_plan_item(cls, menu: PluginMenuManifest) -> PluginMenuDiagnosticPlanItemPayload:
         """
         构建菜单诊断计划项。
 
@@ -327,7 +461,7 @@ class PluginCatalogPayloadMixin:
         }
 
     @staticmethod
-    def build_manifest_job_item(job: object) -> dict[str, Any]:
+    def build_manifest_job_item(job: PluginJobManifest) -> PluginManifestJobItemPayload:
         """
         构建 manifest 定时任务声明负载。
 
@@ -350,7 +484,10 @@ class PluginCatalogPayloadMixin:
         }
 
     @staticmethod
-    def build_database_state(database_plugin: object | None, database_error: str | None = None) -> dict[str, Any]:
+    def build_database_state(
+        database_plugin: PluginStateRecord | None,
+        database_error: str | None = None,
+    ) -> PluginCatalogDatabaseStatePayloadDict:
         """
         构建插件数据库状态负载。
 
@@ -367,7 +504,7 @@ class _DefaultCatalogPayloadBuilder(PluginCatalogPayloadMixin, PluginValidationP
     """
 
 
-def _get_default_catalog_builder() -> type[Any]:
+def _get_default_catalog_builder() -> type[PluginCatalogPayloadBuilderProtocol]:
     """
     获取 catalog 模型直接序列化时使用的默认 builder。
 

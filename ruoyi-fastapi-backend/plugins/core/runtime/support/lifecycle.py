@@ -1,10 +1,91 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
 from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
 
-from .payload import PluginPayloadBuilder
-from .precheck import PluginPrecheckContext
+from .payload import ActionPayload, MenuConflictItemPayload, PluginPayloadBuilder, VersionStatePayload
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from plugins.core.lifecycle.migration import PluginMigrationResult
+    from plugins.core.lifecycle.seed import PluginSeedResult
+    from plugins.core.runtime.hooks import PluginHookResult
+    from plugins.core.types import SupportsModelDump
+    from plugins.core.validation.menus import PluginMenuConflictItem
+
+
+class SupportsOk(Protocol):
+    """
+    支持 ok 属性的检查结果协议。
+    """
+
+    ok: bool
+
+
+class PluginLifecyclePrecheckProtocol(Protocol):
+    """
+    lifecycle payload 所需的预检上下文协议。
+    """
+
+    ok: bool
+    dependency_result: SupportsOk
+    manifest_result: SupportsOk
+    plugin_dependency_result: SupportsOk
+    structure_result: SupportsOk
+    menu_conflict_result: SupportsOk
+    operation_payload: Mapping[str, object]
+    check_payload: Mapping[str, object]
+    menu_conflicts: list[MenuConflictItemPayload]
+
+
+class PluginLifecyclePayloadDict(TypedDict, total=False):
+    """
+    插件生命周期通用 payload。
+    """
+
+    ok: bool
+    message: str
+    pluginId: str
+    dryRun: bool
+    operation: str
+    actions: list[ActionPayload]
+    precheck: Mapping[str, object]
+    exit_code: int
+    plugin: dict[str, object]
+    configs: list[dict[str, object]]
+    migrations: list[dict[str, object]]
+    seeds: list[dict[str, object]]
+    hooks: list[dict[str, object]]
+    menuConflicts: list[MenuConflictItemPayload]
+    menuConflictOk: object
+    manifestOk: object
+    dependencyOk: object
+    pluginDependencyOk: object
+    structureOk: object
+    manifestIssues: object
+    manifestWarnings: object
+    pluginDependencyErrors: object
+    structureErrors: object
+    dependencies: object
+    pluginDependencies: object
+    installed: bool
+    installedVersion: str | None
+    currentVersion: str
+    needsUpgrade: bool
+    dependencyInstall: object
+
+
+def _object_payload(value: object) -> dict[str, object]:
+    """
+    将生命周期执行结果对象转换为 payload 字典。
+
+    :param value: 生命周期执行结果对象
+    :return: payload 字典
+    """
+    return dict(vars(value))
 
 
 @dataclass(frozen=True)
@@ -14,11 +95,11 @@ class PluginInstallDryRunPayload:
     """
 
     plugin_id: str
-    actions: list[dict[str, Any]]
-    precheck: PluginPrecheckContext
+    actions: list[ActionPayload]
+    precheck: PluginLifecyclePrecheckProtocol
     message: str = '插件安装演练完成，未执行实际写入'
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginLifecyclePayloadDict:
         """
         序列化为现有插件安装预演 payload 契约。
 
@@ -42,12 +123,12 @@ class PluginLifecyclePrecheckBlockerPayload:
 
     plugin_id: str
     message: str
-    actions: list[dict[str, Any]]
-    precheck: PluginPrecheckContext
+    actions: list[ActionPayload]
+    precheck: PluginLifecyclePrecheckProtocol
     dry_run: bool = False
-    extra_payload: dict[str, Any] | None = None
+    extra_payload: Mapping[str, object] | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginLifecyclePayloadDict:
         """
         序列化为现有插件生命周期预检阻断 payload 契约。
 
@@ -74,12 +155,12 @@ class PluginLifecycleOperationDryRunPayload:
     plugin_id: str
     operation: str
     message: str
-    actions: list[dict[str, Any]]
-    precheck: PluginPrecheckContext
-    extra_payload: dict[str, Any] | None = None
+    actions: list[ActionPayload]
+    precheck: PluginLifecyclePrecheckProtocol
+    extra_payload: Mapping[str, object] | None = None
     ok_from_precheck: bool = True
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginLifecyclePayloadDict:
         """
         序列化为现有插件生命周期操作预演 payload 契约。
 
@@ -108,12 +189,12 @@ class PluginLifecycleMenuConflictPayload:
 
     plugin_id: str
     message: str
-    actions: list[dict[str, Any]]
-    precheck: PluginPrecheckContext
-    installed_menu_conflicts: list[Any]
-    extra_payload: dict[str, Any] | None = None
+    actions: list[ActionPayload]
+    precheck: PluginLifecyclePrecheckProtocol
+    installed_menu_conflicts: list[PluginMenuConflictItem]
+    extra_payload: Mapping[str, object] | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginLifecyclePayloadDict:
         """
         序列化为现有插件生命周期菜单冲突 payload 契约。
 
@@ -144,10 +225,10 @@ class PluginLifecycleUpgradeLatestPayload:
     """
 
     plugin_id: str
-    version_state: dict[str, Any]
-    precheck: PluginPrecheckContext
+    version_state: VersionStatePayload
+    precheck: PluginLifecyclePrecheckProtocol
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginLifecyclePayloadDict:
         """
         序列化为现有插件无需升级 payload 契约。
 
@@ -172,16 +253,16 @@ class PluginLifecycleSuccessPayload:
 
     plugin_id: str
     message: str
-    actions: list[dict[str, Any]]
-    precheck: PluginPrecheckContext
-    plugin: Any
-    installed_configs: list[Any]
-    migration_results: list[Any]
-    seed_results: list[Any]
-    hook_result: Any | None
-    extra_payload: dict[str, Any] | None = None
+    actions: list[ActionPayload]
+    precheck: PluginLifecyclePrecheckProtocol
+    plugin: SupportsModelDump
+    installed_configs: list[SupportsModelDump]
+    migration_results: list[PluginMigrationResult]
+    seed_results: list[PluginSeedResult]
+    hook_result: PluginHookResult | None
+    extra_payload: Mapping[str, object] | None = None
 
-    def to_payload(self) -> dict[str, Any]:
+    def to_payload(self) -> PluginLifecyclePayloadDict:
         """
         序列化为现有插件生命周期成功 payload 契约。
 
@@ -195,11 +276,13 @@ class PluginLifecycleSuccessPayload:
             **(self.extra_payload or {}),
             'actions': self.actions,
             **self.precheck.operation_payload,
-            'plugin': self.plugin.model_dump(by_alias=True),
-            'configs': [config.model_dump(by_alias=True) for config in self.installed_configs],
-            'migrations': [migration_result.__dict__ for migration_result in self.migration_results],
-            'seeds': [seed_result.__dict__ for seed_result in self.seed_results],
-            'hooks': [self.hook_result.__dict__] if self.hook_result else [],
+            'plugin': cast('dict[str, object]', self.plugin.model_dump(by_alias=True)),
+            'configs': [
+                cast('dict[str, object]', config.model_dump(by_alias=True)) for config in self.installed_configs
+            ],
+            'migrations': [_object_payload(migration_result) for migration_result in self.migration_results],
+            'seeds': [_object_payload(seed_result) for seed_result in self.seed_results],
+            'hooks': [_object_payload(self.hook_result)] if self.hook_result else [],
         }
 
 
@@ -213,9 +296,9 @@ class PluginLifecyclePayloadBuilder:
     @staticmethod
     def build_install_dry_run_payload(
         plugin_id: str,
-        actions: list[dict[str, Any]],
-        precheck: PluginPrecheckContext,
-    ) -> dict[str, Any]:
+        actions: list[ActionPayload],
+        precheck: PluginLifecyclePrecheckProtocol,
+    ) -> PluginLifecyclePayloadDict:
         """
         构建插件安装预演负载。
 
@@ -235,11 +318,11 @@ class PluginLifecyclePayloadBuilder:
         plugin_id: str,
         *,
         message: str,
-        actions: list[dict[str, Any]],
-        precheck: PluginPrecheckContext,
+        actions: list[ActionPayload],
+        precheck: PluginLifecyclePrecheckProtocol,
         dry_run: bool = False,
-        extra_payload: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        extra_payload: Mapping[str, object] | None = None,
+    ) -> PluginLifecyclePayloadDict:
         """
         构建插件安装或升级预检阻断负载。
 
@@ -266,10 +349,10 @@ class PluginLifecyclePayloadBuilder:
         plugin_id: str,
         *,
         operation: str,
-        actions: list[dict[str, Any]],
-        precheck: PluginPrecheckContext,
-        extra_payload: dict[str, Any] | None = None,
-    ) -> dict[str, Any] | None:
+        actions: list[ActionPayload],
+        precheck: PluginLifecyclePrecheckProtocol,
+        extra_payload: Mapping[str, object] | None = None,
+    ) -> PluginLifecyclePayloadDict | None:
         """
         按统一优先级构建首个预检阻断负载。
 
@@ -315,10 +398,10 @@ class PluginLifecyclePayloadBuilder:
         cls,
         plugin_id: str,
         *,
-        actions: list[dict[str, Any]],
-        precheck: PluginPrecheckContext,
-        dependency_install_payload: dict[str, Any],
-    ) -> dict[str, Any] | None:
+        actions: list[ActionPayload],
+        precheck: PluginLifecyclePrecheckProtocol,
+        dependency_install_payload: Mapping[str, object],
+    ) -> PluginLifecyclePayloadDict | None:
         """
         构建依赖自动安装后仍未满足时的阻断负载。
 
@@ -345,11 +428,11 @@ class PluginLifecyclePayloadBuilder:
         *,
         operation: str,
         message: str,
-        actions: list[dict[str, Any]],
-        precheck: PluginPrecheckContext,
-        extra_payload: dict[str, Any] | None = None,
+        actions: list[ActionPayload],
+        precheck: PluginLifecyclePrecheckProtocol,
+        extra_payload: Mapping[str, object] | None = None,
         ok_from_precheck: bool = True,
-    ) -> dict[str, Any]:
+    ) -> PluginLifecyclePayloadDict:
         """
         构建统一预检后的操作预演负载。
 
@@ -377,11 +460,11 @@ class PluginLifecyclePayloadBuilder:
         plugin_id: str,
         *,
         message: str,
-        actions: list[dict[str, Any]],
-        precheck: PluginPrecheckContext,
-        installed_menu_conflicts: list[Any],
-        extra_payload: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        actions: list[ActionPayload],
+        precheck: PluginLifecyclePrecheckProtocol,
+        installed_menu_conflicts: list[PluginMenuConflictItem],
+        extra_payload: Mapping[str, object] | None = None,
+    ) -> PluginLifecyclePayloadDict:
         """
         构建已安装菜单冲突阻断负载。
 
@@ -405,9 +488,9 @@ class PluginLifecyclePayloadBuilder:
     @staticmethod
     def build_upgrade_latest_payload(
         plugin_id: str,
-        version_state: dict[str, Any],
-        precheck: PluginPrecheckContext,
-    ) -> dict[str, Any]:
+        version_state: VersionStatePayload,
+        precheck: PluginLifecyclePrecheckProtocol,
+    ) -> PluginLifecyclePayloadDict:
         """
         构建插件无需升级负载。
 
@@ -427,15 +510,15 @@ class PluginLifecyclePayloadBuilder:
         plugin_id: str,
         *,
         message: str,
-        actions: list[dict[str, Any]],
-        precheck: PluginPrecheckContext,
-        plugin: Any,
-        installed_configs: list[Any],
-        migration_results: list[Any],
-        seed_results: list[Any],
-        hook_result: Any | None,
-        extra_payload: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+        actions: list[ActionPayload],
+        precheck: PluginLifecyclePrecheckProtocol,
+        plugin: SupportsModelDump,
+        installed_configs: list[SupportsModelDump],
+        migration_results: list[PluginMigrationResult],
+        seed_results: list[PluginSeedResult],
+        hook_result: PluginHookResult | None,
+        extra_payload: Mapping[str, object] | None = None,
+    ) -> PluginLifecyclePayloadDict:
         """
         构建插件安装或升级成功负载。
 
