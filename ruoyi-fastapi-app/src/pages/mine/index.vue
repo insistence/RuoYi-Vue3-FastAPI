@@ -163,6 +163,24 @@
 <script setup>
 import { useUserStore } from "@/store";
 import { computed, getCurrentInstance } from "vue";
+import { getToken, removeToken } from "@/utils/auth";
+import { getInfo } from "@/api/login";
+import storage from "@/utils/storage";
+
+// 认证守卫：验证 token 有效性，无效则跳转登录
+;(async () => {
+  if (!getToken()) {
+    uni.reLaunch({ url: "/pages/login" });
+    return;
+  }
+  try {
+    await getInfo();
+  } catch (e) {
+    removeToken();
+    storage.clean();
+    uni.reLaunch({ url: "/pages/login" });
+  }
+})();
 
 const { proxy } = getCurrentInstance();
 const userStore = useUserStore();

@@ -769,7 +769,7 @@ create table sys_logininfor (
     browser varchar(50) default '',
     os varchar(50) default '',
     status char(1) default '0',
-    msg varchar(255) default '',
+    msg TEXT default '',
     login_time timestamp(0),
     primary key (info_id)
 );

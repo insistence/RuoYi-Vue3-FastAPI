@@ -1,9 +1,11 @@
 <script setup>
 import config from "./config";
-import { getToken } from "@/utils/auth";
+import { getToken, removeToken } from "@/utils/auth";
 import { useConfigStore } from "@/store";
+import { getInfo } from "@/api/login";
 import { getCurrentInstance } from "vue";
 import { onLaunch } from "@dcloudio/uni-app";
+import storage from "@/utils/storage";
 
 const { proxy } = getCurrentInstance();
 
@@ -26,9 +28,19 @@ function initConfig() {
 }
 
 function checkLogin() {
-  if (!getToken()) {
-    proxy.$tab.reLaunch("/pages/login");
+  const token = getToken();
+  if (token) {
+    validateToken();
   }
+}
+
+// 验证 token 有效性，无效则清除并跳转登录
+function validateToken() {
+  getInfo().catch(() => {
+    removeToken();
+    storage.clean();
+    uni.reLaunch({ url: "/pages/login" });
+  });
 }
 </script>
 

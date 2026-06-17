@@ -91,7 +91,7 @@
           class="h-12 w-28 overflow-hidden rounded-xl bg-gray-100 shadow-sm transition-opacity active:opacity-80"
           @click="getCode"
         >
-          <image :src="codeUrl" class="size-full object-cover"></image>
+          <image :src="codeUrl" mode="aspectFill" style="width: 100%; height: 100%"></image>
         </view>
       </view>
 
@@ -142,14 +142,18 @@ function handleUserLogin() {
 
 // 获取图形验证码
 function getCode() {
-  getCodeImg().then((res) => {
-    captchaEnabled.value =
-      res.captchaEnabled === undefined ? true : res.captchaEnabled;
-    if (captchaEnabled.value) {
-      codeUrl.value = "data:image/gif;base64," + res.img;
-      registerForm.value.uuid = res.uuid;
-    }
-  });
+  getCodeImg()
+    .then((res) => {
+      captchaEnabled.value =
+        res.captchaEnabled === undefined ? true : res.captchaEnabled;
+      if (captchaEnabled.value) {
+        codeUrl.value = "data:image/png;base64," + res.img;
+        registerForm.value.uuid = res.uuid;
+      }
+    })
+    .catch(() => {
+      proxy.$modal.msgError("获取验证码失败，请检查后端服务是否启动");
+    });
 }
 
 // 注册方法

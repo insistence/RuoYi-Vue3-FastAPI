@@ -54,6 +54,16 @@ export default defineConfig(async () => {
         dts: "./src/auto-imports.d.ts",
       }),
     ],
+    server: {
+      host: true,
+      proxy: {
+        "/dev-api": {
+          target: "http://127.0.0.1:9099",
+          changeOrigin: true,
+          rewrite: (p: string) => p.replace(/^\/dev-api/, ""),
+        },
+      },
+    },
     // 内联 postcss 注册 tailwindcss
     css: {
       postcss: {

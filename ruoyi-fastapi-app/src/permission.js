@@ -1,4 +1,5 @@
-import { getToken } from "@/utils/auth";
+import { getToken, removeToken } from "@/utils/auth";
+import storage from "@/utils/storage";
 
 // 登录页面
 const loginPage = "/pages/login";
@@ -18,6 +19,12 @@ function checkWhite(url) {
   return whiteList.indexOf(path) !== -1;
 }
 
+// 清除认证信息
+function clearAuth() {
+  removeToken();
+  storage.clean();
+}
+
 // 页面跳转验证拦截器
 let list = ["navigateTo", "redirectTo", "reLaunch", "switchTab"];
 list.forEach((item) => {
@@ -25,7 +32,8 @@ list.forEach((item) => {
     invoke(to) {
       if (getToken()) {
         if (to.url === loginPage) {
-          uni.reLaunch({ url: "/" });
+          uni.switchTab({ url: "/pages/index" });
+          return false;
         }
         return true;
       } else {
