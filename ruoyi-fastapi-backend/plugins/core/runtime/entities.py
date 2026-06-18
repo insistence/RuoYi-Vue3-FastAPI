@@ -20,7 +20,7 @@ class EntityModuleImporter:
 
         :param backend_root: 后端项目根目录
         """
-        self.backend_root = Path(backend_root) if backend_root else Path(__file__).resolve().parents[2]
+        self.backend_root = Path(backend_root) if backend_root else Path(__file__).resolve().parents[3]
         self.backend_root = self.backend_root.resolve()
         if str(self.backend_root) not in sys.path:
             sys.path.insert(0, str(self.backend_root))

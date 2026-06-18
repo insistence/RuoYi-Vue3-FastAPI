@@ -8,6 +8,13 @@ from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
 from plugins.core.runtime.bootstrap import PluginRuntimeBuilder  # noqa: E402
 
 
+def test_plugin_runtime_builder_defaults_to_backend_root() -> None:
+    builder = PluginRuntimeBuilder()
+
+    assert builder.backend_root == BACKEND_ROOT
+    assert builder.plugins_root == BACKEND_ROOT / 'plugins'
+
+
 def write_manifest(plugin_dir: Path, content: str) -> None:
     """
     写入测试插件清单。

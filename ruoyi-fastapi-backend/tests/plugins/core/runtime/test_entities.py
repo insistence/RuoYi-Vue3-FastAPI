@@ -7,6 +7,12 @@ sys.path.insert(0, str(BACKEND_ROOT))
 from plugins.core.runtime.entities import EntityModuleImporter  # noqa: E402
 
 
+def test_entity_module_importer_defaults_to_backend_root() -> None:
+    importer = EntityModuleImporter()
+
+    assert importer.backend_root == BACKEND_ROOT
+
+
 def write_python_file(file_path: Path, content: str = '') -> Path:
     """
     写入 Python 测试文件。
