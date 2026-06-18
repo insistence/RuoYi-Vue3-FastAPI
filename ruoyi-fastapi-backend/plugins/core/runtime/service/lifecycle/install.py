@@ -133,9 +133,9 @@ class PluginInstallUseCase:
         payload_view = cast('dict[str, object]', payload)
         payload_view['operation'] = 'install'
         if not dry_run:
-            await self.runtime_operations._record_plugin_failure_state(payload_view, '插件安装失败')
+            await self.runtime_operations.record_plugin_failure_state(payload_view, '插件安装失败')
         if record_operation_log and not dry_run:
-            await self.runtime_operations._record_plugin_operation_log(
+            await self.runtime_operations.record_plugin_operation_log(
                 payload_view,
                 dry_run=dry_run,
                 continue_on_error=False,
@@ -181,7 +181,7 @@ class PluginInstallUseCase:
             )
             if blocker_payload:
                 return blocker_payload
-            dependency_install_payload = self.runtime_operations._install_plugin_dependencies_from_result(
+            dependency_install_payload = await self.runtime_operations.install_plugin_dependencies_from_result_async(
                 plugin_id,
                 precheck.dependency_result,
                 dry_run=False,
@@ -196,9 +196,7 @@ class PluginInstallUseCase:
                     precheck=precheck,
                     extra_payload={'dependencyInstall': dependency_install_view},
                 )
-            self.runtime_operations._refresh_dependency_checker()
-            self.dependencies = self.runtime_operations.dependencies
-            self.context = self.runtime_operations.context
+            self.runtime_operations.refresh_dependency_checker()
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
             dependency_install_view['postCheck'] = PluginPayloadBuilder.build_dependency_check_payload(
                 plugin_id,

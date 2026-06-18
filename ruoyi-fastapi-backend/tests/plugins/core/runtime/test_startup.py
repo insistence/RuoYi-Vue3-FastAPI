@@ -73,6 +73,7 @@ async def test_load_registry_from_database_rebuilds_registry() -> None:
 
     :return: None
     """
+    fake_session = object()
 
     async def fake_get_db() -> object:
         """
@@ -80,24 +81,19 @@ async def test_load_registry_from_database_rebuilds_registry() -> None:
 
         :return: 测试数据库会话
         """
-        yield object()
+        yield fake_session
 
     fake_registry = PluginRegistry.build([])
     fake_builder = MagicMock()
     fake_builder.build_registry.return_value = fake_registry
+    fake_gateway = MagicMock()
+    fake_gateway.list_plugins = AsyncMock(return_value=[])
     app = FastAPI()
 
-    with (
-        patch('plugins.core.runtime.startup.get_db', fake_get_db),
-        patch(
-            'plugins.core.runtime.startup.PluginService.get_plugin_list_services',
-            new_callable=AsyncMock,
-        ) as get_plugin_list_services,
-    ):
-        get_plugin_list_services.return_value = []
+    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+        await PluginRuntimeStartupManager(fake_builder, fake_gateway).load_registry_from_database(app)
 
-        await PluginRuntimeStartupManager(fake_builder).load_registry_from_database(app)
-
+    fake_gateway.list_plugins.assert_awaited_once_with(fake_session)
     assert app.state.plugin_registry is fake_registry
     fake_builder.build_registry.assert_called_once_with([])
 
@@ -167,17 +163,13 @@ async def test_install_enabled_plugin_menus_commits_after_service_call() -> None
 
     app = FastAPI()
     app.state.plugin_registry = PluginRegistry.build([])
+    fake_gateway = MagicMock()
+    fake_gateway.install_enabled_plugin_menus = AsyncMock()
 
-    with (
-        patch('plugins.core.runtime.startup.get_db', fake_get_db),
-        patch(
-            'plugins.core.runtime.startup.PluginService.install_enabled_plugin_menu_services',
-            new_callable=AsyncMock,
-        ) as install_enabled_plugin_menu_services,
-    ):
-        await PluginRuntimeStartupManager(MagicMock()).install_enabled_plugin_menus(app)
+    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+        await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_menus(app)
 
-    install_enabled_plugin_menu_services.assert_awaited_once_with(fake_session, app.state.plugin_registry)
+    fake_gateway.install_enabled_plugin_menus.assert_awaited_once_with(fake_session, app.state.plugin_registry)
     fake_session.commit.assert_awaited_once()
 
 
@@ -200,17 +192,13 @@ async def test_install_enabled_plugin_configs_commits_after_service_call() -> No
 
     app = FastAPI()
     app.state.plugin_registry = PluginRegistry.build([])
+    fake_gateway = MagicMock()
+    fake_gateway.install_enabled_plugin_configs = AsyncMock()
 
-    with (
-        patch('plugins.core.runtime.startup.get_db', fake_get_db),
-        patch(
-            'plugins.core.runtime.startup.PluginService.install_enabled_plugin_config_services',
-            new_callable=AsyncMock,
-        ) as install_enabled_plugin_config_services,
-    ):
-        await PluginRuntimeStartupManager(MagicMock()).install_enabled_plugin_configs(app)
+    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+        await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_configs(app)
 
-    install_enabled_plugin_config_services.assert_awaited_once_with(fake_session, app.state.plugin_registry)
+    fake_gateway.install_enabled_plugin_configs.assert_awaited_once_with(fake_session, app.state.plugin_registry)
     fake_session.commit.assert_awaited_once()
 
 
@@ -233,17 +221,13 @@ async def test_install_enabled_plugin_jobs_commits_after_service_call() -> None:
 
     app = FastAPI()
     app.state.plugin_registry = PluginRegistry.build([])
+    fake_gateway = MagicMock()
+    fake_gateway.install_enabled_plugin_jobs = AsyncMock()
 
-    with (
-        patch('plugins.core.runtime.startup.get_db', fake_get_db),
-        patch(
-            'plugins.core.runtime.startup.PluginService.install_enabled_plugin_job_services',
-            new_callable=AsyncMock,
-        ) as install_enabled_plugin_job_services,
-    ):
-        await PluginRuntimeStartupManager(MagicMock()).install_enabled_plugin_jobs(app)
+    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+        await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_jobs(app)
 
-    install_enabled_plugin_job_services.assert_awaited_once_with(fake_session, app.state.plugin_registry)
+    fake_gateway.install_enabled_plugin_jobs.assert_awaited_once_with(fake_session, app.state.plugin_registry)
     fake_session.commit.assert_awaited_once()
 
 
@@ -280,21 +264,18 @@ async def test_mark_plugin_runtime_error_updates_database_and_rebuilds_registry(
         yield fake_session
 
     app = FastAPI()
-    startup_manager = PluginRuntimeStartupManager(MagicMock())
+    fake_gateway = MagicMock()
+    fake_gateway.mark_plugin_error = AsyncMock()
+    fake_gateway.mark_plugin_error.return_value.is_success = True
+    startup_manager = PluginRuntimeStartupManager(MagicMock(), fake_gateway)
 
     with (
         patch('plugins.core.runtime.startup.get_db', fake_get_db),
-        patch(
-            'plugins.core.runtime.startup.PluginService.mark_plugin_error_services',
-            new_callable=AsyncMock,
-        ) as mark_plugin_error_services,
         patch.object(startup_manager, 'load_registry_from_database', new_callable=AsyncMock) as load_registry,
     ):
-        mark_plugin_error_services.return_value.is_success = True
-
         await startup_manager.mark_plugin_runtime_error(app, 'demo', 'broken')
 
-    mark_plugin_error_services.assert_awaited_once_with(fake_session, 'demo', 'broken')
+    fake_gateway.mark_plugin_error.assert_awaited_once_with(fake_session, 'demo', 'broken')
     fake_session.commit.assert_awaited_once()
     fake_session.rollback.assert_not_awaited()
     load_registry.assert_awaited_once_with(app)
@@ -323,30 +304,25 @@ async def test_mark_plugin_runtime_error_upserts_discovered_plugin_when_missing(
     fake_registered_plugin = MagicMock()
     app.state.plugin_registry = MagicMock()
     app.state.plugin_registry.get_plugin.return_value = fake_registered_plugin
-    startup_manager = PluginRuntimeStartupManager(fake_builder)
+    fake_gateway = MagicMock()
+    fake_gateway.mark_plugin_error = AsyncMock()
+    fake_gateway.upsert_discovered_plugin = AsyncMock()
+    startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
 
     with (
         patch('plugins.core.runtime.startup.get_db', fake_get_db),
-        patch(
-            'plugins.core.runtime.startup.PluginService.mark_plugin_error_services',
-            new_callable=AsyncMock,
-        ) as mark_plugin_error_services,
-        patch(
-            'plugins.core.runtime.startup.PluginService.upsert_discovered_plugin_services',
-            new_callable=AsyncMock,
-        ) as upsert_discovered_plugin_services,
         patch.object(startup_manager, 'load_registry_from_database', new_callable=AsyncMock) as load_registry,
     ):
         failed_result = MagicMock(is_success=False, message='插件不存在')
         success_result = MagicMock(is_success=True)
-        mark_plugin_error_services.side_effect = [failed_result, success_result]
+        fake_gateway.mark_plugin_error.side_effect = [failed_result, success_result]
 
         await startup_manager.mark_plugin_runtime_error(app, 'demo', 'broken')
 
     expected_mark_error_call_count = 2
-    assert mark_plugin_error_services.await_count == expected_mark_error_call_count
+    assert fake_gateway.mark_plugin_error.await_count == expected_mark_error_call_count
     fake_session.rollback.assert_awaited_once()
-    upsert_discovered_plugin_services.assert_awaited_once_with(
+    fake_gateway.upsert_discovered_plugin.assert_awaited_once_with(
         fake_session,
         fake_registered_plugin.discovered_plugin,
         fake_builder.plugins_root,

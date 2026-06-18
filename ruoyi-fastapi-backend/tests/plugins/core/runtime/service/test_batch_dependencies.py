@@ -1,5 +1,7 @@
 # ruff: noqa: F403, F405
 
+import pytest
+
 from tests.plugin_runtime_helpers import *
 
 
@@ -150,6 +152,54 @@ dependencies:
     assert payload['plan']['blockers'][0]['status'] == 'missing'
 
 
+def test_plugin_runtime_plan_plugins_reports_database_state_read_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    校验批量计划会显式输出数据库状态读取错误。
+
+    :param tmp_path: pytest 临时目录
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'app',
+        """
+id: app
+name: App
+version: 1.0.0
+backend:
+  module: plugins.app
+dependencies:
+  plugins:
+    - base
+""",
+    )
+    write_manifest(
+        backend_root / 'plugins' / 'base',
+        """
+id: base
+name: Base
+version: 1.0.0
+backend:
+  module: plugins.base
+""",
+    )
+    runtime = build_runtime(backend_root)
+    monkeypatch.setattr(
+        runtime.context,
+        'load_database_plugin_states_sync_with_error',
+        lambda: ([], 'db unavailable'),
+    )
+
+    payload = runtime.plan_plugins('install', ['app'])
+
+    assert payload['databaseAvailable'] is False
+    assert payload['databaseError'] == 'db unavailable'
+
+
 def test_plugin_runtime_record_plugin_operation_log_delegates_to_audit_use_case(tmp_path: Path) -> None:
     """
     校验插件操作日志记录入口委托给组合式审计 use case。
@@ -195,7 +245,7 @@ def test_plugin_runtime_record_plugin_operation_log_delegates_to_audit_use_case(
     runtime.audit = audit
     payload = {'ok': True, 'pluginId': 'demo'}
 
-    asyncio.run(runtime._record_plugin_operation_log(payload, dry_run=False, continue_on_error=True))
+    asyncio.run(runtime.record_plugin_operation_log(payload, dry_run=False, continue_on_error=True))
 
     assert audit.payload is payload
     assert audit.dry_run is False
@@ -242,7 +292,7 @@ def test_plugin_runtime_record_plugin_failure_state_delegates_to_audit_use_case(
     runtime.audit = audit
     payload = {'ok': False, 'pluginId': 'demo'}
 
-    asyncio.run(runtime._record_plugin_failure_state(payload, '默认失败'))
+    asyncio.run(runtime.record_plugin_failure_state(payload, '默认失败'))
 
     assert audit.payload is payload
     assert audit.default_message == '默认失败'
@@ -393,7 +443,7 @@ def test_plugin_runtime_execute_batch_plugin_item_delegates_to_batch_use_case(tm
     batch = FakeBatchUseCase()
     runtime.batch = batch
 
-    payload = asyncio.run(runtime._execute_batch_plugin_item('install', 'demo'))
+    payload = asyncio.run(runtime.execute_batch_plugin_item('install', 'demo'))
 
     assert batch.operation == 'install'
     assert batch.plugin_id == 'demo'
@@ -524,7 +574,6 @@ frontend:
     assert [item['pluginId'] for item in payload['executed']] == ['app']
     assert all(item['status'] == 'success' for item in payload['executed'])
     assert all(isinstance(item['durationMs'], int) for item in payload['executed'])
-    assert all(item['exitCode'] == 0 for item in payload['executed'])
     assert payload['summary'] == {'total': 1, 'succeeded': 1, 'failed': 0, 'skipped': 0}
     assert payload['failed'] is None
     assert len(FakePluginService.operation_logs) == 1
@@ -586,7 +635,7 @@ frontend:
             'pluginId': plugin_id,
         }
 
-    runtime._execute_batch_plugin_item = fake_execute
+    runtime.execute_batch_plugin_item = fake_execute
 
     payload = asyncio.run(runtime.batch_plugins('install', ['alpha', 'beta', 'gamma'], continue_on_error=True))
 
@@ -767,13 +816,76 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_delegates_to_dep
     dependency = FakeDependencyUseCase()
     runtime.dependency = dependency
 
-    payload = runtime._install_plugin_dependencies_from_result('demo', dependency_result, dry_run=True)
+    payload = runtime.install_plugin_dependencies_from_result('demo', dependency_result, dry_run=True)
 
     assert dependency.plugin_id == 'demo'
     assert dependency.dependency_result is dependency_result
     assert dependency.dry_run is True
     assert dependency.discovered_plugin is None
     assert payload == {'ok': True, 'pluginId': 'demo', 'fromResult': True}
+
+
+def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_to_dependency_use_case(
+    tmp_path: Path,
+) -> None:
+    """
+    校验插件依赖安装异步入口委托给组合式依赖 use case。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    runtime = build_runtime(tmp_path / 'backend')
+    dependency_result = DependencyCheckResult(plugin_id='demo', items=[])
+
+    class FakeDependencyUseCase:
+        """
+        测试用插件依赖 use case。
+        """
+
+        def __init__(self) -> None:
+            """
+            初始化测试用插件依赖 use case。
+            """
+            self.plugin_id: str | None = None
+            self.dependency_result: DependencyCheckResult | None = None
+            self.dry_run: bool | None = None
+            self.discovered_plugin: object | None = None
+
+        async def install_plugin_dependencies_from_result_async(
+            self,
+            plugin_id: str,
+            dependency_result: DependencyCheckResult,
+            *,
+            dry_run: bool = False,
+            discovered_plugin: object | None = None,
+        ) -> dict:
+            """
+            记录插件依赖安装异步调用。
+
+            :param plugin_id: 插件ID
+            :param dependency_result: 依赖检查结果
+            :param dry_run: 是否仅预演
+            :param discovered_plugin: 已发现插件
+            :return: 测试负载
+            """
+            self.plugin_id = plugin_id
+            self.dependency_result = dependency_result
+            self.dry_run = dry_run
+            self.discovered_plugin = discovered_plugin
+            return {'ok': True, 'pluginId': plugin_id, 'fromResultAsync': True}
+
+    dependency = FakeDependencyUseCase()
+    runtime.dependency = dependency
+
+    payload = asyncio.run(
+        runtime.install_plugin_dependencies_from_result_async('demo', dependency_result, dry_run=True)
+    )
+
+    assert dependency.plugin_id == 'demo'
+    assert dependency.dependency_result is dependency_result
+    assert dependency.dry_run is True
+    assert dependency.discovered_plugin is None
+    assert payload == {'ok': True, 'pluginId': 'demo', 'fromResultAsync': True}
 
 
 def test_plugin_runtime_dependency_use_case_uses_injected_context_service(tmp_path: Path) -> None:

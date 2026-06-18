@@ -144,9 +144,9 @@ class PluginUpgradeUseCase:
         payload_view = cast('dict[str, object]', payload)
         payload_view['operation'] = 'upgrade'
         if not dry_run:
-            await self.runtime_operations._record_plugin_failure_state(payload_view, '插件升级失败')
+            await self.runtime_operations.record_plugin_failure_state(payload_view, '插件升级失败')
         if record_operation_log and not dry_run:
-            await self.runtime_operations._record_plugin_operation_log(
+            await self.runtime_operations.record_plugin_operation_log(
                 payload_view,
                 dry_run=dry_run,
                 continue_on_error=False,

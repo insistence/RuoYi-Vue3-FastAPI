@@ -1,5 +1,10 @@
-from collections.abc import Mapping
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 @dataclass(frozen=True)
@@ -18,7 +23,7 @@ class PluginOperationResult:
         payload: Mapping[str, object],
         *,
         default_message: str = '插件操作完成',
-    ) -> 'PluginOperationResult':
+    ) -> PluginOperationResult:
         """
         从插件运行时 payload 构建结果视图。
 
@@ -31,13 +36,3 @@ class PluginOperationResult:
             ok=bool(payload.get('ok', False)),
             message=str(payload.get('message') or default_message),
         )
-
-    def exit_code(self, *, success_exit_code: int, failure_exit_code: int) -> int:
-        """
-        根据插件操作结果选择退出码。
-
-        :param success_exit_code: 成功退出码
-        :param failure_exit_code: 失败退出码
-        :return: 退出码
-        """
-        return success_exit_code if self.ok else failure_exit_code

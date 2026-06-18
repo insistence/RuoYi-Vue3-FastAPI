@@ -14,7 +14,7 @@ class PluginLifecycleRuntimeOperations(Protocol):
     dependencies: PluginRuntimeDependencies
     context: PluginRuntimeContextService
 
-    async def _record_plugin_operation_log(
+    async def record_plugin_operation_log(
         self,
         payload: Mapping[str, object],
         *,
@@ -30,7 +30,7 @@ class PluginLifecycleRuntimeOperations(Protocol):
         :return: None
         """
 
-    async def _record_plugin_failure_state(self, payload: Mapping[str, object], default_message: str) -> None:
+    async def record_plugin_failure_state(self, payload: Mapping[str, object], default_message: str) -> None:
         """
         记录插件操作失败状态。
 
@@ -39,7 +39,7 @@ class PluginLifecycleRuntimeOperations(Protocol):
         :return: None
         """
 
-    def _install_plugin_dependencies_from_result(
+    def install_plugin_dependencies_from_result(
         self,
         plugin_id: str,
         dependency_result: object,
@@ -57,7 +57,25 @@ class PluginLifecycleRuntimeOperations(Protocol):
         :return: 插件依赖安装负载
         """
 
-    def _refresh_dependency_checker(self) -> None:
+    async def install_plugin_dependencies_from_result_async(
+        self,
+        plugin_id: str,
+        dependency_result: object,
+        *,
+        dry_run: bool = False,
+        discovered_plugin: object | None = None,
+    ) -> PluginDependencyInstallResponse:
+        """
+        根据既有依赖检查结果异步生成计划并执行依赖安装。
+
+        :param plugin_id: 插件ID
+        :param dependency_result: 依赖检查结果
+        :param dry_run: 是否仅预演
+        :param discovered_plugin: 已发现插件
+        :return: 插件依赖安装负载
+        """
+
+    def refresh_dependency_checker(self) -> None:
         """
         刷新插件 Python/npm 依赖检查器。
 

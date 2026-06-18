@@ -1,21 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, TypedDict
+from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
+
+from pydantic import Field
 
 from plugins.core.manifest.menu_tree import PluginMenuTree
-from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
-from plugins.core.runtime.support.payload.validation import (
-    DependencyItemPayload,
-    MenuConflictItemPayload,
-    PluginDependencyItemPayload,
-    PluginValidationPayloadBuilderProtocol,
-    StructureItemPayload,
-    ValidationIssuePayload,
-)
 from plugins.core.validation.versioning import PluginVersionComparator
 
-from .validation import PluginValidationPayloadMixin
+from .base import PluginPayloadModel
 
 if TYPE_CHECKING:
     from subprocess import CompletedProcess
@@ -24,7 +16,6 @@ if TYPE_CHECKING:
     from plugins.core.lifecycle.purge import PluginPurgePlan, PluginPurgePlanItem
     from plugins.core.validation.dependencies import DependencyCheckResult, DependencyInstallPlanItem
     from plugins.core.validation.plugin_deps import (
-        PluginBatchOperation,
         PluginDependencyCheckResult,
         PluginDependencyPlan,
         PluginDependencyPlanBlocker,
@@ -41,63 +32,64 @@ class SupportsOk(Protocol):
     ok: bool
 
 
-class PluginPlanBlockerPayload(TypedDict):
+class PluginPlanBlockerPayload(PluginPayloadModel):
     """
     插件批量操作计划阻塞项 payload。
     """
 
-    pluginId: str
-    dependencyId: str
+    plugin_id: str = Field(alias='pluginId')
+    dependency_id: str = Field(alias='dependencyId')
     status: str
     message: str
 
 
-class PluginPlanItemPayload(TypedDict):
+class PluginPlanItemPayload(PluginPayloadModel):
     """
     插件批量操作计划项 payload。
     """
 
-    pluginId: str
+    plugin_id: str = Field(alias='pluginId')
     name: str
     version: str
-    operation: PluginBatchOperation
+    operation: str
     order: int
     requested: bool
     dependencies: list[str]
-    installedVersion: str | None
+    installed_version: str | None = Field(alias='installedVersion')
     enabled: str | None
     status: str | None
     ready: bool
-    blockers: list[PluginPlanBlockerPayload]
+    blockers: list[dict[str, object]]
 
 
-class PluginPlanPayloadDict(TypedDict):
+class PluginPlanPayload(PluginPayloadModel):
     """
     插件批量操作拓扑计划 payload。
     """
 
-    operation: PluginBatchOperation
+    operation: str
     ok: bool
-    requestedPluginIds: list[str]
-    orderedPluginIds: list[str]
-    items: list[PluginPlanItemPayload]
-    blockers: list[PluginPlanBlockerPayload]
-    blockerCount: int
+    requested_plugin_ids: list[str] = Field(alias='requestedPluginIds')
+    ordered_plugin_ids: list[str] = Field(alias='orderedPluginIds')
+    items: list[dict[str, object]]
+    blockers: list[dict[str, object]]
+    blocker_count: int = Field(alias='blockerCount')
 
 
-class PluginPlanResponsePayload(TypedDict):
+class PluginPlanResponsePayload(PluginPayloadModel):
     """
     插件批量操作计划响应 payload。
     """
 
     ok: bool
     message: str
-    operation: PluginBatchOperation
-    plan: PluginPlanPayloadDict
-    exit_code: int
+    operation: str
+    database_available: bool = Field(alias='databaseAvailable')
+    database_error: str | None = Field(alias='databaseError')
+    plan: dict[str, object]
 
 
-class DependencyInstallPlanItemPayload(TypedDict):
+class DependencyInstallPlanItemPayload(PluginPayloadModel):
     """
     依赖安装计划项 payload。
     """
@@ -106,13 +98,13 @@ class DependencyInstallPlanItemPayload(TypedDict):
     requirement: str
     name: str
     command: list[str]
-    commandText: str
+    command_text: str = Field(alias='commandText')
     workdir: str
     reason: str
     status: str
 
 
-class DependencyInstallResultPayload(TypedDict):
+class DependencyInstallResultPayload(PluginPayloadModel):
     """
     依赖安装执行结果 payload。
     """
@@ -121,24 +113,24 @@ class DependencyInstallResultPayload(TypedDict):
     requirement: str
     name: str
     command: list[str]
-    commandText: str
+    command_text: str = Field(alias='commandText')
     workdir: str
-    returnCode: int
+    return_code: int = Field(alias='returnCode')
     stdout: str
     stderr: str
 
 
-class CommandResultPayload(TypedDict):
+class CommandResultPayload(PluginPayloadModel):
     """
     系统命令执行结果 payload。
     """
 
-    returnCode: int
+    return_code: int = Field(alias='returnCode')
     stdout: str
     stderr: str
 
 
-class PurgePlanItemPayload(TypedDict):
+class PurgePlanItemPayload(PluginPayloadModel):
     """
     插件物理清理计划项 payload。
     """
@@ -147,182 +139,83 @@ class PurgePlanItemPayload(TypedDict):
     label: str
     enabled: bool
     destructive: bool
-    count: int
-    target: str
+    count: int | None
+    target: str | None
 
 
-class PurgePlanPayload(TypedDict):
+class PurgePlanPayload(PluginPayloadModel):
     """
     插件物理清理计划 payload。
     """
 
-    pluginId: str
-    removesSource: bool
-    requiresHook: bool
-    destructiveCount: int
-    items: list[PurgePlanItemPayload]
+    plugin_id: str = Field(alias='pluginId')
+    removes_source: bool = Field(alias='removesSource')
+    requires_hook: bool = Field(alias='requiresHook')
+    destructive_count: int = Field(alias='destructiveCount')
+    items: list[dict[str, object]]
 
 
-class ActionPayload(TypedDict, total=False):
+class ActionPayload(PluginPayloadModel):
     """
     插件操作动作项 payload。
     """
 
-    name: str
-    label: str
-    enabled: bool
-    count: int
-    ok: bool
-    hook: str | None
-    targetEnabled: bool
-    targetStatus: str
+    name: str | None = None
+    label: str | None = None
+    enabled: bool | None = None
+    count: int | None = None
+    ok: bool | None = None
+    hook: str | None = None
+    target_enabled: bool | None = Field(default=None, alias='targetEnabled')
+    target_status: str | None = Field(default=None, alias='targetStatus')
 
 
-class VersionStatePayload(TypedDict):
+class VersionStatePayload(PluginPayloadModel):
     """
     插件升级版本状态 payload。
     """
 
     installed: bool
-    installedVersion: str | None
-    currentVersion: str
-    needsUpgrade: bool
+    installed_version: str | None = Field(alias='installedVersion')
+    current_version: str = Field(alias='currentVersion')
+    needs_upgrade: bool = Field(alias='needsUpgrade')
 
 
-class UpgradeDryRunPayloadContext(TypedDict):
-    """
-    插件升级 dry-run payload 上下文。
-    """
-
-    versionState: VersionStatePayload
-    dependencyResult: DependencyCheckResult
-    pluginDependencyResult: PluginDependencyCheckResult
-    structureResult: PluginStructureCheckResult
-    menuConflictResult: SupportsOk
-    manifestOk: bool
-    actions: list[ActionPayload]
-    manifestIssues: list[ValidationIssuePayload]
-    manifestWarnings: list[ValidationIssuePayload]
-    pluginDependencyErrors: list[PluginDependencyItemPayload]
-    structureErrors: list[StructureItemPayload]
-    menuConflicts: list[MenuConflictItemPayload]
+UpgradeDryRunPayloadContext: TypeAlias = dict[str, object]
 
 
-class UpgradeDryRunPayloadDict(TypedDict):
+class UpgradeDryRunPayload(PluginPayloadModel):
     """
     插件升级 dry-run payload。
     """
 
     ok: bool
     message: str
-    pluginId: str
-    dryRun: bool
+    plugin_id: str = Field(alias='pluginId')
+    dry_run: bool = Field(alias='dryRun')
     installed: bool
-    installedVersion: str | None
-    currentVersion: str
-    needsUpgrade: bool
-    databaseAvailable: bool
-    databaseError: str | None
-    dependencyOk: bool
-    manifestOk: bool
-    pluginDependencyOk: bool
-    structureOk: bool
-    menuConflictOk: bool
-    actions: list[ActionPayload]
-    manifestIssues: list[ValidationIssuePayload]
-    manifestWarnings: list[ValidationIssuePayload]
-    pluginDependencyErrors: list[PluginDependencyItemPayload]
-    structureErrors: list[StructureItemPayload]
-    menuConflicts: list[MenuConflictItemPayload]
-    dependencies: list[DependencyItemPayload]
-    pluginDependencies: list[PluginDependencyItemPayload]
+    installed_version: str | None = Field(alias='installedVersion')
+    current_version: str = Field(alias='currentVersion')
+    needs_upgrade: bool = Field(alias='needsUpgrade')
+    database_available: bool = Field(alias='databaseAvailable')
+    database_error: str | None = Field(alias='databaseError')
+    dependency_ok: bool = Field(alias='dependencyOk')
+    manifest_ok: bool = Field(alias='manifestOk')
+    plugin_dependency_ok: bool = Field(alias='pluginDependencyOk')
+    structure_ok: bool = Field(alias='structureOk')
+    menu_conflict_ok: bool = Field(alias='menuConflictOk')
+    actions: list[dict[str, object]]
+    manifest_issues: list[dict[str, object]] = Field(alias='manifestIssues')
+    manifest_warnings: list[dict[str, object]] = Field(alias='manifestWarnings')
+    plugin_dependency_errors: list[dict[str, object]] = Field(alias='pluginDependencyErrors')
+    structure_errors: list[dict[str, object]] = Field(alias='structureErrors')
+    menu_conflicts: list[dict[str, object]] = Field(alias='menuConflicts')
+    dependencies: list[dict[str, object]]
+    plugin_dependencies: list[dict[str, object]] = Field(alias='pluginDependencies')
 
 
-class PluginPlanPayloadBuilderProtocol(PluginValidationPayloadBuilderProtocol, Protocol):
-    """
-    插件批量计划 payload builder 协议。
-    """
-
-    @staticmethod
-    def build_plugin_plan(plan: PluginDependencyPlan) -> PluginPlanPayloadDict:
-        """
-        构建插件批量操作拓扑计划负载。
-        """
-        ...
-
-
-@dataclass(frozen=True)
-class PluginPlanPayload:
-    """
-    插件批量操作计划结构化负载。
-    """
-
-    plan: PluginDependencyPlan
-    builder: type[PluginPlanPayloadBuilderProtocol] | None = None
-
-    def to_payload(self) -> PluginPlanResponsePayload:
-        """
-        序列化为现有插件批量操作计划 payload 契约。
-
-        :return: 插件批量操作计划 payload
-        """
-        builder = self.builder or _DefaultPlanPayloadBuilder
-        return {
-            'ok': self.plan.ok,
-            'message': '插件批量操作计划生成完成' if self.plan.ok else '插件批量操作计划存在阻塞项',
-            'operation': self.plan.operation,
-            'plan': builder.build_plugin_plan(self.plan),
-            'exit_code': SUCCESS if self.plan.ok else DEPENDENCY_ERROR,
-        }
-
-
-@dataclass(frozen=True)
-class PluginUpgradeDryRunPayload:
-    """
-    插件升级预演结构化负载。
-    """
-
-    plugin_id: str
-    payload_context: UpgradeDryRunPayloadContext
-    database_error: str | None = None
-    builder: type[PluginPlanPayloadBuilderProtocol] | None = None
-
-    def to_payload(self) -> UpgradeDryRunPayloadDict:
-        """
-        序列化为现有插件升级预演 payload 契约。
-
-        :return: 插件升级预演 payload
-        """
-        builder = self.builder or _DefaultPlanPayloadBuilder
-        version_state = self.payload_context['versionState']
-        dependency_result = self.payload_context['dependencyResult']
-        plugin_dependency_result = self.payload_context['pluginDependencyResult']
-        structure_result = self.payload_context['structureResult']
-        menu_conflict_result = self.payload_context['menuConflictResult']
-        return {
-            'ok': True,
-            'message': '插件升级演练完成，未执行实际写入',
-            'pluginId': self.plugin_id,
-            'dryRun': True,
-            **version_state,
-            'databaseAvailable': self.database_error is None,
-            'databaseError': self.database_error,
-            'dependencyOk': dependency_result.ok,
-            'manifestOk': self.payload_context['manifestOk'],
-            'pluginDependencyOk': plugin_dependency_result.ok,
-            'structureOk': structure_result.ok,
-            'menuConflictOk': menu_conflict_result.ok,
-            'actions': self.payload_context['actions'],
-            'manifestIssues': self.payload_context['manifestIssues'],
-            'manifestWarnings': self.payload_context['manifestWarnings'],
-            'pluginDependencyErrors': self.payload_context['pluginDependencyErrors'],
-            'structureErrors': self.payload_context['structureErrors'],
-            'menuConflicts': self.payload_context['menuConflicts'],
-            'dependencies': [builder.build_dependency_item(item) for item in dependency_result.items],
-            'pluginDependencies': [
-                builder.build_plugin_dependency_item(item) for item in plugin_dependency_result.items
-            ],
-        }
+PluginPlanPayloadDict: TypeAlias = dict[str, object]
+UpgradeDryRunPayloadDict: TypeAlias = dict[str, object]
 
 
 class PluginPlanPayloadMixin:
@@ -338,12 +231,12 @@ class PluginPlanPayloadMixin:
         :param item: 插件批量操作计划阻塞项
         :return: 插件批量操作计划阻塞项负载
         """
-        return {
-            'pluginId': item.plugin_id,
-            'dependencyId': item.dependency_id,
-            'status': item.status,
-            'message': item.message,
-        }
+        return PluginPlanBlockerPayload(
+            plugin_id=item.plugin_id,
+            dependency_id=item.dependency_id,
+            status=item.status,
+            message=item.message,
+        ).to_payload()
 
     @classmethod
     def build_plugin_plan_item(cls, item: PluginDependencyPlanItem) -> PluginPlanItemPayload:
@@ -353,20 +246,20 @@ class PluginPlanPayloadMixin:
         :param item: 插件批量操作计划项
         :return: 插件批量操作计划项负载
         """
-        return {
-            'pluginId': item.plugin_id,
-            'name': item.name,
-            'version': item.version,
-            'operation': item.operation,
-            'order': item.order,
-            'requested': item.requested,
-            'dependencies': item.dependencies,
-            'installedVersion': item.installed_version,
-            'enabled': item.enabled,
-            'status': item.status,
-            'ready': item.ready,
-            'blockers': [cls.build_plugin_plan_blocker(blocker) for blocker in item.blockers],
-        }
+        return PluginPlanItemPayload(
+            plugin_id=item.plugin_id,
+            name=item.name,
+            version=item.version,
+            operation=item.operation,
+            order=item.order,
+            requested=item.requested,
+            dependencies=item.dependencies,
+            installed_version=item.installed_version,
+            enabled=item.enabled,
+            status=item.status,
+            ready=item.ready,
+            blockers=[cls.build_plugin_plan_blocker(blocker) for blocker in item.blockers],
+        ).to_payload()
 
     @classmethod
     def build_plugin_plan(cls, plan: PluginDependencyPlan) -> PluginPlanPayloadDict:
@@ -376,25 +269,37 @@ class PluginPlanPayloadMixin:
         :param plan: 插件批量操作拓扑计划
         :return: 插件批量操作拓扑计划负载
         """
-        return {
-            'operation': plan.operation,
-            'ok': plan.ok,
-            'requestedPluginIds': plan.requested_plugin_ids,
-            'orderedPluginIds': plan.ordered_plugin_ids,
-            'items': [cls.build_plugin_plan_item(item) for item in plan.items],
-            'blockers': [cls.build_plugin_plan_blocker(blocker) for blocker in plan.blockers],
-            'blockerCount': len(plan.blockers),
-        }
+        return PluginPlanPayload(
+            operation=plan.operation,
+            ok=plan.ok,
+            requested_plugin_ids=plan.requested_plugin_ids,
+            ordered_plugin_ids=plan.ordered_plugin_ids,
+            items=[cls.build_plugin_plan_item(item) for item in plan.items],
+            blockers=[cls.build_plugin_plan_blocker(blocker) for blocker in plan.blockers],
+            blocker_count=len(plan.blockers),
+        ).to_payload()
 
     @classmethod
-    def build_plan_payload(cls, plan: PluginDependencyPlan) -> PluginPlanResponsePayload:
+    def build_plan_payload(
+        cls,
+        plan: PluginDependencyPlan,
+        database_error: str | None = None,
+    ) -> PluginPlanResponsePayload:
         """
         构建插件批量操作计划响应负载。
 
         :param plan: 插件批量操作拓扑计划
+        :param database_error: 数据库状态读取错误
         :return: 插件批量操作计划响应负载
         """
-        return PluginPlanPayload(plan, builder=cls).to_payload()
+        return PluginPlanResponsePayload(
+            ok=plan.ok,
+            message='插件批量操作计划生成完成' if plan.ok else '插件批量操作计划存在阻塞项',
+            operation=plan.operation,
+            database_available=database_error is None,
+            database_error=database_error,
+            plan=cls.build_plugin_plan(plan),
+        ).to_payload()
 
     @staticmethod
     def build_dependency_install_plan_item(item: DependencyInstallPlanItem) -> DependencyInstallPlanItemPayload:
@@ -404,16 +309,16 @@ class PluginPlanPayloadMixin:
         :param item: 依赖安装计划项
         :return: 依赖安装计划项负载
         """
-        return {
-            'kind': item.kind,
-            'requirement': item.requirement,
-            'name': item.name,
-            'command': item.command,
-            'commandText': ' '.join(item.command),
-            'workdir': item.workdir,
-            'reason': item.reason,
-            'status': 'planned',
-        }
+        return DependencyInstallPlanItemPayload(
+            kind=item.kind,
+            requirement=item.requirement,
+            name=item.name,
+            command=item.command,
+            command_text=' '.join(item.command),
+            workdir=item.workdir,
+            reason=item.reason,
+            status='planned',
+        ).to_payload()
 
     @staticmethod
     def build_dependency_install_result(
@@ -427,17 +332,17 @@ class PluginPlanPayloadMixin:
         :param completed: 命令执行结果
         :return: 依赖安装执行结果
         """
-        return {
-            'kind': item.kind,
-            'requirement': item.requirement,
-            'name': item.name,
-            'command': item.command,
-            'commandText': ' '.join(item.command),
-            'workdir': item.workdir,
-            'returnCode': completed.returncode,
-            'stdout': completed.stdout[-2000:],
-            'stderr': completed.stderr[-2000:],
-        }
+        return DependencyInstallResultPayload(
+            kind=item.kind,
+            requirement=item.requirement,
+            name=item.name,
+            command=item.command,
+            command_text=' '.join(item.command),
+            workdir=item.workdir,
+            return_code=completed.returncode,
+            stdout=completed.stdout[-2000:],
+            stderr=completed.stderr[-2000:],
+        ).to_payload()
 
     @staticmethod
     def build_command_result(completed: CompletedProcess[str]) -> CommandResultPayload:
@@ -447,11 +352,11 @@ class PluginPlanPayloadMixin:
         :param completed: 命令执行结果
         :return: 系统命令执行结果负载
         """
-        return {
-            'returnCode': completed.returncode,
-            'stdout': completed.stdout[-4000:] if completed.stdout else '',
-            'stderr': completed.stderr[-4000:] if completed.stderr else '',
-        }
+        return CommandResultPayload(
+            return_code=completed.returncode,
+            stdout=completed.stdout[-4000:] if completed.stdout else '',
+            stderr=completed.stderr[-4000:] if completed.stderr else '',
+        ).to_payload()
 
     @staticmethod
     def build_purge_plan_item(item: PluginPurgePlanItem) -> PurgePlanItemPayload:
@@ -461,14 +366,14 @@ class PluginPlanPayloadMixin:
         :param item: 插件物理清理计划项
         :return: 插件物理清理计划项负载
         """
-        return {
-            'name': item.name,
-            'label': item.label,
-            'enabled': item.enabled,
-            'destructive': item.destructive,
-            'count': item.count,
-            'target': item.target,
-        }
+        return PurgePlanItemPayload(
+            name=item.name,
+            label=item.label,
+            enabled=item.enabled,
+            destructive=item.destructive,
+            count=item.count,
+            target=item.target,
+        ).to_payload()
 
     @classmethod
     def build_purge_plan(cls, plan: PluginPurgePlan) -> PurgePlanPayload:
@@ -478,13 +383,13 @@ class PluginPlanPayloadMixin:
         :param plan: 插件物理清理计划
         :return: 插件物理清理计划负载
         """
-        return {
-            'pluginId': plan.plugin_id,
-            'removesSource': plan.removes_source,
-            'requiresHook': plan.requires_hook,
-            'destructiveCount': plan.destructive_count,
-            'items': [cls.build_purge_plan_item(item) for item in plan.items],
-        }
+        return PurgePlanPayload(
+            plugin_id=plan.plugin_id,
+            removes_source=plan.removes_source,
+            requires_hook=plan.requires_hook,
+            destructive_count=plan.destructive_count,
+            items=[cls.build_purge_plan_item(item) for item in plan.items],
+        ).to_payload()
 
     @classmethod
     def build_install_actions(
@@ -640,12 +545,12 @@ class PluginPlanPayloadMixin:
         """
         installed_version = getattr(database_plugin, 'installed_version', None)
         current_version = discovered_plugin.manifest.version
-        return {
-            'installed': database_plugin is not None and bool(installed_version),
-            'installedVersion': installed_version,
-            'currentVersion': current_version,
-            'needsUpgrade': PluginVersionComparator.is_upgrade_available(installed_version, current_version),
-        }
+        return VersionStatePayload(
+            installed=database_plugin is not None and bool(installed_version),
+            installed_version=installed_version,
+            current_version=current_version,
+            needs_upgrade=PluginVersionComparator.is_upgrade_available(installed_version, current_version),
+        ).to_payload()
 
     @classmethod
     def build_upgrade_dry_run_payload(
@@ -662,11 +567,36 @@ class PluginPlanPayloadMixin:
         :param database_error: 数据库状态读取错误
         :return: 插件升级 dry-run 负载
         """
-        return PluginUpgradeDryRunPayload(
-            plugin_id,
-            payload_context,
-            database_error=database_error,
-            builder=cls,
+        version_state = payload_context['versionState']
+        dependency_result = cast('DependencyCheckResult', payload_context['dependencyResult'])
+        plugin_dependency_result = cast('PluginDependencyCheckResult', payload_context['pluginDependencyResult'])
+        structure_result = cast('PluginStructureCheckResult', payload_context['structureResult'])
+        menu_conflict_result = cast('SupportsOk', payload_context['menuConflictResult'])
+        return UpgradeDryRunPayload.model_validate(
+            {
+                'ok': True,
+                'message': '插件升级演练完成，未执行实际写入',
+                'pluginId': plugin_id,
+                'dryRun': True,
+                **version_state,
+                'databaseAvailable': database_error is None,
+                'databaseError': database_error,
+                'dependencyOk': dependency_result.ok,
+                'manifestOk': payload_context['manifestOk'],
+                'pluginDependencyOk': plugin_dependency_result.ok,
+                'structureOk': structure_result.ok,
+                'menuConflictOk': menu_conflict_result.ok,
+                'actions': payload_context['actions'],
+                'manifestIssues': payload_context['manifestIssues'],
+                'manifestWarnings': payload_context['manifestWarnings'],
+                'pluginDependencyErrors': payload_context['pluginDependencyErrors'],
+                'structureErrors': payload_context['structureErrors'],
+                'menuConflicts': payload_context['menuConflicts'],
+                'dependencies': [cls.build_dependency_item(item) for item in dependency_result.items],
+                'pluginDependencies': [
+                    cls.build_plugin_dependency_item(item) for item in plugin_dependency_result.items
+                ],
+            }
         ).to_payload()
 
     @staticmethod
@@ -702,11 +632,15 @@ class PluginPlanPayloadMixin:
                     'ok': plugin_dependency_ok,
                 },
             )
+        elif not plugin_dependency_ok:
+            actions.insert(
+                0,
+                {
+                    'name': 'check_plugin_dependents',
+                    'label': '检查被依赖关系',
+                    'enabled': True,
+                    'ok': False,
+                },
+            )
 
         return actions
-
-
-class _DefaultPlanPayloadBuilder(PluginPlanPayloadMixin, PluginValidationPayloadMixin):
-    """
-    plan 模型直接序列化时使用的最小组合 builder。
-    """

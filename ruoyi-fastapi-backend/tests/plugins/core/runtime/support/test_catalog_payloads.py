@@ -26,7 +26,7 @@ backend:
     )
     registered_plugin = PluginRegistry.build(discover_plugins(backend_root / 'plugins')).list_plugins()[0]
 
-    payload = PluginCatalogListPayload([registered_plugin]).to_payload()
+    payload = PluginPayloadBuilder.build_plugin_list_payload([registered_plugin])
 
     assert payload['ok'] is True
     assert payload['count'] == 1
@@ -68,7 +68,7 @@ dependencies:
         message='依赖已满足',
     )
 
-    payload = PluginCatalogInfoPayload(discovered_plugin, [dependency]).to_payload()
+    payload = PluginPayloadBuilder.build_plugin_info_payload(discovered_plugin, [dependency])
 
     assert payload['ok'] is True
     assert payload['plugin']['pluginId'] == 'demo'
@@ -99,7 +99,7 @@ permissions:
     )
     discovered_plugin = discover_plugins(backend_root / 'plugins')[0]
 
-    payload = PluginCatalogSummaryPayload(discovered_plugin, enabled=False, status='installed').to_payload()
+    payload = PluginPayloadBuilder.build_plugin_summary(discovered_plugin, enabled=False, status='installed')
 
     assert payload['pluginId'] == 'demo'
     assert payload['name'] == '演示插件'
@@ -121,8 +121,8 @@ def test_plugin_catalog_database_state_payload_model_serializes_payload() -> Non
         last_error='',
     )
 
-    success_payload = PluginCatalogDatabaseStatePayload(database_plugin).to_payload()
-    failure_payload = PluginCatalogDatabaseStatePayload(None, database_error='数据库不可用').to_payload()
+    success_payload = PluginPayloadBuilder.build_database_state(database_plugin)
+    failure_payload = PluginPayloadBuilder.build_database_state(None, database_error='数据库不可用')
 
     assert success_payload['available'] is True
     assert success_payload['installed'] is True

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Annotated
 
 from fastapi import Form, Path, Query, Request, Response
@@ -11,7 +12,12 @@ from common.aspect.pre_auth import PreAuthDependency
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel
-from module_plugin.service.plugin_service import PluginOperationService, PluginService
+from module_plugin.service.plugin_service import (
+    PluginOperationService,
+    PluginService,
+    get_plugin_operation_service,
+    get_plugin_runtime_service,
+)
 from plugins.core.management.entity.vo.schemas import (
     PluginBatchActionModel,
     PluginConfigImportModel,
@@ -37,6 +43,19 @@ plugin_controller = APIRouterPro(
 )
 
 
+def _public_plugin_payload(payload: Mapping[str, object]) -> dict[str, object]:
+    """
+    构造 Web API 可见的插件运行时 payload。
+
+    :param payload: 插件运行时负载
+    :return: Web API 响应负载
+    """
+    public_payload = dict(payload)
+    public_payload.pop('exit_code', None)
+
+    return public_payload
+
+
 def _plugin_operation_response(payload: dict, default_message: str) -> Response:
     """
     按插件运行时 payload ok 字段统一构造操作响应。
@@ -46,10 +65,11 @@ def _plugin_operation_response(payload: dict, default_message: str) -> Response:
     :return: 响应对象
     """
     operation_result = PluginOperationResult.from_payload(payload, default_message=default_message)
+    response_payload = _public_plugin_payload(operation_result.payload)
     if not operation_result.ok:
-        return ResponseUtil.failure(msg=operation_result.message, data=operation_result.payload)
+        return ResponseUtil.failure(msg=operation_result.message, data=response_payload)
 
-    return ResponseUtil.success(msg=operation_result.message, data=operation_result.payload)
+    return ResponseUtil.success(msg=operation_result.message, data=response_payload)
 
 
 @plugin_controller.get(
@@ -102,7 +122,7 @@ async def plan_system_plugins(
     :param plugin_ids: 插件ID列表
     :return: 插件批量操作拓扑计划响应
     """
-    plan_result = await PluginOperationService().plan_plugins_services(operation, plugin_ids)
+    plan_result = get_plugin_runtime_service().plan_plugins(operation, plugin_ids)
     logger.info(plan_result.get('message', '插件批量操作计划生成完成'))
 
     return _plugin_operation_response(plan_result, '插件批量操作计划生成完成')
@@ -128,7 +148,7 @@ async def precheck_system_plugin(
     :param operation: 预检操作类型
     :return: 插件操作预检响应
     """
-    precheck_result = await PluginOperationService().precheck_plugin_services(plugin_id, operation)
+    precheck_result = await get_plugin_runtime_service().precheck_plugin_operation(plugin_id, operation)
     logger.info(precheck_result.get('message', '插件操作预检完成'))
 
     return _plugin_operation_response(precheck_result, '插件操作预检完成')
@@ -153,7 +173,7 @@ async def batch_system_plugins(
     :param batch_action: 插件批量执行请求体
     :return: 插件批量执行结果响应
     """
-    batch_result = await PluginOperationService().batch_plugins_services(
+    batch_result = await get_plugin_runtime_service().batch_plugins(
         batch_action.operation,
         batch_action.plugin_ids,
         dry_run=batch_action.dry_run,
@@ -344,7 +364,7 @@ async def enable_system_plugin(
     :param query_db: orm对象
     :return: 启用结果响应
     """
-    enable_plugin_result = await PluginOperationService().set_plugin_enabled_services(plugin_id, enabled=True)
+    enable_plugin_result = await get_plugin_runtime_service().set_plugin_enabled(plugin_id, enabled=True)
     logger.info(enable_plugin_result.get('message', '插件启用完成'))
 
     return _plugin_operation_response(enable_plugin_result, '插件启用完成')
@@ -369,7 +389,7 @@ async def disable_system_plugin(
     :param plugin_id: 插件ID
     :return: 停用结果响应
     """
-    disable_plugin_result = await PluginOperationService().set_plugin_enabled_services(plugin_id, enabled=False)
+    disable_plugin_result = await get_plugin_runtime_service().set_plugin_enabled(plugin_id, enabled=False)
     logger.info(disable_plugin_result.get('message', '插件停用完成'))
 
     return _plugin_operation_response(disable_plugin_result, '插件停用完成')
@@ -393,7 +413,7 @@ async def check_system_plugin(
     :param plugin_id: 插件ID
     :return: 插件检查结果响应
     """
-    check_plugin_result = await PluginOperationService().check_plugin_services(plugin_id)
+    check_plugin_result = get_plugin_runtime_service().check_plugin(plugin_id)
     logger.info(check_plugin_result.get('message', '插件检查完成'))
 
     return _plugin_operation_response(check_plugin_result, '插件检查完成')
@@ -417,7 +437,7 @@ async def health_system_plugin(
     :param plugin_id: 插件ID
     :return: 插件健康检查响应
     """
-    health_plugin_result = await PluginOperationService().health_plugin_services(plugin_id)
+    health_plugin_result = await get_plugin_runtime_service().health_plugin(plugin_id)
     logger.info(health_plugin_result.get('message', '插件健康检查完成'))
 
     return _plugin_operation_response(health_plugin_result, '插件健康检查完成')
@@ -443,7 +463,9 @@ async def diagnose_system_plugin(
     :param plugin_id: 插件ID
     :return: 插件诊断包响应
     """
-    diagnose_plugin_result = await PluginOperationService().diagnose_plugin_with_audit_services(query_db, plugin_id)
+    diagnose_plugin_result = await get_plugin_operation_service().diagnose_plugin_with_audit_services(
+        query_db, plugin_id
+    )
     logger.info(diagnose_plugin_result.get('message', '插件诊断包生成完成'))
 
     return _plugin_operation_response(diagnose_plugin_result, '插件诊断包生成完成')
@@ -467,7 +489,7 @@ async def generate_system_plugin_docs(
     :param plugin_id: 插件ID
     :return: 插件文档生成响应
     """
-    docs_result = await PluginOperationService().generate_plugin_docs_services(plugin_id)
+    docs_result = get_plugin_runtime_service().generate_plugin_docs(plugin_id)
     logger.info(docs_result.get('message', '插件文档生成完成'))
 
     return _plugin_operation_response(docs_result, '插件文档生成完成')
@@ -494,7 +516,7 @@ async def install_system_plugin(
     :param dry_run: 是否仅预演操作
     :return: 插件安装结果响应
     """
-    install_plugin_result = await PluginOperationService().install_plugin_services(
+    install_plugin_result = await get_plugin_runtime_service().install_plugin(
         plugin_id,
         dry_run=dry_run,
     )
@@ -524,7 +546,7 @@ async def upgrade_system_plugin(
     :param dry_run: 是否仅预演操作
     :return: 插件升级结果响应
     """
-    upgrade_plugin_result = await PluginOperationService().upgrade_plugin_services(
+    upgrade_plugin_result = await get_plugin_runtime_service().upgrade_plugin(
         plugin_id,
         dry_run=dry_run,
     )
@@ -554,7 +576,7 @@ async def uninstall_system_plugin(
     :param dry_run: 是否仅预演操作
     :return: 插件安全卸载结果响应
     """
-    uninstall_plugin_result = await PluginOperationService().uninstall_plugin_services(
+    uninstall_plugin_result = await get_plugin_runtime_service().uninstall_plugin(
         plugin_id,
         dry_run=dry_run,
     )
@@ -584,7 +606,7 @@ async def purge_system_plugin(
     :param dry_run: 是否仅预演操作
     :return: 插件物理清理结果响应
     """
-    purge_plugin_result = await PluginOperationService().purge_plugin_services(
+    purge_plugin_result = await get_plugin_runtime_service().purge_plugin(
         plugin_id,
         dry_run=dry_run,
     )
@@ -611,7 +633,7 @@ async def query_system_plugin_config(
     :param plugin_id: 插件ID
     :return: 插件配置响应
     """
-    plugin_config_result = await PluginOperationService().get_plugin_config_services(plugin_id)
+    plugin_config_result = await get_plugin_runtime_service().get_plugin_config(plugin_id)
     logger.info(plugin_config_result.get('message', '插件配置读取完成'))
 
     return _plugin_operation_response(plugin_config_result, '插件配置读取完成')
@@ -638,7 +660,7 @@ async def update_system_plugin_config(
     :param plugin_config: 插件配置更新对象
     :return: 插件配置更新响应
     """
-    plugin_config_result = await PluginOperationService().update_plugin_config_services(
+    plugin_config_result = await get_plugin_runtime_service().set_plugin_config(
         plugin_id,
         plugin_config.values,
     )
@@ -667,7 +689,7 @@ async def export_system_plugin_config(
     :param reveal_secret: 是否导出敏感配置明文
     :return: 插件配置导出响应
     """
-    plugin_config_result = await PluginOperationService().export_plugin_config_services(
+    plugin_config_result = await get_plugin_runtime_service().export_plugin_config(
         plugin_id,
         reveal_secret=reveal_secret,
     )
@@ -697,7 +719,7 @@ async def import_system_plugin_config(
     :param plugin_config: 插件配置导入对象
     :return: 插件配置导入响应
     """
-    plugin_config_result = await PluginOperationService().import_plugin_config_services(
+    plugin_config_result = await get_plugin_runtime_service().import_plugin_config(
         plugin_id,
         plugin_config.values,
     )
@@ -724,7 +746,7 @@ async def check_system_plugin_dependencies(
     :param plugin_id: 插件ID
     :return: 插件依赖检查响应
     """
-    dependency_result = await PluginOperationService().check_plugin_dependencies_services(plugin_id)
+    dependency_result = get_plugin_runtime_service().check_plugin_dependencies(plugin_id)
     logger.info(dependency_result.get('message', '插件依赖检查完成'))
 
     return _plugin_operation_response(dependency_result, '插件依赖检查完成')
@@ -750,7 +772,7 @@ async def install_system_plugin_dependencies(
     :param dry_run: 是否仅预演操作
     :return: 插件依赖安装计划响应
     """
-    dependency_result = await PluginOperationService().install_plugin_dependencies_services(
+    dependency_result = get_plugin_runtime_service().install_plugin_dependencies(
         plugin_id,
         dry_run=dry_run if dry_run else True,
     )

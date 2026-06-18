@@ -4,6 +4,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import ClassVar
 
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.manifest.schema import PluginManifest
@@ -12,6 +13,7 @@ from plugins.core.validation.result import PluginValidationIssue
 from plugins.core.validation.versioning import PluginVersionConstraintMatcher
 
 COMPATIBILITY_CONSTRAINT_PATTERN = re.compile(r'^\s*([<>=!~^]{1,2})?\s*([A-Za-z0-9_.+\-!*]+)\s*$')
+UNRESOLVED_NODE_VERSION = object()
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,8 @@ class PluginManifestChecker:
 
     使用 Checker 模式承载不适合放入 Pydantic 强校验的提示类规则。
     """
+
+    _node_version_cache: ClassVar[object | str | None] = UNRESOLVED_NODE_VERSION
 
     def __init__(
         self,
@@ -642,6 +646,9 @@ class PluginManifestChecker:
         """
         if self.node_version is not None:
             return self.node_version
+        cached_node_version = self.__class__._node_version_cache
+        if cached_node_version is not UNRESOLVED_NODE_VERSION:
+            return cached_node_version if isinstance(cached_node_version, str) else None
         try:
             completed = subprocess.run(
                 ['node', '--version'],
@@ -651,11 +658,15 @@ class PluginManifestChecker:
                 timeout=5,
             )
         except (OSError, subprocess.SubprocessError):
+            self.__class__._node_version_cache = None
             return None
         if completed.returncode != 0:
+            self.__class__._node_version_cache = None
             return None
 
-        return completed.stdout.strip().lstrip('v') or None
+        resolved_node_version = completed.stdout.strip().lstrip('v') or None
+        self.__class__._node_version_cache = resolved_node_version
+        return resolved_node_version
 
     @staticmethod
     def _version_satisfied(current_version: str, constraint: str) -> bool:

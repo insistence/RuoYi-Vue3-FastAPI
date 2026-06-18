@@ -158,6 +158,33 @@ def test_plugin_dependency_checker_reports_cycle(tmp_path: Path) -> None:
     assert result.failed_items[-1].status == 'cycle'
 
 
+def test_plugin_dependency_checker_reports_enabled_dependents(tmp_path: Path) -> None:
+    """
+    校验停用被依赖方前会报告仍启用的依赖方。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    base = build_discovered_plugin(tmp_path, 'base')
+    app = build_discovered_plugin(tmp_path, 'app', dependencies=['base>=1.0.0'])
+    disabled_app = build_discovered_plugin(tmp_path, 'disabled_app', dependencies=['base'])
+
+    result = PluginDependencyChecker(
+        [base, app, disabled_app],
+        [
+            build_database_plugin('base', '1.0.0'),
+            build_database_plugin('app', '1.0.0'),
+            build_database_plugin('disabled_app', '1.0.0', enabled='1', status='disabled'),
+        ],
+    ).check_enabled_dependents('base')
+
+    assert result.ok is False
+    assert len(result.failed_items) == 1
+    assert result.failed_items[0].plugin_id == 'app'
+    assert result.failed_items[0].dependency_id == 'base'
+    assert result.failed_items[0].status == 'dependent'
+
+
 def test_plugin_dependency_plan_builder_sorts_dependencies_first_for_install(tmp_path: Path) -> None:
     """
     校验插件批量安装计划按依赖优先排序。

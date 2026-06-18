@@ -27,7 +27,7 @@ def test_plugin_precheck_operation_payload_model_serializes_payload() -> None:
         unsatisfied_dependencies=[],
     )
 
-    payload = PluginPrecheckOperationPayload(precheck).to_payload()
+    payload = precheck.operation_payload
 
     assert payload['manifestOk'] is True
     assert payload['dependencyOk'] is False
@@ -62,7 +62,7 @@ def test_plugin_precheck_check_payload_model_serializes_payload() -> None:
         unsatisfied_dependencies=[],
     )
 
-    payload = PluginPrecheckCheckPayload(precheck).to_payload()
+    payload = precheck.check_payload
 
     assert payload['manifestOk'] is True
     assert payload['dependencyOk'] is False

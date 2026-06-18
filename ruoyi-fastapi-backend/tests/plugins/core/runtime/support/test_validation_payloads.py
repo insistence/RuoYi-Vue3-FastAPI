@@ -25,7 +25,7 @@ def test_plugin_dependency_check_payload_model_serializes_success_payload() -> N
         ],
     )
 
-    payload = PluginDependencyCheckPayload('demo', dependency_result).to_payload()
+    payload = PluginPayloadBuilder.build_dependency_check_payload('demo', dependency_result)
 
     assert payload['ok'] is True
     assert payload['message'] == '插件依赖已满足'
@@ -34,7 +34,6 @@ def test_plugin_dependency_check_payload_model_serializes_success_payload() -> N
     assert payload['dependencies'][0]['name'] == 'openai'
     assert payload['missingDependencies'] == []
     assert payload['unsatisfiedDependencies'] == []
-    assert payload['exit_code'] == SUCCESS
 
 
 def test_plugin_dependency_check_payload_model_serializes_failure_payload() -> None:
@@ -59,14 +58,13 @@ def test_plugin_dependency_check_payload_model_serializes_failure_payload() -> N
         ],
     )
 
-    payload = PluginDependencyCheckPayload('demo', dependency_result).to_payload()
+    payload = PluginPayloadBuilder.build_dependency_check_payload('demo', dependency_result)
 
     assert payload['ok'] is False
     assert payload['message'] == '插件依赖存在问题'
     assert payload['dependencyOk'] is False
     assert payload['dependencies'][0]['level'] == 'error'
     assert payload['missingDependencies'] == ['missing-python']
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_check_item_payload_model_serializes_payload() -> None:
@@ -77,7 +75,7 @@ def test_plugin_check_item_payload_model_serializes_payload() -> None:
     """
     precheck = build_fake_lifecycle_precheck(ok=False)
 
-    payload = PluginCheckItemPayload('demo', precheck).to_payload()
+    payload = PluginPayloadBuilder.build_check_item('demo', precheck)
 
     assert payload['pluginId'] == 'demo'
     assert payload['ok'] is False
@@ -91,13 +89,13 @@ def test_plugin_check_payload_model_serializes_payload() -> None:
 
     :return: None
     """
-    success_payload = PluginCheckPayload([{'pluginId': 'demo', 'ok': True}]).to_payload()
-    failed_payload = PluginCheckPayload([{'pluginId': 'demo', 'ok': False}]).to_payload()
+    success_payload = PluginPayloadBuilder.build_check_payload([{'pluginId': 'demo', 'ok': True}])
+    failed_payload = PluginPayloadBuilder.build_check_payload([{'pluginId': 'demo', 'ok': False}])
 
     assert success_payload['ok'] is True
     assert success_payload['message'] == '插件检查通过'
     assert success_payload['count'] == 1
-    assert success_payload['exit_code'] == SUCCESS
+    assert success_payload['databaseAvailable'] is True
+    assert success_payload['databaseError'] is None
     assert failed_payload['ok'] is False
     assert failed_payload['message'] == '插件检查存在问题'
-    assert failed_payload['exit_code'] == DEPENDENCY_ERROR

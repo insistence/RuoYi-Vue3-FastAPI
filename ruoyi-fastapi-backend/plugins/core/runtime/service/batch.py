@@ -14,8 +14,8 @@ from plugins.core.validation.plugin_deps import PluginBatchOperation, PluginDepe
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from plugins.core.capability import PluginRuntimeCapability
     from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.runtime.capability import PluginRuntimeCapability
     from plugins.core.types import PluginStateRecord
 
     from .context import PluginRuntimeContextService
@@ -78,7 +78,7 @@ class PluginBatchRuntimeOperations(Protocol):
         :return: 插件升级负载
         """
 
-    async def _record_plugin_operation_log(
+    async def record_plugin_operation_log(
         self,
         payload: Mapping[str, object],
         *,
@@ -94,7 +94,7 @@ class PluginBatchRuntimeOperations(Protocol):
         :return: None
         """
 
-    async def _execute_batch_plugin_item(
+    async def execute_batch_plugin_item(
         self,
         operation: PluginBatchOperation,
         plugin_id: str,
@@ -147,6 +147,14 @@ class PluginBatchUseCase:
         """
         return self.context.load_database_plugin_states_sync()
 
+    def _load_database_plugin_states_sync_with_error(self) -> tuple[list[PluginStateRecord], str | None]:
+        """
+        以同步方式读取数据库插件状态列表，并保留失败原因。
+
+        :return: 数据库插件状态列表和错误信息
+        """
+        return self.context.load_database_plugin_states_sync_with_error()
+
     def _resolve_plugin_capability(self, discovered_plugin: DiscoveredPlugin) -> PluginRuntimeCapability:
         """
         解析插件运行时操作能力。
@@ -178,12 +186,12 @@ class PluginBatchUseCase:
 
             backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
-            database_plugins = self._load_database_plugin_states_sync()
+            database_plugins, database_error = self._load_database_plugin_states_sync_with_error()
             plan = PluginDependencyPlanBuilder(discovered_plugins, database_plugins).build_plan(
                 operation,
                 plugin_ids,
             )
-            payload = PluginPayloadBuilder.build_plan_payload(plan)
+            payload = PluginPayloadBuilder.build_plan_payload(plan, database_error)
             blocked_operation = f'batch_{operation}'
             capability_blockers = []
             target_plugin_ids = set(plugin_ids or plan.requested_plugin_ids)
@@ -205,7 +213,6 @@ class PluginBatchUseCase:
                 payload['ok'] = False
                 payload['message'] = '插件批量操作计划存在环境阻断项'
                 payload['capabilityBlockers'] = capability_blockers
-                payload['exit_code'] = 1
             return cast('PluginPlanResponse', payload)
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('生成插件批量操作计划失败', exc)
@@ -238,7 +245,7 @@ class PluginBatchUseCase:
                     continue_on_error=continue_on_error,
                 )
                 if not dry_run:
-                    await self.runtime_operations._record_plugin_operation_log(
+                    await self.runtime_operations.record_plugin_operation_log(
                         plan_payload,
                         dry_run=dry_run,
                         continue_on_error=continue_on_error,
@@ -260,7 +267,7 @@ class PluginBatchUseCase:
                 report, result = await PluginBatchReportBuilder.run_item(
                     operation,
                     plugin_id,
-                    self.runtime_operations._execute_batch_plugin_item,
+                    self.runtime_operations.execute_batch_plugin_item,
                 )
                 reports.append(report)
                 if not report.ok:
@@ -274,7 +281,7 @@ class PluginBatchUseCase:
                 failed,
                 continue_on_error=continue_on_error,
             )
-            await self.runtime_operations._record_plugin_operation_log(
+            await self.runtime_operations.record_plugin_operation_log(
                 payload,
                 dry_run=dry_run,
                 continue_on_error=continue_on_error,

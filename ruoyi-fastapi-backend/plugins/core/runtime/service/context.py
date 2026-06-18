@@ -1,9 +1,10 @@
 import asyncio
 from pathlib import Path
+from time import monotonic
 
+from plugins.core.capability import PluginRuntimeCapability, PluginRuntimeCapabilityResolver
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
-from plugins.core.runtime.capability import PluginRuntimeCapability, PluginRuntimeCapabilityResolver
 from plugins.core.runtime.support import PluginPrecheckContext
 from plugins.core.types import PluginStateRecord
 from plugins.core.validation.manifest import PluginManifestChecker
@@ -15,9 +16,13 @@ from plugins.core.validation.plugin_deps import (
     PluginDependencyCheckResult,
 )
 from plugins.core.validation.structure import PluginStructureChecker
+from utils.log_util import logger
 
 from .dependency_container import PluginRuntimeDependencies
-from .responses import PluginRuntimeBlockedPayloadDict
+from .responses import PluginRuntimeBlockedPayload, PluginRuntimeBlockedPayloadDict
+
+PLUGIN_DISCOVERY_CACHE_TTL_SECONDS = 2.0
+DATABASE_PLUGIN_STATE_SYNC_LOOP_ERROR = '当前事件循环内不能同步读取数据库插件状态，已返回空列表'
 
 
 class PluginRuntimeContextService:
@@ -35,6 +40,7 @@ class PluginRuntimeContextService:
         :param dependencies: 插件运行时依赖容器
         """
         self.dependencies = dependencies
+        self._discovered_plugins_cache: dict[Path, tuple[float, list[DiscoveredPlugin]]] = {}
 
     def build_registry(self) -> PluginRegistry:
         """
@@ -87,7 +93,24 @@ class PluginRuntimeContextService:
             async with async_session_local() as session:
                 return await plugin_service.plugin_detail_services(session, plugin_id), None
         except Exception as exc:
+            logger.exception(f'读取数据库插件状态失败：{plugin_id}，{exc}')
             return None, str(exc)
+
+    async def load_database_plugin_states_with_error(self) -> tuple[list[PluginStateRecord], str | None]:
+        """
+        读取数据库插件状态列表，并保留失败原因。
+
+        :return: 数据库插件状态列表和错误信息
+        """
+        try:
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
+            async with async_session_local() as session:
+                return await plugin_service.get_plugin_list_services(session), None
+        except Exception as exc:
+            logger.exception(f'读取数据库插件状态列表失败：{exc}')
+            return [], str(exc)
 
     async def load_database_plugin_states(self) -> list[PluginStateRecord]:
         """
@@ -95,14 +118,23 @@ class PluginRuntimeContextService:
 
         :return: 数据库插件状态列表
         """
+        database_plugins, _database_error = await self.load_database_plugin_states_with_error()
+        return database_plugins
+
+    def load_database_plugin_states_sync_with_error(self) -> tuple[list[PluginStateRecord], str | None]:
+        """
+        以同步方式读取数据库插件状态列表，并保留失败原因。
+
+        :return: 数据库插件状态列表和错误信息
+        """
+        if not self.has_plugin_dependencies():
+            return [], None
         try:
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                return await plugin_service.get_plugin_list_services(session)
-        except Exception:
-            return []
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.load_database_plugin_states_with_error())
+        logger.warning(DATABASE_PLUGIN_STATE_SYNC_LOOP_ERROR)
+        return [], DATABASE_PLUGIN_STATE_SYNC_LOOP_ERROR
 
     def load_database_plugin_states_sync(self) -> list[PluginStateRecord]:
         """
@@ -110,13 +142,8 @@ class PluginRuntimeContextService:
 
         :return: 数据库插件状态列表
         """
-        if not self.has_plugin_dependencies():
-            return []
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(self.load_database_plugin_states())
-        return []
+        database_plugins, _database_error = self.load_database_plugin_states_sync_with_error()
+        return database_plugins
 
     def has_plugin_dependencies(self) -> bool:
         """
@@ -173,19 +200,17 @@ class PluginRuntimeContextService:
         capability = self.resolve_plugin_capability(discovered_plugin)
         if capability.allows(operation):
             return None
-        payload: PluginRuntimeBlockedPayloadDict = {
-            'ok': False,
-            'status': 'blocked',
-            'operation': operation,
-            'pluginId': discovered_plugin.manifest.id,
-            'message': '当前环境不允许执行该插件操作',
-            'suggestion': '请在开发模式或维护窗口中执行插件变更，并重启后端或重新构建前端。',
-            'capability': capability.to_payload(),
-            'exit_code': 1,
-        }
-        if dry_run is not None:
-            payload['dryRun'] = dry_run
-        return payload
+        return PluginRuntimeBlockedPayload(
+            ok=False,
+            status='blocked',
+            operation=operation,
+            plugin_id=discovered_plugin.manifest.id,
+            message='当前环境不允许执行该插件操作',
+            suggestion='请在开发模式或维护窗口中执行插件变更，并重启后端或重新构建前端。',
+            capability=capability.to_payload(),
+            dry_run=dry_run,
+            exit_code=1,
+        ).to_payload(exclude_none=True)
 
     async def check_inter_plugin_dependencies(
         self,
@@ -205,6 +230,29 @@ class PluginRuntimeContextService:
         return InterPluginDependencyChecker(discovered_plugins, database_plugins).check_manifest(
             discovered_plugin.manifest
         )
+
+    async def check_enabled_plugin_dependents(
+        self,
+        plugin_id: str,
+        discovered_plugins: list[DiscoveredPlugin],
+    ) -> PluginDependencyCheckResult:
+        """
+        检查指定插件是否仍被已启用插件依赖。
+
+        :param plugin_id: 被停用或卸载的插件ID
+        :param discovered_plugins: 全量已发现插件列表
+        :return: 被依赖方检查结果
+        """
+        has_direct_dependents = any(
+            dependency.id == plugin_id
+            for discovered_plugin in discovered_plugins
+            for dependency in discovered_plugin.manifest.dependencies.plugins
+        )
+        if not has_direct_dependents:
+            return PluginDependencyCheckResult(plugin_id=plugin_id, items=[])
+
+        database_plugins = await self.load_database_plugin_states()
+        return InterPluginDependencyChecker(discovered_plugins, database_plugins).check_enabled_dependents(plugin_id)
 
     async def build_precheck_context(
         self,
@@ -234,12 +282,20 @@ class PluginRuntimeContextService:
             menu_conflict_result,
         )
 
-    @staticmethod
-    def discover_plugins(backend_root: Path) -> list[DiscoveredPlugin]:
+    def discover_plugins(self, backend_root: Path) -> list[DiscoveredPlugin]:
         """
         发现本地插件。
 
         :param backend_root: 后端项目根目录
         :return: 已发现插件列表
         """
-        return PluginScanner(backend_root / 'plugins').discover()
+        resolved_backend_root = backend_root.resolve()
+        cached_entry = self._discovered_plugins_cache.get(resolved_backend_root)
+        if cached_entry is not None:
+            cached_at, cached_plugins = cached_entry
+            if monotonic() - cached_at <= PLUGIN_DISCOVERY_CACHE_TTL_SECONDS:
+                return list(cached_plugins)
+
+        discovered_plugins = PluginScanner(resolved_backend_root / 'plugins').discover()
+        self._discovered_plugins_cache[resolved_backend_root] = (monotonic(), discovered_plugins)
+        return list(discovered_plugins)

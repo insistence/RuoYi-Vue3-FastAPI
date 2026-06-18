@@ -158,6 +158,54 @@ def test_state_transition_table_rejects_invalid_transition() -> None:
     assert PluginStateTransitionTable.can_transition('discovered', 'upgrade') is False
 
 
+def test_state_resolver_matches_transition_table_for_representative_snapshots() -> None:
+    """
+    校验状态解析器与流转表在代表性状态上保持一致。
+
+    :return: None
+    """
+    cases = [
+        (
+            None,
+            'discover',
+            PluginStateSnapshot(source_version='1.0.0', installed_version=None, enabled=True),
+        ),
+        (
+            'discovered',
+            'install',
+            PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=True),
+        ),
+        (
+            'discovered',
+            'install_disabled',
+            PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=False),
+        ),
+        (
+            'installed',
+            'disable',
+            PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=False),
+        ),
+        (
+            'disabled',
+            'enable',
+            PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=True),
+        ),
+        (
+            'installed',
+            'upgrade_available',
+            PluginStateSnapshot(source_version='1.1.0', installed_version='1.0.0', enabled=True),
+        ),
+        (
+            'disabled',
+            'upgrade_available',
+            PluginStateSnapshot(source_version='1.1.0', installed_version='1.0.0', enabled=False),
+        ),
+    ]
+
+    for source, operation, snapshot in cases:
+        assert PluginStateResolver.resolve(snapshot) == PluginStateTransitionTable.resolve_target(source, operation)
+
+
 def test_state_transition_table_lists_described_transitions() -> None:
     """
     校验状态流转表暴露带说明的规则列表。

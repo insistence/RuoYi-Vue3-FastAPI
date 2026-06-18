@@ -13,6 +13,7 @@ from config.get_scheduler import SchedulerUtil
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
 from module_admin.service.log_service import LogAggregatorService
+from plugins.core.management.service.startup_gateway import PluginManagementStartupGateway
 from plugins.core.runtime.startup import PluginRuntimeStartupManager
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
@@ -160,7 +161,7 @@ def _get_plugin_runtime_startup(app: FastAPI) -> PluginRuntimeStartupManager:
     """
     plugin_startup = getattr(app.state, 'plugin_runtime_startup', None)
     if plugin_startup is None:
-        plugin_startup = PluginRuntimeStartupManager()
+        plugin_startup = PluginRuntimeStartupManager(management_gateway=PluginManagementStartupGateway())
         plugin_startup.bind_app(app)
 
     return plugin_startup
@@ -198,6 +199,6 @@ def create_app() -> FastAPI:
     # 自动注册内置路由
     auto_register_routers(app)
     # 初始化插件运行时启动协调器
-    PluginRuntimeStartupManager().bind_app(app)
+    PluginRuntimeStartupManager(management_gateway=PluginManagementStartupGateway()).bind_app(app)
 
     return app

@@ -1,9 +1,11 @@
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 BACKEND_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(BACKEND_ROOT))
 
+import plugins.core.validation.manifest as manifest_module  # noqa: E402
 from plugins.core.manifest.schema import PluginManifest  # noqa: E402
 from plugins.core.validation.manifest import PluginManifestChecker  # noqa: E402
 
@@ -213,6 +215,56 @@ def test_manifest_checker_accepts_satisfied_compatibility(tmp_path: Path) -> Non
 
     assert result.ok is True
     assert result.issues == []
+
+
+def test_manifest_checker_caches_resolved_node_version(tmp_path: Path, monkeypatch: object) -> None:
+    """
+    校验 Node.js 版本解析会缓存 subprocess 结果。
+
+    :param tmp_path: pytest 临时目录
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    frontend_root = tmp_path / 'frontend'
+    write_project_versions(backend_root, frontend_root)
+    manifest = PluginManifest.model_validate(
+        {
+            'id': 'demo',
+            'name': '演示插件',
+            'version': '1.0.0',
+            'backend': {'module': 'plugins.demo'},
+            'compatibility': {
+                'nodeVersion': '>=18.0.0',
+            },
+        }
+    )
+    calls = []
+
+    def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
+        """
+        记录 node 版本命令调用。
+
+        :param args: 位置参数
+        :param kwargs: 关键字参数
+        :return: 模拟命令执行结果
+        """
+        calls.append((args, kwargs))
+        return SimpleNamespace(returncode=0, stdout='v20.0.0\n')
+
+    monkeypatch.setattr(manifest_module.subprocess, 'run', fake_run)
+    monkeypatch.setattr(
+        PluginManifestChecker,
+        '_node_version_cache',
+        manifest_module.UNRESOLVED_NODE_VERSION,
+    )
+
+    first_result = PluginManifestChecker(backend_root=backend_root, frontend_root=frontend_root).check(manifest)
+    second_result = PluginManifestChecker(backend_root=backend_root, frontend_root=frontend_root).check(manifest)
+
+    assert first_result.ok is True
+    assert second_result.ok is True
+    assert len(calls) == 1
 
 
 def test_manifest_checker_reports_unsatisfied_compatibility(tmp_path: Path) -> None:

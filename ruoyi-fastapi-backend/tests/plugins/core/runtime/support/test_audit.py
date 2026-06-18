@@ -48,7 +48,7 @@ def test_plugin_audit_item_payload_model_serializes_plain_object_payload() -> No
         remark='ok',
     )
 
-    payload = PluginAuditItemPayload(operation_log).to_payload()
+    payload = PluginAuditPayloadBuilder.build_item_payload(operation_log)
 
     assert payload['operationId'] == 1
     assert payload['operation'] == 'install'
@@ -89,7 +89,7 @@ def test_plugin_audit_snapshot_payload_model_serializes_filtered_payload() -> No
         SimpleNamespace(operation_id=2, operation='install', plugin_ids=['other'], summary={'ok': True}),
     ]
 
-    payload = PluginAuditSnapshotPayload('demo', operation_logs, audit_limit=5).to_payload()
+    payload = PluginAuditPayloadBuilder.build_recent_snapshot_payload('demo', operation_logs, audit_limit=5)
 
     assert payload['available'] is True
     assert payload['count'] == 1
@@ -102,7 +102,7 @@ def test_plugin_audit_snapshot_failure_payload_model_serializes_payload() -> Non
 
     :return: None
     """
-    payload = PluginAuditSnapshotFailurePayload(RuntimeError('db unavailable')).to_payload()
+    payload = PluginAuditPayloadBuilder.build_recent_snapshot_failure(RuntimeError('db unavailable'))
 
     assert payload['available'] is False
     assert 'db unavailable' in payload['message']

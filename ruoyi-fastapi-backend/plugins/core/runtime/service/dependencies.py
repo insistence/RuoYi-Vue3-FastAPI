@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import cast
 
@@ -153,6 +154,68 @@ class PluginDependencyUseCase:
             PluginPayloadBuilder.build_dependency_install_result(
                 item,
                 self.dependencies.command_gateway.run_command(item.command, item.workdir),
+            )
+            for item in install_plan.items
+        ]
+        PluginNpmPackageJsonSynchronizer.sync_successful_items(install_plan.items, install_results)
+        payload = PluginDependencyInstallPayloadBuilder.build_execution_payload(
+            plugin_id,
+            dependency_result,
+            install_plan.items,
+            install_results,
+        )
+        return cast(
+            'PluginDependencyInstallResponse',
+            self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+        )
+
+    async def install_plugin_dependencies_from_result_async(
+        self,
+        plugin_id: str,
+        dependency_result: DependencyCheckResult,
+        *,
+        dry_run: bool = False,
+        discovered_plugin: DiscoveredPlugin | None = None,
+    ) -> PluginDependencyInstallResponse:
+        """
+        根据既有依赖检查结果异步生成计划并执行依赖安装。
+
+        :param plugin_id: 插件ID
+        :param dependency_result: 依赖检查结果
+        :param dry_run: 是否仅预演
+        :param discovered_plugin: 已发现插件，传入后避免重复扫描插件目录
+        :return: 插件依赖安装负载
+        """
+        discovered_plugin = discovered_plugin or self._get_discovered_plugin(plugin_id)
+        install_plan = PluginDependencyInstallPlanner(
+            frontend_root=Path(self.dependencies.runtime_environment.get_backend_dir()).parent
+            / 'ruoyi-fastapi-frontend'
+        ).build_plan(dependency_result)
+        if dry_run:
+            payload = PluginDependencyInstallPayloadBuilder.build_dry_run_payload(
+                plugin_id,
+                dependency_result,
+                install_plan.items,
+            )
+            return cast(
+                'PluginDependencyInstallResponse',
+                self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+            )
+        if not install_plan.has_actions:
+            payload = PluginDependencyInstallPayloadBuilder.build_satisfied_payload(
+                plugin_id,
+                dependency_result,
+                install_plan.items,
+            )
+            return cast(
+                'PluginDependencyInstallResponse',
+                self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
+            )
+
+        install_results = [
+            PluginPayloadBuilder.build_dependency_install_result(
+                item,
+                await asyncio.to_thread(self.dependencies.command_gateway.run_command, item.command, item.workdir),
             )
             for item in install_plan.items
         ]

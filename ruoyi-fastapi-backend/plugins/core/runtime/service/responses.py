@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypeAlias, TypedDict
+from typing import TypeAlias
+
+from pydantic import Field
 
 from plugins.core.runtime.support import (
-    BatchFailedPayload,
-    BatchItemReportPayload,
     BatchOperationResultPayload,
-    BatchSummaryPayload,
     PluginAuditSnapshotFailurePayloadDict,
     PluginAuditSnapshotPayloadDict,
-    PluginCatalogSummaryPayloadDict,
     PluginCheckPayloadDict,
     PluginConfigExportFailurePayloadDict,
     PluginConfigExportPayloadDict,
@@ -34,46 +32,44 @@ from plugins.core.runtime.support import (
     PluginRuntimeUpgradeBlockerPayloadDict,
     PluginSafeUninstallPayloadDict,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
+from plugins.core.runtime.support.payload.base import PluginPayloadModel
 
 
-class PluginCatalogListResponseDict(TypedDict):
+class PluginCatalogListResponsePayload(PluginPayloadModel):
     """
     插件列表响应 payload。
     """
 
     ok: bool
     count: int
-    plugins: list[PluginCatalogSummaryPayloadDict]
+    plugins: list[dict[str, object]]
 
 
-class PluginCatalogInfoResponseDict(TypedDict):
+class PluginCatalogInfoResponsePayload(PluginPayloadModel):
     """
     插件详情响应 payload。
     """
 
     ok: bool
-    plugin: Mapping[str, object]
+    plugin: dict[str, object]
 
 
-class PluginBatchRunResponseDict(TypedDict, total=False):
+class PluginBatchRunResponsePayload(PluginPayloadModel):
     """
     插件批量执行响应 payload。
     """
 
-    ok: bool
-    message: str
-    dryRun: bool
-    continueOnError: bool
-    executed: list[BatchItemReportPayload]
-    failed: BatchFailedPayload | None
-    summary: BatchSummaryPayload
-    exit_code: int
+    ok: bool | None = None
+    message: str | None = None
+    dry_run: bool | None = Field(default=None, alias='dryRun')
+    continue_on_error: bool | None = Field(default=None, alias='continueOnError')
+    executed: list[dict[str, object]] | None = None
+    failed: dict[str, object] | None = None
+    summary: dict[str, object] | None = None
+    exit_code: int | None = None
 
 
-class PluginRuntimeBlockedPayloadDict(TypedDict, total=False):
+class PluginRuntimeBlockedPayload(PluginPayloadModel):
     """
     插件运行模式阻断响应 payload。
     """
@@ -81,12 +77,18 @@ class PluginRuntimeBlockedPayloadDict(TypedDict, total=False):
     ok: bool
     status: str
     operation: str
-    pluginId: str
+    plugin_id: str = Field(alias='pluginId')
     message: str
     suggestion: str
     capability: dict[str, object]
-    dryRun: bool
+    dry_run: bool | None = Field(default=None, alias='dryRun')
     exit_code: int
+
+
+PluginCatalogListResponseDict: TypeAlias = dict[str, object]
+PluginCatalogInfoResponseDict: TypeAlias = dict[str, object]
+PluginBatchRunResponseDict: TypeAlias = dict[str, object]
+PluginRuntimeBlockedPayloadDict: TypeAlias = dict[str, object]
 
 
 PluginRuntimeBlockedResponse: TypeAlias = PluginRuntimeBlockedPayloadDict

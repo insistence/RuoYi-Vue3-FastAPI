@@ -8,7 +8,15 @@ from plugins.core.types import PluginStateRecord
 from plugins.core.validation.dependencies import DependencyRequirementParser
 from plugins.core.validation.versioning import PluginVersionConstraintMatcher
 
-PluginDependencyStatus = Literal['satisfied', 'missing', 'not_installed', 'disabled', 'version_unsatisfied', 'cycle']
+PluginDependencyStatus = Literal[
+    'satisfied',
+    'missing',
+    'not_installed',
+    'disabled',
+    'version_unsatisfied',
+    'cycle',
+    'dependent',
+]
 PluginBatchOperation = Literal['install', 'enable', 'upgrade', 'uninstall', 'purge']
 PluginDependencyPlanBlockerStatus = Literal[
     'missing',
@@ -195,6 +203,38 @@ class PluginDependencyChecker:
 
         return PluginDependencyCheckResult(plugin_id=manifest.id, items=items)
 
+    def check_enabled_dependents(self, plugin_id: str) -> PluginDependencyCheckResult:
+        """
+        检查指定插件是否仍被已启用插件依赖。
+
+        :param plugin_id: 被停用或卸载的插件ID
+        :return: 被依赖方检查结果
+        """
+        target_plugin = self.discovered_plugin_map.get(plugin_id)
+        target_database_plugin = self.database_plugin_map.get(plugin_id)
+        installed_version = self._resolve_installed_version(target_plugin, target_database_plugin)
+        items: list[PluginDependencyCheckItem] = []
+        for dependent_id, dependency in PluginDependencyGraph(self.discovered_plugin_map).find_direct_dependents(
+            plugin_id
+        ):
+            database_plugin = self.database_plugin_map.get(dependent_id)
+            if not getattr(database_plugin, 'installed_version', None):
+                continue
+            if not PluginStateResolver.is_database_plugin_enabled(database_plugin):
+                continue
+            items.append(
+                PluginDependencyCheckItem(
+                    plugin_id=dependent_id,
+                    dependency_id=plugin_id,
+                    required_version=dependency.version,
+                    installed_version=installed_version,
+                    status='dependent',
+                    message=f'插件正在被已启用插件依赖：{dependent_id} -> {plugin_id}',
+                )
+            )
+
+        return PluginDependencyCheckResult(plugin_id=plugin_id, items=items)
+
     def _check_dependency(
         self,
         plugin_id: str,
@@ -337,6 +377,20 @@ class PluginDependencyGraph:
         :return: 循环依赖路径，不存在时返回空列表
         """
         return self._find_cycle(plugin_id, [], set())
+
+    def find_direct_dependents(self, plugin_id: str) -> list[tuple[str, PluginDependencyManifest]]:
+        """
+        查找直接依赖指定插件的插件。
+
+        :param plugin_id: 被依赖插件ID
+        :return: 依赖方插件ID和依赖声明列表
+        """
+        return [
+            (dependent_id, dependency)
+            for dependent_id, discovered_plugin in sorted(self.discovered_plugin_map.items())
+            for dependency in discovered_plugin.manifest.dependencies.plugins
+            if dependency.id == plugin_id
+        ]
 
     def _find_cycle(self, plugin_id: str, path: list[str], visited: set[str]) -> list[str]:
         """

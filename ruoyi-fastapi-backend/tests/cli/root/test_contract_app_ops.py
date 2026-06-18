@@ -366,10 +366,11 @@ def test_plugin_check_json_output_has_stable_contract(
     payload = parse_json_stdout(completed)
 
     assert completed.returncode in {SUCCESS, DEPENDENCY_ERROR}
-    assert set(payload) == {'ok', 'message', 'count', 'checks'}
+    assert set(payload) == {'ok', 'message', 'count', 'databaseAvailable', 'databaseError', 'checks'}
     assert isinstance(payload['ok'], bool)
     assert isinstance(payload['message'], str)
     assert isinstance(payload['count'], int)
+    assert isinstance(payload['databaseAvailable'], bool)
     assert isinstance(payload['checks'], list)
     if payload['checks']:
         check_payload = payload['checks'][0]

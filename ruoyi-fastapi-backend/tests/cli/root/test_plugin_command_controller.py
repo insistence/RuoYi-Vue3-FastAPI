@@ -7,7 +7,7 @@ from typing import Any
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from cli.exit_codes import DEPENDENCY_ERROR  # noqa: E402
+from cli.exit_codes import DEPENDENCY_ERROR, RUNTIME_ERROR  # noqa: E402
 from cli.groups.plugin.controller import PluginCommandController  # noqa: E402
 
 
@@ -232,3 +232,20 @@ def test_plugin_config_set_uses_failure_exit_code_when_payload_is_not_ok() -> No
     assert execution_service.completed_payload['ok'] is False
     assert execution_service.completed_payload['values'] == {'provider': 'openai'}
     assert execution_service.default_exit_code == DEPENDENCY_ERROR
+
+
+def test_plugin_payload_with_error_uses_runtime_error_exit_code() -> None:
+    """
+    校验带 error 的插件运行时异常负载由 CLI 映射为运行时错误退出码。
+
+    :return: None
+    """
+    payload = {'ok': False, 'message': '插件配置导入失败', 'error': 'database unavailable'}
+
+    exit_code = PluginCommandController._resolve_plugin_exit_code(
+        payload,
+        success_exit_code=0,
+        failure_exit_code=DEPENDENCY_ERROR,
+    )
+
+    assert exit_code == RUNTIME_ERROR

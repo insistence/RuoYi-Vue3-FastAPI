@@ -1,8 +1,5 @@
-from .runtime import PluginRuntimeService
-
-PLUGIN_RUNTIME = PluginRuntimeService()
+from .facade import PluginRuntimeService
 
 __all__ = [
-    'PLUGIN_RUNTIME',
     'PluginRuntimeService',
 ]

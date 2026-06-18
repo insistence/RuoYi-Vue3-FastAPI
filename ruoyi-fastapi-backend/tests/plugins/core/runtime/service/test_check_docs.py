@@ -611,7 +611,7 @@ def test_plugin_documentation_payload_model_serializes_payload() -> None:
 
     :return: None
     """
-    payload = PluginDocumentationPayload(plugin_id='demo', markdown='# Demo\n').to_payload()
+    payload = PluginDocumentationBuilder.build_payload_from_markdown('demo', '# Demo\n')
 
     assert payload['ok'] is True
     assert payload['message'] == '插件文档生成完成'

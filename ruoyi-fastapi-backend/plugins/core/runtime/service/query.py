@@ -1,9 +1,9 @@
 from pathlib import Path
 from typing import Protocol, cast
 
+from plugins.core.capability import PluginRuntimeCapability
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin
-from plugins.core.runtime.capability import PluginRuntimeCapability
 from plugins.core.runtime.health import PluginHealthChecker
 from plugins.core.runtime.support import (
     PluginAuditPayloadBuilder,
@@ -104,6 +104,14 @@ class PluginQueryUseCase:
         :return: 数据库插件状态列表
         """
         return self.context.load_database_plugin_states_sync()
+
+    def _load_database_plugin_states_sync_with_error(self) -> tuple[list[PluginStateRecord], str | None]:
+        """
+        以同步方式读取数据库插件状态列表，并保留失败原因。
+
+        :return: 数据库插件状态列表和错误信息
+        """
+        return self.context.load_database_plugin_states_sync_with_error()
 
     def _resolve_plugin_capability(self, discovered_plugin: DiscoveredPlugin) -> PluginRuntimeCapability:
         """
@@ -217,7 +225,7 @@ class PluginQueryUseCase:
 
             checks = []
             all_discovered_plugins = [plugin.discovered_plugin for plugin in registry.list_plugins()]
-            database_plugins = self._load_database_plugin_states_sync()
+            database_plugins, database_error = self._load_database_plugin_states_sync_with_error()
             plugin_dependency_checker = InterPluginDependencyChecker(all_discovered_plugins, database_plugins)
             for plugin in plugins:
                 dependency_result = self.dependencies.dependency_checker.check_manifest(
@@ -247,7 +255,7 @@ class PluginQueryUseCase:
                     )
                 )
 
-            return cast('PluginCheckResponse', PluginPayloadBuilder.build_check_payload(checks))
+            return cast('PluginCheckResponse', PluginPayloadBuilder.build_check_payload(checks, database_error))
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('插件检查失败', exc)
 

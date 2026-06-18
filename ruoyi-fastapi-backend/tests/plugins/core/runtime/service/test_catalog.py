@@ -145,22 +145,48 @@ def test_plugin_runtime_updates_dependency_checker_in_container(tmp_path: Path) 
     :return: None
     """
     runtime = build_runtime(tmp_path / 'backend')
+    original_dependencies = runtime.dependencies
     original_environment = runtime.dependencies.runtime_environment
     original_state_gateway = runtime.dependencies.state_gateway
     original_model_gateway = runtime.dependencies.model_gateway
     original_command_gateway = runtime.dependencies.command_gateway
+    original_use_cases = {
+        'audit': runtime.audit,
+        'batch': runtime.batch,
+        'config': runtime.config,
+        'dependency': runtime.dependency,
+        'enable': runtime.enable,
+        'install': runtime.install,
+        'precheck': runtime.precheck,
+        'purge': runtime.purge,
+        'query': runtime.query,
+        'tools': runtime.tools,
+        'upgrade': runtime.upgrade,
+    }
     refreshed_checker = PluginDependencyChecker(
         python_inspector=PythonDependencyInspector(installed_packages={'missing-python': '1.0.0'}),
         npm_inspector=NpmDependencyInspector(installed_packages={'missing-npm': '2.0.0'}),
     )
 
-    runtime._set_dependency_checker(refreshed_checker)
+    runtime.set_dependency_checker(refreshed_checker)
 
+    assert runtime.dependencies is original_dependencies
     assert runtime.dependencies.dependency_checker is refreshed_checker
     assert runtime.dependencies.runtime_environment is original_environment
     assert runtime.dependencies.state_gateway is original_state_gateway
     assert runtime.dependencies.model_gateway is original_model_gateway
     assert runtime.dependencies.command_gateway is original_command_gateway
+    assert runtime.audit is original_use_cases['audit']
+    assert runtime.batch is original_use_cases['batch']
+    assert runtime.config is original_use_cases['config']
+    assert runtime.dependency is original_use_cases['dependency']
+    assert runtime.enable is original_use_cases['enable']
+    assert runtime.install is original_use_cases['install']
+    assert runtime.precheck is original_use_cases['precheck']
+    assert runtime.purge is original_use_cases['purge']
+    assert runtime.query is original_use_cases['query']
+    assert runtime.tools is original_use_cases['tools']
+    assert runtime.upgrade is original_use_cases['upgrade']
     assert runtime.batch.dependencies.dependency_checker is refreshed_checker
     assert runtime.batch.context.dependencies.dependency_checker is refreshed_checker
     assert runtime.config.dependencies.dependency_checker is refreshed_checker
@@ -257,6 +283,108 @@ def test_plugin_runtime_context_service_exposes_plugin_discovery(tmp_path: Path)
     assert discovered_plugin is sentinel
 
 
+def test_plugin_runtime_context_sync_state_loader_warns_inside_running_loop(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    校验事件循环内同步读取数据库插件状态会输出可观测 warning。
+
+    :param tmp_path: pytest 临时目录
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+dependencies:
+  plugins:
+    - base
+""",
+    )
+    runtime = build_runtime(backend_root)
+    warnings = []
+
+    def fake_warning(message: str) -> None:
+        """
+        记录 warning 日志。
+
+        :param message: 日志内容
+        :return: None
+        """
+        warnings.append(message)
+
+    monkeypatch.setattr(runtime_context_module.logger, 'warning', fake_warning)
+
+    async def load_states_sync_in_loop() -> tuple[list[object], str | None]:
+        """
+        在事件循环内调用同步状态读取。
+
+        :return: 状态列表和错误信息
+        """
+        return runtime.context.load_database_plugin_states_sync_with_error()
+
+    result, database_error = asyncio.run(load_states_sync_in_loop())
+
+    assert result == []
+    assert database_error == '当前事件循环内不能同步读取数据库插件状态，已返回空列表'
+    assert warnings == ['当前事件循环内不能同步读取数据库插件状态，已返回空列表']
+
+
+def test_plugin_runtime_context_caches_discovered_plugins(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    校验插件发现结果在上下文实例内短暂复用。
+
+    :param tmp_path: pytest 临时目录
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    scanner_roots = []
+
+    class FakePluginScanner:
+        """
+        测试用插件扫描器。
+        """
+
+        def __init__(self, plugins_root: Path) -> None:
+            """
+            记录插件扫描根目录。
+
+            :param plugins_root: 插件根目录
+            :return: None
+            """
+            scanner_roots.append(plugins_root)
+
+        @staticmethod
+        def discover() -> list:
+            """
+            返回测试插件列表。
+
+            :return: 测试插件列表
+            """
+            return []
+
+    monkeypatch.setattr(runtime_context_module, 'PluginScanner', FakePluginScanner)
+    runtime = build_runtime(backend_root)
+
+    first_result = runtime.context.discover_plugins(backend_root)
+    second_result = runtime.context.discover_plugins(backend_root)
+
+    assert first_result == []
+    assert second_result == []
+    assert scanner_roots == [backend_root.resolve() / 'plugins']
+
+
 def test_plugin_runtime_tool_use_case_uses_injected_context_service(tmp_path: Path) -> None:
     """
     校验工具 use case 通过显式注入的 context service 使用上下文能力。
@@ -348,7 +476,7 @@ def test_plugin_runtime_environment_uses_dev_modes_in_dev_app(
     :param tmp_path: pytest 临时目录
     :return: None
     """
-    monkeypatch.setattr('plugins.core.runtime.service.environment.AppConfig.app_env', 'dev')
+    monkeypatch.setattr('plugins.core.environment.AppConfig.app_env', 'dev')
 
     environment = PluginRuntimeEnvironmentService(backend_root=tmp_path)
 
@@ -367,7 +495,7 @@ def test_plugin_runtime_environment_uses_service_modes_outside_dev(
     :param tmp_path: pytest 临时目录
     :return: None
     """
-    monkeypatch.setattr('plugins.core.runtime.service.environment.AppConfig.app_env', 'prod')
+    monkeypatch.setattr('plugins.core.environment.AppConfig.app_env', 'prod')
 
     environment = PluginRuntimeEnvironmentService(backend_root=tmp_path)
 
@@ -477,8 +605,57 @@ def test_plugin_payload_builder_builds_check_payload() -> None:
 
     assert success_payload['ok'] is True
     assert success_payload['message'] == '插件检查通过'
+    assert success_payload['databaseAvailable'] is True
+    assert success_payload['databaseError'] is None
     assert failed_payload['ok'] is False
-    assert failed_payload['exit_code'] == DEPENDENCY_ERROR
+
+
+def test_plugin_runtime_check_plugin_reports_database_state_read_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    校验插件检查会显式输出数据库状态读取错误。
+
+    :param tmp_path: pytest 临时目录
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'app',
+        """
+id: app
+name: App
+version: 1.0.0
+backend:
+  module: plugins.app
+dependencies:
+  plugins:
+    - base
+""",
+    )
+    write_manifest(
+        backend_root / 'plugins' / 'base',
+        """
+id: base
+name: Base
+version: 1.0.0
+backend:
+  module: plugins.base
+""",
+    )
+    runtime = build_runtime(backend_root)
+    monkeypatch.setattr(
+        runtime.context,
+        'load_database_plugin_states_sync_with_error',
+        lambda: ([], 'db unavailable'),
+    )
+
+    payload = runtime.check_plugin('app')
+
+    assert payload['databaseAvailable'] is False
+    assert payload['databaseError'] == 'db unavailable'
 
 
 def test_plugin_payload_builder_builds_plan_payload() -> None:
@@ -513,6 +690,8 @@ def test_plugin_payload_builder_builds_plan_payload() -> None:
 
     assert payload['ok'] is True
     assert payload['operation'] == 'install'
+    assert payload['databaseAvailable'] is True
+    assert payload['databaseError'] is None
     assert payload['plan']['orderedPluginIds'] == ['base', 'app']
 
 

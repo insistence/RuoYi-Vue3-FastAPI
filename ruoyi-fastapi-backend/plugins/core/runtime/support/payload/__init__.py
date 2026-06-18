@@ -1,9 +1,6 @@
 from .catalog import (
     PluginCatalogDatabaseStatePayload,
     PluginCatalogDatabaseStatePayloadDict,
-    PluginCatalogInfoPayload,
-    PluginCatalogListPayload,
-    PluginCatalogPayloadBuilderProtocol,
     PluginCatalogPayloadMixin,
     PluginCatalogSummaryPayload,
     PluginCatalogSummaryPayloadDict,
@@ -12,12 +9,11 @@ from .catalog import (
     PluginMenuDiagnosticPlanItemPayload,
     PluginMenuDiagnosticPlanPayload,
 )
-from .legacy import (
-    PluginNotFoundPayload,
-    PluginNotFoundPayloadDict,
-)
-from .legacy import (
-    PluginPayloadBuilder as PluginLegacyPayloadBuilder,
+from .common import PluginCommonPayloadMixin, PluginNotFoundPayload, PluginNotFoundPayloadDict
+from .dependencies import (
+    DependencyInstallReturnCodePayload,
+    PluginDependencyInstallPayloadBuilder,
+    PluginDependencyInstallPayloadDict,
 )
 from .plan import (
     ActionPayload,
@@ -27,13 +23,12 @@ from .plan import (
     PluginPlanBlockerPayload,
     PluginPlanItemPayload,
     PluginPlanPayload,
-    PluginPlanPayloadBuilderProtocol,
     PluginPlanPayloadDict,
     PluginPlanPayloadMixin,
     PluginPlanResponsePayload,
-    PluginUpgradeDryRunPayload,
     PurgePlanItemPayload,
     PurgePlanPayload,
+    UpgradeDryRunPayload,
     UpgradeDryRunPayloadContext,
     UpgradeDryRunPayloadDict,
     VersionStatePayload,
@@ -41,7 +36,6 @@ from .plan import (
 from .validation import (
     DependencyItemPayload,
     MenuConflictItemPayload,
-    PluginCheckItemPayload,
     PluginCheckItemPayloadDict,
     PluginCheckPayload,
     PluginCheckPayloadDict,
@@ -59,7 +53,7 @@ class PluginPayloadBuilder(
     PluginCatalogPayloadMixin,
     PluginValidationPayloadMixin,
     PluginPlanPayloadMixin,
-    PluginLegacyPayloadBuilder,
+    PluginCommonPayloadMixin,
 ):
     """
     插件运行时负载构建器。
@@ -73,21 +67,20 @@ __all__ = [
     'CommandResultPayload',
     'DependencyInstallPlanItemPayload',
     'DependencyInstallResultPayload',
+    'DependencyInstallReturnCodePayload',
     'DependencyItemPayload',
     'MenuConflictItemPayload',
     'PluginCatalogDatabaseStatePayload',
     'PluginCatalogDatabaseStatePayloadDict',
-    'PluginCatalogInfoPayload',
-    'PluginCatalogListPayload',
-    'PluginCatalogPayloadBuilderProtocol',
     'PluginCatalogSummaryPayload',
     'PluginCatalogSummaryPayloadDict',
-    'PluginCheckItemPayload',
     'PluginCheckItemPayloadDict',
     'PluginCheckPayload',
     'PluginCheckPayloadDict',
     'PluginDependencyCheckPayload',
     'PluginDependencyCheckPayloadDict',
+    'PluginDependencyInstallPayloadBuilder',
+    'PluginDependencyInstallPayloadDict',
     'PluginDependencyItemPayload',
     'PluginManifestConfigItemPayload',
     'PluginManifestJobItemPayload',
@@ -99,14 +92,13 @@ __all__ = [
     'PluginPlanBlockerPayload',
     'PluginPlanItemPayload',
     'PluginPlanPayload',
-    'PluginPlanPayloadBuilderProtocol',
     'PluginPlanPayloadDict',
     'PluginPlanResponsePayload',
-    'PluginUpgradeDryRunPayload',
     'PluginValidationPayloadBuilderProtocol',
     'PurgePlanItemPayload',
     'PurgePlanPayload',
     'StructureItemPayload',
+    'UpgradeDryRunPayload',
     'UpgradeDryRunPayloadContext',
     'UpgradeDryRunPayloadDict',
     'ValidationIssuePayload',

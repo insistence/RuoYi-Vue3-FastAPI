@@ -31,13 +31,13 @@ def test_plugin_config_diagnostic_summary_payload_model_serializes_payload() -> 
 
     :return: None
     """
-    summary = PluginConfigDiagnosticSummaryPayload(
+    summary = PluginConfigPayloadBuilder.build_diagnostic_summary(
         [
             {'key': 'api_key', 'required': True, 'secret': True, 'value': '******'},
             {'key': 'endpoint', 'required': True, 'secret': False, 'value': ''},
             {'key': 'enabled', 'required': False, 'secret': False, 'value': True},
         ]
-    ).to_payload()
+    )
 
     assert summary['total'] == EXPECTED_CONFIG_TOTAL
     assert summary['secretCount'] == 1
@@ -80,9 +80,9 @@ def test_plugin_config_export_payload_model_serializes_payload() -> None:
 
     :return: None
     """
-    payload = PluginConfigExportPayload(
-        plugin_id='demo',
-        configs=[
+    payload = PluginConfigPayloadBuilder.build_export_payload(
+        'demo',
+        [
             {
                 'key': 'endpoint',
                 'label': 'Endpoint',
@@ -93,7 +93,7 @@ def test_plugin_config_export_payload_model_serializes_payload() -> None:
             }
         ],
         reveal_secret=False,
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件配置导出完成'
@@ -134,12 +134,12 @@ def test_plugin_config_state_payload_model_serializes_update_payload() -> None:
     """
     config = SimpleNamespace(model_dump=lambda by_alias=True: {'key': 'provider', 'value': 'openai'})
 
-    payload = PluginConfigStatePayload(
-        plugin_id='demo',
+    payload = PluginConfigPayloadBuilder.build_update_payload(
+        'demo',
+        operation='config_set',
         message='插件配置已更新',
         configs=[config],
-        operation='config_set',
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件配置已更新'
@@ -173,11 +173,11 @@ def test_plugin_config_export_failure_payload_model_serializes_payload() -> None
 
     :return: None
     """
-    payload = PluginConfigExportFailurePayload(
-        plugin_id='demo',
-        payload={'ok': False, 'message': '插件不存在：demo'},
+    payload = PluginConfigPayloadBuilder.build_export_failure_payload(
+        'demo',
+        {'ok': False, 'message': '插件不存在：demo'},
         reveal_secret=True,
-    ).to_payload()
+    )
 
     assert payload['ok'] is False
     assert payload['pluginId'] == 'demo'
@@ -214,11 +214,11 @@ def test_plugin_config_import_payload_model_serializes_success_payload() -> None
 
     :return: None
     """
-    payload = PluginConfigImportPayload(
-        plugin_id='demo',
-        payload={'ok': True, 'pluginId': 'demo'},
-        values={'provider': 'mistral'},
-    ).to_payload()
+    payload = PluginConfigPayloadBuilder.build_import_payload(
+        'demo',
+        {'ok': True, 'pluginId': 'demo'},
+        {'provider': 'mistral'},
+    )
 
     assert payload['ok'] is True
     assert payload['pluginId'] == 'demo'
@@ -286,14 +286,14 @@ def test_plugin_config_audit_payload_model_serializes_masked_payload() -> None:
         }
     )
 
-    payload = PluginConfigAuditPayload(
-        plugin_id='demo',
+    payload = PluginConfigPayloadBuilder.build_audit_payload(
+        'demo',
         operation='config_set',
         values={'api_key': 'new-secret'},
         before_configs=[before_config],
         after_configs=[after_config],
         message='插件配置已更新',
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['operation'] == 'config_set'

@@ -3,8 +3,7 @@ import json
 from typing import TYPE_CHECKING
 
 from cli.core import DEFAULT_CORE_SERVICES, CliContextFactory, CliExecutionService
-from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, SUCCESS
-from plugins.core.runtime.result import PluginOperationResult
+from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, RUNTIME_ERROR, SUCCESS
 
 from .exporter import PluginCommandFileAdapter
 from .options import PluginCreateCommandOptions
@@ -92,11 +91,34 @@ class PluginCommandController:
             ctx,
             payload,
             text_builder=text_builder,
-            default_exit_code=PluginOperationResult.from_payload(payload).exit_code(
+            default_exit_code=self._resolve_plugin_exit_code(
+                payload,
                 success_exit_code=success_exit_code,
                 failure_exit_code=failure_exit_code,
             ),
         )
+
+    @staticmethod
+    def _resolve_plugin_exit_code(
+        payload: dict[str, object],
+        *,
+        success_exit_code: int,
+        failure_exit_code: int,
+    ) -> int:
+        """
+        按插件 payload 形状解析 CLI 退出码。
+
+        :param payload: 插件操作负载
+        :param success_exit_code: 成功退出码
+        :param failure_exit_code: 业务失败退出码
+        :return: CLI 退出码
+        """
+        if bool(payload.get('ok', False)):
+            return success_exit_code
+        if payload.get('error'):
+            return RUNTIME_ERROR
+
+        return failure_exit_code
 
     def plugin_info(self, plugin_id: str, env: str, output: str) -> None:
         """

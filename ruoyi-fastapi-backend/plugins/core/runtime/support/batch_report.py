@@ -3,27 +3,28 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from time import perf_counter
-from typing import TypedDict
+from typing import TypeAlias
 
-from plugins.core.runtime.exit_codes import RUNTIME_ERROR, SUCCESS
+from pydantic import Field
+
+from plugins.core.runtime.support.payload.base import PluginPayloadModel
 from plugins.core.validation.plugin_deps import PluginBatchOperation
 
 
-class BatchOperationResultPayload(TypedDict, total=False):
+class BatchOperationResult(PluginPayloadModel):
     """
     批量单项运行时结果 payload。
     """
 
-    ok: bool
-    message: str
-    exit_code: int
-    pluginDependencyErrors: object
-    structureErrors: object
-    menuConflicts: object
-    error: object
+    ok: bool | None = None
+    message: str | None = None
+    plugin_dependency_errors: object | None = Field(default=None, alias='pluginDependencyErrors')
+    structure_errors: object | None = Field(default=None, alias='structureErrors')
+    menu_conflicts: object | None = Field(default=None, alias='menuConflicts')
+    error: object | None = None
 
 
-class BatchSummaryPayload(TypedDict):
+class BatchSummary(PluginPayloadModel):
     """
     批量执行汇总 payload。
     """
@@ -32,33 +33,6 @@ class BatchSummaryPayload(TypedDict):
     succeeded: int
     failed: int
     skipped: int
-
-
-class BatchItemReportPayload(TypedDict):
-    """
-    批量单项报告 payload。
-    """
-
-    pluginId: str
-    operation: PluginBatchOperation
-    ok: bool
-    status: str
-    message: str
-    durationMs: int
-    exitCode: int
-    suggestion: str
-
-
-class BatchFailedPayload(BatchItemReportPayload):
-    """
-    批量失败项 payload。
-    """
-
-    result: BatchOperationResultPayload
-
-
-BatchPlanPayload = Mapping[str, object]
-BatchItemRunner = Callable[[PluginBatchOperation, str], Awaitable[BatchOperationResultPayload]]
 
 
 @dataclass(frozen=True)
@@ -72,7 +46,6 @@ class PluginBatchItemReport:
     :param status: 执行状态
     :param message: 执行消息
     :param duration_ms: 耗时毫秒数
-    :param exit_code: 退出码
     :param suggestion: 失败建议
     """
 
@@ -82,96 +55,44 @@ class PluginBatchItemReport:
     status: str
     message: str
     duration_ms: int
-    exit_code: int
     suggestion: str
 
 
-@dataclass(frozen=True)
-class PluginBatchDryRunPayload:
+class BatchFailedItem(PluginPayloadModel):
     """
-    插件批量预演结构化负载。
-    """
-
-    plan_payload: BatchPlanPayload
-    continue_on_error: bool
-    summary: BatchSummaryPayload
-
-    def to_payload(self) -> dict[str, object]:
-        """
-        序列化为现有插件批量预演 payload 契约。
-
-        :return: 插件批量预演 payload
-        """
-        return {
-            **self.plan_payload,
-            'message': '插件批量操作演练完成，未执行实际写入',
-            'dryRun': True,
-            'continueOnError': self.continue_on_error,
-            'executed': [],
-            'failed': None,
-            'summary': self.summary,
-        }
-
-
-@dataclass(frozen=True)
-class PluginBatchExecutionPayload:
-    """
-    插件批量执行结构化负载。
+    批量失败项 payload。
     """
 
-    plan_payload: BatchPlanPayload
-    reports: list[PluginBatchItemReport]
-    failed: BatchFailedPayload | None
-    continue_on_error: bool
+    plugin_id: str = Field(alias='pluginId')
+    operation: str | None = None
+    ok: bool | None = None
+    status: str | None = None
+    message: str | None = None
+    duration_ms: int | None = Field(default=None, alias='durationMs')
+    suggestion: str | None = None
+    result: dict[str, object]
+
+
+class PluginBatchRunPayload(PluginPayloadModel):
+    """
+    插件批量执行响应 payload。
+    """
+
+    ok: bool | None = None
     message: str
-    summary: BatchSummaryPayload
-
-    def to_payload(self) -> dict[str, object]:
-        """
-        序列化为现有插件批量执行 payload 契约。
-
-        :return: 插件批量执行 payload
-        """
-        ok = self.failed is None
-        return {
-            **self.plan_payload,
-            'ok': ok,
-            'message': self.message,
-            'dryRun': False,
-            'continueOnError': self.continue_on_error,
-            'executed': [PluginBatchReportBuilder.dump_item_report(report) for report in self.reports],
-            'failed': self.failed,
-            'summary': self.summary,
-            'exit_code': SUCCESS if ok else RUNTIME_ERROR,
-        }
+    dry_run: bool = Field(alias='dryRun')
+    continue_on_error: bool = Field(alias='continueOnError')
+    executed: list[dict[str, object]]
+    failed: dict[str, object] | None
+    summary: dict[str, object]
 
 
-@dataclass(frozen=True)
-class PluginBatchPlanBlockedPayload:
-    """
-    插件批量计划阻断结构化负载。
-    """
-
-    plan_payload: BatchPlanPayload
-    dry_run: bool
-    continue_on_error: bool
-    summary: BatchSummaryPayload
-
-    def to_payload(self) -> dict[str, object]:
-        """
-        序列化为现有插件批量计划阻断 payload 契约。
-
-        :return: 插件批量计划阻断 payload
-        """
-        return {
-            **self.plan_payload,
-            'dryRun': self.dry_run,
-            'continueOnError': self.continue_on_error,
-            'executed': [],
-            'failed': None,
-            'summary': self.summary,
-            'message': '插件批量操作计划存在阻塞项，未执行任何写操作',
-        }
+BatchOperationResultPayload: TypeAlias = dict[str, object]
+BatchSummaryPayload: TypeAlias = dict[str, object]
+BatchItemReportPayload: TypeAlias = dict[str, object]
+BatchFailedPayload: TypeAlias = dict[str, object]
+BatchPlanPayload: TypeAlias = Mapping[str, object]
+BatchItemRunner: TypeAlias = Callable[[PluginBatchOperation, str], Awaitable[BatchOperationResultPayload]]
 
 
 class PluginBatchReportBuilder:
@@ -221,7 +142,6 @@ class PluginBatchReportBuilder:
         :return: 单项报告
         """
         ok = bool(result.get('ok', False))
-        exit_code = int(result.get('exit_code', SUCCESS if ok else RUNTIME_ERROR))
 
         return PluginBatchItemReport(
             plugin_id=plugin_id,
@@ -230,7 +150,6 @@ class PluginBatchReportBuilder:
             status='success' if ok else 'failed',
             message=str(result.get('message', '-')),
             duration_ms=duration_ms,
-            exit_code=exit_code,
             suggestion='' if ok else cls.build_failure_suggestion(operation, plugin_id, result),
         )
 
@@ -246,12 +165,12 @@ class PluginBatchReportBuilder:
         failed = len([report for report in reports if not report.ok])
         succeeded = len([report for report in reports if report.ok])
 
-        return {
-            'total': total,
-            'succeeded': succeeded,
-            'failed': failed,
-            'skipped': max(total - succeeded - failed, 0),
-        }
+        return BatchSummary(
+            total=total,
+            succeeded=succeeded,
+            failed=failed,
+            skipped=max(total - succeeded - failed, 0),
+        ).to_payload()
 
     @staticmethod
     def resolve_executable_plugin_ids(plan_payload: BatchPlanPayload) -> list[str]:
@@ -294,11 +213,16 @@ class PluginBatchReportBuilder:
         :return: 插件批量计划阻断负载
         """
         total = cls._count_planned_items(plan_payload)
-        return PluginBatchPlanBlockedPayload(
-            plan_payload=plan_payload,
-            dry_run=dry_run,
-            continue_on_error=continue_on_error,
-            summary=cls.build_summary([], total),
+        return PluginBatchRunPayload.model_validate(
+            {
+                **plan_payload,
+                'dryRun': dry_run,
+                'continueOnError': continue_on_error,
+                'executed': [],
+                'failed': None,
+                'summary': cls.build_summary([], total),
+                'message': '插件批量操作计划存在阻塞项，未执行任何写操作',
+            }
         ).to_payload()
 
     @classmethod
@@ -316,10 +240,16 @@ class PluginBatchReportBuilder:
         :return: 插件批量执行预演负载
         """
         total = cls._count_planned_items(plan_payload)
-        return PluginBatchDryRunPayload(
-            plan_payload=plan_payload,
-            continue_on_error=continue_on_error,
-            summary=cls.build_summary([], total),
+        return PluginBatchRunPayload.model_validate(
+            {
+                **plan_payload,
+                'message': '插件批量操作演练完成，未执行实际写入',
+                'dryRun': True,
+                'continueOnError': continue_on_error,
+                'executed': [],
+                'failed': None,
+                'summary': cls.build_summary([], total),
+            }
         ).to_payload()
 
     @classmethod
@@ -335,7 +265,9 @@ class PluginBatchReportBuilder:
         :param result: 单项原始执行结果
         :return: 失败项负载
         """
-        return {**cls.dump_item_report(report), 'result': result}
+        return BatchFailedItem.model_validate({**cls.dump_item_report(report), 'result': result}).to_payload(
+            exclude_none=True
+        )
 
     @classmethod
     def build_execution_payload(
@@ -356,13 +288,17 @@ class PluginBatchReportBuilder:
         :return: 插件批量执行结果负载
         """
         ok = failed is None
-        return PluginBatchExecutionPayload(
-            plan_payload=plan_payload,
-            reports=reports,
-            failed=failed,
-            continue_on_error=continue_on_error,
-            message=cls.build_batch_message(ok, continue_on_error),
-            summary=cls.build_summary(reports, cls._count_planned_items(plan_payload)),
+        return PluginBatchRunPayload.model_validate(
+            {
+                **plan_payload,
+                'ok': ok,
+                'message': cls.build_batch_message(ok, continue_on_error),
+                'dryRun': False,
+                'continueOnError': continue_on_error,
+                'executed': [cls.dump_item_report(report) for report in reports],
+                'failed': failed,
+                'summary': cls.build_summary(reports, cls._count_planned_items(plan_payload)),
+            }
         ).to_payload()
 
     @staticmethod
@@ -396,7 +332,6 @@ class PluginBatchReportBuilder:
             'status': report.status,
             'message': report.message,
             'durationMs': report.duration_ms,
-            'exitCode': report.exit_code,
             'suggestion': report.suggestion,
         }
 

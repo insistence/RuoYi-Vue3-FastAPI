@@ -1,6 +1,36 @@
 # ruff: noqa: F403, F405
 
+from plugins.core.runtime.support import (
+    PluginDependencyInstallPayloadBuilder as PackageDependencyInstallPayloadBuilder,
+)
+from plugins.core.runtime.support import (
+    PluginNpmPackageJsonSynchronizer as PackageNpmPackageJsonSynchronizer,
+)
+from plugins.core.runtime.support.npm_package import (
+    PluginNpmPackageJsonSynchronizer as NpmPackageJsonSynchronizer,
+)
+from plugins.core.runtime.support.payload.dependencies import (
+    PluginDependencyInstallPayloadBuilder as DependencyInstallPayloadBuilder,
+)
 from tests.plugin_runtime_helpers import *
+
+
+def test_plugin_dependency_payload_module_matches_package_export() -> None:
+    """
+    校验依赖安装 payload builder 的 canonical 模块与 package 导出一致。
+
+    :return: None
+    """
+    assert DependencyInstallPayloadBuilder is PackageDependencyInstallPayloadBuilder
+
+
+def test_plugin_dependency_npm_package_module_matches_package_export() -> None:
+    """
+    校验 npm package 同步器的 canonical 模块与 package 导出一致。
+
+    :return: None
+    """
+    assert NpmPackageJsonSynchronizer is PackageNpmPackageJsonSynchronizer
 
 
 def test_plugin_purge_payload_builder_builds_dry_run_payload() -> None:
@@ -53,12 +83,7 @@ def test_plugin_purge_state_payload_model_serializes_dry_run_payload() -> None:
         requires_hook=False,
     )
 
-    payload = PluginPurgeStatePayload(
-        plugin_id='demo',
-        plan=plan,
-        dry_run=True,
-        message='插件物理清理演练完成，未执行实际删除',
-    ).to_payload()
+    payload = PluginPurgePayloadBuilder.build_dry_run_payload('demo', plan)
 
     assert payload['ok'] is True
     assert payload['message'] == '插件物理清理演练完成，未执行实际删除'
@@ -126,12 +151,11 @@ def test_plugin_batch_plan_blocked_payload_model_serializes_payload() -> None:
         'plan': {'orderedPluginIds': ['demo']},
     }
 
-    payload = PluginBatchPlanBlockedPayload(
-        plan_payload=plan_payload,
+    payload = PluginBatchReportBuilder.build_plan_blocked_payload(
+        plan_payload,
         dry_run=False,
         continue_on_error=True,
-        summary={'total': 1, 'succeeded': 0, 'failed': 0, 'skipped': 1},
-    ).to_payload()
+    )
 
     assert payload['ok'] is False
     assert payload['message'] == '插件批量操作计划存在阻塞项，未执行任何写操作'
@@ -175,11 +199,7 @@ def test_plugin_batch_dry_run_payload_model_serializes_payload() -> None:
         'plan': {'requestedPluginIds': ['app'], 'orderedPluginIds': ['base', 'app']},
     }
 
-    payload = PluginBatchDryRunPayload(
-        plan_payload=plan_payload,
-        continue_on_error=False,
-        summary={'total': 1, 'succeeded': 0, 'failed': 0, 'skipped': 1},
-    ).to_payload()
+    payload = PluginBatchReportBuilder.build_dry_run_payload(plan_payload, continue_on_error=False)
 
     assert payload['ok'] is True
     assert payload['message'] == '插件批量操作演练完成，未执行实际写入'
@@ -240,7 +260,6 @@ def test_plugin_batch_report_builder_builds_execution_payload() -> None:
             status='success',
             message='成功',
             duration_ms=1,
-            exit_code=0,
             suggestion='',
         ),
         PluginBatchItemReport(
@@ -250,7 +269,6 @@ def test_plugin_batch_report_builder_builds_execution_payload() -> None:
             status='failed',
             message='失败',
             duration_ms=2,
-            exit_code=1,
             suggestion='检查失败原因',
         ),
     ]
@@ -289,7 +307,6 @@ def test_plugin_batch_execution_payload_model_serializes_payload() -> None:
             status='success',
             message='成功',
             duration_ms=1,
-            exit_code=0,
             suggestion='',
         ),
         PluginBatchItemReport(
@@ -299,20 +316,17 @@ def test_plugin_batch_execution_payload_model_serializes_payload() -> None:
             status='failed',
             message='失败',
             duration_ms=2,
-            exit_code=1,
             suggestion='检查失败原因',
         ),
     ]
     failed = {'pluginId': 'beta', 'result': {'ok': False, 'message': '失败'}}
 
-    payload = PluginBatchExecutionPayload(
-        plan_payload=plan_payload,
+    payload = PluginBatchReportBuilder.build_execution_payload(
+        plan_payload,
         reports=reports,
         failed=failed,
         continue_on_error=True,
-        message='插件批量操作完成，存在失败项',
-        summary={'total': 2, 'succeeded': 1, 'failed': 1, 'skipped': 0},
-    ).to_payload()
+    )
 
     assert payload['ok'] is False
     assert payload['message'] == '插件批量操作完成，存在失败项'
@@ -321,7 +335,6 @@ def test_plugin_batch_execution_payload_model_serializes_payload() -> None:
     assert [item['pluginId'] for item in payload['executed']] == ['alpha', 'beta']
     assert payload['failed'] == failed
     assert payload['summary'] == {'total': 2, 'succeeded': 1, 'failed': 1, 'skipped': 0}
-    assert payload['exit_code'] == RUNTIME_ERROR
 
 
 def test_plugin_dependency_install_payload_builder_builds_dry_run_payload() -> None:
@@ -363,9 +376,9 @@ def test_plugin_dependency_install_payload_builder_builds_dry_run_payload() -> N
     assert payload['plan'][0]['commandText'].endswith('pip install missing-python')
 
 
-def test_plugin_dependency_install_payload_model_serializes_dry_run_payload() -> None:
+def test_plugin_dependency_install_payload_builder_builds_payload_from_dependency_result() -> None:
     """
-    校验插件依赖安装结构化模型可序列化为现有预演负载契约。
+    校验插件依赖安装负载构建器可从依赖检查结果构建负载契约。
 
     :return: None
     """
@@ -379,15 +392,14 @@ def test_plugin_dependency_install_payload_model_serializes_dry_run_payload() ->
         reason='缺失依赖',
     )
 
-    payload = PluginDependencyInstallPayload.from_dependency_result(
+    payload = PluginDependencyInstallPayloadBuilder.build_payload(
         plugin_id='demo',
         dependency_result=dependency_result,
         install_plan_items=[plan_item],
         dry_run=True,
         ok=True,
         message='插件依赖安装演练完成，未执行实际安装',
-        exit_code=SUCCESS,
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件依赖安装演练完成，未执行实际安装'
@@ -396,7 +408,6 @@ def test_plugin_dependency_install_payload_model_serializes_dry_run_payload() ->
     assert payload['dependencyOk'] is True
     assert payload['planCount'] == 1
     assert payload['plan'][0]['name'] == 'missing-python'
-    assert payload['exit_code'] == SUCCESS
 
 
 def test_plugin_dependency_install_payload_builder_builds_execution_payload() -> None:
@@ -435,7 +446,6 @@ def test_plugin_dependency_install_payload_builder_builds_execution_payload() ->
 
     assert payload['ok'] is False
     assert payload['message'] == '插件依赖安装存在失败项'
-    assert payload['exit_code'] == DEPENDENCY_ERROR
     assert payload['results'] == [install_result]
 
 

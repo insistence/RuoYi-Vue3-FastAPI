@@ -7,8 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
 from module_admin.dao.job_dao import JobDao
+from plugins.core.capability import PluginRuntimeCapabilityResolver
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
+from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT
 from plugins.core.lifecycle.jobs import PluginJobInstaller
 from plugins.core.lifecycle.purge import PluginPurgePlan, PluginPurgePlanner
 from plugins.core.management.dao.dao import PluginDao
@@ -32,8 +34,6 @@ from plugins.core.management.service.config import PluginConfigManager
 from plugins.core.management.service.logs import PluginOperationLogBuilder
 from plugins.core.management.service.menus import PluginMenuInstaller
 from plugins.core.manifest.menu_tree import PluginMenuTree
-from plugins.core.runtime.capability import PluginRuntimeCapabilityResolver
-from plugins.core.runtime.service.environment import PLUGIN_RUNTIME_ENVIRONMENT
 from plugins.core.state import PluginStateResolver, PluginStateSnapshot, PluginStateTransitionTable
 from plugins.core.validation.menus import PluginMenuConflictItem
 from utils.common_util import CamelCaseUtil

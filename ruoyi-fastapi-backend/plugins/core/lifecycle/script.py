@@ -4,6 +4,7 @@ from pathlib import Path
 from types import ModuleType
 
 SQL_LINE_COMMENT_PATTERN = re.compile(r'^\s*--')
+SQL_DELIMITER_PATTERN = re.compile(r'^\s*DELIMITER\b', re.IGNORECASE)
 DATABASE_DIALECT_DIRS = {'mysql', 'postgresql'}
 
 
@@ -28,6 +29,8 @@ class PluginLifecycleScriptHelper:
         for line in sql_content.splitlines():
             if not line.strip() or SQL_LINE_COMMENT_PATTERN.match(line):
                 continue
+            if SQL_DELIMITER_PATTERN.match(line):
+                raise RuntimeError('插件 SQL 脚本暂不支持 DELIMITER，请改用 Python migration 或拆分为简单 SQL 文件')
             current_lines.append(line)
             if line.rstrip().endswith(';'):
                 statement_chunks.append('\n'.join(current_lines))

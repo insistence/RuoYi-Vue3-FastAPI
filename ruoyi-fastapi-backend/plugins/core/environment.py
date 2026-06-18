@@ -26,7 +26,7 @@ class PluginRuntimeEnvironmentService:
         :param python_executable: Python 可执行文件路径
         :return: None
         """
-        self.backend_root = backend_root or Path(__file__).parents[4]
+        self.backend_root = backend_root or Path(__file__).parents[2]
         self.python_executable = python_executable or 'python'
         self.frontend_mode = self._get_frontend_mode()
         self.backend_runtime_mode = self._get_backend_runtime_mode()

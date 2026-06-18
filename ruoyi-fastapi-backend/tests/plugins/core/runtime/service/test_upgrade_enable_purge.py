@@ -893,6 +893,129 @@ dependencies:
     assert FakePluginService.operation_logs[0].payload['operation'] == 'enable'
 
 
+def test_plugin_runtime_disable_blocks_enabled_dependents(tmp_path: Path) -> None:
+    """
+    校验停用被启用插件依赖的插件时会阻断写库。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    base_root = backend_root / 'plugins' / 'base'
+    app_root = backend_root / 'plugins' / 'app'
+    write_manifest(
+        base_root,
+        """
+id: base
+name: Base
+version: 1.0.0
+backend:
+  module: plugins.base
+frontend:
+  menus: []
+dependencies:
+  python: []
+  npm: []
+""",
+    )
+    write_manifest(
+        app_root,
+        """
+id: app
+name: App
+version: 1.0.0
+backend:
+  module: plugins.app
+frontend:
+  menus: []
+dependencies:
+  python: []
+  npm: []
+  plugins:
+    - base
+""",
+    )
+    create_controller_dir(base_root)
+    create_controller_dir(app_root)
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    FakePluginService.plugin_list = [
+        SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed'),
+        SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed'),
+    ]
+
+    result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).set_plugin_enabled('base', enabled=False))
+
+    assert result['ok'] is False
+    assert result['message'] == '插件仍被已启用插件依赖，操作已中止'
+    assert result['operation'] == 'disable'
+    assert result['pluginDependencyErrors'][0]['status'] == 'dependent'
+    assert result['pluginDependencyErrors'][0]['pluginId'] == 'app'
+    assert FakePluginService.update_enabled_called_with is None
+
+
+def test_plugin_runtime_disable_dry_run_reports_enabled_dependents(tmp_path: Path) -> None:
+    """
+    校验停用预演会暴露被依赖方检查结果但不失败。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    base_root = backend_root / 'plugins' / 'base'
+    app_root = backend_root / 'plugins' / 'app'
+    write_manifest(
+        base_root,
+        """
+id: base
+name: Base
+version: 1.0.0
+backend:
+  module: plugins.base
+frontend:
+  menus: []
+dependencies:
+  python: []
+  npm: []
+""",
+    )
+    write_manifest(
+        app_root,
+        """
+id: app
+name: App
+version: 1.0.0
+backend:
+  module: plugins.app
+frontend:
+  menus: []
+dependencies:
+  python: []
+  npm: []
+  plugins:
+    - base
+""",
+    )
+    create_controller_dir(base_root)
+    create_controller_dir(app_root)
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    FakePluginService.plugin_list = [
+        SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed'),
+        SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed'),
+    ]
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).set_plugin_enabled('base', enabled=False, dry_run=True)
+    )
+
+    assert result['ok'] is True
+    assert result['dryRun'] is True
+    assert result['pluginDependencyOk'] is False
+    assert result['actions'][0]['name'] == 'check_plugin_dependents'
+    assert FakePluginService.update_enabled_called_with is None
+
+
 def test_plugin_runtime_set_plugin_enabled_uses_injected_dependencies(tmp_path: Path) -> None:
     """
     校验插件启用使用构造期注入的集中依赖对象。
@@ -1151,6 +1274,67 @@ dependencies:
     assert result['manifestOk'] is True
     assert result['precheck']['structureErrors'] == []
     assert result['safeMode'] is True
+
+
+def test_plugin_runtime_uninstall_plugin_blocks_enabled_dependents(tmp_path: Path) -> None:
+    """
+    校验卸载被启用插件依赖的插件时会阻断写库。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    base_root = backend_root / 'plugins' / 'base'
+    app_root = backend_root / 'plugins' / 'app'
+    write_manifest(
+        base_root,
+        """
+id: base
+name: Base
+version: 1.0.0
+backend:
+  module: plugins.base
+frontend:
+  menus: []
+dependencies:
+  python: []
+  npm: []
+""",
+    )
+    write_manifest(
+        app_root,
+        """
+id: app
+name: App
+version: 1.0.0
+backend:
+  module: plugins.app
+frontend:
+  menus: []
+dependencies:
+  python: []
+  npm: []
+  plugins:
+    - base
+""",
+    )
+    create_controller_dir(base_root)
+    create_controller_dir(app_root)
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    FakePluginService.plugin_list = [
+        SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed'),
+        SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed'),
+    ]
+
+    result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).uninstall_plugin('base'))
+
+    assert result['ok'] is False
+    assert result['operation'] == 'uninstall'
+    assert result['safeMode'] is True
+    assert result['pluginDependencyErrors'][0]['status'] == 'dependent'
+    assert result['pluginDependencyErrors'][0]['pluginId'] == 'app'
+    assert FakePluginService.mark_uninstalled_called_with is None
 
 
 def test_plugin_runtime_uninstall_plugin_marks_plugin_uninstalled(tmp_path: Path) -> None:

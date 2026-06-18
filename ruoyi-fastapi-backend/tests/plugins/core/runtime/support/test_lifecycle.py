@@ -31,11 +31,11 @@ def test_plugin_install_dry_run_payload_model_serializes_payload() -> None:
     """
     precheck = build_fake_lifecycle_precheck()
 
-    payload = PluginInstallDryRunPayload(
-        plugin_id='demo',
-        actions=[{'name': 'upsert_plugin'}],
-        precheck=precheck,
-    ).to_payload()
+    payload = PluginLifecyclePayloadBuilder.build_install_dry_run_payload(
+        'demo',
+        [{'name': 'upsert_plugin'}],
+        precheck,
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件安装演练完成，未执行实际写入'
@@ -63,7 +63,6 @@ def test_plugin_lifecycle_payload_builder_builds_precheck_blocker_payload() -> N
 
     assert payload['ok'] is False
     assert payload['structureOk'] is False
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_lifecycle_precheck_blocker_payload_model_serializes_payload() -> None:
@@ -74,13 +73,13 @@ def test_plugin_lifecycle_precheck_blocker_payload_model_serializes_payload() ->
     """
     precheck = build_fake_lifecycle_precheck(ok=False)
 
-    payload = PluginLifecyclePrecheckBlockerPayload(
-        plugin_id='demo',
+    payload = PluginLifecyclePayloadBuilder.build_precheck_blocker_payload(
+        'demo',
         message='插件结构检查失败，安装已中止',
         actions=[{'name': 'check_structure'}],
         precheck=precheck,
         extra_payload={'structureOk': False},
-    ).to_payload()
+    )
 
     assert payload['ok'] is False
     assert payload['message'] == '插件结构检查失败，安装已中止'
@@ -88,7 +87,6 @@ def test_plugin_lifecycle_precheck_blocker_payload_model_serializes_payload() ->
     assert payload['dryRun'] is False
     assert payload['structureOk'] is False
     assert payload['actions'][0]['name'] == 'check_structure'
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_lifecycle_payload_builder_builds_first_precheck_blocker_payload() -> None:
@@ -110,7 +108,6 @@ def test_plugin_lifecycle_payload_builder_builds_first_precheck_blocker_payload(
     assert payload['ok'] is False
     assert payload['message'] == '插件 manifest 检查失败，安装已中止'
     assert payload['manifestOk'] is False
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_lifecycle_payload_builder_skips_first_precheck_blocker_when_ok() -> None:
@@ -175,13 +172,13 @@ def test_plugin_lifecycle_menu_conflict_payload_model_serializes_payload() -> No
         message='权限已存在',
     )
 
-    payload = PluginLifecycleMenuConflictPayload(
-        plugin_id='demo',
+    payload = PluginLifecyclePayloadBuilder.build_installed_menu_conflict_payload(
+        'demo',
         message='插件菜单与已安装菜单存在冲突，安装已中止',
         actions=[{'name': 'install_menus'}],
         precheck=precheck,
         installed_menu_conflicts=[installed_conflict],
-    ).to_payload()
+    )
 
     assert payload['ok'] is False
     assert payload['message'] == '插件菜单与已安装菜单存在冲突，安装已中止'
@@ -189,7 +186,6 @@ def test_plugin_lifecycle_menu_conflict_payload_model_serializes_payload() -> No
     assert payload['dryRun'] is False
     assert payload['menuConflictOk'] is False
     assert payload['menuConflicts'][0]['value'] == 'demo:list'
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_lifecycle_payload_builder_builds_upgrade_latest_payload() -> None:
@@ -220,16 +216,16 @@ def test_plugin_lifecycle_upgrade_latest_payload_model_serializes_payload() -> N
     """
     precheck = build_fake_lifecycle_precheck()
 
-    payload = PluginLifecycleUpgradeLatestPayload(
-        plugin_id='demo',
-        version_state={
+    payload = PluginLifecyclePayloadBuilder.build_upgrade_latest_payload(
+        'demo',
+        {
             'installed': True,
             'installedVersion': '1.0.0',
             'currentVersion': '1.0.0',
             'needsUpgrade': False,
         },
-        precheck=precheck,
-    ).to_payload()
+        precheck,
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件已是最新版本，无需升级'
@@ -247,14 +243,14 @@ def test_plugin_lifecycle_operation_dry_run_payload_model_serializes_payload() -
     """
     precheck = build_fake_lifecycle_precheck()
 
-    payload = PluginLifecycleOperationDryRunPayload(
-        plugin_id='demo',
+    payload = PluginLifecyclePayloadBuilder.build_operation_dry_run_payload(
+        'demo',
         operation='upgrade',
         message='插件升级演练完成，未执行实际写入',
         actions=[{'name': 'upgrade_plugin'}],
         precheck=precheck,
         extra_payload={'needsUpgrade': True},
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件升级演练完成，未执行实际写入'
@@ -265,7 +261,6 @@ def test_plugin_lifecycle_operation_dry_run_payload_model_serializes_payload() -
     assert payload['actions'][0]['name'] == 'upgrade_plugin'
     assert payload['precheck']['manifestOk'] is True
     assert payload['precheck']['dependencyOk'] is True
-    assert payload['exit_code'] == SUCCESS
 
 
 def test_plugin_lifecycle_payload_builder_builds_success_payload() -> None:
@@ -313,8 +308,8 @@ def test_plugin_lifecycle_success_payload_model_serializes_payload() -> None:
     seed_result = SimpleNamespace(seed_path='seeds/001_seed.sql')
     hook_result = SimpleNamespace(hook='hooks:on_install')
 
-    payload = PluginLifecycleSuccessPayload(
-        plugin_id='demo',
+    payload = PluginLifecyclePayloadBuilder.build_success_payload(
+        'demo',
         message='插件安装完成',
         actions=[{'name': 'upsert_plugin'}],
         precheck=precheck,
@@ -324,7 +319,7 @@ def test_plugin_lifecycle_success_payload_model_serializes_payload() -> None:
         seed_results=[seed_result],
         hook_result=hook_result,
         extra_payload={'dependencyInstall': {'ok': True}},
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件安装完成'
@@ -385,7 +380,7 @@ def test_plugin_enable_dependency_payload_model_serializes_payload() -> None:
         ],
     )
 
-    payload = PluginEnableDependencyPayload(result).to_payload()
+    payload = PluginEnablePayloadBuilder.build_dependency_payload(result)
 
     assert payload['pluginDependencyOk'] is False
     assert payload['pluginDependencyErrors'][0]['dependencyId'] == 'base'
@@ -417,15 +412,12 @@ def test_plugin_enable_state_payload_model_serializes_dry_run_payload() -> None:
 
     :return: None
     """
-    payload = PluginEnableStatePayload(
-        plugin_id='demo',
+    payload = PluginEnablePayloadBuilder.build_dry_run_payload(
+        'demo',
         operation='enable',
         enabled=True,
-        dry_run=True,
-        ok=True,
-        message='插件启停演练完成，未执行实际写入',
         dependency_payload={'pluginDependencyOk': True},
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件启停演练完成，未执行实际写入'
@@ -452,7 +444,24 @@ def test_plugin_enable_payload_builder_builds_blocker_payload() -> None:
 
     assert payload['ok'] is False
     assert payload['message'] == '插件间依赖检查失败，启用已中止'
-    assert payload['exit_code'] == DEPENDENCY_ERROR
+
+
+def test_plugin_disable_payload_builder_builds_dependent_blocker_payload() -> None:
+    """
+    校验插件停用阻断负载使用被依赖方语义。
+
+    :return: None
+    """
+    payload = PluginEnablePayloadBuilder.build_dependency_blocker_payload(
+        'base',
+        operation='disable',
+        enabled=False,
+        dependency_payload={'pluginDependencyOk': False, 'pluginDependencyErrors': []},
+    )
+
+    assert payload['ok'] is False
+    assert payload['message'] == '插件仍被已启用插件依赖，操作已中止'
+    assert payload['actions'][0]['name'] == 'check_plugin_dependents'
 
 
 def test_plugin_enable_dependency_blocker_payload_model_serializes_payload() -> None:
@@ -461,12 +470,12 @@ def test_plugin_enable_dependency_blocker_payload_model_serializes_payload() -> 
 
     :return: None
     """
-    payload = PluginEnableDependencyBlockerPayload(
-        plugin_id='demo',
+    payload = PluginEnablePayloadBuilder.build_dependency_blocker_payload(
+        'demo',
         operation='enable',
         enabled=True,
         dependency_payload={'pluginDependencyOk': False, 'pluginDependencyErrors': []},
-    ).to_payload()
+    )
 
     assert payload['ok'] is False
     assert payload['message'] == '插件间依赖检查失败，启用已中止'
@@ -474,7 +483,6 @@ def test_plugin_enable_dependency_blocker_payload_model_serializes_payload() -> 
     assert payload['operation'] == 'enable'
     assert payload['enabled'] is True
     assert payload['dryRun'] is False
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_enable_update_failure_payload_model_serializes_payload() -> None:
@@ -483,12 +491,12 @@ def test_plugin_enable_update_failure_payload_model_serializes_payload() -> None
 
     :return: None
     """
-    payload = PluginEnableUpdateFailurePayload(
-        plugin_id='demo',
+    payload = PluginEnablePayloadBuilder.build_update_failure_payload(
+        'demo',
         operation='disable',
         enabled=False,
         message='插件状态写入失败',
-    ).to_payload()
+    )
 
     assert payload == {
         'ok': False,
@@ -497,7 +505,6 @@ def test_plugin_enable_update_failure_payload_model_serializes_payload() -> None
         'operation': 'disable',
         'enabled': False,
         'dryRun': False,
-        'exit_code': RUNTIME_ERROR,
     }
 
 
@@ -529,10 +536,10 @@ def test_plugin_safe_uninstall_payload_model_serializes_payload() -> None:
 
     :return: None
     """
-    payload = PluginSafeUninstallPayload(
-        result={'ok': True, 'message': '插件已停用', 'pluginId': 'demo'},
+    payload = PluginEnablePayloadBuilder.build_uninstall_payload(
+        {'ok': True, 'message': '插件已停用', 'pluginId': 'demo'},
         dry_run=False,
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件已停用'

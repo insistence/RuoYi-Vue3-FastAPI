@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from plugins.core.management.service.service import PluginService
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from common.vo import CrudResponseModel
+    from plugins.core.discovery.registry import PluginRegistry
+    from plugins.core.discovery.scanner import DiscoveredPlugin
+    from plugins.core.management.entity.vo.schemas import PluginModel
+
+
+class PluginManagementStartupGateway:
+    """
+    插件启动期管理端口适配器。
+    """
+
+    async def list_plugins(self, query_db: AsyncSession) -> list[Any]:
+        """
+        获取数据库插件状态列表。
+
+        :param query_db: orm对象
+        :return: 插件状态列表
+        """
+        return await PluginService.get_plugin_list_services(query_db)
+
+    async def install_enabled_plugin_menus(
+        self,
+        query_db: AsyncSession,
+        plugin_registry: PluginRegistry,
+    ) -> None:
+        """
+        安装启用插件菜单。
+
+        :param query_db: orm对象
+        :param plugin_registry: 插件运行时注册表
+        :return: None
+        """
+        await PluginService.install_enabled_plugin_menu_services(query_db, plugin_registry)
+
+    async def install_enabled_plugin_configs(
+        self,
+        query_db: AsyncSession,
+        plugin_registry: PluginRegistry,
+    ) -> None:
+        """
+        安装启用插件配置。
+
+        :param query_db: orm对象
+        :param plugin_registry: 插件运行时注册表
+        :return: None
+        """
+        await PluginService.install_enabled_plugin_config_services(query_db, plugin_registry)
+
+    async def install_enabled_plugin_jobs(
+        self,
+        query_db: AsyncSession,
+        plugin_registry: PluginRegistry,
+    ) -> None:
+        """
+        安装启用插件定时任务。
+
+        :param query_db: orm对象
+        :param plugin_registry: 插件运行时注册表
+        :return: None
+        """
+        await PluginService.install_enabled_plugin_job_services(query_db, plugin_registry)
+
+    async def mark_plugin_error(
+        self,
+        query_db: AsyncSession,
+        plugin_id: str,
+        error_message: str,
+    ) -> CrudResponseModel:
+        """
+        标记插件运行时异常。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param error_message: 错误信息
+        :return: 操作响应
+        """
+        return await PluginService.mark_plugin_error_services(query_db, plugin_id, error_message)
+
+    async def upsert_discovered_plugin(
+        self,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+        backend_root: Path,
+    ) -> PluginModel:
+        """
+        写入或更新已发现插件。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
+        :param backend_root: 后端插件根目录
+        :return: 插件信息
+        """
+        return await PluginService.upsert_discovered_plugin_services(
+            query_db,
+            discovered_plugin,
+            backend_root,
+        )

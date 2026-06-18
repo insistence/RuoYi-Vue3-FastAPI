@@ -9,13 +9,12 @@ def test_plugin_runtime_exception_payload_model_serializes_payload() -> None:
 
     :return: None
     """
-    payload = PluginRuntimeExceptionPayload('插件安装失败', RuntimeError('boom')).to_payload()
+    payload = PluginRuntimePayloadBuilder.build_exception_payload('插件安装失败', RuntimeError('boom'))
 
     assert payload == {
         'ok': False,
         'message': '插件安装失败',
         'error': 'boom',
-        'exit_code': RUNTIME_ERROR,
     }
 
 
@@ -67,7 +66,7 @@ def test_plugin_runtime_health_payload_model_serializes_payload() -> None:
         error=None,
     )
 
-    payload = PluginRuntimeHealthPayload(health_result).to_payload()
+    payload = PluginRuntimePayloadBuilder.build_health_payload(health_result)
 
     assert payload == {
         'pluginId': 'demo',
@@ -103,7 +102,6 @@ def test_plugin_runtime_payload_builder_builds_health_response_payload() -> None
     assert payload['ok'] is False
     assert payload['pluginId'] == 'demo'
     assert payload['health']['status'] == 'unhealthy'
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_runtime_health_response_payload_model_serializes_payload() -> None:
@@ -123,13 +121,12 @@ def test_plugin_runtime_health_response_payload_model_serializes_payload() -> No
         error='boom',
     )
 
-    payload = PluginRuntimeHealthResponsePayload('demo', health_result).to_payload()
+    payload = PluginRuntimePayloadBuilder.build_health_response_payload('demo', health_result)
 
     assert payload['ok'] is False
     assert payload['message'] == 'failed'
     assert payload['pluginId'] == 'demo'
     assert payload['health']['status'] == 'unhealthy'
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_operation_result_treats_missing_ok_as_failure() -> None:
@@ -182,16 +179,15 @@ def test_plugin_runtime_invalid_operation_payload_model_serializes_payload() -> 
 
     :return: None
     """
-    payload = PluginRuntimeInvalidOperationPayload(
+    payload = PluginRuntimePayloadBuilder.build_invalid_operation_payload(
         None,
         'purge',
         message='插件计划操作不支持：purge',
-    ).to_payload()
+    )
 
     assert payload['ok'] is False
     assert payload['message'] == '插件计划操作不支持：purge'
     assert payload['operation'] == 'purge'
-    assert payload['exit_code'] == RUNTIME_ERROR
     assert 'pluginId' not in payload
 
 
@@ -214,12 +210,11 @@ def test_plugin_runtime_batch_item_unsupported_payload_model_serializes_payload(
 
     :return: None
     """
-    payload = PluginRuntimeBatchItemUnsupportedPayload('purge', 'demo').to_payload()
+    payload = PluginRuntimePayloadBuilder.build_batch_item_unsupported_payload('purge', 'demo')
 
     assert payload['ok'] is False
     assert payload['message'] == '插件批量操作不支持：purge'
     assert payload['pluginId'] == 'demo'
-    assert payload['exit_code'] == RUNTIME_ERROR
 
 
 def test_plugin_runtime_payload_builder_builds_failure_state_message() -> None:
@@ -332,14 +327,12 @@ def test_plugin_runtime_upgrade_blocker_payload_model_serializes_not_installed_p
         'needsUpgrade': True,
     }
 
-    payload = PluginRuntimeUpgradeBlockerPayload(
-        plugin_id='demo',
-        message='插件尚未安装，升级已中止',
-        version_state=version_state,
-        actions=[{'name': 'check_installed_version'}],
-        precheck=precheck,
-        exit_code=RUNTIME_ERROR,
-    ).to_payload()
+    payload = PluginRuntimePayloadBuilder.build_upgrade_pre_execution_blocker(
+        'demo',
+        version_state,
+        [{'name': 'check_installed_version'}],
+        precheck,
+    )
 
     assert payload['ok'] is False
     assert payload['message'] == '插件尚未安装，升级已中止'
@@ -347,7 +340,6 @@ def test_plugin_runtime_upgrade_blocker_payload_model_serializes_not_installed_p
     assert payload['dryRun'] is False
     assert payload['installed'] is False
     assert payload['manifestOk'] is True
-    assert payload['exit_code'] == RUNTIME_ERROR
 
 
 def test_plugin_runtime_payload_builder_builds_diagnose_payload() -> None:
@@ -389,14 +381,14 @@ def test_plugin_runtime_diagnose_payload_model_serializes_payload() -> None:
     audit_payload = {'available': True, 'items': []}
     menu_plan = PluginRuntimePayloadBuilder.build_empty_menu_plan()
 
-    payload = PluginRuntimeDiagnosePayload(
-        plugin_id='demo',
+    payload = PluginRuntimePayloadBuilder.build_diagnose_payload(
+        'demo',
         info_payload=info_payload,
         check_payload=check_payload,
         menu_plan=menu_plan,
         config_payload=config_payload,
         audit_payload=audit_payload,
-    ).to_payload()
+    )
 
     assert payload['ok'] is True
     assert payload['message'] == '插件诊断包生成完成'
@@ -406,7 +398,6 @@ def test_plugin_runtime_diagnose_payload_model_serializes_payload() -> None:
     assert payload['menuPlan'] == menu_plan
     assert payload['config'] == config_payload
     assert payload['audit'] == audit_payload
-    assert payload['exit_code'] == SUCCESS
 
 
 def test_plugin_runtime_payload_builder_builds_diagnose_failure_payload() -> None:
@@ -415,14 +406,13 @@ def test_plugin_runtime_payload_builder_builds_diagnose_failure_payload() -> Non
 
     :return: None
     """
-    info_payload = {'ok': False, 'message': '插件不存在：demo', 'exit_code': RUNTIME_ERROR}
+    info_payload = {'ok': False, 'message': '插件不存在：demo'}
 
     payload = PluginRuntimePayloadBuilder.build_diagnose_failure_payload('demo', info_payload)
 
     assert payload['ok'] is False
     assert payload['pluginId'] == 'demo'
     assert payload['info'] == info_payload
-    assert payload['exit_code'] == RUNTIME_ERROR
 
 
 def test_plugin_runtime_diagnose_failure_payload_model_serializes_payload() -> None:
@@ -431,15 +421,14 @@ def test_plugin_runtime_diagnose_failure_payload_model_serializes_payload() -> N
 
     :return: None
     """
-    info_payload = {'ok': False, 'message': '插件不存在：demo', 'exit_code': RUNTIME_ERROR}
+    info_payload = {'ok': False, 'message': '插件不存在：demo'}
 
-    payload = PluginRuntimeDiagnoseFailurePayload('demo', info_payload).to_payload()
+    payload = PluginRuntimePayloadBuilder.build_diagnose_failure_payload('demo', info_payload)
 
     assert payload['ok'] is False
     assert payload['message'] == '插件诊断包生成失败'
     assert payload['pluginId'] == 'demo'
     assert payload['info'] == info_payload
-    assert payload['exit_code'] == RUNTIME_ERROR
 
 
 def test_plugin_runtime_payload_builder_builds_precheck_payload() -> None:
@@ -512,15 +501,15 @@ def test_plugin_runtime_precheck_payload_model_serializes_payload() -> None:
         requires_hook=False,
     )
 
-    payload = PluginRuntimePrecheckPayload(
-        plugin_id='demo',
-        operation='purge',
+    payload = PluginRuntimePayloadBuilder.build_precheck_payload(
+        'demo',
+        'purge',
         precheck=precheck,
         version_state={'installed': True, 'needsUpgrade': False},
         actions=[{'name': 'build_purge_plan'}],
         database_error='db unavailable',
         purge_plan=purge_plan,
-    ).to_payload()
+    )
 
     assert payload['ok'] is False
     assert payload['message'] == '插件操作预检存在问题'
@@ -531,4 +520,3 @@ def test_plugin_runtime_precheck_payload_model_serializes_payload() -> None:
     assert payload['dependencyOk'] is False
     assert payload['precheck'] == {'missingDependencies': ['missing-python']}
     assert payload['plan']['pluginId'] == 'demo'
-    assert payload['exit_code'] == DEPENDENCY_ERROR

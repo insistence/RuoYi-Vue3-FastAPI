@@ -1,12 +1,12 @@
 from dataclasses import dataclass
 
+from plugins.core.environment import PluginRuntimeEnvironmentService
 from plugins.core.validation.dependencies import PluginDependencyChecker
 
-from .environment import PluginRuntimeEnvironmentService
 from .gateway import PluginCommandRunnerGateway, PluginManagementModelGateway, PluginStateGateway
 
 
-@dataclass(frozen=True)
+@dataclass
 class PluginRuntimeDependencies:
     """
     插件运行时基础依赖集合。

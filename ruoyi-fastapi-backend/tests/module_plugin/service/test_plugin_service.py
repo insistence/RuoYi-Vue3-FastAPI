@@ -7,173 +7,41 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(BACKEND_ROOT))
 
+import module_plugin.service.plugin_service as plugin_service_module  # noqa: E402
 from config.database import Base  # noqa: E402
-from module_plugin.service.plugin_service import PluginOperationService  # noqa: E402
+from module_plugin.service.plugin_service import (  # noqa: E402
+    PluginOperationService,
+    get_plugin_operation_service,
+    get_plugin_runtime_service,
+)
 from plugins.core.management.entity.do.models import SysPluginOperationLog  # noqa: E402
 from plugins.core.management.service.service import PluginService  # noqa: E402
 
 
-@pytest.mark.asyncio
-async def test_plugin_operation_service_delegates_install_with_dry_run() -> None:
+def test_get_plugin_operation_service_reuses_singleton() -> None:
     """
-    校验插件操作服务会透传安装预演参数。
+    校验 Web 侧插件操作服务懒加载后复用同一实例。
 
     :return: None
     """
+    plugin_service_module._PLUGIN_OPERATION_SERVICE_CACHE.clear()
+    first_service = get_plugin_operation_service()
+    second_service = get_plugin_operation_service()
 
-    class FakeRuntimeService:
-        """
-        测试用插件运行时服务。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件运行时服务。
-
-            :return: None
-            """
-            self.called_with = None
-
-        async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
-            """
-            记录插件安装调用参数。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :return: 插件安装结果
-            """
-            self.called_with = (plugin_id, dry_run)
-            return {'ok': True, 'pluginId': plugin_id, 'dryRun': dry_run}
-
-    fake_runtime_service = FakeRuntimeService()
-    operation_service = PluginOperationService(runtime_service=fake_runtime_service)
-
-    result = await operation_service.install_plugin_services('demo', dry_run=True)
-
-    assert result['ok'] is True
-    assert fake_runtime_service.called_with == ('demo', True)
+    assert first_service is second_service
 
 
-@pytest.mark.asyncio
-async def test_plugin_operation_service_delegates_upgrade_with_dry_run() -> None:
+def test_get_plugin_runtime_service_reuses_singleton() -> None:
     """
-    校验插件操作服务会透传升级预演参数。
+    校验 Web 侧插件运行时服务懒加载后复用同一实例。
 
     :return: None
     """
+    plugin_service_module._PLUGIN_RUNTIME_SERVICE_CACHE.clear()
+    first_service = get_plugin_runtime_service()
+    second_service = get_plugin_runtime_service()
 
-    class FakeRuntimeService:
-        """
-        测试用插件运行时服务。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件运行时服务。
-
-            :return: None
-            """
-            self.called_with = None
-
-        async def upgrade_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
-            """
-            记录插件升级调用参数。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :return: 插件升级结果
-            """
-            self.called_with = (plugin_id, dry_run)
-            return {'ok': True, 'pluginId': plugin_id, 'dryRun': dry_run}
-
-    fake_runtime_service = FakeRuntimeService()
-    operation_service = PluginOperationService(runtime_service=fake_runtime_service)
-
-    result = await operation_service.upgrade_plugin_services('demo', dry_run=True)
-
-    assert result['ok'] is True
-    assert fake_runtime_service.called_with == ('demo', True)
-
-
-@pytest.mark.asyncio
-async def test_plugin_operation_service_delegates_uninstall_with_dry_run() -> None:
-    """
-    校验插件操作服务会透传安全卸载预演参数。
-
-    :return: None
-    """
-
-    class FakeRuntimeService:
-        """
-        测试用插件运行时服务。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件运行时服务。
-
-            :return: None
-            """
-            self.called_with = None
-
-        async def uninstall_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
-            """
-            记录插件安全卸载调用参数。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :return: 插件安全卸载结果
-            """
-            self.called_with = (plugin_id, dry_run)
-            return {'ok': True, 'pluginId': plugin_id, 'dryRun': dry_run}
-
-    fake_runtime_service = FakeRuntimeService()
-    operation_service = PluginOperationService(runtime_service=fake_runtime_service)
-
-    result = await operation_service.uninstall_plugin_services('demo', dry_run=True)
-
-    assert result['ok'] is True
-    assert fake_runtime_service.called_with == ('demo', True)
-
-
-@pytest.mark.asyncio
-async def test_plugin_operation_service_delegates_check() -> None:
-    """
-    校验插件操作服务会透传检查调用。
-
-    :return: None
-    """
-
-    class FakeRuntimeService:
-        """
-        测试用插件运行时服务。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件运行时服务。
-
-            :return: None
-            """
-            self.called_with = None
-
-        def check_plugin(self, plugin_id: str) -> dict[str, object]:
-            """
-            记录插件检查调用参数。
-
-            :param plugin_id: 插件ID
-            :return: 插件检查结果
-            """
-            self.called_with = plugin_id
-            return {'ok': True, 'pluginId': plugin_id}
-
-    fake_runtime_service = FakeRuntimeService()
-    operation_service = PluginOperationService(runtime_service=fake_runtime_service)
-
-    result = await operation_service.check_plugin_services('demo')
-
-    assert result['ok'] is True
-    assert fake_runtime_service.called_with == 'demo'
+    assert first_service is second_service
 
 
 @pytest.mark.asyncio

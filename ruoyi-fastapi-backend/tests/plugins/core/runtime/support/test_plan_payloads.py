@@ -31,14 +31,15 @@ def test_plugin_plan_payload_model_serializes_success_payload() -> None:
         blockers=[],
     )
 
-    payload = PluginPlanPayload(plan).to_payload()
+    payload = PluginPayloadBuilder.build_plan_payload(plan)
 
     assert payload['ok'] is True
     assert payload['message'] == '插件批量操作计划生成完成'
     assert payload['operation'] == 'install'
+    assert payload['databaseAvailable'] is True
+    assert payload['databaseError'] is None
     assert payload['plan']['orderedPluginIds'] == ['base', 'app']
     assert payload['plan']['items'][0]['ready'] is True
-    assert payload['exit_code'] == SUCCESS
 
 
 def test_plugin_plan_payload_model_serializes_blocked_payload() -> None:
@@ -75,14 +76,13 @@ def test_plugin_plan_payload_model_serializes_blocked_payload() -> None:
         blockers=[blocker],
     )
 
-    payload = PluginPlanPayload(plan).to_payload()
+    payload = PluginPayloadBuilder.build_plan_payload(plan)
 
     assert payload['ok'] is False
     assert payload['message'] == '插件批量操作计划存在阻塞项'
     assert payload['plan']['blockerCount'] == 1
     assert payload['plan']['items'][0]['ready'] is False
     assert payload['plan']['blockers'][0]['dependencyId'] == 'base'
-    assert payload['exit_code'] == DEPENDENCY_ERROR
 
 
 def test_plugin_upgrade_dry_run_payload_model_serializes_payload() -> None:
@@ -113,7 +113,7 @@ def test_plugin_upgrade_dry_run_payload_model_serializes_payload() -> None:
         'menuConflicts': [],
     }
 
-    payload = PluginUpgradeDryRunPayload('demo', payload_context).to_payload()
+    payload = PluginPayloadBuilder.build_upgrade_dry_run_payload('demo', payload_context)
 
     assert payload['ok'] is True
     assert payload['message'] == '插件升级演练完成，未执行实际写入'

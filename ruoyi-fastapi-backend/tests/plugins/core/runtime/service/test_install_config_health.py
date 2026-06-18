@@ -471,7 +471,7 @@ dependencies:
         python_inspector=PythonDependencyInspector(installed_packages={'missing-python': '1.0.0'}),
         npm_inspector=NpmDependencyInspector(installed_packages={'missing-npm': '1.2.3', 'missing-dev-npm': '4.5.6'}),
     )
-    runtime._refresh_dependency_checker = lambda: runtime._set_dependency_checker(refreshed_checker)
+    runtime.refresh_dependency_checker = lambda: runtime.set_dependency_checker(refreshed_checker)
 
     result = asyncio.run(runtime.install_plugin('demo'))
 
@@ -1023,7 +1023,6 @@ def test_plugin_runtime_health_plugin_reports_missing_plugin(tmp_path: Path) -> 
 
     assert result['ok'] is False
     assert result['pluginId'] == 'missing'
-    assert result['exit_code'] == RUNTIME_ERROR
 
 
 def test_plugin_runtime_install_plugin_runs_seed_files(tmp_path: Path) -> None:

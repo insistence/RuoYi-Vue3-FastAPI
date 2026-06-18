@@ -18,6 +18,7 @@ from module_admin.entity.do.menu_do import SysMenu  # noqa: E402
 from module_admin.entity.do.role_do import SysRoleMenu  # noqa: E402
 from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
 from plugins.core.discovery.scanner import DiscoveredPlugin  # noqa: E402
+from plugins.core.environment import PluginRuntimeEnvironmentService  # noqa: E402
 from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobModelBuilder  # noqa: E402
 from plugins.core.management.dao.dao import PluginDao  # noqa: E402
 from plugins.core.management.entity.do.models import (  # noqa: E402
@@ -38,7 +39,6 @@ from plugins.core.management.entity.vo.schemas import (  # noqa: E402
 from plugins.core.management.service.logs import PluginOperationLogBuilder  # noqa: E402
 from plugins.core.management.service.service import PluginService  # noqa: E402
 from plugins.core.manifest.schema import PluginManifest  # noqa: E402
-from plugins.core.runtime.service.environment import PluginRuntimeEnvironmentService  # noqa: E402
 
 INITIAL_MENU_ID = 100
 UPDATED_MENU_ID = 101

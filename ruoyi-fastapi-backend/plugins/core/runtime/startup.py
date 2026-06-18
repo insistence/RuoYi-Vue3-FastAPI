@@ -6,9 +6,12 @@ from fastapi import FastAPI
 from common.router import auto_register_plugin_routers
 from config.get_db import get_db
 from plugins.core.discovery.registry import RegisteredPlugin
-from plugins.core.management.service.service import PluginService
 from plugins.core.runtime.bootstrap import PluginRuntimeBuilder
 from plugins.core.runtime.hooks import PluginHookRunner
+from plugins.core.runtime.startup_gateway import (
+    PluginStartupManagementGateway,
+    UnavailablePluginStartupManagementGateway,
+)
 from utils.log_util import logger
 
 
@@ -20,14 +23,20 @@ class PluginRuntimeStartupManager:
     让 server.py 只保留高层启动顺序。
     """
 
-    def __init__(self, builder: PluginRuntimeBuilder | None = None) -> None:
+    def __init__(
+        self,
+        builder: PluginRuntimeBuilder | None = None,
+        management_gateway: PluginStartupManagementGateway | None = None,
+    ) -> None:
         """
         初始化插件运行时启动协调器。
 
         :param builder: 插件运行时构建器
+        :param management_gateway: 插件启动期管理端口
         :return: None
         """
         self.builder = builder or PluginRuntimeBuilder()
+        self.management_gateway = management_gateway or UnavailablePluginStartupManagementGateway()
 
     def bind_app(self, app: FastAPI) -> None:
         """
@@ -89,7 +98,7 @@ class PluginRuntimeStartupManager:
         :return: None
         """
         async for query_db in get_db():
-            plugin_list = await PluginService.get_plugin_list_services(query_db)
+            plugin_list = await self.management_gateway.list_plugins(query_db)
             app.state.plugin_registry = self.builder.build_registry(plugin_list)
 
     async def import_enabled_plugin_entities(self, app: FastAPI) -> None:
@@ -125,7 +134,7 @@ class PluginRuntimeStartupManager:
         :param app: FastAPI对象
         :return: None
         """
-        await self.install_enabled_plugin_resource(app, PluginService.install_enabled_plugin_menu_services)
+        await self.install_enabled_plugin_resource(app, self.management_gateway.install_enabled_plugin_menus)
 
     async def install_enabled_plugin_configs(self, app: FastAPI) -> None:
         """
@@ -134,7 +143,7 @@ class PluginRuntimeStartupManager:
         :param app: FastAPI对象
         :return: None
         """
-        await self.install_enabled_plugin_resource(app, PluginService.install_enabled_plugin_config_services)
+        await self.install_enabled_plugin_resource(app, self.management_gateway.install_enabled_plugin_configs)
 
     async def install_enabled_plugin_jobs(self, app: FastAPI) -> None:
         """
@@ -143,7 +152,7 @@ class PluginRuntimeStartupManager:
         :param app: FastAPI对象
         :return: None
         """
-        await self.install_enabled_plugin_resource(app, PluginService.install_enabled_plugin_job_services)
+        await self.install_enabled_plugin_resource(app, self.management_gateway.install_enabled_plugin_jobs)
 
     async def install_enabled_plugin_resource(
         self,
@@ -224,17 +233,17 @@ class PluginRuntimeStartupManager:
         :return: None
         """
         async for query_db in get_db():
-            result = await PluginService.mark_plugin_error_services(query_db, plugin_id, error_message)
+            result = await self.management_gateway.mark_plugin_error(query_db, plugin_id, error_message)
             if not result.is_success:
                 await query_db.rollback()
                 registered_plugin = self.get_registered_plugin(app, plugin_id)
                 if registered_plugin:
-                    await PluginService.upsert_discovered_plugin_services(
+                    await self.management_gateway.upsert_discovered_plugin(
                         query_db,
                         registered_plugin.discovered_plugin,
                         self.builder.plugins_root,
                     )
-                    result = await PluginService.mark_plugin_error_services(query_db, plugin_id, error_message)
+                    result = await self.management_gateway.mark_plugin_error(query_db, plugin_id, error_message)
             if result.is_success:
                 await query_db.commit()
             else:

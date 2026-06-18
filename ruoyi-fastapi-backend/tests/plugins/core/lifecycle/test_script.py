@@ -28,6 +28,25 @@ values (1);
     assert statements == ['create table demo(id int)', 'insert into demo(id)\nvalues (1)']
 
 
+def test_lifecycle_script_helper_rejects_delimiter_sql() -> None:
+    """
+    校验生命周期脚本工具拒绝 DELIMITER 复杂 SQL 脚本。
+
+    :return: None
+    """
+    with pytest.raises(RuntimeError, match='暂不支持 DELIMITER'):
+        PluginLifecycleScriptHelper.split_sql_statements(
+            """
+DELIMITER //
+CREATE PROCEDURE demo_proc()
+BEGIN
+  SELECT 1;
+END //
+DELIMITER ;
+"""
+        )
+
+
 def test_lifecycle_script_helper_filters_database_dialect_paths() -> None:
     """
     校验生命周期脚本工具按数据库方言过滤路径。

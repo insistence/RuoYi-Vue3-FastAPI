@@ -25,6 +25,7 @@ from plugins.core.management.entity.vo.schemas import (  # noqa: E402
 
 HTTP_OK = 200
 EXPECTED_RETENTION_MATCHED_COUNT = 2
+PLUGIN_OPERATION_FAILURE_EXIT_CODE = 10
 
 
 def build_request(path: str = '/system/plugin/batch', method: str = 'POST') -> object:
@@ -58,6 +59,28 @@ def load_response_body(response: object) -> dict:
     :return: 响应体字典
     """
     return json.loads(response.body.decode())
+
+
+def test_plugin_operation_response_hides_exit_code_from_web_payload() -> None:
+    """
+    校验 Web 插件操作响应不会暴露 CLI 退出码。
+
+    :return: None
+    """
+    payload = {
+        'ok': True,
+        'message': '插件操作完成',
+        'pluginId': 'demo',
+        'exit_code': PLUGIN_OPERATION_FAILURE_EXIT_CODE,
+    }
+
+    response = plugin_controller._plugin_operation_response(payload, '插件操作完成')
+    body = load_response_body(response)
+
+    assert body['success'] is True
+    assert body['data']['pluginId'] == 'demo'
+    assert 'exit_code' not in body['data']
+    assert payload['exit_code'] == PLUGIN_OPERATION_FAILURE_EXIT_CODE
 
 
 class FakeAsyncSession:
@@ -119,12 +142,12 @@ async def test_batch_system_plugins_accepts_json_body(monkeypatch: pytest.Monkey
     """
     recorded: dict[str, object] = {}
 
-    class FakePluginOperationService:
+    class FakePluginRuntimeService:
         """
-        测试用插件操作服务。
+        测试用插件运行时服务。
         """
 
-        async def batch_plugins_services(
+        async def batch_plugins(
             self,
             operation: str,
             plugin_ids: list[str] | None = None,
@@ -151,7 +174,7 @@ async def test_batch_system_plugins_accepts_json_body(monkeypatch: pytest.Monkey
             )
             return {'ok': True, 'message': '批量操作完成'}
 
-    monkeypatch.setattr(plugin_controller, 'PluginOperationService', FakePluginOperationService)
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
 
     response = await plugin_controller.batch_system_plugins(
         request=build_request('/system/plugin/batch'),
@@ -182,12 +205,12 @@ async def test_install_system_plugin_accepts_dry_run_query_param(monkeypatch: py
     """
     recorded: dict[str, object] = {}
 
-    class FakePluginOperationService:
+    class FakePluginRuntimeService:
         """
-        测试用插件操作服务。
+        测试用插件运行时服务。
         """
 
-        async def install_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
+        async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
             """
             记录安装参数。
 
@@ -198,7 +221,7 @@ async def test_install_system_plugin_accepts_dry_run_query_param(monkeypatch: py
             recorded.update({'plugin_id': plugin_id, 'dry_run': dry_run})
             return {'ok': True, 'message': '安装完成'}
 
-    monkeypatch.setattr(plugin_controller, 'PluginOperationService', FakePluginOperationService)
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
 
     response = await plugin_controller.install_system_plugin(
         request=build_request('/system/plugin/demo/install'),
@@ -221,12 +244,12 @@ async def test_install_system_plugin_returns_failure_when_runtime_payload_is_not
     :return: None
     """
 
-    class FakePluginOperationService:
+    class FakePluginRuntimeService:
         """
-        测试用插件操作服务。
+        测试用插件运行时服务。
         """
 
-        async def install_plugin_services(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
+        async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
             """
             返回失败安装结果。
 
@@ -236,7 +259,7 @@ async def test_install_system_plugin_returns_failure_when_runtime_payload_is_not
             """
             return {'ok': False, 'message': '插件安装失败', 'pluginId': plugin_id}
 
-    monkeypatch.setattr(plugin_controller, 'PluginOperationService', FakePluginOperationService)
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
 
     response = await plugin_controller.install_system_plugin(
         request=build_request('/system/plugin/demo/install'),
@@ -261,12 +284,12 @@ async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: py
     """
     recorded: dict[str, object] = {}
 
-    class FakePluginOperationService:
+    class FakePluginRuntimeService:
         """
-        测试用插件操作服务。
+        测试用插件运行时服务。
         """
 
-        async def install_plugin_dependencies_services(
+        def install_plugin_dependencies(
             self,
             plugin_id: str,
             *,
@@ -282,7 +305,7 @@ async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: py
             recorded.update({'plugin_id': plugin_id, 'dry_run': dry_run})
             return {'ok': True, 'message': '插件依赖安装演练完成', 'pluginId': plugin_id}
 
-    monkeypatch.setattr(plugin_controller, 'PluginOperationService', FakePluginOperationService)
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
 
     response = await plugin_controller.install_system_plugin_dependencies(
         request=build_request('/system/plugin/demo/dependencies/install'),
@@ -305,12 +328,12 @@ async def test_enable_system_plugin_returns_runtime_payload_when_not_ok(monkeypa
     :return: None
     """
 
-    class FakePluginOperationService:
+    class FakePluginRuntimeService:
         """
-        测试用插件操作服务。
+        测试用插件运行时服务。
         """
 
-        async def set_plugin_enabled_services(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict:
+        async def set_plugin_enabled(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict:
             """
             返回失败启用结果。
 
@@ -321,7 +344,7 @@ async def test_enable_system_plugin_returns_runtime_payload_when_not_ok(monkeypa
             """
             return {'ok': False, 'message': '启用失败', 'pluginId': plugin_id, 'enabled': enabled}
 
-    monkeypatch.setattr(plugin_controller, 'PluginOperationService', FakePluginOperationService)
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
 
     response = await plugin_controller.enable_system_plugin(
         request=build_request('/system/plugin/demo/enable', method='PUT'),
@@ -347,12 +370,12 @@ async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pyte
     """
     recorded: dict[str, object] = {}
 
-    class FakePluginOperationService:
+    class FakePluginRuntimeService:
         """
-        测试用插件操作服务。
+        测试用插件运行时服务。
         """
 
-        async def set_plugin_enabled_services(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict:
+        async def set_plugin_enabled(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict:
             """
             记录插件启停参数。
 
@@ -364,7 +387,7 @@ async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pyte
             recorded.update({'plugin_id': plugin_id, 'enabled': enabled, 'dry_run': dry_run})
             return {'ok': True, 'message': '停用成功', 'pluginId': plugin_id, 'enabled': enabled}
 
-    monkeypatch.setattr(plugin_controller, 'PluginOperationService', FakePluginOperationService)
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
 
     response = await plugin_controller.disable_system_plugin(
         request=build_request('/system/plugin/demo/disable', method='PUT'),

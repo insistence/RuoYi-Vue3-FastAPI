@@ -36,7 +36,7 @@ class PluginRuntimeGateway:
 
         :return: 插件核心运行时环境服务
         """
-        return import_module('plugins.core.runtime.service.environment').PLUGIN_RUNTIME_ENVIRONMENT
+        return import_module('plugins.core.environment').PLUGIN_RUNTIME_ENVIRONMENT
 
     @staticmethod
     def build_exception_payload(message: str, exc: Exception) -> dict[str, object]:

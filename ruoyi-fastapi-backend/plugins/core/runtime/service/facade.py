@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 from typing import cast
 
+from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT, PluginRuntimeEnvironmentService
 from plugins.core.types import PluginConfigValue
 from plugins.core.validation.dependencies import PluginDependencyChecker
 
@@ -10,7 +11,6 @@ from .config import PluginConfigUseCase
 from .context import PluginRuntimeContextService
 from .dependencies import PluginDependencyUseCase
 from .dependency_container import PluginRuntimeDependencies
-from .environment import PLUGIN_RUNTIME_ENVIRONMENT, PluginRuntimeEnvironmentService
 from .gateway import (
     DefaultPluginCommandRunnerGateway,
     PluginCommandRunnerGateway,
@@ -105,30 +105,22 @@ class PluginRuntimeService:
         self.tools = PluginToolUseCase(dependencies, context=self.context)
         self.upgrade = PluginUpgradeUseCase(dependencies, runtime_operations=self, context=self.context)
 
-    def _set_dependency_checker(self, dependency_checker: PluginDependencyChecker) -> None:
+    def set_dependency_checker(self, dependency_checker: PluginDependencyChecker) -> None:
         """
         替换插件依赖检查器。
 
         :param dependency_checker: 新的依赖检查器
         :return: None
         """
-        self._replace_dependencies(
-            PluginRuntimeDependencies(
-                runtime_environment=self.dependencies.runtime_environment,
-                dependency_checker=dependency_checker,
-                state_gateway=self.dependencies.state_gateway,
-                model_gateway=self.dependencies.model_gateway,
-                command_gateway=self.dependencies.command_gateway,
-            )
-        )
+        self.dependencies.dependency_checker = dependency_checker
 
-    def _refresh_dependency_checker(self) -> None:
+    def refresh_dependency_checker(self) -> None:
         """
         刷新插件 Python/npm 依赖检查器。
 
         :return: None
         """
-        self._set_dependency_checker(
+        self.set_dependency_checker(
             PluginDependencyChecker(
                 frontend_mode=self.dependencies.runtime_environment.get_frontend_mode(),
             )
@@ -306,7 +298,7 @@ class PluginRuntimeService:
             ),
         )
 
-    async def _execute_batch_plugin_item(self, operation: str, plugin_id: str) -> PluginBatchItemExecutionResponse:
+    async def execute_batch_plugin_item(self, operation: str, plugin_id: str) -> PluginBatchItemExecutionResponse:
         """
         执行单个批量插件操作项。
 
@@ -330,7 +322,7 @@ class PluginRuntimeService:
             'PluginDependencyInstallResponse', self.dependency.install_plugin_dependencies(plugin_id, dry_run=dry_run)
         )
 
-    def _install_plugin_dependencies_from_result(
+    def install_plugin_dependencies_from_result(
         self,
         plugin_id: str,
         dependency_result: object,
@@ -357,7 +349,34 @@ class PluginRuntimeService:
             ),
         )
 
-    async def _record_plugin_operation_log(
+    async def install_plugin_dependencies_from_result_async(
+        self,
+        plugin_id: str,
+        dependency_result: object,
+        *,
+        dry_run: bool = False,
+        discovered_plugin: object | None = None,
+    ) -> PluginDependencyInstallResponse:
+        """
+        根据既有依赖检查结果异步生成计划并执行依赖安装。
+
+        :param plugin_id: 插件ID
+        :param dependency_result: 依赖检查结果
+        :param dry_run: 是否仅预演
+        :param discovered_plugin: 已发现插件
+        :return: 插件依赖安装负载
+        """
+        return cast(
+            'PluginDependencyInstallResponse',
+            await self.dependency.install_plugin_dependencies_from_result_async(
+                plugin_id,
+                dependency_result,
+                dry_run=dry_run,
+                discovered_plugin=discovered_plugin,
+            ),
+        )
+
+    async def record_plugin_operation_log(
         self,
         payload: Mapping[str, object],
         *,
@@ -378,7 +397,7 @@ class PluginRuntimeService:
             continue_on_error=continue_on_error,
         )
 
-    async def _record_plugin_failure_state(self, payload: Mapping[str, object], default_message: str) -> None:
+    async def record_plugin_failure_state(self, payload: Mapping[str, object], default_message: str) -> None:
         """
         记录插件操作失败状态。
 

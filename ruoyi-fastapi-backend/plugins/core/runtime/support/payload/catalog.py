@@ -1,52 +1,53 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, TypedDict
+from typing import TYPE_CHECKING, TypeAlias
+
+from pydantic import Field
 
 from plugins.core.discovery.registry import RegisteredPlugin
 from plugins.core.manifest.menu_tree import PluginMenuTree
 
-from .validation import PluginValidationPayloadBuilderProtocol, PluginValidationPayloadMixin
+from .base import PluginPayloadModel
 
 if TYPE_CHECKING:
     from plugins.core.discovery.scanner import DiscoveredPlugin
     from plugins.core.manifest.schema import PluginConfigItemManifest, PluginJobManifest, PluginMenuManifest
-    from plugins.core.types import PluginConfigValue, PluginStateRecord, SupportsToPayload
+    from plugins.core.types import PluginStateRecord, SupportsToPayload
     from plugins.core.validation.dependencies import DependencyCheckItem
 
 
-class PluginCatalogSummaryPayloadDict(TypedDict):
+class PluginCatalogSummaryPayload(PluginPayloadModel):
     """
     插件目录摘要 payload。
     """
 
-    pluginId: str
+    plugin_id: str = Field(alias='pluginId')
     name: str
     version: str
     enabled: bool
     status: str
     description: str
-    backendPath: str
-    menuCount: int
-    permissionCount: int
+    backend_path: str = Field(alias='backendPath')
+    menu_count: int = Field(alias='menuCount')
+    permission_count: int = Field(alias='permissionCount')
     capability: dict[str, object] | None
 
 
-class PluginCatalogDatabaseStatePayloadDict(TypedDict, total=False):
+class PluginCatalogDatabaseStatePayload(PluginPayloadModel):
     """
     插件目录数据库状态 payload。
     """
 
     available: bool
     installed: bool
-    error: str
-    installedVersion: str | None
+    error: str | None = None
+    installed_version: str | None = Field(default=None, alias='installedVersion')
     enabled: str | None
     status: str | None
-    lastError: str | None
+    last_error: str | None = Field(default=None, alias='lastError')
 
 
-class PluginManifestConfigItemPayload(TypedDict):
+class PluginManifestConfigItemPayload(PluginPayloadModel):
     """
     manifest 配置声明 payload。
     """
@@ -54,20 +55,20 @@ class PluginManifestConfigItemPayload(TypedDict):
     key: str
     label: str | None
     type: str
-    default: PluginConfigValue
+    default: object
     required: bool
     secret: bool
     group: str
     order: int
     placeholder: str
-    min: float | None
-    max: float | None
+    min_value: float | None = Field(alias='min')
+    max_value: float | None = Field(alias='max')
     pattern: str | None
     description: str
-    options: list[dict[str, PluginConfigValue]]
+    options: list[dict[str, object]]
 
 
-class PluginMenuDiagnosticPlanItemPayload(TypedDict):
+class PluginMenuDiagnosticPlanItemPayload(PluginPayloadModel):
     """
     菜单诊断计划项 payload。
     """
@@ -82,19 +83,19 @@ class PluginMenuDiagnosticPlanItemPayload(TypedDict):
     children: int
 
 
-class PluginMenuDiagnosticPlanPayload(TypedDict):
+class PluginMenuDiagnosticPlanPayload(PluginPayloadModel):
     """
     菜单诊断计划 payload。
     """
 
     total: int
-    permissionCount: int
-    enabledCount: int
-    visibleCount: int
-    items: list[PluginMenuDiagnosticPlanItemPayload]
+    permission_count: int = Field(alias='permissionCount')
+    enabled_count: int = Field(alias='enabledCount')
+    visible_count: int = Field(alias='visibleCount')
+    items: list[dict[str, object]]
 
 
-class PluginManifestJobItemPayload(TypedDict):
+class PluginManifestJobItemPayload(PluginPayloadModel):
     """
     manifest 定时任务声明 payload。
     """
@@ -103,164 +104,18 @@ class PluginManifestJobItemPayload(TypedDict):
     name: str | None
     callable: str
     trigger: str
-    cronExpression: str
+    cron_expression: str = Field(alias='cronExpression')
     args: list[str]
     kwargs: dict[str, object]
     enabled: bool
     description: str
-    misfirePolicy: str
+    misfire_policy: str = Field(alias='misfirePolicy')
     concurrent: str
     executor: str
 
 
-class PluginCatalogPayloadBuilderProtocol(PluginValidationPayloadBuilderProtocol, Protocol):
-    """
-    插件目录 payload builder 协议。
-    """
-
-    @classmethod
-    def build_plugin_summary(
-        cls,
-        plugin: DiscoveredPlugin,
-        enabled: bool,
-        status: str,
-        capability: SupportsToPayload | None = None,
-    ) -> PluginCatalogSummaryPayloadDict:
-        """
-        构建插件摘要负载。
-        """
-        ...
-
-    @classmethod
-    def build_plugin_detail(
-        cls,
-        plugin: RegisteredPlugin | DiscoveredPlugin,
-        dependency_items: list[DependencyCheckItem],
-        *,
-        database_error: str | None = None,
-        capability: SupportsToPayload | None = None,
-    ) -> dict[str, object]:
-        """
-        构建插件详情负载。
-        """
-        ...
-
-
-@dataclass(frozen=True)
-class PluginCatalogListPayload:
-    """
-    插件目录列表结构化负载。
-    """
-
-    plugins: list[RegisteredPlugin]
-    builder: type[PluginCatalogPayloadBuilderProtocol] | None = None
-
-    def to_payload(self) -> dict[str, object]:
-        """
-        序列化为现有插件列表 payload 契约。
-
-        :return: 插件列表 payload
-        """
-        builder = self.builder or _get_default_catalog_builder()
-        plugin_items = [
-            builder.build_plugin_summary(plugin.discovered_plugin, plugin.enabled, plugin.status)
-            for plugin in self.plugins
-        ]
-        return {'ok': True, 'count': len(plugin_items), 'plugins': plugin_items}
-
-
-@dataclass(frozen=True)
-class PluginCatalogInfoPayload:
-    """
-    插件目录详情响应结构化负载。
-    """
-
-    plugin: RegisteredPlugin | DiscoveredPlugin
-    dependency_items: list[DependencyCheckItem]
-    builder: type[PluginCatalogPayloadBuilderProtocol] | None = None
-    database_error: str | None = None
-    capability: SupportsToPayload | None = None
-
-    def to_payload(self) -> dict[str, object]:
-        """
-        序列化为现有插件详情响应 payload 契约。
-
-        :return: 插件详情响应 payload
-        """
-        builder = self.builder or _get_default_catalog_builder()
-        return {
-            'ok': True,
-            'plugin': builder.build_plugin_detail(
-                self.plugin,
-                self.dependency_items,
-                database_error=self.database_error,
-                capability=self.capability,
-            ),
-        }
-
-
-@dataclass(frozen=True)
-class PluginCatalogSummaryPayload:
-    """
-    插件目录摘要结构化负载。
-    """
-
-    plugin: DiscoveredPlugin
-    enabled: bool
-    status: str
-    capability: SupportsToPayload | None = None
-
-    def to_payload(self) -> PluginCatalogSummaryPayloadDict:
-        """
-        序列化为现有插件摘要 payload 契约。
-
-        :return: 插件摘要 payload
-        """
-        manifest = self.plugin.manifest
-        return {
-            'pluginId': manifest.id,
-            'name': manifest.name,
-            'version': manifest.version,
-            'enabled': self.enabled,
-            'status': self.status,
-            'description': manifest.description,
-            'backendPath': str(self.plugin.backend_path),
-            'menuCount': PluginMenuTree.count(manifest.frontend.menus),
-            'permissionCount': len(manifest.permissions),
-            'capability': self.capability.to_payload() if self.capability else None,
-        }
-
-
-@dataclass(frozen=True)
-class PluginCatalogDatabaseStatePayload:
-    """
-    插件目录数据库状态结构化负载。
-    """
-
-    database_plugin: PluginStateRecord | None
-    database_error: str | None = None
-
-    def to_payload(self) -> PluginCatalogDatabaseStatePayloadDict:
-        """
-        序列化为现有插件数据库状态 payload 契约。
-
-        :return: 插件数据库状态 payload
-        """
-        if self.database_error:
-            return {
-                'available': False,
-                'installed': False,
-                'error': self.database_error,
-            }
-
-        return {
-            'available': True,
-            'installed': self.database_plugin is not None,
-            'installedVersion': self.database_plugin.installed_version if self.database_plugin else None,
-            'enabled': self.database_plugin.enabled if self.database_plugin else None,
-            'status': self.database_plugin.status if self.database_plugin else None,
-            'lastError': self.database_plugin.last_error if self.database_plugin else None,
-        }
+PluginCatalogSummaryPayloadDict: TypeAlias = dict[str, object]
+PluginCatalogDatabaseStatePayloadDict: TypeAlias = dict[str, object]
 
 
 class PluginCatalogPayloadMixin:
@@ -276,7 +131,10 @@ class PluginCatalogPayloadMixin:
         :param plugins: 已注册插件列表
         :return: 插件列表负载
         """
-        return PluginCatalogListPayload(plugins, builder=cls).to_payload()
+        plugin_items = [
+            cls.build_plugin_summary(plugin.discovered_plugin, plugin.enabled, plugin.status) for plugin in plugins
+        ]
+        return {'ok': True, 'count': len(plugin_items), 'plugins': plugin_items}
 
     @classmethod
     def build_plugin_info_payload(
@@ -295,13 +153,15 @@ class PluginCatalogPayloadMixin:
         :param database_error: 数据库状态读取错误信息
         :return: 插件详情响应负载
         """
-        return PluginCatalogInfoPayload(
-            plugin,
-            dependency_items,
-            builder=cls,
-            database_error=database_error,
-            capability=capability,
-        ).to_payload()
+        return {
+            'ok': True,
+            'plugin': cls.build_plugin_detail(
+                plugin,
+                dependency_items,
+                database_error=database_error,
+                capability=capability,
+            ),
+        }
 
     @classmethod
     def build_plugin_summary(
@@ -319,11 +179,18 @@ class PluginCatalogPayloadMixin:
         :param status: 插件状态
         :return: 插件摘要负载
         """
+        manifest = plugin.manifest
         return PluginCatalogSummaryPayload(
-            plugin,
+            plugin_id=manifest.id,
+            name=manifest.name,
+            version=manifest.version,
             enabled=enabled,
             status=status,
-            capability=capability,
+            description=manifest.description,
+            backend_path=str(plugin.backend_path),
+            menu_count=PluginMenuTree.count(manifest.frontend.menus),
+            permission_count=len(manifest.permissions),
+            capability=capability.to_payload() if capability else None,
         ).to_payload()
 
     @classmethod
@@ -393,7 +260,7 @@ class PluginCatalogPayloadMixin:
     @staticmethod
     def build_manifest_config_items(
         config_items: list[PluginConfigItemManifest],
-    ) -> list[PluginManifestConfigItemPayload]:
+    ) -> list[dict[str, object]]:
         """
         构建 manifest 配置声明负载。
 
@@ -401,27 +268,27 @@ class PluginCatalogPayloadMixin:
         :return: 配置声明负载列表
         """
         return [
-            {
-                'key': item.key,
-                'label': item.label,
-                'type': item.type,
-                'default': item.default,
-                'required': item.required,
-                'secret': item.secret,
-                'group': item.group,
-                'order': item.order,
-                'placeholder': item.placeholder,
-                'min': item.min_value,
-                'max': item.max_value,
-                'pattern': item.pattern,
-                'description': item.description,
-                'options': [option.model_dump() for option in item.options],
-            }
+            PluginManifestConfigItemPayload(
+                key=item.key,
+                label=item.label,
+                type=item.type,
+                default=item.default,
+                required=item.required,
+                secret=item.secret,
+                group=item.group,
+                order=item.order,
+                placeholder=item.placeholder,
+                min_value=item.min_value,
+                max_value=item.max_value,
+                pattern=item.pattern,
+                description=item.description,
+                options=[option.model_dump() for option in item.options],
+            ).to_payload()
             for item in config_items
         ]
 
     @classmethod
-    def build_menu_diagnostic_plan(cls, discovered_plugin: DiscoveredPlugin) -> PluginMenuDiagnosticPlanPayload:
+    def build_menu_diagnostic_plan(cls, discovered_plugin: DiscoveredPlugin) -> dict[str, object]:
         """
         构建插件菜单诊断计划。
 
@@ -433,55 +300,55 @@ class PluginCatalogPayloadMixin:
         enabled_menus = [menu for menu in menus if menu.status == '0']
         visible_menus = [menu for menu in menus if menu.visible == '0']
 
-        return {
-            'total': len(menus),
-            'permissionCount': len(permission_menus),
-            'enabledCount': len(enabled_menus),
-            'visibleCount': len(visible_menus),
-            'items': [cls._build_menu_plan_item(menu) for menu in menus],
-        }
+        return PluginMenuDiagnosticPlanPayload(
+            total=len(menus),
+            permission_count=len(permission_menus),
+            enabled_count=len(enabled_menus),
+            visible_count=len(visible_menus),
+            items=[cls._build_menu_plan_item(menu) for menu in menus],
+        ).to_payload()
 
     @classmethod
-    def _build_menu_plan_item(cls, menu: PluginMenuManifest) -> PluginMenuDiagnosticPlanItemPayload:
+    def _build_menu_plan_item(cls, menu: PluginMenuManifest) -> dict[str, object]:
         """
         构建菜单诊断计划项。
 
         :param menu: 插件菜单声明
         :return: 菜单诊断计划项
         """
-        return {
-            'name': menu.name,
-            'path': menu.path,
-            'component': menu.component,
-            'perms': menu.perms,
-            'type': menu.type,
-            'visible': menu.visible,
-            'status': menu.status,
-            'children': len(menu.children),
-        }
+        return PluginMenuDiagnosticPlanItemPayload(
+            name=menu.name,
+            path=menu.path,
+            component=menu.component,
+            perms=menu.perms,
+            type=menu.type,
+            visible=menu.visible,
+            status=menu.status,
+            children=len(menu.children),
+        ).to_payload()
 
     @staticmethod
-    def build_manifest_job_item(job: PluginJobManifest) -> PluginManifestJobItemPayload:
+    def build_manifest_job_item(job: PluginJobManifest) -> dict[str, object]:
         """
         构建 manifest 定时任务声明负载。
 
         :param job: manifest 定时任务声明
         :return: 定时任务声明负载
         """
-        return {
-            'id': job.id,
-            'name': job.name,
-            'callable': job.callable,
-            'trigger': job.trigger,
-            'cronExpression': job.cron_expression,
-            'args': job.args,
-            'kwargs': job.kwargs,
-            'enabled': job.enabled,
-            'description': job.description,
-            'misfirePolicy': job.misfire_policy,
-            'concurrent': job.concurrent,
-            'executor': job.executor,
-        }
+        return PluginManifestJobItemPayload(
+            id=job.id,
+            name=job.name,
+            callable=job.callable,
+            trigger=job.trigger,
+            cron_expression=job.cron_expression,
+            args=job.args,
+            kwargs=job.kwargs,
+            enabled=job.enabled,
+            description=job.description,
+            misfire_policy=job.misfire_policy,
+            concurrent=job.concurrent,
+            executor=job.executor,
+        ).to_payload()
 
     @staticmethod
     def build_database_state(
@@ -495,19 +362,20 @@ class PluginCatalogPayloadMixin:
         :param database_error: 数据库状态读取错误信息
         :return: 数据库状态负载
         """
-        return PluginCatalogDatabaseStatePayload(database_plugin, database_error).to_payload()
+        if database_error:
+            return PluginCatalogDatabaseStatePayload(
+                available=False,
+                installed=False,
+                error=database_error,
+                enabled=None,
+                status=None,
+            ).to_payload(exclude_none=True)
 
-
-class _DefaultCatalogPayloadBuilder(PluginCatalogPayloadMixin, PluginValidationPayloadMixin):
-    """
-    catalog 模型直接序列化时使用的最小组合 builder。
-    """
-
-
-def _get_default_catalog_builder() -> type[PluginCatalogPayloadBuilderProtocol]:
-    """
-    获取 catalog 模型直接序列化时使用的默认 builder。
-
-    :return: 默认 catalog 组合 builder
-    """
-    return _DefaultCatalogPayloadBuilder
+        return PluginCatalogDatabaseStatePayload(
+            available=True,
+            installed=database_plugin is not None,
+            installed_version=database_plugin.installed_version if database_plugin else None,
+            enabled=database_plugin.enabled if database_plugin else None,
+            status=database_plugin.status if database_plugin else None,
+            last_error=database_plugin.last_error if database_plugin else None,
+        ).to_payload()

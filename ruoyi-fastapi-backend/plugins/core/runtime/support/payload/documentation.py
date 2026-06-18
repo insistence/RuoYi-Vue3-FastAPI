@@ -1,46 +1,27 @@
-from dataclasses import dataclass
-from typing import Literal, TypedDict
+from typing import Literal, TypeAlias
+
+from pydantic import Field
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.manifest.menu_tree import PluginMenuTree
 
+from .base import PluginPayloadModel
 
-class PluginDocumentationPayloadDict(TypedDict):
+
+class PluginDocumentationPayload(PluginPayloadModel):
     """
     插件文档生成 payload。
     """
 
     ok: bool
     message: str
-    pluginId: str
+    plugin_id: str = Field(alias='pluginId')
     format: Literal['markdown']
     markdown: str
     length: int
 
 
-@dataclass(frozen=True)
-class PluginDocumentationPayload:
-    """
-    插件文档结构化负载。
-    """
-
-    plugin_id: str
-    markdown: str
-
-    def to_payload(self) -> PluginDocumentationPayloadDict:
-        """
-        序列化为现有插件文档 payload 契约。
-
-        :return: 插件文档 payload
-        """
-        return {
-            'ok': True,
-            'message': '插件文档生成完成',
-            'pluginId': self.plugin_id,
-            'format': 'markdown',
-            'markdown': self.markdown,
-            'length': len(self.markdown),
-        }
+PluginDocumentationPayloadDict: TypeAlias = dict[str, object]
 
 
 class PluginDocumentationBuilder:
@@ -60,7 +41,25 @@ class PluginDocumentationBuilder:
         :return: 插件文档生成负载
         """
         markdown = cls.build_markdown(discovered_plugin)
-        return PluginDocumentationPayload(plugin_id=plugin_id, markdown=markdown).to_payload()
+        return cls.build_payload_from_markdown(plugin_id, markdown)
+
+    @staticmethod
+    def build_payload_from_markdown(plugin_id: str, markdown: str) -> PluginDocumentationPayloadDict:
+        """
+        根据 Markdown 内容构建插件文档生成负载。
+
+        :param plugin_id: 插件ID
+        :param markdown: Markdown 文档内容
+        :return: 插件文档生成负载
+        """
+        return PluginDocumentationPayload(
+            ok=True,
+            message='插件文档生成完成',
+            plugin_id=plugin_id,
+            format='markdown',
+            markdown=markdown,
+            length=len(markdown),
+        ).to_payload()
 
     @classmethod
     def build_markdown(cls, discovered_plugin: DiscoveredPlugin) -> str:

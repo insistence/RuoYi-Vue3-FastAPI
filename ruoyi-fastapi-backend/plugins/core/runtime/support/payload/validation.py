@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, TypedDict
+from typing import TYPE_CHECKING, Protocol, TypeAlias
 
-from plugins.core.runtime.exit_codes import DEPENDENCY_ERROR, SUCCESS
+from pydantic import Field
+
 from plugins.core.validation.result import PluginValidationLevelResolver, ValidationLevel
+
+from .base import PluginPayloadModel
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -16,7 +18,7 @@ if TYPE_CHECKING:
     from plugins.core.validation.structure import PluginStructureCheckItem
 
 
-class DependencyItemPayload(TypedDict):
+class DependencyItemPayload(PluginPayloadModel):
     """
     Python/npm 依赖检查项 payload。
     """
@@ -25,31 +27,31 @@ class DependencyItemPayload(TypedDict):
     requirement: str
     name: str
     installed: bool
-    versionSatisfied: bool
-    installedVersion: str | None
-    requiredVersion: str | None
+    version_satisfied: bool = Field(alias='versionSatisfied')
+    installed_version: str | None = Field(alias='installedVersion')
+    required_version: str | None = Field(alias='requiredVersion')
     ok: bool
     status: str
     level: ValidationLevel
     message: str
 
 
-class PluginDependencyItemPayload(TypedDict):
+class PluginDependencyItemPayload(PluginPayloadModel):
     """
     插件间依赖检查项 payload。
     """
 
-    pluginId: str
-    dependencyId: str
-    requiredVersion: str | None
-    installedVersion: str | None
+    plugin_id: str = Field(alias='pluginId')
+    dependency_id: str = Field(alias='dependencyId')
+    required_version: str | None = Field(alias='requiredVersion')
+    installed_version: str | None = Field(alias='installedVersion')
     status: str
     ok: bool
     level: ValidationLevel
     message: str
 
 
-class ValidationIssuePayload(TypedDict):
+class ValidationIssuePayload(PluginPayloadModel):
     """
     manifest 校验问题项 payload。
     """
@@ -63,7 +65,7 @@ class ValidationIssuePayload(TypedDict):
     suggestion: str
 
 
-class StructureItemPayload(TypedDict):
+class StructureItemPayload(PluginPayloadModel):
     """
     插件结构检查项 payload。
     """
@@ -76,60 +78,59 @@ class StructureItemPayload(TypedDict):
     suggestion: str
 
 
-class MenuConflictItemPayload(TypedDict):
+class MenuConflictItemPayload(PluginPayloadModel):
     """
     菜单冲突检查项 payload。
     """
 
     kind: str
-    pluginId: str
-    conflictPluginId: str | None
+    plugin_id: str = Field(alias='pluginId')
+    conflict_plugin_id: str | None = Field(alias='conflictPluginId')
     value: str
     ok: bool
     level: ValidationLevel
     message: str
 
 
-class PluginDependencyCheckPayloadDict(TypedDict):
+class PluginDependencyCheckPayload(PluginPayloadModel):
     """
     插件依赖检查 payload。
     """
 
     ok: bool
     message: str
-    pluginId: str
-    dependencyOk: bool
-    dependencies: list[DependencyItemPayload]
-    missingDependencies: list[str]
-    unsatisfiedDependencies: list[str]
-    exit_code: int
+    plugin_id: str = Field(alias='pluginId')
+    dependency_ok: bool = Field(alias='dependencyOk')
+    dependencies: list[dict[str, object]]
+    missing_dependencies: list[str] = Field(alias='missingDependencies')
+    unsatisfied_dependencies: list[str] = Field(alias='unsatisfiedDependencies')
 
 
-class PluginCheckItemPayloadDict(TypedDict, total=False):
+class PluginCheckItemPayload(PluginPayloadModel):
     """
     插件检查单项 payload。
     """
 
-    pluginId: str
+    plugin_id: str = Field(alias='pluginId')
     ok: bool
-    manifestOk: bool
-    dependencyOk: bool
-    pluginDependencyOk: bool
-    structureOk: bool
-    menuConflictOk: bool
-    dependencies: list[DependencyItemPayload]
-    pluginDependencies: list[PluginDependencyItemPayload]
-    pluginDependencyErrors: list[PluginDependencyItemPayload]
-    manifestIssues: list[ValidationIssuePayload]
-    manifestWarnings: list[ValidationIssuePayload]
-    structure: list[StructureItemPayload]
-    missingDependencies: list[str]
-    unsatisfiedDependencies: list[str]
-    structureErrors: list[StructureItemPayload]
-    menuConflicts: list[MenuConflictItemPayload]
+    manifest_ok: bool | None = Field(default=None, alias='manifestOk')
+    dependency_ok: bool | None = Field(default=None, alias='dependencyOk')
+    plugin_dependency_ok: bool | None = Field(default=None, alias='pluginDependencyOk')
+    structure_ok: bool | None = Field(default=None, alias='structureOk')
+    menu_conflict_ok: bool | None = Field(default=None, alias='menuConflictOk')
+    dependencies: list[dict[str, object]] | None = None
+    plugin_dependencies: list[dict[str, object]] | None = Field(default=None, alias='pluginDependencies')
+    plugin_dependency_errors: list[dict[str, object]] | None = Field(default=None, alias='pluginDependencyErrors')
+    manifest_issues: list[dict[str, object]] | None = Field(default=None, alias='manifestIssues')
+    manifest_warnings: list[dict[str, object]] | None = Field(default=None, alias='manifestWarnings')
+    structure: list[dict[str, object]] | None = None
+    missing_dependencies: list[str] | None = Field(default=None, alias='missingDependencies')
+    unsatisfied_dependencies: list[str] | None = Field(default=None, alias='unsatisfiedDependencies')
+    structure_errors: list[dict[str, object]] | None = Field(default=None, alias='structureErrors')
+    menu_conflicts: list[dict[str, object]] | None = Field(default=None, alias='menuConflicts')
 
 
-class PluginCheckPayloadDict(TypedDict):
+class PluginCheckPayload(PluginPayloadModel):
     """
     插件检查聚合 payload。
     """
@@ -137,8 +138,19 @@ class PluginCheckPayloadDict(TypedDict):
     ok: bool
     message: str
     count: int
-    checks: list[PluginCheckItemPayloadDict]
-    exit_code: int
+    database_available: bool = Field(alias='databaseAvailable')
+    database_error: str | None = Field(alias='databaseError')
+    checks: list[dict[str, object]]
+
+
+DependencyItemPayloadDict: TypeAlias = dict[str, object]
+PluginDependencyItemPayloadDict: TypeAlias = dict[str, object]
+ValidationIssuePayloadDict: TypeAlias = dict[str, object]
+StructureItemPayloadDict: TypeAlias = dict[str, object]
+MenuConflictItemPayloadDict: TypeAlias = dict[str, object]
+PluginDependencyCheckPayloadDict: TypeAlias = dict[str, object]
+PluginCheckItemPayloadDict: TypeAlias = dict[str, object]
+PluginCheckPayloadDict: TypeAlias = dict[str, object]
 
 
 class PluginValidationPayloadBuilderProtocol(Protocol):
@@ -147,35 +159,35 @@ class PluginValidationPayloadBuilderProtocol(Protocol):
     """
 
     @staticmethod
-    def build_dependency_item(item: DependencyCheckItem) -> DependencyItemPayload:
+    def build_dependency_item(item: DependencyCheckItem) -> DependencyItemPayloadDict:
         """
         构建依赖检查项负载。
         """
         ...
 
     @staticmethod
-    def build_plugin_dependency_item(item: PluginDependencyCheckItem) -> PluginDependencyItemPayload:
+    def build_plugin_dependency_item(item: PluginDependencyCheckItem) -> PluginDependencyItemPayloadDict:
         """
         构建插件间依赖检查项负载。
         """
         ...
 
     @staticmethod
-    def build_validation_issue(item: PluginValidationIssue) -> ValidationIssuePayload:
+    def build_validation_issue(item: PluginValidationIssue) -> ValidationIssuePayloadDict:
         """
         构建统一校验问题项负载。
         """
         ...
 
     @staticmethod
-    def build_structure_item(item: PluginStructureCheckItem) -> StructureItemPayload:
+    def build_structure_item(item: PluginStructureCheckItem) -> StructureItemPayloadDict:
         """
         构建结构检查项负载。
         """
         ...
 
     @staticmethod
-    def build_menu_conflict_item(item: PluginMenuConflictItem) -> MenuConflictItemPayload:
+    def build_menu_conflict_item(item: PluginMenuConflictItem) -> MenuConflictItemPayloadDict:
         """
         构建菜单冲突检查项负载。
         """
@@ -197,179 +209,104 @@ class PluginCheckPrecheckProtocol(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class PluginDependencyCheckPayload:
-    """
-    插件依赖检查结构化负载。
-    """
-
-    plugin_id: str
-    dependency_result: DependencyCheckResult
-    builder: type[PluginValidationPayloadBuilderProtocol] | None = None
-
-    def to_payload(self) -> PluginDependencyCheckPayloadDict:
-        """
-        序列化为现有插件依赖检查 payload 契约。
-
-        :return: 插件依赖检查 payload
-        """
-        builder = self.builder or PluginValidationPayloadMixin
-        return {
-            'ok': self.dependency_result.ok,
-            'message': '插件依赖已满足' if self.dependency_result.ok else '插件依赖存在问题',
-            'pluginId': self.plugin_id,
-            'dependencyOk': self.dependency_result.ok,
-            'dependencies': [builder.build_dependency_item(item) for item in self.dependency_result.items],
-            'missingDependencies': [item.name for item in self.dependency_result.missing_items],
-            'unsatisfiedDependencies': [item.name for item in self.dependency_result.unsatisfied_items],
-            'exit_code': SUCCESS if self.dependency_result.ok else DEPENDENCY_ERROR,
-        }
-
-
-@dataclass(frozen=True)
-class PluginCheckItemPayload:
-    """
-    插件检查单项结构化负载。
-    """
-
-    plugin_id: str
-    precheck: PluginCheckPrecheckProtocol
-
-    def to_payload(self) -> PluginCheckItemPayloadDict:
-        """
-        序列化为现有插件检查单项 payload 契约。
-
-        :return: 插件检查单项 payload
-        """
-        return {
-            'pluginId': self.plugin_id,
-            'ok': self.precheck.ok,
-            **self.precheck.check_payload,
-        }
-
-
-@dataclass(frozen=True)
-class PluginCheckPayload:
-    """
-    插件检查聚合结构化负载。
-    """
-
-    checks: list[PluginCheckItemPayloadDict]
-
-    def to_payload(self) -> PluginCheckPayloadDict:
-        """
-        序列化为现有插件检查聚合 payload 契约。
-
-        :return: 插件检查聚合 payload
-        """
-        ok = all(check['ok'] for check in self.checks)
-        return {
-            'ok': ok,
-            'message': '插件检查通过' if ok else '插件检查存在问题',
-            'count': len(self.checks),
-            'checks': self.checks,
-            'exit_code': SUCCESS if ok else DEPENDENCY_ERROR,
-        }
-
-
 class PluginValidationPayloadMixin:
     """
     插件依赖、结构、manifest 和菜单冲突检查结果负载构建能力。
     """
 
     @staticmethod
-    def build_dependency_item(item: DependencyCheckItem) -> DependencyItemPayload:
+    def build_dependency_item(item: DependencyCheckItem) -> DependencyItemPayloadDict:
         """
         构建依赖检查项负载。
 
         :param item: 依赖检查项
         :return: 依赖检查项负载
         """
-        return {
-            'kind': item.kind,
-            'requirement': item.requirement,
-            'name': item.name,
-            'installed': item.installed,
-            'versionSatisfied': item.version_satisfied,
-            'installedVersion': item.installed_version,
-            'requiredVersion': item.required_version,
-            'ok': item.ok,
-            'status': item.status,
-            'level': PluginValidationLevelResolver.from_ok(item.ok),
-            'message': item.message,
-        }
+        return DependencyItemPayload(
+            kind=item.kind,
+            requirement=item.requirement,
+            name=item.name,
+            installed=item.installed,
+            version_satisfied=item.version_satisfied,
+            installed_version=item.installed_version,
+            required_version=item.required_version,
+            ok=item.ok,
+            status=item.status,
+            level=PluginValidationLevelResolver.from_ok(item.ok),
+            message=item.message,
+        ).to_payload()
 
     @staticmethod
-    def build_plugin_dependency_item(item: PluginDependencyCheckItem) -> PluginDependencyItemPayload:
+    def build_plugin_dependency_item(item: PluginDependencyCheckItem) -> PluginDependencyItemPayloadDict:
         """
         构建插件间依赖检查项负载。
 
         :param item: 插件间依赖检查项
         :return: 插件间依赖检查项负载
         """
-        return {
-            'pluginId': item.plugin_id,
-            'dependencyId': item.dependency_id,
-            'requiredVersion': item.required_version,
-            'installedVersion': item.installed_version,
-            'status': item.status,
-            'ok': item.ok,
-            'level': PluginValidationLevelResolver.from_ok(item.ok),
-            'message': item.message,
-        }
+        return PluginDependencyItemPayload(
+            plugin_id=item.plugin_id,
+            dependency_id=item.dependency_id,
+            required_version=item.required_version,
+            installed_version=item.installed_version,
+            status=item.status,
+            ok=item.ok,
+            level=PluginValidationLevelResolver.from_ok(item.ok),
+            message=item.message,
+        ).to_payload()
 
     @staticmethod
-    def build_validation_issue(item: PluginValidationIssue) -> ValidationIssuePayload:
+    def build_validation_issue(item: PluginValidationIssue) -> ValidationIssuePayloadDict:
         """
         构建统一校验问题项负载。
 
         :param item: 统一校验问题项
         :return: 统一校验问题项负载
         """
-        return {
-            'level': item.level,
-            'category': item.category,
-            'kind': item.kind,
-            'path': item.path,
-            'ok': item.ok,
-            'message': item.message,
-            'suggestion': item.suggestion,
-        }
+        return ValidationIssuePayload(
+            level=item.level,
+            category=item.category,
+            kind=item.kind,
+            path=item.path,
+            ok=item.ok,
+            message=item.message,
+            suggestion=item.suggestion,
+        ).to_payload()
 
     @staticmethod
-    def build_structure_item(item: PluginStructureCheckItem) -> StructureItemPayload:
+    def build_structure_item(item: PluginStructureCheckItem) -> StructureItemPayloadDict:
         """
         构建结构检查项负载。
 
         :param item: 结构检查项
         :return: 结构检查项负载
         """
-        return {
-            'kind': item.kind,
-            'path': item.path,
-            'ok': item.ok,
-            'level': item.level,
-            'message': item.message,
-            'suggestion': item.suggestion,
-        }
+        return StructureItemPayload(
+            kind=item.kind,
+            path=item.path,
+            ok=item.ok,
+            level=item.level,
+            message=item.message,
+            suggestion=item.suggestion,
+        ).to_payload()
 
     @staticmethod
-    def build_menu_conflict_item(item: PluginMenuConflictItem) -> MenuConflictItemPayload:
+    def build_menu_conflict_item(item: PluginMenuConflictItem) -> MenuConflictItemPayloadDict:
         """
         构建菜单冲突检查项负载。
 
         :param item: 菜单冲突检查项
         :return: 菜单冲突检查项负载
         """
-        return {
-            'kind': item.kind,
-            'pluginId': item.plugin_id,
-            'conflictPluginId': item.conflict_plugin_id,
-            'value': item.value,
-            'ok': False,
-            'level': 'error',
-            'message': item.message,
-        }
+        return MenuConflictItemPayload(
+            kind=item.kind,
+            plugin_id=item.plugin_id,
+            conflict_plugin_id=item.conflict_plugin_id,
+            value=item.value,
+            ok=False,
+            level='error',
+            message=item.message,
+        ).to_payload()
 
     @classmethod
     def build_dependency_check_payload(
@@ -384,7 +321,15 @@ class PluginValidationPayloadMixin:
         :param dependency_result: 依赖检查结果
         :return: 插件依赖检查负载
         """
-        return PluginDependencyCheckPayload(plugin_id, dependency_result, builder=cls).to_payload()
+        return PluginDependencyCheckPayload(
+            ok=dependency_result.ok,
+            message='插件依赖已满足' if dependency_result.ok else '插件依赖存在问题',
+            plugin_id=plugin_id,
+            dependency_ok=dependency_result.ok,
+            dependencies=[cls.build_dependency_item(item) for item in dependency_result.items],
+            missing_dependencies=[item.name for item in dependency_result.missing_items],
+            unsatisfied_dependencies=[item.name for item in dependency_result.unsatisfied_items],
+        ).to_payload()
 
     @staticmethod
     def build_check_item(plugin_id: str, precheck: PluginCheckPrecheckProtocol) -> PluginCheckItemPayloadDict:
@@ -395,14 +340,32 @@ class PluginValidationPayloadMixin:
         :param precheck: 插件操作预检上下文
         :return: 插件检查单项负载
         """
-        return PluginCheckItemPayload(plugin_id, precheck).to_payload()
+        return PluginCheckItemPayload.model_validate(
+            {
+                'pluginId': plugin_id,
+                'ok': precheck.ok,
+                **precheck.check_payload,
+            }
+        ).to_payload(exclude_none=True)
 
     @staticmethod
-    def build_check_payload(checks: list[PluginCheckItemPayloadDict]) -> PluginCheckPayloadDict:
+    def build_check_payload(
+        checks: list[PluginCheckItemPayloadDict],
+        database_error: str | None = None,
+    ) -> PluginCheckPayloadDict:
         """
         构建插件检查聚合负载。
 
         :param checks: 插件检查单项负载列表
+        :param database_error: 数据库状态读取错误
         :return: 插件检查聚合负载
         """
-        return PluginCheckPayload(checks).to_payload()
+        ok = all(check['ok'] for check in checks)
+        return PluginCheckPayload(
+            ok=ok,
+            message='插件检查通过' if ok else '插件检查存在问题',
+            count=len(checks),
+            database_available=database_error is None,
+            database_error=database_error,
+            checks=checks,
+        ).to_payload()
