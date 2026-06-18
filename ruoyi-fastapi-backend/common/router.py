@@ -397,7 +397,7 @@ class RouterRegister:
         :return: 插件controller文件路径列表
         """
         plugins_root = os.path.join(self.project_root, 'plugins')
-        if plugin_ids:
+        if plugin_ids is not None:
             controller_dirs = [os.path.join(plugins_root, plugin_id, 'controller') for plugin_id in plugin_ids]
         else:
             controller_dirs = glob.glob(os.path.join(plugins_root, '*', 'controller'))

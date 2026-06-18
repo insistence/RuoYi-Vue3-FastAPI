@@ -158,6 +158,21 @@ def test_router_register_finds_plugin_controller_files(
     )
 
 
+def test_router_register_empty_plugin_ids_find_no_plugin_controller_files(tmp_path: Path) -> None:
+    """
+    校验空插件 ID 列表不会回退为扫描全部插件路由。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    project_root = tmp_path / 'backend'
+    touch_file(project_root / 'plugins' / 'demo' / 'controller' / 'plugin_controller.py')
+    touch_file(project_root / 'plugins' / 'other' / 'controller' / 'other_controller.py')
+    router_register = RouterRegisterForTest(FastAPI(), project_root=project_root)
+
+    assert router_register._find_plugin_controller_files([]) == []
+
+
 def test_router_register_registers_plugin_routers_by_plugin_id(tmp_path: Path) -> None:
     """
     校验插件路由注册方法只扫描传入插件 ID 对应的 controller 目录。
