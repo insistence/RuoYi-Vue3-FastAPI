@@ -119,7 +119,7 @@ export function filterDynamicRoutes(routes) {
 /**
  * 加载后端菜单声明的 Vue 页面组件。
  * @param {string} view 后端返回的组件路径。
- * @returns {Function} Vue 异步组件加载函数。
+ * @returns {Function|undefined} Vue 异步组件加载函数。
  */
 export const loadView = (view) => {
   if (view.startsWith('plugin/')) {
@@ -138,8 +138,7 @@ export const loadView = (view) => {
     }
   }
 
-  console.warn(`[router] view not found: ${view}`)
-  return missingView
+  return undefined
 }
 
 export default usePermissionStore
