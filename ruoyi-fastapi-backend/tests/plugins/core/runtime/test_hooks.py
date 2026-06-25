@@ -60,6 +60,27 @@ async def test_plugin_hook_runner_executes_async_hook_with_context(tmp_path: Pat
 
 
 @pytest.mark.asyncio
+async def test_plugin_hook_context_exposes_startup_write_gate(tmp_path: Path) -> None:
+    """
+    校验启动期钩子上下文会暴露当前 worker 是否允许执行全局写入。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_hook'
+    write_plugin_with_hook(
+        plugin_root,
+        'async def on_startup(context):\n    context.app.append(context.startup_write_enabled)\n',
+    )
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+    app = []
+
+    await PluginHookRunner(discovered_plugin).run('on_startup', app=app, startup_write_enabled=False)
+
+    assert app == [False]
+
+
+@pytest.mark.asyncio
 async def test_plugin_hook_runner_executes_full_module_path_hook(tmp_path: Path) -> None:
     """
     校验生命周期钩子运行器支持完整插件模块路径。

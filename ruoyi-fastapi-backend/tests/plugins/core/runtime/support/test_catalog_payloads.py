@@ -19,7 +19,6 @@ def test_plugin_catalog_list_payload_model_serializes_payload(tmp_path: Path) ->
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 """,
@@ -31,7 +30,7 @@ backend:
     assert payload['ok'] is True
     assert payload['count'] == 1
     assert payload['plugins'][0]['pluginId'] == 'demo'
-    assert payload['plugins'][0]['enabled'] is True
+    assert payload['plugins'][0]['enabled'] is False
 
 
 def test_plugin_catalog_info_payload_model_serializes_payload(tmp_path: Path) -> None:
@@ -54,6 +53,10 @@ backend:
 dependencies:
   python:
     - openai>=2.17.0
+permissions:
+  - code: demo:list
+    name: 演示列表
+    description: 查看演示页面
 """,
     )
     discovered_plugin = discover_plugins(backend_root / 'plugins')[0]
@@ -73,6 +76,11 @@ dependencies:
     assert payload['ok'] is True
     assert payload['plugin']['pluginId'] == 'demo'
     assert payload['plugin']['backend']['module'] == 'plugins.demo'
+    assert payload['plugin']['permissions'][0] == {
+        'code': 'demo:list',
+        'name': '演示列表',
+        'description': '查看演示页面',
+    }
     assert payload['plugin']['dependencies'][0]['name'] == 'openai'
 
 

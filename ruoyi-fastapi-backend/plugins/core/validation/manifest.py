@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
+from config.env import DataBaseConfig
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.manifest.schema import PluginManifest
 from plugins.core.validation.dependencies import DependencyRequirementParser
@@ -331,7 +332,7 @@ class PluginManifestChecker:
         :return: 权限前缀提示问题项列表
         """
         expected_prefix = f'{manifest.id}:'
-        permission_set = set(manifest.permissions) | PluginMenuTree.collect_permissions(manifest.frontend.menus)
+        permission_set = set(manifest.permission_codes) | PluginMenuTree.collect_permissions(manifest.frontend.menus)
         declared_permissions = {
             permission for permission in permission_set if not permission.startswith(expected_prefix)
         }
@@ -360,7 +361,7 @@ class PluginManifestChecker:
             return []
         if not any(menu.type != 'F' for menu in PluginMenuTree.flatten(manifest.frontend.menus)):
             return []
-        if manifest.permissions or PluginMenuTree.collect_permissions(manifest.frontend.menus):
+        if manifest.permission_codes or PluginMenuTree.collect_permissions(manifest.frontend.menus):
             return []
 
         return [
@@ -449,7 +450,7 @@ class PluginManifestChecker:
         :return: 自动权限按钮父菜单提示问题项列表
         """
         menu_permissions = PluginMenuTree.collect_permissions(manifest.frontend.menus)
-        auto_button_permissions = sorted(set(manifest.permissions) - menu_permissions)
+        auto_button_permissions = sorted(set(manifest.permission_codes) - menu_permissions)
         if not auto_button_permissions:
             return []
         has_parent_menu = any(menu.type != 'F' for menu in PluginMenuTree.flatten(manifest.frontend.menus))
@@ -591,6 +592,23 @@ class PluginManifestChecker:
                     path=f'compatibility.{field_name}',
                     message=f'{target_name} 版本不满足插件兼容性声明：current={current_version} required={constraint}',
                     suggestion='升级平台运行环境或调整插件 compatibility 声明',
+                    ok=False,
+                )
+            )
+
+        current_database = DataBaseConfig.db_type
+        if compatibility.databases and current_database not in compatibility.databases:
+            issues.append(
+                PluginValidationIssue(
+                    level='error',
+                    category='manifest',
+                    kind='compatibility_unsatisfied',
+                    path='compatibility.databases',
+                    message=(
+                        'database 类型不满足插件兼容性声明：'
+                        f'current={current_database} required={", ".join(compatibility.databases)}'
+                    ),
+                    suggestion='切换到插件支持的数据库，或调整插件 compatibility.databases 声明',
                     ok=False,
                 )
             )

@@ -3,16 +3,14 @@ from typing import Literal
 
 from plugins.core.validation.versioning import PluginVersionComparator
 
-PluginStatus = Literal['discovered', 'installed', 'disabled', 'pending_upgrade', 'error']
+PluginStatus = Literal['discovered', 'installed', 'pending_upgrade', 'error']
 PluginStateOperation = Literal[
     'discover',
     'install',
-    'install_disabled',
     'disable',
     'enable',
     'upgrade_available',
     'upgrade',
-    'upgrade_disabled',
     'mark_error',
 ]
 
@@ -68,29 +66,30 @@ class PluginStateResolver:
         """
         if snapshot.current_status == 'error':
             return 'error'
-        if snapshot.current_status == 'discovered' and not snapshot.installed_version:
+        if not snapshot.installed_version and snapshot.current_status in {None, 'discovered'}:
             return 'discovered'
         if cls._needs_upgrade(snapshot.installed_version, snapshot.source_version):
             return 'pending_upgrade'
-        if not snapshot.enabled:
-            return 'disabled'
         return 'installed' if snapshot.installed_version else 'discovered'
 
     @staticmethod
-    def is_enabled(manifest_enabled: bool, database_plugin: object | None) -> bool:
+    def is_enabled(database_plugin: object | None) -> bool:
         """
         解析插件启用状态。
 
-        :param manifest_enabled: manifest 默认启用状态
         :param database_plugin: 数据库插件状态对象
         :return: 是否启用
         """
-        if database_plugin and getattr(database_plugin, 'status', None) == 'error':
+        if not database_plugin:
+            return False
+        if getattr(database_plugin, 'status', None) == 'error':
+            return False
+        if not getattr(database_plugin, 'installed_version', None):
             return False
         database_enabled = getattr(database_plugin, 'enabled', None) if database_plugin else None
         if database_enabled is not None:
             return database_enabled == '0'
-        return manifest_enabled
+        return False
 
     @staticmethod
     def enabled_to_db_value(enabled: bool) -> str:
@@ -155,26 +154,21 @@ class PluginStateTransitionTable:
 
     _TRANSITIONS = (
         PluginStateTransition(None, 'discover', 'discovered', '首次扫描到本地插件'),
-        PluginStateTransition('discovered', 'install', 'installed', '插件安装完成且处于启用态'),
-        PluginStateTransition('discovered', 'install_disabled', 'disabled', '插件安装完成但处于停用态'),
-        PluginStateTransition('discovered', 'disable', 'disabled', '未安装插件被显式停用'),
+        PluginStateTransition('discovered', 'install', 'installed', '插件安装完成'),
+        PluginStateTransition('discovered', 'disable', 'discovered', '未安装插件被显式停用'),
         PluginStateTransition('discovered', 'mark_error', 'error', '插件安装或启动失败'),
-        PluginStateTransition('installed', 'disable', 'disabled', '插件被停用'),
+        PluginStateTransition('installed', 'disable', 'installed', '插件被停用'),
+        PluginStateTransition('installed', 'enable', 'installed', '插件被启用'),
         PluginStateTransition('installed', 'upgrade_available', 'pending_upgrade', '发现源码版本高于已安装版本'),
         PluginStateTransition('installed', 'mark_error', 'error', '插件运行或操作失败'),
-        PluginStateTransition('disabled', 'enable', 'installed', '插件被重新启用'),
-        PluginStateTransition('disabled', 'upgrade_available', 'pending_upgrade', '停用插件发现源码版本高于已安装版本'),
-        PluginStateTransition('disabled', 'mark_error', 'error', '停用插件操作失败'),
-        PluginStateTransition('pending_upgrade', 'upgrade', 'installed', '插件升级完成且处于启用态'),
-        PluginStateTransition('pending_upgrade', 'upgrade_disabled', 'disabled', '插件升级完成但处于停用态'),
-        PluginStateTransition('pending_upgrade', 'disable', 'disabled', '待升级插件被停用'),
+        PluginStateTransition('pending_upgrade', 'upgrade', 'installed', '插件升级完成'),
+        PluginStateTransition('pending_upgrade', 'disable', 'pending_upgrade', '待升级插件被停用'),
+        PluginStateTransition('pending_upgrade', 'enable', 'pending_upgrade', '待升级插件被启用'),
         PluginStateTransition('pending_upgrade', 'mark_error', 'error', '插件升级或运行失败'),
         PluginStateTransition('error', 'enable', 'installed', '异常插件修复后重新启用'),
-        PluginStateTransition('error', 'disable', 'disabled', '异常插件被显式停用'),
-        PluginStateTransition('error', 'install', 'installed', '异常插件重新安装成功且处于启用态'),
-        PluginStateTransition('error', 'install_disabled', 'disabled', '异常插件重新安装成功但处于停用态'),
-        PluginStateTransition('error', 'upgrade', 'installed', '异常插件升级修复完成且处于启用态'),
-        PluginStateTransition('error', 'upgrade_disabled', 'disabled', '异常插件升级修复完成但处于停用态'),
+        PluginStateTransition('error', 'disable', 'error', '异常插件被显式停用'),
+        PluginStateTransition('error', 'install', 'installed', '异常插件重新安装成功'),
+        PluginStateTransition('error', 'upgrade', 'installed', '异常插件升级修复完成'),
         PluginStateTransition('error', 'mark_error', 'error', '异常插件再次记录失败信息'),
     )
 

@@ -313,7 +313,8 @@ frontend:
       component: plugin/demo/index
       perms: demo:list
 permissions:
-  - demo:list
+  - code: demo:list
+    name: 演示列表
 """,
     )
     create_controller_dir(plugin_root)
@@ -506,7 +507,8 @@ frontend:
       component: plugin/demo/index
       perms: demo:list
 permissions:
-  - demo:list
+  - code: demo:list
+    name: 演示列表
 dependencies:
   python:
     - requests>=2.0.0
@@ -530,7 +532,7 @@ config:
     assert result['format'] == 'markdown'
     assert '# 演示插件' in result['markdown']
     assert '| Demo | `demo` | `plugin/demo/index` | `demo:list` | `C` |' in result['markdown']
-    assert '- `demo:list`' in result['markdown']
+    assert '| `demo:list` | 演示列表 | - |' in result['markdown']
     assert '`******`' in result['markdown']
     assert '- `requests>=2.0.0`' in result['markdown']
     assert '- `onInstall`：`hooks:on_install`' in result['markdown']

@@ -42,6 +42,56 @@ def test_manifest_fills_frontend_defaults() -> None:
     assert manifest.backend.routers.auto_scan is True
 
 
+def test_manifest_accepts_version_metadata_databases_and_menu_system_fields() -> None:
+    """
+    校验插件清单支持版本、展示元数据、数据库兼容性和系统菜单字段。
+
+    :return: None
+    """
+    manifest = PluginManifest.model_validate(
+        {
+            'manifestVersion': 1,
+            'id': 'demo',
+            'name': '演示插件',
+            'version': '1.0.0',
+            'description': 'demo plugin',
+            'metadata': {
+                'category': 'demo',
+                'tags': ['demo', 'sample'],
+                'author': 'RuoYi',
+                'license': 'MIT',
+                'homepage': 'https://example.com',
+                'repository': 'https://example.com/repo',
+                'documentation': 'https://example.com/docs',
+            },
+            'backend': {'module': 'plugins.demo'},
+            'frontend': {
+                'menus': [
+                    {
+                        'name': '演示',
+                        'path': 'demo',
+                        'component': 'plugin/demo/index',
+                        'routeName': 'DemoIndex',
+                        'query': '{"tab":"basic"}',
+                        'isFrame': 1,
+                        'isCache': 1,
+                    }
+                ]
+            },
+            'compatibility': {'databases': ['mysql', 'postgresql']},
+        }
+    )
+
+    assert manifest.manifest_version == 1
+    assert manifest.metadata.category == 'demo'
+    assert manifest.metadata.tags == ['demo', 'sample']
+    assert manifest.compatibility.databases == ['mysql', 'postgresql']
+    assert manifest.frontend.menus[0].route_name == 'DemoIndex'
+    assert manifest.frontend.menus[0].query == '{"tab":"basic"}'
+    assert manifest.frontend.menus[0].is_frame == 1
+    assert manifest.frontend.menus[0].is_cache == 1
+
+
 def test_manifest_accepts_camel_case_fields() -> None:
     manifest = PluginManifest.model_validate(
         {
@@ -63,6 +113,131 @@ def test_manifest_accepts_camel_case_fields() -> None:
     assert manifest.frontend.plugin_id == 'demo'
     assert manifest.frontend.views_path == 'custom_views'
     assert manifest.frontend.menus[0].order_num == 0
+
+
+def test_manifest_rejects_unsupported_manifest_version() -> None:
+    """
+    校验插件清单版本只接受当前支持版本。
+
+    :return: None
+    """
+    with pytest.raises(ValueError):
+        PluginManifest.model_validate(
+            {
+                'manifestVersion': 2,
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo'},
+            }
+        )
+
+
+def test_manifest_rejects_duplicate_metadata_tags_and_databases() -> None:
+    """
+    校验插件展示标签和数据库兼容性声明不能重复。
+
+    :return: None
+    """
+    with pytest.raises(ValueError, match=r'metadata\.tags 不能重复'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'metadata': {'tags': ['demo', 'demo']},
+                'backend': {'module': 'plugins.demo'},
+            }
+        )
+    with pytest.raises(ValueError, match=r'compatibility\.databases 不能重复'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo'},
+                'compatibility': {'databases': ['mysql', 'mysql']},
+            }
+        )
+
+
+def test_manifest_rejects_invalid_metadata_url() -> None:
+    """
+    校验插件展示元数据地址必须是 http/https 地址。
+
+    :return: None
+    """
+    with pytest.raises(ValueError, match=r'metadata\.homepage 必须是 http/https 地址'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'metadata': {'homepage': 'example.com'},
+                'backend': {'module': 'plugins.demo'},
+            }
+        )
+
+
+def test_manifest_accepts_external_frame_menu() -> None:
+    """
+    校验外链菜单允许 http/https 路由地址。
+
+    :return: None
+    """
+    manifest = PluginManifest.model_validate(
+        {
+            'id': 'demo',
+            'name': '演示插件',
+            'version': '1.0.0',
+            'backend': {'module': 'plugins.demo'},
+            'frontend': {
+                'menus': [
+                    {
+                        'name': '外链',
+                        'path': 'https://example.com/docs',
+                        'component': 'InnerLink',
+                        'isFrame': 0,
+                    }
+                ]
+            },
+        }
+    )
+
+    assert manifest.frontend.menus[0].path == 'https://example.com/docs'
+    assert manifest.frontend.menus[0].is_frame == 0
+
+
+def test_manifest_rejects_mismatched_frame_menu_path() -> None:
+    """
+    校验外链标记和菜单路径类型必须匹配。
+
+    :return: None
+    """
+    with pytest.raises(ValueError, match='外链菜单 path 必须是 http/https 地址'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo'},
+                'frontend': {'menus': [{'name': '外链', 'path': 'demo', 'component': 'InnerLink', 'isFrame': 0}]},
+            }
+        )
+    with pytest.raises(ValueError, match='非外链菜单 path 不能是 http/https 地址'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo'},
+                'frontend': {
+                    'menus': [
+                        {'name': '页面', 'path': 'https://example.com/docs', 'component': 'InnerLink', 'isFrame': 1}
+                    ]
+                },
+            }
+        )
 
 
 def test_manifest_normalizes_config_type_aliases() -> None:
@@ -280,6 +455,50 @@ def test_manifest_rejects_invalid_permissions() -> None:
         )
 
 
+def test_manifest_accepts_permission_objects_and_aliases() -> None:
+    """
+    校验插件权限支持对象写法、展示名和兼容字段名。
+
+    :return: None
+    """
+    manifest = PluginManifest.model_validate(
+        {
+            'id': 'demo',
+            'name': '演示插件',
+            'version': '1.0.0',
+            'backend': {'module': 'plugins.demo'},
+            'permissions': [
+                {'code': 'demo:list', 'name': '演示列表', 'description': '查看演示页面'},
+                {'perms': 'demo:add', 'name': '新增演示'},
+                {'permission': 'demo:edit'},
+                'demo:remove',
+            ],
+        }
+    )
+
+    assert manifest.permission_codes == ['demo:list', 'demo:add', 'demo:edit', 'demo:remove']
+    assert manifest.permission_name_map == {'demo:list': '演示列表', 'demo:add': '新增演示'}
+    assert manifest.permissions[0].description == '查看演示页面'
+
+
+def test_manifest_rejects_duplicate_permission_objects() -> None:
+    """
+    校验对象权限按权限标识去重。
+
+    :return: None
+    """
+    with pytest.raises(ValueError, match='插件权限不能重复'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo'},
+                'permissions': [{'code': 'demo:list', 'name': '演示列表'}, {'perms': 'demo:list'}],
+            }
+        )
+
+
 def test_manifest_rejects_undeclared_menu_permission() -> None:
     """
     校验菜单权限必须在顶层 permissions 中声明。
@@ -430,7 +649,6 @@ def test_discover_plugins_loads_valid_manifests(tmp_path: Path) -> None:
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 frontend:
@@ -447,7 +665,7 @@ permissions:
 
     assert len(plugins) == 1
     assert plugins[0].manifest.id == 'demo'
-    assert plugins[0].manifest.enabled is True
+    assert not hasattr(plugins[0].manifest, 'enabled')
     assert plugins[0].backend_path == tmp_path / 'demo'
 
 

@@ -1,7 +1,8 @@
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import cast
 
 from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT, PluginRuntimeEnvironmentService
+from plugins.core.runtime.support import PluginRuntimePayloadBuilder
 from plugins.core.types import PluginConfigValue
 from plugins.core.validation.dependencies import PluginDependencyChecker
 
@@ -20,6 +21,7 @@ from .gateway import (
     UnavailablePluginStateGateway,
 )
 from .lifecycle import PluginEnableUseCase, PluginInstallUseCase, PluginPurgeUseCase, PluginUpgradeUseCase
+from .lifecycle_lock import NoopPluginLifecycleLock, PluginLifecycleLock
 from .precheck import PluginPrecheckUseCase
 from .query import PluginQueryUseCase
 from .responses import (
@@ -59,6 +61,7 @@ class PluginRuntimeService:
         state_gateway: PluginStateGateway | None = None,
         model_gateway: PluginManagementModelGateway | None = None,
         command_gateway: PluginCommandRunnerGateway | None = None,
+        lifecycle_lock: PluginLifecycleLock | None = None,
     ) -> None:
         """
         初始化插件应用运行时服务。
@@ -68,6 +71,7 @@ class PluginRuntimeService:
         :param state_gateway: 插件管理状态网关
         :param model_gateway: 插件管理模型工厂网关
         :param command_gateway: 插件命令执行网关
+        :param lifecycle_lock: 插件生命周期操作锁
         :return: None
         """
         resolved_environment = runtime_environment or PLUGIN_RUNTIME_ENVIRONMENT
@@ -83,6 +87,7 @@ class PluginRuntimeService:
                 command_gateway=command_gateway or DefaultPluginCommandRunnerGateway(),
             )
         )
+        self.lifecycle_lock = lifecycle_lock or NoopPluginLifecycleLock()
 
     def _replace_dependencies(self, dependencies: PluginRuntimeDependencies) -> None:
         """
@@ -422,9 +427,11 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件安装结果负载
         """
-        return cast(
-            'PluginLifecycleResponse',
-            await self.install.install_plugin(
+        return await self._run_with_lifecycle_lock(
+            plugin_id,
+            'install',
+            dry_run=dry_run,
+            operation=lambda: self.install.install_plugin(
                 plugin_id,
                 dry_run=dry_run,
                 record_operation_log=record_operation_log,
@@ -448,9 +455,12 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件启停结果负载
         """
-        return cast(
-            'PluginLifecycleResponse',
-            await self.enable.set_plugin_enabled(
+        operation = 'enable' if enabled else 'disable'
+        return await self._run_with_lifecycle_lock(
+            plugin_id,
+            operation,
+            dry_run=dry_run,
+            operation=lambda: self.enable.set_plugin_enabled(
                 plugin_id,
                 enabled=enabled,
                 dry_run=dry_run,
@@ -473,9 +483,11 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件卸载结果负载
         """
-        return cast(
-            'PluginLifecycleResponse',
-            await self.enable.uninstall_plugin(
+        return await self._run_with_lifecycle_lock(
+            plugin_id,
+            'uninstall',
+            dry_run=dry_run,
+            operation=lambda: self.enable.uninstall_plugin(
                 plugin_id,
                 dry_run=dry_run,
                 record_operation_log=record_operation_log,
@@ -497,9 +509,11 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件物理清理结果负载
         """
-        return cast(
-            'PluginLifecycleResponse',
-            await self.purge.purge_plugin(
+        return await self._run_with_lifecycle_lock(
+            plugin_id,
+            'purge',
+            dry_run=dry_run,
+            operation=lambda: self.purge.purge_plugin(
                 plugin_id,
                 dry_run=dry_run,
                 record_operation_log=record_operation_log,
@@ -521,14 +535,47 @@ class PluginRuntimeService:
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件升级结果负载
         """
-        return cast(
-            'PluginLifecycleResponse',
-            await self.upgrade.upgrade_plugin(
+        return await self._run_with_lifecycle_lock(
+            plugin_id,
+            'upgrade',
+            dry_run=dry_run,
+            operation=lambda: self.upgrade.upgrade_plugin(
                 plugin_id,
                 dry_run=dry_run,
                 record_operation_log=record_operation_log,
             ),
         )
+
+    async def _run_with_lifecycle_lock(
+        self,
+        plugin_id: str,
+        lock_operation: str,
+        *,
+        dry_run: bool,
+        operation: Callable[[], Awaitable[PluginLifecycleResponse]],
+    ) -> PluginLifecycleResponse:
+        """
+        在插件生命周期分布式锁内执行写操作。
+
+        :param plugin_id: 插件ID
+        :param lock_operation: 锁定的操作类型
+        :param dry_run: 是否仅预演
+        :param operation: 实际操作
+        :return: 插件生命周期操作结果
+        """
+        if dry_run:
+            return await operation()
+        async with self.lifecycle_lock.lock(plugin_id, lock_operation) as lock_result:
+            if not lock_result.acquired:
+                return cast(
+                    'PluginLifecycleResponse',
+                    PluginRuntimePayloadBuilder.build_invalid_operation_payload(
+                        plugin_id,
+                        lock_operation,
+                        message=lock_result.message,
+                    ),
+                )
+            return await operation()
 
     def generate_plugin_docs(self, plugin_id: str) -> PluginDocumentationResponse:
         """

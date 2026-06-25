@@ -18,7 +18,6 @@ def build_discovered_plugin(
     plugin_id: str,
     version: str = '1.0.0',
     dependencies: list[object] | None = None,
-    enabled: bool = False,
 ) -> DiscoveredPlugin:
     """
     构造测试用已发现插件。
@@ -27,7 +26,6 @@ def build_discovered_plugin(
     :param plugin_id: 插件ID
     :param version: 插件版本
     :param dependencies: 插件间依赖声明
-    :param enabled: 默认是否启用
     :return: 已发现插件对象
     """
     backend_path = tmp_path / 'plugins' / plugin_id
@@ -39,7 +37,6 @@ def build_discovered_plugin(
             'id': plugin_id,
             'name': plugin_id,
             'version': version,
-            'enabled': enabled,
             'backend': {'module': f'plugins.{plugin_id}'},
             'dependencies': {'plugins': dependencies or []},
         }
@@ -128,7 +125,7 @@ def test_plugin_dependency_checker_reports_disabled_and_version_unsatisfied(tmp_
         [target, base, helper],
         [
             build_database_plugin('base', '1.0.0'),
-            build_database_plugin('helper', '1.0.0', enabled='1', status='disabled'),
+            build_database_plugin('helper', '1.0.0', enabled='1', status='installed'),
         ],
     ).check_manifest(target.manifest)
 
@@ -174,7 +171,7 @@ def test_plugin_dependency_checker_reports_enabled_dependents(tmp_path: Path) ->
         [
             build_database_plugin('base', '1.0.0'),
             build_database_plugin('app', '1.0.0'),
-            build_database_plugin('disabled_app', '1.0.0', enabled='1', status='disabled'),
+            build_database_plugin('disabled_app', '1.0.0', enabled='1', status='installed'),
         ],
     ).check_enabled_dependents('base')
 
@@ -193,7 +190,7 @@ def test_plugin_dependency_plan_builder_sorts_dependencies_first_for_install(tmp
     :return: None
     """
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['base'])
-    base = build_discovered_plugin(tmp_path, 'base', enabled=True)
+    base = build_discovered_plugin(tmp_path, 'base')
 
     plan = PluginDependencyPlanBuilder([app, base], []).build_plan('install', ['app'])
 
@@ -204,17 +201,18 @@ def test_plugin_dependency_plan_builder_sorts_dependencies_first_for_install(tmp
     assert plan.items[1].requested is True
 
 
-def test_plugin_dependency_plan_builder_blocks_install_when_dependency_will_stay_disabled(tmp_path: Path) -> None:
+def test_plugin_dependency_plan_builder_blocks_install_when_database_dependency_disabled(tmp_path: Path) -> None:
     """
-    校验批量安装计划会阻止依赖插件安装后仍停用的场景。
+    校验批量安装计划会阻止依赖插件已停用的场景。
 
     :param tmp_path: pytest 临时目录
     :return: None
     """
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['base'])
-    base = build_discovered_plugin(tmp_path, 'base', enabled=False)
+    base = build_discovered_plugin(tmp_path, 'base')
+    database_base = build_database_plugin('base', '1.0.0', enabled='1', status='installed')
 
-    plan = PluginDependencyPlanBuilder([app, base], []).build_plan('install', ['app'])
+    plan = PluginDependencyPlanBuilder([app, base], [database_base]).build_plan('install', ['app'])
 
     assert plan.ok is False
     assert plan.blockers[0].status == 'disabled'
@@ -267,8 +265,8 @@ def test_plugin_dependency_plan_builder_allows_enable_with_disabled_installed_de
     plan = PluginDependencyPlanBuilder(
         [app, base],
         [
-            build_database_plugin('app', '1.0.0', enabled='1', status='disabled'),
-            build_database_plugin('base', '1.0.0', enabled='1', status='disabled'),
+            build_database_plugin('app', '1.0.0', enabled='1', status='installed'),
+            build_database_plugin('base', '1.0.0', enabled='1', status='installed'),
         ],
     ).build_plan('enable', ['app'])
 
@@ -290,7 +288,7 @@ def test_plugin_dependency_plan_builder_blocks_upgrade_when_dependency_disabled(
         [app, base],
         [
             build_database_plugin('app', '1.0.0'),
-            build_database_plugin('base', '1.0.0', enabled='1', status='disabled'),
+            build_database_plugin('base', '1.0.0', enabled='1', status='installed'),
         ],
     ).build_plan('upgrade', ['app'])
 

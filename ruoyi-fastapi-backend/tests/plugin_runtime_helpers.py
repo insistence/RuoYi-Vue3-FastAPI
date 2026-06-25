@@ -276,8 +276,8 @@ class FakePluginService:
         return SimpleNamespace(
             plugin_id=discovered_plugin.manifest.id,
             installed_version=discovered_plugin.manifest.version,
-            enabled='0' if discovered_plugin.manifest.enabled else '1',
-            status='installed' if discovered_plugin.manifest.enabled else 'disabled',
+            enabled='0',
+            status='installed',
             model_dump=lambda by_alias=True: {'pluginId': discovered_plugin.manifest.id},
         )
 
@@ -522,15 +522,15 @@ class FakePluginService:
             SimpleNamespace(
                 plugin_id=discovered_plugin.manifest.id,
                 installed_version=discovered_plugin.manifest.version,
-                enabled='0' if discovered_plugin.manifest.enabled else '1',
-                status='installed' if discovered_plugin.manifest.enabled else 'disabled',
+                enabled='0',
+                status='installed',
             )
         )
         return SimpleNamespace(
             model_dump=lambda by_alias=True: {
                 'pluginId': discovered_plugin.manifest.id,
                 'installedVersion': discovered_plugin.manifest.version,
-                'status': 'installed' if discovered_plugin.manifest.enabled else 'disabled',
+                'status': 'installed',
             }
         )
 

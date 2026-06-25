@@ -843,7 +843,6 @@ function formatPluginIsoTime(value) {
 const pluginStatusOptions = [
   { label: "已发现", value: "discovered", tagType: "info" },
   { label: "已安装", value: "installed", tagType: "success" },
-  { label: "已停用", value: "disabled", tagType: "warning" },
   { label: "待升级", value: "pending_upgrade", tagType: "warning" },
   { label: "异常", value: "error", tagType: "danger" }
 ];

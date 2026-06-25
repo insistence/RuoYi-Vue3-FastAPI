@@ -8,6 +8,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
 from plugins.core.discovery.scanner import PluginScanner  # noqa: E402
+from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
 from plugins.core.validation.structure import PluginStructureChecker  # noqa: E402
 
 EXPECTED_AI_PERMISSIONS = {
@@ -53,7 +54,7 @@ def test_ai_plugin_template_can_be_discovered() -> None:
     plugin = PluginScanner(BACKEND_ROOT / 'plugins').load_manifest(BACKEND_ROOT / 'plugins' / 'ai' / 'plugin.yaml')
 
     assert plugin.manifest.id == 'ai'
-    assert plugin.manifest.enabled is False
+    assert not hasattr(plugin.manifest, 'enabled')
     assert plugin.manifest.backend.module == 'plugins.ai'
     assert plugin.manifest.backend.migrations == [
         'migrations/mysql/001_init.sql',
@@ -65,7 +66,8 @@ def test_ai_plugin_template_can_be_discovered() -> None:
     ]
     assert plugin.manifest.frontend.menus[0].children[0].component == 'plugin/ai/model/index'
     assert plugin.manifest.frontend.menus[0].children[1].component == 'plugin/ai/chat/index'
-    assert set(plugin.manifest.permissions) == EXPECTED_AI_PERMISSIONS
+    assert set(plugin.manifest.permission_codes) == EXPECTED_AI_PERMISSIONS
+    assert plugin.manifest.permission_name_map['ai:model:add'] == '新增模型'
     assert plugin.manifest.dependencies.python == EXPECTED_AI_PYTHON_DEPENDENCIES
     assert plugin.manifest.dependencies.npm == EXPECTED_AI_NPM_DEPENDENCIES
     assert plugin.manifest.dependencies.npm_dev == EXPECTED_AI_NPM_DEV_DEPENDENCIES
@@ -78,10 +80,22 @@ def test_ai_plugin_runtime_paths_exist() -> None:
     :return: None
     """
     plugin = PluginScanner(BACKEND_ROOT / 'plugins').load_manifest(BACKEND_ROOT / 'plugins' / 'ai' / 'plugin.yaml')
-    registry = PluginRegistry.build([plugin])
+    registry = PluginRegistry.build(
+        [plugin],
+        [
+            PluginModel(
+                pluginId='ai',
+                pluginName='AI 管理',
+                version='0.1.0',
+                installedVersion='0.1.0',
+                enabled='0',
+                status='installed',
+            )
+        ],
+    )
 
-    assert registry.get_enabled_controller_dirs() == []
-    assert registry.get_enabled_entity_do_dirs() == []
+    assert registry.get_enabled_controller_dirs() == [BACKEND_ROOT / 'plugins' / 'ai' / 'controller']
+    assert registry.get_enabled_entity_do_dirs() == [BACKEND_ROOT / 'plugins' / 'ai' / 'entity' / 'do']
     assert (BACKEND_ROOT / 'plugins' / 'ai' / 'controller').is_dir()
     assert (BACKEND_ROOT / 'plugins' / 'ai' / 'entity' / 'do').is_dir()
     assert (FRONTEND_ROOT / 'plugins' / 'ai' / 'views' / 'model' / 'index.vue').is_file()

@@ -7,7 +7,7 @@ from module_admin.entity.vo.menu_vo import MenuModel
 from plugins.core.management.dao.dao import PluginDao
 from plugins.core.management.entity.vo.schemas import PluginMenuModel
 from plugins.core.manifest.menu_key import InstalledPluginMenu, PluginMenuKeyBuilder
-from plugins.core.manifest.schema import PluginManifest, PluginMenuManifest
+from plugins.core.manifest.schema import PluginManifest, PluginMenuManifest, PluginPermissionManifest
 from utils.log_util import logger
 
 ROOT_MENU_ID = 0
@@ -139,16 +139,16 @@ class PluginMenuInstaller:
         """
         declared_menu_permissions = {installed_menu.manifest_menu.perms for installed_menu in installed_menus}
         missing_permissions = [
-            permission
-            for permission in manifest.permissions
-            if permission and permission not in declared_menu_permissions
+            permission_manifest
+            for permission_manifest in manifest.permissions
+            if permission_manifest.code and permission_manifest.code not in declared_menu_permissions
         ]
         if not missing_permissions:
             return []
 
         auto_buttons = []
         for index, permission in enumerate(missing_permissions, start=1):
-            parent_menu = self._find_permission_parent_menu(permission, installed_menus)
+            parent_menu = self._find_permission_parent_menu(permission.code, installed_menus)
             if not parent_menu:
                 continue
             button_menu = self._build_permission_button_menu(permission, index)
@@ -205,20 +205,20 @@ class PluginMenuInstaller:
         )
 
     @staticmethod
-    def _build_permission_button_menu(permission: str, order_index: int) -> PluginMenuManifest:
+    def _build_permission_button_menu(permission: PluginPermissionManifest, order_index: int) -> PluginMenuManifest:
         """
         构建权限按钮菜单声明。
 
-        :param permission: 权限标识
+        :param permission: 权限声明
         :param order_index: 自动按钮排序序号
         :return: 按钮菜单声明
         """
-        action = permission.rsplit(':', maxsplit=1)[-1]
+        action = permission.code.rsplit(':', maxsplit=1)[-1]
         return PluginMenuManifest(
-            name=PERMISSION_BUTTON_LABELS.get(action, action),
+            name=permission.name or PERMISSION_BUTTON_LABELS.get(action, action),
             path=action,
             component='',
-            perms=permission,
+            perms=permission.code,
             type='F',
             orderNum=AUTO_BUTTON_ORDER_START + order_index,
             icon='#',
@@ -330,8 +330,10 @@ class PluginMenuInstaller:
             orderNum=menu.order_num,
             path=menu.path,
             component=menu.component,
-            isFrame=1,
-            isCache=0,
+            query=menu.query,
+            routeName=menu.route_name,
+            isFrame=menu.is_frame,
+            isCache=menu.is_cache,
             menuType=menu.type,
             visible=menu.visible,
             status=menu.status,

@@ -391,9 +391,9 @@ backend:
     assert FakePluginService.operation_logs[0].payload['pluginId'] == 'demo'
 
 
-def test_plugin_runtime_install_disabled_plugin_persists_disabled_menus(tmp_path: Path) -> None:
+def test_plugin_runtime_install_plugin_ignores_removed_manifest_enabled_field(tmp_path: Path) -> None:
     """
-    校验默认停用插件安装时也会写入菜单，并保持菜单停用，便于后续启用时展示菜单。
+    校验插件安装状态不再由 manifest 根级 enabled 字段决定。
 
     :param tmp_path: pytest 临时目录
     :return: None
@@ -406,7 +406,6 @@ def test_plugin_runtime_install_disabled_plugin_persists_disabled_menus(tmp_path
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: false
 backend:
   module: plugins.demo
 frontend:
@@ -427,8 +426,8 @@ permissions:
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
 
     assert result['ok'] is True
-    assert result['plugin']['status'] == 'disabled'
-    assert FakePluginService.install_plugin_menu_called_with == ('demo', False)
+    assert result['plugin']['status'] == 'installed'
+    assert FakePluginService.install_plugin_menu_called_with == ('demo', True)
     assert FakePluginService.mark_installed_called is True
 
 

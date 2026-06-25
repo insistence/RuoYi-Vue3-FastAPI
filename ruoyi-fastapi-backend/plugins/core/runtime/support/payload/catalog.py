@@ -11,7 +11,12 @@ from .base import PluginPayloadModel
 
 if TYPE_CHECKING:
     from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.manifest.schema import PluginConfigItemManifest, PluginJobManifest, PluginMenuManifest
+    from plugins.core.manifest.schema import (
+        PluginConfigItemManifest,
+        PluginJobManifest,
+        PluginMenuManifest,
+        PluginPermissionManifest,
+    )
     from plugins.core.types import PluginStateRecord, SupportsToPayload
     from plugins.core.validation.dependencies import DependencyCheckItem
 
@@ -68,6 +73,16 @@ class PluginManifestConfigItemPayload(PluginPayloadModel):
     options: list[dict[str, object]]
 
 
+class PluginManifestPermissionItemPayload(PluginPayloadModel):
+    """
+    manifest 权限声明 payload。
+    """
+
+    code: str
+    name: str | None
+    description: str
+
+
 class PluginMenuDiagnosticPlanItemPayload(PluginPayloadModel):
     """
     菜单诊断计划项 payload。
@@ -78,6 +93,10 @@ class PluginMenuDiagnosticPlanItemPayload(PluginPayloadModel):
     component: str
     perms: str
     type: str
+    query: str | None
+    route_name: str | None = Field(alias='routeName')
+    is_frame: int = Field(alias='isFrame')
+    is_cache: int = Field(alias='isCache')
     visible: str
     status: str
     children: int
@@ -212,7 +231,7 @@ class PluginCatalogPayloadMixin:
         """
         discovered_plugin = plugin.discovered_plugin if isinstance(plugin, RegisteredPlugin) else plugin
         database_plugin = plugin.database_plugin if isinstance(plugin, RegisteredPlugin) else None
-        enabled = plugin.enabled if isinstance(plugin, RegisteredPlugin) else discovered_plugin.manifest.enabled
+        enabled = plugin.enabled if isinstance(plugin, RegisteredPlugin) else False
         status = plugin.status if isinstance(plugin, RegisteredPlugin) else 'discovered'
         manifest = discovered_plugin.manifest
         installed_version = getattr(database_plugin, 'installed_version', None)
@@ -244,7 +263,7 @@ class PluginCatalogPayloadMixin:
                     'buildRequired': manifest.frontend.delivery.build_required,
                 },
             },
-            'permissions': manifest.permissions,
+            'permissions': cls.build_manifest_permission_items(manifest.permissions),
             'config': cls.build_manifest_config_items(manifest.config.items),
             'pluginDependencies': [
                 {
@@ -256,6 +275,25 @@ class PluginCatalogPayloadMixin:
             ],
             'dependencies': [cls.build_dependency_item(item) for item in dependency_items],
         }
+
+    @staticmethod
+    def build_manifest_permission_items(
+        permissions: list[PluginPermissionManifest],
+    ) -> list[dict[str, object]]:
+        """
+        构建 manifest 权限声明 payload。
+
+        :param permissions: 权限声明列表
+        :return: 权限声明 payload 列表
+        """
+        return [
+            PluginManifestPermissionItemPayload(
+                code=permission.code,
+                name=permission.name,
+                description=permission.description,
+            ).to_payload()
+            for permission in permissions
+        ]
 
     @staticmethod
     def build_manifest_config_items(
@@ -322,6 +360,10 @@ class PluginCatalogPayloadMixin:
             component=menu.component,
             perms=menu.perms,
             type=menu.type,
+            query=menu.query,
+            routeName=menu.route_name,
+            isFrame=menu.is_frame,
+            isCache=menu.is_cache,
             visible=menu.visible,
             status=menu.status,
             children=len(menu.children),

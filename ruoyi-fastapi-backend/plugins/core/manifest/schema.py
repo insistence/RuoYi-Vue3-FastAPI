@@ -1,7 +1,7 @@
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.types import PluginConfigValue
@@ -16,11 +16,13 @@ JOB_CALLABLE_PATTERN = re.compile(r'^[A-Za-z_][\w.]*\.[A-Za-z_]\w*$')
 PLUGIN_DEPENDENCY_PATTERN = re.compile(r'^\s*([a-z][a-z0-9_-]{1,63})\s*([<>=!~^]{1,2})?\s*([A-Za-z0-9_.+\-!*]+)?\s*$')
 VERSION_CONSTRAINT_PATTERN = re.compile(r'^([<>=!~^]{1,2})?[A-Za-z0-9_.+\-!*]+$')
 ROUTE_PATH_PATTERN = re.compile(r'^[a-z][a-z0-9_-]*(/[a-z][a-z0-9_-]*)*$')
+EXTERNAL_URL_PATTERN = re.compile(r'^https?://\S+$')
 FRONTEND_RELATIVE_PATH_PATTERN = re.compile(r'^[a-z][a-z0-9_-]*(/[a-z][a-z0-9_-]*)*$')
 PLUGIN_COMPONENT_SEGMENT_PATTERN = re.compile(r'^[a-z][a-z0-9_-]*$')
 RESOURCE_RELATIVE_PATH_PATTERN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)*$')
 CORE_FRONTEND_COMPONENTS = {'Layout', 'ParentView', 'InnerLink'}
 MIN_PLUGIN_COMPONENT_PARTS = 3
+SUPPORTED_MANIFEST_VERSION = 1
 
 
 class PluginManifestError(ValueError):
@@ -304,6 +306,61 @@ class DependencyManifest(BaseModel):
         return self
 
 
+class PluginMetadataManifest(BaseModel):
+    """
+    插件展示元数据声明。
+    """
+
+    category: str = Field(default='', description='插件分类')
+    tags: list[str] = Field(default_factory=list, description='插件标签')
+    author: str = Field(default='', description='插件作者')
+    license: str = Field(default='', description='插件许可证')
+    homepage: str = Field(default='', description='插件主页')
+    repository: str = Field(default='', description='插件代码仓库')
+    documentation: str = Field(default='', description='插件文档地址')
+
+    @field_validator('category', 'author', 'license')
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        """
+        清理展示元数据文本。
+
+        :param value: 原始文本
+        :return: 清理后的文本
+        """
+        return value.strip()
+
+    @field_validator('homepage', 'repository', 'documentation')
+    @classmethod
+    def validate_url(cls, value: str, info: ValidationInfo) -> str:
+        """
+        校验展示元数据地址。
+
+        :param value: 原始地址
+        :param info: 字段信息
+        :return: 校验后的地址
+        """
+        value = value.strip()
+        if value and not EXTERNAL_URL_PATTERN.match(value):
+            raise ValueError(f'metadata.{info.field_name} 必须是 http/https 地址')
+        return value
+
+    @field_validator('tags')
+    @classmethod
+    def validate_tags(cls, value: list[str]) -> list[str]:
+        """
+        清理并校验插件标签。
+
+        :param value: 原始标签列表
+        :return: 清理后的标签列表
+        """
+        tags = [tag.strip() for tag in value if tag.strip()]
+        duplicated_tags = {tag for tag in tags if tags.count(tag) > 1}
+        if duplicated_tags:
+            raise ValueError(f'插件 metadata.tags 不能重复：{", ".join(sorted(duplicated_tags))}')
+        return tags
+
+
 class CompatibilityManifest(BaseModel):
     """
     插件平台兼容性声明。
@@ -315,6 +372,7 @@ class CompatibilityManifest(BaseModel):
     frontend_version: str | None = Field(default=None, alias='frontendVersion', description='前端版本约束')
     python_version: str | None = Field(default=None, alias='pythonVersion', description='Python 版本约束')
     node_version: str | None = Field(default=None, alias='nodeVersion', description='Node.js 版本约束')
+    databases: list[Literal['mysql', 'postgresql']] = Field(default_factory=list, description='支持的数据库类型')
 
     @field_validator('backend_version', 'frontend_version', 'python_version', 'node_version')
     @classmethod
@@ -329,6 +387,22 @@ class CompatibilityManifest(BaseModel):
             return value
         if not VERSION_CONSTRAINT_PATTERN.match(value):
             raise ValueError('compatibility 版本约束必须是版本号或带操作符的版本约束')
+        return value
+
+    @field_validator('databases')
+    @classmethod
+    def validate_unique_databases(
+        cls, value: list[Literal['mysql', 'postgresql']]
+    ) -> list[Literal['mysql', 'postgresql']]:
+        """
+        校验数据库类型声明不重复。
+
+        :param value: 数据库类型列表
+        :return: 校验后的数据库类型列表
+        """
+        duplicated_databases = {database for database in value if value.count(database) > 1}
+        if duplicated_databases:
+            raise ValueError(f'compatibility.databases 不能重复：{", ".join(sorted(duplicated_databases))}')
         return value
 
 
@@ -357,6 +431,71 @@ class PluginResourceManifest(BaseModel):
         if invalid_paths:
             raise ValueError(f'插件资源路径必须是安全相对路径：{", ".join(sorted(invalid_paths))}')
         return value
+
+
+class PluginPermissionManifest(BaseModel):
+    """
+    插件权限声明。
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    code: str = Field(validation_alias=AliasChoices('code', 'perms', 'permission'), description='权限标识')
+    name: str | None = Field(default=None, description='权限展示名称')
+    description: str = Field(default='', description='权限说明')
+
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_string_permission(cls, value: Any) -> Any:
+        """
+        兼容 permissions 字符串简写。
+
+        :param value: 原始权限声明
+        :return: 权限对象声明
+        """
+        if isinstance(value, str):
+            return {'code': value}
+        return value
+
+    @field_validator('code')
+    @classmethod
+    def validate_code(cls, value: str) -> str:
+        """
+        校验权限标识。
+
+        :param value: 权限标识
+        :return: 校验后的权限标识
+        """
+        if not PERMISSION_PATTERN.match(value):
+            raise ValueError(f'插件权限格式无效：{value}')
+        return value
+
+    @field_validator('name')
+    @classmethod
+    def validate_name(cls, value: str | None) -> str | None:
+        """
+        校验权限展示名称。
+
+        :param value: 权限展示名称
+        :return: 校验后的权限展示名称
+        """
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            raise ValueError('插件权限 name 不能为空白字符串')
+        return value
+
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, value: str) -> str:
+        """
+        清理权限说明。
+
+        :param value: 权限说明
+        :return: 清理后的权限说明
+        """
+        return value.strip()
 
 
 class PluginConfigOptionManifest(BaseModel):
@@ -586,6 +725,10 @@ class PluginMenuManifest(BaseModel):
     icon: str = Field(default='#', description='菜单图标')
     type: Literal['M', 'C', 'F'] = Field(default='C', description='菜单类型')
     order_num: int = Field(default=0, alias='orderNum', description='显示顺序')
+    query: str | None = Field(default=None, description='路由参数')
+    route_name: str | None = Field(default=None, alias='routeName', description='路由名称')
+    is_frame: Literal[0, 1] = Field(default=1, alias='isFrame', description='是否为外链（0是 1否）')
+    is_cache: Literal[0, 1] = Field(default=0, alias='isCache', description='是否缓存（0缓存 1不缓存）')
     visible: Literal['0', '1'] = Field(default='0', description='是否显示')
     status: Literal['0', '1'] = Field(default='0', description='菜单状态')
     children: list['PluginMenuManifest'] = Field(default_factory=list, description='子菜单列表')
@@ -602,6 +745,19 @@ class PluginMenuManifest(BaseModel):
         if not value.strip():
             raise ValueError('菜单 name 和 path 不能为空')
         return value
+
+    @field_validator('query', 'route_name')
+    @classmethod
+    def validate_optional_text(cls, value: str | None) -> str | None:
+        """
+        校验菜单可选文本。
+
+        :param value: 菜单可选文本
+        :return: 校验后的菜单可选文本
+        """
+        if value is None:
+            return value
+        return value.strip()
 
     @field_validator('perms')
     @classmethod
@@ -627,8 +783,8 @@ class PluginMenuManifest(BaseModel):
         :param value: 菜单路径
         :return: 校验后的菜单路径
         """
-        if not ROUTE_PATH_PATTERN.match(value):
-            raise ValueError('菜单 path 只能包含小写字母、数字、下划线、中划线和正斜杠，并且必须以小写字母开头')
+        if not ROUTE_PATH_PATTERN.match(value) and not EXTERNAL_URL_PATTERN.match(value):
+            raise ValueError('菜单 path 必须是插件路由路径或 http/https 外链地址')
         return value
 
     @model_validator(mode='after')
@@ -640,6 +796,10 @@ class PluginMenuManifest(BaseModel):
         """
         if self.type != 'F' and not self.component.strip():
             raise ValueError('非按钮菜单 component 不能为空')
+        if self.is_frame == 0 and not EXTERNAL_URL_PATTERN.match(self.path):
+            raise ValueError('外链菜单 path 必须是 http/https 地址')
+        if self.is_frame == 1 and EXTERNAL_URL_PATTERN.match(self.path):
+            raise ValueError('非外链菜单 path 不能是 http/https 地址')
         return self
 
 
@@ -715,14 +875,19 @@ class PluginManifest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+    manifest_version: Literal[1] = Field(
+        default=SUPPORTED_MANIFEST_VERSION,
+        alias='manifestVersion',
+        description='插件清单版本',
+    )
     id: str = Field(description='插件唯一标识')
     name: str = Field(description='插件名称')
     version: str = Field(description='插件版本')
     description: str = Field(default='', description='插件说明')
-    enabled: bool = Field(default=False, description='默认是否启用')
+    metadata: PluginMetadataManifest = Field(default_factory=PluginMetadataManifest, description='插件展示元数据')
     backend: BackendManifest = Field(description='后端声明')
     frontend: FrontendManifest = Field(default_factory=FrontendManifest, description='前端声明')
-    permissions: list[str] = Field(default_factory=list, description='权限标识列表')
+    permissions: list[PluginPermissionManifest] = Field(default_factory=list, description='权限声明列表')
     dependencies: DependencyManifest = Field(default_factory=DependencyManifest, description='依赖声明')
     compatibility: CompatibilityManifest = Field(default_factory=CompatibilityManifest, description='平台兼容性声明')
     resources: PluginResourceManifest = Field(default_factory=PluginResourceManifest, description='插件资源声明')
@@ -758,20 +923,38 @@ class PluginManifest(BaseModel):
 
     @field_validator('permissions')
     @classmethod
-    def validate_permissions(cls, value: list[str]) -> list[str]:
+    def validate_permissions(cls, value: list[PluginPermissionManifest]) -> list[PluginPermissionManifest]:
         """
         校验插件权限声明。
 
-        :param value: 权限标识列表
-        :return: 校验后的权限标识列表
+        :param value: 权限声明列表
+        :return: 校验后的权限声明列表
         """
-        duplicated_permissions = {permission for permission in value if value.count(permission) > 1}
+        permission_codes = [permission.code for permission in value]
+        duplicated_permissions = {
+            permission for permission in permission_codes if permission_codes.count(permission) > 1
+        }
         if duplicated_permissions:
             raise ValueError(f'插件权限不能重复：{", ".join(sorted(duplicated_permissions))}')
-        invalid_permissions = [permission for permission in value if not PERMISSION_PATTERN.match(permission)]
-        if invalid_permissions:
-            raise ValueError(f'插件权限格式无效：{", ".join(sorted(invalid_permissions))}')
         return value
+
+    @property
+    def permission_codes(self) -> list[str]:
+        """
+        获取权限标识列表。
+
+        :return: 权限标识列表
+        """
+        return [permission.code for permission in self.permissions]
+
+    @property
+    def permission_name_map(self) -> dict[str, str]:
+        """
+        获取权限展示名称映射。
+
+        :return: 权限标识到展示名称的映射
+        """
+        return {permission.code: permission.name for permission in self.permissions if permission.name}
 
     @model_validator(mode='after')
     def fill_frontend_defaults(self) -> 'PluginManifest':
@@ -840,7 +1023,7 @@ class PluginManifest(BaseModel):
         :return: None
         """
         menu_permissions = PluginMenuTree.collect_permissions(self.frontend.menus)
-        undeclared_permissions = sorted(menu_permissions - set(self.permissions))
+        undeclared_permissions = sorted(menu_permissions - set(self.permission_codes))
         if undeclared_permissions:
             raise ValueError(f'菜单权限必须在 permissions 中声明：{", ".join(undeclared_permissions)}')
 

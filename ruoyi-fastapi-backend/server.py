@@ -13,8 +13,7 @@ from config.get_scheduler import SchedulerUtil
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
 from module_admin.service.log_service import LogAggregatorService
-from plugins.core.management.service.startup_gateway import PluginManagementStartupGateway
-from plugins.core.runtime.startup import PluginRuntimeStartupManager
+from plugins.core.runtime.application import get_plugin_application_runtime
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
 from utils.log_util import logger
@@ -128,7 +127,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
     shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
     with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
-        await _get_plugin_runtime_startup(app).shutdown(app)
+        await get_plugin_application_runtime().shutdown(app, startup_write_enabled=shutdown_log_enabled)
         await _stop_background_tasks(app)
 
 
@@ -140,31 +139,18 @@ async def _initialize_application_runtime(app: FastAPI, startup_log_enabled: boo
     :param startup_log_enabled: 是否启用启动日志
     :return: None
     """
-    plugin_startup = _get_plugin_runtime_startup(app)
-    plugin_startup.import_builtin_entities()
+    plugin_runtime = get_plugin_application_runtime()
+    plugin_runtime.prepare_metadata(app)
     await init_create_table()
-    await plugin_startup.prepare_enabled_plugins(app)
-    await init_create_table()
-    await plugin_startup.activate_enabled_plugins(app)
+    await plugin_runtime.startup(
+        app,
+        startup_write_enabled=startup_log_enabled,
+        create_tables=init_create_table,
+    )
     await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
     await RedisUtil.init_sys_dict(app.state.redis)
     await RedisUtil.init_sys_config(app.state.redis)
     await _start_background_tasks(app)
-
-
-def _get_plugin_runtime_startup(app: FastAPI) -> PluginRuntimeStartupManager:
-    """
-    获取应用插件运行时启动协调器。
-
-    :param app: FastAPI对象
-    :return: 插件运行时启动协调器
-    """
-    plugin_startup = getattr(app.state, 'plugin_runtime_startup', None)
-    if plugin_startup is None:
-        plugin_startup = PluginRuntimeStartupManager(management_gateway=PluginManagementStartupGateway())
-        plugin_startup.bind_app(app)
-
-    return plugin_startup
 
 
 def create_app() -> FastAPI:
@@ -198,7 +184,7 @@ def create_app() -> FastAPI:
     handle_exception(app)
     # 自动注册内置路由
     auto_register_routers(app)
-    # 初始化插件运行时启动协调器
-    PluginRuntimeStartupManager(management_gateway=PluginManagementStartupGateway()).bind_app(app)
+    # 初始化插件应用运行时
+    get_plugin_application_runtime().bind_app(app)
 
     return app

@@ -1,8 +1,16 @@
+manifestVersion: 1
 id: ai
 name: AI 管理
 version: 0.1.0
 description: AI model management and chat plugin.
-enabled: false
+
+metadata:
+  category: ai
+  tags:
+    - ai
+    - chat
+  author: RuoYi
+  license: MIT
 
 backend:
   module: plugins.ai
@@ -36,6 +44,7 @@ frontend:
         - name: 模型管理
           path: model
           component: plugin/ai/model/index
+          routeName: AiModel
           perms: ai:model:list
           type: C
           orderNum: 1
@@ -43,18 +52,25 @@ frontend:
         - name: AI 对话
           path: chat
           component: plugin/ai/chat/index
+          routeName: AiChat
           perms: ai:chat:list
           type: C
           orderNum: 2
           icon: ai-chat
 
 permissions:
-  - ai:model:list
-  - ai:model:add
-  - ai:model:edit
-  - ai:model:remove
-  - ai:model:query
-  - ai:chat:list
+  - code: ai:model:list
+    name: 模型列表
+  - code: ai:model:add
+    name: 新增模型
+  - code: ai:model:edit
+    name: 修改模型
+  - code: ai:model:remove
+    name: 删除模型
+  - code: ai:model:query
+    name: 查询模型
+  - code: ai:chat:list
+    name: AI 对话
 
 dependencies:
   python:
@@ -81,6 +97,11 @@ dependencies:
   npmDev:
     - vite-plugin-monaco-editor-esm==2.0.2
   plugins: []
+
+compatibility:
+  databases:
+    - mysql
+    - postgresql
 
 config:
   items:

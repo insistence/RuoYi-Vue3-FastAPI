@@ -35,7 +35,6 @@ def test_plugin_runtime_builder_builds_registry_from_backend_plugins(tmp_path: P
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 """,
@@ -45,7 +44,8 @@ backend:
 
     plugin = registry.get_plugin('demo')
     assert plugin is not None
-    assert plugin.enabled is True
+    assert plugin.enabled is False
+    assert plugin.status == 'discovered'
 
 
 def test_plugin_runtime_builder_returns_empty_registry_when_plugins_root_missing(tmp_path: Path) -> None:
@@ -68,7 +68,6 @@ def test_plugin_runtime_builder_merges_database_plugin_state(tmp_path: Path) -> 
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 """,
@@ -79,7 +78,7 @@ backend:
         version='1.0.0',
         installedVersion='1.0.0',
         enabled='1',
-        status='disabled',
+        status='installed',
     )
 
     registry = PluginRuntimeBuilder(backend_root).build_registry([database_plugin])
@@ -87,7 +86,7 @@ backend:
 
     assert plugin is not None
     assert plugin.enabled is False
-    assert plugin.status == 'disabled'
+    assert plugin.status == 'installed'
 
 
 def test_plugin_runtime_builder_imports_enabled_plugin_entities(tmp_path: Path) -> None:
@@ -105,7 +104,6 @@ def test_plugin_runtime_builder_imports_enabled_plugin_entities(tmp_path: Path) 
 id: sample_entity
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.sample_entity
 """,
@@ -114,7 +112,18 @@ backend:
     entity_do_dir.mkdir(parents=True)
     (entity_do_dir / 'demo_do.py').write_text('DEMO_PLUGIN_ENTITY_IMPORTED = True\n', encoding='utf-8')
     builder = PluginRuntimeBuilder(backend_root)
-    registry = builder.build_registry()
+    registry = builder.build_registry(
+        [
+            PluginModel(
+                pluginId='sample_entity',
+                pluginName='演示插件',
+                version='1.0.0',
+                installedVersion='1.0.0',
+                enabled='0',
+                status='installed',
+            )
+        ]
+    )
 
     import_result = builder.import_plugin_entities(registry)
 
@@ -138,7 +147,6 @@ def test_plugin_runtime_builder_reports_failed_plugin_entity_import(tmp_path: Pa
 id: broken_entity
 name: 异常插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.broken_entity
 """,
@@ -147,7 +155,18 @@ backend:
     entity_do_dir.mkdir(parents=True)
     (entity_do_dir / 'broken_do.py').write_text("raise RuntimeError('broken entity')\n", encoding='utf-8')
     builder = PluginRuntimeBuilder(backend_root)
-    registry = builder.build_registry()
+    registry = builder.build_registry(
+        [
+            PluginModel(
+                pluginId='broken_entity',
+                pluginName='异常插件',
+                version='1.0.0',
+                installedVersion='1.0.0',
+                enabled='0',
+                status='installed',
+            )
+        ]
+    )
 
     import_result = builder.import_plugin_entities(registry)
 

@@ -24,9 +24,9 @@ def test_state_resolver_returns_discovered_without_installed_version() -> None:
     assert status == 'discovered'
 
 
-def test_state_resolver_returns_disabled_when_plugin_is_not_enabled() -> None:
+def test_state_resolver_returns_installed_when_plugin_is_not_enabled() -> None:
     """
-    校验停用插件会解析为 disabled。
+    校验停用插件的生命周期状态仍解析为 installed。
 
     :return: None
     """
@@ -38,7 +38,7 @@ def test_state_resolver_returns_disabled_when_plugin_is_not_enabled() -> None:
         )
     )
 
-    assert status == 'disabled'
+    assert status == 'installed'
 
 
 def test_state_resolver_returns_pending_upgrade_for_newer_source_version() -> None:
@@ -76,15 +76,17 @@ def test_state_resolver_keeps_error_status() -> None:
     assert status == 'error'
 
 
-def test_state_resolver_prefers_database_enabled_value() -> None:
+def test_state_resolver_uses_database_enabled_value() -> None:
     """
-    校验数据库启停值优先于 manifest 默认值。
+    校验运行时启用状态来自数据库。
 
     :return: None
     """
-    database_plugin = type('DatabasePlugin', (), {'enabled': '1', 'status': 'installed'})()
+    database_plugin = type(
+        'DatabasePlugin', (), {'enabled': '1', 'status': 'installed', 'installed_version': '1.0.0'}
+    )()
 
-    assert PluginStateResolver.is_enabled(True, database_plugin) is False
+    assert PluginStateResolver.is_enabled(database_plugin) is False
 
 
 def test_state_resolver_disables_error_database_plugin() -> None:
@@ -93,9 +95,20 @@ def test_state_resolver_disables_error_database_plugin() -> None:
 
     :return: None
     """
-    database_plugin = type('DatabasePlugin', (), {'enabled': '0', 'status': 'error'})()
+    database_plugin = type('DatabasePlugin', (), {'enabled': '0', 'status': 'error', 'installed_version': '1.0.0'})()
 
-    assert PluginStateResolver.is_enabled(True, database_plugin) is False
+    assert PluginStateResolver.is_enabled(database_plugin) is False
+
+
+def test_state_resolver_does_not_enable_uninstalled_database_plugin() -> None:
+    """
+    校验未安装插件即使数据库 enabled=0，也不会被运行时视为启用。
+
+    :return: None
+    """
+    database_plugin = type('DatabasePlugin', (), {'enabled': '0', 'status': 'discovered', 'installed_version': None})()
+
+    assert PluginStateResolver.is_enabled(database_plugin) is False
 
 
 def test_state_resolver_reports_database_plugin_enabled() -> None:
@@ -127,7 +140,6 @@ def test_state_transition_table_resolves_install_target() -> None:
     :return: None
     """
     assert PluginStateTransitionTable.resolve_target('discovered', 'install') == 'installed'
-    assert PluginStateTransitionTable.resolve_target('discovered', 'install_disabled') == 'disabled'
 
 
 def test_state_transition_table_allows_discovered_plugin_disable() -> None:
@@ -136,7 +148,7 @@ def test_state_transition_table_allows_discovered_plugin_disable() -> None:
 
     :return: None
     """
-    assert PluginStateTransitionTable.resolve_target('discovered', 'disable') == 'disabled'
+    assert PluginStateTransitionTable.resolve_target('discovered', 'disable') == 'discovered'
 
 
 def test_state_transition_table_resolves_failure_target() -> None:
@@ -176,17 +188,12 @@ def test_state_resolver_matches_transition_table_for_representative_snapshots() 
             PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=True),
         ),
         (
-            'discovered',
-            'install_disabled',
-            PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=False),
-        ),
-        (
             'installed',
             'disable',
             PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=False),
         ),
         (
-            'disabled',
+            'installed',
             'enable',
             PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=True),
         ),
@@ -194,11 +201,6 @@ def test_state_resolver_matches_transition_table_for_representative_snapshots() 
             'installed',
             'upgrade_available',
             PluginStateSnapshot(source_version='1.1.0', installed_version='1.0.0', enabled=True),
-        ),
-        (
-            'disabled',
-            'upgrade_available',
-            PluginStateSnapshot(source_version='1.1.0', installed_version='1.0.0', enabled=False),
         ),
     ]
 

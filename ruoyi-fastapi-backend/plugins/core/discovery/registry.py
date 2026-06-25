@@ -152,7 +152,7 @@ class PluginRegistry:
         :param database_plugin: 数据库插件状态
         :return: 是否启用
         """
-        return PluginStateResolver.is_enabled(discovered_plugin.manifest.enabled, database_plugin)
+        return PluginStateResolver.is_enabled(database_plugin)
 
     @staticmethod
     def _resolve_status(

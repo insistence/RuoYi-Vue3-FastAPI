@@ -10,6 +10,7 @@ from plugins.core.management.entity.vo.schemas import (
 from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
 from plugins.core.management.service.service import PluginService
 from plugins.core.runtime.service import PluginRuntimeService
+from plugins.core.runtime.service.lifecycle_lock import RedisPluginLifecycleLock
 from plugins.core.runtime.service.responses import PluginDiagnoseResponse
 from plugins.core.runtime.support import PluginAuditPayloadBuilder, PluginAuditSnapshotPayloadDict
 
@@ -114,6 +115,7 @@ def get_plugin_runtime_service() -> PluginRuntimeService:
             state_gateway=runtime_gateway,
             model_gateway=runtime_gateway,
             command_gateway=runtime_gateway,
+            lifecycle_lock=RedisPluginLifecycleLock(),
         )
         _PLUGIN_RUNTIME_SERVICE_CACHE['default'] = runtime_service
 

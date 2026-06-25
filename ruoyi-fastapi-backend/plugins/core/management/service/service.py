@@ -205,11 +205,8 @@ class PluginService:
         """
         manifest = discovered_plugin.manifest
         plugin = await PluginDao.get_plugin_by_id(query_db, manifest.id)
-        enabled = getattr(plugin, 'enabled', None) if plugin else ('0' if manifest.enabled else '1')
-        operation = 'install_disabled' if enabled == '1' else 'install'
-        status = PluginStateTransitionTable.resolve_target(getattr(plugin, 'status', None), operation) or (
-            'disabled' if enabled == '1' else 'installed'
-        )
+        enabled = getattr(plugin, 'enabled', None) if plugin else '0'
+        status = PluginStateTransitionTable.resolve_target(getattr(plugin, 'status', None), 'install') or 'installed'
         update_payload = {
             'plugin_id': manifest.id,
             'version': manifest.version,
@@ -795,7 +792,7 @@ class PluginService:
             backend_runtime_mode=PLUGIN_RUNTIME_ENVIRONMENT.get_backend_runtime_mode(),
         ).resolve(discovered_plugin)
         current_enabled = getattr(existing_plugin, 'enabled', None)
-        enabled = current_enabled if current_enabled is not None else ('0' if manifest.enabled else '1')
+        enabled = current_enabled if current_enabled is not None else '0'
         installed_version = getattr(existing_plugin, 'installed_version', None)
         current_status = getattr(existing_plugin, 'status', None)
         last_error = getattr(existing_plugin, 'last_error', None)

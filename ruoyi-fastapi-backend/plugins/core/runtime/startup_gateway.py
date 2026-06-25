@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from common.vo import CrudResponseModel
     from plugins.core.discovery.registry import PluginRegistry
     from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.management.entity.vo.schemas import PluginModel
+    from plugins.core.management.entity.vo.schemas import PluginMigrationModel, PluginModel
 
 
 @runtime_checkable
@@ -94,6 +94,66 @@ class PluginStartupManagementGateway(Protocol):
         :param discovered_plugin: 已发现插件对象
         :param backend_root: 后端插件根目录
         :return: 插件信息
+        """
+
+    async def mark_plugin_installed(
+        self,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+    ) -> PluginModel:
+        """
+        标记插件安装完成。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
+        :return: 插件信息
+        """
+
+    async def get_plugin_migration(
+        self,
+        query_db: AsyncSession,
+        plugin_id: str,
+        migration_path: str,
+    ) -> PluginMigrationModel | None:
+        """
+        获取插件 migration 执行历史。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :return: 插件 migration 执行历史
+        """
+
+    async def add_plugin_migration(
+        self,
+        query_db: AsyncSession,
+        plugin_migration: PluginMigrationModel,
+    ) -> PluginMigrationModel:
+        """
+        新增插件 migration 执行历史。
+
+        :param query_db: orm对象
+        :param plugin_migration: 插件 migration 执行历史
+        :return: 插件 migration 执行历史
+        """
+
+    def build_migration_record(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        checksum: str,
+        version: str,
+        statement_count: int,
+    ) -> PluginMigrationModel:
+        """
+        构建插件 migration 执行历史对象。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param checksum: 内容校验值
+        :param version: 执行时插件版本
+        :param statement_count: SQL 语句数量
+        :return: 插件 migration 执行历史对象
         """
 
 
@@ -192,5 +252,69 @@ class UnavailablePluginStartupManagementGateway:
         :param discovered_plugin: 已发现插件对象
         :param backend_root: 后端插件根目录
         :return: 插件信息
+        """
+        self._raise_unavailable()
+
+    async def mark_plugin_installed(
+        self,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+    ) -> PluginModel:
+        """
+        标记插件安装完成。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
+        :return: 插件信息
+        """
+        self._raise_unavailable()
+
+    async def get_plugin_migration(
+        self,
+        query_db: AsyncSession,
+        plugin_id: str,
+        migration_path: str,
+    ) -> PluginMigrationModel | None:
+        """
+        获取插件 migration 执行历史。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :return: 插件 migration 执行历史
+        """
+        self._raise_unavailable()
+
+    async def add_plugin_migration(
+        self,
+        query_db: AsyncSession,
+        plugin_migration: PluginMigrationModel,
+    ) -> PluginMigrationModel:
+        """
+        新增插件 migration 执行历史。
+
+        :param query_db: orm对象
+        :param plugin_migration: 插件 migration 执行历史
+        :return: 插件 migration 执行历史
+        """
+        self._raise_unavailable()
+
+    def build_migration_record(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        checksum: str,
+        version: str,
+        statement_count: int,
+    ) -> PluginMigrationModel:
+        """
+        构建插件 migration 执行历史对象。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param checksum: 内容校验值
+        :param version: 执行时插件版本
+        :param statement_count: SQL 语句数量
+        :return: 插件 migration 执行历史对象
         """
         self._raise_unavailable()

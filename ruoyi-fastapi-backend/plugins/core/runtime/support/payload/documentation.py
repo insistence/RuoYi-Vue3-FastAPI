@@ -75,7 +75,6 @@ class PluginDocumentationBuilder:
             '',
             f'- 插件ID：`{manifest.id}`',
             f'- 版本：`{manifest.version}`',
-            f'- 默认启用：`{str(manifest.enabled).lower()}`',
             f'- 后端模块：`{manifest.backend.module}`',
             f'- 前端目录：`{manifest.frontend.plugin_id}`',
             f'- 说明：{manifest.description or "-"}',
@@ -125,7 +124,11 @@ class PluginDocumentationBuilder:
         if not permissions:
             return [*lines, '无权限声明。', '']
 
-        lines.extend(f'- `{permission}`' for permission in permissions)
+        lines.extend(['| 权限标识 | 展示名称 | 说明 |', '| --- | --- | --- |'])
+        lines.extend(
+            f'| `{permission.code}` | {permission.name or "-"} | {permission.description or "-"} |'
+            for permission in permissions
+        )
         lines.append('')
         return lines
 

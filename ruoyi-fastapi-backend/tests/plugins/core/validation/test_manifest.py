@@ -217,6 +217,30 @@ def test_manifest_checker_accepts_satisfied_compatibility(tmp_path: Path) -> Non
     assert result.issues == []
 
 
+def test_manifest_checker_accepts_supported_database(monkeypatch: object) -> None:
+    """
+    校验当前数据库在插件支持列表内时不产生问题。
+
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    monkeypatch.setattr(manifest_module.DataBaseConfig, 'db_type', 'postgresql')
+    manifest = PluginManifest.model_validate(
+        {
+            'id': 'demo',
+            'name': '演示插件',
+            'version': '1.0.0',
+            'backend': {'module': 'plugins.demo'},
+            'compatibility': {'databases': ['mysql', 'postgresql']},
+        }
+    )
+
+    result = PluginManifestChecker().check(manifest)
+
+    assert result.ok is True
+    assert result.issues == []
+
+
 def test_manifest_checker_caches_resolved_node_version(tmp_path: Path, monkeypatch: object) -> None:
     """
     校验 Node.js 版本解析会缓存 subprocess 结果。
@@ -298,6 +322,32 @@ def test_manifest_checker_reports_unsatisfied_compatibility(tmp_path: Path) -> N
     assert len(result.error_issues) == 1
     assert result.error_issues[0].kind == 'compatibility_unsatisfied'
     assert result.error_issues[0].path == 'compatibility.pythonVersion'
+
+
+def test_manifest_checker_reports_unsupported_database(monkeypatch: object) -> None:
+    """
+    校验当前数据库不在插件支持列表内时产生 error。
+
+    :param monkeypatch: pytest monkeypatch fixture
+    :return: None
+    """
+    monkeypatch.setattr(manifest_module.DataBaseConfig, 'db_type', 'postgresql')
+    manifest = PluginManifest.model_validate(
+        {
+            'id': 'demo',
+            'name': '演示插件',
+            'version': '1.0.0',
+            'backend': {'module': 'plugins.demo'},
+            'compatibility': {'databases': ['mysql']},
+        }
+    )
+
+    result = PluginManifestChecker().check(manifest)
+
+    assert result.ok is False
+    assert len(result.error_issues) == 1
+    assert result.error_issues[0].kind == 'compatibility_unsatisfied'
+    assert result.error_issues[0].path == 'compatibility.databases'
 
 
 def test_manifest_checker_warns_unknown_compatibility_version(tmp_path: Path) -> None:

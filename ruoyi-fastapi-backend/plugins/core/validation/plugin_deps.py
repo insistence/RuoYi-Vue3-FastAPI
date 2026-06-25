@@ -660,16 +660,6 @@ class PluginDependencyPlanBuilder:
                         )
                     )
                     continue
-                if not database_dependency and not discovered_dependency.manifest.enabled:
-                    blockers.append(
-                        self._build_blocker(
-                            manifest.id,
-                            dependency.id,
-                            'disabled',
-                            f'依赖插件安装后不会默认启用：{dependency.id}',
-                        )
-                    )
-                    continue
                 continue
             if not database_dependency or not installed_version:
                 blockers.append(

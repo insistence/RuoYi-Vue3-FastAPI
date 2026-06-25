@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
 from plugins.core.management.service.service import PluginService
 
 if TYPE_CHECKING:
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
     from common.vo import CrudResponseModel
     from plugins.core.discovery.registry import PluginRegistry
     from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.management.entity.vo.schemas import PluginModel
+    from plugins.core.management.entity.vo.schemas import PluginMigrationModel, PluginModel
 
 
 class PluginManagementStartupGateway:
@@ -105,4 +106,74 @@ class PluginManagementStartupGateway:
             query_db,
             discovered_plugin,
             backend_root,
+        )
+
+    async def mark_plugin_installed(
+        self,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+    ) -> PluginModel:
+        """
+        标记插件安装完成。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
+        :return: 插件信息
+        """
+        return await PluginService.mark_plugin_installed_services(query_db, discovered_plugin)
+
+    async def get_plugin_migration(
+        self,
+        query_db: AsyncSession,
+        plugin_id: str,
+        migration_path: str,
+    ) -> PluginMigrationModel | None:
+        """
+        获取插件 migration 执行历史。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :return: 插件 migration 执行历史
+        """
+        return await PluginService.get_plugin_migration_services(query_db, plugin_id, migration_path)
+
+    async def add_plugin_migration(
+        self,
+        query_db: AsyncSession,
+        plugin_migration: PluginMigrationModel,
+    ) -> PluginMigrationModel:
+        """
+        新增插件 migration 执行历史。
+
+        :param query_db: orm对象
+        :param plugin_migration: 插件 migration 执行历史
+        :return: 插件 migration 执行历史
+        """
+        return await PluginService.add_plugin_migration_services(query_db, plugin_migration)
+
+    def build_migration_record(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        checksum: str,
+        version: str,
+        statement_count: int,
+    ) -> PluginMigrationModel:
+        """
+        构建插件 migration 执行历史对象。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param checksum: 内容校验值
+        :param version: 执行时插件版本
+        :param statement_count: SQL 语句数量
+        :return: 插件 migration 执行历史对象
+        """
+        return PluginManagementRuntimeGateway.build_migration_record(
+            plugin_id,
+            migration_path,
+            checksum,
+            version,
+            statement_count,
         )

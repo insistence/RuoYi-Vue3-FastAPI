@@ -31,6 +31,7 @@ from plugins.core.management.entity.do.models import (  # noqa: E402
 from plugins.core.management.entity.vo.schemas import (  # noqa: E402
     PluginConfigUpdateModel,
     PluginMigrationModel,
+    PluginModel,
     PluginOperationLogExportQueryModel,
     PluginOperationLogPageQueryModel,
     PluginOperationLogRetentionModel,
@@ -127,20 +128,29 @@ def build_discovered_plugin(tmp_path: Path, enabled: bool = True, version: str =
     构造测试用已发现插件对象。
 
     :param tmp_path: pytest 临时目录
-    :param enabled: manifest 默认启用状态
+    :param enabled: 兼容旧测试签名，插件启停状态不再来自 manifest
     :param version: 插件版本
     :return: 已发现插件对象
     """
     backend_path = tmp_path / 'plugins' / 'demo'
     manifest_path = backend_path / 'plugin.yaml'
     backend_path.mkdir(parents=True)
-    manifest_path.write_text('', encoding='utf-8')
+    manifest_path.write_text(
+        f"""
+id: demo
+name: 演示插件
+version: {version}
+description: 用于测试
+backend:
+  module: plugins.demo
+""".strip(),
+        encoding='utf-8',
+    )
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
             'name': '演示插件',
             'version': version,
-            'enabled': enabled,
             'description': '用于测试',
             'backend': {'module': 'plugins.demo'},
         }
@@ -350,7 +360,7 @@ def test_plugin_job_model_builder_maps_manifest_to_job_model(tmp_path: Path) -> 
     assert job_model.status == '0'
 
 
-def test_build_plugin_model_uses_manifest_defaults_for_new_plugin(tmp_path: Path) -> None:
+def test_build_plugin_model_uses_discovered_state_for_new_plugin(tmp_path: Path) -> None:
     discovered_plugin = build_discovered_plugin(tmp_path, enabled=True)
     backend_root = tmp_path / 'plugins'
     frontend_root = tmp_path / 'frontend_plugins'
@@ -385,7 +395,7 @@ def test_build_plugin_model_keeps_database_enabled_value(tmp_path: Path) -> None
     plugin = PluginService._build_plugin_model(discovered_plugin, tmp_path / 'plugins', None, existing_plugin)
 
     assert plugin.enabled == '1'
-    assert plugin.status == 'disabled'
+    assert plugin.status == 'installed'
 
 
 def test_build_plugin_model_marks_pending_upgrade(tmp_path: Path) -> None:
@@ -499,7 +509,7 @@ async def test_mark_plugin_installed_updates_installed_version(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
-async def test_install_disabled_plugin_menus_can_be_enabled_later(tmp_path: Path) -> None:
+async def test_install_plugin_with_disabled_menus_can_be_enabled_later(tmp_path: Path) -> None:
     """
     校验默认停用插件安装时会写入停用菜单，后续启用插件可恢复菜单状态。
 
@@ -516,19 +526,14 @@ async def test_install_disabled_plugin_menus_can_be_enabled_later(tmp_path: Path
     try:
         async with session_maker() as session:
             discovered_plugin = build_discovered_plugin_with_menu(tmp_path, 'demo:list')
-            disabled_manifest = discovered_plugin.manifest.model_copy(update={'enabled': False})
-            discovered_plugin = DiscoveredPlugin(
-                manifest=disabled_manifest,
-                backend_path=discovered_plugin.backend_path,
-                manifest_path=discovered_plugin.manifest_path,
-            )
-            plugin = await PluginService.upsert_discovered_plugin_services(
+            await PluginService.upsert_discovered_plugin_services(
                 session,
                 discovered_plugin,
                 tmp_path / 'plugins',
                 tmp_path / 'frontend_plugins',
             )
-            await PluginService.install_plugin_menu_services(session, discovered_plugin, enabled=plugin.enabled == '0')
+            await PluginService.update_plugin_enabled_services(session, 'demo', enabled=False)
+            await PluginService.install_plugin_menu_services(session, discovered_plugin, enabled=False)
             await PluginService.mark_plugin_installed_services(session, discovered_plugin)
             await session.commit()
 
@@ -540,7 +545,7 @@ async def test_install_disabled_plugin_menus_can_be_enabled_later(tmp_path: Path
             assert db_menu is not None
             assert db_menu.status == '1'
             assert db_plugin is not None
-            assert db_plugin.status == 'disabled'
+            assert db_plugin.status == 'installed'
 
             result = await PluginService.update_plugin_enabled_services(session, 'demo', enabled=True)
             await session.commit()
@@ -738,6 +743,18 @@ async def test_mark_plugin_error_disables_plugin_and_menus(tmp_path: Path) -> No
     try:
         async with session_maker() as session:
             discovered_plugin = build_discovered_plugin(tmp_path, enabled=True)
+            discovered_plugin.manifest_path.write_text(
+                """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+description: 用于测试
+backend:
+  module: plugins.demo
+""".strip(),
+                encoding='utf-8',
+            )
             await PluginService.upsert_discovered_plugin_services(
                 session,
                 discovered_plugin,
@@ -850,7 +867,19 @@ async def test_install_enabled_plugin_jobs_upserts_sys_job(tmp_path: Path) -> No
     try:
         async with session_maker() as session:
             discovered_plugin = build_discovered_plugin_with_job(tmp_path)
-            registry = PluginRegistry.build([discovered_plugin])
+            registry = PluginRegistry.build(
+                [discovered_plugin],
+                [
+                    PluginModel(
+                        pluginId='demo',
+                        pluginName='演示插件',
+                        version='1.0.0',
+                        installedVersion='1.0.0',
+                        enabled='0',
+                        status='installed',
+                    )
+                ],
+            )
 
             await PluginJobInstaller(session).install_enabled_plugin_jobs(registry)
             await PluginJobInstaller(session).install_enabled_plugin_jobs(registry)
@@ -930,6 +959,8 @@ async def test_get_plugin_page_list_filters_by_status(tmp_path: Path) -> None:
                 session,
                 PluginPageQueryModel(status='installed'),
                 is_page=True,
+                backend_root=tmp_path / 'plugins',
+                frontend_root=tmp_path / 'frontend_plugins',
             )
 
         assert plugin_page_result.total == 1
@@ -1022,8 +1053,8 @@ backend:
         assert plugin_detail is not None
         assert plugin_detail.plugin_id == 'demo'
         assert plugin_detail.plugin_name == '演示插件'
-        assert plugin_detail.enabled == '1'
-        assert plugin_detail.status == 'disabled'
+        assert plugin_detail.enabled == '0'
+        assert plugin_detail.status == 'discovered'
         assert plugin_detail.installed_version is None
     finally:
         await engine.dispose()

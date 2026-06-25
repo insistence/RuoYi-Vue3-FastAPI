@@ -9,7 +9,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from plugins.core.management.service.menus import PluginMenuInstaller  # noqa: E402
 from plugins.core.manifest.menu_key import PluginMenuKeyBuilder  # noqa: E402
-from plugins.core.manifest.schema import PluginManifest, PluginMenuManifest  # noqa: E402
+from plugins.core.manifest.schema import PluginManifest, PluginMenuManifest, PluginPermissionManifest  # noqa: E402
 
 ROOT_MENU_ID = 0
 PARENT_MENU_ID = 100
@@ -234,6 +234,10 @@ def build_manifest() -> PluginManifest:
                                 'component': 'plugin/demo/page/index',
                                 'perms': 'demo:page:list',
                                 'type': 'C',
+                                'routeName': 'DemoPage',
+                                'query': '{"tab":"list"}',
+                                'isFrame': 1,
+                                'isCache': 1,
                             }
                         ],
                     }
@@ -275,7 +279,46 @@ async def test_plugin_menu_installer_inserts_manifest_menu_tree(monkeypatch: pyt
     assert [menu.menu_key for menu in installed_menus] == ['route:demo/demo#Layout', 'perm:demo:page:list']
     assert FakePluginDao.menus[PARENT_MENU_ID].menu_name == '演示目录'
     assert FakePluginDao.menus[CHILD_MENU_ID].parent_id == PARENT_MENU_ID
+    assert FakePluginDao.menus[CHILD_MENU_ID].route_name == 'DemoPage'
+    assert FakePluginDao.menus[CHILD_MENU_ID].query == '{"tab":"list"}'
+    assert FakePluginDao.menus[CHILD_MENU_ID].is_frame == 1
+    assert FakePluginDao.menus[CHILD_MENU_ID].is_cache == 1
     assert FakePluginDao.plugin_menus[('demo', 'perm:demo:page:list')].menu_id == CHILD_MENU_ID
+
+
+@pytest.mark.asyncio
+async def test_plugin_menu_installer_uses_permission_name_for_auto_button(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    校验未显式声明菜单的对象权限会使用权限展示名生成按钮菜单。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+    FakePluginDao.reset()
+    monkeypatch.setattr('plugins.core.management.service.menus.PluginDao', FakePluginDao)
+    manifest = build_manifest()
+    manifest.permissions.append(
+        PluginPermissionManifest.model_validate(
+            {
+                'code': 'demo:page:export',
+                'name': '导出数据',
+            }
+        )
+    )
+
+    installed_menus = await PluginMenuInstaller(object()).install_manifest_menus(manifest)
+    button_menu = FakePluginDao.menus[CHILD_MENU_ID + 1]
+
+    assert [menu.menu_key for menu in installed_menus] == [
+        'route:demo/demo#Layout',
+        'perm:demo:page:list',
+        'button:perm:demo:page:list/导出数据#demo:page:export',
+    ]
+    assert button_menu.menu_name == '导出数据'
+    assert button_menu.parent_id == CHILD_MENU_ID
+    assert button_menu.perms == 'demo:page:export'
 
 
 @pytest.mark.asyncio

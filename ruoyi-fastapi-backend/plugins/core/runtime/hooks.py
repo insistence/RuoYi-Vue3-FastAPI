@@ -16,6 +16,7 @@ class PluginHookContext:
     :param discovered_plugin: 已发现插件对象
     :param app: FastAPI 应用对象
     :param query_db: orm对象
+    :param startup_write_enabled: 当前 worker 是否允许执行启动期全局写入
     """
 
     plugin_id: str
@@ -23,6 +24,7 @@ class PluginHookContext:
     discovered_plugin: DiscoveredPlugin
     app: Any | None = None
     query_db: Any | None = None
+    startup_write_enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,7 @@ class PluginHookRunner:
         *,
         app: Any | None = None,
         query_db: Any | None = None,
+        startup_write_enabled: bool = True,
     ) -> PluginHookResult | None:
         """
         执行指定生命周期钩子。
@@ -69,6 +72,7 @@ class PluginHookRunner:
         :param hook_name: 钩子名称，例如 `on_install`
         :param app: FastAPI 应用对象
         :param query_db: orm对象
+        :param startup_write_enabled: 当前 worker 是否允许执行启动期全局写入
         :return: 钩子执行结果，未声明时返回 None
         """
         hook_path = getattr(self.discovered_plugin.manifest.backend.hooks, hook_name, None)
@@ -82,6 +86,7 @@ class PluginHookRunner:
             discovered_plugin=self.discovered_plugin,
             app=app,
             query_db=query_db,
+            startup_write_enabled=startup_write_enabled,
         )
         result = self._invoke_hook(hook_callable, context)
         if inspect.isawaitable(result):
