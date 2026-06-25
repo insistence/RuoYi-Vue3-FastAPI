@@ -20,6 +20,7 @@ ruoyi <group> <command> [options]
 - `config`
 - `crypto`
 - `gen`
+- `plugin`
 - `dev`
 - `completion`
 - `wizard`
@@ -233,7 +234,18 @@ ruoyi dev lint cli --check-only
 ruoyi dev test tests --keyword sanitize --maxfail=1 -q
 ```
 
-### 4.6 Shell Completion 初始化
+### 4.6 插件开发
+
+插件开发命令集中在 `plugin` 命令组，完整开发手册见 `docs/plugin_development.md`。
+
+```bash
+ruoyi plugin create demo --env=dev --template=full-stack --dry-run
+ruoyi plugin check demo --env=dev
+ruoyi plugin install demo --env=dev --yes
+ruoyi plugin test demo --env=dev
+```
+
+### 4.7 Shell Completion 初始化
 
 ```bash
 ruoyi completion doctor --output=json
@@ -242,7 +254,7 @@ ruoyi completion install --activate
 ruoyi completion install --shell=bash --activate
 ```
 
-### 4.7 交互式向导与 TUI
+### 4.8 交互式向导与 TUI
 
 ```bash
 ruoyi wizard app-run
