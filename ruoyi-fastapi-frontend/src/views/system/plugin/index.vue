@@ -36,21 +36,32 @@
 
       <el-row :gutter="10" class="mb8">
          <el-col :span="1.5">
-            <el-button type="primary" plain icon="Share" @click="handlePlan('install')" v-hasPermi="['system:plugin:query']">安装计划</el-button>
+            <el-button type="primary" plain icon="Share" :disabled="!selectedPluginIds.length" @click="handlePlan('install')" v-hasPermi="['system:plugin:query']">安装计划</el-button>
          </el-col>
          <el-col :span="1.5">
-            <el-button type="success" plain icon="Connection" @click="handlePlan('enable')" v-hasPermi="['system:plugin:query']">启用计划</el-button>
+            <el-button type="success" plain icon="Connection" :disabled="!selectedPluginIds.length" @click="handlePlan('enable')" v-hasPermi="['system:plugin:query']">启用计划</el-button>
          </el-col>
          <el-col :span="1.5">
-            <el-button type="warning" plain icon="Upload" @click="handlePlan('upgrade')" v-hasPermi="['system:plugin:query']">升级计划</el-button>
+            <el-button type="warning" plain icon="Upload" :disabled="!selectedPluginIds.length" @click="handlePlan('upgrade')" v-hasPermi="['system:plugin:query']">升级计划</el-button>
          </el-col>
          <el-col :span="1.5">
             <el-button plain icon="Tickets" @click="handleOperationLog" v-hasPermi="['system:plugin:query']">审计记录</el-button>
          </el-col>
+         <el-col :span="1.5">
+            <el-tooltip :content="formatPluginIdsForDisplay(selectedPluginIds)" :disabled="!selectedPluginIds.length" placement="top">
+               <el-tag
+                  :type="selectedPluginIds.length ? 'success' : 'info'"
+                  :closable="!!selectedPluginIds.length"
+                  :disable-transitions="true"
+                  class="plugin-selection-tag"
+                  @close="clearSelectedPlugins"
+               >{{ planTargetSummary }}</el-tag>
+            </el-tooltip>
+         </el-col>
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
-      <el-table v-loading="loading" :data="pluginList" @selection-change="handleSelectionChange">
+      <el-table ref="pluginTableRef" v-loading="loading" :data="pluginList" row-key="pluginId" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="插件ID" align="center" prop="pluginId" width="120" :show-overflow-tooltip="true" />
          <el-table-column label="插件名称" align="center" prop="pluginName" min-width="140" :show-overflow-tooltip="true" />
@@ -62,14 +73,18 @@
          </el-table-column>
          <el-table-column label="启用状态" align="center" width="90">
             <template #default="scope">
-               <el-switch
-                  v-model="scope.row.enabled"
-                  active-value="0"
-                  inactive-value="1"
-                  :disabled="scope.row.status === 'error' || isOperationBlocked(scope.row, scope.row.enabled === '0' ? 'disable' : 'enable')"
-                  @change="handleEnabledChange(scope.row)"
-                  v-hasPermi="['system:plugin:edit']"
-               />
+               <el-tooltip :content="getEnabledSwitchTooltip(scope.row)" :disabled="!isEnabledSwitchBlocked(scope.row)" placement="top">
+                  <span class="plugin-switch-tooltip-target">
+                     <el-switch
+                        v-model="scope.row.enabled"
+                        active-value="0"
+                        inactive-value="1"
+                        :disabled="isEnabledSwitchBlocked(scope.row)"
+                        @change="handleEnabledChange(scope.row)"
+                        v-hasPermi="['system:plugin:edit']"
+                     />
+                  </span>
+               </el-tooltip>
             </template>
          </el-table-column>
          <el-table-column label="插件状态" align="center" prop="status" width="110">
@@ -120,193 +135,43 @@
          @pagination="getList"
       />
 
-      <el-dialog title="插件详情" v-model="detailOpen" width="720px" append-to-body>
-         <el-descriptions :column="2" border>
-            <el-descriptions-item label="插件ID">{{ detail.pluginId }}</el-descriptions-item>
-            <el-descriptions-item label="插件名称">{{ detail.pluginName }}</el-descriptions-item>
-            <el-descriptions-item label="源码版本">{{ detail.version }}</el-descriptions-item>
-            <el-descriptions-item label="已安装版本">{{ detail.installedVersion || "-" }}</el-descriptions-item>
-            <el-descriptions-item label="启用状态">{{ detail.enabled === "0" ? "启用" : "停用" }}</el-descriptions-item>
-            <el-descriptions-item label="插件状态">{{ getStatusLabel(detail.status) }}</el-descriptions-item>
-            <el-descriptions-item label="来源">{{ detail.source || "-" }}</el-descriptions-item>
-            <el-descriptions-item label="更新时间">{{ formatPluginTime(detail.updateTime) }}</el-descriptions-item>
-            <el-descriptions-item label="后端路径" :span="2">{{ detail.backendPath || "-" }}</el-descriptions-item>
-            <el-descriptions-item label="前端路径" :span="2">{{ detail.frontendPath || "-" }}</el-descriptions-item>
-            <el-descriptions-item label="最近错误" :span="2">{{ detail.lastError || "-" }}</el-descriptions-item>
-            <el-descriptions-item label="插件说明" :span="2">{{ detail.description || "-" }}</el-descriptions-item>
-         </el-descriptions>
-         <template #footer>
-            <div class="dialog-footer">
-               <el-button
-                  v-if="detail.status === 'error'"
-                  type="primary"
-                  @click="handleEnableFromDetail"
-                  v-hasPermi="['system:plugin:edit']"
-               >重新启用</el-button>
-               <el-button @click="detailOpen = false">关 闭</el-button>
-            </div>
-         </template>
-      </el-dialog>
+      <plugin-detail-dialog
+         v-model="detailOpen"
+         :detail="detail"
+         :get-status-label="getStatusLabel"
+         :format-plugin-time="formatPluginTime"
+         :format-config-default-value="formatConfigDefaultValue"
+         :format-config-constraint="formatConfigConstraint"
+         @enable="handleEnableFromDetail"
+      />
 
-      <el-dialog title="插件依赖" v-model="dependencyOpen" width="860px" append-to-body>
-         <el-alert
-            v-if="dependencyResult.message"
-            :title="dependencyResult.message"
-            :type="dependencyResult.ok ? 'success' : 'warning'"
-            show-icon
-            :closable="false"
-            class="mb16"
-         />
-         <el-descriptions :column="3" border class="mb16">
-            <el-descriptions-item label="插件ID">{{ dependencyResult.pluginId || "-" }}</el-descriptions-item>
-            <el-descriptions-item label="依赖检查">{{ formatBoolean(dependencyResult.dependencyOk) }}</el-descriptions-item>
-            <el-descriptions-item label="安装计划">{{ dependencyResult.planCount ?? "-" }}</el-descriptions-item>
-         </el-descriptions>
-         <el-tabs>
-            <el-tab-pane label="依赖状态">
-               <el-table :data="dependencyResult.dependencies || []" size="small" border empty-text="暂无依赖声明">
-                  <el-table-column label="类型" prop="kind" width="90" align="center" />
-                  <el-table-column label="依赖" prop="requirement" min-width="180" :show-overflow-tooltip="true" />
-                  <el-table-column label="已安装" width="90" align="center">
-                     <template #default="scope">
-                        <el-tag :type="getDependencyTagType(scope.row)">{{ formatDependencyInstalled(scope.row) }}</el-tag>
-                     </template>
-                  </el-table-column>
-                  <el-table-column label="版本满足" width="100" align="center">
-                     <template #default="scope">
-                        <el-tag :type="getDependencyTagType(scope.row)">{{ formatDependencyVersionSatisfied(scope.row) }}</el-tag>
-                     </template>
-                  </el-table-column>
-                  <el-table-column label="说明" prop="message" min-width="240" :show-overflow-tooltip="true" />
-               </el-table>
-            </el-tab-pane>
-            <el-tab-pane label="安装计划">
-               <el-table :data="dependencyResult.plan || []" size="small" border empty-text="暂无安装计划">
-                  <el-table-column label="类型" prop="kind" width="90" align="center" />
-                  <el-table-column label="依赖" prop="requirement" min-width="150" :show-overflow-tooltip="true" />
-                  <el-table-column label="工作目录" prop="workdir" min-width="220" :show-overflow-tooltip="true" />
-                  <el-table-column label="命令" prop="commandText" min-width="260" :show-overflow-tooltip="true" />
-               </el-table>
-            </el-tab-pane>
-         </el-tabs>
-         <template #footer>
-            <div class="dialog-footer">
-               <el-button type="primary" :disabled="isCapabilityOperationBlocked(dependencyResult.capability, 'dependency_install')" :loading="dependencyLoading" @click="handleDependencyDryRun">生成安装计划</el-button>
-               <el-button @click="dependencyOpen = false">关 闭</el-button>
-            </div>
-         </template>
-      </el-dialog>
+      <plugin-dependency-dialog
+         v-model="dependencyOpen"
+         :result="dependencyResult"
+         :loading="dependencyLoading"
+         :is-capability-operation-blocked="isCapabilityOperationBlocked"
+         :format-boolean="formatBoolean"
+         :get-dependency-tag-type="getDependencyTagType"
+         :format-dependency-installed="formatDependencyInstalled"
+         :format-dependency-version-satisfied="formatDependencyVersionSatisfied"
+         @dry-run="handleDependencyDryRun"
+         @install="handleDependencyInstall"
+      />
 
-      <el-dialog :title="planTitle" v-model="planOpen" width="920px" append-to-body>
-         <el-alert
-            v-if="planResult.message"
-            :title="planResult.message"
-            :type="planResult.ok ? 'success' : 'warning'"
-            show-icon
-            :closable="false"
-            class="mb16"
-         />
-         <el-descriptions :column="3" border class="mb16">
-            <el-descriptions-item label="计划操作">{{ formatPluginOperation(planResult.operation) }}</el-descriptions-item>
-            <el-descriptions-item label="执行插件">{{ planResult.requestedPluginIds.length }}</el-descriptions-item>
-            <el-descriptions-item label="阻塞项">{{ planResult.blockerCount }}</el-descriptions-item>
-            <el-descriptions-item label="执行顺序" :span="3">
-               <el-tag
-                  v-for="pluginId in planResult.executablePluginIds"
-                  :key="pluginId"
-                  class="plan-order-tag"
-                  type="info"
-               >{{ pluginId }}</el-tag>
-               <span v-if="!planResult.executablePluginIds.length">-</span>
-            </el-descriptions-item>
-         </el-descriptions>
-
-         <el-tabs>
-            <el-tab-pane label="计划项">
-               <el-table :data="planResult.items" size="small" border empty-text="暂无计划项">
-                  <el-table-column label="顺序" prop="order" width="70" align="center" />
-                  <el-table-column label="插件ID" prop="pluginId" width="140" :show-overflow-tooltip="true" />
-                  <el-table-column label="插件名称" prop="name" min-width="150" :show-overflow-tooltip="true" />
-                  <el-table-column label="版本" prop="version" width="100" align="center" />
-                  <el-table-column label="显式选择" width="90" align="center">
-                     <template #default="scope">
-                        <el-tag :type="scope.row.requested ? 'success' : 'info'">{{ scope.row.requested ? "是" : "依赖" }}</el-tag>
-                     </template>
-                  </el-table-column>
-                  <el-table-column label="可执行" width="90" align="center">
-                     <template #default="scope">
-                        <el-tag :type="getPlanReadyTagType(scope.row.ready)">{{ scope.row.ready ? "是" : "否" }}</el-tag>
-                     </template>
-                  </el-table-column>
-                  <el-table-column label="依赖" min-width="180" :show-overflow-tooltip="true">
-                     <template #default="scope">
-                        <span>{{ formatPlanDependencies(scope.row.dependencies) }}</span>
-                     </template>
-                  </el-table-column>
-                  <el-table-column label="阻塞项" width="90" align="center">
-                     <template #default="scope">
-                        <el-tag :type="scope.row.blockers?.length ? 'danger' : 'success'">{{ scope.row.blockers?.length || 0 }}</el-tag>
-                     </template>
-                  </el-table-column>
-               </el-table>
-            </el-tab-pane>
-            <el-tab-pane label="阻塞原因">
-               <el-table :data="planResult.blockers" size="small" border empty-text="暂无阻塞项">
-                  <el-table-column label="插件ID" prop="pluginId" width="140" :show-overflow-tooltip="true" />
-                  <el-table-column label="依赖插件" prop="dependencyId" width="140" :show-overflow-tooltip="true" />
-                  <el-table-column label="状态" width="150" align="center">
-                     <template #default="scope">
-                        <el-tag type="danger">{{ getPlanBlockerStatusLabel(scope.row.status) }}</el-tag>
-                     </template>
-                  </el-table-column>
-                  <el-table-column label="说明" prop="message" min-width="320" :show-overflow-tooltip="true" />
-               </el-table>
-            </el-tab-pane>
-            <el-tab-pane label="执行结果">
-               <el-descriptions :column="4" border class="mb16">
-                  <el-descriptions-item label="总数">{{ batchResult.summary.total }}</el-descriptions-item>
-                  <el-descriptions-item label="成功">{{ batchResult.summary.succeeded }}</el-descriptions-item>
-                  <el-descriptions-item label="失败">{{ batchResult.summary.failed }}</el-descriptions-item>
-                  <el-descriptions-item label="跳过">{{ batchResult.summary.skipped }}</el-descriptions-item>
-               </el-descriptions>
-               <el-table :data="batchResult.executed" size="small" border empty-text="暂无执行记录">
-                  <el-table-column label="插件ID" prop="pluginId" width="140" :show-overflow-tooltip="true" />
-                  <el-table-column label="操作" width="90" align="center">
-                     <template #default="scope">{{ formatPluginOperation(scope.row.operation) }}</template>
-                  </el-table-column>
-                  <el-table-column label="状态" width="90" align="center">
-                     <template #default="scope">
-                        <el-tag :type="scope.row.ok ? 'success' : 'danger'">{{ scope.row.status || "-" }}</el-tag>
-                     </template>
-                  </el-table-column>
-                  <el-table-column label="耗时" prop="durationMs" width="90" align="center">
-                     <template #default="scope">{{ scope.row.durationMs ?? "-" }}ms</template>
-                  </el-table-column>
-                  <el-table-column label="说明" prop="message" min-width="220" :show-overflow-tooltip="true" />
-                  <el-table-column label="建议" prop="suggestion" min-width="260" :show-overflow-tooltip="true" />
-               </el-table>
-            </el-tab-pane>
-         </el-tabs>
-
-         <template #footer>
-            <div class="dialog-footer">
-               <el-switch
-                  v-model="batchContinueOnError"
-                  active-text="失败后继续"
-                  inactive-text="失败即中止"
-                  class="mr12"
-               />
-               <el-button
-                  type="primary"
-                  :disabled="!canExecuteBatchPlan"
-                  :loading="planLoading"
-                  @click="handleExecuteBatch(false)"
-                  v-hasPermi="['system:plugin:edit']"
-               >执行{{ formatPluginOperation(planResult.operation) }}</el-button>
-               <el-button @click="planOpen = false">关 闭</el-button>
-            </div>
-         </template>
-      </el-dialog>
+      <plugin-plan-dialog
+         v-model="planOpen"
+         v-model:continue-on-error="batchContinueOnError"
+         :title="planTitle"
+         :plan-result="planResult"
+         :batch-result="batchResult"
+         :loading="planLoading"
+         :format-plugin-operation="formatPluginOperation"
+         :format-plugin-ids-for-display="formatPluginIdsForDisplay"
+         :format-plan-dependencies="formatPlanDependencies"
+         :get-plan-ready-tag-type="getPlanReadyTagType"
+         :get-plan-blocker-status-label="getPlanBlockerStatusLabel"
+         @execute="handleExecuteBatch(false)"
+      />
 
       <el-drawer title="插件操作审计" v-model="operationLogOpen" size="50%" append-to-body>
          <div class="plugin-audit-drawer">
@@ -347,40 +212,50 @@
                </el-form>
             </div>
 
-            <div class="plugin-audit-maintenance">
-               <el-form :model="operationLogRetentionForm" :inline="true" label-width="84px" class="plugin-log-toolbar">
-                  <el-form-item label="保留天数">
-                     <el-input-number v-model="operationLogRetentionForm.retentionDays" :min="0" :max="3650" controls-position="right" style="width: 150px" />
-                  </el-form-item>
-                  <el-form-item>
-                     <el-tag type="info">默认 {{ operationLogRetentionDefaultDays }} 天</el-tag>
-                  </el-form-item>
-                  <el-form-item>
-                     <el-button icon="DocumentChecked" :loading="operationLogRetentionLoading" @click="handleOperationLogRetentionPreview">预览清理</el-button>
-                     <el-button
-                        type="danger"
-                        plain
-                        icon="Delete"
-                        :loading="operationLogRetentionLoading"
-                        @click="handleOperationLogRetentionClean"
-                        v-hasPermi="['system:plugin:edit']"
-                     >确认清理</el-button>
-                  </el-form-item>
-               </el-form>
-               <el-alert
-                  v-if="operationLogRetentionResult.matchedCount !== undefined"
-                  :title="formatRetentionMessage(operationLogRetentionResult)"
-                  :type="operationLogRetentionResult.deletedCount ? 'success' : 'info'"
-                  show-icon
-                  :closable="false"
-               />
-            </div>
+            <el-collapse v-model="operationLogMaintenanceActive" class="plugin-audit-maintenance">
+               <el-collapse-item name="retention">
+                  <template #title>
+                     <span class="plugin-audit-maintenance-title">审计保留策略</span>
+                     <el-tag size="small" type="info">默认 {{ operationLogRetentionDefaultDays }} 天</el-tag>
+                  </template>
+                  <el-form :model="operationLogRetentionForm" :inline="true" label-width="84px" class="plugin-log-toolbar">
+                     <el-form-item label="保留天数">
+                        <el-input-number v-model="operationLogRetentionForm.retentionDays" :min="0" :max="3650" controls-position="right" style="width: 150px" />
+                     </el-form-item>
+                     <el-form-item>
+                        <el-button icon="DocumentChecked" :loading="operationLogRetentionLoading" @click="handleOperationLogRetentionPreview">预览清理</el-button>
+                        <el-button
+                           type="danger"
+                           plain
+                           icon="Delete"
+                           :loading="operationLogRetentionLoading"
+                           @click="handleOperationLogRetentionClean"
+                           v-hasPermi="['system:plugin:edit']"
+                        >确认清理</el-button>
+                     </el-form-item>
+                  </el-form>
+                  <el-alert
+                     v-if="operationLogRetentionResult.matchedCount !== undefined"
+                     :title="formatRetentionMessage(operationLogRetentionResult)"
+                     :type="operationLogRetentionResult.deletedCount ? 'success' : 'info'"
+                     show-icon
+                     :closable="false"
+                  />
+               </el-collapse-item>
+            </el-collapse>
 
             <div class="plugin-audit-table">
                <div class="plugin-audit-table-toolbar">
                   <el-row :gutter="10" class="plugin-audit-table-actions">
                      <el-col :span="1.5">
-                        <el-button type="warning" plain icon="Download" @click="handleOperationLogExport" v-hasPermi="['system:plugin:export']">导出</el-button>
+                        <el-button
+                           type="warning"
+                           plain
+                           icon="Download"
+                           :loading="operationLogExportLoading"
+                           @click="handleOperationLogExport"
+                           v-hasPermi="['system:plugin:export']"
+                        >导出</el-button>
                      </el-col>
                   </el-row>
                   <right-toolbar v-model:showSearch="operationLogShowSearch" @queryTable="getOperationLogList"></right-toolbar>
@@ -540,53 +415,15 @@
          </template>
       </el-dialog>
 
-      <el-dialog :title="configTitle" v-model="configOpen" width="720px" append-to-body>
-         <el-form ref="configRef" :model="configForm" label-width="120px">
-            <el-empty v-if="!configItems.length" description="暂无插件配置" />
-            <el-form-item
-               v-for="item in configItems"
-               :key="item.key"
-               :label="item.label || item.key"
-               :prop="'values.' + item.key"
-               :rules="item.required ? [{ required: true, message: '不能为空', trigger: 'blur' }] : []"
-            >
-               <el-switch v-if="item.type === 'boolean'" v-model="configForm.values[item.key]" />
-               <el-input-number v-else-if="item.type === 'number'" v-model="configForm.values[item.key]" style="width: 220px" />
-               <el-select v-else-if="item.type === 'select'" v-model="configForm.values[item.key]" style="width: 260px">
-                  <el-option
-                     v-for="option in item.options || []"
-                     :key="String(option.value)"
-                     :label="option.label"
-                     :value="option.value"
-                  />
-               </el-select>
-               <el-input
-                  v-else-if="item.type === 'textarea' || item.type === 'json'"
-                  v-model="configForm.values[item.key]"
-                  type="textarea"
-                  :rows="4"
-               />
-               <el-input
-                  v-else
-                  v-model="configForm.values[item.key]"
-                  :type="item.type === 'password' || item.secret ? 'password' : 'text'"
-                  show-password
-               />
-               <div v-if="item.description" class="config-help">{{ item.description }}</div>
-            </el-form-item>
-         </el-form>
-         <template #footer>
-            <div class="dialog-footer">
-               <el-button
-                  type="primary"
-                  :loading="configLoading"
-                  @click="submitConfig"
-                  v-hasPermi="['system:plugin:edit']"
-               >保 存</el-button>
-               <el-button @click="configOpen = false">关 闭</el-button>
-            </div>
-         </template>
-      </el-dialog>
+      <plugin-config-dialog
+         v-model="configOpen"
+         :title="configTitle"
+         :items="configItems"
+         :loading="configLoading"
+         :format-config-default-value="formatConfigDefaultValue"
+         :format-config-constraint="formatConfigConstraint"
+         @submit="submitConfig"
+      />
 
       <el-dialog :title="actionTitle" v-model="actionOpen" width="860px" append-to-body>
          <el-alert
@@ -749,6 +586,10 @@ import {
   upgradePlugin
 } from "@/api/system/plugin";
 import { getConfigKey } from "@/api/system/config";
+import PluginConfigDialog from "./components/PluginConfigDialog.vue";
+import PluginDependencyDialog from "./components/PluginDependencyDialog.vue";
+import PluginDetailDialog from "./components/PluginDetailDialog.vue";
+import PluginPlanDialog from "./components/PluginPlanDialog.vue";
 import {
   getPlanBlockerStatusLabel,
   getPlanOperationLabel,
@@ -768,6 +609,7 @@ const INVALID_PLUGIN_TIME_VALUES = new Set(["", "-", "0", "0-0-0 0:0:0", "0000-0
 const PLUGIN_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/;
 const OPERATION_LOG_RETENTION_CONFIG_KEY = "sys.plugin.operationLogRetentionDays";
 
+const pluginTableRef = ref(null);
 const pluginList = ref([]);
 const selectedPluginIds = ref([]);
 const loading = ref(true);
@@ -798,6 +640,7 @@ const batchResult = ref(normalizePluginBatchResponse({}));
 const operationLogOpen = ref(false);
 const operationLogShowSearch = ref(true);
 const operationLogLoading = ref(false);
+const operationLogExportLoading = ref(false);
 const operationLogList = ref([]);
 const operationLogTotal = ref(0);
 const operationLogDateRange = ref([]);
@@ -806,9 +649,7 @@ const operationLogDetail = ref({});
 const operationLogRetentionLoading = ref(false);
 const operationLogRetentionResult = ref({});
 const operationLogRetentionDefaultDays = ref(180);
-const configForm = reactive({
-  values: {}
-});
+const operationLogMaintenanceActive = ref([]);
 const operationLogRetentionForm = reactive({
   retentionDays: 180
 });
@@ -875,8 +716,8 @@ const data = reactive({
 
 const { queryParams, operationLogQueryParams } = toRefs(data);
 
-const canExecuteBatchPlan = computed(() => {
-  return planResult.value.ok && planResult.value.executablePluginIds.length > 0;
+const planTargetSummary = computed(() => {
+  return selectedPluginIds.value.length ? `已选 ${selectedPluginIds.value.length} 个插件` : "请选择插件";
 });
 
 /** 查询插件列表 */
@@ -885,6 +726,9 @@ function getList() {
   listPlugin(queryParams.value).then(response => {
     pluginList.value = response.rows;
     total.value = response.total;
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
+  }).finally(() => {
     loading.value = false;
   });
 }
@@ -894,9 +738,16 @@ function handleSelectionChange(selection) {
   selectedPluginIds.value = selection.map(item => item.pluginId).filter(Boolean);
 }
 
+/** 清空当前选择 */
+function clearSelectedPlugins() {
+  selectedPluginIds.value = [];
+  pluginTableRef.value?.clearSelection?.();
+}
+
 /** 搜索按钮操作 */
 function handleQuery() {
   queryParams.value.pageNum = 1;
+  clearSelectedPlugins();
   getList();
 }
 
@@ -909,7 +760,7 @@ function resetQuery() {
 /** 插件启停状态修改 */
 function handleEnabledChange(row) {
   const enabled = row.enabled === "0";
-  const operation = enabled ? "enable" : "disable";
+  const operation = getEnabledSwitchOperation(row);
   if (isOperationBlocked(row, operation)) {
     row.enabled = row.enabled === "0" ? "1" : "0";
     proxy.$modal.msgWarning(getCapabilityReason(row.capability));
@@ -933,11 +784,34 @@ function handleEnabledChange(row) {
   });
 }
 
+function getEnabledSwitchOperation(row) {
+  return row?.enabled === "0" ? "disable" : "enable";
+}
+
+function isEnabledSwitchBlocked(row) {
+  return row?.status === "error" || isOperationBlocked(row, getEnabledSwitchOperation(row));
+}
+
+function getEnabledSwitchTooltip(row) {
+  if (row?.status === "error") {
+    return "插件处于异常状态，请在详情中重新启用";
+  }
+  if (isOperationBlocked(row, getEnabledSwitchOperation(row))) {
+    return getCapabilityReason(row.capability);
+  }
+  return "";
+}
+
 /** 打开详情 */
 function handleDetail(row) {
+  loading.value = true;
   getPlugin(row.pluginId).then(response => {
     detail.value = response.data;
     detailOpen.value = true;
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
+  }).finally(() => {
+    loading.value = false;
   });
 }
 
@@ -949,29 +823,24 @@ function handleConfig(row) {
   getPluginConfig(row.pluginId).then(response => {
     const configs = response.data?.configs || [];
     configItems.value = configs;
-    configForm.values = {};
-    configs.forEach(item => {
-      configForm.values[item.key] = item.value;
-    });
     configOpen.value = true;
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
   }).finally(() => {
     configLoading.value = false;
   });
 }
 
 /** 保存插件配置 */
-function submitConfig() {
-  proxy.$refs["configRef"].validate(valid => {
-    if (!valid) {
-      return;
-    }
-    configLoading.value = true;
-    updatePluginConfig(configPluginId.value, { values: configForm.values }).then(() => {
-      proxy.$modal.msgSuccess("插件配置已保存");
-      configOpen.value = false;
-    }).finally(() => {
-      configLoading.value = false;
-    });
+function submitConfig(values) {
+  configLoading.value = true;
+  updatePluginConfig(configPluginId.value, { values }).then(() => {
+    proxy.$modal.msgSuccess("插件配置已保存");
+    configOpen.value = false;
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
+  }).finally(() => {
+    configLoading.value = false;
   });
 }
 
@@ -1020,6 +889,29 @@ function handleDependencyDryRun() {
   dependencyLoading.value = true;
   installPluginDependencies(dependencyPluginId.value, true).then(response => {
     dependencyResult.value = response.data || {};
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
+  }).finally(() => {
+    dependencyLoading.value = false;
+  });
+}
+
+/** 执行插件依赖安装 */
+function handleDependencyInstall() {
+  if (isCapabilityOperationBlocked(dependencyResult.value.capability, "dependency_install")) {
+    proxy.$modal.msgWarning(getCapabilityReason(dependencyResult.value.capability));
+    return;
+  }
+  proxy.$modal.confirm('确认要安装"' + dependencyPluginId.value + '"插件缺失依赖吗?').then(function () {
+    dependencyLoading.value = true;
+    return installPluginDependencies(dependencyPluginId.value, false);
+  }).then(response => {
+    dependencyResult.value = response.data || {};
+    proxy.$modal.msgSuccess("插件依赖安装完成");
+  }).catch(error => {
+    if (!isUserCancel(error)) {
+      proxy.$modal.msgError(getErrorMessage(error));
+    }
   }).finally(() => {
     dependencyLoading.value = false;
   });
@@ -1027,6 +919,10 @@ function handleDependencyDryRun() {
 
 /** 生成插件批量操作拓扑计划 */
 function handlePlan(operation) {
+  if (!selectedPluginIds.value.length) {
+    proxy.$modal.msgWarning("请先选择要操作的插件");
+    return;
+  }
   planLoading.value = true;
   planTitle.value = "插件" + formatPluginOperation(operation) + "计划";
   const pluginIds = getBatchTargetPluginIds();
@@ -1034,6 +930,8 @@ function handlePlan(operation) {
   planPlugins(operation, pluginIds).then(response => {
     planResult.value = normalizePluginPlanResponse(response.data);
     planOpen.value = true;
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
   }).finally(() => {
     planLoading.value = false;
   });
@@ -1041,17 +939,17 @@ function handlePlan(operation) {
 
 /** 获取批量目标插件ID */
 function getBatchTargetPluginIds() {
-  return selectedPluginIds.value.length ? selectedPluginIds.value : pluginList.value.map(item => item.pluginId).filter(Boolean);
+  return [...selectedPluginIds.value];
 }
 
 /** 执行插件批量操作 */
 function handleExecuteBatch(dryRun) {
-  if (!canExecuteBatchPlan.value) {
+  if (!(planResult.value.ok && planResult.value.executablePluginIds.length > 0)) {
     return;
   }
   const operation = planResult.value.operation;
   const pluginIds = planResult.value.executablePluginIds;
-  proxy.$modal.confirm('确认要批量执行插件' + formatPluginOperation(operation) + '吗?').then(function () {
+  proxy.$modal.confirm('确认要批量执行插件' + formatPluginOperation(operation) + '吗? 目标：' + formatPlanDependencies(pluginIds)).then(function () {
     planLoading.value = true;
     return batchPlugins(operation, pluginIds, dryRun, batchContinueOnError.value);
   }).then(response => {
@@ -1124,6 +1022,8 @@ function getOperationLogList() {
   listPluginOperationLog(buildOperationLogQueryParams()).then(response => {
     operationLogList.value = response.rows;
     operationLogTotal.value = response.total;
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
   }).finally(() => {
     operationLogLoading.value = false;
   });
@@ -1134,15 +1034,20 @@ function handleOperationLogDetail(row) {
   getPluginOperationLog(row.operationId).then(response => {
     operationLogDetail.value = normalizePluginOperationLogDetail(response.data || {});
     operationLogDetailOpen.value = true;
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
   });
 }
 
 /** 导出插件操作审计 */
 function handleOperationLogExport() {
+  operationLogExportLoading.value = true;
   proxy.download("system/plugin/operation-log/export", {
     ...buildOperationLogQueryParams(),
     exportLimit: 5000
-  }, `plugin_operation_log_${new Date().getTime()}.xlsx`);
+  }, `plugin_operation_log_${new Date().getTime()}.xlsx`).finally(() => {
+    operationLogExportLoading.value = false;
+  });
 }
 
 /** 预览插件操作审计保留策略 */
@@ -1153,6 +1058,8 @@ function handleOperationLogRetentionPreview() {
     dryRun: true
   }).then(response => {
     operationLogRetentionResult.value = response.data || {};
+  }).catch(error => {
+    proxy.$modal.msgError(getErrorMessage(error));
   }).finally(() => {
     operationLogRetentionLoading.value = false;
   });
@@ -1296,6 +1203,10 @@ function handleEnableFromDetail() {
     proxy.$modal.msgSuccess("重新启用成功");
     detailOpen.value = false;
     getList();
+  }).catch(error => {
+    if (!isUserCancel(error)) {
+      proxy.$modal.msgError(getErrorMessage(error));
+    }
   });
 }
 
@@ -1450,6 +1361,54 @@ function formatPlanDependencies(dependencies) {
   return Array.isArray(dependencies) && dependencies.length ? dependencies.join(", ") : "-";
 }
 
+function formatPluginIdsForDisplay(pluginIds) {
+  const ids = Array.isArray(pluginIds) ? pluginIds.filter(Boolean) : [];
+  if (!ids.length) {
+    return "-";
+  }
+  const visibleIds = ids.slice(0, 8).join(", ");
+  return ids.length > 8 ? visibleIds + " 等 " + ids.length + " 个插件" : visibleIds;
+}
+
+function formatConfigDefaultValue(item) {
+  const value = item.default;
+  if (item.secret && value !== undefined && value !== null && value !== "") {
+    return "******";
+  }
+  if (value === undefined || value === null || value === "") {
+    return "-";
+  }
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+function formatConfigConstraint(item) {
+  const constraints = [];
+  if (item.min !== undefined && item.min !== null) {
+    constraints.push("最小值 " + item.min);
+  }
+  if (item.max !== undefined && item.max !== null) {
+    constraints.push("最大值 " + item.max);
+  }
+  if (item.pattern) {
+    constraints.push("正则 " + item.pattern);
+  }
+  if (Array.isArray(item.options) && item.options.length) {
+    constraints.push("选项 " + item.options.map(formatConfigOption).join(", "));
+  }
+  return constraints.length ? constraints.join("; ") : "-";
+}
+
+function formatConfigOption(option) {
+  if (!option || typeof option !== "object") {
+    return String(option);
+  }
+  const value = option.value === undefined || option.value === null ? "" : String(option.value);
+  return option.label ? option.label + "(" + value + ")" : value;
+}
+
 function formatPluginOperation(operation) {
   return getPlanOperationLabel(operation, plugin_operation_type.value);
 }
@@ -1503,21 +1462,18 @@ getList();
   margin-bottom: 16px;
 }
 
-.config-help {
-  width: 100%;
-  margin-top: 4px;
-  color: #909399;
-  font-size: 12px;
-  line-height: 18px;
-}
-
-.plan-order-tag {
-  margin-right: 6px;
-  margin-bottom: 4px;
-}
-
 .mr12 {
   margin-right: 12px;
+}
+
+.plugin-selection-tag {
+  height: 32px;
+  line-height: 30px;
+}
+
+.plugin-switch-tooltip-target {
+  display: inline-flex;
+  align-items: center;
 }
 
 .plugin-action-buttons {
@@ -1542,8 +1498,7 @@ getList();
   flex-direction: column;
 }
 
-.plugin-audit-search,
-.plugin-audit-maintenance {
+.plugin-audit-search {
   padding: 12px 12px 4px;
   margin-bottom: 12px;
   border: 1px solid #ebeef5;
@@ -1555,7 +1510,32 @@ getList();
 }
 
 .plugin-audit-maintenance {
+  margin-bottom: 12px;
   background: #f8f9fb;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+
+.plugin-audit-maintenance :deep(.el-collapse-item__header) {
+  height: 40px;
+  padding: 0 12px;
+  background: transparent;
+  border-bottom-color: transparent;
+}
+
+.plugin-audit-maintenance :deep(.el-collapse-item__wrap) {
+  background: transparent;
+  border-bottom: 0;
+}
+
+.plugin-audit-maintenance :deep(.el-collapse-item__content) {
+  padding: 0 12px 12px;
+}
+
+.plugin-audit-maintenance-title {
+  margin-right: 8px;
+  color: #606266;
+  font-weight: 600;
 }
 
 .plugin-log-toolbar {
@@ -1591,5 +1571,13 @@ getList();
 .drawer-footer {
   margin-top: 16px;
   text-align: right;
+}
+
+@media (max-width: 768px) {
+  .plugin-audit-table-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
 }
 </style>

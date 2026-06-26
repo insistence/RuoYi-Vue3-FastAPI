@@ -36,6 +36,13 @@ class PluginModel(BaseModel):
     update_time: datetime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
     capability: dict[str, Any] | None = Field(default=None, description='插件运行时操作能力')
+    metadata: dict[str, Any] | None = Field(default=None, description='插件展示元数据')
+    backend: dict[str, Any] | None = Field(default=None, description='插件后端声明摘要')
+    frontend: dict[str, Any] | None = Field(default=None, description='插件前端声明摘要')
+    permissions: list[dict[str, Any]] | None = Field(default=None, description='插件权限声明')
+    config: list[dict[str, Any]] | None = Field(default=None, description='插件配置声明')
+    dependencies: dict[str, Any] | None = Field(default=None, description='插件依赖声明')
+    plugin_dependencies: list[dict[str, Any]] | None = Field(default=None, description='插件依赖声明')
 
 
 class PluginQueryModel(BaseModel):

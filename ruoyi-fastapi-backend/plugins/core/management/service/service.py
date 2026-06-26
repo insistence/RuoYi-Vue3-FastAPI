@@ -148,7 +148,7 @@ class PluginService:
         plugin_model = cls._build_plugin_model(discovered_plugin, backend_root, frontend_root, existing_plugin)
 
         if existing_plugin:
-            await PluginDao.update_plugin(query_db, plugin_model.model_dump(exclude_unset=True, exclude={'capability'}))
+            await PluginDao.update_plugin(query_db, PluginDao.dump_plugin_persistence_payload(plugin_model))
         else:
             await PluginDao.add_plugin(query_db, plugin_model)
 
@@ -798,6 +798,7 @@ class PluginService:
         last_error = getattr(existing_plugin, 'last_error', None)
         status = PluginService._resolve_status(manifest.version, installed_version, enabled, current_status)
         frontend_path = frontend_root / manifest.frontend.plugin_id if frontend_root else None
+        frontend_menus = PluginMenuTree.flatten(manifest.frontend.menus)
 
         return PluginModel(
             pluginId=manifest.id,
@@ -813,6 +814,30 @@ class PluginService:
             description=manifest.description,
             updateTime=datetime.now(),
             capability=capability.to_payload(),
+            metadata=manifest.metadata.model_dump(by_alias=True),
+            backend={
+                'module': manifest.backend.module,
+                'autoScanRouters': manifest.backend.routers.auto_scan,
+                'migrations': manifest.backend.migrations,
+                'seeds': manifest.backend.seeds,
+                'jobs': [job.model_dump(by_alias=True) for job in manifest.backend.jobs],
+            },
+            frontend={
+                'pluginId': manifest.frontend.plugin_id,
+                'basePath': manifest.frontend.base_path,
+                'viewsPath': manifest.frontend.views_path,
+                'apiPath': manifest.frontend.api_path,
+                'delivery': manifest.frontend.delivery.model_dump(by_alias=True),
+                'menus': [menu.model_dump(by_alias=True) for menu in frontend_menus],
+            },
+            permissions=[permission.model_dump(by_alias=True) for permission in manifest.permissions],
+            config=[config_item.model_dump(by_alias=True) for config_item in manifest.config.items],
+            dependencies={
+                'python': manifest.dependencies.python,
+                'npm': manifest.dependencies.npm,
+                'npmDev': manifest.dependencies.npm_dev,
+            },
+            pluginDependencies=[dependency.model_dump(by_alias=True) for dependency in manifest.dependencies.plugins],
         )
 
     @staticmethod

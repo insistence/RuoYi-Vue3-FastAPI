@@ -28,6 +28,17 @@ from plugins.core.management.entity.vo.schemas import (
 )
 from utils.page_util import PageUtil
 
+PLUGIN_MODEL_RUNTIME_FIELDS = {
+    'capability',
+    'metadata',
+    'backend',
+    'frontend',
+    'permissions',
+    'config',
+    'dependencies',
+    'plugin_dependencies',
+}
+
 
 class PluginDao:
     """
@@ -105,11 +116,21 @@ class PluginDao:
         :param plugin: 插件信息对象
         :return: 新增后的插件信息对象
         """
-        db_plugin = SysPlugin(**plugin.model_dump(exclude_unset=True, exclude={'capability'}))
+        db_plugin = SysPlugin(**cls.dump_plugin_persistence_payload(plugin))
         db.add(db_plugin)
         await db.flush()
 
         return db_plugin
+
+    @staticmethod
+    def dump_plugin_persistence_payload(plugin: PluginModel) -> dict[str, Any]:
+        """
+        序列化插件数据库持久化字段。
+
+        :param plugin: 插件信息对象
+        :return: 可写入 sys_plugin 的字段字典
+        """
+        return plugin.model_dump(exclude_unset=True, exclude=PLUGIN_MODEL_RUNTIME_FIELDS)
 
     @classmethod
     async def update_plugin(cls, db: AsyncSession, plugin: dict) -> None:
