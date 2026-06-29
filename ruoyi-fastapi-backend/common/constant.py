@@ -151,6 +151,15 @@ class LockConstant:
     PLUGIN_LIFECYCLE_LOCK_EXPIRE_SECONDS = 1800
 
 
+class PluginRuntimeConstant:
+    """
+    插件运行时常量。
+    """
+
+    PLUGIN_HOOK_TIMEOUT_SECONDS = 30
+    PLUGIN_HEALTH_TIMEOUT_SECONDS = 5
+
+
 class ApiNamespace:
     """
     接口注解通用命名空间常量

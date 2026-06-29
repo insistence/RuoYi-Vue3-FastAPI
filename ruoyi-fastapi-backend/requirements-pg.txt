@@ -4,7 +4,7 @@ APScheduler==3.11.2
 async-lru==2.1.0
 asyncpg==0.31.0
 bcrypt==5.0.0
-fastapi[all]==0.136.1
+fastapi[all]==0.128.2
 loguru==0.7.3
 openpyxl==3.1.5
 pandas==2.3.3
@@ -15,7 +15,7 @@ pydantic>=2.11.4
 pydantic-validation-decorator==0.1.5
 PyJWT[crypto]==2.11.0
 redis==7.1.0
-ruff==0.15.13
+ruff==0.15.0
 SQLAlchemy[asyncio]==2.0.46
 sqlglot[rs]==28.10.0
 textual==8.2.5

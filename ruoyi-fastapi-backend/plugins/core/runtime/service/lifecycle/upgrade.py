@@ -154,7 +154,7 @@ class PluginUpgradeUseCase:
 
         return payload
 
-    async def _upgrade_plugin(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
+    async def _upgrade_plugin(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:  # noqa: PLR0915
         """
         升级插件。
 
@@ -162,7 +162,9 @@ class PluginUpgradeUseCase:
         :param dry_run: 是否仅预演
         :return: 插件升级结果负载
         """
+        current_step = 'prepare_upgrade'
         try:
+            current_step = 'discover_plugin'
             backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
             discovered_plugin = self._get_discovered_plugin_from_list(discovered_plugins, plugin_id)
@@ -172,6 +174,7 @@ class PluginUpgradeUseCase:
             if blocked_payload:
                 return blocked_payload
 
+            current_step = 'build_precheck'
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
             actions = PluginPayloadBuilder.build_upgrade_actions(
                 discovered_plugin,
@@ -208,6 +211,7 @@ class PluginUpgradeUseCase:
             async_session_local = gateway.get_async_session_local()
             plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
+                current_step = 'load_installed_plugin'
                 database_plugin = await plugin_service.plugin_detail_services(session, plugin_id)
                 version_state = PluginPayloadBuilder.build_upgrade_version_state(discovered_plugin, database_plugin)
                 blocker_payload = PluginRuntimePayloadBuilder.build_upgrade_pre_execution_blocker(
@@ -236,6 +240,7 @@ class PluginUpgradeUseCase:
                 if blocker_payload:
                     return blocker_payload
 
+                current_step = 'check_installed_menu_conflicts'
                 installed_menu_conflicts = await plugin_service.check_installed_menu_conflict_services(
                     session,
                     discovered_plugin,
@@ -250,18 +255,22 @@ class PluginUpgradeUseCase:
                         extra_payload=version_state,
                     )
 
+                current_step = 'upsert_plugin'
                 await plugin_service.upsert_discovered_plugin_services(
                     session,
                     discovered_plugin,
                     backend_root / 'plugins',
                     backend_root.parent / 'ruoyi-fastapi-frontend' / 'plugins',
                 )
+                current_step = 'install_menus'
                 registry = PluginRegistry.build([discovered_plugin], [database_plugin])
                 await plugin_service.install_enabled_plugin_menu_services(session, registry)
+                current_step = 'install_configs'
                 installed_configs = await plugin_service.install_plugin_default_config_services(
                     session,
                     discovered_plugin,
                 )
+                current_step = 'run_migrations'
                 migration_results = await PluginMigrationRunner(
                     discovered_plugin,
                     PluginDatabaseMigrationHistoryStore.with_model_gateway(
@@ -269,9 +278,13 @@ class PluginUpgradeUseCase:
                         self.dependencies.model_gateway,
                     ),
                 ).run(session)
+                current_step = 'run_seeds'
                 seed_results = await PluginSeedRunner(discovered_plugin).run(session)
+                current_step = 'run_upgrade_hook'
                 hook_result = await PluginHookRunner(discovered_plugin).run('on_upgrade', query_db=session)
+                current_step = 'mark_installed'
                 plugin = await plugin_service.mark_plugin_installed_services(session, discovered_plugin)
+                current_step = 'commit'
                 await session.commit()
 
             payload = PluginLifecyclePayloadBuilder.build_success_payload(
@@ -289,4 +302,9 @@ class PluginUpgradeUseCase:
             payload['operation'] = 'upgrade'
             return self._with_plugin_capability(payload, discovered_plugin)
         except Exception as exc:
-            return PluginRuntimePayloadBuilder.build_exception_payload('插件升级失败', exc)
+            return PluginRuntimePayloadBuilder.build_exception_payload(
+                '插件升级失败',
+                exc,
+                plugin_id=plugin_id,
+                failed_step=current_step,
+            )

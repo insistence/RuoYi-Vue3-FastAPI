@@ -136,46 +136,57 @@ class PluginEnableUseCase:
         :return: 插件停用结果负载
         """
         operation = 'disable'
-        dependency_payload = await self._build_enabled_dependents_payload(plugin_id, discovered_plugins)
-        if dry_run:
-            payload = PluginEnablePayloadBuilder.build_dry_run_payload(
-                plugin_id,
-                operation=operation,
-                enabled=False,
-                dependency_payload=dependency_payload,
-            )
-            return self._with_plugin_capability(payload, discovered_plugin)
-        if not bool(dependency_payload.get('pluginDependencyOk', True)):
-            payload = PluginEnablePayloadBuilder.build_dependency_blocker_payload(
-                plugin_id,
-                operation=operation,
-                enabled=False,
-                dependency_payload=dependency_payload,
-            )
-            return self._with_plugin_capability(payload, discovered_plugin)
-
-        gateway = self.dependencies.state_gateway
-        async_session_local = gateway.get_async_session_local()
-        plugin_service = gateway.get_plugin_service()
-        async with async_session_local() as session:
-            response = await plugin_service.update_plugin_enabled_services(session, plugin_id, False)
-            if not response.is_success:
-                return PluginEnablePayloadBuilder.build_update_failure_payload(
+        current_step = 'check_enabled_dependents'
+        try:
+            dependency_payload = await self._build_enabled_dependents_payload(plugin_id, discovered_plugins)
+            if dry_run:
+                payload = PluginEnablePayloadBuilder.build_dry_run_payload(
                     plugin_id,
                     operation=operation,
                     enabled=False,
-                    message=response.message,
+                    dependency_payload=dependency_payload,
                 )
-            await session.commit()
+                return self._with_plugin_capability(payload, discovered_plugin)
+            if not bool(dependency_payload.get('pluginDependencyOk', True)):
+                payload = PluginEnablePayloadBuilder.build_dependency_blocker_payload(
+                    plugin_id,
+                    operation=operation,
+                    enabled=False,
+                    dependency_payload=dependency_payload,
+                )
+                return self._with_plugin_capability(payload, discovered_plugin)
 
-        payload = PluginEnablePayloadBuilder.build_success_payload(
-            plugin_id,
-            operation=operation,
-            enabled=False,
-            message=response.message,
-            dependency_payload=dependency_payload,
-        )
-        return self._with_plugin_capability(payload, discovered_plugin)
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
+            async with async_session_local() as session:
+                current_step = 'update_enabled_state'
+                response = await plugin_service.update_plugin_enabled_services(session, plugin_id, False)
+                if not response.is_success:
+                    return PluginEnablePayloadBuilder.build_update_failure_payload(
+                        plugin_id,
+                        operation=operation,
+                        enabled=False,
+                        message=response.message,
+                    )
+                current_step = 'commit'
+                await session.commit()
+
+            payload = PluginEnablePayloadBuilder.build_success_payload(
+                plugin_id,
+                operation=operation,
+                enabled=False,
+                message=response.message,
+                dependency_payload=dependency_payload,
+            )
+            return self._with_plugin_capability(payload, discovered_plugin)
+        except Exception as exc:
+            return PluginRuntimePayloadBuilder.build_exception_payload(
+                '更新插件启停状态失败',
+                exc,
+                plugin_id=plugin_id,
+                failed_step=current_step,
+            )
 
     def _with_plugin_capability(
         self,
@@ -213,6 +224,7 @@ class PluginEnableUseCase:
         """
         payload = await self._set_plugin_enabled(plugin_id, enabled=enabled, dry_run=dry_run)
         payload_view = cast('dict[str, object]', payload)
+        payload_view['operation'] = 'enable' if enabled else 'disable'
         if enabled and not dry_run:
             await self.runtime_operations.record_plugin_failure_state(payload_view, '插件启用失败')
         if record_operation_log and not dry_run:
@@ -236,7 +248,9 @@ class PluginEnableUseCase:
         :return: 插件启停结果负载
         """
         operation = 'enable' if enabled else 'disable'
+        current_step = f'prepare_{operation}'
         try:
+            current_step = 'discover_plugin'
             backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
             discovered_plugin = self._get_discovered_plugin_from_list(discovered_plugins, plugin_id)
@@ -259,6 +273,7 @@ class PluginEnableUseCase:
                     enabled=enabled,
                     dry_run=dry_run,
                 )
+            current_step = 'build_precheck'
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
             actions = PluginPayloadBuilder.build_enabled_actions(enabled, precheck.plugin_dependency_result.ok)
             dependency_payload = cast(
@@ -293,6 +308,7 @@ class PluginEnableUseCase:
             async_session_local = gateway.get_async_session_local()
             plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
+                current_step = 'update_enabled_state'
                 response = await plugin_service.update_plugin_enabled_services(session, plugin_id, enabled)
                 if not response.is_success:
                     return PluginEnablePayloadBuilder.build_update_failure_payload(
@@ -302,7 +318,9 @@ class PluginEnableUseCase:
                         message=response.message,
                     )
                 if enabled:
+                    current_step = 'install_menus'
                     await plugin_service.install_plugin_menu_services(session, discovered_plugin, enabled=True)
+                current_step = 'commit'
                 await session.commit()
 
             payload = PluginEnablePayloadBuilder.build_success_payload(
@@ -314,7 +332,12 @@ class PluginEnableUseCase:
             )
             return self._with_plugin_capability(payload, discovered_plugin)
         except Exception as exc:
-            return PluginRuntimePayloadBuilder.build_exception_payload('更新插件启停状态失败', exc)
+            return PluginRuntimePayloadBuilder.build_exception_payload(
+                '更新插件启停状态失败',
+                exc,
+                plugin_id=plugin_id,
+                failed_step=current_step,
+            )
 
     async def uninstall_plugin(
         self,
@@ -353,11 +376,14 @@ class PluginEnableUseCase:
         :param dry_run: 是否仅预演
         :return: 插件卸载结果负载
         """
+        current_step = 'prepare_uninstall'
         try:
+            current_step = 'discover_plugin'
             backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
             discovered_plugin = self._get_discovered_plugin_from_list(discovered_plugins, plugin_id)
             if not discovered_plugin:
+                current_step = 'check_enabled_dependents'
                 dependency_payload = await self._build_enabled_dependents_payload(plugin_id, discovered_plugins)
                 if dry_run:
                     return PluginEnablePayloadBuilder.build_dry_run_payload(
@@ -377,6 +403,7 @@ class PluginEnableUseCase:
                 async_session_local = gateway.get_async_session_local()
                 plugin_service = gateway.get_plugin_service()
                 async with async_session_local() as session:
+                    current_step = 'mark_uninstalled'
                     response = await plugin_service.mark_plugin_uninstalled_services(session, plugin_id)
                     if not response.is_success:
                         return PluginEnablePayloadBuilder.build_update_failure_payload(
@@ -385,6 +412,7 @@ class PluginEnableUseCase:
                             enabled=False,
                             message=response.message,
                         )
+                    current_step = 'commit'
                     await session.commit()
 
                 return PluginEnablePayloadBuilder.build_success_payload(
@@ -397,7 +425,9 @@ class PluginEnableUseCase:
             blocked_payload = self._build_operation_blocked_payload(discovered_plugin, 'uninstall', dry_run=dry_run)
             if blocked_payload:
                 return blocked_payload
+            current_step = 'check_enabled_dependents'
             dependency_payload = await self._build_enabled_dependents_payload(plugin_id, discovered_plugins)
+            current_step = 'build_precheck'
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
             plugin_dependency_ok = bool(dependency_payload.get('pluginDependencyOk', True))
             actions = PluginPayloadBuilder.build_enabled_actions(False, plugin_dependency_ok)
@@ -428,6 +458,7 @@ class PluginEnableUseCase:
             async_session_local = gateway.get_async_session_local()
             plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
+                current_step = 'mark_uninstalled'
                 response = await plugin_service.mark_plugin_uninstalled_services(session, plugin_id)
                 if not response.is_success:
                     return PluginEnablePayloadBuilder.build_update_failure_payload(
@@ -436,6 +467,7 @@ class PluginEnableUseCase:
                         enabled=False,
                         message=response.message,
                     )
+                current_step = 'commit'
                 await session.commit()
 
             payload = PluginEnablePayloadBuilder.build_success_payload(
@@ -447,4 +479,9 @@ class PluginEnableUseCase:
             )
             return self._with_plugin_capability(payload, discovered_plugin)
         except Exception as exc:
-            return PluginRuntimePayloadBuilder.build_exception_payload('插件卸载失败', exc)
+            return PluginRuntimePayloadBuilder.build_exception_payload(
+                '插件卸载失败',
+                exc,
+                plugin_id=plugin_id,
+                failed_step=current_step,
+            )

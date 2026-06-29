@@ -4,6 +4,7 @@ from typing import cast
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.hooks import PluginHookRunner
 from plugins.core.runtime.support import (
+    PluginEnablePayloadBuilder,
     PluginLifecyclePayloadBuilder,
     PluginPayloadBuilder,
     PluginPrecheckContext,
@@ -90,6 +91,21 @@ class PluginPurgeUseCase:
         """
         return await self.context.build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
 
+    async def _build_enabled_dependents_payload(
+        self,
+        plugin_id: str,
+        discovered_plugins: list[DiscoveredPlugin],
+    ) -> dict[str, object]:
+        """
+        构建已启用依赖方检查负载。
+
+        :param plugin_id: 被物理清理的插件ID
+        :param discovered_plugins: 已发现插件列表
+        :return: 依赖方检查负载
+        """
+        dependent_result = await self.context.check_enabled_plugin_dependents(plugin_id, discovered_plugins)
+        return cast('dict[str, object]', PluginEnablePayloadBuilder.build_dependency_payload(dependent_result))
+
     def _with_plugin_capability(
         self,
         payload: PluginLifecycleResponse,
@@ -124,6 +140,7 @@ class PluginPurgeUseCase:
         """
         payload = await self._purge_plugin(plugin_id, dry_run=dry_run)
         payload_view = cast('dict[str, object]', payload)
+        payload_view['operation'] = 'purge'
         if record_operation_log and not dry_run:
             await self.runtime_operations.record_plugin_operation_log(
                 payload_view,
@@ -144,7 +161,9 @@ class PluginPurgeUseCase:
         :param dry_run: 是否仅预演
         :return: 插件物理清理结果负载
         """
+        current_step = 'prepare_purge'
         try:
+            current_step = 'discover_plugin'
             discovered_plugin = self._get_discovered_plugin(plugin_id)
             if not discovered_plugin:
                 return PluginPayloadBuilder.build_plugin_not_found_payload(
@@ -155,15 +174,21 @@ class PluginPurgeUseCase:
             blocked_payload = self._build_operation_blocked_payload(discovered_plugin, 'purge', dry_run=dry_run)
             if blocked_payload:
                 return blocked_payload
+            current_step = 'discover_plugins'
             backend_root = discovered_plugin.backend_path.parent.parent
             discovered_plugins = self._discover_plugins(backend_root)
+            current_step = 'build_precheck'
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
+            current_step = 'check_enabled_dependents'
+            dependency_payload = await self._build_enabled_dependents_payload(plugin_id, discovered_plugins)
+            plugin_dependency_ok = bool(dependency_payload.get('pluginDependencyOk', True))
             actions = PluginRuntimePayloadBuilder.build_precheck_actions('purge', discovered_plugin, precheck)
 
             gateway = self.dependencies.state_gateway
             async_session_local = gateway.get_async_session_local()
             plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
+                current_step = 'build_purge_plan'
                 plan = await plugin_service.build_plugin_purge_plan_services(session, discovered_plugin)
                 if dry_run:
                     payload = PluginLifecyclePayloadBuilder.build_operation_dry_run_payload(
@@ -176,16 +201,34 @@ class PluginPurgeUseCase:
                             'safeMode': False,
                             'removesSource': plan.removes_source,
                             'plan': PluginPayloadBuilder.build_purge_plan(plan),
+                            **dependency_payload,
                         },
                         ok_from_precheck=False,
                     )
                     return self._with_plugin_capability(payload, discovered_plugin)
+                if not plugin_dependency_ok:
+                    payload = PluginEnablePayloadBuilder.build_dependency_blocker_payload(
+                        plugin_id,
+                        operation='purge',
+                        enabled=False,
+                        dependency_payload=dependency_payload,
+                        message='插件仍被已启用插件依赖，物理清理已中止',
+                    )
+                    return self._with_plugin_capability(payload, discovered_plugin)
 
+                current_step = 'run_purge_hook'
                 hook_result = await PluginHookRunner(discovered_plugin).run('on_purge', query_db=session)
+                current_step = 'purge_metadata'
                 await plugin_service.purge_plugin_services(session, discovered_plugin)
+                current_step = 'commit'
                 await session.commit()
 
             payload = PluginPurgePayloadBuilder.build_success_payload(plugin_id, plan, hook_result)
             return self._with_plugin_capability(payload, discovered_plugin)
         except Exception as exc:
-            return PluginRuntimePayloadBuilder.build_exception_payload('插件物理清理失败', exc)
+            return PluginRuntimePayloadBuilder.build_exception_payload(
+                '插件物理清理失败',
+                exc,
+                plugin_id=plugin_id,
+                failed_step=current_step,
+            )

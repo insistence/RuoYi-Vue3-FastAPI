@@ -10,6 +10,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin  # noqa: E402
+from plugins.core.runtime.bootstrap import PluginRuntimeBuilder  # noqa: E402
 from plugins.core.runtime.startup import PluginRuntimeStartupManager, PluginStartupMigrationHistoryStore  # noqa: E402
 
 
@@ -594,12 +595,19 @@ def test_can_prompt_dependency_install_requires_single_worker_tty() -> None:
         assert PluginRuntimeStartupManager._can_prompt_dependency_install() is False
 
 
-def test_register_enabled_plugin_routers_uses_enabled_plugin_ids() -> None:
+def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path) -> None:
     """
     校验插件路由注册只向路由注册器传递启用且允许自动扫描的插件 ID。
 
+    :param tmp_path: pytest 临时目录
     :return: None
     """
+    backend_root = tmp_path / 'backend'
+    demo_controller = backend_root / 'plugins' / 'demo' / 'controller' / 'demo_controller.py'
+    manual_controller = backend_root / 'plugins' / 'manual' / 'controller' / 'manual_controller.py'
+    for path in (demo_controller, manual_controller):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('', encoding='utf-8')
 
     class FakePluginRegistry:
         """
@@ -630,14 +638,38 @@ def test_register_enabled_plugin_routers_uses_enabled_plugin_ids() -> None:
     app = FastAPI()
     app.state.plugin_registry = FakePluginRegistry()
     app.state.plugin_routes_registered = False
-    startup_manager = PluginRuntimeStartupManager(MagicMock())
+    builder = MagicMock()
+    builder.backend_root = backend_root
+    startup_manager = PluginRuntimeStartupManager(builder)
 
-    with patch('plugins.core.runtime.startup.auto_register_plugin_routers') as auto_register_plugin_routers:
+    with patch('plugins.core.runtime.startup.auto_register_controller_files') as auto_register_controller_files:
         startup_manager.register_enabled_plugin_routers(app)
         startup_manager.register_enabled_plugin_routers(app)
 
-    auto_register_plugin_routers.assert_called_once_with(app, ['demo'])
+    controller_files = auto_register_controller_files.call_args.args[1]
+    assert controller_files == [str(demo_controller)]
     assert app.state.plugin_routes_registered is True
+
+
+def test_find_plugin_controller_files_filters_private_and_missing_plugins(tmp_path: Path) -> None:
+    """
+    校验启动协调器只查找指定插件的公开 controller 文件。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_controller = backend_root / 'plugins' / 'demo' / 'controller' / 'demo_controller.py'
+    private_controller = backend_root / 'plugins' / 'demo' / 'controller' / '_private_controller.py'
+    other_controller = backend_root / 'plugins' / 'other' / 'controller' / 'other_controller.py'
+    for path in (plugin_controller, private_controller, other_controller):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('', encoding='utf-8')
+    startup_manager = PluginRuntimeStartupManager(PluginRuntimeBuilder(backend_root))
+
+    controller_files = startup_manager._find_plugin_controller_files(['demo', 'missing'])
+
+    assert controller_files == [str(plugin_controller)]
 
 
 @pytest.mark.asyncio

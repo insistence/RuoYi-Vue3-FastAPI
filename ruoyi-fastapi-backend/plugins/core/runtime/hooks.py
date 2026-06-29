@@ -1,7 +1,9 @@
+import asyncio
 import inspect
 from dataclasses import dataclass
 from typing import Any
 
+from common.constant import PluginRuntimeConstant
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.callable import LoadedPluginCallable, PluginCallableLoader
 
@@ -50,13 +52,20 @@ class PluginHookRunner:
     钩子函数可以是同步或异步函数，签名支持 `hook()` 或 `hook(context)`。
     """
 
-    def __init__(self, discovered_plugin: DiscoveredPlugin) -> None:
+    def __init__(
+        self,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        timeout_seconds: float | None = None,
+    ) -> None:
         """
         初始化插件生命周期钩子运行器。
 
         :param discovered_plugin: 已发现插件对象
+        :param timeout_seconds: 异步钩子执行超时时间
         """
         self.discovered_plugin = discovered_plugin
+        self.timeout_seconds = timeout_seconds or PluginRuntimeConstant.PLUGIN_HOOK_TIMEOUT_SECONDS
 
     async def run(
         self,
@@ -90,7 +99,10 @@ class PluginHookRunner:
         )
         result = self._invoke_hook(hook_callable, context)
         if inspect.isawaitable(result):
-            await result
+            try:
+                await asyncio.wait_for(result, timeout=self.timeout_seconds)
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError(f'生命周期钩子执行超时：{hook_name}，超过 {self.timeout_seconds} 秒') from exc
 
         return PluginHookResult(hook_name=hook_name, hook_path=hook_path, module_name=hook_callable.module_name)
 

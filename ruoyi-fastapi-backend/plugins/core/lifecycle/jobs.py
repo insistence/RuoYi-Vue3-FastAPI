@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module_admin.dao.job_dao import JobDao
@@ -73,6 +74,92 @@ class PluginJobModelBuilder:
         return f'{cls.REMARK_PREFIX} {plugin_id}:{job.id} {description}'[:500]
 
 
+class PluginJobRepository:
+    """
+    插件任务仓储。
+
+    插件任务复用系统 `sys_job` 表，但插件专用查询和批量清理逻辑收敛在插件模块内，
+    避免向原任务 DAO 暴露插件语义。
+    """
+
+    def __init__(self, query_db: AsyncSession) -> None:
+        """
+        初始化插件任务仓储。
+
+        :param query_db: orm对象
+        :return: None
+        """
+        self.query_db = query_db
+
+    async def get_job_detail_by_name_group(self, job_name: str, job_group: str) -> SysJob | None:
+        """
+        根据任务名称和任务组获取插件任务。
+
+        :param job_name: 任务名称
+        :param job_group: 任务组名
+        :return: 定时任务信息对象
+        """
+        return (
+            (
+                await self.query_db.execute(
+                    select(SysJob).where(
+                        SysJob.job_name == job_name,
+                        SysJob.job_group == job_group,
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+    async def pause_jobs_by_name_prefix(self, job_name_prefix: str) -> None:
+        """
+        根据任务名称前缀暂停插件任务。
+
+        :param job_name_prefix: 任务名称前缀
+        :return: None
+        """
+        await self.query_db.execute(
+            update(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%')).values(status='1')
+        )
+
+    async def count_jobs_by_name_prefix(self, job_name_prefix: str) -> int:
+        """
+        根据任务名称前缀统计插件任务。
+
+        :param job_name_prefix: 任务名称前缀
+        :return: 定时任务数量
+        """
+        job_list = (
+            (await self.query_db.execute(select(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%'))))
+            .scalars()
+            .all()
+        )
+
+        return len(job_list)
+
+    async def delete_jobs_by_name_prefix(self, job_name_prefix: str) -> None:
+        """
+        根据任务名称前缀删除插件任务。
+
+        :param job_name_prefix: 任务名称前缀
+        :return: None
+        """
+        await self.query_db.execute(delete(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%')))
+
+    async def pause_plugin_jobs_except(self, enabled_plugin_ids: set[str]) -> None:
+        """
+        暂停不在启用集合内的插件任务。
+
+        :param enabled_plugin_ids: 启用插件ID集合
+        :return: None
+        """
+        query = update(SysJob).where(SysJob.remark.like(f'{PluginJobModelBuilder.REMARK_PREFIX}%'))
+        for plugin_id in enabled_plugin_ids:
+            query = query.where(SysJob.job_name.not_like(f'{plugin_id}:%'))
+        await self.query_db.execute(query.values(status='1'))
+
+
 class PluginJobInstaller:
     """
     插件定时任务安装器。
@@ -89,6 +176,7 @@ class PluginJobInstaller:
         :return: None
         """
         self.query_db = query_db
+        self.repository = PluginJobRepository(query_db)
 
     async def install_enabled_plugin_jobs(self, plugin_registry: PluginRegistry) -> list[JobModel]:
         """
@@ -129,7 +217,7 @@ class PluginJobInstaller:
         :param job_model: 系统定时任务模型
         :return: 写入后的系统任务对象
         """
-        existing_job = await JobDao.get_job_detail_by_name_group(self.query_db, job_model.job_name, job_model.job_group)
+        existing_job = await self.repository.get_job_detail_by_name_group(job_model.job_name, job_model.job_group)
         now = datetime.now()
         if existing_job:
             await JobDao.edit_job_dao(
@@ -165,7 +253,7 @@ class PluginJobInstaller:
         :param plugin_id: 插件ID
         :return: None
         """
-        await JobDao.pause_jobs_by_name_prefix(self.query_db, f'{plugin_id}:')
+        await self.repository.pause_jobs_by_name_prefix(f'{plugin_id}:')
 
     async def pause_plugin_jobs_except(self, enabled_plugin_ids: set[str]) -> None:
         """
@@ -174,4 +262,4 @@ class PluginJobInstaller:
         :param enabled_plugin_ids: 启用插件ID集合
         :return: None
         """
-        await JobDao.pause_plugin_jobs_except(self.query_db, enabled_plugin_ids)
+        await self.repository.pause_plugin_jobs_except(enabled_plugin_ids)

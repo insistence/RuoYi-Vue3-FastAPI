@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI
 
-from common.router import auto_register_plugin_routers
+from common.router import auto_register_controller_files
 from config.env import AppConfig
 from config.get_db import get_db
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
@@ -513,8 +513,26 @@ class PluginRuntimeStartupManager:
                 for plugin in plugin_registry.list_enabled_plugins()
                 if plugin.discovered_plugin.manifest.backend.routers.auto_scan
             ]
-        auto_register_plugin_routers(app, plugin_ids)
+        auto_register_controller_files(app, self._find_plugin_controller_files(plugin_ids))
         app.state.plugin_routes_registered = True
+
+    def _find_plugin_controller_files(self, plugin_ids: list[str]) -> list[str]:
+        """
+        查找启用插件 controller 目录下的路由文件。
+
+        :param plugin_ids: 插件ID列表
+        :return: 插件controller文件路径列表
+        """
+        backend_root = self.builder.backend_root
+        plugins_root = backend_root / 'plugins'
+        controller_files = []
+        for plugin_id in plugin_ids:
+            controller_dir = plugins_root / plugin_id / 'controller'
+            if not controller_dir.is_dir():
+                continue
+            controller_files.extend(str(path) for path in controller_dir.glob('[!_]*.py'))
+
+        return sorted(controller_files)
 
     async def run_enabled_plugin_hooks(
         self,

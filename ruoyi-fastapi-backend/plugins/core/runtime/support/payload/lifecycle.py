@@ -278,10 +278,10 @@ class PluginLifecyclePayloadBuilder:
                 'pluginId': plugin_id,
                 'operation': operation,
                 'dryRun': True,
-                **(extra_payload or {}),
                 'actions': actions,
                 **precheck.operation_payload,
                 'precheck': precheck.check_payload,
+                **(extra_payload or {}),
             }
         )
 

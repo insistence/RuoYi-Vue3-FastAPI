@@ -29,31 +29,6 @@ class JobDao:
         return job_info
 
     @classmethod
-    async def get_job_detail_by_name_group(cls, db: AsyncSession, job_name: str, job_group: str) -> SysJob | None:
-        """
-        根据任务名称和任务组获取定时任务详细信息。
-
-        :param db: orm对象
-        :param job_name: 任务名称
-        :param job_group: 任务组名
-        :return: 定时任务信息对象
-        """
-        job_info = (
-            (
-                await db.execute(
-                    select(SysJob).where(
-                        SysJob.job_name == job_name,
-                        SysJob.job_group == job_group,
-                    )
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        return job_info
-
-    @classmethod
     async def get_job_detail_by_info(cls, db: AsyncSession, job: JobModel) -> SysJob | None:
         """
         根据定时任务参数获取定时任务信息
@@ -179,54 +154,3 @@ class JobDao:
         :return:
         """
         await db.execute(delete(SysJob).where(SysJob.job_id.in_([job.job_id])))
-
-    @classmethod
-    async def pause_jobs_by_name_prefix(cls, db: AsyncSession, job_name_prefix: str) -> None:
-        """
-        根据任务名称前缀暂停定时任务。
-
-        :param db: orm对象
-        :param job_name_prefix: 任务名称前缀
-        :return: None
-        """
-        await db.execute(update(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%')).values(status='1'))
-
-    @classmethod
-    async def count_jobs_by_name_prefix(cls, db: AsyncSession, job_name_prefix: str) -> int:
-        """
-        根据任务名称前缀统计定时任务。
-
-        :param db: orm对象
-        :param job_name_prefix: 任务名称前缀
-        :return: 定时任务数量
-        """
-        job_list = (
-            (await db.execute(select(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%')))).scalars().all()
-        )
-
-        return len(job_list)
-
-    @classmethod
-    async def delete_jobs_by_name_prefix(cls, db: AsyncSession, job_name_prefix: str) -> None:
-        """
-        根据任务名称前缀删除定时任务。
-
-        :param db: orm对象
-        :param job_name_prefix: 任务名称前缀
-        :return: None
-        """
-        await db.execute(delete(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%')))
-
-    @classmethod
-    async def pause_plugin_jobs_except(cls, db: AsyncSession, enabled_plugin_ids: set[str]) -> None:
-        """
-        暂停不在启用集合内的插件定时任务。
-
-        :param db: orm对象
-        :param enabled_plugin_ids: 启用插件ID集合
-        :return: None
-        """
-        query = update(SysJob).where(SysJob.remark.like('[plugin-job]%'))
-        for plugin_id in enabled_plugin_ids:
-            query = query.where(SysJob.job_name.not_like(f'{plugin_id}:%'))
-        await db.execute(query.values(status='1'))

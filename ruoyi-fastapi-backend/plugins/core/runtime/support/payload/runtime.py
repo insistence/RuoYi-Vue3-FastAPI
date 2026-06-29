@@ -123,6 +123,8 @@ class PluginRuntimeExceptionPayload(PluginPayloadModel):
     ok: bool
     message: str
     error: str
+    plugin_id: str | None = Field(default=None, alias='pluginId')
+    failed_step: str | None = Field(default=None, alias='failedStep')
 
 
 class PluginRuntimeInvalidOperationPayload(PluginPayloadModel):
@@ -186,16 +188,30 @@ class PluginRuntimePayloadBuilder:
     """
 
     @staticmethod
-    def build_exception_payload(message: str, error: Exception) -> PluginRuntimeExceptionPayloadDict:
+    def build_exception_payload(
+        message: str,
+        error: Exception,
+        *,
+        plugin_id: str | None = None,
+        failed_step: str | None = None,
+    ) -> PluginRuntimeExceptionPayloadDict:
         """
         构建运行时异常负载。
 
         :param message: 异常场景提示
         :param error: 异常对象
+        :param plugin_id: 插件ID
+        :param failed_step: 失败生命周期步骤
         :return: 运行时异常负载
         """
         logger.exception(f'{message}：{error}')
-        return PluginRuntimeExceptionPayload(ok=False, message=message, error=str(error)).to_payload()
+        return PluginRuntimeExceptionPayload(
+            ok=False,
+            message=message,
+            error=str(error),
+            plugin_id=plugin_id,
+            failed_step=failed_step,
+        ).to_payload(exclude_none=True)
 
     @staticmethod
     def build_invalid_operation_payload(

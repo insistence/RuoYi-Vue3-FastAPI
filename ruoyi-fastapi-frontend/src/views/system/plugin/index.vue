@@ -98,7 +98,7 @@
                <span>{{ formatPluginTime(scope.row.updateTime) }}</span>
             </template>
          </el-table-column>
-         <el-table-column label="操作" align="center" width="180" class-name="small-padding fixed-width">
+         <el-table-column label="操作" align="center" width="230" class-name="small-padding fixed-width">
             <template #default="scope">
                <div class="plugin-action-buttons">
                   <el-tooltip content="详情" placement="top">
@@ -112,6 +112,12 @@
                   </el-tooltip>
                   <el-tooltip content="检查" placement="top">
                      <el-button link type="primary" icon="CircleCheck" @click="handleCheck(scope.row)" v-hasPermi="['system:plugin:query']" />
+                  </el-tooltip>
+                  <el-tooltip content="健康检查" placement="top">
+                     <el-button link type="primary" icon="FirstAidKit" @click="handleHealth(scope.row)" v-hasPermi="['system:plugin:query']" />
+                  </el-tooltip>
+                  <el-tooltip content="诊断包" placement="top">
+                     <el-button link type="primary" icon="DocumentChecked" @click="handleDiagnose(scope.row)" v-hasPermi="['system:plugin:query']" />
                   </el-tooltip>
                   <el-tooltip :content="getOperationTooltip(scope.row, 'install', '安装')" placement="top" v-if="canInstall(scope.row)">
                      <el-button link type="success" icon="Download" :disabled="isOperationBlocked(scope.row, 'install')" @click="handleInstallDryRun(scope.row)" v-hasPermi="['system:plugin:edit']" />
@@ -156,6 +162,17 @@
          :format-dependency-version-satisfied="formatDependencyVersionSatisfied"
          @dry-run="handleDependencyDryRun"
          @install="handleDependencyInstall"
+      />
+
+      <plugin-diagnostic-dialog
+         v-model="diagnosticOpen"
+         :title="diagnosticTitle"
+         :result="diagnosticResult"
+         :loading="diagnosticLoading"
+         :format-json="formatJson"
+         :format-boolean="formatBoolean"
+         :get-validation-level-label="getValidationLevelLabel"
+         :get-validation-level-tag-type="getValidationLevelTagType"
       />
 
       <plugin-plan-dialog
@@ -328,6 +345,9 @@
                   <el-descriptions-item label="失败建议" :span="3">
                      {{ operationLogDetail.failedSuggestion || "暂无" }}
                   </el-descriptions-item>
+                  <el-descriptions-item label="失败步骤" :span="3">
+                     {{ operationLogDetail.failedStep || operationLogDetail.result?.failedStep || operationLogDetail.result?.failed?.result?.failedStep || "暂无" }}
+                  </el-descriptions-item>
                </el-descriptions>
             </el-tab-pane>
             <el-tab-pane label="检查结果">
@@ -386,6 +406,9 @@
                   </el-table-column>
                   <el-table-column label="耗时" prop="durationMs" width="90" align="center">
                      <template #default="scope">{{ scope.row.durationMs ?? "-" }}ms</template>
+                  </el-table-column>
+                  <el-table-column label="失败步骤" prop="failedStep" width="150" :show-overflow-tooltip="true">
+                     <template #default="scope">{{ scope.row.failedStep || scope.row.result?.failedStep || "-" }}</template>
                   </el-table-column>
                   <el-table-column label="说明" prop="message" min-width="220" :show-overflow-tooltip="true" />
                   <el-table-column label="建议" prop="suggestion" min-width="260" :show-overflow-tooltip="true" />
@@ -455,6 +478,7 @@
                <el-descriptions :column="2" border class="mb16">
                   <el-descriptions-item label="插件ID">{{ actionResult.pluginId || pendingAction.pluginId || "-" }}</el-descriptions-item>
                   <el-descriptions-item label="操作">{{ actionResult.operation ? formatPluginOperation(actionResult.operation) : (pendingAction.label || "-") }}</el-descriptions-item>
+                  <el-descriptions-item label="失败步骤">{{ actionResult.failedStep || actionResult.error.failedStep || "-" }}</el-descriptions-item>
                   <el-descriptions-item label="建议" :span="2">{{ actionResult.error.suggestion || "请查看后端日志或重新执行检查。" }}</el-descriptions-item>
                </el-descriptions>
                <el-input :model-value="formatJson(actionResult.error.raw)" type="textarea" :rows="10" readonly />
@@ -570,11 +594,13 @@ import {
   batchPlugins,
   checkPlugin,
   checkPluginDependencies,
+  diagnosePlugin,
   disablePlugin,
   enablePlugin,
   getPlugin,
   getPluginConfig,
   getPluginOperationLog,
+  healthPlugin,
   installPluginDependencies,
   installPlugin,
   listPlugin,
@@ -588,6 +614,7 @@ import {
 import { getConfigKey } from "@/api/system/config";
 import PluginConfigDialog from "./components/PluginConfigDialog.vue";
 import PluginDependencyDialog from "./components/PluginDependencyDialog.vue";
+import PluginDiagnosticDialog from "./components/PluginDiagnosticDialog.vue";
 import PluginDetailDialog from "./components/PluginDetailDialog.vue";
 import PluginPlanDialog from "./components/PluginPlanDialog.vue";
 import {
@@ -631,6 +658,10 @@ const dependencyOpen = ref(false);
 const dependencyLoading = ref(false);
 const dependencyPluginId = ref("");
 const dependencyResult = ref({});
+const diagnosticOpen = ref(false);
+const diagnosticLoading = ref(false);
+const diagnosticTitle = ref("插件诊断");
+const diagnosticResult = ref({});
 const planOpen = ref(false);
 const planLoading = ref(false);
 const planTitle = ref("插件依赖计划");
@@ -856,6 +887,52 @@ function handleCheck(row) {
     }), {});
   }).finally(() => {
     actionLoading.value = false;
+  });
+}
+
+/** 执行插件健康检查 */
+function handleHealth(row) {
+  diagnosticLoading.value = true;
+  diagnosticTitle.value = row.pluginName + "健康检查";
+  diagnosticResult.value = {
+    pluginId: row.pluginId,
+    message: "正在执行插件健康检查..."
+  };
+  diagnosticOpen.value = true;
+  healthPlugin(row.pluginId).then(response => {
+    diagnosticResult.value = response.data || {};
+  }).catch(error => {
+    diagnosticResult.value = {
+      ok: false,
+      pluginId: row.pluginId,
+      message: getErrorMessage(error),
+      error: serializeError(error)
+    };
+  }).finally(() => {
+    diagnosticLoading.value = false;
+  });
+}
+
+/** 生成插件诊断包 */
+function handleDiagnose(row) {
+  diagnosticLoading.value = true;
+  diagnosticTitle.value = row.pluginName + "诊断包";
+  diagnosticResult.value = {
+    pluginId: row.pluginId,
+    message: "正在生成插件诊断包..."
+  };
+  diagnosticOpen.value = true;
+  diagnosePlugin(row.pluginId).then(response => {
+    diagnosticResult.value = response.data || {};
+  }).catch(error => {
+    diagnosticResult.value = {
+      ok: false,
+      pluginId: row.pluginId,
+      message: getErrorMessage(error),
+      error: serializeError(error)
+    };
+  }).finally(() => {
+    diagnosticLoading.value = false;
   });
 }
 

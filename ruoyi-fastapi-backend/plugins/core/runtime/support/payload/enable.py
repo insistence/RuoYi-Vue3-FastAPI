@@ -104,6 +104,7 @@ class PluginEnablePayloadBuilder:
         operation: str,
         enabled: bool,
         dependency_payload: Mapping[str, object],
+        message: str | None = None,
     ) -> PluginEnableStatePayloadDict:
         """
         构建插件启用依赖阻断负载。
@@ -112,10 +113,11 @@ class PluginEnablePayloadBuilder:
         :param operation: 操作类型
         :param enabled: 是否启用
         :param dependency_payload: 插件依赖检查负载
+        :param message: 自定义阻断提示
         :return: 插件启用依赖阻断负载
         """
         plugin_dependency_ok = bool(dependency_payload.get('pluginDependencyOk', True))
-        message = (
+        resolved_message = message or (
             '插件仍被已启用插件依赖，操作已中止'
             if operation in ('disable', 'uninstall')
             else '插件间依赖检查失败，启用已中止'
@@ -123,7 +125,7 @@ class PluginEnablePayloadBuilder:
         return PluginEnableStatePayload.model_validate(
             {
                 'ok': False,
-                'message': message,
+                'message': resolved_message,
                 'pluginId': plugin_id,
                 'operation': operation,
                 'enabled': enabled,

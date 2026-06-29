@@ -5,9 +5,11 @@ from time import monotonic
 from plugins.core.capability import PluginRuntimeCapability, PluginRuntimeCapabilityResolver
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
+from plugins.core.lifecycle.migration import PluginMigrationRunner
+from plugins.core.lifecycle.precheck import PluginLifecycleScriptPrechecker
 from plugins.core.runtime.support import PluginPrecheckContext
 from plugins.core.types import PluginStateRecord
-from plugins.core.validation.manifest import PluginManifestChecker
+from plugins.core.validation.manifest import PluginManifestChecker, PluginManifestCheckResult
 from plugins.core.validation.menus import PluginMenuConflictChecker
 from plugins.core.validation.plugin_deps import (
     PluginDependencyChecker as InterPluginDependencyChecker,
@@ -15,10 +17,12 @@ from plugins.core.validation.plugin_deps import (
 from plugins.core.validation.plugin_deps import (
     PluginDependencyCheckResult,
 )
+from plugins.core.validation.result import PluginValidationIssue
 from plugins.core.validation.structure import PluginStructureChecker
 from utils.log_util import logger
 
 from .dependency_container import PluginRuntimeDependencies
+from .migration_store import PluginDatabaseMigrationHistoryStore
 from .responses import PluginRuntimeBlockedPayload, PluginRuntimeBlockedPayloadDict
 
 PLUGIN_DISCOVERY_CACHE_TTL_SECONDS = 2.0
@@ -270,6 +274,7 @@ class PluginRuntimeContextService:
         """
         dependency_result = self.dependencies.dependency_checker.check_manifest(discovered_plugin.manifest)
         manifest_result = PluginManifestChecker(backend_root=backend_root).check(discovered_plugin.manifest)
+        manifest_result = await self._check_lifecycle_scripts(discovered_plugin, manifest_result)
         plugin_dependency_result = await self.check_inter_plugin_dependencies(discovered_plugin, discovered_plugins)
         structure_result = PluginStructureChecker(backend_root).check(discovered_plugin)
         menu_conflict_result = PluginMenuConflictChecker().check(discovered_plugin, discovered_plugins)
@@ -280,6 +285,67 @@ class PluginRuntimeContextService:
             plugin_dependency_result,
             structure_result,
             menu_conflict_result,
+        )
+
+    async def _check_lifecycle_scripts(
+        self,
+        discovered_plugin: DiscoveredPlugin,
+        manifest_result: PluginManifestCheckResult,
+    ) -> PluginManifestCheckResult:
+        """
+        检查 migration 历史和 seed 执行计划，并合并到 manifest 预检结果。
+
+        :param discovered_plugin: 当前插件
+        :param manifest_result: 原始 manifest 检查结果
+        :return: 合并生命周期脚本预检后的 manifest 检查结果
+        """
+        if not discovered_plugin.manifest.backend.migrations and not discovered_plugin.manifest.backend.seeds:
+            return manifest_result
+        try:
+            gateway = self.dependencies.state_gateway
+            async_session_local = gateway.get_async_session_local()
+            plugin_service = gateway.get_plugin_service()
+            async with async_session_local() as session:
+                migration_runner = PluginMigrationRunner(
+                    discovered_plugin,
+                    PluginDatabaseMigrationHistoryStore.with_model_gateway(
+                        plugin_service,
+                        self.dependencies.model_gateway,
+                    ),
+                )
+                script_result = await PluginLifecycleScriptPrechecker(discovered_plugin, migration_runner).check(
+                    session
+                )
+        except Exception as exc:
+            logger.exception(f'插件生命周期脚本预检失败：{discovered_plugin.manifest.id}，{exc}')
+            return PluginManifestCheckResult(
+                plugin_id=manifest_result.plugin_id,
+                issues=[
+                    *manifest_result.issues,
+                    PluginRuntimeContextService._build_lifecycle_script_precheck_issue(exc),
+                ],
+            )
+
+        return PluginManifestCheckResult(
+            plugin_id=manifest_result.plugin_id,
+            issues=[*manifest_result.issues, *script_result.issues],
+        )
+
+    @staticmethod
+    def _build_lifecycle_script_precheck_issue(exc: Exception) -> PluginValidationIssue:
+        """
+        构建生命周期脚本预检异常问题。
+
+        :param exc: 原始异常
+        :return: 统一校验问题
+        """
+        return PluginValidationIssue(
+            level='error',
+            category='lifecycle',
+            kind='lifecycle_script_precheck_failed',
+            path='backend',
+            message=f'插件生命周期脚本预检失败：{exc}',
+            suggestion='请检查 migration/seed 声明和脚本文件',
         )
 
     def discover_plugins(self, backend_root: Path) -> list[DiscoveredPlugin]:

@@ -19,7 +19,7 @@ from module_admin.entity.do.role_do import SysRoleMenu  # noqa: E402
 from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
 from plugins.core.discovery.scanner import DiscoveredPlugin  # noqa: E402
 from plugins.core.environment import PluginRuntimeEnvironmentService  # noqa: E402
-from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobModelBuilder  # noqa: E402
+from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobModelBuilder, PluginJobRepository  # noqa: E402
 from plugins.core.management.dao.dao import PluginDao  # noqa: E402
 from plugins.core.management.entity.do.models import (  # noqa: E402
     SysPlugin,
@@ -1401,7 +1401,7 @@ async def test_purge_plugin_services_deletes_platform_metadata(tmp_path: Path) -
             menu = await PluginDao.get_sys_menu_by_id(session, INITIAL_MENU_ID)
             config_count = await PluginDao.count_plugin_configs(session, 'demo')
             migration_count = await PluginDao.count_plugin_migrations(session, 'demo')
-            job_count = await JobDao.count_jobs_by_name_prefix(session, 'demo:')
+            job_count = await PluginJobRepository(session).count_jobs_by_name_prefix('demo:')
 
         assert plan.destructive_count == EXPECTED_PURGE_DESTRUCTIVE_COUNT
         assert plugin is None

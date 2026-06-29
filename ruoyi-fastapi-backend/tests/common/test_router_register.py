@@ -6,7 +6,7 @@ from fastapi import FastAPI
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from common.router import RouterRegister, auto_register_plugin_routers, auto_register_routers  # noqa: E402
+from common.router import RouterRegister, auto_register_controller_files, auto_register_routers  # noqa: E402
 
 
 class RouterRegisterForTest(RouterRegister):
@@ -136,73 +136,6 @@ def test_auto_register_routers_uses_builtin_controller_registration(monkeypatch:
     assert called == [True]
 
 
-def test_router_register_finds_plugin_controller_files(
-    tmp_path: Path,
-) -> None:
-    """
-    校验插件路由注册器按插件 ID 查找 controller 文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    project_root = tmp_path / 'backend'
-    plugin_controller = touch_file(project_root / 'plugins' / 'demo' / 'controller' / 'plugin_controller.py')
-    other_plugin_controller = touch_file(project_root / 'plugins' / 'other' / 'controller' / 'other_controller.py')
-    touch_file(project_root / 'plugins' / 'demo' / 'controller' / '_private_controller.py')
-    touch_file(project_root / 'module_demo' / 'controller' / 'demo_controller.py')
-    router_register = RouterRegisterForTest(FastAPI(), project_root=project_root)
-
-    assert router_register._find_plugin_controller_files(['demo']) == [str(plugin_controller)]
-    assert router_register._find_plugin_controller_files() == sorted(
-        [str(plugin_controller), str(other_plugin_controller)]
-    )
-
-
-def test_router_register_empty_plugin_ids_find_no_plugin_controller_files(tmp_path: Path) -> None:
-    """
-    校验空插件 ID 列表不会回退为扫描全部插件路由。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    project_root = tmp_path / 'backend'
-    touch_file(project_root / 'plugins' / 'demo' / 'controller' / 'plugin_controller.py')
-    touch_file(project_root / 'plugins' / 'other' / 'controller' / 'other_controller.py')
-    router_register = RouterRegisterForTest(FastAPI(), project_root=project_root)
-
-    assert router_register._find_plugin_controller_files([]) == []
-
-
-def test_router_register_registers_plugin_routers_by_plugin_id(tmp_path: Path) -> None:
-    """
-    校验插件路由注册方法只扫描传入插件 ID 对应的 controller 目录。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    project_root = tmp_path / 'backend'
-    plugin_controller = touch_file(project_root / 'plugins' / 'demo' / 'controller' / 'plugin_controller.py')
-    touch_file(project_root / 'plugins' / 'other' / 'controller' / 'other_controller.py')
-    touch_file(project_root / 'plugins' / 'demo' / 'controller' / '_private_controller.py')
-    captured_controller_files = []
-    router_register = RouterRegisterForTest(FastAPI(), project_root=project_root)
-
-    def fake_register_controller_files(controller_files: list[str]) -> None:
-        """
-        记录注册的插件controller文件。
-
-        :param controller_files: controller文件列表
-        :return: None
-        """
-        captured_controller_files.extend(controller_files)
-
-    router_register._register_controller_files = fake_register_controller_files
-
-    router_register.register_plugin_routers(['demo', 'missing'])
-
-    assert captured_controller_files == [str(plugin_controller)]
-
-
 def test_router_register_register_routers_uses_common_controller_file_pipeline(tmp_path: Path) -> None:
     """
     校验内置路由注册复用统一 controller 文件注册流水线。
@@ -231,15 +164,14 @@ def test_router_register_register_routers_uses_common_controller_file_pipeline(t
     assert captured_controller_files == [str(builtin_controller)]
 
 
-def test_auto_register_plugin_routers_delegates_to_router_register(monkeypatch: object, tmp_path: Path) -> None:
+def test_auto_register_controller_files_delegates_to_router_register(monkeypatch: object) -> None:
     """
-    校验插件路由自动注册函数委托给 RouterRegister。
+    校验指定 controller 文件自动注册函数委托给 RouterRegister。
 
     :param monkeypatch: pytest monkeypatch fixture
-    :param tmp_path: pytest 临时目录
     :return: None
     """
-    captured_plugin_ids = []
+    captured_controller_files = []
 
     class FakeRouterRegister:
         """
@@ -254,17 +186,17 @@ def test_auto_register_plugin_routers_delegates_to_router_register(monkeypatch: 
             """
             self.app = app
 
-        def register_plugin_routers(self, plugin_ids: list[str]) -> None:
+        def _register_controller_files(self, controller_files: list[str]) -> None:
             """
-            记录插件路由注册 ID。
+            记录 controller 文件列表。
 
-            :param plugin_ids: 插件ID列表
+            :param controller_files: controller文件列表
             :return: None
             """
-            captured_plugin_ids.extend(plugin_ids)
+            captured_controller_files.extend(controller_files)
 
     monkeypatch.setattr('common.router.RouterRegister', FakeRouterRegister)
 
-    auto_register_plugin_routers(FastAPI(), ['demo'])
+    auto_register_controller_files(FastAPI(), ['demo_controller.py'])
 
-    assert captured_plugin_ids == ['demo']
+    assert captured_controller_files == ['demo_controller.py']

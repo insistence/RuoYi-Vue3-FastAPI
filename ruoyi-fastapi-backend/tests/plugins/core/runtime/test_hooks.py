@@ -137,3 +137,22 @@ async def test_plugin_hook_runner_rejects_foreign_plugin_module(tmp_path: Path) 
 
     with pytest.raises(RuntimeError, match='当前插件模块'):
         await PluginHookRunner(discovered_plugin).run('on_startup')
+
+
+@pytest.mark.asyncio
+async def test_plugin_hook_runner_times_out_async_hook(tmp_path: Path) -> None:
+    """
+    校验生命周期钩子超时时会失败并返回清晰错误。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_hook'
+    write_plugin_with_hook(
+        plugin_root,
+        'import asyncio\nasync def on_startup(context):\n    await asyncio.sleep(1)\n',
+    )
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+
+    with pytest.raises(TimeoutError, match='生命周期钩子执行超时'):
+        await PluginHookRunner(discovered_plugin, timeout_seconds=0.01).run('on_startup')

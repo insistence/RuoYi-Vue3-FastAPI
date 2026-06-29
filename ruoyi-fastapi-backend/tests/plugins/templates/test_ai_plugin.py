@@ -71,6 +71,7 @@ def test_ai_plugin_template_can_be_discovered() -> None:
     assert plugin.manifest.dependencies.python == EXPECTED_AI_PYTHON_DEPENDENCIES
     assert plugin.manifest.dependencies.npm == EXPECTED_AI_NPM_DEPENDENCIES
     assert plugin.manifest.dependencies.npm_dev == EXPECTED_AI_NPM_DEV_DEPENDENCIES
+    assert plugin.manifest.config.items == []
 
 
 def test_ai_plugin_runtime_paths_exist() -> None:

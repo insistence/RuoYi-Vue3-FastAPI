@@ -41,6 +41,22 @@ export function checkPlugin(pluginId) {
   })
 }
 
+// 执行插件健康检查
+export function healthPlugin(pluginId) {
+  return request({
+    url: '/system/plugin/' + pluginId + '/health',
+    method: 'get'
+  })
+}
+
+// 生成插件诊断包
+export function diagnosePlugin(pluginId) {
+  return request({
+    url: '/system/plugin/' + pluginId + '/diagnose',
+    method: 'get'
+  })
+}
+
 // 安装插件
 export function installPlugin(pluginId, dryRun = false) {
   return request({

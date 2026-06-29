@@ -143,7 +143,7 @@ class PluginInstallUseCase:
 
         return payload
 
-    async def _install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:
+    async def _install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> PluginLifecycleResponse:  # noqa: PLR0915
         """
         安装插件。
 
@@ -151,7 +151,9 @@ class PluginInstallUseCase:
         :param dry_run: 是否仅预演
         :return: 插件安装结果负载
         """
+        current_step = 'prepare_install'
         try:
+            current_step = 'discover_plugin'
             backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
             discovered_plugin = self._get_discovered_plugin_from_list(discovered_plugins, plugin_id)
@@ -161,6 +163,7 @@ class PluginInstallUseCase:
             if blocked_payload:
                 return blocked_payload
 
+            current_step = 'build_precheck'
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
             actions = PluginPayloadBuilder.build_install_actions(
                 discovered_plugin,
@@ -181,6 +184,7 @@ class PluginInstallUseCase:
             )
             if blocker_payload:
                 return blocker_payload
+            current_step = 'install_dependencies'
             dependency_install_payload = await self.runtime_operations.install_plugin_dependencies_from_result_async(
                 plugin_id,
                 precheck.dependency_result,
@@ -197,6 +201,7 @@ class PluginInstallUseCase:
                     extra_payload={'dependencyInstall': dependency_install_view},
                 )
             self.runtime_operations.refresh_dependency_checker()
+            current_step = 'build_post_dependency_precheck'
             precheck = await self._build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
             dependency_install_view['postCheck'] = PluginPayloadBuilder.build_dependency_check_payload(
                 plugin_id,
@@ -222,6 +227,7 @@ class PluginInstallUseCase:
             async_session_local = gateway.get_async_session_local()
             plugin_service = gateway.get_plugin_service()
             async with async_session_local() as session:
+                current_step = 'check_installed_menu_conflicts'
                 installed_menu_conflicts = await plugin_service.check_installed_menu_conflict_services(
                     session,
                     discovered_plugin,
@@ -234,6 +240,7 @@ class PluginInstallUseCase:
                         precheck=precheck,
                         installed_menu_conflicts=installed_menu_conflicts,
                     )
+                current_step = 'upsert_plugin'
                 plugin = await plugin_service.upsert_discovered_plugin_services(
                     session,
                     discovered_plugin,
@@ -241,11 +248,14 @@ class PluginInstallUseCase:
                     backend_root.parent / 'ruoyi-fastapi-frontend' / 'plugins',
                 )
                 plugin_enabled = getattr(plugin, 'enabled', '0') == '0'
+                current_step = 'install_menus'
                 await plugin_service.install_plugin_menu_services(session, discovered_plugin, enabled=plugin_enabled)
+                current_step = 'install_configs'
                 installed_configs = await plugin_service.install_plugin_default_config_services(
                     session,
                     discovered_plugin,
                 )
+                current_step = 'run_migrations'
                 migration_results = await PluginMigrationRunner(
                     discovered_plugin,
                     PluginDatabaseMigrationHistoryStore.with_model_gateway(
@@ -253,9 +263,13 @@ class PluginInstallUseCase:
                         self.dependencies.model_gateway,
                     ),
                 ).run(session)
+                current_step = 'run_seeds'
                 seed_results = await PluginSeedRunner(discovered_plugin).run(session)
+                current_step = 'run_install_hook'
                 hook_result = await PluginHookRunner(discovered_plugin).run('on_install', query_db=session)
+                current_step = 'mark_installed'
                 plugin = await plugin_service.mark_plugin_installed_services(session, discovered_plugin)
+                current_step = 'commit'
                 await session.commit()
 
             payload = PluginLifecyclePayloadBuilder.build_success_payload(
@@ -273,4 +287,9 @@ class PluginInstallUseCase:
             payload['operation'] = 'install'
             return self._with_plugin_capability(payload, discovered_plugin)
         except Exception as exc:
-            return PluginRuntimePayloadBuilder.build_exception_payload('插件安装失败', exc)
+            return PluginRuntimePayloadBuilder.build_exception_payload(
+                '插件安装失败',
+                exc,
+                plugin_id=plugin_id,
+                failed_step=current_step,
+            )

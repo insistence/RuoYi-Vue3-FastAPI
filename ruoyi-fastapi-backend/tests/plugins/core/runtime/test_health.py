@@ -125,3 +125,26 @@ async def test_plugin_health_checker_rejects_foreign_plugin_module(tmp_path: Pat
     assert result.ok is False
     assert result.status == 'error'
     assert '当前插件模块' in str(result.error)
+
+
+@pytest.mark.asyncio
+async def test_plugin_health_checker_reports_timeout(tmp_path: Path) -> None:
+    """
+    校验健康检查超时时返回 timeout 状态而不是抛出异常。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_health'
+    write_plugin_with_health(
+        plugin_root,
+        'import asyncio\nasync def check(context):\n    await asyncio.sleep(1)\n    return True\n',
+    )
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+
+    result = await PluginHealthChecker(discovered_plugin, timeout_seconds=0.01).check()
+
+    assert result.ok is False
+    assert result.status == 'timeout'
+    assert result.message == '插件健康检查执行超时'
+    assert '超过 0.01 秒' in str(result.error)

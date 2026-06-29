@@ -6,12 +6,11 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
-from module_admin.dao.job_dao import JobDao
 from plugins.core.capability import PluginRuntimeCapabilityResolver
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
 from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT
-from plugins.core.lifecycle.jobs import PluginJobInstaller
+from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobRepository
 from plugins.core.lifecycle.purge import PluginPurgePlan, PluginPurgePlanner
 from plugins.core.management.dao.dao import PluginDao
 from plugins.core.management.entity.vo.schemas import (
@@ -668,7 +667,7 @@ class PluginService:
         menu_count = await PluginDao.count_plugin_menus(query_db, plugin_id)
         config_count = await PluginDao.count_plugin_configs(query_db, plugin_id)
         migration_count = await PluginDao.count_plugin_migrations(query_db, plugin_id)
-        job_count = await JobDao.count_jobs_by_name_prefix(query_db, f'{plugin_id}:')
+        job_count = await PluginJobRepository(query_db).count_jobs_by_name_prefix(f'{plugin_id}:')
 
         return PluginPurgePlanner.build_plan(
             discovered_plugin,
@@ -704,7 +703,7 @@ class PluginService:
         await PluginDao.delete_sys_menus_by_ids(query_db, menu_ids)
         await PluginDao.delete_plugin_configs(query_db, plugin_id)
         await PluginDao.delete_plugin_migrations(query_db, plugin_id)
-        await JobDao.delete_jobs_by_name_prefix(query_db, f'{plugin_id}:')
+        await PluginJobRepository(query_db).delete_jobs_by_name_prefix(f'{plugin_id}:')
         await PluginDao.delete_plugin(query_db, plugin_id)
 
         return plan

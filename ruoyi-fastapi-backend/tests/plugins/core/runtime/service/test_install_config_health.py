@@ -143,8 +143,8 @@ backend:
     assert result['structureErrors'] == []
     assert result['seeds'][0]['seed_path'] == 'seeds/demo_seed.sql'
     assert result['seeds'][0]['statement_count'] == 1
-    assert gateway.session_local.sessions[0].executed_statements == ['select 1']
-    assert gateway.session_local.sessions[0].committed is True
+    assert gateway.session_local.executed_session.executed_statements == ['select 1']
+    assert gateway.session_local.committed_session is not None
 
 
 def test_plugin_runtime_install_plugin_runs_sql_migration(tmp_path: Path) -> None:
@@ -184,8 +184,8 @@ backend:
     assert result['migrations'][0]['skipped'] is False
     assert len(FakePluginService.migration_records) == 1
     assert FakePluginService.migration_records[0].migration_path == 'migrations/001_demo.sql'
-    assert gateway.session_local.sessions[0].executed_statements == ['select 2']
-    assert gateway.session_local.sessions[0].committed is True
+    assert gateway.session_local.executed_session.executed_statements == ['select 2']
+    assert gateway.session_local.committed_session is not None
 
 
 def test_plugin_runtime_install_plugin_skips_recorded_migration(tmp_path: Path) -> None:
@@ -226,8 +226,48 @@ backend:
     assert result['ok'] is True
     assert result['migrations'][0]['skipped'] is True
     assert FakePluginService.migration_records == []
-    assert gateway.session_local.sessions[0].executed_statements == []
-    assert gateway.session_local.sessions[0].committed is True
+    assert all(not session.executed_statements for session in gateway.session_local.sessions)
+    assert gateway.session_local.committed_session is not None
+
+
+def test_plugin_runtime_install_dry_run_reports_changed_recorded_migration(tmp_path: Path) -> None:
+    """
+    校验插件安装 dry-run 会提前报告已执行 migration 内容变更。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+  migrations:
+    - migrations/001_demo.sql
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'migrations').mkdir()
+    migration_file = plugin_root / 'migrations' / '001_demo.sql'
+    migration_file.write_text('select 1;\n', encoding='utf-8')
+    old_checksum = PluginMigrationRunner._calculate_checksum(migration_file)
+    migration_file.write_text('select 2;\n', encoding='utf-8')
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    FakePluginService.migration_checksums = {('demo', 'migrations/001_demo.sql'): old_checksum}
+
+    result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo', dry_run=True))
+
+    assert result['ok'] is True
+    assert result['manifestOk'] is False
+    assert result['manifestIssues'][0]['kind'] == 'migration_checksum_changed'
+    assert result['manifestIssues'][0]['path'] == 'backend.migrations.migrations/001_demo.sql'
+    assert result['message'] == '插件安装演练完成，未执行实际写入'
 
 
 def test_plugin_runtime_install_plugin_stops_when_menu_conflict_exists(tmp_path: Path) -> None:
@@ -1059,4 +1099,4 @@ backend:
 
     assert result['ok'] is True
     assert result['seeds'][0]['seed_path'] == 'seeds/demo_seed.py'
-    assert gateway.session_local.sessions[0].seed_ran is True
+    assert any(getattr(session, 'seed_ran', False) is True for session in gateway.session_local.sessions)

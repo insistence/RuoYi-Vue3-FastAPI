@@ -185,6 +185,26 @@ class FakeSessionLocal:
         """
         return self.sessions[-1] if self.sessions else None
 
+    @property
+    def committed_session(self) -> FakeSession | None:
+        """
+        获取最后一个已提交会话。
+
+        :return: 已提交会话
+        """
+        committed_sessions = [session for session in self.sessions if session.committed]
+        return committed_sessions[-1] if committed_sessions else None
+
+    @property
+    def executed_session(self) -> FakeSession | None:
+        """
+        获取最后一个执行过 SQL 的会话。
+
+        :return: 执行过 SQL 的会话
+        """
+        executed_sessions = [session for session in self.sessions if session.executed_statements]
+        return executed_sessions[-1] if executed_sessions else None
+
 
 class FakePluginService:
     """

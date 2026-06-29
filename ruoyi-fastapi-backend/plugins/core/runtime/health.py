@@ -1,8 +1,10 @@
+import asyncio
 import inspect
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Any, cast
 
+from common.constant import PluginRuntimeConstant
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.callable import LoadedPluginCallable, PluginCallableLoader
 from plugins.core.types import JSONObject
@@ -57,14 +59,21 @@ class PluginHealthChecker:
     使用 Strategy + Command Runner 思路执行插件 manifest 中声明的只读健康检查 callable。
     """
 
-    def __init__(self, discovered_plugin: DiscoveredPlugin) -> None:
+    def __init__(
+        self,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        timeout_seconds: float | None = None,
+    ) -> None:
         """
         初始化插件健康检查器。
 
         :param discovered_plugin: 已发现插件对象
+        :param timeout_seconds: 异步健康检查超时时间
         :return: None
         """
         self.discovered_plugin = discovered_plugin
+        self.timeout_seconds = timeout_seconds or PluginRuntimeConstant.PLUGIN_HEALTH_TIMEOUT_SECONDS
 
     async def check(self, *, app: Any | None = None, query_db: Any | None = None) -> PluginHealthResult:
         """
@@ -95,8 +104,17 @@ class PluginHealthChecker:
             )
             raw_result = self._invoke_checker(checker_callable, context)
             if inspect.isawaitable(raw_result):
-                raw_result = await raw_result
+                raw_result = await asyncio.wait_for(raw_result, timeout=self.timeout_seconds)
             return self._normalize_result(raw_result, checker_path, started_at)
+        except asyncio.TimeoutError:
+            return self._build_result(
+                ok=False,
+                status='timeout',
+                message='插件健康检查执行超时',
+                checker=checker_path,
+                started_at=started_at,
+                error=f'插件健康检查执行超时，超过 {self.timeout_seconds} 秒',
+            )
         except Exception as exc:
             return self._build_result(
                 ok=False,
