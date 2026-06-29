@@ -174,7 +174,7 @@ async def test_batch_system_plugins_accepts_json_body(monkeypatch: pytest.Monkey
             )
             return {'ok': True, 'message': '批量操作完成'}
 
-    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
 
     response = await plugin_controller.batch_system_plugins(
         request=build_request('/system/plugin/batch'),
@@ -221,7 +221,7 @@ async def test_install_system_plugin_accepts_dry_run_query_param(monkeypatch: py
             recorded.update({'plugin_id': plugin_id, 'dry_run': dry_run})
             return {'ok': True, 'message': '安装完成'}
 
-    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
 
     response = await plugin_controller.install_system_plugin(
         request=build_request('/system/plugin/demo/install'),
@@ -259,7 +259,7 @@ async def test_install_system_plugin_returns_failure_when_runtime_payload_is_not
             """
             return {'ok': False, 'message': '插件安装失败', 'pluginId': plugin_id}
 
-    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
 
     response = await plugin_controller.install_system_plugin(
         request=build_request('/system/plugin/demo/install'),
@@ -305,7 +305,7 @@ async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: py
             recorded.update({'plugin_id': plugin_id, 'dry_run': dry_run})
             return {'ok': True, 'message': '插件依赖安装演练完成', 'pluginId': plugin_id}
 
-    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
 
     response = await plugin_controller.install_system_plugin_dependencies(
         request=build_request('/system/plugin/demo/dependencies/install'),
@@ -344,7 +344,7 @@ async def test_enable_system_plugin_returns_runtime_payload_when_not_ok(monkeypa
             """
             return {'ok': False, 'message': '启用失败', 'pluginId': plugin_id, 'enabled': enabled}
 
-    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
 
     response = await plugin_controller.enable_system_plugin(
         request=build_request('/system/plugin/demo/enable', method='PUT'),
@@ -387,7 +387,7 @@ async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pyte
             recorded.update({'plugin_id': plugin_id, 'enabled': enabled, 'dry_run': dry_run})
             return {'ok': True, 'message': '停用成功', 'pluginId': plugin_id, 'enabled': enabled}
 
-    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', lambda: FakePluginRuntimeService())
+    monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
 
     response = await plugin_controller.disable_system_plugin(
         request=build_request('/system/plugin/demo/disable', method='PUT'),
