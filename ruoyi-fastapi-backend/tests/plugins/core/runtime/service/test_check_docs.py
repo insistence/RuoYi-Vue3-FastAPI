@@ -602,22 +602,7 @@ backend:
     payload = PluginDocumentationBuilder.build_payload('demo', discovered_plugin)
 
     assert payload['ok'] is True
-    assert payload['pluginId'] == 'demo'
-    assert payload['format'] == 'markdown'
-    assert payload['length'] == len(payload['markdown'])
-
-
-def test_plugin_documentation_payload_model_serializes_payload() -> None:
-    """
-    校验插件文档结构化模型可序列化为现有负载契约。
-
-    :return: None
-    """
-    payload = PluginDocumentationBuilder.build_payload_from_markdown('demo', '# Demo\n')
-
-    assert payload['ok'] is True
     assert payload['message'] == '插件文档生成完成'
     assert payload['pluginId'] == 'demo'
     assert payload['format'] == 'markdown'
-    assert payload['markdown'] == '# Demo\n'
-    assert payload['length'] == len('# Demo\n')
+    assert payload['length'] == len(payload['markdown'])

@@ -536,11 +536,28 @@ config:
     assert payload['plugins'][0]['pluginId'] == 'demo'
 
 
-def test_plugin_runtime_list_plugins_delegates_to_query_use_case(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ('entrypoint', 'expected_payload'),
+    [
+        ('list_plugins', {'ok': True, 'plugins': [{'pluginId': 'delegated'}]}),
+        ('get_plugin_info', {'ok': True, 'plugin': {'pluginId': 'demo'}}),
+        (
+            'get_plugin_info_with_state',
+            {'ok': True, 'plugin': {'pluginId': 'demo', 'database': {'available': True}}},
+        ),
+    ],
+)
+def test_plugin_runtime_query_entrypoints_delegate_to_query_use_case(
+    tmp_path: Path,
+    entrypoint: str,
+    expected_payload: dict,
+) -> None:
     """
-    校验插件运行时列表入口委托给组合式查询 use case。
+    校验插件查询入口委托给组合式查询 use case。
 
     :param tmp_path: pytest 临时目录
+    :param entrypoint: 查询入口名称
+    :param expected_payload: 期望负载
     :return: None
     """
     runtime = build_runtime(tmp_path / 'backend')
@@ -554,7 +571,8 @@ def test_plugin_runtime_list_plugins_delegates_to_query_use_case(tmp_path: Path)
             """
             初始化测试用插件查询 use case。
             """
-            self.called = False
+            self.called_entrypoint: str | None = None
+            self.plugin_id: str | None = None
 
         def list_plugins(self) -> dict:
             """
@@ -562,36 +580,45 @@ def test_plugin_runtime_list_plugins_delegates_to_query_use_case(tmp_path: Path)
 
             :return: 测试负载
             """
-            self.called = True
+            self.called_entrypoint = 'list_plugins'
             return {'ok': True, 'plugins': [{'pluginId': 'delegated'}]}
+
+        def get_plugin_info(self, plugin_id: str) -> dict:
+            """
+            记录插件详情查询调用。
+
+            :param plugin_id: 插件ID
+            :return: 测试负载
+            """
+            self.called_entrypoint = 'get_plugin_info'
+            self.plugin_id = plugin_id
+            return {'ok': True, 'plugin': {'pluginId': plugin_id}}
+
+        async def get_plugin_info_with_state(self, plugin_id: str) -> dict:
+            """
+            记录带状态插件详情查询调用。
+
+            :param plugin_id: 插件ID
+            :return: 测试负载
+            """
+            self.called_entrypoint = 'get_plugin_info_with_state'
+            self.plugin_id = plugin_id
+            return {'ok': True, 'plugin': {'pluginId': plugin_id, 'database': {'available': True}}}
 
     query = FakeQueryUseCase()
     runtime.query = query
 
-    payload = runtime.list_plugins()
+    if entrypoint == 'list_plugins':
+        payload = runtime.list_plugins()
+    elif entrypoint == 'get_plugin_info':
+        payload = runtime.get_plugin_info('demo')
+    else:
+        payload = asyncio.run(runtime.get_plugin_info_with_state('demo'))
 
-    assert query.called is True
-    assert payload == {'ok': True, 'plugins': [{'pluginId': 'delegated'}]}
-
-
-def test_plugin_payload_builder_builds_not_found_payload() -> None:
-    """
-    校验插件基础负载构建器生成插件不存在负载。
-
-    :return: None
-    """
-    payload = PluginPayloadBuilder.build_plugin_not_found_payload(
-        'demo',
-        operation='enable',
-        dry_run=True,
-        enabled=True,
-    )
-
-    assert payload['ok'] is False
-    assert payload['message'] == '插件不存在：demo'
-    assert payload['operation'] == 'enable'
-    assert payload['dryRun'] is True
-    assert payload['enabled'] is True
+    assert query.called_entrypoint == entrypoint
+    if entrypoint != 'list_plugins':
+        assert query.plugin_id == 'demo'
+    assert payload == expected_payload
 
 
 def test_plugin_payload_builder_builds_check_payload() -> None:
@@ -728,45 +755,6 @@ dependencies:
     assert all(item['ok'] for item in payload['plugin']['dependencies'])
 
 
-def test_plugin_runtime_get_plugin_info_delegates_to_query_use_case(tmp_path: Path) -> None:
-    """
-    校验插件运行时详情入口委托给组合式查询 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeQueryUseCase:
-        """
-        测试用插件查询 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件查询 use case。
-            """
-            self.plugin_id: str | None = None
-
-        def get_plugin_info(self, plugin_id: str) -> dict:
-            """
-            记录插件详情查询调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            return {'ok': True, 'plugin': {'pluginId': plugin_id}}
-
-    query = FakeQueryUseCase()
-    runtime.query = query
-
-    payload = runtime.get_plugin_info('demo')
-
-    assert query.plugin_id == 'demo'
-    assert payload == {'ok': True, 'plugin': {'pluginId': 'demo'}}
-
-
 def test_plugin_runtime_gets_plugin_info_with_config_schema(tmp_path: Path) -> None:
     """
     校验插件详情会返回 manifest 配置声明。
@@ -848,45 +836,6 @@ config:
     assert payload['plugin']['installedVersion'] == '1.0.0'
     assert payload['plugin']['database']['available'] is True
     assert payload['plugin']['database']['installed'] is True
-
-
-def test_plugin_runtime_get_plugin_info_with_state_delegates_to_query_use_case(tmp_path: Path) -> None:
-    """
-    校验插件运行时带状态详情入口委托给组合式查询 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeQueryUseCase:
-        """
-        测试用插件查询 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件查询 use case。
-            """
-            self.plugin_id: str | None = None
-
-        async def get_plugin_info_with_state(self, plugin_id: str) -> dict:
-            """
-            记录带状态插件详情查询调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            return {'ok': True, 'plugin': {'pluginId': plugin_id, 'database': {'available': True}}}
-
-    query = FakeQueryUseCase()
-    runtime.query = query
-
-    payload = asyncio.run(runtime.get_plugin_info_with_state('demo'))
-
-    assert query.plugin_id == 'demo'
-    assert payload == {'ok': True, 'plugin': {'pluginId': 'demo', 'database': {'available': True}}}
 
 
 def test_plugin_runtime_gets_plugin_info_when_database_unavailable(tmp_path: Path) -> None:

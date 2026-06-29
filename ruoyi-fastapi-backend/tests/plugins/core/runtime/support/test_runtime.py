@@ -49,64 +49,9 @@ def test_plugin_runtime_payload_builder_builds_health_payload() -> None:
     }
 
 
-def test_plugin_runtime_health_payload_model_serializes_payload() -> None:
-    """
-    校验插件健康检查结构化模型可序列化为现有健康负载契约。
-
-    :return: None
-    """
-    health_result = SimpleNamespace(
-        plugin_id='demo',
-        ok=True,
-        status='healthy',
-        message='ok',
-        checker='health:check',
-        duration_ms=12,
-        details={'ready': True},
-        error=None,
-    )
-
-    payload = PluginRuntimePayloadBuilder.build_health_payload(health_result)
-
-    assert payload == {
-        'pluginId': 'demo',
-        'ok': True,
-        'status': 'healthy',
-        'message': 'ok',
-        'checker': 'health:check',
-        'durationMs': 12,
-        'details': {'ready': True},
-        'error': None,
-    }
-
-
 def test_plugin_runtime_payload_builder_builds_health_response_payload() -> None:
     """
     校验插件运行时负载构建器生成健康检查响应负载。
-
-    :return: None
-    """
-    health_result = SimpleNamespace(
-        plugin_id='demo',
-        ok=False,
-        status='unhealthy',
-        message='failed',
-        checker='health:check',
-        duration_ms=12,
-        details={},
-        error='boom',
-    )
-
-    payload = PluginRuntimePayloadBuilder.build_health_response_payload('demo', health_result)
-
-    assert payload['ok'] is False
-    assert payload['pluginId'] == 'demo'
-    assert payload['health']['status'] == 'unhealthy'
-
-
-def test_plugin_runtime_health_response_payload_model_serializes_payload() -> None:
-    """
-    校验插件健康检查响应结构化模型可序列化为现有响应负载契约。
 
     :return: None
     """
@@ -169,23 +114,6 @@ def test_plugin_runtime_payload_builder_builds_invalid_operation_payload() -> No
     )
 
     assert payload['ok'] is False
-    assert payload['operation'] == 'purge'
-    assert 'pluginId' not in payload
-
-
-def test_plugin_runtime_invalid_operation_payload_model_serializes_payload() -> None:
-    """
-    校验插件非法操作结构化模型可序列化为现有负载契约。
-
-    :return: None
-    """
-    payload = PluginRuntimePayloadBuilder.build_invalid_operation_payload(
-        None,
-        'purge',
-        message='插件计划操作不支持：purge',
-    )
-
-    assert payload['ok'] is False
     assert payload['message'] == '插件计划操作不支持：purge'
     assert payload['operation'] == 'purge'
     assert 'pluginId' not in payload
@@ -202,19 +130,6 @@ def test_plugin_runtime_payload_builder_builds_batch_item_unsupported_payload() 
     assert payload['ok'] is False
     assert payload['pluginId'] == 'demo'
     assert payload['message'] == '插件批量操作不支持：purge'
-
-
-def test_plugin_runtime_batch_item_unsupported_payload_model_serializes_payload() -> None:
-    """
-    校验插件批量单项不支持结构化模型可序列化为现有负载契约。
-
-    :return: None
-    """
-    payload = PluginRuntimePayloadBuilder.build_batch_item_unsupported_payload('purge', 'demo')
-
-    assert payload['ok'] is False
-    assert payload['message'] == '插件批量操作不支持：purge'
-    assert payload['pluginId'] == 'demo'
 
 
 def test_plugin_runtime_payload_builder_builds_failure_state_message() -> None:
@@ -307,71 +222,14 @@ def test_plugin_runtime_payload_builder_builds_upgrade_blocker() -> None:
     assert blocker['ok'] is False
     assert blocker['message'] == '插件尚未安装，升级已中止'
     assert blocker['pluginId'] == 'demo'
+    assert blocker['dryRun'] is False
+    assert blocker['installed'] is False
     assert blocker['manifestOk'] is True
-
-
-def test_plugin_runtime_upgrade_blocker_payload_model_serializes_not_installed_payload() -> None:
-    """
-    校验插件升级阻断结构化模型可序列化为未安装阻断负载契约。
-
-    :return: None
-    """
-    precheck = SimpleNamespace(
-        manifest_result=SimpleNamespace(ok=True),
-        operation_payload={'manifestOk': True, 'dependencyOk': True},
-    )
-    version_state = {
-        'installed': False,
-        'installedVersion': None,
-        'currentVersion': '1.0.0',
-        'needsUpgrade': True,
-    }
-
-    payload = PluginRuntimePayloadBuilder.build_upgrade_pre_execution_blocker(
-        'demo',
-        version_state,
-        [{'name': 'check_installed_version'}],
-        precheck,
-    )
-
-    assert payload['ok'] is False
-    assert payload['message'] == '插件尚未安装，升级已中止'
-    assert payload['pluginId'] == 'demo'
-    assert payload['dryRun'] is False
-    assert payload['installed'] is False
-    assert payload['manifestOk'] is True
 
 
 def test_plugin_runtime_payload_builder_builds_diagnose_payload() -> None:
     """
     校验插件运行时负载构建器生成诊断包负载。
-
-    :return: None
-    """
-    info_payload = {'ok': True, 'plugin': {'pluginId': 'demo'}}
-    check_payload = {'ok': True, 'checks': []}
-    config_payload = {'ok': True, 'configs': []}
-    audit_payload = {'available': True, 'items': []}
-    menu_plan = PluginRuntimePayloadBuilder.build_empty_menu_plan()
-
-    payload = PluginRuntimePayloadBuilder.build_diagnose_payload(
-        'demo',
-        info_payload=info_payload,
-        check_payload=check_payload,
-        menu_plan=menu_plan,
-        config_payload=config_payload,
-        audit_payload=audit_payload,
-    )
-
-    assert payload['ok'] is True
-    assert payload['pluginId'] == 'demo'
-    assert payload['info'] == {'pluginId': 'demo'}
-    assert payload['menuPlan'] == menu_plan
-
-
-def test_plugin_runtime_diagnose_payload_model_serializes_payload() -> None:
-    """
-    校验插件诊断结构化模型可序列化为现有负载契约。
 
     :return: None
     """
@@ -411,21 +269,6 @@ def test_plugin_runtime_payload_builder_builds_diagnose_failure_payload() -> Non
     payload = PluginRuntimePayloadBuilder.build_diagnose_failure_payload('demo', info_payload)
 
     assert payload['ok'] is False
-    assert payload['pluginId'] == 'demo'
-    assert payload['info'] == info_payload
-
-
-def test_plugin_runtime_diagnose_failure_payload_model_serializes_payload() -> None:
-    """
-    校验插件诊断失败结构化模型可序列化为现有失败负载契约。
-
-    :return: None
-    """
-    info_payload = {'ok': False, 'message': '插件不存在：demo'}
-
-    payload = PluginRuntimePayloadBuilder.build_diagnose_failure_payload('demo', info_payload)
-
-    assert payload['ok'] is False
     assert payload['message'] == '插件诊断包生成失败'
     assert payload['pluginId'] == 'demo'
     assert payload['info'] == info_payload
@@ -434,50 +277,6 @@ def test_plugin_runtime_diagnose_failure_payload_model_serializes_payload() -> N
 def test_plugin_runtime_payload_builder_builds_precheck_payload() -> None:
     """
     校验插件运行时负载构建器生成预检负载。
-
-    :return: None
-    """
-    precheck = SimpleNamespace(
-        ok=False,
-        operation_payload={'manifestOk': True, 'dependencyOk': False},
-        check_payload={'missingDependencies': ['missing-python']},
-    )
-    purge_plan = PluginPurgePlan(
-        plugin_id='demo',
-        items=[
-            PluginPurgePlanItem(
-                name='delete_plugin_state',
-                label='删除插件状态记录',
-                enabled=True,
-                destructive=True,
-                count=1,
-            )
-        ],
-        removes_source=False,
-        requires_hook=False,
-    )
-
-    payload = PluginRuntimePayloadBuilder.build_precheck_payload(
-        'demo',
-        'purge',
-        precheck=precheck,
-        version_state={'installed': True, 'needsUpgrade': False},
-        actions=[{'name': 'build_purge_plan'}],
-        database_error='db unavailable',
-        purge_plan=purge_plan,
-    )
-
-    assert payload['ok'] is False
-    assert payload['databaseAvailable'] is False
-    assert payload['databaseError'] == 'db unavailable'
-    assert payload['dependencyOk'] is False
-    assert payload['precheck'] == {'missingDependencies': ['missing-python']}
-    assert payload['plan']['pluginId'] == 'demo'
-
-
-def test_plugin_runtime_precheck_payload_model_serializes_payload() -> None:
-    """
-    校验插件预检结构化模型可序列化为现有负载契约。
 
     :return: None
     """

@@ -25,28 +25,6 @@ def test_plugin_config_payload_builder_builds_diagnostic_summary() -> None:
     assert summary['masked'] is True
 
 
-def test_plugin_config_diagnostic_summary_payload_model_serializes_payload() -> None:
-    """
-    校验插件配置诊断摘要结构化模型可序列化为现有负载契约。
-
-    :return: None
-    """
-    summary = PluginConfigPayloadBuilder.build_diagnostic_summary(
-        [
-            {'key': 'api_key', 'required': True, 'secret': True, 'value': '******'},
-            {'key': 'endpoint', 'required': True, 'secret': False, 'value': ''},
-            {'key': 'enabled', 'required': False, 'secret': False, 'value': True},
-        ]
-    )
-
-    assert summary['total'] == EXPECTED_CONFIG_TOTAL
-    assert summary['secretCount'] == 1
-    assert summary['requiredCount'] == EXPECTED_REQUIRED_CONFIG_COUNT
-    assert summary['configuredCount'] == 1
-    assert summary['missingRequiredKeys'] == ['endpoint']
-    assert summary['masked'] is True
-
-
 def test_plugin_config_payload_builder_builds_export_payload() -> None:
     """
     校验插件配置负载构建器生成配置导出负载。
@@ -65,34 +43,6 @@ def test_plugin_config_payload_builder_builds_export_payload() -> None:
                 'secret': False,
             }
         ],
-    )
-
-    assert payload['ok'] is True
-    assert payload['pluginId'] == 'demo'
-    assert payload['values'] == {'endpoint': 'http://127.0.0.1'}
-    assert payload['metadata'][0]['key'] == 'endpoint'
-    assert 'value' not in payload['metadata'][0]
-
-
-def test_plugin_config_export_payload_model_serializes_payload() -> None:
-    """
-    校验插件配置导出结构化模型可序列化为现有负载契约。
-
-    :return: None
-    """
-    payload = PluginConfigPayloadBuilder.build_export_payload(
-        'demo',
-        [
-            {
-                'key': 'endpoint',
-                'label': 'Endpoint',
-                'type': 'string',
-                'value': 'http://127.0.0.1',
-                'required': True,
-                'secret': False,
-            }
-        ],
-        reveal_secret=False,
     )
 
     assert payload['ok'] is True
@@ -122,54 +72,16 @@ def test_plugin_config_payload_builder_builds_read_and_update_payload() -> None:
 
     assert read_payload['ok'] is True
     assert read_payload['configs'][0]['key'] == 'provider'
+    assert update_payload['ok'] is True
+    assert update_payload['message'] == '插件配置已更新'
+    assert update_payload['pluginId'] == 'demo'
     assert update_payload['operation'] == 'config_set'
-    assert update_payload['configs'][0]['value'] == 'openai'
-
-
-def test_plugin_config_state_payload_model_serializes_update_payload() -> None:
-    """
-    校验插件配置状态结构化模型可序列化为现有更新负载契约。
-
-    :return: None
-    """
-    config = SimpleNamespace(model_dump=lambda by_alias=True: {'key': 'provider', 'value': 'openai'})
-
-    payload = PluginConfigPayloadBuilder.build_update_payload(
-        'demo',
-        operation='config_set',
-        message='插件配置已更新',
-        configs=[config],
-    )
-
-    assert payload['ok'] is True
-    assert payload['message'] == '插件配置已更新'
-    assert payload['pluginId'] == 'demo'
-    assert payload['operation'] == 'config_set'
-    assert payload['configs'] == [{'key': 'provider', 'value': 'openai'}]
+    assert update_payload['configs'] == [{'key': 'provider', 'value': 'openai'}]
 
 
 def test_plugin_config_payload_builder_builds_export_failure_payload() -> None:
     """
     校验插件配置负载构建器生成导出失败负载。
-
-    :return: None
-    """
-    payload = PluginConfigPayloadBuilder.build_export_failure_payload(
-        'demo',
-        {'ok': False, 'message': '插件不存在：demo'},
-        reveal_secret=True,
-    )
-
-    assert payload['ok'] is False
-    assert payload['pluginId'] == 'demo'
-    assert payload['revealSecret'] is True
-    assert payload['values'] == {}
-    assert payload['metadata'] == []
-
-
-def test_plugin_config_export_failure_payload_model_serializes_payload() -> None:
-    """
-    校验插件配置导出失败结构化模型可序列化为现有负载契约。
 
     :return: None
     """
@@ -204,25 +116,10 @@ def test_plugin_config_payload_builder_builds_import_payload() -> None:
     )
 
     assert success_payload['importedKeys'] == ['provider']
+    assert success_payload['ok'] is True
+    assert success_payload['pluginId'] == 'demo'
     assert failed_payload['pluginId'] == 'demo'
     assert failed_payload['importedKeys'] == []
-
-
-def test_plugin_config_import_payload_model_serializes_success_payload() -> None:
-    """
-    校验插件配置导入结构化模型可序列化为现有成功负载契约。
-
-    :return: None
-    """
-    payload = PluginConfigPayloadBuilder.build_import_payload(
-        'demo',
-        {'ok': True, 'pluginId': 'demo'},
-        {'provider': 'mistral'},
-    )
-
-    assert payload['ok'] is True
-    assert payload['pluginId'] == 'demo'
-    assert payload['importedKeys'] == ['provider']
 
 
 def test_plugin_config_payload_builder_builds_masked_audit_payload() -> None:
@@ -258,48 +155,10 @@ def test_plugin_config_payload_builder_builds_masked_audit_payload() -> None:
     )
 
     assert payload['summary']['changedKeys'] == ['api_key']
-    assert payload['summary']['changes'][0]['secret'] is True
-    assert payload['summary']['changes'][0]['before'] == '******'
-    assert payload['summary']['changes'][0]['after'] == '******'
-
-
-def test_plugin_config_audit_payload_model_serializes_masked_payload() -> None:
-    """
-    校验插件配置审计结构化模型可序列化为现有脱敏负载契约。
-
-    :return: None
-    """
-    before_config = SimpleNamespace(
-        model_dump=lambda by_alias=True: {
-            'key': 'api_key',
-            'label': 'API Key',
-            'secret': True,
-            'value': 'old-secret',
-        }
-    )
-    after_config = SimpleNamespace(
-        model_dump=lambda by_alias=True: {
-            'key': 'api_key',
-            'label': 'API Key',
-            'secret': True,
-            'value': 'new-secret',
-        }
-    )
-
-    payload = PluginConfigPayloadBuilder.build_audit_payload(
-        'demo',
-        operation='config_set',
-        values={'api_key': 'new-secret'},
-        before_configs=[before_config],
-        after_configs=[after_config],
-        message='插件配置已更新',
-    )
-
     assert payload['ok'] is True
     assert payload['operation'] == 'config_set'
     assert payload['pluginId'] == 'demo'
     assert payload['message'] == '插件配置已更新'
-    assert payload['summary']['changedKeys'] == ['api_key']
     assert payload['summary']['changes'][0]['secret'] is True
     assert payload['summary']['changes'][0]['before'] == '******'
     assert payload['summary']['changes'][0]['after'] == '******'

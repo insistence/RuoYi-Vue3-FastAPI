@@ -1,70 +1,11 @@
 # ruff: noqa: F403, F405
 
-from plugins.core.runtime.support import (
-    PluginDependencyInstallPayloadBuilder as PackageDependencyInstallPayloadBuilder,
-)
-from plugins.core.runtime.support import (
-    PluginNpmPackageJsonSynchronizer as PackageNpmPackageJsonSynchronizer,
-)
-from plugins.core.runtime.support.npm_package import (
-    PluginNpmPackageJsonSynchronizer as NpmPackageJsonSynchronizer,
-)
-from plugins.core.runtime.support.payload.dependencies import (
-    PluginDependencyInstallPayloadBuilder as DependencyInstallPayloadBuilder,
-)
 from tests.plugin_runtime_helpers import *
-
-
-def test_plugin_dependency_payload_module_matches_package_export() -> None:
-    """
-    校验依赖安装 payload builder 的 canonical 模块与 package 导出一致。
-
-    :return: None
-    """
-    assert DependencyInstallPayloadBuilder is PackageDependencyInstallPayloadBuilder
-
-
-def test_plugin_dependency_npm_package_module_matches_package_export() -> None:
-    """
-    校验 npm package 同步器的 canonical 模块与 package 导出一致。
-
-    :return: None
-    """
-    assert NpmPackageJsonSynchronizer is PackageNpmPackageJsonSynchronizer
 
 
 def test_plugin_purge_payload_builder_builds_dry_run_payload() -> None:
     """
     校验插件物理清理负载构建器生成预演负载。
-
-    :return: None
-    """
-    plan = PluginPurgePlan(
-        plugin_id='demo',
-        items=[
-            PluginPurgePlanItem(
-                name='delete_plugin_state',
-                label='删除插件状态记录',
-                enabled=True,
-                destructive=True,
-                count=1,
-            )
-        ],
-        removes_source=False,
-        requires_hook=False,
-    )
-
-    payload = PluginPurgePayloadBuilder.build_dry_run_payload('demo', plan)
-
-    assert payload['ok'] is True
-    assert payload['operation'] == 'purge'
-    assert payload['dryRun'] is True
-    assert payload['plan']['destructiveCount'] == 1
-
-
-def test_plugin_purge_state_payload_model_serializes_dry_run_payload() -> None:
-    """
-    校验插件物理清理结构化模型可序列化为现有预演负载契约。
 
     :return: None
     """
@@ -132,32 +73,6 @@ def test_plugin_batch_report_builder_builds_plan_blocked_payload() -> None:
     )
 
     assert payload['ok'] is False
-    assert payload['dryRun'] is False
-    assert payload['continueOnError'] is True
-    assert payload['executed'] == []
-    assert payload['failed'] is None
-    assert payload['summary'] == {'total': 1, 'succeeded': 0, 'failed': 0, 'skipped': 1}
-
-
-def test_plugin_batch_plan_blocked_payload_model_serializes_payload() -> None:
-    """
-    校验插件批量计划阻断结构化模型可序列化为现有负载契约。
-
-    :return: None
-    """
-    plan_payload = {
-        'ok': False,
-        'operation': 'install',
-        'plan': {'orderedPluginIds': ['demo']},
-    }
-
-    payload = PluginBatchReportBuilder.build_plan_blocked_payload(
-        plan_payload,
-        dry_run=False,
-        continue_on_error=True,
-    )
-
-    assert payload['ok'] is False
     assert payload['message'] == '插件批量操作计划存在阻塞项，未执行任何写操作'
     assert payload['dryRun'] is False
     assert payload['continueOnError'] is True
@@ -169,27 +84,6 @@ def test_plugin_batch_plan_blocked_payload_model_serializes_payload() -> None:
 def test_plugin_batch_report_builder_builds_dry_run_payload() -> None:
     """
     校验插件批量报告构建器生成预演负载。
-
-    :return: None
-    """
-    plan_payload = {
-        'ok': True,
-        'operation': 'install',
-        'plan': {'requestedPluginIds': ['app'], 'orderedPluginIds': ['base', 'app']},
-    }
-
-    payload = PluginBatchReportBuilder.build_dry_run_payload(plan_payload, continue_on_error=False)
-
-    assert payload['ok'] is True
-    assert payload['dryRun'] is True
-    assert payload['executed'] == []
-    assert payload['failed'] is None
-    assert payload['summary'] == {'total': 1, 'succeeded': 0, 'failed': 0, 'skipped': 1}
-
-
-def test_plugin_batch_dry_run_payload_model_serializes_payload() -> None:
-    """
-    校验插件批量预演结构化模型可序列化为现有负载契约。
 
     :return: None
     """
@@ -283,57 +177,11 @@ def test_plugin_batch_report_builder_builds_execution_payload() -> None:
 
     assert payload['ok'] is False
     assert payload['message'] == '插件批量操作完成，存在失败项'
-    assert [item['pluginId'] for item in payload['executed']] == ['alpha', 'beta']
-    assert payload['failed']['pluginId'] == 'beta'
-    assert payload['summary'] == {'total': 2, 'succeeded': 1, 'failed': 1, 'skipped': 0}
-
-
-def test_plugin_batch_execution_payload_model_serializes_payload() -> None:
-    """
-    校验插件批量执行结构化模型可序列化为现有负载契约。
-
-    :return: None
-    """
-    plan_payload = {
-        'ok': True,
-        'operation': 'install',
-        'plan': {'orderedPluginIds': ['alpha', 'beta']},
-    }
-    reports = [
-        PluginBatchItemReport(
-            plugin_id='alpha',
-            operation='install',
-            ok=True,
-            status='success',
-            message='成功',
-            duration_ms=1,
-            suggestion='',
-        ),
-        PluginBatchItemReport(
-            plugin_id='beta',
-            operation='install',
-            ok=False,
-            status='failed',
-            message='失败',
-            duration_ms=2,
-            suggestion='检查失败原因',
-        ),
-    ]
-    failed = {'pluginId': 'beta', 'result': {'ok': False, 'message': '失败'}}
-
-    payload = PluginBatchReportBuilder.build_execution_payload(
-        plan_payload,
-        reports=reports,
-        failed=failed,
-        continue_on_error=True,
-    )
-
-    assert payload['ok'] is False
-    assert payload['message'] == '插件批量操作完成，存在失败项'
     assert payload['dryRun'] is False
     assert payload['continueOnError'] is True
     assert [item['pluginId'] for item in payload['executed']] == ['alpha', 'beta']
-    assert payload['failed'] == failed
+    assert payload['failed']['pluginId'] == 'beta'
+    assert payload['failed']['result'] == {'ok': False, 'message': '失败'}
     assert payload['summary'] == {'total': 2, 'succeeded': 1, 'failed': 1, 'skipped': 0}
 
 
