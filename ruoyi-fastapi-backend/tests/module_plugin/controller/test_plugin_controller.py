@@ -1,5 +1,6 @@
 import json
 import sys
+from collections.abc import Generator
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -106,7 +107,7 @@ class FakeAsyncSession:
 
 
 @pytest.fixture(autouse=True)
-def fake_request_context(monkeypatch: pytest.MonkeyPatch) -> None:
+def fake_request_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """
     构造日志装饰器所需的最小请求上下文。
 
