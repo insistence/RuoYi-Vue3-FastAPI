@@ -58,6 +58,7 @@ def test_plugin_runtime_import_does_not_load_plugin_core() -> None:
 
     assert 'cli.runtime.plugin.service' in sys.modules
     assert 'cli.runtime.plugin.gateway' in sys.modules
+    assert 'plugins.core.environment' not in sys.modules
     assert 'plugins.core.runtime.service' not in sys.modules
     assert 'plugins.core.management.service.gateway' not in sys.modules
     assert 'plugins.core.runtime.support' not in sys.modules

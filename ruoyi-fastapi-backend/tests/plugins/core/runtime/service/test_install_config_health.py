@@ -72,6 +72,41 @@ backend:
     assert gateway.session_local.sessions[0].committed is True
 
 
+def test_plugin_runtime_install_plugin_uses_runtime_plugin_roots(tmp_path: Path) -> None:
+    """
+    校验插件安装写入状态时使用运行时环境提供的插件根目录。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    project_root = tmp_path / 'project'
+    backend_root = project_root / 'api-server'
+    frontend_root = project_root / 'web-client'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+""",
+    )
+    create_controller_dir(plugin_root)
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway, frontend_root=frontend_root).install_plugin('demo')
+    )
+
+    assert result['ok'] is True
+    assert FakePluginService.upsert_backend_root == backend_root / 'plugins'
+    assert FakePluginService.upsert_frontend_root == frontend_root / 'plugins'
+
+
 def test_plugin_runtime_install_plugin_rejects_manifest_errors(tmp_path: Path) -> None:
     """
     校验插件安装会被 manifest error 阻断。
@@ -499,7 +534,7 @@ dependencies:
 """,
     )
     create_controller_dir(plugin_root)
-    frontend_root = backend_root.parent / 'ruoyi-fastapi-frontend'
+    frontend_root = Path(PluginRuntimeEnvironmentService(backend_root=backend_root).get_frontend_dir())
     frontend_root.mkdir()
     (frontend_root / 'package.json').write_text('{"dependencies": {}, "devDependencies": {}}\n', encoding='utf-8')
     gateway = FakePluginRuntimeGateway()

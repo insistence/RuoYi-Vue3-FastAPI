@@ -140,6 +140,30 @@ def test_plugin_runtime_test_plugin_runs_backend_and_frontend_targets(tmp_path: 
     assert gateway.commands[1][1] == str(frontend_root)
 
 
+def test_plugin_runtime_test_plugin_uses_runtime_frontend_dir(tmp_path: Path) -> None:
+    """
+    校验插件测试命令使用运行时环境提供的前端目录。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    project_root = tmp_path / 'project'
+    backend_root = project_root / 'api-server'
+    frontend_root = project_root / 'web-client'
+    backend_test_root = backend_root / 'tests' / 'plugins' / 'demo'
+    frontend_test_file = frontend_root / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js'
+    backend_test_root.mkdir(parents=True)
+    frontend_test_file.parent.mkdir(parents=True)
+    frontend_test_file.write_text("console.log('ok')\n", encoding='utf-8')
+    gateway = FakePluginRuntimeGateway()
+
+    result = build_runtime_with_gateway(backend_root, gateway, frontend_root=frontend_root).test_plugin('demo')
+
+    assert result['ok'] is True
+    assert result['targets'] == [str(backend_test_root), str(frontend_test_file)]
+    assert gateway.commands[1][1] == str(frontend_root)
+
+
 def test_plugin_runtime_test_plugin_can_run_frontend_build_acceptance(tmp_path: Path) -> None:
     """
     校验插件测试命令可按需追加前端构建验收。
@@ -182,7 +206,7 @@ def test_plugin_runtime_test_plugin_reports_missing_test_dir(tmp_path: Path) -> 
     assert result['message'].startswith('插件测试目录不存在')
     assert result['targets'] == [
         str(backend_root / 'tests' / 'plugins' / 'demo'),
-        str(backend_root.parent / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo'),
+        str(backend_root.parent / 'frontend' / 'tests' / 'plugins' / 'demo'),
     ]
 
 

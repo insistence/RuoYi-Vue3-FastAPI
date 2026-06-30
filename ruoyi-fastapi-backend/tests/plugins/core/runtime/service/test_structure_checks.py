@@ -46,6 +46,42 @@ frontend:
     assert [item['level'] for item in payload['checks'][0]['structureErrors']] == ['error', 'error', 'error']
 
 
+def test_plugin_runtime_check_uses_runtime_frontend_plugin_root(tmp_path: Path) -> None:
+    """
+    校验插件检查使用运行时环境提供的前端插件目录。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    project_root = tmp_path / 'project'
+    backend_root = project_root / 'api-server'
+    frontend_root = project_root / 'web-client'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+frontend:
+  menus:
+    - name: 演示菜单
+      path: demo
+      component: plugin/demo/index
+""",
+    )
+    create_controller_dir(plugin_root)
+    create_frontend_view(backend_root, 'demo', frontend_root=frontend_root)
+
+    payload = build_runtime(backend_root, frontend_root=frontend_root).check_plugin('demo')
+
+    assert payload['ok'] is True
+    assert payload['checks'][0]['structureErrors'] == []
+
+
 def test_plugin_runtime_check_reports_migration_structure_errors(tmp_path: Path) -> None:
     """
     校验插件运行时检查会报告 migration 结构错误。

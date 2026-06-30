@@ -126,8 +126,7 @@ class PluginDependencyUseCase:
         """
         discovered_plugin = discovered_plugin or self._get_discovered_plugin(plugin_id)
         install_plan = PluginDependencyInstallPlanner(
-            frontend_root=Path(self.dependencies.runtime_environment.get_backend_dir()).parent
-            / 'ruoyi-fastapi-frontend'
+            frontend_root=Path(self.dependencies.runtime_environment.get_frontend_dir())
         ).build_plan(dependency_result)
         if dry_run:
             payload = PluginDependencyInstallPayloadBuilder.build_dry_run_payload(
@@ -188,8 +187,7 @@ class PluginDependencyUseCase:
         """
         discovered_plugin = discovered_plugin or self._get_discovered_plugin(plugin_id)
         install_plan = PluginDependencyInstallPlanner(
-            frontend_root=Path(self.dependencies.runtime_environment.get_backend_dir()).parent
-            / 'ruoyi-fastapi-frontend'
+            frontend_root=Path(self.dependencies.runtime_environment.get_frontend_dir())
         ).build_plan(dependency_result)
         if dry_run:
             payload = PluginDependencyInstallPayloadBuilder.build_dry_run_payload(

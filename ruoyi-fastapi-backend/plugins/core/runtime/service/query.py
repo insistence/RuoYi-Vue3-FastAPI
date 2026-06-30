@@ -215,6 +215,8 @@ class PluginQueryUseCase:
         """
         try:
             backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
+            frontend_root = Path(self.dependencies.runtime_environment.get_frontend_dir())
+            frontend_plugins_root = Path(self.dependencies.runtime_environment.get_frontend_plugins_dir())
             registry = self._build_registry()
             plugins = registry.list_plugins()
             if plugin_id:
@@ -231,11 +233,13 @@ class PluginQueryUseCase:
                 dependency_result = self.dependencies.dependency_checker.check_manifest(
                     plugin.discovered_plugin.manifest
                 )
-                manifest_result = PluginManifestChecker(backend_root=backend_root).check(
+                manifest_result = PluginManifestChecker(backend_root=backend_root, frontend_root=frontend_root).check(
                     plugin.discovered_plugin.manifest
                 )
                 plugin_dependency_result = plugin_dependency_checker.check_manifest(plugin.discovered_plugin.manifest)
-                structure_result = PluginStructureChecker(backend_root).check(plugin.discovered_plugin)
+                structure_result = PluginStructureChecker(backend_root, frontend_plugins_root).check(
+                    plugin.discovered_plugin
+                )
                 menu_conflict_result = PluginMenuConflictChecker().check(
                     plugin.discovered_plugin,
                     all_discovered_plugins,

@@ -503,6 +503,24 @@ def test_plugin_runtime_environment_uses_service_modes_outside_dev(
     assert environment.get_backend_runtime_mode() == 'service'
 
 
+def test_plugin_runtime_environment_exposes_configured_project_roots(tmp_path: Path) -> None:
+    """
+    校验插件运行时环境服务暴露显式配置的前后端目录。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'api-server'
+    frontend_root = tmp_path / 'web-client'
+
+    environment = PluginRuntimeEnvironmentService(backend_root=backend_root, frontend_root=frontend_root)
+
+    assert environment.get_backend_dir() == str(backend_root.resolve())
+    assert environment.get_frontend_dir() == str(frontend_root.resolve())
+    assert environment.get_backend_plugins_dir() == str(backend_root.resolve() / 'plugins')
+    assert environment.get_frontend_plugins_dir() == str(frontend_root.resolve() / 'plugins')
+
+
 def test_plugin_runtime_lists_discovered_plugins(tmp_path: Path) -> None:
     """
     校验插件运行时可以列出已发现插件。

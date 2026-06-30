@@ -77,8 +77,8 @@ class PluginService:
         :param frontend_root: 前端插件根目录
         :return: 插件分页列表或插件列表
         """
-        backend_root = backend_root or Path(__file__).parents[4] / 'plugins'
-        frontend_root = frontend_root or backend_root.parent.parent / 'ruoyi-fastapi-frontend' / 'plugins'
+        backend_root = backend_root or Path(PLUGIN_RUNTIME_ENVIRONMENT.get_backend_plugins_dir())
+        frontend_root = frontend_root or Path(PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_plugins_dir())
         discovered_plugins = PluginScanner(backend_root).discover()
         database_plugins = await PluginDao.get_plugin_list(query_db)
         database_plugin_map = {plugin.plugin_id: plugin for plugin in database_plugins}
@@ -116,8 +116,8 @@ class PluginService:
         :param frontend_root: 前端插件根目录
         :return: 插件信息对象
         """
-        backend_root = backend_root or Path(__file__).parents[4] / 'plugins'
-        frontend_root = frontend_root or backend_root.parent.parent / 'ruoyi-fastapi-frontend' / 'plugins'
+        backend_root = backend_root or Path(PLUGIN_RUNTIME_ENVIRONMENT.get_backend_plugins_dir())
+        frontend_root = frontend_root or Path(PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_plugins_dir())
         plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
         discovered_plugin = cls._get_discovered_plugin(backend_root, plugin_id)
         if discovered_plugin:

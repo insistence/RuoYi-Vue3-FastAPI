@@ -4,7 +4,7 @@ from typing import cast
 from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT, PluginRuntimeEnvironmentService
 from plugins.core.runtime.support import PluginRuntimePayloadBuilder
 from plugins.core.types import PluginConfigValue
-from plugins.core.validation.dependencies import PluginDependencyChecker
+from plugins.core.validation.dependencies import NpmDependencyInspector, PluginDependencyChecker
 
 from .audit import PluginAuditUseCase
 from .batch import PluginBatchUseCase
@@ -76,6 +76,7 @@ class PluginRuntimeService:
         """
         resolved_environment = runtime_environment or PLUGIN_RUNTIME_ENVIRONMENT
         resolved_dependency_checker = dependency_checker or PluginDependencyChecker(
+            npm_inspector=NpmDependencyInspector(frontend_root=resolved_environment.get_frontend_dir()),
             frontend_mode=resolved_environment.get_frontend_mode(),
         )
         self._replace_dependencies(
@@ -127,6 +128,9 @@ class PluginRuntimeService:
         """
         self.set_dependency_checker(
             PluginDependencyChecker(
+                npm_inspector=NpmDependencyInspector(
+                    frontend_root=self.dependencies.runtime_environment.get_frontend_dir(),
+                ),
                 frontend_mode=self.dependencies.runtime_environment.get_frontend_mode(),
             )
         )

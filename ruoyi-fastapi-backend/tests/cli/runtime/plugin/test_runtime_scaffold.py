@@ -88,6 +88,26 @@ def test_plugin_runtime_create_plugin_dry_run_does_not_write_files(tmp_path: Pat
     assert not (project_root / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').exists()
 
 
+def test_plugin_runtime_create_plugin_uses_runtime_frontend_dir(tmp_path: Path) -> None:
+    """
+    校验插件模板创建使用运行时环境提供的前端目录。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    project_root = tmp_path / 'project'
+    backend_root = project_root / 'api-server'
+    frontend_root = project_root / 'web-client'
+    backend_root.mkdir(parents=True)
+
+    payload = build_runtime(backend_root, frontend_root=frontend_root).create_plugin('demo')
+
+    assert payload['ok'] is True
+    assert (backend_root / 'plugins' / 'demo' / 'plugin.yaml').is_file()
+    assert (frontend_root / 'plugins' / 'demo' / 'views' / 'index.vue').is_file()
+    assert (frontend_root / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').is_file()
+
+
 def test_plugin_runtime_create_plugin_writes_backend_and_frontend_files(tmp_path: Path) -> None:
     """
     校验插件模板创建会写入后端和前端模板文件。

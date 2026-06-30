@@ -14,15 +14,15 @@ class PluginScaffoldBuilder:
     使用 Builder 模式生成后端与前端插件模板文件计划，并在确认无冲突后落地。
     """
 
-    def __init__(self, backend_root: Path) -> None:
+    def __init__(self, backend_root: Path, frontend_root: Path) -> None:
         """
         初始化插件模板构建器。
 
         :param backend_root: 后端项目根目录
+        :param frontend_root: 前端项目根目录
         """
         self.backend_root = backend_root
-        self.project_root = backend_root.parent
-        self.frontend_root = self.project_root / 'ruoyi-fastapi-frontend'
+        self.frontend_root = frontend_root
 
     def build_plan(
         self,

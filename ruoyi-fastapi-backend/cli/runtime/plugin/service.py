@@ -431,7 +431,7 @@ class CliPluginRuntimeService:
             runtime_environment = self._resolve_runtime_environment()
             command_gateway = self._resolve_command_gateway()
             backend_root = Path(runtime_environment.get_backend_dir())
-            frontend_root = backend_root.parent / 'ruoyi-fastapi-frontend'
+            frontend_root = Path(runtime_environment.get_frontend_dir())
             test_plan_builder = PluginTestPlanBuilder(
                 backend_root=backend_root,
                 frontend_root=frontend_root,
@@ -510,7 +510,10 @@ class CliPluginRuntimeService:
         """
         try:
             runtime_environment = self._resolve_runtime_environment()
-            scaffold = PluginScaffoldBuilder(Path(runtime_environment.get_backend_dir()))
+            scaffold = PluginScaffoldBuilder(
+                Path(runtime_environment.get_backend_dir()),
+                frontend_root=Path(runtime_environment.get_frontend_dir()),
+            )
             scaffold_plan = scaffold.build_plan(
                 plugin_id,
                 template=template,

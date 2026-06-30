@@ -60,13 +60,17 @@ class FakeRuntimeEnvironment:
     测试用运行时环境服务。
     """
 
-    def __init__(self, backend_dir: Path) -> None:
+    def __init__(self, backend_dir: Path, frontend_dir: Path | None = None) -> None:
         """
         初始化测试用运行时环境服务。
 
         :param backend_dir: 后端项目根目录
+        :param frontend_dir: 前端项目根目录
         """
         self.backend_dir = backend_dir
+        self.frontend_dir = frontend_dir or Path(
+            PluginRuntimeEnvironmentService(backend_root=backend_dir).get_frontend_dir()
+        )
         self.frontend_mode = 'dev'
         self.backend_runtime_mode = 'dev'
 
@@ -77,6 +81,30 @@ class FakeRuntimeEnvironment:
         :return: 后端项目根目录
         """
         return str(self.backend_dir)
+
+    def get_backend_plugins_dir(self) -> str:
+        """
+        获取后端插件根目录。
+
+        :return: 后端插件根目录
+        """
+        return str(self.backend_dir / 'plugins')
+
+    def get_frontend_dir(self) -> str:
+        """
+        获取前端项目根目录。
+
+        :return: 前端项目根目录
+        """
+        return str(self.frontend_dir)
+
+    def get_frontend_plugins_dir(self) -> str:
+        """
+        获取前端插件根目录。
+
+        :return: 前端插件根目录
+        """
+        return str(self.frontend_dir / 'plugins')
 
     @staticmethod
     def get_python_executable() -> str:
@@ -212,6 +240,8 @@ class FakePluginService:
     """
 
     upsert_called = False
+    upsert_backend_root: Path | None = None
+    upsert_frontend_root: Path | None = None
     install_enabled_menu_called = False
     install_plugin_menu_called_with: tuple[str, bool] | None = None
     install_config_called = False
@@ -236,6 +266,8 @@ class FakePluginService:
         :return: None
         """
         cls.upsert_called = False
+        cls.upsert_backend_root = None
+        cls.upsert_frontend_root = None
         cls.install_enabled_menu_called = False
         cls.install_plugin_menu_called_with = None
         cls.install_config_called = False
@@ -291,6 +323,8 @@ class FakePluginService:
         :return: 插件模型
         """
         cls.upsert_called = True
+        cls.upsert_backend_root = backend_root
+        cls.upsert_frontend_root = frontend_root
         if cls.upsert_plugin:
             return cls.upsert_plugin
         return SimpleNamespace(
@@ -764,15 +798,16 @@ def write_manifest(plugin_dir: Path, content: str) -> None:
     (plugin_dir / 'plugin.yaml').write_text(content, encoding='utf-8')
 
 
-def build_runtime(backend_root: Path) -> PluginRuntimeService:
+def build_runtime(backend_root: Path, frontend_root: Path | None = None) -> PluginRuntimeService:
     """
     构建测试用插件运行时服务。
 
     :param backend_root: 后端项目根目录
+    :param frontend_root: 前端项目根目录
     :return: 插件运行时服务
     """
     return PluginRuntimeService(
-        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        runtime_environment=FakeRuntimeEnvironment(backend_root, frontend_root),
         dependency_checker=PluginDependencyChecker(
             python_inspector=PythonDependencyInspector(installed_packages={'openai': '2.17.0'}),
             npm_inspector=NpmDependencyInspector(installed_packages={'vue': '3.5.26'}),
@@ -802,16 +837,18 @@ def build_fake_lifecycle_precheck(ok: bool = True) -> SimpleNamespace:
 def build_runtime_with_gateway(
     backend_root: Path,
     gateway: FakePluginRuntimeGateway,
+    frontend_root: Path | None = None,
 ) -> PluginRuntimeService:
     """
     构建带测试运行时适配器的插件运行时服务。
 
     :param backend_root: 后端项目根目录
     :param gateway: 测试运行时适配器
+    :param frontend_root: 前端项目根目录
     :return: 插件运行时服务
     """
     return PluginRuntimeService(
-        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        runtime_environment=FakeRuntimeEnvironment(backend_root, frontend_root),
         dependency_checker=PluginDependencyChecker(
             python_inspector=PythonDependencyInspector(installed_packages={'openai': '2.17.0'}),
             npm_inspector=NpmDependencyInspector(installed_packages={'vue': '3.5.26'}),
@@ -832,17 +869,26 @@ def create_controller_dir(plugin_root: Path) -> None:
     (plugin_root / 'controller').mkdir(parents=True)
 
 
-def create_frontend_view(backend_root: Path, plugin_id: str, view_path: str = 'index.vue') -> None:
+def create_frontend_view(
+    backend_root: Path,
+    plugin_id: str,
+    view_path: str = 'index.vue',
+    frontend_root: Path | None = None,
+) -> None:
     """
     创建测试插件前端视图文件。
 
     :param backend_root: 后端项目根目录
     :param plugin_id: 插件ID
     :param view_path: 视图文件相对 views 目录路径
+    :param frontend_root: 前端项目根目录
     :return: None
     """
-    frontend_api = backend_root.parent / 'ruoyi-fastapi-frontend' / 'plugins' / plugin_id / 'api'
+    resolved_frontend_root = frontend_root or Path(
+        PluginRuntimeEnvironmentService(backend_root=backend_root).get_frontend_dir()
+    )
+    frontend_api = resolved_frontend_root / 'plugins' / plugin_id / 'api'
     frontend_api.mkdir(parents=True, exist_ok=True)
-    frontend_view = backend_root.parent / 'ruoyi-fastapi-frontend' / 'plugins' / plugin_id / 'views' / view_path
+    frontend_view = resolved_frontend_root / 'plugins' / plugin_id / 'views' / view_path
     frontend_view.parent.mkdir(parents=True, exist_ok=True)
     frontend_view.write_text('<template />\n', encoding='utf-8')

@@ -170,6 +170,7 @@ async def test_sync_enabled_plugin_install_states_marks_missing_database_plugin_
     )
     fake_builder = MagicMock()
     fake_builder.plugins_root = BACKEND_ROOT / 'plugins'
+    fake_builder.frontend_plugins_root = BACKEND_ROOT.parent / 'frontend' / 'plugins'
     fake_gateway = MagicMock()
     fake_gateway.upsert_discovered_plugin = AsyncMock()
     fake_gateway.mark_plugin_installed = AsyncMock()
@@ -186,6 +187,7 @@ async def test_sync_enabled_plugin_install_states_marks_missing_database_plugin_
         fake_session,
         discovered_plugin,
         fake_builder.plugins_root,
+        fake_builder.frontend_plugins_root,
     )
     run_install_scripts.assert_awaited_once_with(fake_session, discovered_plugin)
     fake_gateway.mark_plugin_installed.assert_awaited_once_with(fake_session, discovered_plugin)
@@ -240,6 +242,7 @@ async def test_sync_default_enabled_builtin_plugin_install_states_installs_missi
     discovered_plugin.manifest.id = 'ai'
     fake_builder = MagicMock()
     fake_builder.plugins_root = BACKEND_ROOT / 'plugins'
+    fake_builder.frontend_plugins_root = BACKEND_ROOT.parent / 'frontend' / 'plugins'
     fake_builder.discover_plugins.return_value = [discovered_plugin]
     fake_gateway = MagicMock()
     fake_gateway.list_plugins = AsyncMock(return_value=[])
@@ -258,6 +261,7 @@ async def test_sync_default_enabled_builtin_plugin_install_states_installs_missi
         fake_session,
         discovered_plugin,
         fake_builder.plugins_root,
+        fake_builder.frontend_plugins_root,
     )
     run_install_scripts.assert_awaited_once_with(fake_session, discovered_plugin)
     fake_gateway.mark_plugin_installed.assert_awaited_once_with(fake_session, discovered_plugin)
@@ -854,6 +858,7 @@ async def test_mark_plugin_runtime_error_upserts_discovered_plugin_when_missing(
     app = FastAPI()
     fake_builder = MagicMock()
     fake_builder.plugins_root = BACKEND_ROOT / 'plugins'
+    fake_builder.frontend_plugins_root = BACKEND_ROOT.parent / 'frontend' / 'plugins'
     fake_registered_plugin = MagicMock()
     app.state.plugin_registry = MagicMock()
     app.state.plugin_registry.get_plugin.return_value = fake_registered_plugin
@@ -879,6 +884,7 @@ async def test_mark_plugin_runtime_error_upserts_discovered_plugin_when_missing(
         fake_session,
         fake_registered_plugin.discovered_plugin,
         fake_builder.plugins_root,
+        fake_builder.frontend_plugins_root,
     )
     fake_session.commit.assert_awaited_once()
     load_registry.assert_awaited_once_with(app)

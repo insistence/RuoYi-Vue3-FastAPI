@@ -14,6 +14,7 @@ from cli.exit_codes import RUNTIME_ERROR  # noqa: E402
 from cli.runtime.plugin.scaffold import PluginScaffoldBuilder  # noqa: E402
 from cli.runtime.plugin.service import CliPluginRuntimeService  # noqa: E402
 from cli.runtime.plugin.support import PluginTestPayloadBuilder, PluginTestTarget  # noqa: E402
+from plugins.core.environment import PluginRuntimeEnvironmentService  # noqa: E402
 from plugins.core.validation.dependencies import (  # noqa: E402
     NpmDependencyInspector,
     PluginDependencyChecker,
@@ -28,14 +29,18 @@ class FakeRuntimeEnvironment:
     测试用插件 CLI 运行时环境服务。
     """
 
-    def __init__(self, backend_dir: Path) -> None:
+    def __init__(self, backend_dir: Path, frontend_dir: Path | None = None) -> None:
         """
         初始化测试用插件 CLI 运行时环境服务。
 
         :param backend_dir: 后端项目根目录
+        :param frontend_dir: 前端项目根目录
         :return: None
         """
         self.backend_dir = backend_dir
+        self.frontend_dir = frontend_dir or Path(
+            PluginRuntimeEnvironmentService(backend_root=backend_dir).get_frontend_dir()
+        )
 
     def get_backend_dir(self) -> str:
         """
@@ -44,6 +49,30 @@ class FakeRuntimeEnvironment:
         :return: 后端项目根目录
         """
         return str(self.backend_dir)
+
+    def get_backend_plugins_dir(self) -> str:
+        """
+        获取后端插件根目录。
+
+        :return: 后端插件根目录
+        """
+        return str(self.backend_dir / 'plugins')
+
+    def get_frontend_dir(self) -> str:
+        """
+        获取前端项目根目录。
+
+        :return: 前端项目根目录
+        """
+        return str(self.frontend_dir)
+
+    def get_frontend_plugins_dir(self) -> str:
+        """
+        获取前端插件根目录。
+
+        :return: 前端插件根目录
+        """
+        return str(self.frontend_dir / 'plugins')
 
     @staticmethod
     def get_frontend_mode() -> str:
@@ -106,15 +135,16 @@ class FakePluginRuntimeGateway:
         return self.completed_process
 
 
-def build_runtime(backend_root: Path) -> CliPluginRuntimeService:
+def build_runtime(backend_root: Path, frontend_root: Path | None = None) -> CliPluginRuntimeService:
     """
     构建测试用插件 CLI 运行时服务。
 
     :param backend_root: 后端项目根目录
+    :param frontend_root: 前端项目根目录
     :return: 插件 CLI 运行时服务
     """
     return CliPluginRuntimeService(
-        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        runtime_environment=FakeRuntimeEnvironment(backend_root, frontend_root),
         dependency_checker=PluginDependencyChecker(
             python_inspector=PythonDependencyInspector(installed_packages={'openai': '2.17.0'}),
             npm_inspector=NpmDependencyInspector(installed_packages={'vue': '3.5.26'}),
@@ -125,16 +155,18 @@ def build_runtime(backend_root: Path) -> CliPluginRuntimeService:
 def build_runtime_with_gateway(
     backend_root: Path,
     gateway: FakePluginRuntimeGateway,
+    frontend_root: Path | None = None,
 ) -> CliPluginRuntimeService:
     """
     构建带测试运行时适配器的插件 CLI 运行时服务。
 
     :param backend_root: 后端项目根目录
     :param gateway: 测试运行时适配器
+    :param frontend_root: 前端项目根目录
     :return: 插件 CLI 运行时服务
     """
     return CliPluginRuntimeService(
-        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        runtime_environment=FakeRuntimeEnvironment(backend_root, frontend_root),
         dependency_checker=PluginDependencyChecker(
             python_inspector=PythonDependencyInspector(installed_packages={'openai': '2.17.0'}),
             npm_inspector=NpmDependencyInspector(installed_packages={'vue': '3.5.26'}),

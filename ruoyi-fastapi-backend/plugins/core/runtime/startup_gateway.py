@@ -86,6 +86,7 @@ class PluginStartupManagementGateway(Protocol):
         query_db: AsyncSession,
         discovered_plugin: DiscoveredPlugin,
         backend_root: Path,
+        frontend_root: Path | None = None,
     ) -> PluginModel:
         """
         写入或更新已发现插件。
@@ -93,6 +94,7 @@ class PluginStartupManagementGateway(Protocol):
         :param query_db: orm对象
         :param discovered_plugin: 已发现插件对象
         :param backend_root: 后端插件根目录
+        :param frontend_root: 前端插件根目录
         :return: 插件信息
         """
 
@@ -244,6 +246,7 @@ class UnavailablePluginStartupManagementGateway:
         query_db: AsyncSession,
         discovered_plugin: DiscoveredPlugin,
         backend_root: Path,
+        frontend_root: Path | None = None,
     ) -> PluginModel:
         """
         写入或更新已发现插件。
@@ -251,6 +254,7 @@ class UnavailablePluginStartupManagementGateway:
         :param query_db: orm对象
         :param discovered_plugin: 已发现插件对象
         :param backend_root: 后端插件根目录
+        :param frontend_root: 前端插件根目录
         :return: 插件信息
         """
         self._raise_unavailable()

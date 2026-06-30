@@ -402,6 +402,7 @@ class PluginRuntimeStartupManager:
                     query_db,
                     plugin.discovered_plugin,
                     self.builder.plugins_root,
+                    self.builder.frontend_plugins_root,
                 )
                 await self.run_plugin_install_scripts(query_db, plugin.discovered_plugin)
                 await self.management_gateway.mark_plugin_installed(query_db, plugin.discovered_plugin)
@@ -608,6 +609,7 @@ class PluginRuntimeStartupManager:
                         query_db,
                         registered_plugin.discovered_plugin,
                         self.builder.plugins_root,
+                        self.builder.frontend_plugins_root,
                     )
                     result = await self.management_gateway.mark_plugin_error(query_db, plugin_id, error_message)
             if result.is_success:
@@ -649,6 +651,7 @@ class PluginRuntimeStartupManager:
                     query_db,
                     plugin,
                     self.builder.plugins_root,
+                    self.builder.frontend_plugins_root,
                 )
                 await self.run_plugin_install_scripts(query_db, plugin)
                 await self.management_gateway.mark_plugin_installed(query_db, plugin)

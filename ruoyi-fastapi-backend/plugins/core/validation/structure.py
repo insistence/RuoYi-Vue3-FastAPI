@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.environment import PluginRuntimeEnvironmentService
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.manifest.schema import PluginJobManifest, PluginManifest, PluginMenuManifest
 from plugins.core.validation.result import PluginValidationIssue, PluginValidationLevelResolver, ValidationLevel
@@ -102,11 +103,13 @@ class PluginStructureChecker:
         初始化插件结构检查器。
 
         :param backend_root: 后端项目根目录
-        :param frontend_root: 前端插件根目录，默认使用相邻前端项目的 plugins 目录
+        :param frontend_root: 前端插件根目录，默认使用运行时环境解析出的 plugins 目录
         """
         self.backend_root = Path(backend_root)
         self.frontend_root = (
-            Path(frontend_root) if frontend_root else self.backend_root.parent / 'ruoyi-fastapi-frontend' / 'plugins'
+            Path(frontend_root)
+            if frontend_root
+            else Path(PluginRuntimeEnvironmentService(backend_root=self.backend_root).get_frontend_plugins_dir())
         )
 
     def check(self, discovered_plugin: DiscoveredPlugin) -> PluginStructureCheckResult:

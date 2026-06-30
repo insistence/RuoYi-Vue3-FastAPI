@@ -6,6 +6,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Literal
 
+from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT
 from plugins.core.manifest.schema import PluginManifest
 from plugins.core.validation.versioning import PluginVersionComparator, PluginVersionConstraintMatcher
 
@@ -340,9 +341,7 @@ class NpmDependencyInspector:
         :param installed_packages: 已声明 npm 包版本映射
         """
         self.frontend_root = (
-            Path(frontend_root)
-            if frontend_root
-            else Path(__file__).resolve().parents[3].parent / 'ruoyi-fastapi-frontend'
+            Path(frontend_root) if frontend_root else Path(PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_dir())
         )
         self.installed_packages = (
             installed_packages if installed_packages is not None else self._load_installed_packages()
@@ -521,9 +520,7 @@ class PluginDependencyInstallPlanner:
         """
         self.python_executable = python_executable or sys.executable
         self.frontend_root = (
-            Path(frontend_root)
-            if frontend_root
-            else Path(__file__).resolve().parents[3].parent / 'ruoyi-fastapi-frontend'
+            Path(frontend_root) if frontend_root else Path(PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_dir())
         )
 
     def build_plan(self, dependency_result: DependencyCheckResult) -> DependencyInstallPlan:

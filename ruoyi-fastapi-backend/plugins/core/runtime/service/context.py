@@ -272,11 +272,15 @@ class PluginRuntimeContextService:
         :param discovered_plugins: 已发现插件列表
         :return: 插件操作预检上下文
         """
+        frontend_root = Path(self.dependencies.runtime_environment.get_frontend_dir())
+        frontend_plugins_root = Path(self.dependencies.runtime_environment.get_frontend_plugins_dir())
         dependency_result = self.dependencies.dependency_checker.check_manifest(discovered_plugin.manifest)
-        manifest_result = PluginManifestChecker(backend_root=backend_root).check(discovered_plugin.manifest)
+        manifest_result = PluginManifestChecker(backend_root=backend_root, frontend_root=frontend_root).check(
+            discovered_plugin.manifest
+        )
         manifest_result = await self._check_lifecycle_scripts(discovered_plugin, manifest_result)
         plugin_dependency_result = await self.check_inter_plugin_dependencies(discovered_plugin, discovered_plugins)
-        structure_result = PluginStructureChecker(backend_root).check(discovered_plugin)
+        structure_result = PluginStructureChecker(backend_root, frontend_plugins_root).check(discovered_plugin)
         menu_conflict_result = PluginMenuConflictChecker().check(discovered_plugin, discovered_plugins)
 
         return PluginPrecheckContext.build(

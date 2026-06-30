@@ -388,8 +388,8 @@ class PluginUpgradeUseCase:
         await context.plugin_service.upsert_discovered_plugin_services(
             context.session,
             context.discovered_plugin,
-            cast('Path', context.backend_root) / 'plugins',
-            cast('Path', context.backend_root).parent / 'ruoyi-fastapi-frontend' / 'plugins',
+            Path(self.dependencies.runtime_environment.get_backend_plugins_dir()),
+            Path(self.dependencies.runtime_environment.get_frontend_plugins_dir()),
         )
 
         return None

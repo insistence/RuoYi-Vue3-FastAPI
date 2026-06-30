@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
+from plugins.core.environment import PluginRuntimeEnvironmentService
 from plugins.core.runtime.entities import EntityModuleImporter
 from plugins.core.types import PluginStateRecord
 from utils.log_util import logger
@@ -43,6 +44,9 @@ class PluginRuntimeBuilder:
         """
         self.backend_root = Path(backend_root) if backend_root else Path(__file__).resolve().parents[3]
         self.plugins_root = self.backend_root / 'plugins'
+        self.frontend_plugins_root = Path(
+            PluginRuntimeEnvironmentService(backend_root=self.backend_root).get_frontend_plugins_dir()
+        )
         self.entity_importer = EntityModuleImporter(self.backend_root)
         self._discovered_plugins: list[DiscoveredPlugin] | None = None
 

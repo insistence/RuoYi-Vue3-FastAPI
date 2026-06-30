@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from config.env import DataBaseConfig
+from plugins.core.environment import PluginRuntimeEnvironmentService
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.manifest.schema import PluginManifest
 from plugins.core.validation.dependencies import DependencyRequirementParser
@@ -84,7 +85,9 @@ class PluginManifestChecker:
         :return: None
         """
         self.backend_root = backend_root or Path(__file__).resolve().parents[3]
-        self.frontend_root = frontend_root or self.backend_root.parent / 'ruoyi-fastapi-frontend'
+        self.frontend_root = frontend_root or Path(
+            PluginRuntimeEnvironmentService(backend_root=self.backend_root).get_frontend_dir()
+        )
         self.python_version = python_version or platform.python_version()
         self.node_version = node_version
 
