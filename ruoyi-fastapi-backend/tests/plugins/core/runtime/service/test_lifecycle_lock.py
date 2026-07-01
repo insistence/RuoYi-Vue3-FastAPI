@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from redis.exceptions import RedisError
 
 BACKEND_ROOT = Path(__file__).resolve().parents[5]
 sys.path.insert(0, str(BACKEND_ROOT))
@@ -113,6 +114,32 @@ async def test_redis_lifecycle_lock_renews_until_lock_lost() -> None:
         'demo:install:value',
         3,
     )
+
+
+@pytest.mark.asyncio
+async def test_redis_lifecycle_lock_preserves_body_redis_error() -> None:
+    """
+    校验持锁代码块抛 RedisError 时不会被锁获取失败分支吞掉。
+
+    :return: None
+    """
+    redis = AsyncMock()
+    redis.set = AsyncMock(return_value=True)
+    redis.eval = AsyncMock(return_value=1)
+    redis.close = AsyncMock()
+    lifecycle_lock = RedisPluginLifecycleLock(expire_seconds=3)
+
+    with (
+        patch('plugins.core.runtime.service.lifecycle_lock.RedisUtil.create_redis_pool', AsyncMock(return_value=redis)),
+        patch.object(lifecycle_lock, '_start_lock_renewal', return_value=None),
+        pytest.raises(RedisError, match='body failed'),
+    ):
+        async with lifecycle_lock.lock('demo', 'install') as lock_result:
+            assert lock_result.acquired is True
+            raise RedisError('body failed')
+
+    redis.eval.assert_awaited_once()
+    redis.close.assert_awaited_once()
 
 
 def test_lifecycle_dry_run_skips_lock() -> None:

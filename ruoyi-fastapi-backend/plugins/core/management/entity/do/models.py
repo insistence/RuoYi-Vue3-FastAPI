@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, String, Text
+from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, String, Text, UniqueConstraint
 
 from config.database import Base
 from config.env import DataBaseConfig
@@ -48,7 +48,10 @@ class SysPluginMenu(Base):
     """
 
     __tablename__ = 'sys_plugin_menu'
-    __table_args__ = {'comment': '插件和菜单关联表'}
+    __table_args__ = (
+        UniqueConstraint('plugin_id', 'menu_key', name='uk_sys_plugin_menu_key'),
+        {'comment': '插件和菜单关联表'},
+    )
 
     plugin_id = Column(String(64), primary_key=True, nullable=False, comment='插件ID')
     menu_id = Column(BigInteger, primary_key=True, nullable=False, comment='菜单ID')
@@ -71,6 +74,8 @@ class SysPluginMigration(Base):
     migration_checksum = Column(String(64), nullable=False, comment='migration 内容校验值')
     version = Column(String(32), nullable=True, comment='执行时插件版本')
     statement_count = Column(Integer, nullable=False, default=0, comment='SQL 语句数量')
+    status = Column(String(32), nullable=False, server_default='success', comment='执行状态')
+    error_message = Column(Text, nullable=True, comment='失败错误信息')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='执行时间')
 
 

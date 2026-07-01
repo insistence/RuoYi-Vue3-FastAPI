@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 BACKEND_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(BACKEND_ROOT))
 
@@ -86,6 +88,24 @@ def test_manifest_checker_accepts_empty_secret_config_default() -> None:
 
     assert result.ok is True
     assert result.issues == []
+
+
+def test_manifest_rejects_boolean_default_for_number_config() -> None:
+    """
+    校验 number 类型配置不会把 bool 默认值当作数字。
+
+    :return: None
+    """
+    with pytest.raises(ValueError, match='必须是数字'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo'},
+                'config': {'items': [{'key': 'enabled_ratio', 'type': 'number', 'default': True}]},
+            }
+        )
 
 
 def test_manifest_checker_warns_password_config_without_secret_flag() -> None:

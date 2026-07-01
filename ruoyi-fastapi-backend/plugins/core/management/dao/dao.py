@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
@@ -336,7 +336,27 @@ class PluginDao:
         :param plugin_migration: 插件 migration 执行历史对象
         :return: 新增后的 migration 执行历史对象
         """
-        db_plugin_migration = SysPluginMigration(**plugin_migration.model_dump(exclude_unset=True))
+        payload = plugin_migration.model_dump(exclude_unset=True)
+        if payload.get('status') == 'success' and 'error_message' not in payload:
+            payload['error_message'] = None
+        existing_plugin_migration = await cls.get_plugin_migration_by_path(
+            db,
+            plugin_migration.plugin_id,
+            plugin_migration.migration_path,
+        )
+        if existing_plugin_migration:
+            await db.execute(
+                update(SysPluginMigration)
+                .where(
+                    SysPluginMigration.plugin_id == plugin_migration.plugin_id,
+                    SysPluginMigration.migration_path == plugin_migration.migration_path,
+                )
+                .values(**payload)
+            )
+            await db.flush()
+            return existing_plugin_migration
+
+        db_plugin_migration = SysPluginMigration(**payload)
         db.add(db_plugin_migration)
         await db.flush()
 
@@ -525,8 +545,28 @@ class PluginDao:
         return select(SysPluginOperationLog).where(
             SysPluginOperationLog.operation == query_object.operation if query_object.operation else True,
             SysPluginOperationLog.status == query_object.status if query_object.status else True,
-            SysPluginOperationLog.plugin_ids.like(f'%"{query_object.plugin_id}"%') if query_object.plugin_id else True,
+            cls._build_plugin_ids_filter(query_object.plugin_id),
             cls._build_operation_log_time_filter(query_object),
+        )
+
+    @staticmethod
+    def _build_plugin_ids_filter(plugin_id: str | None) -> Any:
+        """
+        构建插件 ID JSON 数组边界匹配条件。
+
+        :param plugin_id: 插件ID
+        :return: SQLAlchemy 过滤条件
+        """
+        if not plugin_id:
+            return True
+
+        return or_(
+            SysPluginOperationLog.plugin_ids == f'["{plugin_id}"]',
+            SysPluginOperationLog.plugin_ids.like(f'["{plugin_id}",%'),
+            SysPluginOperationLog.plugin_ids.like(f'%, "{plugin_id}",%'),
+            SysPluginOperationLog.plugin_ids.like(f'%, "{plugin_id}"]'),
+            SysPluginOperationLog.plugin_ids.like(f'%,"{plugin_id}",%'),
+            SysPluginOperationLog.plugin_ids.like(f'%,"{plugin_id}"]'),
         )
 
     @staticmethod

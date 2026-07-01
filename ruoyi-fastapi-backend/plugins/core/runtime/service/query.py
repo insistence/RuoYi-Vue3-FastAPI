@@ -113,6 +113,14 @@ class PluginQueryUseCase:
         """
         return self.context.load_database_plugin_states_sync_with_error()
 
+    async def _load_database_plugin_states_with_error(self) -> tuple[list[PluginStateRecord], str | None]:
+        """
+        以异步方式读取数据库插件状态列表，并保留失败原因。
+
+        :return: 数据库插件状态列表和错误信息
+        """
+        return await self.context.load_database_plugin_states_with_error()
+
     def _resolve_plugin_capability(self, discovered_plugin: DiscoveredPlugin) -> PluginRuntimeCapability:
         """
         解析插件运行时操作能力。
@@ -214,6 +222,39 @@ class PluginQueryUseCase:
         :return: 插件检查负载
         """
         try:
+            database_plugins, database_error = self._load_database_plugin_states_sync_with_error()
+            return self._build_check_plugin_payload(plugin_id, database_plugins, database_error)
+        except Exception as exc:
+            return PluginRuntimePayloadBuilder.build_exception_payload('插件检查失败', exc)
+
+    async def check_plugin_async(self, plugin_id: str | None = None) -> PluginCheckResponse:
+        """
+        异步检查插件依赖状态。
+
+        :param plugin_id: 插件ID，未传入时检查全部插件
+        :return: 插件检查负载
+        """
+        try:
+            database_plugins, database_error = await self._load_database_plugin_states_with_error()
+            return self._build_check_plugin_payload(plugin_id, database_plugins, database_error)
+        except Exception as exc:
+            return PluginRuntimePayloadBuilder.build_exception_payload('插件检查失败', exc)
+
+    def _build_check_plugin_payload(
+        self,
+        plugin_id: str | None,
+        database_plugins: list[PluginStateRecord],
+        database_error: str | None,
+    ) -> PluginCheckResponse:
+        """
+        构建插件检查负载。
+
+        :param plugin_id: 插件ID，未传入时检查全部插件
+        :param database_plugins: 数据库插件状态列表
+        :param database_error: 数据库读取错误
+        :return: 插件检查负载
+        """
+        try:
             backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             frontend_root = Path(self.dependencies.runtime_environment.get_frontend_dir())
             frontend_plugins_root = Path(self.dependencies.runtime_environment.get_frontend_plugins_dir())
@@ -227,7 +268,6 @@ class PluginQueryUseCase:
 
             checks = []
             all_discovered_plugins = [plugin.discovered_plugin for plugin in registry.list_plugins()]
-            database_plugins, database_error = self._load_database_plugin_states_sync_with_error()
             plugin_dependency_checker = InterPluginDependencyChecker(all_discovered_plugins, database_plugins)
             for plugin in plugins:
                 dependency_result = self.dependencies.dependency_checker.check_manifest(
@@ -314,7 +354,7 @@ class PluginQueryUseCase:
         if not info_payload.get('ok', False):
             return PluginRuntimePayloadBuilder.build_diagnose_failure_payload(plugin_id, info_payload)
 
-        check_payload = cast('dict[str, object]', self.check_plugin(plugin_id))
+        check_payload = cast('dict[str, object]', await self.check_plugin_async(plugin_id))
         config_payload = cast(
             'dict[str, object]', await self.runtime_operations.get_plugin_config(plugin_id, reveal_secret=False)
         )

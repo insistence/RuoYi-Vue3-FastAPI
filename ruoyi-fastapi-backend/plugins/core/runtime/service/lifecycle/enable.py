@@ -467,6 +467,7 @@ class PluginEnableUseCase:
             context.session,
             context.plugin_id,
             context.enabled,
+            context.discovered_plugin,
         )
         if not context.response.is_success:
             return PluginEnablePayloadBuilder.build_update_failure_payload(

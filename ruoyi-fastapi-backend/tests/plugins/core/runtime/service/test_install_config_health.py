@@ -972,6 +972,18 @@ config:
     create_frontend_view(backend_root, 'demo')
     gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
+    FakePluginService.plugin_list = [
+        SimpleNamespace(
+            plugin_id='demo',
+            installed_version='1.0.0',
+            enabled='0',
+            status='installed',
+            last_error=None,
+            source='local',
+            backend_path='plugins/demo',
+            frontend_path='plugins/demo',
+        )
+    ]
     FakePluginService.operation_logs = [
         SimpleNamespace(
             payload={'ok': True, 'operation': 'install', 'pluginId': 'demo', 'message': 'installed'},
@@ -992,6 +1004,8 @@ config:
     assert result['pluginId'] == 'demo'
     assert result['info']['pluginId'] == 'demo'
     assert result['check']['checks'][0]['pluginId'] == 'demo'
+    assert result['check']['databaseAvailable'] is True
+    assert result['check']['databaseError'] is None
     assert result['menuPlan']['total'] == 1
     assert result['menuPlan']['permissionCount'] == 1
     assert result['menuPlan']['items'][0]['component'] == 'plugin/demo/index'

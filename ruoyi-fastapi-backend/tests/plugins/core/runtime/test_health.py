@@ -148,3 +148,25 @@ async def test_plugin_health_checker_reports_timeout(tmp_path: Path) -> None:
     assert result.status == 'timeout'
     assert result.message == '插件健康检查执行超时'
     assert '超过 0.01 秒' in str(result.error)
+
+
+@pytest.mark.asyncio
+async def test_plugin_health_checker_reports_sync_timeout(tmp_path: Path) -> None:
+    """
+    校验同步健康检查阻塞时也会返回 timeout。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_health'
+    write_plugin_with_health(
+        plugin_root,
+        'import time\ndef check(context):\n    time.sleep(1)\n    return True\n',
+    )
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+
+    result = await PluginHealthChecker(discovered_plugin, timeout_seconds=0.01).check()
+
+    assert result.ok is False
+    assert result.status == 'timeout'
+    assert result.message == '插件健康检查执行超时'

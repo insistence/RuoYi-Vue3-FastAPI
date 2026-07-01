@@ -778,7 +778,8 @@ create table sys_plugin_menu (
   menu_id            bigint(20)      not null                   comment '菜单ID',
   menu_key           varchar(255)    not null                   comment '插件内菜单自然键',
   create_time        datetime                                   comment '创建时间',
-  primary key (plugin_id, menu_id)
+  primary key (plugin_id, menu_id),
+  unique key uk_sys_plugin_menu_key (plugin_id, menu_key)
 ) engine=innodb comment = '插件和菜单关联表';
 
 -- ----------------------------
@@ -791,6 +792,8 @@ create table sys_plugin_migration (
   migration_checksum  varchar(64)    not null                   comment 'migration 内容校验值',
   version             varchar(32)    default null               comment '执行时插件版本',
   statement_count     int            not null default 0         comment 'SQL 语句数量',
+  status              varchar(32)    not null default 'success' comment '执行状态',
+  error_message       text                                       comment '失败错误信息',
   create_time         datetime                                  comment '执行时间',
   primary key (plugin_id, migration_path)
 ) engine=innodb comment = '插件 migration 执行历史表';

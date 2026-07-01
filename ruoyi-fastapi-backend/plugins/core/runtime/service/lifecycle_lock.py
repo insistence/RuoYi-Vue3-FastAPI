@@ -104,21 +104,24 @@ class RedisPluginLifecycleLock:
         acquired = False
         renewal_task: asyncio.Task | None = None
         try:
-            redis = await RedisUtil.create_redis_pool(log_enabled=False)
-            acquired = bool(await redis.set(lock_key, lock_value, nx=True, ex=self.expire_seconds))
-            if not acquired:
+            try:
+                redis = await RedisUtil.create_redis_pool(log_enabled=False)
+                acquired = bool(await redis.set(lock_key, lock_value, nx=True, ex=self.expire_seconds))
+                if not acquired:
+                    yield PluginLifecycleLockResult(
+                        acquired=False,
+                        message='插件生命周期操作正在执行中，请稍后重试',
+                    )
+                    return
+                renewal_task = self._start_lock_renewal(redis, lock_key, lock_value)
+            except RedisError as exc:
                 yield PluginLifecycleLockResult(
                     acquired=False,
-                    message='插件生命周期操作正在执行中，请稍后重试',
+                    message=f'插件生命周期操作锁不可用：{exc}',
                 )
                 return
-            renewal_task = self._start_lock_renewal(redis, lock_key, lock_value)
+
             yield PluginLifecycleLockResult(acquired=True)
-        except RedisError as exc:
-            yield PluginLifecycleLockResult(
-                acquired=False,
-                message=f'插件生命周期操作锁不可用：{exc}',
-            )
         finally:
             if redis is not None:
                 if renewal_task is not None:

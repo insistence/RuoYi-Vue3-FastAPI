@@ -7,6 +7,7 @@ import pytest
 BACKEND_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(BACKEND_ROOT))
 
+from plugins.core.management.service import menus as menu_service  # noqa: E402
 from plugins.core.management.service.menus import PluginMenuInstaller  # noqa: E402
 from plugins.core.manifest.menu_key import PluginMenuKeyBuilder  # noqa: E402
 from plugins.core.manifest.schema import PluginManifest, PluginMenuManifest, PluginPermissionManifest  # noqa: E402
@@ -272,7 +273,7 @@ async def test_plugin_menu_installer_inserts_manifest_menu_tree(monkeypatch: pyt
     :return: None
     """
     FakePluginDao.reset()
-    monkeypatch.setattr('plugins.core.management.service.menus.PluginDao', FakePluginDao)
+    monkeypatch.setattr(menu_service, 'PluginDao', FakePluginDao)
 
     installed_menus = await PluginMenuInstaller(object()).install_manifest_menus(build_manifest())
 
@@ -297,7 +298,7 @@ async def test_plugin_menu_installer_uses_permission_name_for_auto_button(
     :return: None
     """
     FakePluginDao.reset()
-    monkeypatch.setattr('plugins.core.management.service.menus.PluginDao', FakePluginDao)
+    monkeypatch.setattr(menu_service, 'PluginDao', FakePluginDao)
     manifest = build_manifest()
     manifest.permissions.append(
         PluginPermissionManifest.model_validate(
@@ -345,7 +346,7 @@ async def test_plugin_menu_installer_reuses_existing_plugin_menu(monkeypatch: py
         menu_id=EXISTING_MENU_ID,
         menu_key='route:demo/demo#Layout',
     )
-    monkeypatch.setattr('plugins.core.management.service.menus.PluginDao', FakePluginDao)
+    monkeypatch.setattr(menu_service, 'PluginDao', FakePluginDao)
 
     await PluginMenuInstaller(object()).install_manifest_menus(build_manifest())
 
@@ -368,7 +369,7 @@ async def test_plugin_menu_installer_updates_plugin_menu_status(monkeypatch: pyt
         menu_id=PARENT_MENU_ID,
         menu_key='route:demo/demo#Layout',
     )
-    monkeypatch.setattr('plugins.core.management.service.menus.PluginDao', FakePluginDao)
+    monkeypatch.setattr(menu_service, 'PluginDao', FakePluginDao)
 
     await PluginMenuInstaller(object()).set_plugin_menu_status('demo', '1')
 

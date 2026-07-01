@@ -56,6 +56,8 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
             plugin_id,
             migration_path,
         )
+        if plugin_migration and getattr(plugin_migration, 'status', 'success') != 'success':
+            return None
         return plugin_migration.migration_checksum if plugin_migration else None
 
     async def record_success(
@@ -88,5 +90,42 @@ class PluginDatabaseMigrationHistoryStore(PluginMigrationHistoryStore):
                 checksum,
                 version,
                 statement_count,
+            ),
+        )
+
+    async def record_failure(
+        self,
+        query_db: 'AsyncSession',
+        plugin_id: str,
+        migration_path: str,
+        checksum: str,
+        version: str,
+        statement_count: int,
+        error_message: str,
+    ) -> None:
+        """
+        记录 migration 执行失败历史。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param checksum: 内容校验值
+        :param version: 执行时插件版本
+        :param statement_count: SQL 语句数量
+        :param error_message: 失败错误信息
+        :return: None
+        """
+        if self.model_gateway is None:
+            raise RuntimeError('插件运行时缺少 migration 历史记录模型网关')
+        await self.plugin_service.add_plugin_migration_services(
+            query_db,
+            self.model_gateway.build_migration_record(
+                plugin_id,
+                migration_path,
+                checksum,
+                version,
+                statement_count,
+                'failed',
+                error_message,
             ),
         )

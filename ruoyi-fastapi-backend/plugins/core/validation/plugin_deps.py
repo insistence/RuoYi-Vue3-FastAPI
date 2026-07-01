@@ -5,7 +5,7 @@ from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.manifest.schema import PluginDependencyManifest, PluginManifest
 from plugins.core.state import PluginStateResolver
 from plugins.core.types import PluginStateRecord
-from plugins.core.validation.dependencies import DependencyRequirementParser
+from plugins.core.validation.dependencies import DependencyRequirementParser, ParsedDependency
 from plugins.core.validation.versioning import PluginVersionConstraintMatcher
 
 PluginDependencyStatus = Literal[
@@ -48,12 +48,27 @@ class PluginDependencyVersionMatcher:
         """
         if not version_constraint:
             return True
-        parsed_dependency = DependencyRequirementParser.parse(f'plugin{version_constraint}')
+        parsed_dependency = PluginDependencyVersionMatcher._parse_constraint(version_constraint)
         return PluginVersionConstraintMatcher.is_satisfied(
             installed_version,
             parsed_dependency.operator,
             parsed_dependency.version,
         )
+
+    @staticmethod
+    def _parse_constraint(version_constraint: str) -> ParsedDependency:
+        """
+        解析插件版本约束。
+
+        :param version_constraint: 版本约束
+        :return: 已解析依赖声明
+        """
+        normalized_constraint = version_constraint.strip()
+        if normalized_constraint.startswith(('>=', '<=', '==', '!=', '>', '<', '=', '^', '~')):
+            return DependencyRequirementParser.parse(f'plugin{normalized_constraint}')
+
+        parsed_dependency = DependencyRequirementParser.parse(f'plugin=={normalized_constraint}')
+        return parsed_dependency
 
 
 @dataclass(frozen=True)

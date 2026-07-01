@@ -1,6 +1,8 @@
 import importlib
 import importlib.util
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,6 +16,28 @@ from utils.cron_util import CronUtil
 MAX_PLUGIN_JOB_NAME_LENGTH = 64
 SUPPORTED_SEED_SUFFIXES = {'.py', '.sql'}
 SUPPORTED_MIGRATION_SUFFIXES = {'.py', '.sql'}
+
+
+@contextmanager
+def temporary_sys_path(path: Path) -> Iterator[None]:
+    """
+    临时把路径加入 sys.path，并在导入结束后恢复原状。
+
+    :param path: 需要临时加入的路径
+    :return: None
+    """
+    path_text = str(path)
+    existed = path_text in sys.path
+    if not existed:
+        sys.path.insert(0, path_text)
+    try:
+        yield
+    finally:
+        if not existed:
+            try:
+                sys.path.remove(path_text)
+            except ValueError:
+                pass
 
 
 @dataclass(frozen=True)
@@ -330,13 +354,12 @@ class PluginStructureChecker:
             if spec is None or spec.loader is None:
                 raise ImportError(f'无法加载模块文件：{module_file}')
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            with temporary_sys_path(self.backend_root):
+                spec.loader.exec_module(module)
             return module
 
-        backend_root_text = str(self.backend_root)
-        if backend_root_text not in sys.path:
-            sys.path.insert(0, backend_root_text)
-        return importlib.import_module(module_path)
+        with temporary_sys_path(self.backend_root):
+            return importlib.import_module(module_path)
 
     def _import_plugin_module(self, discovered_plugin: DiscoveredPlugin, module_path: str) -> object:
         """
@@ -361,13 +384,12 @@ class PluginStructureChecker:
             if spec is None or spec.loader is None:
                 raise ImportError(f'无法加载模块文件：{module_file}')
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            with temporary_sys_path(self.backend_root):
+                spec.loader.exec_module(module)
             return module
 
-        backend_root_text = str(self.backend_root)
-        if backend_root_text not in sys.path:
-            sys.path.insert(0, backend_root_text)
-        return importlib.import_module(module_path)
+        with temporary_sys_path(self.backend_root):
+            return importlib.import_module(module_path)
 
     @staticmethod
     def _check_job_cron_expression(job: PluginJobManifest) -> PluginStructureCheckItem:

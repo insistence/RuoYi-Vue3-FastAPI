@@ -51,6 +51,7 @@ def assert_plugin_tables(sql_content: str) -> None:
     """
     assert 'create table sys_plugin' in sql_content
     assert 'create table sys_plugin_menu' in sql_content
+    assert 'uk_sys_plugin_menu_key' in sql_content
     assert 'create table sys_plugin_migration' in sql_content
     assert 'migration_checksum' in sql_content
 

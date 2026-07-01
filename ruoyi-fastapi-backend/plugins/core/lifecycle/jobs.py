@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module_admin.dao.job_dao import JobDao
@@ -39,7 +39,7 @@ class PluginJobModelBuilder:
             jobGroup=cls.JOB_GROUP,
             jobExecutor=job.executor,
             invokeTarget=job.callable,
-            jobArgs=','.join(job.args),
+            jobArgs=json.dumps(job.args, ensure_ascii=False) if job.args else '',
             jobKwargs=json.dumps(job.kwargs, ensure_ascii=False) if job.kwargs else '',
             cronExpression=job.cron_expression,
             misfirePolicy=job.misfire_policy,
@@ -130,13 +130,13 @@ class PluginJobRepository:
         :param job_name_prefix: 任务名称前缀
         :return: 定时任务数量
         """
-        job_list = (
-            (await self.query_db.execute(select(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%'))))
-            .scalars()
-            .all()
-        )
+        job_count = (
+            await self.query_db.execute(
+                select(func.count()).select_from(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%'))
+            )
+        ).scalar_one()
 
-        return len(job_list)
+        return int(job_count)
 
     async def delete_jobs_by_name_prefix(self, job_name_prefix: str) -> None:
         """
@@ -220,25 +220,26 @@ class PluginJobInstaller:
         existing_job = await self.repository.get_job_detail_by_name_group(job_model.job_name, job_model.job_group)
         now = datetime.now()
         if existing_job:
-            await JobDao.edit_job_dao(
-                self.query_db,
-                {
-                    'job_id': existing_job.job_id,
-                    'job_name': job_model.job_name,
-                    'job_group': job_model.job_group,
-                    'job_executor': job_model.job_executor,
-                    'invoke_target': job_model.invoke_target,
-                    'job_args': job_model.job_args,
-                    'job_kwargs': job_model.job_kwargs,
-                    'cron_expression': job_model.cron_expression,
-                    'misfire_policy': job_model.misfire_policy,
-                    'concurrent': job_model.concurrent,
-                    'status': job_model.status,
-                    'update_by': job_model.update_by,
-                    'update_time': now,
-                    'remark': job_model.remark,
-                },
-                JobModel.model_validate(existing_job),
+            await self.query_db.execute(
+                update(SysJob)
+                .where(
+                    SysJob.job_id == existing_job.job_id,
+                    SysJob.job_name == existing_job.job_name,
+                    SysJob.job_group == existing_job.job_group,
+                )
+                .values(
+                    job_executor=job_model.job_executor,
+                    invoke_target=job_model.invoke_target,
+                    job_args=job_model.job_args,
+                    job_kwargs=job_model.job_kwargs,
+                    cron_expression=job_model.cron_expression,
+                    misfire_policy=job_model.misfire_policy,
+                    concurrent=job_model.concurrent,
+                    status=job_model.status,
+                    update_by=job_model.update_by,
+                    update_time=now,
+                    remark=job_model.remark,
+                )
             )
             return existing_job
 

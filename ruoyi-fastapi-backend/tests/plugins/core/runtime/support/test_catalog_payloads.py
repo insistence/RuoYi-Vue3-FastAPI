@@ -84,6 +84,30 @@ permissions:
     assert payload['plugin']['dependencies'][0]['name'] == 'openai'
 
 
+def test_dependency_payload_exposes_npm_declared_version() -> None:
+    """
+    校验 npm 依赖 payload 暴露 package.json 声明版本。
+
+    :return: None
+    """
+    dependency = DependencyCheckItem(
+        kind='npm',
+        requirement='vue>=3.5.0',
+        name='vue',
+        installed=True,
+        version_satisfied=True,
+        installed_version='^3.5.26',
+        declared_version='^3.5.26',
+        required_version='>=3.5.0',
+        message='依赖已满足',
+    )
+
+    payload = PluginPayloadBuilder.build_dependency_item(dependency)
+
+    assert payload['installedVersion'] == '^3.5.26'
+    assert payload['declaredVersion'] == '^3.5.26'
+
+
 def test_plugin_catalog_summary_payload_model_serializes_payload(tmp_path: Path) -> None:
     """
     校验插件目录摘要结构化模型可序列化为现有负载契约。

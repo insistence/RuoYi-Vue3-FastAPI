@@ -625,7 +625,7 @@ class PluginConfigItemManifest(BaseModel):
             return
         if self.type == 'boolean' and not isinstance(self.default, bool):
             raise ValueError(f'配置 {self.key} 的 default 必须是布尔值')
-        if self.type == 'number' and not isinstance(self.default, int | float):
+        if self.type == 'number' and (not isinstance(self.default, int | float) or isinstance(self.default, bool)):
             raise ValueError(f'配置 {self.key} 的 default 必须是数字')
         if self.type == 'json' and not isinstance(self.default, dict | list):
             raise ValueError(f'配置 {self.key} 的 default 必须是对象或数组')

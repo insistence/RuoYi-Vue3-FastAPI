@@ -155,7 +155,11 @@ class PluginService:
 
     @classmethod
     async def update_plugin_enabled_services(
-        cls, query_db: AsyncSession, plugin_id: str, enabled: bool
+        cls,
+        query_db: AsyncSession,
+        plugin_id: str,
+        enabled: bool,
+        discovered_plugin: DiscoveredPlugin | None = None,
     ) -> CrudResponseModel:
         """
         更新插件启停状态。
@@ -163,6 +167,7 @@ class PluginService:
         :param query_db: orm对象
         :param plugin_id: 插件ID
         :param enabled: 是否启用
+        :param discovered_plugin: 已发现插件对象，用于启用时恢复声明任务
         :return: 操作响应
         """
         plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
@@ -184,8 +189,11 @@ class PluginService:
             update_payload['last_error'] = None
         await PluginDao.update_plugin(query_db, update_payload)
         await PluginMenuInstaller(query_db).set_plugin_menu_status(plugin_id, '0' if enabled else '1')
-        if not enabled:
-            await PluginJobInstaller(query_db).pause_plugin_jobs(plugin_id)
+        job_installer = PluginJobInstaller(query_db)
+        if enabled and discovered_plugin:
+            await job_installer.install_plugin_jobs(discovered_plugin, enabled=True)
+        elif not enabled:
+            await job_installer.pause_plugin_jobs(plugin_id)
 
         return CrudResponseModel(is_success=True, message='启用成功' if enabled else '停用成功')
 
@@ -313,8 +321,10 @@ class PluginService:
         """
         installed_configs = []
         manifest = discovered_plugin.manifest
+        existing_configs = await PluginDao.get_plugin_config_list(query_db, manifest.id)
+        existing_config_map = {config.config_key: config for config in existing_configs}
         for item in manifest.config.items:
-            existing_config = await PluginDao.get_plugin_config_by_key(query_db, manifest.id, item.key)
+            existing_config = existing_config_map.get(item.key)
             config_model = PluginConfigManager.build_config_model(manifest.id, item)
             if existing_config:
                 await PluginDao.update_plugin_config(
@@ -427,7 +437,7 @@ class PluginService:
                 {
                     'plugin_id': discovered_plugin.manifest.id,
                     'config_key': key,
-                    'config_value': PluginConfigManager.serialize_value(value),
+                    'config_value': PluginConfigManager.serialize_config_value(value, secret=item.secret),
                     'update_time': datetime.now(),
                 },
             )

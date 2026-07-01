@@ -1,5 +1,7 @@
+import ipaddress
 from importlib import import_module
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from config.database import async_engine
 from config.env import DataBaseConfig
@@ -127,6 +129,42 @@ class AiUtil:
         )
 
     @classmethod
+    def _validate_base_url(cls, base_url: str | None) -> str | None:
+        """
+        校验模型服务基础地址，阻断内网和元数据地址。
+
+        :param base_url: 基础URL
+        :return: 校验后的基础URL
+        """
+        if not base_url:
+            return None
+
+        parsed_url = urlparse(base_url)
+        if parsed_url.scheme not in {'http', 'https'} or not parsed_url.hostname:
+            raise ValueError('Base URL 只支持 http/https 且必须包含主机名')
+
+        hostname = parsed_url.hostname.strip().lower()
+        if hostname in {'localhost'} or hostname.endswith(('.localhost', '.local')):
+            raise ValueError('Base URL 不允许指向本机或内网地址')
+
+        try:
+            ip_address = ipaddress.ip_address(hostname)
+        except ValueError:
+            return base_url
+
+        if (
+            ip_address.is_private
+            or ip_address.is_loopback
+            or ip_address.is_link_local
+            or ip_address.is_multicast
+            or ip_address.is_reserved
+            or ip_address.is_unspecified
+        ):
+            raise ValueError('Base URL 不允许指向本机或内网地址')
+
+        return base_url
+
+    @classmethod
     def get_model_from_factory(
         cls,
         provider: str,
@@ -150,10 +188,11 @@ class AiUtil:
         :param max_tokens: 最大令牌数
         :return: 模型实例
         """
+        safe_base_url = cls._validate_base_url(base_url)
         params = {
             'id': model_code,
             'name': model_name,
-            'base_url': base_url,
+            'base_url': safe_base_url,
             'api_key': api_key,
             'temperature': temperature,
             'max_tokens': max_tokens,
@@ -161,8 +200,8 @@ class AiUtil:
         }
         params = {k: v for k, v in params.items() if v is not None}
         if provider == 'Ollama':
-            params['host'] = base_url
-        if provider == 'DashScope' and not base_url:
+            params['host'] = safe_base_url
+        if provider == 'DashScope' and not safe_base_url:
             params['base_url'] = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
         model_class = cls._resolve_provider_class(provider)
         if model_class is None:

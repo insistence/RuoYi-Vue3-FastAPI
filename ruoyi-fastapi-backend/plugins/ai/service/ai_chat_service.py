@@ -10,6 +10,7 @@ from agno.db.base import SessionType
 from agno.media import Image
 from agno.run.agent import RunEvent, RunOutput, RunOutputEvent
 from agno.run.cancel import acancel_run
+from agno.session import Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel
@@ -17,7 +18,6 @@ from config.env import UploadConfig
 from exceptions.exception import ServiceException
 from plugins.ai.dao.ai_chat_dao import AiChatConfigDao
 from plugins.ai.dao.ai_model_dao import AiModelDao
-from plugins.ai.entity.do.ai_chat_do import AiChatConfig
 from plugins.ai.entity.vo.ai_chat_vo import (
     AgentDataModel,
     AiChatConfigModel,
@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     from agno.models.message import Message
     from agno.run.team import TeamRunOutput
     from agno.run.workflow import WorkflowRunOutput
-    from agno.session import Session
 
 
 class AiChatService:
@@ -145,21 +144,40 @@ class AiChatService:
         :return: 运行参数字典
         """
         run_kwargs: dict[str, Any] = {'stream': True, 'stream_events': True}
-        if not chat_req.images or not user_config.vision_enabled:
+        if not chat_req.images or user_config.vision_enabled != '0':
             return run_kwargs
 
         processed_images: list[Image] = []
         for img in chat_req.images:
-            if img and img.startswith(UploadConfig.UPLOAD_PREFIX):
-                relative_path = img[len(UploadConfig.UPLOAD_PREFIX) :]
-                if relative_path.startswith('/'):
-                    relative_path = relative_path[1:]
-                file_path = os.path.join(UploadConfig.UPLOAD_PATH, relative_path)
-                abs_path = os.path.abspath(file_path)
-                if os.path.exists(abs_path):
-                    processed_images.append(Image(filepath=abs_path))
+            abs_path = cls._resolve_upload_image_path(img)
+            if abs_path:
+                processed_images.append(Image(filepath=abs_path))
         run_kwargs['images'] = processed_images
         return run_kwargs
+
+    @classmethod
+    def _resolve_upload_image_path(cls, image_path: str | None) -> str | None:
+        """
+        解析并校验上传目录内的图片路径。
+
+        :param image_path: 前端图片路径
+        :return: 绝对图片路径
+        """
+        if not image_path or not image_path.startswith(UploadConfig.UPLOAD_PREFIX):
+            return None
+
+        relative_path = image_path[len(UploadConfig.UPLOAD_PREFIX) :].lstrip('/\\')
+        abs_upload_path = os.path.abspath(UploadConfig.UPLOAD_PATH)
+        abs_path = os.path.abspath(os.path.join(abs_upload_path, relative_path))
+        try:
+            if os.path.commonpath([abs_upload_path, abs_path]) != abs_upload_path:
+                return None
+        except ValueError:
+            return None
+        if not os.path.isfile(abs_path):
+            return None
+
+        return abs_path
 
     @classmethod
     def _convert_images_to_upload_paths(cls, images: list[Image] | None) -> list[str] | None:
@@ -181,7 +199,7 @@ class AiChatService:
                     abs_filepath = os.path.abspath(img.filepath)
                     abs_upload_path = os.path.abspath(UploadConfig.UPLOAD_PATH)
 
-                    if abs_filepath.startswith(abs_upload_path):
+                    if os.path.commonpath([abs_upload_path, abs_filepath]) == abs_upload_path:
                         relative_path = os.path.relpath(abs_filepath, abs_upload_path)
                         # 转换路径分隔符为URL格式
                         url_path = relative_path.replace(os.sep, '/')
@@ -311,7 +329,9 @@ class AiChatService:
         :return: 配置模型
         """
         chat_config = await AiChatConfigDao.get_chat_config_detail_by_user_id(query_db, user_id)
-        result = AiChatConfigModel(**CamelCaseUtil.transform_result(chat_config)) if chat_config else AiChatConfig()
+        result = (
+            AiChatConfigModel(**CamelCaseUtil.transform_result(chat_config)) if chat_config else AiChatConfigModel()
+        )
 
         return result
 
@@ -385,32 +405,50 @@ class AiChatService:
         return result
 
     @classmethod
-    async def delete_chat_session_services(cls, session_id: str) -> CrudResponseModel:
+    async def _get_owned_session(cls, storage: Any, session_id: str, user_id: int) -> Session:
+        """
+        获取并校验当前用户拥有的会话。
+
+        :param storage: Agno 存储引擎
+        :param session_id: 会话ID
+        :param user_id: 用户ID
+        :return: 会话对象
+        """
+        session: Session | None = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT)
+        if not session:
+            raise ServiceException(message='会话不存在')
+        if str(session.user_id) != str(user_id):
+            raise ServiceException(message='无权访问该会话')
+
+        return session
+
+    @classmethod
+    async def delete_chat_session_services(cls, session_id: str, user_id: int) -> CrudResponseModel:
         """
         删除会话
 
         :param session_id: 会话ID
+        :param user_id: 用户ID
         :return: 删除结果
         """
         storage = AiUtil.get_storage_engine()
+        await cls._get_owned_session(storage, session_id, user_id)
         delete_result = await storage.delete_session(session_id=session_id)
         if not delete_result:
             raise ServiceException(message='删除会话失败')
         return CrudResponseModel(is_success=True, message='删除成功')
 
     @classmethod
-    async def get_chat_session_detail_services(cls, session_id: str) -> AiChatSessionModel:
+    async def get_chat_session_detail_services(cls, session_id: str, user_id: int) -> AiChatSessionModel:
         """
         获取会话消息详情
 
         :param session_id: 会话ID
+        :param user_id: 用户ID
         :return: 会话消息详情
         """
         storage = AiUtil.get_storage_engine()
-        session: Session | None = await storage.get_session(session_id=session_id, session_type=SessionType.AGENT)
-
-        if not session:
-            raise ServiceException(message='会话不存在')
+        session = await cls._get_owned_session(storage, session_id, user_id)
 
         session_data: dict[str, Any] = session.session_data
         agent_data: dict[str, Any] = session.agent_data

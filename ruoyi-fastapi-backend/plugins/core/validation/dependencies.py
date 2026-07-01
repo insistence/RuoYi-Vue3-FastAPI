@@ -31,6 +31,7 @@ class DependencyCheckItem:
     required_version: str | None
     message: str
     status: DependencyStatus = 'checked'
+    declared_version: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -412,6 +413,7 @@ class NpmDependencyInspector:
             installed_version=installed_version,
             required_version=parsed_dependency.required_version,
             message=self._build_message(parsed_dependency, installed, version_satisfied, installed_version),
+            declared_version=installed_version,
         )
 
     def _load_installed_packages(self) -> dict[str, str]:

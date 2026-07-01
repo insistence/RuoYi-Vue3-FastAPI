@@ -264,6 +264,7 @@ def test_plugin_dependency_checker_reads_npm_dependencies_from_plugin_manifest(t
     assert result.ok is True
     assert [item.name for item in result.items] == ['vue', 'markstream-vue']
     assert [item.kind for item in result.items] == ['npm', 'npmDev']
+    assert [item.declared_version for item in result.items] == ['3.5.26', '0.1.0']
 
 
 def test_plugin_dependency_checker_skips_npm_dependencies_in_built_frontend_mode() -> None:

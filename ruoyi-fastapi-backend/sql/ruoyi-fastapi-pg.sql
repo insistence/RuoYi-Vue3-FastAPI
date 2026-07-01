@@ -1043,7 +1043,8 @@ create table sys_plugin_menu (
   menu_id            bigint         not null,
   menu_key           varchar(255)   not null,
   create_time        timestamp(0),
-  primary key (plugin_id, menu_id)
+  primary key (plugin_id, menu_id),
+  constraint uk_sys_plugin_menu_key unique (plugin_id, menu_key)
 );
 comment on table sys_plugin_menu is '插件和菜单关联表';
 comment on column sys_plugin_menu.plugin_id is '插件ID';
@@ -1061,6 +1062,8 @@ create table sys_plugin_migration (
   migration_checksum  varchar(64)   not null,
   version             varchar(32)   default null,
   statement_count     int4          not null default 0,
+  status              varchar(32)   not null default 'success',
+  error_message       text,
   create_time         timestamp(0),
   primary key (plugin_id, migration_path)
 );
@@ -1070,6 +1073,8 @@ comment on column sys_plugin_migration.migration_path is 'migration 相对路径
 comment on column sys_plugin_migration.migration_checksum is 'migration 内容校验值';
 comment on column sys_plugin_migration.version is '执行时插件版本';
 comment on column sys_plugin_migration.statement_count is 'SQL 语句数量';
+comment on column sys_plugin_migration.status is '执行状态';
+comment on column sys_plugin_migration.error_message is '失败错误信息';
 comment on column sys_plugin_migration.create_time is '执行时间';
 
 -- ----------------------------

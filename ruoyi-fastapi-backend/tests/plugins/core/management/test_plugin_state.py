@@ -37,6 +37,7 @@ from plugins.core.management.entity.vo.schemas import (  # noqa: E402
     PluginOperationLogRetentionModel,
     PluginPageQueryModel,
 )
+from plugins.core.management.service.config import PluginConfigManager  # noqa: E402
 from plugins.core.management.service.logs import PluginOperationLogBuilder  # noqa: E402
 from plugins.core.management.service.service import PluginService  # noqa: E402
 from plugins.core.manifest.schema import PluginManifest  # noqa: E402
@@ -318,6 +319,7 @@ def build_discovered_plugin_with_job(tmp_path: Path) -> DiscoveredPlugin:
                         'name': '清理任务',
                         'callable': 'plugins.demo.jobs.cleanup',
                         'cronExpression': '0 0/5 * * * ?',
+                        'args': ['tenant,a', 'dry-run'],
                         'kwargs': {'days': 7},
                     }
                 ],
@@ -338,6 +340,8 @@ def test_plugin_tables_are_registered_with_expected_names() -> None:
     assert 'last_error' in SysPlugin.__table__.columns
     assert 'continue_on_error' in SysPluginOperationLog.__table__.columns
     assert set(SysPluginMenu.__table__.primary_key.columns.keys()) == {'plugin_id', 'menu_id'}
+    unique_constraints = {constraint.name: constraint for constraint in SysPluginMenu.__table__.constraints}
+    assert set(unique_constraints['uk_sys_plugin_menu_key'].columns.keys()) == {'plugin_id', 'menu_key'}
     assert set(SysPluginMigration.__table__.primary_key.columns.keys()) == {'plugin_id', 'migration_path'}
     assert set(SysPluginConfig.__table__.primary_key.columns.keys()) == {'plugin_id', 'config_key'}
 
@@ -355,6 +359,7 @@ def test_plugin_job_model_builder_maps_manifest_to_job_model(tmp_path: Path) -> 
     assert job_model.job_name == 'demo:cleanup'
     assert job_model.job_group == 'default'
     assert job_model.invoke_target == 'plugins.demo.jobs.cleanup'
+    assert job_model.job_args == '["tenant,a", "dry-run"]'
     assert job_model.job_kwargs == '{"days": 7}'
     assert job_model.cron_expression == '0 0/5 * * * ?'
     assert job_model.status == '0'
@@ -933,6 +938,50 @@ async def test_disable_plugin_pauses_plugin_jobs(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_enable_plugin_restores_plugin_jobs(tmp_path: Path) -> None:
+    """
+    校验启用插件时会恢复声明的插件任务。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPlugin.__table__, SysPluginMenu.__table__])
+        await create_sqlite_sys_job_table(connection)
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin_with_job(tmp_path)
+            await PluginService.upsert_discovered_plugin_services(
+                session,
+                discovered_plugin,
+                tmp_path / 'plugins',
+                tmp_path / 'frontend_plugins',
+            )
+            await PluginService.mark_plugin_installed_services(session, discovered_plugin)
+            await PluginJobInstaller(session).install_plugin_jobs(discovered_plugin)
+            await PluginService.update_plugin_enabled_services(session, 'demo', enabled=False)
+
+            result = await PluginService.update_plugin_enabled_services(
+                session,
+                'demo',
+                enabled=True,
+                discovered_plugin=discovered_plugin,
+            )
+            await session.commit()
+
+            job_list = await JobDao.get_all_job_list_for_scheduler(session)
+
+        assert result.is_success is True
+        assert len(job_list) == 1
+        assert job_list[0].status == '0'
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_get_plugin_page_list_filters_by_status(tmp_path: Path) -> None:
     """
     校验插件分页列表支持按状态筛选。
@@ -1125,6 +1174,60 @@ async def test_plugin_migration_history_can_be_persisted_and_read(tmp_path: Path
 
 
 @pytest.mark.asyncio
+async def test_plugin_migration_history_upserts_failed_record_to_success() -> None:
+    """
+    校验失败 migration 历史可被后续成功执行覆盖。
+
+    :return: None
+    """
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    failed_statement_count = 1
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPluginMigration.__table__])
+
+    try:
+        async with session_maker() as session:
+            await PluginService.add_plugin_migration_services(
+                session,
+                PluginMigrationModel(
+                    pluginId='demo',
+                    migrationPath='migrations/001_demo.sql',
+                    migrationChecksum='checksum',
+                    version='1.0.0',
+                    statementCount=failed_statement_count,
+                    status='failed',
+                    errorMessage='boom',
+                ),
+            )
+            await PluginService.add_plugin_migration_services(
+                session,
+                PluginMigrationModel(
+                    pluginId='demo',
+                    migrationPath='migrations/001_demo.sql',
+                    migrationChecksum='checksum',
+                    version='1.0.0',
+                    statementCount=EXPECTED_MIGRATION_STATEMENT_COUNT,
+                    status='success',
+                ),
+            )
+            await session.commit()
+
+            plugin_migration = await PluginService.get_plugin_migration_services(
+                session,
+                'demo',
+                'migrations/001_demo.sql',
+            )
+
+        assert plugin_migration is not None
+        assert plugin_migration.status == 'success'
+        assert plugin_migration.error_message is None
+        assert plugin_migration.statement_count == EXPECTED_MIGRATION_STATEMENT_COUNT
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_check_installed_menu_conflict_reports_core_permission(tmp_path: Path) -> None:
     """
     校验插件权限与核心菜单权限重复时会报告冲突。
@@ -1197,6 +1300,116 @@ async def test_plugin_default_config_can_be_installed_and_masked(tmp_path: Path)
         assert config_map['api_key'].pattern == r'^secret-.+'
         assert config_map['temperature'].min == 0
         assert config_map['temperature'].max == 1
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_secret_plugin_config_is_encrypted_at_rest(tmp_path: Path) -> None:
+    """
+    校验敏感插件配置加密落库且读取时可按需解密或脱敏。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPluginConfig.__table__])
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin_with_config(tmp_path)
+            await PluginService.install_plugin_default_config_services(session, discovered_plugin)
+            await PluginService.update_plugin_config_services(
+                session,
+                discovered_plugin,
+                PluginConfigUpdateModel(values={'api_key': 'secret-updated'}),
+            )
+            db_config = await PluginDao.get_plugin_config_by_key(session, 'demo', 'api_key')
+            masked_configs = await PluginService.get_plugin_config_services(session, discovered_plugin)
+            revealed_configs = await PluginService.get_plugin_config_services(
+                session,
+                discovered_plugin,
+                reveal_secret=True,
+            )
+
+        masked_api_key = next(config for config in masked_configs if config.key == 'api_key')
+        revealed_api_key = next(config for config in revealed_configs if config.key == 'api_key')
+        assert db_config is not None
+        assert db_config.config_value.startswith(PluginConfigManager.ENCRYPTED_PREFIX)
+        assert 'secret-updated' not in db_config.config_value
+        assert masked_api_key.value == PluginConfigManager.MASK_VALUE
+        assert revealed_api_key.value == 'secret-updated'
+    finally:
+        await engine.dispose()
+
+
+def test_secret_plugin_config_rejects_plaintext_storage() -> None:
+    """
+    校验敏感插件配置读取时拒绝未加密存储值。
+
+    :return: None
+    """
+    config = SimpleNamespace(
+        config_key='api_key',
+        config_label='API Key',
+        config_type='string',
+        config_value='plain-secret',
+        default_value=None,
+        required='0',
+        secret='0',
+    )
+
+    with pytest.raises(ValueError, match='敏感插件配置不是加密存储格式'):
+        PluginConfigManager.build_config_value(config, reveal_secret=True)
+
+
+def test_secret_plugin_config_encrypts_user_value_with_encrypted_prefix() -> None:
+    """
+    校验用户输入类似密文前缀的敏感值也会重新加密存储。
+
+    :return: None
+    """
+    user_value = f'{PluginConfigManager.ENCRYPTED_PREFIX}not-a-token'
+
+    stored_value = PluginConfigManager.serialize_config_value(user_value, secret=True)
+    revealed_value = PluginConfigManager.deserialize_config_value(stored_value, secret=True)
+
+    assert stored_value is not None
+    assert stored_value.startswith(PluginConfigManager.ENCRYPTED_PREFIX)
+    assert stored_value != user_value
+    assert revealed_value == user_value
+
+
+@pytest.mark.asyncio
+async def test_get_plugin_config_services_reuses_bulk_config_lookup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    校验读取插件配置时不会逐项查询默认配置。
+
+    :param tmp_path: pytest 临时目录
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPluginConfig.__table__])
+
+    async def fail_get_config_by_key(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError('get_plugin_config_by_key should not be used for default config diff')
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin_with_config(tmp_path)
+            monkeypatch.setattr(PluginDao, 'get_plugin_config_by_key', fail_get_config_by_key)
+
+            configs = await PluginService.get_plugin_config_services(session, discovered_plugin)
+
+        assert {config.key for config in configs} == {'provider', 'api_key', 'temperature'}
     finally:
         await engine.dispose()
 
@@ -1531,6 +1744,52 @@ def test_build_plugin_operation_log_model_supports_single_plugin_payload() -> No
     assert operation_log.operation == 'purge'
     assert operation_log.plugin_ids == '["demo"]'
     assert operation_log.status == 'success'
+
+
+@pytest.mark.asyncio
+async def test_plugin_operation_log_plugin_id_filter_matches_json_array_element() -> None:
+    """
+    校验操作日志按插件 ID 查询时不会命中 JSON 数组里的相似插件 ID。
+
+    :return: None
+    """
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPluginOperationLog.__table__])
+
+    try:
+        async with session_maker() as session:
+            session.add_all(
+                [
+                    SysPluginOperationLog(
+                        operation='install',
+                        plugin_ids='["foo"]',
+                        dry_run='1',
+                        continue_on_error='1',
+                        status='success',
+                    ),
+                    SysPluginOperationLog(
+                        operation='install',
+                        plugin_ids='["foobar"]',
+                        dry_run='1',
+                        continue_on_error='1',
+                        status='success',
+                    ),
+                ]
+            )
+            await session.commit()
+
+            page_result = await PluginService.get_plugin_operation_log_page_list_services(
+                session,
+                PluginOperationLogPageQueryModel(pageNum=1, pageSize=10, pluginId='foo'),
+                is_page=True,
+            )
+
+        assert page_result.total == 1
+        assert page_result.rows[0].plugin_ids == ['foo']
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.asyncio

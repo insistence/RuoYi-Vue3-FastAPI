@@ -97,12 +97,10 @@ class PluginHookRunner:
             query_db=query_db,
             startup_write_enabled=startup_write_enabled,
         )
-        result = self._invoke_hook(hook_callable, context)
-        if inspect.isawaitable(result):
-            try:
-                await asyncio.wait_for(result, timeout=self.timeout_seconds)
-            except asyncio.TimeoutError as exc:
-                raise TimeoutError(f'生命周期钩子执行超时：{hook_name}，超过 {self.timeout_seconds} 秒') from exc
+        try:
+            await self._invoke_hook_with_timeout(hook_callable, context)
+        except asyncio.TimeoutError as exc:
+            raise TimeoutError(f'生命周期钩子执行超时：{hook_name}，超过 {self.timeout_seconds} 秒') from exc
 
         return PluginHookResult(hook_name=hook_name, hook_path=hook_path, module_name=hook_callable.module_name)
 
@@ -114,6 +112,29 @@ class PluginHookRunner:
         :return: 已加载的生命周期钩子函数
         """
         return PluginCallableLoader(self.discovered_plugin, label='生命周期钩子').load(hook_path)
+
+    async def _invoke_hook_with_timeout(
+        self,
+        hook_callable: LoadedPluginCallable,
+        context: PluginHookContext,
+    ) -> None:
+        """
+        在超时约束内执行生命周期钩子。
+
+        :param hook_callable: 已加载的钩子函数
+        :param context: 钩子上下文
+        :return: None
+        """
+        callable_object = hook_callable.callable_object
+        if inspect.iscoroutinefunction(callable_object):
+            result = self._invoke_hook(hook_callable, context)
+        else:
+            result = await asyncio.wait_for(
+                asyncio.to_thread(self._invoke_hook, hook_callable, context),
+                timeout=self.timeout_seconds,
+            )
+        if inspect.isawaitable(result):
+            await asyncio.wait_for(result, timeout=self.timeout_seconds)
 
     @staticmethod
     def _invoke_hook(hook_callable: LoadedPluginCallable, context: PluginHookContext) -> object:

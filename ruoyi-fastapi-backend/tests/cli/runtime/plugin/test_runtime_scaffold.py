@@ -88,6 +88,24 @@ def test_plugin_runtime_create_plugin_dry_run_does_not_write_files(tmp_path: Pat
     assert not (project_root / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').exists()
 
 
+def test_plugin_runtime_create_plugin_rejects_unsafe_plugin_id(tmp_path: Path) -> None:
+    """
+    校验插件模板创建会拒绝不安全的插件ID。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    project_root = tmp_path / 'project'
+    backend_root = project_root / 'ruoyi-fastapi-backend'
+    backend_root.mkdir(parents=True)
+
+    payload = build_runtime(backend_root).create_plugin('../../evil', dry_run=True)
+
+    assert payload['ok'] is False
+    assert '插件ID必须' in str(payload['error'])
+    assert not (project_root / 'evil').exists()
+
+
 def test_plugin_runtime_create_plugin_uses_runtime_frontend_dir(tmp_path: Path) -> None:
     """
     校验插件模板创建使用运行时环境提供的前端目录。

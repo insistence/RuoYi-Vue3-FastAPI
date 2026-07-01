@@ -248,7 +248,7 @@ class FakePluginService:
     mark_installed_called = False
     mark_uninstalled_called_with: str | None = None
     purge_called = False
-    update_enabled_called_with: tuple[str, bool] | None = None
+    update_enabled_called_with: tuple[str, bool, object | None] | None = None
     detail_plugin: SimpleNamespace | None = None
     upsert_plugin: SimpleNamespace | None = None
     installed_menu_conflicts: list[SimpleNamespace] = []
@@ -594,6 +594,7 @@ class FakePluginService:
         query_db: object,
         plugin_id: str,
         enabled: bool,
+        discovered_plugin: object | None = None,
     ) -> SimpleNamespace:
         """
         记录插件启停调用。
@@ -601,9 +602,10 @@ class FakePluginService:
         :param query_db: orm对象
         :param plugin_id: 插件ID
         :param enabled: 是否启用
+        :param discovered_plugin: 已发现插件
         :return: 操作响应
         """
-        cls.update_enabled_called_with = (plugin_id, enabled)
+        cls.update_enabled_called_with = (plugin_id, enabled, discovered_plugin)
         return SimpleNamespace(is_success=True, message='启用成功' if enabled else '停用成功')
 
     @classmethod
@@ -723,6 +725,8 @@ class FakePluginRuntimeGateway:
         checksum: str,
         version: str,
         statement_count: int,
+        status: str = 'success',
+        error_message: str | None = None,
     ) -> SimpleNamespace:
         """
         构建测试用插件 migration 执行历史对象。
@@ -740,6 +744,8 @@ class FakePluginRuntimeGateway:
             migration_checksum=checksum,
             version=version,
             statement_count=statement_count,
+            status=status,
+            error_message=error_message,
         )
 
     def run_command(

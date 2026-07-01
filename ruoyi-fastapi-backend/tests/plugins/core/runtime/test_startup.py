@@ -14,6 +14,27 @@ from plugins.core.runtime.bootstrap import PluginRuntimeBuilder  # noqa: E402
 from plugins.core.runtime.startup import PluginRuntimeStartupManager, PluginStartupMigrationHistoryStore  # noqa: E402
 
 
+def patch_startup_get_db(fake_get_db: object) -> object:
+    """
+    patch 启动管理器方法实际使用的 get_db 全局引用。
+
+    :param fake_get_db: 测试用 get_db 异步生成器
+    :return: patch 上下文管理器
+    """
+    return patch.dict(PluginRuntimeStartupManager.load_registry_from_database.__globals__, {'get_db': fake_get_db})
+
+
+def patch_startup_global(name: str, value: object) -> object:
+    """
+    patch 启动管理器方法实际使用的模块全局引用。
+
+    :param name: 全局名称
+    :param value: 替换值
+    :return: patch 上下文管理器
+    """
+    return patch.dict(PluginRuntimeStartupManager.load_registry_from_database.__globals__, {name: value})
+
+
 def test_startup_manager_parses_default_enabled_builtin_plugin_ids() -> None:
     """
     校验默认启用内置插件配置按逗号分隔解析。
@@ -177,7 +198,7 @@ async def test_sync_enabled_plugin_install_states_marks_missing_database_plugin_
     startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
 
     with (
-        patch('plugins.core.runtime.startup.get_db', fake_get_db),
+        patch_startup_get_db(fake_get_db),
         patch.object(startup_manager, 'load_registry_from_database', new_callable=AsyncMock) as load_registry,
         patch.object(startup_manager, 'run_plugin_install_scripts', new_callable=AsyncMock) as run_install_scripts,
     ):
@@ -251,7 +272,7 @@ async def test_sync_default_enabled_builtin_plugin_install_states_installs_missi
     startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
 
     with (
-        patch('plugins.core.runtime.startup.get_db', fake_get_db),
+        patch_startup_get_db(fake_get_db),
         patch.object(startup_manager, 'run_plugin_install_scripts', new_callable=AsyncMock) as run_install_scripts,
     ):
         await startup_manager.sync_default_enabled_builtin_plugin_install_states()
@@ -296,7 +317,7 @@ async def test_sync_default_enabled_builtin_plugin_install_states_respects_unins
     fake_gateway.mark_plugin_installed = AsyncMock()
     startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
 
-    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+    with patch_startup_get_db(fake_get_db):
         await startup_manager.sync_default_enabled_builtin_plugin_install_states()
 
     fake_gateway.list_plugins.assert_awaited_once_with(fake_session)
@@ -320,10 +341,12 @@ async def test_run_plugin_install_scripts_runs_migrations_and_seeds() -> None:
     migration_runner.run = AsyncMock()
     seed_runner = MagicMock()
     seed_runner.run = AsyncMock()
+    runner_class = MagicMock(return_value=migration_runner)
+    seed_runner_class = MagicMock(return_value=seed_runner)
 
     with (
-        patch('plugins.core.runtime.startup.PluginMigrationRunner', return_value=migration_runner) as runner_class,
-        patch('plugins.core.runtime.startup.PluginSeedRunner', return_value=seed_runner) as seed_runner_class,
+        patch_startup_global('PluginMigrationRunner', runner_class),
+        patch_startup_global('PluginSeedRunner', seed_runner_class),
     ):
         await startup_manager.run_plugin_install_scripts(fake_session, discovered_plugin)
 
@@ -379,7 +402,7 @@ async def test_load_registry_from_database_rebuilds_registry() -> None:
     fake_gateway.list_plugins = AsyncMock(return_value=[])
     app = FastAPI()
 
-    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+    with patch_startup_get_db(fake_get_db):
         await PluginRuntimeStartupManager(fake_builder, fake_gateway).load_registry_from_database(app)
 
     fake_gateway.list_plugins.assert_awaited_once_with(fake_session)
@@ -646,7 +669,8 @@ def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path)
     builder.backend_root = backend_root
     startup_manager = PluginRuntimeStartupManager(builder)
 
-    with patch('plugins.core.runtime.startup.auto_register_controller_files') as auto_register_controller_files:
+    auto_register_controller_files = MagicMock()
+    with patch_startup_global('auto_register_controller_files', auto_register_controller_files):
         startup_manager.register_enabled_plugin_routers(app)
         startup_manager.register_enabled_plugin_routers(app)
 
@@ -698,7 +722,7 @@ async def test_install_enabled_plugin_menus_commits_after_service_call() -> None
     fake_gateway = MagicMock()
     fake_gateway.install_enabled_plugin_menus = AsyncMock()
 
-    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+    with patch_startup_get_db(fake_get_db):
         await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_menus(app)
 
     fake_gateway.install_enabled_plugin_menus.assert_awaited_once_with(fake_session, app.state.plugin_registry)
@@ -727,7 +751,7 @@ async def test_install_enabled_plugin_configs_commits_after_service_call() -> No
     fake_gateway = MagicMock()
     fake_gateway.install_enabled_plugin_configs = AsyncMock()
 
-    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+    with patch_startup_get_db(fake_get_db):
         await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_configs(app)
 
     fake_gateway.install_enabled_plugin_configs.assert_awaited_once_with(fake_session, app.state.plugin_registry)
@@ -756,7 +780,7 @@ async def test_install_enabled_plugin_jobs_commits_after_service_call() -> None:
     fake_gateway = MagicMock()
     fake_gateway.install_enabled_plugin_jobs = AsyncMock()
 
-    with patch('plugins.core.runtime.startup.get_db', fake_get_db):
+    with patch_startup_get_db(fake_get_db):
         await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_jobs(app)
 
     fake_gateway.install_enabled_plugin_jobs.assert_awaited_once_with(fake_session, app.state.plugin_registry)
@@ -827,7 +851,7 @@ async def test_mark_plugin_runtime_error_updates_database_and_rebuilds_registry(
     startup_manager = PluginRuntimeStartupManager(MagicMock(), fake_gateway)
 
     with (
-        patch('plugins.core.runtime.startup.get_db', fake_get_db),
+        patch_startup_get_db(fake_get_db),
         patch.object(startup_manager, 'load_registry_from_database', new_callable=AsyncMock) as load_registry,
     ):
         await startup_manager.mark_plugin_runtime_error(app, 'demo', 'broken')
@@ -868,7 +892,7 @@ async def test_mark_plugin_runtime_error_upserts_discovered_plugin_when_missing(
     startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
 
     with (
-        patch('plugins.core.runtime.startup.get_db', fake_get_db),
+        patch_startup_get_db(fake_get_db),
         patch.object(startup_manager, 'load_registry_from_database', new_callable=AsyncMock) as load_registry,
     ):
         failed_result = MagicMock(is_success=False, message='插件不存在')
@@ -956,9 +980,9 @@ async def test_run_enabled_plugin_hooks_runs_startup_hooks() -> None:
     app = FastAPI()
     app.state.plugin_registry = fake_registry
 
-    with patch('plugins.core.runtime.startup.PluginHookRunner') as hook_runner:
-        hook_runner.return_value.run = AsyncMock()
-
+    hook_runner = MagicMock()
+    hook_runner.return_value.run = AsyncMock()
+    with patch_startup_global('PluginHookRunner', hook_runner):
         await PluginRuntimeStartupManager(MagicMock()).run_enabled_plugin_hooks(app, 'on_startup')
 
     hook_runner.assert_called_once_with(discovered_plugin)
@@ -987,10 +1011,9 @@ async def test_run_enabled_plugin_hooks_marks_error_and_continues() -> None:
     healthy_runner = MagicMock()
     healthy_runner.run = AsyncMock()
 
+    hook_runner = MagicMock(side_effect=[broken_runner, healthy_runner])
     with (
-        patch(
-            'plugins.core.runtime.startup.PluginHookRunner', side_effect=[broken_runner, healthy_runner]
-        ) as hook_runner,
+        patch_startup_global('PluginHookRunner', hook_runner),
         patch.object(startup_manager, 'mark_plugin_runtime_error', new_callable=AsyncMock) as mark_plugin_runtime_error,
     ):
         await startup_manager.run_enabled_plugin_hooks(app, 'on_startup')

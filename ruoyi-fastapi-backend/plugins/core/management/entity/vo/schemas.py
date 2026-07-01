@@ -81,7 +81,7 @@ class PluginBatchActionModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
-    operation: str = Field(description='批量操作类型：install、enable 或 upgrade')
+    operation: Literal['install', 'enable', 'upgrade'] = Field(description='批量操作类型：install、enable 或 upgrade')
     plugin_ids: list[str] | None = Field(default=None, description='插件ID列表')
     dry_run: bool = Field(default=True, description='是否仅预演操作')
     continue_on_error: bool = Field(default=False, description='失败后是否继续执行后续插件')
@@ -224,6 +224,8 @@ class PluginMigrationModel(BaseModel):
     migration_checksum: str = Field(description='migration 内容校验值')
     version: str | None = Field(default=None, description='执行时插件版本')
     statement_count: int = Field(default=0, description='SQL 语句数量')
+    status: str = Field(default='success', description='执行状态')
+    error_message: str | None = Field(default=None, description='失败错误信息')
     create_time: datetime | None = Field(default=None, description='执行时间')
 
 

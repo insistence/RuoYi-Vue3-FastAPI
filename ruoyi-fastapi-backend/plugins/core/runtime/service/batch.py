@@ -155,6 +155,14 @@ class PluginBatchUseCase:
         """
         return self.context.load_database_plugin_states_sync_with_error()
 
+    async def _load_database_plugin_states_with_error(self) -> tuple[list[PluginStateRecord], str | None]:
+        """
+        以异步方式读取数据库插件状态列表，并保留失败原因。
+
+        :return: 数据库插件状态列表和错误信息
+        """
+        return await self.context.load_database_plugin_states_with_error()
+
     def _resolve_plugin_capability(self, discovered_plugin: DiscoveredPlugin) -> PluginRuntimeCapability:
         """
         解析插件运行时操作能力。
@@ -177,6 +185,46 @@ class PluginBatchUseCase:
         :return: 插件批量操作拓扑计划负载
         """
         try:
+            database_plugins, database_error = self._load_database_plugin_states_sync_with_error()
+            return self._build_plan_plugins_payload(operation, plugin_ids, database_plugins, database_error)
+        except Exception as exc:
+            return PluginRuntimePayloadBuilder.build_exception_payload('生成插件批量操作计划失败', exc)
+
+    async def plan_plugins_async(
+        self,
+        operation: PluginBatchOperation,
+        plugin_ids: list[str] | None = None,
+    ) -> PluginPlanResponse:
+        """
+        异步生成插件批量操作拓扑计划。
+
+        :param operation: 批量操作类型
+        :param plugin_ids: 插件ID列表
+        :return: 插件批量操作拓扑计划负载
+        """
+        try:
+            database_plugins, database_error = await self._load_database_plugin_states_with_error()
+            return self._build_plan_plugins_payload(operation, plugin_ids, database_plugins, database_error)
+        except Exception as exc:
+            return PluginRuntimePayloadBuilder.build_exception_payload('生成插件批量操作计划失败', exc)
+
+    def _build_plan_plugins_payload(
+        self,
+        operation: PluginBatchOperation,
+        plugin_ids: list[str] | None,
+        database_plugins: list[PluginStateRecord],
+        database_error: str | None,
+    ) -> PluginPlanResponse:
+        """
+        构建插件批量操作拓扑计划负载。
+
+        :param operation: 批量操作类型
+        :param plugin_ids: 插件ID列表
+        :param database_plugins: 数据库插件状态列表
+        :param database_error: 数据库读取错误
+        :return: 插件批量操作拓扑计划负载
+        """
+        try:
             if operation not in {'install', 'enable', 'upgrade'}:
                 return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
                     None,
@@ -186,7 +234,6 @@ class PluginBatchUseCase:
 
             backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
             discovered_plugins = self._discover_plugins(backend_root)
-            database_plugins, database_error = self._load_database_plugin_states_sync_with_error()
             plan = PluginDependencyPlanBuilder(discovered_plugins, database_plugins).build_plan(
                 operation,
                 plugin_ids,
@@ -237,7 +284,7 @@ class PluginBatchUseCase:
         :return: 插件批量执行结果负载
         """
         try:
-            plan_payload = cast('dict[str, object]', self.plan_plugins(operation, plugin_ids))
+            plan_payload = cast('dict[str, object]', await self.plan_plugins_async(operation, plugin_ids))
             if not plan_payload.get('ok', False):
                 plan_payload = PluginBatchReportBuilder.build_plan_blocked_payload(
                     plan_payload,

@@ -1,9 +1,11 @@
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import typer
 
 from cli.context import AllowProdOption, EnvOption, OutputOption, YesOption
+
+PluginConfigAction = Literal['get', 'set', 'export', 'import']
 
 
 def register_configuration_commands(app: typer.Typer, get_controller: Callable[[], Any]) -> None:
@@ -18,7 +20,7 @@ def register_configuration_commands(app: typer.Typer, get_controller: Callable[[
     @app.command('config', help='查看或设置插件配置')
     def config_command(
         plugin_id: Annotated[str, typer.Argument(help='插件ID')],
-        action: Annotated[str, typer.Argument(help='操作类型：get、set、export 或 import')],
+        action: Annotated[PluginConfigAction, typer.Argument(help='操作类型：get、set、export 或 import')],
         pairs: Annotated[list[str] | None, typer.Argument(help='配置键值，例如 provider=openai')] = None,
         env: EnvOption = 'dev',
         output: OutputOption = 'text',

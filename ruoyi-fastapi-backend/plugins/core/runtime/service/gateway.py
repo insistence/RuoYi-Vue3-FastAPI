@@ -85,7 +85,11 @@ class PluginManagementServiceProtocol(Protocol):
 
     @classmethod
     async def update_plugin_enabled_services(
-        cls, query_db: AsyncSession, plugin_id: str, enabled: bool
+        cls,
+        query_db: AsyncSession,
+        plugin_id: str,
+        enabled: bool,
+        discovered_plugin: DiscoveredPlugin | None = None,
     ) -> CrudResponseModel:
         """
         更新插件启停状态。
@@ -93,6 +97,7 @@ class PluginManagementServiceProtocol(Protocol):
         :param query_db: orm对象
         :param plugin_id: 插件ID
         :param enabled: 是否启用
+        :param discovered_plugin: 已发现插件对象
         :return: 操作响应
         """
 
@@ -367,6 +372,8 @@ class PluginManagementModelGateway(Protocol):
         checksum: str,
         version: str,
         statement_count: int,
+        status: str = 'success',
+        error_message: str | None = None,
     ) -> PluginMigrationModel:
         """
         构建插件 migration 执行历史对象。
@@ -463,6 +470,8 @@ class UnavailablePluginManagementModelGateway:
         checksum: str,
         version: str,
         statement_count: int,
+        status: str = 'success',
+        error_message: str | None = None,
     ) -> PluginMigrationModel:
         """
         构建插件 migration 执行历史对象。

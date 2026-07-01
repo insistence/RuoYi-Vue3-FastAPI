@@ -24,21 +24,105 @@ class PluginLifecycleScriptHelper:
         :param sql_content: SQL 文件内容
         :return: SQL 语句列表
         """
-        statement_chunks = []
-        current_lines = []
         for line in sql_content.splitlines():
-            if not line.strip() or SQL_LINE_COMMENT_PATTERN.match(line):
-                continue
             if SQL_DELIMITER_PATTERN.match(line):
                 raise RuntimeError('插件 SQL 脚本暂不支持 DELIMITER，请改用 Python migration 或拆分为简单 SQL 文件')
-            current_lines.append(line)
-            if line.rstrip().endswith(';'):
-                statement_chunks.append('\n'.join(current_lines))
-                current_lines = []
-        if current_lines:
-            statement_chunks.append('\n'.join(current_lines))
+
+        statement_chunks = []
+        current_chars = []
+        quote_char = None
+        line_has_content = False
+        index = 0
+        while index < len(sql_content):
+            char = sql_content[index]
+            next_char = sql_content[index + 1] if index + 1 < len(sql_content) else ''
+
+            if quote_char is None and char == '-' and next_char == '-' and not line_has_content:
+                index = PluginLifecycleScriptHelper._skip_sql_line_comment(sql_content, index + 2)
+                line_has_content = False
+                continue
+
+            index, quote_char, statement_complete = PluginLifecycleScriptHelper._consume_sql_character(
+                sql_content,
+                index,
+                current_chars,
+                quote_char,
+            )
+            if statement_complete:
+                statement_chunks.append(''.join(current_chars))
+                current_chars = []
+
+            line_has_content = PluginLifecycleScriptHelper._update_sql_line_content_state(char, line_has_content)
+            index += 1
+
+        if current_chars:
+            statement_chunks.append(''.join(current_chars))
 
         return [statement.strip().removesuffix(';').strip() for statement in statement_chunks if statement.strip()]
+
+    @staticmethod
+    def _consume_sql_character(
+        sql_content: str,
+        index: int,
+        current_chars: list[str],
+        quote_char: str | None,
+    ) -> tuple[int, str | None, bool]:
+        """
+        消费一个 SQL 字符，并返回新的索引、引号状态和语句是否结束。
+
+        :param sql_content: SQL 文件内容
+        :param index: 当前字符索引
+        :param current_chars: 当前语句字符缓存
+        :param quote_char: 当前引号状态
+        :return: 新索引、新引号状态、语句是否结束
+        """
+        char = sql_content[index]
+        next_char = sql_content[index + 1] if index + 1 < len(sql_content) else ''
+        if quote_char is None and char in {"'", '"', '`'}:
+            current_chars.append(char)
+            return index, char, False
+        if quote_char == char:
+            current_chars.append(char)
+            if char == "'" and next_char == "'":
+                current_chars.append(next_char)
+                return index + 1, quote_char, False
+            return index, None, False
+        if quote_char is not None and char == '\\' and next_char:
+            current_chars.extend([char, next_char])
+            return index + 1, quote_char, False
+        if quote_char is None and char == ';':
+            return index, quote_char, True
+
+        current_chars.append(char)
+        return index, quote_char, False
+
+    @staticmethod
+    def _update_sql_line_content_state(char: str, line_has_content: bool) -> bool:
+        """
+        更新当前行是否已有非空白内容。
+
+        :param char: 当前字符
+        :param line_has_content: 当前行是否已有内容
+        :return: 更新后的当前行内容状态
+        """
+        if char == '\n':
+            return False
+        if not char.isspace():
+            return True
+        return line_has_content
+
+    @staticmethod
+    def _skip_sql_line_comment(sql_content: str, index: int) -> int:
+        """
+        跳过 SQL 行注释。
+
+        :param sql_content: SQL 文件内容
+        :param index: 注释起始位置之后的索引
+        :return: 下一段内容的索引
+        """
+        while index < len(sql_content) and sql_content[index] != '\n':
+            index += 1
+        return index + 1 if index < len(sql_content) else index
 
     @staticmethod
     def filter_current_database_paths(

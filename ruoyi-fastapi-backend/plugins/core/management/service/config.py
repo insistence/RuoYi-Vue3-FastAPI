@@ -5,6 +5,7 @@ from typing import cast
 from plugins.core.management.entity.vo.schemas import PluginConfigModel, PluginConfigValueModel
 from plugins.core.manifest.schema import PluginConfigItemManifest
 from plugins.core.types import PluginConfigValue
+from utils.crypto_util import CryptoUtil
 
 
 class PluginConfigManager:
@@ -15,6 +16,7 @@ class PluginConfigManager:
     """
 
     MASK_VALUE = '******'
+    ENCRYPTED_PREFIX = 'enc:v1:'
 
     @classmethod
     def build_config_model(cls, plugin_id: str, item: PluginConfigItemManifest) -> PluginConfigModel:
@@ -25,7 +27,7 @@ class PluginConfigManager:
         :param item: 插件配置项声明
         :return: 插件配置数据库模型
         """
-        serialized_default = cls.serialize_value(item.default)
+        serialized_default = cls.serialize_config_value(item.default, secret=item.secret)
 
         return PluginConfigModel(
             pluginId=plugin_id,
@@ -58,7 +60,8 @@ class PluginConfigManager:
         """
         secret = getattr(config, 'secret', '1') == '0'
         raw_value = getattr(config, 'config_value', None)
-        value = cls.deserialize_value(raw_value, getattr(config, 'config_type', 'string'))
+        config_type = getattr(config, 'config_type', 'string')
+        value = cls.deserialize_config_value(raw_value, config_type, secret=secret)
         if secret and not reveal_secret and value not in (None, ''):
             value = cls.MASK_VALUE
         config_key = config.config_key
@@ -68,9 +71,7 @@ class PluginConfigManager:
             label=getattr(config, 'config_label', None) or getattr(manifest_item, 'label', None),
             type=getattr(config, 'config_type', None) or getattr(manifest_item, 'type', 'string'),
             value=value,
-            default=cls.deserialize_value(
-                getattr(config, 'default_value', None), getattr(config, 'config_type', 'string')
-            ),
+            default=cls.deserialize_config_value(getattr(config, 'default_value', None), config_type, secret=secret),
             required=getattr(config, 'required', '1') == '0',
             secret=secret,
             group=getattr(manifest_item, 'group', 'default'),
@@ -98,6 +99,21 @@ class PluginConfigManager:
         return json.dumps(value, ensure_ascii=False)
 
     @classmethod
+    def serialize_config_value(cls, value: PluginConfigValue, *, secret: bool = False) -> str | None:
+        """
+        序列化插件配置值，敏感值加密落库。
+
+        :param value: 原始配置值
+        :param secret: 是否敏感配置
+        :return: 可落库字符串
+        """
+        serialized_value = cls.serialize_value(value)
+        if not secret or serialized_value in (None, ''):
+            return serialized_value
+
+        return f'{cls.ENCRYPTED_PREFIX}{CryptoUtil.encrypt(serialized_value)}'
+
+    @classmethod
     def deserialize_value(cls, value: str | None, config_type: str = 'string') -> PluginConfigValue:
         """
         反序列化插件配置值。
@@ -121,6 +137,30 @@ class PluginConfigManager:
             except json.JSONDecodeError:
                 return value
         return value
+
+    @classmethod
+    def deserialize_config_value(
+        cls,
+        value: str | None,
+        config_type: str = 'string',
+        *,
+        secret: bool = False,
+    ) -> PluginConfigValue:
+        """
+        反序列化插件配置值，敏感配置必须是平台加密格式。
+
+        :param value: 数据库存储值
+        :param config_type: 配置类型
+        :param secret: 是否敏感配置
+        :return: 反序列化后的配置值
+        """
+        raw_value = value
+        if secret and raw_value not in (None, ''):
+            if not isinstance(raw_value, str) or not raw_value.startswith(cls.ENCRYPTED_PREFIX):
+                raise ValueError('敏感插件配置不是加密存储格式')
+            raw_value = CryptoUtil.decrypt(raw_value.removeprefix(cls.ENCRYPTED_PREFIX))
+
+        return cls.deserialize_value(raw_value, config_type)
 
     @classmethod
     def deserialize_options(cls, value: str | None) -> list[dict[str, PluginConfigValue]]:

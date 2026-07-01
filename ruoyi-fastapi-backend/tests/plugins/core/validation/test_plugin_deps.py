@@ -133,6 +133,29 @@ def test_plugin_dependency_checker_reports_disabled_and_version_unsatisfied(tmp_
     assert [item.status for item in result.failed_items] == ['version_unsatisfied', 'disabled']
 
 
+def test_plugin_dependency_checker_treats_bare_version_as_exact_constraint(tmp_path: Path) -> None:
+    """
+    校验插件依赖裸版本约束按精确版本匹配。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    target = build_discovered_plugin(
+        tmp_path,
+        'target',
+        dependencies=[{'id': 'base', 'version': '1.0.0'}],
+    )
+    base = build_discovered_plugin(tmp_path, 'base', version='2.0.0')
+
+    result = PluginDependencyChecker(
+        [target, base],
+        [build_database_plugin('base', '2.0.0')],
+    ).check_manifest(target.manifest)
+
+    assert result.ok is False
+    assert result.failed_items[0].status == 'version_unsatisfied'
+
+
 def test_plugin_dependency_checker_reports_cycle(tmp_path: Path) -> None:
     """
     校验插件间依赖能报告循环依赖。

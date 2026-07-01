@@ -1,9 +1,12 @@
 from collections.abc import Callable
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 import typer
 
 from cli.context import AllowProdOption, DryRunOption, EnvOption, OutputOption, YesOption
+
+PluginPrecheckOperation = Literal['install', 'enable', 'upgrade', 'uninstall', 'purge']
+PluginPlanOperation = Literal['install', 'enable', 'upgrade']
 
 
 def register_dependency_commands(app: typer.Typer, get_controller: Callable[[], Any]) -> None:
@@ -33,7 +36,10 @@ def register_dependency_commands(app: typer.Typer, get_controller: Callable[[], 
 
     @app.command('precheck', help='执行插件操作预检')
     def precheck_command(
-        operation: Annotated[str, typer.Argument(help='预检操作类型：install、enable、upgrade、uninstall 或 purge')],
+        operation: Annotated[
+            PluginPrecheckOperation,
+            typer.Argument(help='预检操作类型：install、enable、upgrade、uninstall 或 purge'),
+        ],
         plugin_id: Annotated[str, typer.Argument(help='插件ID')],
         env: EnvOption = 'dev',
         output: OutputOption = 'text',
@@ -51,7 +57,7 @@ def register_dependency_commands(app: typer.Typer, get_controller: Callable[[], 
 
     @app.command('plan', help='生成插件批量操作拓扑计划')
     def plan_command(
-        operation: Annotated[str, typer.Argument(help='计划操作类型：install、enable 或 upgrade')],
+        operation: Annotated[PluginPlanOperation, typer.Argument(help='计划操作类型：install、enable 或 upgrade')],
         plugin_ids: Annotated[list[str] | None, typer.Argument(help='插件ID列表，不传则计划全部插件')] = None,
         env: EnvOption = 'dev',
         output: OutputOption = 'text',

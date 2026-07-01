@@ -8,6 +8,7 @@ from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
@@ -28,7 +29,7 @@ ai_chat_controller = APIRouterPro(
     prefix='/ai/chat',
     order_num=19,
     tags=['AI管理-AI对话'],
-    dependencies=[PreAuthDependency()],
+    dependencies=[PreAuthDependency(), UserInterfaceAuthDependency('ai:chat:list')],
 )
 
 
@@ -127,8 +128,12 @@ async def delete_chat_session(
     request: Request,
     session_id: Annotated[str, Path(description='会话ID')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    delete_chat_session_result = await AiChatService.delete_chat_session_services(session_id)
+    delete_chat_session_result = await AiChatService.delete_chat_session_services(
+        session_id,
+        current_user.user.user_id,
+    )
     logger.info(delete_chat_session_result.message)
 
     return ResponseUtil.success(msg=delete_chat_session_result.message)
@@ -143,8 +148,12 @@ async def delete_chat_session(
 async def get_chat_session_detail(
     request: Request,
     session_id: Annotated[str, Path(description='会话ID')],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    chat_session_detail_result = await AiChatService.get_chat_session_detail_services(session_id)
+    chat_session_detail_result = await AiChatService.get_chat_session_detail_services(
+        session_id,
+        current_user.user.user_id,
+    )
     logger.info(f'获取session_id为{session_id}的信息成功')
 
     return ResponseUtil.success(data=chat_session_detail_result)

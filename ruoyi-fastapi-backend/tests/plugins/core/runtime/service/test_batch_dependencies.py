@@ -1,8 +1,17 @@
-# ruff: noqa: F403, F405
+# ruff: noqa: E402, F403, F405, I001
+
+import sys
+from pathlib import Path
 
 import pytest
 
+BACKEND_ROOT = Path(__file__).resolve().parents[5]
+sys.path.insert(0, str(BACKEND_ROOT))
+
 from tests.plugin_runtime_helpers import *
+from plugins.core.runtime.service.audit import PluginAuditUseCase
+import plugins.core.runtime.service.audit as audit_module
+from plugins.core.runtime.service.dependencies import PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS
 
 
 def test_plugin_runtime_check_deps_reports_dependency_items(tmp_path: Path) -> None:
@@ -296,6 +305,40 @@ def test_plugin_runtime_record_plugin_failure_state_delegates_to_audit_use_case(
 
     assert audit.payload is payload
     assert audit.default_message == '默认失败'
+
+
+def test_record_plugin_failure_state_logs_and_swallows_persistence_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    校验失败状态辅助写入异常会记录日志且不影响主流程。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+    logged_messages = []
+
+    class BrokenStateGateway:
+        """
+        测试用异常状态网关。
+        """
+
+        @staticmethod
+        def get_async_session_local() -> None:
+            """
+            模拟获取数据库会话失败。
+
+            :return: None
+            """
+            raise RuntimeError('db unavailable')
+
+    def fake_exception(message: str, *args: object) -> None:
+        logged_messages.append(message % args)
+
+    monkeypatch.setattr(audit_module.logger, 'exception', fake_exception)
+    use_case = PluginAuditUseCase(SimpleNamespace(state_gateway=BrokenStateGateway()))
+
+    asyncio.run(use_case.record_plugin_failure_state({'ok': False, 'pluginId': 'demo'}, '失败'))
+
+    assert logged_messages == ['记录插件失败状态失败：plugin_id=demo']
 
 
 def test_plugin_runtime_batch_plugins_dry_run_returns_plan(tmp_path: Path) -> None:
@@ -825,6 +868,37 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_delegates_to_dep
     assert payload == {'ok': True, 'pluginId': 'demo', 'fromResult': True}
 
 
+def test_plugin_runtime_dependency_install_uses_default_command_timeout(tmp_path: Path) -> None:
+    """
+    校验插件依赖安装命令使用默认超时时间。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+dependencies:
+  python:
+    - missing-python
+""",
+    )
+    gateway = FakePluginRuntimeGateway()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+
+    payload = runtime.install_plugin_dependencies('demo')
+
+    assert payload['ok'] is True
+    assert len(gateway.commands) == 1
+    assert gateway.commands[0][2] == PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS
+
+
 def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_to_dependency_use_case(
     tmp_path: Path,
 ) -> None:
@@ -886,6 +960,46 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_
     assert dependency.dry_run is True
     assert dependency.discovered_plugin is None
     assert payload == {'ok': True, 'pluginId': 'demo', 'fromResultAsync': True}
+
+
+def test_plugin_runtime_dependency_install_async_uses_default_command_timeout(tmp_path: Path) -> None:
+    """
+    校验插件依赖异步安装命令使用默认超时时间。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+dependencies:
+  python:
+    - missing-python
+""",
+    )
+    gateway = FakePluginRuntimeGateway()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+    discovered_plugin = runtime.context.get_discovered_plugin('demo')
+    assert discovered_plugin is not None
+    dependency_result = runtime.dependencies.dependency_checker.check_manifest(discovered_plugin.manifest)
+
+    payload = asyncio.run(
+        runtime.install_plugin_dependencies_from_result_async(
+            'demo',
+            dependency_result,
+            discovered_plugin=discovered_plugin,
+        )
+    )
+
+    assert payload['ok'] is True
+    assert len(gateway.commands) == 1
+    assert gateway.commands[0][2] == PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS
 
 
 def test_plugin_runtime_dependency_use_case_uses_injected_context_service(tmp_path: Path) -> None:

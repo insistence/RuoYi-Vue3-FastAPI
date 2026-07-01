@@ -71,6 +71,8 @@ class PluginManagementRuntimeGateway:
         checksum: str,
         version: str,
         statement_count: int,
+        status: str = 'success',
+        error_message: str | None = None,
     ) -> 'PluginMigrationModel':
         """
         构建插件 migration 执行历史对象。
@@ -89,6 +91,8 @@ class PluginManagementRuntimeGateway:
             migrationChecksum=checksum,
             version=version,
             statementCount=statement_count,
+            status=status,
+            errorMessage=error_message,
         )
 
     @staticmethod

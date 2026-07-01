@@ -70,6 +70,30 @@ class PluginMigrationHistoryStore:
         """
         raise NotImplementedError
 
+    async def record_failure(
+        self,
+        query_db: Any,
+        plugin_id: str,
+        migration_path: str,
+        checksum: str,
+        version: str,
+        statement_count: int,
+        error_message: str,
+    ) -> None:
+        """
+        记录 migration 执行失败历史。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param checksum: 内容校验值
+        :param version: 执行时插件版本
+        :param statement_count: 已解析 SQL 语句数量
+        :param error_message: 失败错误信息
+        :return: None
+        """
+        raise NotImplementedError
+
 
 class PluginMigrationRunner:
     """
@@ -131,10 +155,14 @@ class PluginMigrationRunner:
                 skipped=True,
             )
 
-        if migration_file.suffix == '.sql':
-            result = await self._run_sql_migration(migration_path, migration_file, query_db, checksum)
-        else:
-            result = await self._run_python_migration(migration_path, migration_file, query_db, checksum)
+        try:
+            if migration_file.suffix == '.sql':
+                result = await self._run_sql_migration(migration_path, migration_file, query_db, checksum)
+            else:
+                result = await self._run_python_migration(migration_path, migration_file, query_db, checksum)
+        except Exception as exc:
+            await self._record_failure(query_db, migration_path, checksum, str(exc))
+            raise
 
         await self._record_success(query_db, result)
 
@@ -229,6 +257,42 @@ class PluginMigrationRunner:
             result.checksum,
             self.discovered_plugin.manifest.version,
             result.statement_count,
+        )
+
+    async def _record_failure(
+        self,
+        query_db: Any,
+        migration_path: str,
+        checksum: str,
+        error_message: str,
+    ) -> None:
+        """
+        记录 migration 失败历史。
+
+        :param query_db: orm对象
+        :param migration_path: migration 相对路径
+        :param checksum: migration 内容校验值
+        :param error_message: 失败错误信息
+        :return: None
+        """
+        if not self.history_store:
+            return
+
+        statement_count = 0
+        migration_file = self._resolve_migration_file(migration_path)
+        if migration_file.suffix == '.sql':
+            try:
+                statement_count = len(self._load_sql_statements(migration_file))
+            except Exception:
+                statement_count = 0
+        await self.history_store.record_failure(
+            query_db,
+            self.discovered_plugin.manifest.id,
+            migration_path,
+            checksum,
+            self.discovered_plugin.manifest.version,
+            statement_count,
+            error_message[:1000],
         )
 
     def _load_sql_statements(self, migration_file: Path) -> list[str]:

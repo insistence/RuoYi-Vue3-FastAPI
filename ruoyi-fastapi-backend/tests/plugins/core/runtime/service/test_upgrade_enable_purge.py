@@ -1017,7 +1017,9 @@ dependencies:
 
     assert result['ok'] is True
     assert FakePluginService.install_plugin_menu_called_with == ('demo', True)
-    assert FakePluginService.update_enabled_called_with == ('demo', True)
+    assert FakePluginService.update_enabled_called_with is not None
+    assert FakePluginService.update_enabled_called_with[:2] == ('demo', True)
+    assert FakePluginService.update_enabled_called_with[2].manifest.id == 'demo'
     assert gateway.session_local.sessions[0].committed is True
     assert len(FakePluginService.operation_logs) == 1
     assert FakePluginService.operation_logs[0].payload['operation'] == 'enable'
@@ -1046,7 +1048,12 @@ backend:
     gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
-    async def raise_enable_failure(query_db: object, plugin_id: str, enabled: bool) -> object:
+    async def raise_enable_failure(
+        query_db: object,
+        plugin_id: str,
+        enabled: bool,
+        discovered_plugin: object | None = None,
+    ) -> object:
         raise RuntimeError('enable update failed')
 
     original_update_enabled = FakePluginService.update_plugin_enabled_services
@@ -1222,7 +1229,9 @@ dependencies:
 
     assert result['ok'] is True
     assert FakePluginService.install_plugin_menu_called_with == ('demo', True)
-    assert FakePluginService.update_enabled_called_with == ('demo', True)
+    assert FakePluginService.update_enabled_called_with is not None
+    assert FakePluginService.update_enabled_called_with[:2] == ('demo', True)
+    assert FakePluginService.update_enabled_called_with[2].manifest.id == 'demo'
     assert gateway.session_local.sessions[0].committed is True
 
 
@@ -1363,7 +1372,12 @@ backend:
     gateway = FakePluginRuntimeGateway()
     FakePluginService.reset()
 
-    async def raise_disable_failure(query_db: object, plugin_id: str, enabled: bool) -> object:
+    async def raise_disable_failure(
+        query_db: object,
+        plugin_id: str,
+        enabled: bool,
+        discovered_plugin: object | None = None,
+    ) -> object:
         raise RuntimeError('disable update failed')
 
     original_update_enabled = FakePluginService.update_plugin_enabled_services

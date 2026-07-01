@@ -138,6 +138,37 @@ class SchedulerUtil:
     _session_local: Any | None = None
     _scheduler_configured: bool = False
 
+    @staticmethod
+    def _parse_job_args(job_args: str | None) -> list[Any] | None:
+        """
+        解析任务位置参数。
+
+        :param job_args: 数据库中的任务位置参数
+        :return: 位置参数列表
+        """
+        if not job_args:
+            return None
+
+        try:
+            parsed_args = json.loads(job_args)
+        except json.JSONDecodeError:
+            return job_args.split(',')
+
+        if isinstance(parsed_args, list):
+            return parsed_args
+
+        return [parsed_args]
+
+    @staticmethod
+    def _dump_job_args(args: tuple[Any, ...] | list[Any] | None) -> str:
+        """
+        序列化任务位置参数。
+
+        :param args: 调度器任务位置参数
+        :return: 数据库存储字符串
+        """
+        return json.dumps(list(args), ensure_ascii=False) if args else ''
+
     @classmethod
     def _get_jobstore_engine(cls) -> Engine:
         """
@@ -359,7 +390,7 @@ class SchedulerUtil:
         """
         job_state = scheduler_job.__getstate__()
         job_kwargs = json.loads(job_info.job_kwargs) if job_info.job_kwargs else None
-        job_args = job_info.job_args.split(',') if job_info.job_args else None
+        job_args = cls._parse_job_args(job_info.job_args)
         job_executor = job_info.job_executor
         if iscoroutinefunction(cls._import_function(job_info.invoke_target)):
             job_executor = 'default'
@@ -698,7 +729,7 @@ class SchedulerUtil:
         return {
             'func': job_func,
             'trigger': MyCronTrigger.from_crontab(job_info.cron_expression),
-            'args': job_info.job_args.split(',') if job_info.job_args else None,
+            'args': cls._parse_job_args(job_info.job_args),
             'kwargs': json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
             'id': str(job_info.job_id),
             'name': job_info.job_name,
@@ -826,7 +857,7 @@ class SchedulerUtil:
         # 非应用锁 worker：直接执行函数（不通过 scheduler）
         if not cls._is_leader:
             logger.info(f'📍 当前 Worker 未持有 Application 锁，直接执行任务 {job_info.job_name}')
-            args = job_info.job_args.split(',') if job_info.job_args else []
+            args = cls._parse_job_args(job_info.job_args) or []
             kwargs = json.loads(job_info.job_kwargs) if job_info.job_kwargs else {}
             status = '0'
             exception_info = ''
@@ -852,7 +883,7 @@ class SchedulerUtil:
         scheduler.add_job(
             func=job_func,
             trigger=job_trigger,
-            args=job_info.job_args.split(',') if job_info.job_args else None,
+            args=cls._parse_job_args(job_info.job_args),
             kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
             id=str(job_info.job_id),
             name=job_info.job_name,
@@ -910,7 +941,7 @@ class SchedulerUtil:
                     invoke_target = query_job_info.get('func')
                     # 获取调用函数位置参数（安全处理）
                     args = query_job_info.get('args')
-                    job_args = ','.join(str(arg) for arg in args) if args else ''
+                    job_args = cls._dump_job_args(args)
                     # 获取调用函数关键字参数
                     kwargs = query_job_info.get('kwargs')
                     job_kwargs = json.dumps(kwargs) if kwargs else '{}'

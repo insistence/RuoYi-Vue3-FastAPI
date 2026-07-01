@@ -162,6 +162,8 @@ class PluginManagementStartupGateway:
         checksum: str,
         version: str,
         statement_count: int,
+        status: str = 'success',
+        error_message: str | None = None,
     ) -> PluginMigrationModel:
         """
         构建插件 migration 执行历史对象。
@@ -179,4 +181,6 @@ class PluginManagementStartupGateway:
             checksum,
             version,
             statement_count,
+            status,
+            error_message,
         )

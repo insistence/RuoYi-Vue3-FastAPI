@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import Form, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
@@ -111,7 +111,9 @@ async def get_system_plugin_list(
 )
 async def plan_system_plugins(
     request: Request,
-    operation: Annotated[str, Query(description='计划操作类型：install、enable 或 upgrade')],
+    operation: Annotated[
+        Literal['install', 'enable', 'upgrade'], Query(description='计划操作类型：install、enable 或 upgrade')
+    ],
     plugin_ids: Annotated[list[str] | None, Query(alias='pluginIds', description='插件ID列表')] = None,
 ) -> Response:
     """
@@ -122,7 +124,7 @@ async def plan_system_plugins(
     :param plugin_ids: 插件ID列表
     :return: 插件批量操作拓扑计划响应
     """
-    plan_result = get_plugin_runtime_service().plan_plugins(operation, plugin_ids)
+    plan_result = await get_plugin_runtime_service().plan_plugins_async(operation, plugin_ids)
     logger.info(plan_result.get('message', '插件批量操作计划生成完成'))
 
     return _plugin_operation_response(plan_result, '插件批量操作计划生成完成')
@@ -138,7 +140,10 @@ async def plan_system_plugins(
 async def precheck_system_plugin(
     request: Request,
     plugin_id: Annotated[str, Path(description='插件ID')],
-    operation: Annotated[str, Query(description='预检操作类型：install、enable、upgrade、uninstall 或 purge')],
+    operation: Annotated[
+        Literal['install', 'enable', 'upgrade', 'uninstall', 'purge'],
+        Query(description='预检操作类型：install、enable、upgrade、uninstall 或 purge'),
+    ],
 ) -> Response:
     """
     执行插件操作预检。
@@ -413,7 +418,7 @@ async def check_system_plugin(
     :param plugin_id: 插件ID
     :return: 插件检查结果响应
     """
-    check_plugin_result = get_plugin_runtime_service().check_plugin(plugin_id)
+    check_plugin_result = await get_plugin_runtime_service().check_plugin_async(plugin_id)
     logger.info(check_plugin_result.get('message', '插件检查完成'))
 
     return _plugin_operation_response(check_plugin_result, '插件检查完成')

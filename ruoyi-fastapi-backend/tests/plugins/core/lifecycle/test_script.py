@@ -47,6 +47,28 @@ DELIMITER ;
         )
 
 
+def test_lifecycle_script_helper_keeps_semicolon_inside_string_literal() -> None:
+    """
+    校验 SQL 字符串字面量中的分号不会被当作语句结束符。
+
+    :return: None
+    """
+    statements = PluginLifecycleScriptHelper.split_sql_statements(
+        """
+insert into demo(message, quoted)
+values ('hello;world', 'can''t split');
+
+update demo
+set message = "a;b";
+"""
+    )
+
+    assert statements == [
+        "insert into demo(message, quoted)\nvalues ('hello;world', 'can''t split')",
+        'update demo\nset message = "a;b"',
+    ]
+
+
 def test_lifecycle_script_helper_filters_database_dialect_paths() -> None:
     """
     校验生命周期脚本工具按数据库方言过滤路径。

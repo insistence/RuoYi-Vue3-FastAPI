@@ -29,6 +29,7 @@ class DependencyItemPayload(PluginPayloadModel):
     installed: bool
     version_satisfied: bool = Field(alias='versionSatisfied')
     installed_version: str | None = Field(alias='installedVersion')
+    declared_version: str | None = Field(default=None, alias='declaredVersion')
     required_version: str | None = Field(alias='requiredVersion')
     ok: bool
     status: str
@@ -229,6 +230,7 @@ class PluginValidationPayloadMixin:
             installed=item.installed,
             version_satisfied=item.version_satisfied,
             installed_version=item.installed_version,
+            declared_version=item.declared_version,
             required_version=item.required_version,
             ok=item.ok,
             status=item.status,

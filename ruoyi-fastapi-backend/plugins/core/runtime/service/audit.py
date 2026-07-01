@@ -1,6 +1,7 @@
 from collections.abc import Mapping
 
 from plugins.core.runtime.support import PluginRuntimePayloadBuilder
+from utils.log_util import logger
 
 from .dependency_container import PluginRuntimeDependencies
 
@@ -77,4 +78,5 @@ class PluginAuditUseCase:
                 if getattr(result, 'is_success', False):
                     await session.commit()
         except Exception:
+            logger.exception('记录插件失败状态失败：plugin_id=%s', plugin_id)
             return

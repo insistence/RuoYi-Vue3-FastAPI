@@ -737,3 +737,25 @@ name: 演示插件
 
     with pytest.raises(PluginManifestError, match='插件清单校验失败'):
         discover_plugins(tmp_path)
+
+
+def test_scanner_includes_pydantic_error_detail(tmp_path: Path) -> None:
+    """
+    校验扫描器抛出的清单校验异常包含字段级错误摘要。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    manifest_path = write_manifest(
+        tmp_path / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.other
+""",
+    )
+
+    with pytest.raises(PluginManifestError, match=r'backend\.module'):
+        PluginScanner(tmp_path).load_manifest(manifest_path)

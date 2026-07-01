@@ -18,6 +18,8 @@ from .context import PluginRuntimeContextService
 from .dependency_container import PluginRuntimeDependencies
 from .responses import PluginDependencyInstallResponse, PluginRuntimeBlockedPayloadDict
 
+PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS = 600
+
 
 class PluginDependencyUseCase:
     """
@@ -152,7 +154,11 @@ class PluginDependencyUseCase:
         install_results = [
             PluginPayloadBuilder.build_dependency_install_result(
                 item,
-                self.dependencies.command_gateway.run_command(item.command, item.workdir),
+                self.dependencies.command_gateway.run_command(
+                    item.command,
+                    item.workdir,
+                    timeout=PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS,
+                ),
             )
             for item in install_plan.items
         ]
@@ -213,7 +219,12 @@ class PluginDependencyUseCase:
         install_results = [
             PluginPayloadBuilder.build_dependency_install_result(
                 item,
-                await asyncio.to_thread(self.dependencies.command_gateway.run_command, item.command, item.workdir),
+                await asyncio.to_thread(
+                    self.dependencies.command_gateway.run_command,
+                    item.command,
+                    item.workdir,
+                    timeout=PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS,
+                ),
             )
             for item in install_plan.items
         ]

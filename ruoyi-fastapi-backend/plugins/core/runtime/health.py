@@ -102,9 +102,7 @@ class PluginHealthChecker:
                 app=app,
                 query_db=query_db,
             )
-            raw_result = self._invoke_checker(checker_callable, context)
-            if inspect.isawaitable(raw_result):
-                raw_result = await asyncio.wait_for(raw_result, timeout=self.timeout_seconds)
+            raw_result = await self._invoke_checker_with_timeout(checker_callable, context)
             return self._normalize_result(raw_result, checker_path, started_at)
         except asyncio.TimeoutError:
             return self._build_result(
@@ -133,6 +131,31 @@ class PluginHealthChecker:
         :return: 健康检查 callable
         """
         return PluginCallableLoader(self.discovered_plugin, label='健康检查').load(checker_path)
+
+    async def _invoke_checker_with_timeout(
+        self,
+        checker_callable: LoadedPluginCallable,
+        context: PluginHealthContext,
+    ) -> object:
+        """
+        在超时约束内执行健康检查 callable。
+
+        :param checker_callable: 已加载的健康检查 callable
+        :param context: 健康检查上下文
+        :return: 健康检查原始返回值
+        """
+        callable_object = checker_callable.callable_object
+        if inspect.iscoroutinefunction(callable_object):
+            raw_result = self._invoke_checker(checker_callable, context)
+        else:
+            raw_result = await asyncio.wait_for(
+                asyncio.to_thread(self._invoke_checker, checker_callable, context),
+                timeout=self.timeout_seconds,
+            )
+        if inspect.isawaitable(raw_result):
+            return await asyncio.wait_for(raw_result, timeout=self.timeout_seconds)
+
+        return raw_result
 
     @staticmethod
     def _invoke_checker(checker_callable: LoadedPluginCallable, context: PluginHealthContext) -> object:

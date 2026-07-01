@@ -1,11 +1,16 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 PROJECT_ROOT = BACKEND_ROOT.parent
 FRONTEND_ROOT = PROJECT_ROOT / 'ruoyi-fastapi-frontend'
 sys.path.insert(0, str(BACKEND_ROOT))
 
+from plugins.ai.dao.ai_chat_dao import AiChatConfigDao  # noqa: E402
+from plugins.ai.entity.vo.ai_chat_vo import AiChatConfigModel  # noqa: E402
+from plugins.ai.service.ai_chat_service import AiChatService  # noqa: E402
 from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
 from plugins.core.discovery.scanner import PluginScanner  # noqa: E402
 from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
@@ -43,6 +48,7 @@ EXPECTED_AI_NPM_DEPENDENCIES = [
     'stream-monaco>=0.0.17',
 ]
 EXPECTED_AI_NPM_DEV_DEPENDENCIES = ['vite-plugin-monaco-editor-esm==2.0.2']
+EXPECTED_DEFAULT_NUM_HISTORY_RUNS = 3
 
 
 def test_ai_plugin_template_can_be_discovered() -> None:
@@ -148,6 +154,71 @@ def test_ai_plugin_keeps_original_backend_api_paths() -> None:
     assert "'/send'" in chat_controller
     assert "'/config'" in chat_controller
     assert "'/session/list'" in chat_controller
+
+
+def test_ai_plugin_chat_controller_enforces_declared_permission() -> None:
+    """
+    校验 AI 对话控制器使用插件声明的权限码。
+
+    :return: None
+    """
+    chat_controller = (BACKEND_ROOT / 'plugins' / 'ai' / 'controller' / 'ai_chat_controller.py').read_text(
+        encoding='utf-8'
+    )
+
+    assert "UserInterfaceAuthDependency('ai:chat:list')" in chat_controller
+
+
+def test_ai_plugin_chat_service_guards_upload_paths_and_session_owner() -> None:
+    """
+    校验 AI 对话服务包含上传目录边界和会话归属校验。
+
+    :return: None
+    """
+    chat_service = (BACKEND_ROOT / 'plugins' / 'ai' / 'service' / 'ai_chat_service.py').read_text(encoding='utf-8')
+
+    assert 'os.path.commonpath([abs_upload_path, abs_path])' in chat_service
+    assert 'os.path.isfile(abs_path)' in chat_service
+    assert 'str(session.user_id) != str(user_id)' in chat_service
+    assert 'delete_chat_session_services(cls, session_id: str, user_id: int)' in chat_service
+    assert 'get_chat_session_detail_services(cls, session_id: str, user_id: int)' in chat_service
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_config_detail_returns_vo_when_config_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    校验 AI 对话配置不存在时服务返回 VO 默认模型，而不是 DO 对象。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+
+    async def fake_get_chat_config_detail_by_user_id(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(
+        AiChatConfigDao,
+        'get_chat_config_detail_by_user_id',
+        fake_get_chat_config_detail_by_user_id,
+    )
+
+    result = await AiChatService.ai_chat_config_detail_services(query_db=object(), user_id=1)
+
+    assert isinstance(result, AiChatConfigModel)
+    assert result.num_history_runs == EXPECTED_DEFAULT_NUM_HISTORY_RUNS
+
+
+def test_ai_plugin_model_factory_blocks_private_base_url() -> None:
+    """
+    校验 AI 模型工厂包含 base_url 内网阻断。
+
+    :return: None
+    """
+    ai_util = (BACKEND_ROOT / 'plugins' / 'ai' / 'utils' / 'ai_util.py').read_text(encoding='utf-8')
+
+    assert 'ipaddress.ip_address(hostname)' in ai_util
+    assert 'ip_address.is_private' in ai_util
+    assert "parsed_url.scheme not in {'http', 'https'}" in ai_util
 
 
 def test_ai_plugin_frontend_api_keeps_original_backend_paths() -> None:

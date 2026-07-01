@@ -398,6 +398,33 @@ frontend:
     ]
 
 
+def test_structure_checker_restores_sys_path_after_callable_import(tmp_path: Path) -> None:
+    """
+    校验结构检查器导入 callable 时临时加入 backend_root 后会恢复 sys.path。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    module_dir = backend_root / 'temp_plugin_checks'
+    module_dir.mkdir(parents=True)
+    (module_dir / '__init__.py').write_text('', encoding='utf-8')
+    (module_dir / 'jobs.py').write_text('def cleanup():\n    return None\n', encoding='utf-8')
+    backend_root_text = str(backend_root)
+    original_sys_path = list(sys.path)
+    if backend_root_text in sys.path:
+        sys.path.remove(backend_root_text)
+
+    try:
+        module = PluginStructureChecker(backend_root)._import_job_module('temp_plugin_checks.jobs')
+        leaked_backend_root = backend_root_text in sys.path
+    finally:
+        sys.path[:] = original_sys_path
+
+    assert callable(module.cleanup)
+    assert leaked_backend_root is False
+
+
 def test_structure_checker_reports_invalid_plugin_job(tmp_path: Path) -> None:
     """
     校验结构检查器报告越界 callable、不可导入 callable 和无效 cron。

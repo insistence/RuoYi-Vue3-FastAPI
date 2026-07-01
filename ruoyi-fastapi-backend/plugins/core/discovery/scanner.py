@@ -70,7 +70,8 @@ class PluginScanner:
         try:
             manifest = PluginManifestFactory.create(raw_manifest)
         except ValidationError as exc:
-            raise PluginManifestError(f'插件清单校验失败：{current_manifest_path}') from exc
+            error_summary = self._format_validation_errors(exc)
+            raise PluginManifestError(f'插件清单校验失败：{current_manifest_path}；{error_summary}') from exc
 
         backend_path = current_manifest_path.parent
         if backend_path.name != manifest.id:
@@ -95,6 +96,27 @@ class PluginScanner:
         if not isinstance(data, dict):
             raise PluginManifestError(f'插件清单必须是 YAML 对象：{manifest_path}')
         return data
+
+    @staticmethod
+    def _format_validation_errors(exc: ValidationError, *, limit: int = 5) -> str:
+        """
+        格式化 Pydantic 字段校验错误摘要。
+
+        :param exc: Pydantic 校验异常
+        :param limit: 最大错误数量
+        :return: 错误摘要
+        """
+        formatted_errors = []
+        for error in exc.errors()[:limit]:
+            location = '.'.join(str(part) for part in error.get('loc', ())) or '<root>'
+            message = error.get('msg', '校验失败')
+            formatted_errors.append(f'{location}: {message}')
+
+        remaining_count = max(0, len(exc.errors()) - limit)
+        if remaining_count:
+            formatted_errors.append(f'另有 {remaining_count} 个错误')
+
+        return '；'.join(formatted_errors)
 
     def _reject_unsupported_manifest_names(self) -> None:
         """

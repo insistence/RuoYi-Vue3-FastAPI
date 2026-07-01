@@ -170,6 +170,15 @@ class PluginRuntimeService:
         """
         return cast('PluginCheckResponse', self.query.check_plugin(plugin_id))
 
+    async def check_plugin_async(self, plugin_id: str | None = None) -> PluginCheckResponse:
+        """
+        异步检查插件依赖状态。
+
+        :param plugin_id: 插件ID，未传入时检查全部插件
+        :return: 插件检查负载
+        """
+        return cast('PluginCheckResponse', await self.query.check_plugin_async(plugin_id))
+
     def check_plugin_dependencies(self, plugin_id: str) -> PluginDependencyCheckResponse:
         """
         检查插件依赖状态。
@@ -279,6 +288,16 @@ class PluginRuntimeService:
         :return: 插件批量操作拓扑计划负载
         """
         return cast('PluginPlanResponse', self.batch.plan_plugins(operation, plugin_ids))
+
+    async def plan_plugins_async(self, operation: str, plugin_ids: list[str] | None = None) -> PluginPlanResponse:
+        """
+        异步生成插件批量操作拓扑计划。
+
+        :param operation: 批量操作类型
+        :param plugin_ids: 插件ID列表
+        :return: 插件批量操作拓扑计划负载
+        """
+        return cast('PluginPlanResponse', await self.batch.plan_plugins_async(operation, plugin_ids))
 
     async def batch_plugins(
         self,
