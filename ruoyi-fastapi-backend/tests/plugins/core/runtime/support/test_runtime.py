@@ -18,6 +18,32 @@ def test_plugin_runtime_exception_payload_model_serializes_payload() -> None:
     }
 
 
+def test_plugin_runtime_exception_payload_includes_migration_recovery() -> None:
+    """
+    校验插件运行时异常负载可携带 migration 恢复建议。
+
+    :return: None
+    """
+    payload = PluginRuntimePayloadBuilder.build_exception_payload(
+        '插件安装失败',
+        RuntimeError('migration failed'),
+        plugin_id='demo',
+        failed_step='run_migrations',
+        extra_payload={
+            'migrationRecovery': {
+                'migrationPath': 'migrations/001_init.sql',
+                'status': 'running',
+                'suggestion': '请人工确认后标记',
+            }
+        },
+    )
+
+    assert payload['pluginId'] == 'demo'
+    assert payload['failedStep'] == 'run_migrations'
+    assert payload['migrationRecovery']['migrationPath'] == 'migrations/001_init.sql'
+    assert payload['migrationRecovery']['status'] == 'running'
+
+
 def test_plugin_runtime_payload_builder_builds_health_payload() -> None:
     """
     校验插件运行时负载构建器生成健康检查负载。

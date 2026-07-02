@@ -794,7 +794,11 @@ create table sys_plugin_migration (
   statement_count     int            not null default 0         comment 'SQL 语句数量',
   status              varchar(32)    not null default 'success' comment '执行状态',
   error_message       text                                       comment '失败错误信息',
+  attempt_count       int            not null default 0         comment '尝试次数',
+  started_time        datetime                                  comment '最近开始时间',
+  finished_time       datetime                                  comment '最近结束时间',
   create_time         datetime                                  comment '执行时间',
+  update_time         datetime                                  comment '更新时间',
   primary key (plugin_id, migration_path)
 ) engine=innodb comment = '插件 migration 执行历史表';
 

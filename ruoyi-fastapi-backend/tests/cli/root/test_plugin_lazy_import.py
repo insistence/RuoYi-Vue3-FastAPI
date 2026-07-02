@@ -130,6 +130,9 @@ def test_plugin_registered_commands_match_workflow_groups() -> None:
         'disable',
         'uninstall',
         'purge',
+        'migration-list',
+        'mark-success',
+        'mark-failed',
         'test',
         'create',
     }

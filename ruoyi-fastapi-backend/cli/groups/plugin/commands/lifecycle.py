@@ -6,6 +6,7 @@ import typer
 from cli.context import AllowProdOption, DryRunOption, EnvOption, OutputOption, YesOption
 
 PluginBatchOperation = Literal['install', 'enable', 'upgrade']
+PluginMigrationStatus = Literal['running', 'success', 'failed', 'unknown']
 
 
 def register_lifecycle_commands(app: typer.Typer, get_controller: Callable[[], Any]) -> None:
@@ -226,4 +227,86 @@ def register_lifecycle_commands(app: typer.Typer, get_controller: Callable[[], A
             allow_prod=allow_prod,
             yes=yes,
             dry_run=dry_run,
+        )
+
+    @app.command('migration-list', help='查看插件 migration 历史')
+    def migration_list_command(
+        plugin_id: Annotated[str, typer.Argument(help='插件ID')],
+        status: Annotated[PluginMigrationStatus | None, typer.Option('--status', help='按状态过滤')] = None,
+        env: EnvOption = 'dev',
+        output: OutputOption = 'text',
+    ) -> None:
+        """
+        查看插件 migration 历史。
+
+        :param plugin_id: 插件ID
+        :param status: 执行状态
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :return: None
+        """
+        get_controller().list_plugin_migrations(plugin_id, status, env, output)
+
+    @app.command('mark-success', help='人工标记插件 migration 为成功')
+    def mark_success_command(
+        plugin_id: Annotated[str, typer.Argument(help='插件ID')],
+        migration_path: Annotated[str, typer.Argument(help='migration 相对路径')],
+        note: Annotated[str, typer.Option('--note', help='人工恢复备注')] = '',
+        env: EnvOption = 'dev',
+        output: OutputOption = 'text',
+        allow_prod: AllowProdOption = False,
+        yes: YesOption = False,
+    ) -> None:
+        """
+        人工标记插件 migration 为成功。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param note: 人工恢复备注
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param allow_prod: 是否允许生产环境危险命令
+        :param yes: 是否跳过确认
+        :return: None
+        """
+        get_controller().mark_plugin_migration_success(
+            plugin_id,
+            migration_path,
+            env,
+            output,
+            note=note,
+            allow_prod=allow_prod,
+            yes=yes,
+        )
+
+    @app.command('mark-failed', help='人工标记插件 migration 为失败')
+    def mark_failed_command(
+        plugin_id: Annotated[str, typer.Argument(help='插件ID')],
+        migration_path: Annotated[str, typer.Argument(help='migration 相对路径')],
+        note: Annotated[str, typer.Option('--note', help='人工恢复备注')] = '',
+        env: EnvOption = 'dev',
+        output: OutputOption = 'text',
+        allow_prod: AllowProdOption = False,
+        yes: YesOption = False,
+    ) -> None:
+        """
+        人工标记插件 migration 为失败。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param note: 人工恢复备注
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param allow_prod: 是否允许生产环境危险命令
+        :param yes: 是否跳过确认
+        :return: None
+        """
+        get_controller().mark_plugin_migration_failed(
+            plugin_id,
+            migration_path,
+            env,
+            output,
+            note=note,
+            allow_prod=allow_prod,
+            yes=yes,
         )

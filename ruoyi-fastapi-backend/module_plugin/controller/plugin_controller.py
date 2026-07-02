@@ -22,6 +22,7 @@ from plugins.core.management.entity.vo.schemas import (
     PluginBatchActionModel,
     PluginConfigImportModel,
     PluginConfigUpdateModel,
+    PluginMigrationRecoveryModel,
     PluginModel,
     PluginOperationLogDetailModel,
     PluginOperationLogExportQueryModel,
@@ -317,6 +318,97 @@ async def query_detail_system_plugin_operation_log(
     logger.info(f'获取operation_id为{operation_id}的插件批量操作审计日志成功')
 
     return ResponseUtil.success(data=operation_log_detail_result)
+
+
+@plugin_controller.get(
+    '/{plugin_id}/migrations',
+    summary='获取插件 migration 历史接口',
+    description='用于获取指定插件的 migration 执行历史',
+    response_model=DataResponseModel[dict],
+    dependencies=[UserInterfaceAuthDependency('system:plugin:query')],
+)
+async def list_system_plugin_migrations(
+    request: Request,
+    plugin_id: Annotated[str, Path(description='插件ID')],
+    status: Annotated[
+        Literal['running', 'success', 'failed', 'unknown'] | None,
+        Query(description='migration 执行状态'),
+    ] = None,
+) -> Response:
+    """
+    获取插件 migration 历史。
+
+    :param request: 请求对象
+    :param plugin_id: 插件ID
+    :param status: migration 执行状态
+    :return: 插件 migration 历史响应
+    """
+    migration_result = await get_plugin_runtime_service().list_plugin_migrations(plugin_id, status)
+    logger.info(migration_result.get('message', '插件 migration 历史查询完成'))
+
+    return _plugin_operation_response(migration_result, '插件 migration 历史查询完成')
+
+
+@plugin_controller.post(
+    '/{plugin_id}/migrations/mark-success',
+    summary='人工标记插件 migration 成功接口',
+    description='用于人工确认指定 migration 已执行成功并更新历史状态',
+    response_model=DataResponseModel[dict],
+    dependencies=[UserInterfaceAuthDependency('system:plugin:edit')],
+)
+@Log(title='插件管理', business_type=BusinessType.UPDATE)
+async def mark_system_plugin_migration_success(
+    request: Request,
+    plugin_id: Annotated[str, Path(description='插件ID')],
+    recovery: PluginMigrationRecoveryModel,
+) -> Response:
+    """
+    人工标记插件 migration 为成功。
+
+    :param request: 请求对象
+    :param plugin_id: 插件ID
+    :param recovery: migration 人工恢复请求
+    :return: 插件 migration 状态标记响应
+    """
+    mark_result = await get_plugin_runtime_service().mark_plugin_migration_success(
+        plugin_id,
+        recovery.migration_path,
+        note=recovery.note,
+    )
+    logger.info(mark_result.get('message', '插件 migration 已人工标记为成功'))
+
+    return _plugin_operation_response(mark_result, '插件 migration 已人工标记为成功')
+
+
+@plugin_controller.post(
+    '/{plugin_id}/migrations/mark-failed',
+    summary='人工标记插件 migration 失败接口',
+    description='用于人工确认指定 migration 未完成并更新历史状态为可重试失败',
+    response_model=DataResponseModel[dict],
+    dependencies=[UserInterfaceAuthDependency('system:plugin:edit')],
+)
+@Log(title='插件管理', business_type=BusinessType.UPDATE)
+async def mark_system_plugin_migration_failed(
+    request: Request,
+    plugin_id: Annotated[str, Path(description='插件ID')],
+    recovery: PluginMigrationRecoveryModel,
+) -> Response:
+    """
+    人工标记插件 migration 为失败。
+
+    :param request: 请求对象
+    :param plugin_id: 插件ID
+    :param recovery: migration 人工恢复请求
+    :return: 插件 migration 状态标记响应
+    """
+    mark_result = await get_plugin_runtime_service().mark_plugin_migration_failed(
+        plugin_id,
+        recovery.migration_path,
+        note=recovery.note,
+    )
+    logger.info(mark_result.get('message', '插件 migration 已人工标记为失败'))
+
+    return _plugin_operation_response(mark_result, '插件 migration 已人工标记为失败')
 
 
 @plugin_controller.get(

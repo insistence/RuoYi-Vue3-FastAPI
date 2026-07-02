@@ -148,7 +148,11 @@
          :format-plugin-time="formatPluginTime"
          :format-config-default-value="formatConfigDefaultValue"
          :format-config-constraint="formatConfigConstraint"
+         :migration-history="migrationHistory"
+         :migration-loading="migrationLoading"
          @enable="handleEnableFromDetail"
+         @mark-migration-success="handleMarkMigrationSuccess"
+         @mark-migration-failed="handleMarkMigrationFailed"
       />
 
       <plugin-dependency-dialog
@@ -479,6 +483,12 @@
                   <el-descriptions-item label="插件ID">{{ actionResult.pluginId || pendingAction.pluginId || "-" }}</el-descriptions-item>
                   <el-descriptions-item label="操作">{{ actionResult.operation ? formatPluginOperation(actionResult.operation) : (pendingAction.label || "-") }}</el-descriptions-item>
                   <el-descriptions-item label="失败步骤">{{ actionResult.failedStep || actionResult.error.failedStep || "-" }}</el-descriptions-item>
+                  <el-descriptions-item v-if="actionResult.migrationRecovery" label="Migration">
+                     {{ actionResult.migrationRecovery.migrationPath || "-" }}
+                  </el-descriptions-item>
+                  <el-descriptions-item v-if="actionResult.migrationRecovery" label="Migration状态">
+                     {{ actionResult.migrationRecovery.status || "-" }}
+                  </el-descriptions-item>
                   <el-descriptions-item label="建议" :span="2">{{ actionResult.error.suggestion || "请查看后端日志或重新执行检查。" }}</el-descriptions-item>
                </el-descriptions>
                <el-input :model-value="formatJson(actionResult.error.raw)" type="textarea" :rows="10" readonly />
@@ -604,7 +614,10 @@ import {
   installPluginDependencies,
   installPlugin,
   listPlugin,
+  listPluginMigrations,
   listPluginOperationLog,
+  markPluginMigrationFailed,
+  markPluginMigrationSuccess,
   planPlugins,
   retainPluginOperationLog,
   uninstallPlugin,
@@ -644,6 +657,8 @@ const showSearch = ref(true);
 const total = ref(0);
 const detailOpen = ref(false);
 const detail = ref({});
+const migrationLoading = ref(false);
+const migrationHistory = ref([]);
 const actionOpen = ref(false);
 const actionLoading = ref(false);
 const actionTitle = ref("插件操作结果");
@@ -836,13 +851,86 @@ function getEnabledSwitchTooltip(row) {
 /** 打开详情 */
 function handleDetail(row) {
   loading.value = true;
+  migrationHistory.value = [];
   getPlugin(row.pluginId).then(response => {
     detail.value = response.data;
     detailOpen.value = true;
+    loadPluginMigrationHistory(row.pluginId);
   }).catch(error => {
     proxy.$modal.msgError(getErrorMessage(error));
   }).finally(() => {
     loading.value = false;
+  });
+}
+
+/** 查询插件 migration 历史 */
+function loadPluginMigrationHistory(pluginId) {
+  if (!pluginId) {
+    migrationHistory.value = [];
+    return Promise.resolve();
+  }
+  migrationLoading.value = true;
+  return listPluginMigrations(pluginId).then(response => {
+    migrationHistory.value = response.data?.migrations || [];
+  }).catch(error => {
+    migrationHistory.value = [];
+    proxy.$modal.msgError(getErrorMessage(error));
+  }).finally(() => {
+    migrationLoading.value = false;
+  });
+}
+
+/** 人工标记 migration 成功 */
+function handleMarkMigrationSuccess(row) {
+  const pluginId = detail.value.pluginId;
+  const migrationPath = row?.migrationPath;
+  if (!pluginId || !migrationPath) {
+    return;
+  }
+  proxy.$modal.confirm('确认要将"' + migrationPath + '"标记为执行成功吗?').then(function () {
+    migrationLoading.value = true;
+    return markPluginMigrationSuccess(pluginId, {
+      migrationPath,
+      note: "管理页人工标记为成功"
+    });
+  }).then(response => {
+    proxy.$modal.msgSuccess(response.data?.message || "migration 已标记为成功");
+    return loadPluginMigrationHistory(pluginId);
+  }).then(() => {
+    getList();
+  }).catch(error => {
+    if (!isUserCancel(error)) {
+      proxy.$modal.msgError(getErrorMessage(error));
+    }
+  }).finally(() => {
+    migrationLoading.value = false;
+  });
+}
+
+/** 人工标记 migration 失败 */
+function handleMarkMigrationFailed(row) {
+  const pluginId = detail.value.pluginId;
+  const migrationPath = row?.migrationPath;
+  if (!pluginId || !migrationPath) {
+    return;
+  }
+  proxy.$modal.confirm('确认要将"' + migrationPath + '"标记为失败并允许后续重试吗?').then(function () {
+    migrationLoading.value = true;
+    return markPluginMigrationFailed(pluginId, {
+      migrationPath,
+      note: "管理页人工标记为失败"
+    });
+  }).then(response => {
+    proxy.$modal.msgSuccess(response.data?.message || "migration 已标记为失败");
+    return loadPluginMigrationHistory(pluginId);
+  }).then(() => {
+    getList();
+  }).catch(error => {
+    if (!isUserCancel(error)) {
+      proxy.$modal.msgError(getErrorMessage(error));
+    }
+  }).finally(() => {
+    migrationLoading.value = false;
   });
 }
 
@@ -1356,16 +1444,20 @@ function normalizeActionResult(result) {
 
 function buildErrorActionResult(error, context = {}) {
   const message = getErrorMessage(error);
+  const payload = error?.response?.data?.data || {};
+  const migrationRecovery = payload.migrationRecovery;
   return {
     ok: false,
-    pluginId: context.pluginId,
-    operation: context.operation,
+    pluginId: payload.pluginId || context.pluginId,
+    operation: payload.operation || context.operation,
     dependencyOk: false,
     structureOk: undefined,
     menuConflictOk: undefined,
+    failedStep: payload.failedStep,
+    migrationRecovery,
     error: {
-      message,
-      suggestion: "请先执行插件检查，确认目录结构、依赖和菜单权限冲突后再重试。",
+      message: payload.error || message,
+      suggestion: migrationRecovery?.suggestion || "请先执行插件检查，确认目录结构、依赖和菜单权限冲突后再重试。",
       raw: serializeError(error)
     },
     message

@@ -92,6 +92,33 @@ export function getPluginConfig(pluginId) {
   })
 }
 
+// 查询插件 migration 历史
+export function listPluginMigrations(pluginId, status) {
+  return request({
+    url: '/system/plugin/' + pluginId + '/migrations',
+    method: 'get',
+    params: { status }
+  })
+}
+
+// 人工标记插件 migration 成功
+export function markPluginMigrationSuccess(pluginId, data) {
+  return request({
+    url: '/system/plugin/' + pluginId + '/migrations/mark-success',
+    method: 'post',
+    data
+  })
+}
+
+// 人工标记插件 migration 失败
+export function markPluginMigrationFailed(pluginId, data) {
+  return request({
+    url: '/system/plugin/' + pluginId + '/migrations/mark-failed',
+    method: 'post',
+    data
+  })
+}
+
 // 更新插件配置
 export function updatePluginConfig(pluginId, data) {
   return request({

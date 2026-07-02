@@ -226,7 +226,24 @@ class PluginMigrationModel(BaseModel):
     statement_count: int = Field(default=0, description='SQL 语句数量')
     status: str = Field(default='success', description='执行状态')
     error_message: str | None = Field(default=None, description='失败错误信息')
+    attempt_count: int = Field(default=0, description='尝试次数')
+    started_time: datetime | None = Field(default=None, description='最近开始时间')
+    finished_time: datetime | None = Field(default=None, description='最近结束时间')
     create_time: datetime | None = Field(default=None, description='执行时间')
+    update_time: datetime | None = Field(default=None, description='更新时间')
+
+
+class PluginMigrationRecoveryModel(BaseModel):
+    """
+    插件 migration 人工恢复请求模型。
+
+    模型字段说明通过 Field 的 description 声明。
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    migration_path: str = Field(description='migration 相对路径')
+    note: str | None = Field(default=None, description='人工恢复备注')
 
 
 class PluginConfigModel(BaseModel):

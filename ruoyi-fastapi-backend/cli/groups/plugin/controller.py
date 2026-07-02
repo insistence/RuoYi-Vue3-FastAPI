@@ -634,6 +634,106 @@ class PluginCommandController:
             text_builder=self.presenter.build_purge_text,
         )
 
+    def list_plugin_migrations(self, plugin_id: str, status: str | None, env: str, output: str) -> None:
+        """
+        查看插件 migration 历史。
+
+        :param plugin_id: 插件ID
+        :param status: 执行状态
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :return: None
+        """
+        ctx = self.context_factory.build_readonly(env, output)
+        payload = self.execution_service.run_async(self.plugin_runtime.list_plugin_migrations(plugin_id, status))
+        self._complete_plugin_payload(
+            ctx,
+            payload,
+            text_builder=self.presenter.build_migration_list_text,
+        )
+
+    def mark_plugin_migration_success(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        env: str,
+        output: str,
+        *,
+        note: str,
+        allow_prod: bool,
+        yes: bool,
+    ) -> None:
+        """
+        人工标记插件 migration 为成功。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param note: 人工恢复备注
+        :param allow_prod: 是否允许生产环境危险命令
+        :param yes: 是否跳过确认
+        :return: None
+        """
+        ctx = self.context_factory.build_dangerous(
+            env,
+            output,
+            allow_prod,
+            yes,
+            False,
+            command_name='plugin mark-success',
+        )
+        payload = self.execution_service.run_async(
+            self.plugin_runtime.mark_plugin_migration_success(plugin_id, migration_path, note=note or None)
+        )
+        payload['env'] = ctx.env
+        self._complete_plugin_payload(
+            ctx,
+            payload,
+            text_builder=self.presenter.build_migration_mark_text,
+        )
+
+    def mark_plugin_migration_failed(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        env: str,
+        output: str,
+        *,
+        note: str,
+        allow_prod: bool,
+        yes: bool,
+    ) -> None:
+        """
+        人工标记插件 migration 为失败。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param note: 人工恢复备注
+        :param allow_prod: 是否允许生产环境危险命令
+        :param yes: 是否跳过确认
+        :return: None
+        """
+        ctx = self.context_factory.build_dangerous(
+            env,
+            output,
+            allow_prod,
+            yes,
+            False,
+            command_name='plugin mark-failed',
+        )
+        payload = self.execution_service.run_async(
+            self.plugin_runtime.mark_plugin_migration_failed(plugin_id, migration_path, note=note or None)
+        )
+        payload['env'] = ctx.env
+        self._complete_plugin_payload(
+            ctx,
+            payload,
+            text_builder=self.presenter.build_migration_mark_text,
+        )
+
     def plugin_config(
         self,
         plugin_id: str,

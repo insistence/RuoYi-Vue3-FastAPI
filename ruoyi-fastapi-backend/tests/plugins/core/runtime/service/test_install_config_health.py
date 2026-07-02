@@ -217,9 +217,13 @@ backend:
     assert result['migrations'][0]['statement_count'] == 1
     assert result['migrations'][0]['checksum']
     assert result['migrations'][0]['skipped'] is False
-    assert len(FakePluginService.migration_records) == 1
-    assert FakePluginService.migration_records[0].migration_path == 'migrations/001_demo.sql'
-    assert gateway.session_local.executed_session.executed_statements == ['select 2']
+    assert [record.status for record in FakePluginService.migration_records] == ['running', 'success']
+    assert FakePluginService.migration_records[-1].migration_path == 'migrations/001_demo.sql'
+    migration_session = gateway.session_local.executed_session
+    assert migration_session is not None
+    assert migration_session.executed_statements == ['select 2']
+    assert migration_session is not gateway.session_local.sessions[0]
+    assert migration_session.committed is True
     assert gateway.session_local.committed_session is not None
 
 

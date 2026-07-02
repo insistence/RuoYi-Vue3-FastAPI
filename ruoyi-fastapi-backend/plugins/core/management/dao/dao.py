@@ -324,6 +324,74 @@ class PluginDao:
         return plugin_migration
 
     @classmethod
+    async def get_plugin_migration_list(
+        cls,
+        db: AsyncSession,
+        plugin_id: str,
+        status: str | None = None,
+    ) -> Sequence[SysPluginMigration]:
+        """
+        查询插件 migration 历史列表。
+
+        :param db: orm对象
+        :param plugin_id: 插件ID
+        :param status: 执行状态
+        :return: migration 执行历史列表
+        """
+        migration_list = (
+            (
+                await db.execute(
+                    select(SysPluginMigration)
+                    .where(
+                        SysPluginMigration.plugin_id == plugin_id,
+                        SysPluginMigration.status == status if status else True,
+                    )
+                    .order_by(SysPluginMigration.migration_path)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        return migration_list
+
+    @classmethod
+    async def update_plugin_migration_status(
+        cls,
+        db: AsyncSession,
+        plugin_id: str,
+        migration_path: str,
+        status: str,
+        error_message: str | None,
+    ) -> SysPluginMigration | None:
+        """
+        更新插件 migration 执行历史状态。
+
+        :param db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param status: 执行状态
+        :param error_message: 失败错误信息
+        :return: 更新后的 migration 执行历史对象
+        """
+        existing_plugin_migration = await cls.get_plugin_migration_by_path(db, plugin_id, migration_path)
+        if not existing_plugin_migration:
+            return None
+
+        now = datetime.now()
+        await db.execute(
+            update(SysPluginMigration)
+            .where(
+                SysPluginMigration.plugin_id == plugin_id,
+                SysPluginMigration.migration_path == migration_path,
+            )
+            .values(status=status, error_message=error_message, finished_time=now, update_time=now)
+        )
+        await db.flush()
+
+        return await cls.get_plugin_migration_by_path(db, plugin_id, migration_path)
+
+    @classmethod
     async def add_plugin_migration(
         cls,
         db: AsyncSession,
@@ -337,6 +405,8 @@ class PluginDao:
         :return: 新增后的 migration 执行历史对象
         """
         payload = plugin_migration.model_dump(exclude_unset=True)
+        now = datetime.now()
+        cls._apply_migration_observability_payload(payload, None, now)
         if payload.get('status') == 'success' and 'error_message' not in payload:
             payload['error_message'] = None
         existing_plugin_migration = await cls.get_plugin_migration_by_path(
@@ -345,6 +415,7 @@ class PluginDao:
             plugin_migration.migration_path,
         )
         if existing_plugin_migration:
+            cls._apply_migration_observability_payload(payload, existing_plugin_migration, now)
             await db.execute(
                 update(SysPluginMigration)
                 .where(
@@ -361,6 +432,31 @@ class PluginDao:
         await db.flush()
 
         return db_plugin_migration
+
+    @staticmethod
+    def _apply_migration_observability_payload(
+        payload: dict[str, Any],
+        existing_plugin_migration: SysPluginMigration | None,
+        now: datetime,
+    ) -> None:
+        """
+        补充 migration 状态观测字段。
+
+        :param payload: 待写入 payload
+        :param existing_plugin_migration: 已有 migration 历史
+        :param now: 当前时间
+        :return: None
+        """
+        status = payload.get('status', 'success')
+        payload.setdefault('update_time', now)
+        if status == 'running':
+            payload.setdefault('started_time', now)
+            payload.setdefault('finished_time', None)
+            payload['attempt_count'] = int(getattr(existing_plugin_migration, 'attempt_count', 0) or 0) + 1
+            return
+
+        if status in {'success', 'failed'}:
+            payload.setdefault('finished_time', now)
 
     @classmethod
     async def get_plugin_config_list(cls, db: AsyncSession, plugin_id: str) -> Sequence[SysPluginConfig]:

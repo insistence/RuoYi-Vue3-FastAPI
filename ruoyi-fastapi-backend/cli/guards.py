@@ -233,6 +233,16 @@ DEFAULT_DANGEROUS_COMMAND_RULES: dict[str, DangerousCommandRule] = {
         command_name='plugin uninstall', risk_level='normal', supports_dry_run=True
     ),
     'plugin purge': DangerousCommandRule(command_name='plugin purge', risk_level='high', supports_dry_run=True),
+    'plugin mark-success': DangerousCommandRule(
+        command_name='plugin mark-success',
+        risk_level='high',
+        supports_dry_run=False,
+    ),
+    'plugin mark-failed': DangerousCommandRule(
+        command_name='plugin mark-failed',
+        risk_level='high',
+        supports_dry_run=False,
+    ),
 }
 
 DEFAULT_DANGEROUS_COMMAND_RULE_REGISTRY = DangerousCommandRuleRegistry(rules=DEFAULT_DANGEROUS_COMMAND_RULES)

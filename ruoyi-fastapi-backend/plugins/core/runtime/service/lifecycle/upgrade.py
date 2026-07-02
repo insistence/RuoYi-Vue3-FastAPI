@@ -4,7 +4,7 @@ from typing import Any, cast
 
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin
-from plugins.core.lifecycle.migration import PluginMigrationRunner
+from plugins.core.lifecycle.migration import PluginMigrationError, PluginMigrationRunner
 from plugins.core.lifecycle.seed import PluginSeedRunner
 from plugins.core.runtime.hooks import PluginHookRunner
 from plugins.core.runtime.support import (
@@ -206,6 +206,7 @@ class PluginUpgradeUseCase:
                 exc.original_error,
                 plugin_id=plugin_id,
                 failed_step=exc.step_name,
+                extra_payload=self._build_migration_failure_extra(exc.original_error),
             )
         except Exception as exc:
             await self._close_upgrade_session(context)
@@ -214,7 +215,21 @@ class PluginUpgradeUseCase:
                 exc,
                 plugin_id=plugin_id,
                 failed_step='prepare_upgrade',
+                extra_payload=self._build_migration_failure_extra(exc),
             )
+
+    @staticmethod
+    def _build_migration_failure_extra(error: Exception) -> dict[str, object] | None:
+        """
+        构建 migration 失败恢复建议负载。
+
+        :param error: 原始异常
+        :return: 额外异常负载
+        """
+        if not isinstance(error, PluginMigrationError):
+            return None
+
+        return {'migrationRecovery': error.to_recovery_payload()}
 
     def _build_upgrade_steps(self) -> list[PluginLifecycleStep[PluginUpgradeLifecycleContext]]:
         """
@@ -436,13 +451,17 @@ class PluginUpgradeUseCase:
         :param context: 插件升级上下文
         :return: None
         """
-        context.migration_results = await PluginMigrationRunner(
-            context.discovered_plugin,
-            PluginDatabaseMigrationHistoryStore.with_model_gateway(
-                context.plugin_service,
-                self.dependencies.model_gateway,
-            ),
-        ).run(context.session)
+        async_session_local = self.dependencies.state_gateway.get_async_session_local()
+        async with async_session_local() as migration_session:
+            context.migration_results = await PluginMigrationRunner(
+                context.discovered_plugin,
+                PluginDatabaseMigrationHistoryStore.with_model_gateway(
+                    context.plugin_service,
+                    self.dependencies.model_gateway,
+                    async_session_local,
+                ),
+                manage_execution_transaction=True,
+            ).run(migration_session)
 
         return None
 

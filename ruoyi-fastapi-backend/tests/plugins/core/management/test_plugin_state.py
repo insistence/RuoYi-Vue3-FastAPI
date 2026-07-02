@@ -343,6 +343,10 @@ def test_plugin_tables_are_registered_with_expected_names() -> None:
     unique_constraints = {constraint.name: constraint for constraint in SysPluginMenu.__table__.constraints}
     assert set(unique_constraints['uk_sys_plugin_menu_key'].columns.keys()) == {'plugin_id', 'menu_key'}
     assert set(SysPluginMigration.__table__.primary_key.columns.keys()) == {'plugin_id', 'migration_path'}
+    assert 'attempt_count' in SysPluginMigration.__table__.columns
+    assert 'started_time' in SysPluginMigration.__table__.columns
+    assert 'finished_time' in SysPluginMigration.__table__.columns
+    assert 'update_time' in SysPluginMigration.__table__.columns
     assert set(SysPluginConfig.__table__.primary_key.columns.keys()) == {'plugin_id', 'config_key'}
 
 
@@ -1169,6 +1173,7 @@ async def test_plugin_migration_history_can_be_persisted_and_read(tmp_path: Path
         assert plugin_migration.migration_path == 'migrations/001_demo.sql'
         assert plugin_migration.migration_checksum == 'checksum'
         assert plugin_migration.statement_count == EXPECTED_MIGRATION_STATEMENT_COUNT
+        assert plugin_migration.attempt_count == 0
     finally:
         await engine.dispose()
 
@@ -1223,6 +1228,68 @@ async def test_plugin_migration_history_upserts_failed_record_to_success() -> No
         assert plugin_migration.status == 'success'
         assert plugin_migration.error_message is None
         assert plugin_migration.statement_count == EXPECTED_MIGRATION_STATEMENT_COUNT
+        assert plugin_migration.finished_time is not None
+        assert plugin_migration.update_time is not None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_plugin_migration_history_can_be_listed_and_marked() -> None:
+    """
+    校验插件 migration 历史可以列表查询并人工标记状态。
+
+    :return: None
+    """
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPluginMigration.__table__])
+
+    try:
+        async with session_maker() as session:
+            await PluginService.add_plugin_migration_services(
+                session,
+                PluginMigrationModel(
+                    pluginId='demo',
+                    migrationPath='migrations/001_demo.sql',
+                    migrationChecksum='checksum-1',
+                    version='1.0.0',
+                    statementCount=1,
+                    status='success',
+                ),
+            )
+            await PluginService.add_plugin_migration_services(
+                session,
+                PluginMigrationModel(
+                    pluginId='demo',
+                    migrationPath='migrations/002_demo.sql',
+                    migrationChecksum='checksum-2',
+                    version='1.0.0',
+                    statementCount=1,
+                    status='running',
+                ),
+            )
+            await session.commit()
+
+            running_migrations = await PluginService.get_plugin_migration_list_services(session, 'demo', 'running')
+            marked_migration = await PluginService.mark_plugin_migration_status_services(
+                session,
+                'demo',
+                'migrations/002_demo.sql',
+                'failed',
+                '人工确认未完成',
+            )
+            await session.commit()
+
+        assert [migration.migration_path for migration in running_migrations] == ['migrations/002_demo.sql']
+        assert running_migrations[0].attempt_count == 1
+        assert running_migrations[0].started_time is not None
+        assert marked_migration is not None
+        assert marked_migration.status == 'failed'
+        assert marked_migration.error_message == '人工确认未完成'
+        assert marked_migration.finished_time is not None
+        assert marked_migration.update_time is not None
     finally:
         await engine.dispose()
 

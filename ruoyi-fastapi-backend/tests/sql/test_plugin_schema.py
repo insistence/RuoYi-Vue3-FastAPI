@@ -54,6 +54,9 @@ def assert_plugin_tables(sql_content: str) -> None:
     assert 'uk_sys_plugin_menu_key' in sql_content
     assert 'create table sys_plugin_migration' in sql_content
     assert 'migration_checksum' in sql_content
+    assert 'attempt_count' in sql_content
+    assert 'started_time' in sql_content
+    assert 'finished_time' in sql_content
 
 
 def assert_ai_plugin_content_not_in_builtin_sql(sql_content: str) -> None:

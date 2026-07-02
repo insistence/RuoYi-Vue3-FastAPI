@@ -125,6 +125,7 @@ class PluginRuntimeExceptionPayload(PluginPayloadModel):
     error: str
     plugin_id: str | None = Field(default=None, alias='pluginId')
     failed_step: str | None = Field(default=None, alias='failedStep')
+    migration_recovery: object | None = Field(default=None, alias='migrationRecovery')
 
 
 class PluginRuntimeInvalidOperationPayload(PluginPayloadModel):
@@ -194,6 +195,7 @@ class PluginRuntimePayloadBuilder:
         *,
         plugin_id: str | None = None,
         failed_step: str | None = None,
+        extra_payload: Mapping[str, object] | None = None,
     ) -> PluginRuntimeExceptionPayloadDict:
         """
         构建运行时异常负载。
@@ -202,6 +204,7 @@ class PluginRuntimePayloadBuilder:
         :param error: 异常对象
         :param plugin_id: 插件ID
         :param failed_step: 失败生命周期步骤
+        :param extra_payload: 额外结构化负载
         :return: 运行时异常负载
         """
         logger.exception(f'{message}：{error}')
@@ -211,6 +214,7 @@ class PluginRuntimePayloadBuilder:
             error=str(error),
             plugin_id=plugin_id,
             failed_step=failed_step,
+            **(extra_payload or {}),
         ).to_payload(exclude_none=True)
 
     @staticmethod

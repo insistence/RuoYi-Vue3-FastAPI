@@ -471,6 +471,8 @@ class PluginCommandPresenter:
         else:
             lines.append('menu_conflicts: none')
 
+        self._append_lifecycle_migration_lines(lines, payload)
+
         return '\n'.join(lines)
 
     def build_upgrade_text(self, payload: dict[str, object]) -> str:
@@ -512,6 +514,8 @@ class PluginCommandPresenter:
             lines.append(f'menu_conflicts: {len(menu_conflicts)}')
         else:
             lines.append('menu_conflicts: none')
+
+        self._append_lifecycle_migration_lines(lines, payload)
 
         return '\n'.join(lines)
 
@@ -572,6 +576,50 @@ class PluginCommandPresenter:
             lines.append('hooks: none')
 
         return '\n'.join(lines)
+
+    def build_migration_list_text(self, payload: dict[str, object]) -> str:
+        """
+        将插件 migration 历史负载渲染为文本。
+
+        :param payload: 插件 migration 历史负载
+        :return: 文本输出
+        """
+        lines = [
+            f'ok: {str(payload.get("ok", False)).lower()}',
+            f'message: {payload.get("message", "-")}',
+            f'plugin_id: {payload.get("pluginId", "-")}',
+            f'status: {payload.get("status", "-") or "-"}',
+            f'count: {payload.get("count", 0)}',
+        ]
+        migrations = payload.get('migrations')
+        if not isinstance(migrations, list) or not migrations:
+            lines.append('migrations: none')
+            return '\n'.join(lines)
+
+        lines.append('migrations:')
+        lines.extend(
+            self._build_migration_summary_line(migration) for migration in migrations if isinstance(migration, dict)
+        )
+        return '\n'.join(lines)
+
+    def build_migration_mark_text(self, payload: dict[str, object]) -> str:
+        """
+        将插件 migration 人工标记负载渲染为文本。
+
+        :param payload: 插件 migration 人工标记负载
+        :return: 文本输出
+        """
+        return '\n'.join(
+            [
+                f'ok: {str(payload.get("ok", False)).lower()}',
+                f'message: {payload.get("message", "-")}',
+                f'plugin_id: {payload.get("pluginId", "-")}',
+                f'env: {payload.get("env", "-")}',
+                f'operation: {payload.get("operation", "-")}',
+                f'migration_path: {payload.get("migrationPath", "-")}',
+                f'status: {payload.get("status", "-")}',
+            ]
+        )
 
     def build_config_text(self, payload: dict[str, object]) -> str:
         """
@@ -638,6 +686,53 @@ class PluginCommandPresenter:
         return (
             f'  - {config.get("key", "-")} | {config.get("label", "-") or "-"} | '
             f'type: {config.get("type", "-")} | value: {config.get("value", "-")}'
+        )
+
+    @staticmethod
+    def _build_migration_summary_line(migration: dict[str, object]) -> str:
+        """
+        构建插件 migration 历史摘要文本行。
+
+        :param migration: migration 历史负载
+        :return: 文本行
+        """
+        checksum = str(migration.get('migrationChecksum') or migration.get('checksum') or '')
+        migration_path = migration.get('migrationPath') or migration.get('migration_path') or '-'
+        status = migration.get('status', '-')
+        attempts = migration.get('attemptCount', migration.get('attempt_count', 0))
+        version = migration.get('version', '-') or '-'
+        duration_ms = migration.get('durationMs', migration.get('duration_ms'))
+        duration_text = f' | duration_ms: {duration_ms}' if duration_ms is not None else ''
+        return (
+            f'  - {migration_path} | status: {status} | attempts: {attempts} | version: {version} | '
+            f'checksum: {checksum[:12] or "-"}{duration_text}'
+        )
+
+    def _append_lifecycle_migration_lines(self, lines: list[str], payload: dict[str, object]) -> None:
+        """
+        追加生命周期 migration 结果和恢复建议文本。
+
+        :param lines: 文本行列表
+        :param payload: 生命周期负载
+        :return: None
+        """
+        migration_recovery = payload.get('migrationRecovery')
+        if isinstance(migration_recovery, dict):
+            lines.append(
+                'migration_recovery: '
+                f'{migration_recovery.get("migrationPath", "-")} | '
+                f'status: {migration_recovery.get("status", "-")} | '
+                f'suggestion: {migration_recovery.get("suggestion", "-")}'
+            )
+
+        migrations = payload.get('migrations')
+        if not isinstance(migrations, list) or not migrations:
+            lines.append('migrations: none')
+            return
+
+        lines.append('migrations:')
+        lines.extend(
+            self._build_migration_summary_line(migration) for migration in migrations if isinstance(migration, dict)
         )
 
     @staticmethod

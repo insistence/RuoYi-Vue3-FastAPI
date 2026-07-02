@@ -1064,7 +1064,11 @@ create table sys_plugin_migration (
   statement_count     int4          not null default 0,
   status              varchar(32)   not null default 'success',
   error_message       text,
+  attempt_count       int4          not null default 0,
+  started_time        timestamp(0),
+  finished_time       timestamp(0),
   create_time         timestamp(0),
+  update_time         timestamp(0),
   primary key (plugin_id, migration_path)
 );
 comment on table sys_plugin_migration is '插件 migration 执行历史表';
@@ -1075,7 +1079,11 @@ comment on column sys_plugin_migration.version is '执行时插件版本';
 comment on column sys_plugin_migration.statement_count is 'SQL 语句数量';
 comment on column sys_plugin_migration.status is '执行状态';
 comment on column sys_plugin_migration.error_message is '失败错误信息';
+comment on column sys_plugin_migration.attempt_count is '尝试次数';
+comment on column sys_plugin_migration.started_time is '最近开始时间';
+comment on column sys_plugin_migration.finished_time is '最近结束时间';
 comment on column sys_plugin_migration.create_time is '执行时间';
+comment on column sys_plugin_migration.update_time is '更新时间';
 
 -- ----------------------------
 -- 23、插件配置表

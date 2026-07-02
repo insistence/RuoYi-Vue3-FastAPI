@@ -9,7 +9,42 @@ BACKEND_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from plugins.core.discovery.scanner import PluginScanner  # noqa: E402
-from plugins.core.lifecycle.migration import PluginMigrationHistoryStore, PluginMigrationRunner  # noqa: E402
+from plugins.core.lifecycle.migration import (  # noqa: E402
+    PluginMigrationError,
+    PluginMigrationHistoryRecord,
+    PluginMigrationHistoryStore,
+    PluginMigrationRunner,
+)
+
+
+class FakeManagedMigrationSession(list):
+    """
+    测试用托管 migration 执行 session。
+    """
+
+    def __init__(self) -> None:
+        """
+        初始化测试用托管 migration 执行 session。
+        """
+        super().__init__()
+        self.committed = False
+        self.rolled_back = False
+
+    async def commit(self) -> None:
+        """
+        记录提交动作。
+
+        :return: None
+        """
+        self.committed = True
+
+    async def rollback(self) -> None:
+        """
+        记录回滚动作。
+
+        :return: None
+        """
+        self.rolled_back = True
 
 
 class FakeMigrationHistoryStore(PluginMigrationHistoryStore):
@@ -17,27 +52,62 @@ class FakeMigrationHistoryStore(PluginMigrationHistoryStore):
     测试用 migration 历史存储。
     """
 
-    def __init__(self, checksums: dict[tuple[str, str], str] | None = None) -> None:
+    def __init__(
+        self,
+        checksums: dict[tuple[str, str], str] | None = None,
+        records: dict[tuple[str, str], PluginMigrationHistoryRecord] | None = None,
+    ) -> None:
         """
         初始化测试用 migration 历史存储。
 
         :param checksums: 已执行 migration 校验值映射
+        :param records: 已执行 migration 记录映射
         :return: None
         """
-        self.checksums = checksums or {}
+        self.history_records = records or {
+            key: PluginMigrationHistoryRecord(checksum=value) for key, value in (checksums or {}).items()
+        }
         self.records = []
+        self.running_records = []
         self.failure_records = []
 
-    async def get_checksum(self, query_db: object, plugin_id: str, migration_path: str) -> str | None:
+    async def get_record(
+        self,
+        query_db: object,
+        plugin_id: str,
+        migration_path: str,
+    ) -> PluginMigrationHistoryRecord | None:
         """
-        获取已执行 migration 校验值。
+        获取已执行 migration 记录。
 
         :param query_db: orm对象
         :param plugin_id: 插件ID
         :param migration_path: migration 相对路径
-        :return: 内容校验值
+        :return: migration 记录
         """
-        return self.checksums.get((plugin_id, migration_path))
+        return self.history_records.get((plugin_id, migration_path))
+
+    async def record_running(
+        self,
+        query_db: object,
+        plugin_id: str,
+        migration_path: str,
+        checksum: str,
+        version: str,
+        statement_count: int,
+    ) -> None:
+        """
+        记录 migration 开始执行。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param checksum: 内容校验值
+        :param version: 插件版本
+        :param statement_count: SQL 语句数量
+        :return: None
+        """
+        self.running_records.append((plugin_id, migration_path, checksum, version, statement_count))
 
     async def record_success(
         self,
@@ -272,11 +342,45 @@ async def test_plugin_migration_runner_records_success_history(tmp_path: Path) -
     results = await PluginMigrationRunner(discovered_plugin, history_store).run(query_db)
 
     assert query_db == ['history']
+    assert len(history_store.running_records) == 1
+    assert history_store.running_records[0][0] == 'demo_migration'
+    assert history_store.running_records[0][1] == 'migrations/001_demo.py'
+    assert history_store.running_records[0][2] == results[0].checksum
+    assert history_store.running_records[0][3] == '1.0.0'
     assert len(history_store.records) == 1
     assert history_store.records[0][0] == 'demo_migration'
     assert history_store.records[0][1] == 'migrations/001_demo.py'
     assert history_store.records[0][2] == results[0].checksum
     assert history_store.records[0][3] == '1.0.0'
+    assert results[0].status == 'success'
+    assert isinstance(results[0].duration_ms, int)
+
+
+@pytest.mark.asyncio
+async def test_plugin_migration_runner_commits_managed_execution_transaction(tmp_path: Path) -> None:
+    """
+    校验托管执行事务模式会在记录 success 前提交 migration 执行 session。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_migration'
+    write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("managed")\n')
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+    history_store = FakeMigrationHistoryStore()
+    query_db = FakeManagedMigrationSession()
+
+    results = await PluginMigrationRunner(
+        discovered_plugin,
+        history_store,
+        manage_execution_transaction=True,
+    ).run(query_db)
+
+    assert query_db == ['managed']
+    assert query_db.committed is True
+    assert query_db.rolled_back is False
+    assert len(history_store.records) == 1
+    assert history_store.records[0][2] == results[0].checksum
 
 
 @pytest.mark.asyncio
@@ -299,7 +403,10 @@ async def test_plugin_migration_runner_skips_existing_history(tmp_path: Path) ->
 
     assert query_db == []
     assert results[0].skipped is True
+    assert results[0].status == 'success'
+    assert results[0].duration_ms == 0
     assert results[0].checksum == checksum
+    assert history_store.running_records == []
     assert history_store.records == []
 
 
@@ -316,9 +423,12 @@ async def test_plugin_migration_runner_records_failure_history(tmp_path: Path) -
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
     history_store = FakeMigrationHistoryStore()
 
-    with pytest.raises(RuntimeError, match='boom'):
+    with pytest.raises(PluginMigrationError, match='boom') as exc_info:
         await PluginMigrationRunner(discovered_plugin, history_store).run([])
 
+    assert exc_info.value.status == 'failed'
+    assert exc_info.value.to_recovery_payload()['migrationPath'] == 'migrations/001_demo.py'
+    assert len(history_store.running_records) == 1
     assert len(history_store.failure_records) == 1
     failure_record = history_store.failure_records[0]
     assert failure_record[0] == 'demo_migration'
@@ -327,6 +437,32 @@ async def test_plugin_migration_runner_records_failure_history(tmp_path: Path) -
     assert failure_record[4] == 0
     assert failure_record[5] == 'boom'
     assert history_store.records == []
+
+
+@pytest.mark.asyncio
+async def test_plugin_migration_runner_rolls_back_managed_execution_transaction(tmp_path: Path) -> None:
+    """
+    校验托管执行事务模式会在 migration 失败时回滚执行 session。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_migration'
+    write_plugin_with_migration(plugin_root, 'def run(query_db):\n    raise RuntimeError("boom")\n')
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+    history_store = FakeMigrationHistoryStore()
+    query_db = FakeManagedMigrationSession()
+
+    with pytest.raises(PluginMigrationError, match='boom'):
+        await PluginMigrationRunner(
+            discovered_plugin,
+            history_store,
+            manage_execution_transaction=True,
+        ).run(query_db)
+
+    assert query_db.committed is False
+    assert query_db.rolled_back is True
+    assert len(history_store.failure_records) == 1
 
 
 @pytest.mark.asyncio
@@ -342,5 +478,75 @@ async def test_plugin_migration_runner_rejects_checksum_drift(tmp_path: Path) ->
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
     history_store = FakeMigrationHistoryStore({('demo_migration', 'migrations/001_demo.py'): 'old-checksum'})
 
-    with pytest.raises(RuntimeError, match='内容校验值变化'):
+    with pytest.raises(PluginMigrationError, match='内容校验值变化') as exc_info:
         await PluginMigrationRunner(discovered_plugin, history_store).run([])
+
+    assert exc_info.value.status == 'success'
+    assert '新增一个后续 migration' in exc_info.value.recovery_suggestion
+
+
+@pytest.mark.asyncio
+async def test_plugin_migration_runner_rejects_running_history(tmp_path: Path) -> None:
+    """
+    校验 running 状态的 migration 不会被自动重跑。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_migration'
+    write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("should_not_run")\n')
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+    migration_file = plugin_root / 'migrations' / '001_demo.py'
+    checksum = PluginMigrationRunner._calculate_checksum(migration_file)
+    history_store = FakeMigrationHistoryStore(
+        records={
+            ('demo_migration', 'migrations/001_demo.py'): PluginMigrationHistoryRecord(
+                checksum=checksum,
+                status='running',
+            )
+        }
+    )
+    query_db = []
+
+    with pytest.raises(PluginMigrationError, match='running') as exc_info:
+        await PluginMigrationRunner(discovered_plugin, history_store).run(query_db)
+
+    assert exc_info.value.status == 'running'
+    assert 'mark-success' in exc_info.value.recovery_suggestion
+    assert query_db == []
+    assert history_store.running_records == []
+    assert history_store.records == []
+
+
+@pytest.mark.asyncio
+async def test_plugin_migration_runner_retries_failed_history(tmp_path: Path) -> None:
+    """
+    校验 failed 状态的 migration 允许修复后重试。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_migration'
+    write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("retry")\n')
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+    migration_file = plugin_root / 'migrations' / '001_demo.py'
+    checksum = PluginMigrationRunner._calculate_checksum(migration_file)
+    history_store = FakeMigrationHistoryStore(
+        records={
+            ('demo_migration', 'migrations/001_demo.py'): PluginMigrationHistoryRecord(
+                checksum='old-failed-checksum',
+                status='failed',
+                error_message='boom',
+            )
+        }
+    )
+    query_db = []
+
+    results = await PluginMigrationRunner(discovered_plugin, history_store).run(query_db)
+
+    assert query_db == ['retry']
+    assert len(history_store.running_records) == 1
+    assert history_store.running_records[0][2] == checksum
+    assert len(history_store.records) == 1
+    assert history_store.records[0][2] == results[0].checksum
+    assert results[0].status == 'success'

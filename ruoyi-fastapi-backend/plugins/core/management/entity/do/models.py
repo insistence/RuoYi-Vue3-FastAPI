@@ -76,7 +76,11 @@ class SysPluginMigration(Base):
     statement_count = Column(Integer, nullable=False, default=0, comment='SQL 语句数量')
     status = Column(String(32), nullable=False, server_default='success', comment='执行状态')
     error_message = Column(Text, nullable=True, comment='失败错误信息')
+    attempt_count = Column(Integer, nullable=False, default=0, comment='尝试次数')
+    started_time = Column(DateTime, nullable=True, comment='最近开始时间')
+    finished_time = Column(DateTime, nullable=True, comment='最近结束时间')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='执行时间')
+    update_time = Column(DateTime, nullable=True, comment='更新时间')
 
 
 class SysPluginConfig(Base):

@@ -369,6 +369,50 @@ class CliPluginRuntimeService:
         """
         return await self._delegate('purge_plugin', plugin_id, dry_run=dry_run)
 
+    async def list_plugin_migrations(self, plugin_id: str, status: str | None = None) -> dict[str, Any]:
+        """
+        查询插件 migration 历史。
+
+        :param plugin_id: 插件ID
+        :param status: 执行状态
+        :return: 插件 migration 历史负载
+        """
+        return await self._delegate('list_plugin_migrations', plugin_id, status)
+
+    async def mark_plugin_migration_success(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        *,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        人工标记插件 migration 为成功。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param note: 人工恢复备注
+        :return: 插件 migration 状态标记负载
+        """
+        return await self._delegate('mark_plugin_migration_success', plugin_id, migration_path, note=note)
+
+    async def mark_plugin_migration_failed(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        *,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        人工标记插件 migration 为失败。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param note: 人工恢复备注
+        :return: 插件 migration 状态标记负载
+        """
+        return await self._delegate('mark_plugin_migration_failed', plugin_id, migration_path, note=note)
+
     async def get_plugin_config(self, plugin_id: str) -> dict[str, Any]:
         """
         读取插件配置。

@@ -763,6 +763,25 @@ class PluginService:
         return PluginMigrationModel(**CamelCaseUtil.transform_result(plugin_migration))
 
     @classmethod
+    async def get_plugin_migration_list_services(
+        cls,
+        query_db: AsyncSession,
+        plugin_id: str,
+        status: str | None = None,
+    ) -> list[PluginMigrationModel]:
+        """
+        获取插件 migration 执行历史列表。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param status: 执行状态
+        :return: 插件 migration 执行历史列表
+        """
+        plugin_migrations = await PluginDao.get_plugin_migration_list(query_db, plugin_id, status)
+
+        return [PluginMigrationModel(**CamelCaseUtil.transform_result(item)) for item in plugin_migrations]
+
+    @classmethod
     async def add_plugin_migration_services(
         cls,
         query_db: AsyncSession,
@@ -778,6 +797,37 @@ class PluginService:
         await PluginDao.add_plugin_migration(query_db, plugin_migration)
 
         return plugin_migration
+
+    @classmethod
+    async def mark_plugin_migration_status_services(
+        cls,
+        query_db: AsyncSession,
+        plugin_id: str,
+        migration_path: str,
+        status: str,
+        error_message: str | None = None,
+    ) -> PluginMigrationModel | None:
+        """
+        人工标记插件 migration 执行历史状态。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param status: 执行状态
+        :param error_message: 失败错误信息
+        :return: 更新后的插件 migration 执行历史对象
+        """
+        plugin_migration = await PluginDao.update_plugin_migration_status(
+            query_db,
+            plugin_id,
+            migration_path,
+            status,
+            error_message,
+        )
+        if not plugin_migration:
+            return None
+
+        return PluginMigrationModel(**CamelCaseUtil.transform_result(plugin_migration))
 
     @staticmethod
     def _build_plugin_model(

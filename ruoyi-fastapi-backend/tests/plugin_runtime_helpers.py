@@ -142,6 +142,7 @@ class FakeSession:
         初始化测试用异步数据库会话。
         """
         self.committed = False
+        self.rolled_back = False
         self.executed_statements = []
 
     async def __aenter__(self) -> 'FakeSession':
@@ -169,6 +170,14 @@ class FakeSession:
         :return: None
         """
         self.committed = True
+
+    async def rollback(self) -> None:
+        """
+        记录回滚动作。
+
+        :return: None
+        """
+        self.rolled_back = True
 
     async def execute(self, statement: object) -> None:
         """
@@ -372,6 +381,28 @@ class FakePluginService:
         return SimpleNamespace(migration_checksum=checksum)
 
     @classmethod
+    async def get_plugin_migration_list_services(
+        cls,
+        query_db: object,
+        plugin_id: str,
+        status: str | None = None,
+    ) -> list[SimpleNamespace]:
+        """
+        读取测试用插件 migration 执行历史列表。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param status: 执行状态
+        :return: migration 执行历史列表
+        """
+        return [
+            migration
+            for migration in cls.migration_records
+            if getattr(migration, 'plugin_id', None) == plugin_id
+            and (not status or getattr(migration, 'status', None) == status)
+        ]
+
+    @classmethod
     async def add_plugin_migration_services(
         cls,
         query_db: object,
@@ -386,6 +417,36 @@ class FakePluginService:
         """
         cls.migration_records.append(plugin_migration)
         return plugin_migration
+
+    @classmethod
+    async def mark_plugin_migration_status_services(
+        cls,
+        query_db: object,
+        plugin_id: str,
+        migration_path: str,
+        status: str,
+        error_message: str | None = None,
+    ) -> object | None:
+        """
+        人工标记测试用插件 migration 执行历史状态。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param status: 执行状态
+        :param error_message: 失败错误信息
+        :return: 更新后的 migration 执行历史
+        """
+        for migration in reversed(cls.migration_records):
+            if (
+                getattr(migration, 'plugin_id', None) == plugin_id
+                and getattr(migration, 'migration_path', None) == migration_path
+            ):
+                migration.status = status
+                migration.error_message = error_message
+                return migration
+
+        return None
 
     @classmethod
     async def add_plugin_operation_log_services(
@@ -746,6 +807,11 @@ class FakePluginRuntimeGateway:
             statement_count=statement_count,
             status=status,
             error_message=error_message,
+            attempt_count=0,
+            started_time=None,
+            finished_time=None,
+            create_time=None,
+            update_time=None,
         )
 
     def run_command(

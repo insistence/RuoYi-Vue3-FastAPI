@@ -4,12 +4,17 @@
 
 ## 1. 基本模型
 
-插件由后端插件和可选前端插件组成：
+插件由后端插件和可选前端插件组成。默认源码布局如下：
 
 ```text
 ruoyi-fastapi-backend/plugins/<plugin_id>/
 ruoyi-fastapi-frontend/plugins/<plugin_id>/
 ```
+
+运行时不会把前后端仓库名写死在各操作入口中。插件系统优先使用显式传入的目录，其次读取
+`RUOYI_PLUGIN_BACKEND_ROOT`/`RUOYI_BACKEND_ROOT` 和
+`RUOYI_PLUGIN_FRONTEND_ROOT`/`RUOYI_FRONTEND_ROOT`，再尝试从后端同级目录中识别前端工程；
+最后才按后端目录名把 `backend` 推断为 `frontend`。非默认目录名的项目，应优先配置上述环境变量或在运行时注入目录。
 
 后端插件必须包含 `plugin.yaml`。插件发现、安装、菜单、依赖、配置、迁移、种子数据和定时任务都以这个文件为入口。
 
@@ -84,7 +89,7 @@ plugins/demo/
 推荐前端结构：
 
 ```text
-../ruoyi-fastapi-frontend/plugins/demo/
+<frontend-project>/plugins/demo/
   api/
     demo.js
   views/
@@ -533,9 +538,23 @@ seeds/postgresql/001_seed.sql
 
 - migration 用于表结构。
 - seed 用于字典、默认配置等初始化数据。
-- seed 必须可重复执行。
+- migration 和 seed 都必须可重复执行。MySQL DDL 会隐式提交，后续 hook 或状态写入失败时平台无法自动回滚已应用的结构变更。
+- migration 执行前会先记录 `status=running`；成功后记录 `status=success`；失败后记录 `status=failed` 和错误摘要。
+- `running` 表示上次执行已开始但未记录成功或失败，平台会阻断自动重跑，需要人工确认数据库结构后标记为成功或失败。
+- migration 成功历史只认 `status=success`；已成功执行的 migration 文件不能修改，checksum 变化时必须恢复原文件或新增后续 migration。
+- SQL migration 应优先使用 `CREATE TABLE IF NOT EXISTS` 等幂等写法；复杂 DDL、存储过程或需要条件判断的变更建议改用 Python migration。
+- SQL migration 应尽量拆小，避免单个文件包含大量不可回滚 DDL；`ALTER TABLE`、索引和初始化数据尤其要考虑重复执行安全。
 - SQL 文件路径必须位于插件目录内。
 - MySQL 和 PostgreSQL 差异较大时分别维护脚本。
+
+故障恢复入口：
+
+- CLI 查看历史：`ruoyi plugin migration-list <plugin_id> --status running`
+- CLI 标记成功：`ruoyi plugin mark-success <plugin_id> <migration_path> --note "已人工确认结构完成"`
+- CLI 标记失败：`ruoyi plugin mark-failed <plugin_id> <migration_path> --note "未完成，允许修复后重试"`
+- Web 管理页：插件详情的“依赖 / 执行历史”中查看 migration 状态，并执行人工标记。
+
+详细排障流程见 [插件 Migration 故障处理手册](plugin_migration_failure_runbook.md)。
 
 ### 6.4 生命周期钩子
 

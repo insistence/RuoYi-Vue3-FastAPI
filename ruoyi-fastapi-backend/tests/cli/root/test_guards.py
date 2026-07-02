@@ -49,6 +49,8 @@ def test_dangerous_command_rules_cover_expected_commands() -> None:
         'plugin config export',
         'plugin uninstall',
         'plugin purge',
+        'plugin mark-success',
+        'plugin mark-failed',
     }
 
 

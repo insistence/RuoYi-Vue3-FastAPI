@@ -131,6 +131,61 @@
                </el-table-column>
             </el-table>
 
+            <div class="detail-section-title">执行历史</div>
+            <el-table v-loading="migrationLoading" :data="migrationHistory" size="small" border empty-text="暂无 migration 执行历史">
+               <el-table-column label="脚本" prop="migrationPath" min-width="220" :show-overflow-tooltip="true" />
+               <el-table-column label="版本" prop="version" width="100" align="center">
+                  <template #default="scope">{{ scope.row.version || "-" }}</template>
+               </el-table-column>
+               <el-table-column label="状态" width="120" align="center">
+                  <template #default="scope">
+                     <el-tag :type="getMigrationStatusTagType(scope.row.status)">
+                        {{ getMigrationStatusLabel(scope.row.status) }}
+                     </el-tag>
+                  </template>
+               </el-table-column>
+               <el-table-column label="次数" prop="attemptCount" width="70" align="center">
+                  <template #default="scope">{{ scope.row.attemptCount ?? 0 }}</template>
+               </el-table-column>
+               <el-table-column label="语句" prop="statementCount" width="70" align="center">
+                  <template #default="scope">{{ scope.row.statementCount ?? 0 }}</template>
+               </el-table-column>
+               <el-table-column label="开始时间" width="160" align="center">
+                  <template #default="scope">{{ formatPluginTime(scope.row.startedTime || scope.row.createTime) }}</template>
+               </el-table-column>
+               <el-table-column label="结束时间" width="160" align="center">
+                  <template #default="scope">{{ formatPluginTime(scope.row.finishedTime) }}</template>
+               </el-table-column>
+               <el-table-column label="错误信息" min-width="220" :show-overflow-tooltip="true">
+                  <template #default="scope">{{ scope.row.errorMessage || "-" }}</template>
+               </el-table-column>
+               <el-table-column label="操作" width="110" align="center" fixed="right">
+                  <template #default="scope">
+                     <div class="detail-row-actions">
+                        <el-tooltip v-if="canMarkMigrationSuccess(scope.row)" content="标记成功" placement="top">
+                           <el-button
+                              link
+                              type="success"
+                              icon="CircleCheck"
+                              @click="emit('mark-migration-success', scope.row)"
+                              v-hasPermi="['system:plugin:edit']"
+                           />
+                        </el-tooltip>
+                        <el-tooltip v-if="canMarkMigrationFailed(scope.row)" content="标记失败" placement="top">
+                           <el-button
+                              link
+                              type="danger"
+                              icon="CircleClose"
+                              @click="emit('mark-migration-failed', scope.row)"
+                              v-hasPermi="['system:plugin:edit']"
+                           />
+                        </el-tooltip>
+                        <span v-if="!canMarkMigrationSuccess(scope.row) && !canMarkMigrationFailed(scope.row)">-</span>
+                     </div>
+                  </template>
+               </el-table-column>
+            </el-table>
+
             <div class="detail-section-title">插件依赖</div>
             <el-table :data="detail.pluginDependencies || []" size="small" border empty-text="暂无插件依赖">
                <el-table-column label="插件ID" prop="id" width="160" :show-overflow-tooltip="true" />
@@ -197,10 +252,18 @@ const props = defineProps({
   formatConfigConstraint: {
     type: Function,
     required: true
+  },
+  migrationHistory: {
+    type: Array,
+    default: () => []
+  },
+  migrationLoading: {
+    type: Boolean,
+    default: false
   }
 });
 
-const emit = defineEmits(["update:modelValue", "enable"]);
+const emit = defineEmits(["update:modelValue", "enable", "mark-migration-success", "mark-migration-failed"]);
 
 const detailDependencyRows = computed(() => {
   const dependencies = props.detail.dependencies || {};
@@ -267,6 +330,34 @@ function getFrontendDeliveryLabel(delivery) {
 function normalizeDetailItems(items) {
   return Array.isArray(items) ? items.filter(Boolean) : [];
 }
+
+function getMigrationStatusLabel(status) {
+  const statusMap = {
+    running: "执行中/中断",
+    success: "成功",
+    failed: "失败",
+    unknown: "未知"
+  };
+  return statusMap[status] || status || "-";
+}
+
+function getMigrationStatusTagType(status) {
+  const statusMap = {
+    running: "warning",
+    success: "success",
+    failed: "danger",
+    unknown: "info"
+  };
+  return statusMap[status] || "info";
+}
+
+function canMarkMigrationSuccess(row) {
+  return ["running", "failed"].includes(row?.status);
+}
+
+function canMarkMigrationFailed(row) {
+  return row?.status === "running";
+}
 </script>
 
 <style scoped>
@@ -295,5 +386,11 @@ function normalizeDetailItems(items) {
 
 .detail-empty-text {
   color: #909399;
+}
+
+.detail-row-actions {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
 }
 </style>

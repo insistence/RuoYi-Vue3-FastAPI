@@ -7,10 +7,15 @@ from typing import Any
 from fastapi import FastAPI
 
 from common.router import auto_register_controller_files
+from config.database import AsyncSessionLocal
 from config.env import AppConfig
 from config.get_db import get_db
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
-from plugins.core.lifecycle.migration import PluginMigrationHistoryStore, PluginMigrationRunner
+from plugins.core.lifecycle.migration import (
+    PluginMigrationHistoryRecord,
+    PluginMigrationHistoryStore,
+    PluginMigrationRunner,
+)
 from plugins.core.lifecycle.seed import PluginSeedRunner
 from plugins.core.runtime.bootstrap import PluginRuntimeBuilder
 from plugins.core.runtime.hooks import PluginHookRunner
@@ -32,28 +37,71 @@ class PluginStartupMigrationHistoryStore(PluginMigrationHistoryStore):
     启动期插件 migration 历史存储适配器。
     """
 
-    def __init__(self, management_gateway: PluginStartupManagementGateway) -> None:
+    def __init__(self, management_gateway: PluginStartupManagementGateway, async_session_local: Any = None) -> None:
         """
         初始化启动期 migration 历史存储。
 
         :param management_gateway: 插件启动期管理端口
+        :param async_session_local: 独立数据库会话工厂
         :return: None
         """
         self.management_gateway = management_gateway
+        self.async_session_local = async_session_local
 
-    async def get_checksum(self, query_db: Any, plugin_id: str, migration_path: str) -> str | None:
+    async def get_record(
+        self,
+        query_db: Any,
+        plugin_id: str,
+        migration_path: str,
+    ) -> PluginMigrationHistoryRecord | None:
         """
-        获取已执行 migration 的内容校验值。
+        获取 migration 执行历史。
 
         :param query_db: orm对象
         :param plugin_id: 插件ID
         :param migration_path: migration 相对路径
-        :return: 内容校验值，不存在时返回 None
+        :return: migration 执行历史
         """
         plugin_migration = await self.management_gateway.get_plugin_migration(query_db, plugin_id, migration_path)
-        if plugin_migration and getattr(plugin_migration, 'status', 'success') != 'success':
+        if not plugin_migration:
             return None
-        return getattr(plugin_migration, 'migration_checksum', None) if plugin_migration else None
+        return PluginMigrationHistoryRecord(
+            checksum=plugin_migration.migration_checksum,
+            status=getattr(plugin_migration, 'status', 'success'),
+            error_message=getattr(plugin_migration, 'error_message', None),
+        )
+
+    async def record_running(
+        self,
+        query_db: Any,
+        plugin_id: str,
+        migration_path: str,
+        checksum: str,
+        version: str,
+        statement_count: int,
+    ) -> None:
+        """
+        记录 migration 开始执行。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param checksum: 内容校验值
+        :param version: 执行时插件版本
+        :param statement_count: SQL 语句数量
+        :return: None
+        """
+        await self._add_plugin_migration(
+            query_db,
+            self.management_gateway.build_migration_record(
+                plugin_id,
+                migration_path,
+                checksum,
+                version,
+                statement_count,
+                'running',
+            ),
+        )
 
     async def record_success(
         self,
@@ -75,7 +123,7 @@ class PluginStartupMigrationHistoryStore(PluginMigrationHistoryStore):
         :param statement_count: SQL 语句数量
         :return: None
         """
-        await self.management_gateway.add_plugin_migration(
+        await self._add_plugin_migration(
             query_db,
             self.management_gateway.build_migration_record(
                 plugin_id,
@@ -108,7 +156,7 @@ class PluginStartupMigrationHistoryStore(PluginMigrationHistoryStore):
         :param error_message: 失败错误信息
         :return: None
         """
-        await self.management_gateway.add_plugin_migration(
+        await self._add_plugin_migration(
             query_db,
             self.management_gateway.build_migration_record(
                 plugin_id,
@@ -120,6 +168,22 @@ class PluginStartupMigrationHistoryStore(PluginMigrationHistoryStore):
                 error_message,
             ),
         )
+
+    async def _add_plugin_migration(self, query_db: Any, plugin_migration: Any) -> None:
+        """
+        写入 migration 历史，优先使用独立会话提交。
+
+        :param query_db: 当前启动期 orm对象
+        :param plugin_migration: migration 历史模型
+        :return: None
+        """
+        if self.async_session_local is None:
+            await self.management_gateway.add_plugin_migration(query_db, plugin_migration)
+            return
+
+        async with self.async_session_local() as session:
+            await self.management_gateway.add_plugin_migration(session, plugin_migration)
+            await session.commit()
 
 
 class PluginRuntimeStartupManager:
@@ -500,7 +564,7 @@ class PluginRuntimeStartupManager:
         """
         await PluginMigrationRunner(
             discovered_plugin,
-            PluginStartupMigrationHistoryStore(self.management_gateway),
+            PluginStartupMigrationHistoryStore(self.management_gateway, AsyncSessionLocal),
         ).run(query_db)
         await self.run_plugin_seed_scripts(query_db, discovered_plugin)
 

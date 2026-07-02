@@ -177,9 +177,15 @@ def test_plugin_lifecycle_payload_builder_builds_success_payload() -> None:
     :return: None
     """
     precheck = build_fake_lifecycle_precheck()
+    migration_duration_ms = 12
     plugin = SimpleNamespace(model_dump=lambda by_alias=True: {'pluginId': 'demo'})
     config = SimpleNamespace(model_dump=lambda by_alias=True: {'key': 'api_key'})
-    migration_result = SimpleNamespace(migration_path='migrations/001_init.sql')
+    migration_result = SimpleNamespace(
+        migration_path='migrations/001_init.sql',
+        status='success',
+        duration_ms=migration_duration_ms,
+        recovery_suggestion=None,
+    )
     seed_result = SimpleNamespace(seed_path='seeds/001_seed.sql')
     hook_result = SimpleNamespace(hook='hooks:on_install')
 
@@ -204,6 +210,9 @@ def test_plugin_lifecycle_payload_builder_builds_success_payload() -> None:
     assert payload['plugin'] == {'pluginId': 'demo'}
     assert payload['configs'] == [{'key': 'api_key'}]
     assert payload['migrations'][0]['migration_path'] == 'migrations/001_init.sql'
+    assert payload['migrations'][0]['status'] == 'success'
+    assert payload['migrations'][0]['duration_ms'] == migration_duration_ms
+    assert payload['migrations'][0]['recovery_suggestion'] is None
     assert payload['seeds'][0]['seed_path'] == 'seeds/001_seed.sql'
     assert payload['hooks'][0]['hook'] == 'hooks:on_install'
 

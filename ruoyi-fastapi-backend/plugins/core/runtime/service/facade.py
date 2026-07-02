@@ -22,6 +22,7 @@ from .gateway import (
 )
 from .lifecycle import PluginEnableUseCase, PluginInstallUseCase, PluginPurgeUseCase, PluginUpgradeUseCase
 from .lifecycle_lock import NoopPluginLifecycleLock, PluginLifecycleLock
+from .migration import MigrationRecoveryStatus, PluginMigrationUseCase
 from .precheck import PluginPrecheckUseCase
 from .query import PluginQueryUseCase
 from .responses import (
@@ -105,6 +106,7 @@ class PluginRuntimeService:
         self.dependency = PluginDependencyUseCase(dependencies, context=self.context)
         self.enable = PluginEnableUseCase(dependencies, runtime_operations=self, context=self.context)
         self.install = PluginInstallUseCase(dependencies, runtime_operations=self, context=self.context)
+        self.migration = PluginMigrationUseCase(dependencies)
         self.precheck = PluginPrecheckUseCase(dependencies, context=self.context)
         self.purge = PluginPurgeUseCase(dependencies, runtime_operations=self, context=self.context)
         self.query = PluginQueryUseCase(dependencies, runtime_operations=self, context=self.context)
@@ -434,6 +436,108 @@ class PluginRuntimeService:
         :return: None
         """
         await self.audit.record_plugin_failure_state(cast('dict[str, object]', payload), default_message)
+
+    async def list_plugin_migrations(self, plugin_id: str, status: str | None = None) -> dict[str, object]:
+        """
+        查询插件 migration 历史。
+
+        :param plugin_id: 插件ID
+        :param status: 执行状态
+        :return: 插件 migration 历史负载
+        """
+        return await self.migration.list_plugin_migrations(plugin_id, status)
+
+    async def mark_plugin_migration_success(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        *,
+        note: str | None = None,
+        record_operation_log: bool = True,
+    ) -> dict[str, object]:
+        """
+        人工标记插件 migration 为成功。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param note: 人工恢复备注
+        :param record_operation_log: 是否记录插件操作审计日志
+        :return: 插件 migration 状态标记负载
+        """
+        return await self._mark_plugin_migration_status(
+            plugin_id,
+            migration_path,
+            'success',
+            note=note,
+            record_operation_log=record_operation_log,
+        )
+
+    async def mark_plugin_migration_failed(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        *,
+        note: str | None = None,
+        record_operation_log: bool = True,
+    ) -> dict[str, object]:
+        """
+        人工标记插件 migration 为失败。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param note: 人工恢复备注
+        :param record_operation_log: 是否记录插件操作审计日志
+        :return: 插件 migration 状态标记负载
+        """
+        return await self._mark_plugin_migration_status(
+            plugin_id,
+            migration_path,
+            'failed',
+            note=note,
+            record_operation_log=record_operation_log,
+        )
+
+    async def _mark_plugin_migration_status(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        status: MigrationRecoveryStatus,
+        *,
+        note: str | None,
+        record_operation_log: bool,
+    ) -> dict[str, object]:
+        """
+        在生命周期锁内人工标记插件 migration 状态。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param status: 目标状态
+        :param note: 人工恢复备注
+        :param record_operation_log: 是否记录插件操作审计日志
+        :return: 插件 migration 状态标记负载
+        """
+        operation = f'migration_mark_{status}'
+        async with self.lifecycle_lock.lock(plugin_id, operation) as lock_result:
+            if not lock_result.acquired:
+                return cast(
+                    'dict[str, object]',
+                    PluginRuntimePayloadBuilder.build_invalid_operation_payload(
+                        plugin_id,
+                        operation,
+                        message=lock_result.message,
+                    ),
+                )
+            payload = await self.migration.mark_plugin_migration_status(
+                plugin_id,
+                migration_path,
+                status,
+                note=note,
+            )
+
+        if record_operation_log and payload.get('ok') is True:
+            await self.record_plugin_operation_log(payload, dry_run=False, continue_on_error=False)
+
+        return payload
 
     async def install_plugin(
         self,

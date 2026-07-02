@@ -3,6 +3,94 @@
 from tests.plugin_runtime_helpers import *
 
 
+def test_plugin_runtime_lists_plugin_migration_history(tmp_path: Path) -> None:
+    """
+    校验运行时可以查询插件 migration 历史。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    FakePluginService.migration_records = [
+        gateway.build_migration_record('demo', 'migrations/001.sql', 'checksum-1', '1.0.0', 1, 'success'),
+        gateway.build_migration_record('demo', 'migrations/002.sql', 'checksum-2', '1.0.0', 1, 'running'),
+        gateway.build_migration_record('other', 'migrations/001.sql', 'checksum-3', '1.0.0', 1, 'running'),
+    ]
+
+    result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).list_plugin_migrations('demo', 'running'))
+
+    assert result['ok'] is True
+    assert result['pluginId'] == 'demo'
+    assert result['status'] == 'running'
+    assert result['count'] == 1
+    assert result['migrations'][0]['migrationPath'] == 'migrations/002.sql'
+
+
+def test_plugin_runtime_marks_plugin_migration_success_and_records_audit(tmp_path: Path) -> None:
+    """
+    校验运行时可以人工标记 migration 成功并记录审计日志。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    migration = gateway.build_migration_record(
+        'demo',
+        'migrations/001.sql',
+        'checksum-1',
+        '1.0.0',
+        1,
+        'running',
+        'interrupted',
+    )
+    FakePluginService.migration_records = [migration]
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).mark_plugin_migration_success(
+            'demo',
+            'migrations/001.sql',
+            note='confirmed',
+        )
+    )
+
+    assert result['ok'] is True
+    assert result['operation'] == 'migration_mark_success'
+    assert migration.status == 'success'
+    assert migration.error_message is None
+    assert FakePluginService.operation_logs[0].payload['operation'] == 'migration_mark_success'
+
+
+def test_plugin_runtime_marks_plugin_migration_failed(tmp_path: Path) -> None:
+    """
+    校验运行时可以人工标记 migration 失败以允许后续重试。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    migration = gateway.build_migration_record('demo', 'migrations/001.sql', 'checksum-1', '1.0.0', 1, 'running')
+    FakePluginService.migration_records = [migration]
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).mark_plugin_migration_failed(
+            'demo',
+            'migrations/001.sql',
+            note='not applied',
+        )
+    )
+
+    assert result['ok'] is True
+    assert result['operation'] == 'migration_mark_failed'
+    assert migration.status == 'failed'
+    assert migration.error_message == 'not applied'
+
+
 def test_plugin_runtime_install_plugin_runs_install_hook(tmp_path: Path) -> None:
     """
     校验插件安装会执行 manifest 声明的 on_install 钩子。
@@ -556,11 +644,15 @@ name: 演示插件
 version: 1.1.0
 backend:
   module: plugins.demo
+  migrations:
+    - migrations/001_upgrade.sql
   hooks:
     onUpgrade: hooks:on_upgrade
 """,
     )
     create_controller_dir(plugin_root)
+    (plugin_root / 'migrations').mkdir()
+    (plugin_root / 'migrations' / '001_upgrade.sql').write_text('select 4;\n', encoding='utf-8')
     (plugin_root / 'hooks.py').write_text(
         "async def on_upgrade(context):\n    raise RuntimeError('upgrade hook failed')\n",
         encoding='utf-8',
@@ -582,6 +674,12 @@ backend:
     assert result['failedStep'] == 'run_upgrade_hook'
     assert 'upgrade hook failed' in result['error']
     assert FakePluginService.marked_errors == [('demo', '插件升级失败：upgrade hook failed')]
+    assert [record.status for record in FakePluginService.migration_records] == ['running', 'success']
+    migration_session = gateway.session_local.executed_session
+    assert migration_session is not None
+    assert migration_session.executed_statements == ['select 4']
+    assert migration_session is not gateway.session_local.sessions[0]
+    assert migration_session.committed is True
 
 
 def test_plugin_runtime_upgrade_plugin_uses_injected_dependencies(tmp_path: Path) -> None:
@@ -624,8 +722,13 @@ backend:
     assert result['ok'] is True
     assert FakePluginService.upsert_called is True
     assert FakePluginService.mark_installed_called is True
-    assert FakePluginService.migration_records[0].migration_path == 'migrations/001_upgrade.sql'
-    assert gateway.session_local.executed_session.executed_statements == ['select 3']
+    assert [record.status for record in FakePluginService.migration_records] == ['running', 'success']
+    assert FakePluginService.migration_records[-1].migration_path == 'migrations/001_upgrade.sql'
+    migration_session = gateway.session_local.executed_session
+    assert migration_session is not None
+    assert migration_session.executed_statements == ['select 3']
+    assert migration_session is not gateway.session_local.sessions[0]
+    assert migration_session.committed is True
     assert gateway.session_local.committed_session is not None
 
 
