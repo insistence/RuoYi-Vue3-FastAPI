@@ -355,6 +355,37 @@ async def test_plugin_menu_installer_reuses_existing_plugin_menu(monkeypatch: py
 
 
 @pytest.mark.asyncio
+async def test_plugin_menu_installer_does_not_reuse_unowned_existing_menu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    校验插件菜单安装器不会复用未与当前插件关联的已有系统菜单。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+    FakePluginDao.reset()
+    FakePluginDao.next_menu_id = CHILD_MENU_ID
+    FakePluginDao.menus[EXISTING_MENU_ID] = SimpleNamespace(
+        menu_id=EXISTING_MENU_ID,
+        menu_name='平台菜单',
+        parent_id=ROOT_MENU_ID,
+        path='demo',
+        component='Layout',
+        perms='demo:page:list',
+        remark='core menu',
+    )
+    monkeypatch.setattr(menu_service, 'PluginDao', FakePluginDao)
+
+    await PluginMenuInstaller(object()).install_manifest_menus(build_manifest())
+
+    assert FakePluginDao.menus[EXISTING_MENU_ID].menu_name == '平台菜单'
+    assert FakePluginDao.menus[EXISTING_MENU_ID].remark == 'core menu'
+    assert FakePluginDao.menus[CHILD_MENU_ID].menu_name == '演示目录'
+    assert FakePluginDao.plugin_menus[('demo', 'route:demo/demo#Layout')].menu_id == CHILD_MENU_ID
+
+
+@pytest.mark.asyncio
 async def test_plugin_menu_installer_updates_plugin_menu_status(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     校验插件菜单安装器可以批量更新插件菜单状态。

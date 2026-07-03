@@ -334,6 +334,7 @@ async def test_run_plugin_install_scripts_runs_migrations_and_seeds() -> None:
     :return: None
     """
     fake_session = object()
+    fake_migration_session = object()
     discovered_plugin = MagicMock()
     fake_gateway = MagicMock()
     startup_manager = PluginRuntimeStartupManager(MagicMock(), fake_gateway)
@@ -343,8 +344,13 @@ async def test_run_plugin_install_scripts_runs_migrations_and_seeds() -> None:
     seed_runner.run = AsyncMock()
     runner_class = MagicMock(return_value=migration_runner)
     seed_runner_class = MagicMock(return_value=seed_runner)
+    migration_session_context = MagicMock()
+    migration_session_context.__aenter__ = AsyncMock(return_value=fake_migration_session)
+    migration_session_context.__aexit__ = AsyncMock(return_value=None)
+    async_session_local = MagicMock(return_value=migration_session_context)
 
     with (
+        patch_startup_global('AsyncSessionLocal', async_session_local),
         patch_startup_global('PluginMigrationRunner', runner_class),
         patch_startup_global('PluginSeedRunner', seed_runner_class),
     ):
@@ -353,7 +359,9 @@ async def test_run_plugin_install_scripts_runs_migrations_and_seeds() -> None:
     runner_class.assert_called_once()
     assert runner_class.call_args.args[0] is discovered_plugin
     assert isinstance(runner_class.call_args.args[1], PluginStartupMigrationHistoryStore)
-    migration_runner.run.assert_awaited_once_with(fake_session)
+    assert runner_class.call_args.args[1].async_session_local is async_session_local
+    assert runner_class.call_args.kwargs['manage_execution_transaction'] is True
+    migration_runner.run.assert_awaited_once_with(fake_migration_session)
     seed_runner_class.assert_called_once_with(discovered_plugin)
     seed_runner.run.assert_awaited_once_with(fake_session)
 
@@ -674,8 +682,12 @@ def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path)
         startup_manager.register_enabled_plugin_routers(app)
         startup_manager.register_enabled_plugin_routers(app)
 
+    auto_register_controller_files.assert_called_once()
     controller_files = auto_register_controller_files.call_args.args[1]
+    dependencies = auto_register_controller_files.call_args.kwargs['dependencies']
     assert controller_files == [str(demo_controller)]
+    assert len(dependencies) == 1
+    assert dependencies[0].dependency.plugin_id == 'demo'
     assert app.state.plugin_routes_registered is True
 
 

@@ -665,38 +665,32 @@ def test_manifest_checker_accepts_effective_config_constraints() -> None:
     assert result.issues == []
 
 
-def test_manifest_checker_warns_permission_without_plugin_prefix() -> None:
+def test_manifest_rejects_permission_without_plugin_prefix() -> None:
     """
-    校验权限标识未使用插件 ID 前缀时产生 warning。
+    校验权限标识未使用插件 ID 前缀时阻断 manifest 加载。
 
     :return: None
     """
-    manifest = PluginManifest.model_validate(
-        {
-            'id': 'demo',
-            'name': '演示插件',
-            'version': '1.0.0',
-            'backend': {'module': 'plugins.demo'},
-            'permissions': ['demo:list', 'system:user:list'],
-            'frontend': {
-                'menus': [
-                    {
-                        'name': '用户',
-                        'path': 'user',
-                        'component': 'plugin/demo/user/index',
-                        'perms': 'system:user:list',
-                    }
-                ]
-            },
-        }
-    )
-
-    result = PluginManifestChecker().check(manifest)
-
-    assert result.ok is True
-    assert len(result.warning_issues) == 1
-    assert result.warning_issues[0].kind == 'permission_without_plugin_prefix'
-    assert result.warning_issues[0].path == 'permissions.system:user:list'
+    with pytest.raises(ValueError, match='插件权限必须使用 demo: 前缀'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo'},
+                'permissions': ['demo:list', 'system:user:list'],
+                'frontend': {
+                    'menus': [
+                        {
+                            'name': '用户',
+                            'path': 'user',
+                            'component': 'plugin/demo/user/index',
+                            'perms': 'system:user:list',
+                        }
+                    ]
+                },
+            }
+        )
 
 
 def test_manifest_checker_accepts_permissions_with_plugin_prefix() -> None:

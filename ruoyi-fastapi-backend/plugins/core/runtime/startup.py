@@ -19,6 +19,7 @@ from plugins.core.lifecycle.migration import (
 from plugins.core.lifecycle.seed import PluginSeedRunner
 from plugins.core.runtime.bootstrap import PluginRuntimeBuilder
 from plugins.core.runtime.hooks import PluginHookRunner
+from plugins.core.runtime.route_guard import PluginEnabledDependency
 from plugins.core.runtime.service.gateway import DefaultPluginCommandRunnerGateway, PluginCommandRunnerGateway
 from plugins.core.runtime.startup_gateway import (
     PluginStartupManagementGateway,
@@ -562,10 +563,12 @@ class PluginRuntimeStartupManager:
         :param discovered_plugin: 已发现插件对象
         :return: None
         """
-        await PluginMigrationRunner(
-            discovered_plugin,
-            PluginStartupMigrationHistoryStore(self.management_gateway, AsyncSessionLocal),
-        ).run(query_db)
+        async with AsyncSessionLocal() as migration_session:
+            await PluginMigrationRunner(
+                discovered_plugin,
+                PluginStartupMigrationHistoryStore(self.management_gateway, AsyncSessionLocal),
+                manage_execution_transaction=True,
+            ).run(migration_session)
         await self.run_plugin_seed_scripts(query_db, discovered_plugin)
 
     @staticmethod
@@ -615,7 +618,10 @@ class PluginRuntimeStartupManager:
                 for plugin in plugin_registry.list_enabled_plugins()
                 if plugin.discovered_plugin.manifest.backend.routers.auto_scan
             ]
-        auto_register_controller_files(app, self._find_plugin_controller_files(plugin_ids))
+        for plugin_id in plugin_ids:
+            controller_files = self._find_plugin_controller_files([plugin_id])
+            if controller_files:
+                auto_register_controller_files(app, controller_files, dependencies=[PluginEnabledDependency(plugin_id)])
         app.state.plugin_routes_registered = True
 
     def _find_plugin_controller_files(self, plugin_ids: list[str]) -> list[str]:

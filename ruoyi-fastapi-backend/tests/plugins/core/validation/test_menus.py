@@ -72,9 +72,9 @@ permissions:
     assert result.items[0].value == 'perm:demo:list'
 
 
-def test_menu_conflict_checker_reports_duplicate_permission_across_plugins(tmp_path: Path) -> None:
+def test_menu_conflict_checker_accepts_namespaced_permissions_across_plugins(tmp_path: Path) -> None:
     """
-    校验菜单冲突检查器会报告不同插件间重复权限标识。
+    校验菜单冲突检查器接受不同插件使用各自权限命名空间。
 
     :param tmp_path: pytest 临时目录
     :return: None
@@ -93,9 +93,9 @@ frontend:
     - name: Demo
       path: demo
       component: plugin/demo/index
-      perms: shared:list
+      perms: demo:list
 permissions:
-  - shared:list
+  - demo:list
 """,
     )
     write_manifest(
@@ -111,9 +111,9 @@ frontend:
     - name: Sample
       path: sample
       component: plugin/sample/index
-      perms: shared:list
+      perms: sample:list
 permissions:
-  - shared:list
+  - sample:list
 """,
     )
     plugin_list = PluginScanner(backend_root / 'plugins').discover()
@@ -121,10 +121,8 @@ permissions:
 
     result = PluginMenuConflictChecker().check(plugin_map['sample'], plugin_list)
 
-    assert result.ok is False
-    assert result.items[0].kind == 'duplicate_permission'
-    assert result.items[0].value == 'shared:list'
-    assert result.items[0].conflict_plugin_id == 'demo'
+    assert result.ok is True
+    assert result.items == []
 
 
 def test_menu_conflict_checker_accepts_unique_plugin_menus(tmp_path: Path) -> None:

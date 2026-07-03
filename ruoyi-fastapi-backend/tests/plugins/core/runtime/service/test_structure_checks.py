@@ -184,9 +184,9 @@ backend:
     assert payload['checks'][0]['structureErrors'] == []
 
 
-def test_plugin_runtime_check_reports_menu_conflicts(tmp_path: Path) -> None:
+def test_plugin_runtime_check_accepts_namespaced_permissions(tmp_path: Path) -> None:
     """
-    校验插件运行时检查会报告菜单冲突。
+    校验插件运行时检查接受不同插件使用各自权限命名空间。
 
     :param tmp_path: pytest 临时目录
     :return: None
@@ -206,11 +206,13 @@ frontend:
     - name: 演示菜单
       path: demo
       component: plugin/demo/index
-      perms: shared:list
+      perms: demo:list
 permissions:
-  - shared:list
+  - demo:list
 """,
     )
+    create_controller_dir(backend_root / 'plugins' / 'demo')
+    create_frontend_view(backend_root, 'demo')
     write_manifest(
         backend_root / 'plugins' / 'sample',
         """
@@ -225,15 +227,15 @@ frontend:
     - name: 样例菜单
       path: sample
       component: plugin/sample/index
-      perms: shared:list
+      perms: sample:list
 permissions:
-  - shared:list
+  - sample:list
 """,
     )
+    create_controller_dir(backend_root / 'plugins' / 'sample')
+    create_frontend_view(backend_root, 'sample')
 
     payload = build_runtime(backend_root).check_plugin('sample')
 
-    assert payload['ok'] is False
-    assert payload['checks'][0]['menuConflicts'][0]['kind'] == 'duplicate_permission'
-    assert payload['checks'][0]['menuConflicts'][0]['level'] == 'error'
-    assert payload['checks'][0]['menuConflicts'][0]['value'] == 'shared:list'
+    assert payload['ok'] is True
+    assert payload['checks'][0]['menuConflicts'] == []

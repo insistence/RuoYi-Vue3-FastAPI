@@ -64,6 +64,9 @@ class PluginConfigManager:
         value = cls.deserialize_config_value(raw_value, config_type, secret=secret)
         if secret and not reveal_secret and value not in (None, ''):
             value = cls.MASK_VALUE
+        default = cls.deserialize_config_value(getattr(config, 'default_value', None), config_type, secret=secret)
+        if secret and not reveal_secret and default not in (None, ''):
+            default = cls.MASK_VALUE
         config_key = config.config_key
 
         return PluginConfigValueModel(
@@ -71,7 +74,7 @@ class PluginConfigManager:
             label=getattr(config, 'config_label', None) or getattr(manifest_item, 'label', None),
             type=getattr(config, 'config_type', None) or getattr(manifest_item, 'type', 'string'),
             value=value,
-            default=cls.deserialize_config_value(getattr(config, 'default_value', None), config_type, secret=secret),
+            default=default,
             required=getattr(config, 'required', '1') == '0',
             secret=secret,
             group=getattr(manifest_item, 'group', 'default'),

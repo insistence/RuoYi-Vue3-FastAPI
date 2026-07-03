@@ -1,6 +1,15 @@
 import importlib
 import sys
 
+PERSISTENT_PLUGIN_MODEL_MODULES = {
+    'plugins',
+    'plugins.core',
+    'plugins.core.management',
+    'plugins.core.management.entity',
+    'plugins.core.management.entity.do',
+    'plugins.core.management.entity.do.models',
+}
+
 
 def unload_plugin_modules() -> None:
     """
@@ -9,6 +18,8 @@ def unload_plugin_modules() -> None:
     :return: None
     """
     for module_name in list(sys.modules):
+        if module_name in PERSISTENT_PLUGIN_MODEL_MODULES:
+            continue
         if module_name == 'plugins' or module_name.startswith('plugins.'):
             sys.modules.pop(module_name)
         if module_name.startswith(('cli.groups.plugin', 'cli.runtime.plugin')):

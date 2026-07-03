@@ -10,6 +10,8 @@ from redis.exceptions import RedisError
 
 from common.constant import LockConstant
 from config.get_redis import RedisUtil
+from exceptions.exception import ServiceException
+from utils.log_util import logger
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -25,6 +27,20 @@ class PluginLifecycleLockResult:
 
     acquired: bool
     message: str = ''
+
+
+class PluginLifecycleLockLost(ServiceException):
+    """
+    插件生命周期锁在操作期间丢失。
+    """
+
+    def __str__(self) -> str:
+        """
+        返回可读错误消息。
+
+        :return: 错误消息
+        """
+        return self.message or ''
 
 
 class PluginLifecycleLock(Protocol):
@@ -103,6 +119,7 @@ class RedisPluginLifecycleLock:
         lock_value = f'{plugin_id}:{operation}:{uuid4()}'
         acquired = False
         renewal_task: asyncio.Task | None = None
+        body_failed = False
         try:
             try:
                 redis = await RedisUtil.create_redis_pool(log_enabled=False)
@@ -113,7 +130,7 @@ class RedisPluginLifecycleLock:
                         message='插件生命周期操作正在执行中，请稍后重试',
                     )
                     return
-                renewal_task = self._start_lock_renewal(redis, lock_key, lock_value)
+                renewal_task = self._start_lock_renewal(redis, lock_key, lock_value, asyncio.current_task())
             except RedisError as exc:
                 yield PluginLifecycleLockResult(
                     acquired=False,
@@ -121,13 +138,23 @@ class RedisPluginLifecycleLock:
                 )
                 return
 
-            yield PluginLifecycleLockResult(acquired=True)
+            try:
+                yield PluginLifecycleLockResult(acquired=True)
+            except asyncio.CancelledError:
+                body_failed = True
+                renewal_error = self._get_renewal_error(renewal_task)
+                if renewal_error:
+                    raise renewal_error from None
+                raise
+            except BaseException:
+                body_failed = True
+                raise
         finally:
             if redis is not None:
                 if renewal_task is not None:
-                    renewal_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await renewal_task
+                    renewal_error = await self._stop_lock_renewal(renewal_task)
+                    if renewal_error and not body_failed:
+                        raise renewal_error
                 if acquired:
                     with suppress(RedisError):
                         await redis.eval(self._RELEASE_SCRIPT, 1, lock_key, lock_value)
@@ -138,6 +165,7 @@ class RedisPluginLifecycleLock:
         redis: aioredis.Redis,
         lock_key: str,
         lock_value: str,
+        owner_task: asyncio.Task | None = None,
     ) -> asyncio.Task:
         """
         启动生命周期锁续期任务。
@@ -145,17 +173,25 @@ class RedisPluginLifecycleLock:
         :param redis: Redis 连接对象
         :param lock_key: 锁 key
         :param lock_value: 锁值
+        :param owner_task: 持锁执行生命周期操作的任务
         :return: 续期任务
         """
-        return asyncio.create_task(self._renew_lock_loop(redis, lock_key, lock_value))
+        return asyncio.create_task(self._renew_lock_loop(redis, lock_key, lock_value, owner_task))
 
-    async def _renew_lock_loop(self, redis: aioredis.Redis, lock_key: str, lock_value: str) -> None:
+    async def _renew_lock_loop(
+        self,
+        redis: aioredis.Redis,
+        lock_key: str,
+        lock_value: str,
+        owner_task: asyncio.Task | None = None,
+    ) -> None:
         """
         周期性续期生命周期锁。
 
         :param redis: Redis 连接对象
         :param lock_key: 锁 key
         :param lock_value: 锁值
+        :param owner_task: 持锁执行生命周期操作的任务
         :return: None
         """
         interval_seconds = self._renew_interval_seconds()
@@ -164,9 +200,50 @@ class RedisPluginLifecycleLock:
             try:
                 renewed = await redis.eval(self._RENEW_SCRIPT, 1, lock_key, lock_value, self.expire_seconds)
                 if not renewed:
-                    return
-            except RedisError:
-                continue
+                    message = '插件生命周期操作锁已丢失，操作已中断'
+                    logger.error(message)
+                    if owner_task is not None:
+                        owner_task.cancel()
+                    raise PluginLifecycleLockLost(data='', message=message)
+            except RedisError as exc:
+                message = f'插件生命周期操作锁续期失败，操作已中断：{exc}'
+                logger.error(message)
+                if owner_task is not None:
+                    owner_task.cancel()
+                raise PluginLifecycleLockLost(data='', message=message) from exc
+
+    @staticmethod
+    def _get_renewal_error(renewal_task: asyncio.Task | None) -> PluginLifecycleLockLost | None:
+        """
+        获取续期任务失败原因。
+
+        :param renewal_task: 续期任务
+        :return: 续期失败异常
+        """
+        if renewal_task is None or not renewal_task.done() or renewal_task.cancelled():
+            return None
+        try:
+            exc = renewal_task.exception()
+        except asyncio.CancelledError:
+            return None
+        return exc if isinstance(exc, PluginLifecycleLockLost) else None
+
+    async def _stop_lock_renewal(self, renewal_task: asyncio.Task) -> PluginLifecycleLockLost | None:
+        """
+        停止锁续期任务并返回续期失败原因。
+
+        :param renewal_task: 续期任务
+        :return: 续期失败异常
+        """
+        if not renewal_task.done():
+            renewal_task.cancel()
+        try:
+            await renewal_task
+        except asyncio.CancelledError:
+            return None
+        except PluginLifecycleLockLost as exc:
+            return exc
+        return self._get_renewal_error(renewal_task)
 
     def _renew_interval_seconds(self) -> int:
         """

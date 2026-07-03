@@ -294,6 +294,8 @@ class AiChatService:
         session_id = chat_req.session_id
         if not session_id:
             session_id = str(uuid.uuid4())
+        else:
+            await cls._get_owned_session(AiUtil.get_storage_engine(), session_id, user_id)
 
         temperature = cls._resolve_temperature(user_config, model_config)
         is_reasoning = cls._resolve_is_reasoning(chat_req, model_config)
@@ -508,14 +510,37 @@ class AiChatService:
         return session_detail
 
     @classmethod
-    async def cancel_run_services(cls, run_id: str) -> CrudResponseModel:
+    async def cancel_run_services(cls, run_id: str, user_id: int) -> CrudResponseModel:
         """
         取消运行
 
         :param run_id: 运行ID
+        :param user_id: 用户ID
         :return: 取消结果
         """
+        if not await cls._user_owns_run(run_id, user_id):
+            raise ServiceException(message='无权取消该运行')
         cancel_result = await acancel_run(run_id)
         if not cancel_result:
             raise ServiceException(message='取消运行失败')
         return CrudResponseModel(is_success=True, message='取消成功')
+
+    @classmethod
+    async def _user_owns_run(cls, run_id: str, user_id: int) -> bool:
+        """
+        校验运行记录是否属于当前用户。
+
+        :param run_id: 运行ID
+        :param user_id: 用户ID
+        :return: 是否属于当前用户
+        """
+        storage = AiUtil.get_storage_engine()
+        sessions: list[Session] = await storage.get_sessions(
+            user_id=str(user_id),
+            session_type=SessionType.AGENT,
+        )
+        for session in sessions:
+            for run in session.runs or []:
+                if str(getattr(run, 'run_id', '') or getattr(run, 'id', '')) == str(run_id):
+                    return True
+        return False

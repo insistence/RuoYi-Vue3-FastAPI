@@ -22,6 +22,7 @@ class CliPluginRuntimeDependencies:
     state_gateway: object | None = None
     model_gateway: object | None = None
     command_gateway: object | None = None
+    lifecycle_lock: object | None = None
 
 
 class CliPluginRuntimeService:
@@ -42,6 +43,7 @@ class CliPluginRuntimeService:
         state_gateway: object | None = None,
         model_gateway: object | None = None,
         command_gateway: object | None = None,
+        lifecycle_lock: object | None = None,
         plugin_gateway: PluginRuntimeGateway | None = None,
     ) -> None:
         """
@@ -54,6 +56,7 @@ class CliPluginRuntimeService:
         :param state_gateway: 插件管理状态网关
         :param model_gateway: 插件管理模型工厂网关
         :param command_gateway: 插件命令执行网关
+        :param lifecycle_lock: 插件生命周期操作锁
         :param plugin_gateway: 插件 CLI 运行时网关
         :return: None
         """
@@ -66,6 +69,7 @@ class CliPluginRuntimeService:
             state_gateway=state_gateway,
             model_gateway=model_gateway,
             command_gateway=command_gateway,
+            lifecycle_lock=lifecycle_lock,
         )
         self._core_runtime: Any | None = None
 
@@ -84,6 +88,7 @@ class CliPluginRuntimeService:
                 state_gateway=self._resolve_state_gateway(),
                 model_gateway=self._resolve_model_gateway(),
                 command_gateway=self._resolve_command_gateway(),
+                lifecycle_lock=self._resolve_lifecycle_lock(),
             )
         return self._core_runtime
 
@@ -143,6 +148,18 @@ class CliPluginRuntimeService:
         if self.dependencies.command_gateway is None:
             self._resolve_management_gateway()
         return self.dependencies.command_gateway
+
+    def _resolve_lifecycle_lock(self) -> object:
+        """
+        解析插件核心生命周期操作锁。
+
+        :return: 插件核心生命周期操作锁
+        """
+        if self.dependencies.lifecycle_lock is not None:
+            return self.dependencies.lifecycle_lock
+        lifecycle_lock = self.plugin_gateway.get_core_lifecycle_lock()
+        self.dependencies = replace(self.dependencies, lifecycle_lock=lifecycle_lock)
+        return lifecycle_lock
 
     def _delegate(self, method_name: str, *args: object, **kwargs: object) -> Any:
         """

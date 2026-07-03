@@ -5,6 +5,10 @@ from plugins.core.runtime.support import PluginRuntimePayloadBuilder
 from .dependency_container import PluginRuntimeDependencies
 
 MigrationRecoveryStatus = Literal['success', 'failed']
+MIGRATION_MANUAL_TRANSITIONS: dict[MigrationRecoveryStatus, set[str]] = {
+    'success': {'running', 'failed', 'unknown'},
+    'failed': {'running', 'unknown'},
+}
 
 
 class PluginMigrationUseCase:
@@ -73,6 +77,25 @@ class PluginMigrationUseCase:
             plugin_service = gateway.get_plugin_service()
             error_message = None if status == 'success' else note or '人工标记为失败'
             async with async_session_local() as session:
+                existing_migration = await plugin_service.get_plugin_migration_services(
+                    session,
+                    plugin_id,
+                    migration_path,
+                )
+                if not existing_migration:
+                    return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
+                        plugin_id,
+                        f'migration_mark_{status}',
+                        message='插件 migration 历史不存在',
+                    )
+                current_status = getattr(existing_migration, 'status', 'success') or 'success'
+                if current_status not in MIGRATION_MANUAL_TRANSITIONS[status]:
+                    label = '成功' if status == 'success' else '失败'
+                    return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
+                        plugin_id,
+                        f'migration_mark_{status}',
+                        message=f'插件 migration 当前状态为 {current_status}，不能人工标记为{label}',
+                    )
                 migration = await plugin_service.mark_plugin_migration_status_services(
                     session,
                     plugin_id,

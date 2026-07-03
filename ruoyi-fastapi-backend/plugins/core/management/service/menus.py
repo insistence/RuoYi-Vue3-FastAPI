@@ -240,7 +240,7 @@ class PluginMenuInstaller:
         :param parent_id: 父菜单ID
         :return: 系统菜单对象
         """
-        sys_menu = await self._find_existing_menu(plugin_id, menu, menu_key, parent_id)
+        sys_menu = await self._find_existing_menu(plugin_id, menu_key)
         menu_model = self._build_menu_model(
             plugin_id,
             menu,
@@ -264,29 +264,19 @@ class PluginMenuInstaller:
     async def _find_existing_menu(
         self,
         plugin_id: str,
-        menu: PluginMenuManifest,
         menu_key: str,
-        parent_id: int,
     ) -> SysMenu | None:
         """
         查找已有系统菜单。
 
         :param plugin_id: 插件ID
-        :param menu: 插件菜单声明
         :param menu_key: 插件菜单自然键
-        :param parent_id: 父菜单ID
         :return: 系统菜单对象
         """
         plugin_menu = await PluginDao.get_plugin_menu_by_key(self.query_db, plugin_id, menu_key)
         if plugin_menu:
             return await PluginDao.get_sys_menu_by_id(self.query_db, plugin_menu.menu_id)
-        if menu.perms:
-            return await PluginDao.get_sys_menu_by_perms(self.query_db, menu.perms)
-        route_menu = await PluginDao.get_sys_menu_by_route(self.query_db, parent_id, menu.path, menu.component)
-        if route_menu:
-            return route_menu
-
-        return await PluginDao.get_sys_menu_by_name_path(self.query_db, parent_id, menu.name, menu.path)
+        return None
 
     async def _upsert_plugin_menu(self, plugin_id: str, menu_id: int, menu_key: str) -> None:
         """

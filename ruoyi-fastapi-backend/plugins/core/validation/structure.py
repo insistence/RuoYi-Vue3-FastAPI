@@ -1,3 +1,4 @@
+import ast
 import importlib
 import importlib.util
 import sys
@@ -16,6 +17,7 @@ from utils.cron_util import CronUtil
 MAX_PLUGIN_JOB_NAME_LENGTH = 64
 SUPPORTED_SEED_SUFFIXES = {'.py', '.sql'}
 SUPPORTED_MIGRATION_SUFFIXES = {'.py', '.sql'}
+ROUTER_FACTORY_NAMES = {'APIRouter', 'APIRouterPro'}
 
 
 @contextmanager
@@ -149,7 +151,9 @@ class PluginStructureChecker:
             self._check_file('manifest', discovered_plugin.manifest_path),
         ]
         if manifest.backend.routers.auto_scan:
-            items.append(self._check_dir('controller_dir', discovered_plugin.backend_path / 'controller'))
+            controller_dir = discovered_plugin.backend_path / 'controller'
+            items.append(self._check_dir('controller_dir', controller_dir))
+            items.extend(self._check_controller_route_prefixes(discovered_plugin, controller_dir))
 
         entity_dir = discovered_plugin.backend_path / 'entity' / 'do'
         if entity_dir.exists():
@@ -162,6 +166,121 @@ class PluginStructureChecker:
         items.extend(self._check_frontend(discovered_plugin))
 
         return PluginStructureCheckResult(plugin_id=manifest.id, items=items)
+
+    def _check_controller_route_prefixes(
+        self,
+        discovered_plugin: DiscoveredPlugin,
+        controller_dir: Path,
+    ) -> list[PluginStructureCheckItem]:
+        """
+        检查插件 controller 路由前缀是否位于插件命名空间内。
+
+        :param discovered_plugin: 已发现插件对象
+        :param controller_dir: controller 目录
+        :return: 路由前缀检查项列表
+        """
+        if not controller_dir.is_dir():
+            return []
+
+        items = []
+        for controller_file in sorted(controller_dir.glob('[!_]*.py')):
+            items.extend(self._check_controller_file_route_prefixes(discovered_plugin.manifest.id, controller_file))
+
+        return items
+
+    def _check_controller_file_route_prefixes(
+        self,
+        plugin_id: str,
+        controller_file: Path,
+    ) -> list[PluginStructureCheckItem]:
+        """
+        检查单个 controller 文件内的路由前缀。
+
+        :param plugin_id: 插件ID
+        :param controller_file: controller 文件
+        :return: 路由前缀检查项列表
+        """
+        try:
+            module_ast = ast.parse(controller_file.read_text(encoding='utf-8'), filename=str(controller_file))
+        except SyntaxError as exc:
+            return [
+                PluginStructureCheckItem(
+                    kind='controller_route_prefix',
+                    path=str(controller_file),
+                    ok=False,
+                    message=f'controller 文件语法错误，无法检查路由前缀：{exc}',
+                )
+            ]
+
+        items = []
+        for node in ast.walk(module_ast):
+            if not isinstance(node, ast.Call) or not self._is_router_factory_call(node):
+                continue
+
+            prefix = self._get_router_prefix_literal(node)
+            path = f'{controller_file}:{getattr(node, "lineno", 1)}'
+            ok = prefix is not None and self._is_plugin_route_prefix(plugin_id, prefix)
+            items.append(
+                PluginStructureCheckItem(
+                    kind='controller_route_prefix',
+                    path=path,
+                    ok=ok,
+                    message=(
+                        f'controller 路由前缀位于插件命名空间内：{prefix}'
+                        if ok
+                        else f'controller 路由前缀必须位于插件 {plugin_id} 命名空间内：{prefix or "<未声明>"}'
+                    ),
+                    suggestion=f'请使用 /{plugin_id} 或 /plugin/{plugin_id} 作为路由前缀根路径',
+                )
+            )
+
+        return items
+
+    @staticmethod
+    def _is_router_factory_call(node: ast.Call) -> bool:
+        """
+        判断 AST 调用是否为 APIRouter/APIRouterPro 构造。
+
+        :param node: AST 调用节点
+        :return: 是否为路由构造调用
+        """
+        if isinstance(node.func, ast.Name):
+            return node.func.id in ROUTER_FACTORY_NAMES
+        if isinstance(node.func, ast.Attribute):
+            return node.func.attr in ROUTER_FACTORY_NAMES
+        return False
+
+    @staticmethod
+    def _get_router_prefix_literal(node: ast.Call) -> str | None:
+        """
+        提取路由构造调用中的 prefix 字符串字面量。
+
+        :param node: AST 调用节点
+        :return: prefix 字符串，未声明或非字面量时返回 None
+        """
+        for keyword in node.keywords:
+            if (
+                keyword.arg == 'prefix'
+                and isinstance(keyword.value, ast.Constant)
+                and isinstance(keyword.value.value, str)
+            ):
+                return keyword.value.value
+        return None
+
+    @staticmethod
+    def _is_plugin_route_prefix(plugin_id: str, prefix: str) -> bool:
+        """
+        判断路由前缀是否属于插件命名空间。
+
+        :param plugin_id: 插件ID
+        :param prefix: 路由前缀
+        :return: 是否属于插件命名空间
+        """
+        plugin_prefix = f'/{plugin_id}'
+        nested_plugin_prefix = f'/plugin/{plugin_id}'
+        return prefix in (plugin_prefix, nested_plugin_prefix) or prefix.startswith(
+            (f'{plugin_prefix}/', f'{nested_plugin_prefix}/')
+        )
 
     def _check_hooks(self, discovered_plugin: DiscoveredPlugin) -> list[PluginStructureCheckItem]:
         """

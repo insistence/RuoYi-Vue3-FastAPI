@@ -13,6 +13,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from plugins.core.runtime.service import PluginRuntimeService  # noqa: E402
 from plugins.core.runtime.service.lifecycle_lock import (  # noqa: E402
+    PluginLifecycleLockLost,
     PluginLifecycleLockResult,
     RedisPluginLifecycleLock,
 )
@@ -103,7 +104,10 @@ async def test_redis_lifecycle_lock_renews_until_lock_lost() -> None:
     lifecycle_lock = RedisPluginLifecycleLock(expire_seconds=3)
     expected_renew_attempts = 2
 
-    with patch('plugins.core.runtime.service.lifecycle_lock.asyncio.sleep', new_callable=AsyncMock) as sleep:
+    with (
+        patch('plugins.core.runtime.service.lifecycle_lock.asyncio.sleep', new_callable=AsyncMock) as sleep,
+        pytest.raises(PluginLifecycleLockLost, match='生命周期操作锁已丢失'),
+    ):
         await lifecycle_lock._renew_lock_loop(redis, 'plugin:lifecycle:lock:global', 'demo:install:value')
 
     assert sleep.await_count == expected_renew_attempts
@@ -114,6 +118,24 @@ async def test_redis_lifecycle_lock_renews_until_lock_lost() -> None:
         'demo:install:value',
         3,
     )
+
+
+@pytest.mark.asyncio
+async def test_redis_lifecycle_lock_raises_when_renew_fails() -> None:
+    """
+    校验 Redis 生命周期锁续期失败时会中断持锁操作。
+
+    :return: None
+    """
+    redis = AsyncMock()
+    redis.eval = AsyncMock(side_effect=RedisError('renew failed'))
+    lifecycle_lock = RedisPluginLifecycleLock(expire_seconds=3)
+
+    with (
+        patch('plugins.core.runtime.service.lifecycle_lock.asyncio.sleep', new_callable=AsyncMock),
+        pytest.raises(PluginLifecycleLockLost, match='续期失败'),
+    ):
+        await lifecycle_lock._renew_lock_loop(redis, 'plugin:lifecycle:lock:global', 'demo:install:value')
 
 
 @pytest.mark.asyncio

@@ -495,7 +495,13 @@ config:
 
 ### 6.1 控制器
 
-插件启用后会按 `backend.module` 自动扫描控制器。推荐将接口放在 `controller/` 目录，并保持与项目原有 FastAPI 控制器风格一致。
+应用启动时会按 `backend.module` 自动扫描已启用插件的控制器。推荐将接口放在 `controller/` 目录，并保持与项目原有 FastAPI 控制器风格一致。
+
+后端插件路由采用启动期挂载模型：
+
+- 新启用插件的后端 controller 需要重启应用后才会挂载到当前 FastAPI app。
+- 停用插件后，已挂载的插件路由仍保留在 app 路由表中，但请求会经过插件启用状态依赖拦截。
+- 插件 controller 的 `prefix` 必须位于当前插件命名空间内，例如 `/demo`、`/demo/items`、`/plugin/demo` 或 `/plugin/demo/items`，不能占用 `/system`、`/monitor` 等平台核心路径。
 
 示例：
 

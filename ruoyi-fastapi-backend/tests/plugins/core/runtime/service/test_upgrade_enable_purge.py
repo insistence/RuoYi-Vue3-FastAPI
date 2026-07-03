@@ -91,6 +91,35 @@ def test_plugin_runtime_marks_plugin_migration_failed(tmp_path: Path) -> None:
     assert migration.error_message == 'not applied'
 
 
+def test_plugin_runtime_rejects_invalid_plugin_migration_manual_transition(tmp_path: Path) -> None:
+    """
+    校验人工恢复不能把已成功 migration 标记为失败以触发重跑。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    migration = gateway.build_migration_record('demo', 'migrations/001.sql', 'checksum-1', '1.0.0', 1, 'success')
+    FakePluginService.migration_records = [migration]
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).mark_plugin_migration_failed(
+            'demo',
+            'migrations/001.sql',
+            note='should not happen',
+        )
+    )
+
+    assert result['ok'] is False
+    assert result['operation'] == 'migration_mark_failed'
+    assert '不能人工标记为失败' in result['message']
+    assert migration.status == 'success'
+    assert migration.error_message is None
+    assert FakePluginService.operation_logs == []
+
+
 def test_plugin_runtime_install_plugin_runs_install_hook(tmp_path: Path) -> None:
     """
     校验插件安装会执行 manifest 声明的 on_install 钩子。

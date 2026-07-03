@@ -116,6 +116,69 @@ frontend:
     ]
 
 
+def test_structure_checker_accepts_plugin_controller_route_prefix(tmp_path: Path) -> None:
+    """
+    校验结构检查器接受当前插件命名空间内的 controller 路由前缀。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'controller' / 'demo_controller.py').write_text(
+        "from common.router import APIRouterPro\n\ndemo_controller = APIRouterPro(prefix='/demo/items')\n",
+        encoding='utf-8',
+    )
+
+    result = PluginStructureChecker(backend_root).check(load_discovered_plugin(backend_root, 'demo'))
+
+    route_prefix_items = [item for item in result.items if item.kind == 'controller_route_prefix']
+    assert route_prefix_items
+    assert result.failed_items == []
+
+
+def test_structure_checker_reports_plugin_controller_route_prefix_escape(tmp_path: Path) -> None:
+    """
+    校验结构检查器拒绝越过当前插件命名空间的 controller 路由前缀。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'controller' / 'demo_controller.py').write_text(
+        "from common.router import APIRouterPro\n\ndemo_controller = APIRouterPro(prefix='/system/user')\n",
+        encoding='utf-8',
+    )
+
+    result = PluginStructureChecker(backend_root).check(load_discovered_plugin(backend_root, 'demo'))
+
+    assert result.ok is False
+    assert [item.kind for item in result.failed_items] == ['controller_route_prefix']
+
+
 def test_structure_checker_reports_missing_seed_and_frontend_view(tmp_path: Path) -> None:
     """
     校验结构检查器能报告缺失 seed 和前端视图。

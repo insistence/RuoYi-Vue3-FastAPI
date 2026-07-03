@@ -315,7 +315,18 @@ class PluginMigrationRunner:
             duration_ms=duration_ms,
         )
 
-        await self._record_success(query_db, result)
+        try:
+            await self._record_success(query_db, result)
+        except Exception as exc:
+            raise PluginMigrationError(
+                f'插件 migration 已执行，但成功历史记录失败：{migration_path}，{exc}',
+                migration_path=migration_path,
+                status='running',
+                recovery_suggestion=(
+                    '请检查数据库结构是否已应用；若已成功应用，执行 mark-success；'
+                    '若未完成，执行 mark-failed 后修复并重试。'
+                ),
+            ) from exc
 
         return result
 

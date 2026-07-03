@@ -384,6 +384,45 @@ async def test_plugin_migration_runner_commits_managed_execution_transaction(tmp
 
 
 @pytest.mark.asyncio
+async def test_plugin_migration_runner_reports_recovery_when_success_history_write_fails(tmp_path: Path) -> None:
+    """
+    校验 migration 执行事务已提交但 success 历史写入失败时返回 running 恢复建议。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    plugin_root = tmp_path / 'plugins' / 'demo_migration'
+    write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("managed")\n')
+    discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+    history_store = FakeMigrationHistoryStore()
+    query_db = FakeManagedMigrationSession()
+
+    async def fail_record_success(*_args: object, **_kwargs: object) -> None:
+        """
+        模拟 success 历史写入失败。
+        """
+        raise RuntimeError('history down')
+
+    history_store.record_success = fail_record_success  # type: ignore[method-assign]
+
+    with pytest.raises(PluginMigrationError, match='成功历史记录失败') as exc_info:
+        await PluginMigrationRunner(
+            discovered_plugin,
+            history_store,
+            manage_execution_transaction=True,
+        ).run(query_db)
+
+    assert query_db == ['managed']
+    assert query_db.committed is True
+    assert query_db.rolled_back is False
+    assert exc_info.value.status == 'running'
+    assert 'mark-success' in exc_info.value.recovery_suggestion
+    assert len(history_store.running_records) == 1
+    assert history_store.failure_records == []
+    assert history_store.records == []
+
+
+@pytest.mark.asyncio
 async def test_plugin_migration_runner_skips_existing_history(tmp_path: Path) -> None:
     """
     校验已执行且校验值一致的 migration 会跳过。

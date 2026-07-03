@@ -2,11 +2,13 @@ from typing import Annotated
 
 from fastapi import Body, Path, Request, Response
 from fastapi.responses import StreamingResponse
+from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
+from common.aspect.data_scope import DataScopeDependency
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
@@ -15,6 +17,7 @@ from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, ResponseBaseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
+from plugins.ai.entity.do.ai_model_do import AiModels
 from plugins.ai.entity.vo.ai_chat_vo import (
     AiChatConfigModel,
     AiChatRequestModel,
@@ -22,6 +25,7 @@ from plugins.ai.entity.vo.ai_chat_vo import (
     AiChatSessionModel,
 )
 from plugins.ai.service.ai_chat_service import AiChatService
+from plugins.ai.service.ai_model_service import AiModelService
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
@@ -53,8 +57,11 @@ async def send_chat_message(
     chat_req: AiChatRequestModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(AiModels)],
 ) -> StreamingResponse:
     user_id = current_user.user.user_id if current_user and current_user.user else 1
+    if not current_user.user.admin:
+        await AiModelService.check_ai_model_data_scope_services(query_db, chat_req.model_id, data_scope_sql)
     chat_stream = AiChatService.chat_services(query_db, chat_req, user_id)
     logger.info(f'用户{user_id}发送对话消息成功')
 
@@ -169,8 +176,9 @@ async def get_chat_session_detail(
 async def cancel_chat_run(
     request: Request,
     run_id: Annotated[str, Body(embed=True, description='运行ID', alias='runId')],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    cancel_result = await AiChatService.cancel_run_services(run_id)
+    cancel_result = await AiChatService.cancel_run_services(run_id, current_user.user.user_id)
     logger.info(cancel_result.message)
 
     return ResponseUtil.success(msg=cancel_result.message)

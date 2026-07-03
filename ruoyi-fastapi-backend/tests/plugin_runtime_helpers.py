@@ -374,6 +374,13 @@ class FakePluginService:
         :param migration_path: migration 相对路径
         :return: migration 执行历史
         """
+        for migration in reversed(cls.migration_records):
+            if (
+                getattr(migration, 'plugin_id', None) == plugin_id
+                and getattr(migration, 'migration_path', None) == migration_path
+            ):
+                return migration
+
         checksum = cls.migration_checksums.get((plugin_id, migration_path))
         if not checksum:
             return None
@@ -575,9 +582,11 @@ class FakePluginService:
         configs = []
         for item in discovered_plugin.manifest.config.items:
             value = '******' if item.secret and not reveal_secret else item.default
+            default = '******' if item.secret and not reveal_secret else item.default
             payload = {
                 'key': item.key,
                 'value': value,
+                'default': default,
                 'secret': item.secret,
                 'group': item.group,
                 'order': item.order,

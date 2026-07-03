@@ -167,6 +167,8 @@ def test_ai_plugin_chat_controller_enforces_declared_permission() -> None:
     )
 
     assert "UserInterfaceAuthDependency('ai:chat:list')" in chat_controller
+    assert 'DataScopeDependency(AiModels)' in chat_controller
+    assert 'AiModelService.check_ai_model_data_scope_services' in chat_controller
 
 
 def test_ai_plugin_chat_service_guards_upload_paths_and_session_owner() -> None:
@@ -180,8 +182,11 @@ def test_ai_plugin_chat_service_guards_upload_paths_and_session_owner() -> None:
     assert 'os.path.commonpath([abs_upload_path, abs_path])' in chat_service
     assert 'os.path.isfile(abs_path)' in chat_service
     assert 'str(session.user_id) != str(user_id)' in chat_service
+    assert 'await cls._get_owned_session(AiUtil.get_storage_engine(), session_id, user_id)' in chat_service
     assert 'delete_chat_session_services(cls, session_id: str, user_id: int)' in chat_service
     assert 'get_chat_session_detail_services(cls, session_id: str, user_id: int)' in chat_service
+    assert 'cancel_run_services(cls, run_id: str, user_id: int)' in chat_service
+    assert 'await cls._user_owns_run(run_id, user_id)' in chat_service
 
 
 @pytest.mark.asyncio

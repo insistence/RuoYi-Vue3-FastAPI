@@ -309,9 +309,9 @@ backend:
     assert result['message'] == '插件安装演练完成，未执行实际写入'
 
 
-def test_plugin_runtime_install_plugin_stops_when_menu_conflict_exists(tmp_path: Path) -> None:
+def test_plugin_runtime_install_plugin_accepts_namespaced_permissions_across_plugins(tmp_path: Path) -> None:
     """
-    校验插件安装遇到菜单冲突时中止且只写失败审计。
+    校验插件安装接受不同插件使用各自权限命名空间。
 
     :param tmp_path: pytest 临时目录
     :return: None
@@ -332,9 +332,9 @@ frontend:
     - name: 演示菜单
       path: demo
       component: plugin/demo/index
-      perms: shared:list
+      perms: demo:list
 permissions:
-  - shared:list
+  - demo:list
 """,
     )
     sample_root = backend_root / 'plugins' / 'sample'
@@ -352,9 +352,9 @@ frontend:
     - name: 样例菜单
       path: sample
       component: plugin/sample/index
-      perms: shared:list
+      perms: sample:list
 permissions:
-  - shared:list
+  - sample:list
 """,
     )
     create_controller_dir(demo_root)
@@ -366,16 +366,16 @@ permissions:
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('sample'))
 
-    assert result['ok'] is False
-    assert result['message'] == '插件菜单存在冲突，安装已中止'
-    assert result['menuConflictOk'] is False
-    assert result['menuConflicts'][0]['kind'] == 'duplicate_permission'
-    assert FakePluginService.upsert_called is False
+    assert result['ok'] is True
+    assert result['message'] == '插件安装完成'
+    assert result['menuConflictOk'] is True
+    assert result['menuConflicts'] == []
+    assert FakePluginService.upsert_called is True
     assert gateway.session_local.sessions[0].committed is True
     assert len(FakePluginService.operation_logs) == 1
     assert FakePluginService.operation_logs[0].payload['operation'] == 'install'
     assert FakePluginService.operation_logs[0].payload['pluginId'] == 'sample'
-    assert FakePluginService.operation_logs[0].payload['ok'] is False
+    assert FakePluginService.operation_logs[0].payload['ok'] is True
 
 
 def test_plugin_runtime_install_plugin_stops_when_database_menu_conflict_exists(tmp_path: Path) -> None:
@@ -510,9 +510,9 @@ permissions:
     assert FakePluginService.mark_installed_called is True
 
 
-def test_plugin_runtime_install_plugin_auto_installs_missing_dependencies(tmp_path: Path) -> None:
+def test_plugin_runtime_install_plugin_blocks_when_dependencies_are_missing(tmp_path: Path) -> None:
     """
-    校验插件安装会自动执行缺失依赖安装计划。
+    校验插件安装只生成缺失依赖安装计划，不自动执行依赖安装。
 
     :param tmp_path: pytest 临时目录
     :return: None
@@ -545,35 +545,35 @@ dependencies:
     FakePluginService.reset()
     expected_plan_count = 3
     runtime = build_runtime_with_gateway(backend_root, gateway)
-    refreshed_checker = PluginDependencyChecker(
-        python_inspector=PythonDependencyInspector(installed_packages={'missing-python': '1.0.0'}),
-        npm_inspector=NpmDependencyInspector(installed_packages={'missing-npm': '1.2.3', 'missing-dev-npm': '4.5.6'}),
-    )
-    runtime.refresh_dependency_checker = lambda: runtime.set_dependency_checker(refreshed_checker)
 
     result = asyncio.run(runtime.install_plugin('demo'))
 
-    assert result['ok'] is True
+    assert result['ok'] is False
+    assert result['message'] == '插件依赖缺失，安装已中止，请先显式安装依赖'
     assert result['dependencyInstall']['ok'] is True
+    assert result['dependencyInstall']['dryRun'] is True
     assert result['dependencyInstall']['planCount'] == expected_plan_count
     assert result['dependencyInstall']['dependencyOk'] is False
-    assert result['dependencyInstall']['postCheck']['dependencyOk'] is True
-    assert result['dependencyOk'] is True
-    assert runtime.install.context.dependencies.dependency_checker is refreshed_checker
-    assert gateway.commands[0][0][1:4] == ['-m', 'pip', 'install']
-    assert gateway.commands[0][0][-1] == 'missing-python'
-    assert gateway.commands[1][0] == ['npm', 'install', 'missing-npm@>=1.2.3']
-    assert gateway.commands[2][0] == ['npm', 'install', '--save-dev', 'missing-dev-npm@4.5.6']
+    assert result['dependencyInstall']['plan'][0]['command'][1:4] == ['-m', 'pip', 'install']
+    assert result['dependencyInstall']['plan'][0]['command'][-1] == 'missing-python'
+    assert result['dependencyInstall']['plan'][1]['command'] == ['npm', 'install', 'missing-npm@>=1.2.3']
+    assert result['dependencyInstall']['plan'][2]['command'] == [
+        'npm',
+        'install',
+        '--save-dev',
+        'missing-dev-npm@4.5.6',
+    ]
+    assert gateway.commands == []
     package_json = json.loads((frontend_root / 'package.json').read_text(encoding='utf-8'))
-    assert package_json['dependencies']['missing-npm'] == '>=1.2.3'
-    assert package_json['devDependencies']['missing-dev-npm'] == '4.5.6'
-    assert FakePluginService.upsert_called is True
-    assert FakePluginService.mark_installed_called is True
+    assert package_json['dependencies'] == {}
+    assert package_json['devDependencies'] == {}
+    assert FakePluginService.upsert_called is False
+    assert FakePluginService.mark_installed_called is False
 
 
-def test_plugin_runtime_install_plugin_stops_when_dependency_install_fails(tmp_path: Path) -> None:
+def test_plugin_runtime_install_plugin_does_not_execute_dependency_install_commands(tmp_path: Path) -> None:
     """
-    校验插件依赖自动安装失败时中止插件安装。
+    校验插件安装依赖缺失时不会执行依赖安装命令。
 
     :param tmp_path: pytest 临时目录
     :return: None
@@ -596,15 +596,16 @@ dependencies:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    gateway.completed_process = CompletedProcess(args=[], returncode=1, stdout='', stderr='install failed')
     FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
 
     assert result['ok'] is False
-    assert result['message'] == '插件依赖安装失败，安装已中止'
-    assert result['dependencyInstall']['ok'] is False
-    assert result['dependencyInstall']['results'][0]['stderr'] == 'install failed'
+    assert result['message'] == '插件依赖缺失，安装已中止，请先显式安装依赖'
+    assert result['dependencyInstall']['ok'] is True
+    assert result['dependencyInstall']['dryRun'] is True
+    assert result['dependencyInstall']['dependencyOk'] is False
+    assert gateway.commands == []
     assert FakePluginService.upsert_called is False
     assert FakePluginService.mark_installed_called is False
 
@@ -892,9 +893,13 @@ config:
     assert masked_result['ok'] is True
     assert masked_result['revealSecret'] is False
     assert masked_result['values']['api_key'] == '******'
+    assert masked_result['configs'][0]['default'] == '******'
     assert masked_result['metadata'][0]['secret'] is True
+    assert masked_result['metadata'][0]['default'] == '******'
     assert plain_result['revealSecret'] is True
     assert plain_result['values']['api_key'] == 'sk-secret'
+    assert plain_result['configs'][0]['default'] == 'sk-secret'
+    assert plain_result['metadata'][0]['default'] == 'sk-secret'
 
 
 def test_plugin_runtime_import_plugin_config_updates_values(tmp_path: Path) -> None:

@@ -88,3 +88,22 @@ def test_plugin_runtime_rejects_legacy_infrastructure_gateway_argument(tmp_path:
             dependency_checker=PluginDependencyChecker(),
             infrastructure_gateway=FakePluginRuntimeGateway(),
         )
+
+
+def test_plugin_runtime_passes_lifecycle_lock_to_core_runtime(tmp_path: Path) -> None:
+    """
+    校验 CLI 创建核心插件运行时时会显式注入生命周期锁。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    backend_root.mkdir()
+    lifecycle_lock = object()
+    runtime = CliPluginRuntimeService(
+        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        dependency_checker=PluginDependencyChecker(),
+        lifecycle_lock=lifecycle_lock,
+    )
+
+    assert runtime.core_runtime.lifecycle_lock is lifecycle_lock

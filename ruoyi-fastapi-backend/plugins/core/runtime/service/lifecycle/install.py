@@ -296,25 +296,24 @@ class PluginInstallUseCase:
         context: PluginInstallLifecycleContext,
     ) -> PluginLifecycleResponse | None:
         """
-        安装缺失依赖。
+        生成缺失依赖安装计划。
 
         :param context: 插件安装上下文
-        :return: 依赖安装失败 payload 或 None
+        :return: 依赖缺失阻断 payload 或 None
         """
         dependency_install_payload = await self.runtime_operations.install_plugin_dependencies_from_result_async(
             context.plugin_id,
             cast('PluginPrecheckContext', context.precheck).dependency_result,
-            dry_run=False,
+            dry_run=True,
             discovered_plugin=context.discovered_plugin,
         )
         context.dependency_install_view = cast('dict[str, object]', dependency_install_payload)
-        if context.dependency_install_view.get('ok', False):
-            self.runtime_operations.refresh_dependency_checker()
+        if context.dependency_install_view.get('dependencyOk', False):
             return None
 
         return PluginLifecyclePayloadBuilder.build_precheck_blocker_payload(
             context.plugin_id,
-            message='插件依赖安装失败，安装已中止',
+            message='插件依赖缺失，安装已中止，请先显式安装依赖',
             actions=context.actions or [],
             precheck=cast('PluginPrecheckContext', context.precheck),
             extra_payload={'dependencyInstall': context.dependency_install_view},

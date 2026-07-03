@@ -971,6 +971,7 @@ class PluginManifest(BaseModel):
         self._validate_backend_module()
         self._validate_frontend_plugin_id()
         self._validate_plugin_dependencies()
+        self._validate_permission_prefixes()
         self._validate_menu_permissions_declared()
         self._validate_menu_components()
         self._validate_unique_menu_paths()
@@ -994,6 +995,20 @@ class PluginManifest(BaseModel):
         """
         if self.frontend.plugin_id != self.id:
             raise ValueError(f'frontend.pluginId 必须与插件 id 一致：{self.id}')
+
+    def _validate_permission_prefixes(self) -> None:
+        """
+        校验插件权限标识必须使用插件 ID 前缀。
+
+        :return: None
+        """
+        expected_prefix = f'{self.id}:'
+        permission_set = set(self.permission_codes) | PluginMenuTree.collect_permissions(self.frontend.menus)
+        invalid_permissions = sorted(
+            permission for permission in permission_set if not permission.startswith(expected_prefix)
+        )
+        if invalid_permissions:
+            raise ValueError(f'插件权限必须使用 {expected_prefix} 前缀：{", ".join(invalid_permissions)}')
 
     def _fill_frontend_delivery_defaults(self) -> None:
         """

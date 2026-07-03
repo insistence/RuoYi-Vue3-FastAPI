@@ -1407,7 +1407,9 @@ async def test_secret_plugin_config_is_encrypted_at_rest(tmp_path: Path) -> None
         assert db_config.config_value.startswith(PluginConfigManager.ENCRYPTED_PREFIX)
         assert 'secret-updated' not in db_config.config_value
         assert masked_api_key.value == PluginConfigManager.MASK_VALUE
+        assert masked_api_key.default == PluginConfigManager.MASK_VALUE
         assert revealed_api_key.value == 'secret-updated'
+        assert revealed_api_key.default == 'secret-value'
     finally:
         await engine.dispose()
 

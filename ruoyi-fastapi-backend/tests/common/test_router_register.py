@@ -172,6 +172,7 @@ def test_auto_register_controller_files_delegates_to_router_register(monkeypatch
     :return: None
     """
     captured_controller_files = []
+    captured_dependencies = []
 
     class FakeRouterRegister:
         """
@@ -186,17 +187,23 @@ def test_auto_register_controller_files_delegates_to_router_register(monkeypatch
             """
             self.app = app
 
-        def _register_controller_files(self, controller_files: list[str]) -> None:
+        def _register_controller_files(
+            self, controller_files: list[str], dependencies: list[object] | None = None
+        ) -> None:
             """
             记录 controller 文件列表。
 
             :param controller_files: controller文件列表
+            :param dependencies: 注册时附加到路由上的依赖项
             :return: None
             """
             captured_controller_files.extend(controller_files)
+            captured_dependencies.extend(dependencies or [])
 
     monkeypatch.setattr('common.router.RouterRegister', FakeRouterRegister)
 
-    auto_register_controller_files(FastAPI(), ['demo_controller.py'])
+    dependency = object()
+    auto_register_controller_files(FastAPI(), ['demo_controller.py'], dependencies=[dependency])
 
     assert captured_controller_files == ['demo_controller.py']
+    assert captured_dependencies == [dependency]

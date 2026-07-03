@@ -39,6 +39,16 @@ class PluginRuntimeGateway:
         return import_module('plugins.core.environment').PLUGIN_RUNTIME_ENVIRONMENT
 
     @staticmethod
+    def get_core_lifecycle_lock() -> Any:
+        """
+        获取插件核心生命周期分布式锁。
+
+        :return: 插件核心生命周期分布式锁
+        """
+        lock_class = import_module('plugins.core.runtime.service.lifecycle_lock').RedisPluginLifecycleLock
+        return lock_class()
+
+    @staticmethod
     def build_exception_payload(message: str, exc: Exception) -> dict[str, object]:
         """
         构建插件核心异常负载。
