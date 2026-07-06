@@ -53,6 +53,11 @@ ruoyi plugin create demo --env=dev --template=full-stack --dry-run
 ```bash
 ruoyi plugin check demo --env=dev
 ruoyi plugin check-deps demo --env=dev
+ruoyi plugin allowlist-example --env=dev --dry-run
+ruoyi plugin allowlist-example --env=dev --output-path config/plugin_dependency_allowlist.yaml --overwrite
+ruoyi plugin lock-deps demo --env=dev --dry-run
+ruoyi plugin lock-deps demo --env=dev --offline-dir artifacts/plugin-dependencies --overwrite
+ruoyi plugin install-deps demo --env=dev --dry-run
 ruoyi plugin install-deps demo --env=dev --yes
 ruoyi plugin install demo --env=dev --yes
 ruoyi plugin enable demo --env=dev --yes
@@ -702,11 +707,27 @@ ruoyi plugin config demo import --env=dev --input-file=demo-config.json --yes
 
 ```bash
 ruoyi plugin check-deps demo --env=dev
+ruoyi plugin allowlist-example --env=dev --dry-run
+ruoyi plugin allowlist-example --env=dev --output-path config/plugin_dependency_allowlist.yaml --overwrite
+ruoyi plugin lock-deps demo --env=dev --dry-run
+ruoyi plugin lock-deps demo --env=dev --offline-dir artifacts/plugin-dependencies --overwrite
 ruoyi plugin install-deps demo --env=dev --dry-run
 ruoyi plugin install-deps demo --env=dev --yes
 ```
 
-应用启动时会先做默认启用插件的依赖门禁。缺少依赖时，CLI 启动场景可以提示用户确认是否安装依赖；多 worker 场景下依赖安装受启动期单写者保护，避免多个 worker 同时执行安装。
+`allowlist-example` 按需生成插件依赖允许列表示例，默认输出到 `config/plugin_dependency_allowlist.yaml`；仓库不再默认携带 `.example` 文件。建议先用 `--dry-run` 查看模板，再写入正式 allowlist 并按团队实际批准范围调整。
+
+`lock-deps` 默认生成锁文件模板，输出到 `plugins/<plugin_id>/plugin.lock.yaml`；如文件已存在，需要传 `--overwrite` 才会覆盖。默认模式不会联网解析真实版本，也不会写入 hash/integrity；如果传入 `--offline-dir`，命令会从已有本地 wheel/tgz 反填 `resolvedVersion`、Python `hashes` 和 npm/npmDev `integrity`。它仍不会下载、安装或访问 registry，未能反填的项发布前应由人工审核或 CI 流水线补齐。
+
+如果当前终端是交互式 TTY，且输出格式为 text，也可以不传 `--yes`：
+
+```bash
+ruoyi plugin install-deps demo --env=dev
+```
+
+CLI 会先输出 dry-run 预览和策略判定，再询问是否执行真实安装。非 TTY、JSON 输出和 CI 场景不会进入交互确认，真实安装应显式传 `--yes`。
+
+应用启动时只做默认启用插件的依赖门禁，不会提示安装，也不会执行 `pip install` 或 `npm install`。缺少依赖时应先使用 `ruoyi plugin install-deps` 显式处理。
 
 ## 10. 安装、启用、升级和清理
 

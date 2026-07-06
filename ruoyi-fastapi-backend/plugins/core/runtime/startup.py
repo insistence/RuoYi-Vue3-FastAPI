@@ -306,15 +306,6 @@ class PluginRuntimeStartupManager:
             failed_messages = self._build_dependency_failed_messages(dependency_result)
             if not failed_messages:
                 continue
-            if startup_write_enabled and await self._prompt_and_install_plugin_python_dependencies(
-                plugin.plugin_id,
-                dependency_result,
-            ):
-                dependency_result = self._check_plugin_python_dependencies(plugin.plugin_id, python_requirements)
-                failed_messages = self._build_dependency_failed_messages(dependency_result)
-                if not failed_messages:
-                    logger.info(f'插件 {plugin.plugin_id} 启动依赖已安装并通过检查')
-                    continue
             failed_plugin_ids.add(plugin.plugin_id)
             error_message = '插件启动依赖检查失败：' + '；'.join(failed_messages)
             if startup_write_enabled:
@@ -381,7 +372,9 @@ class PluginRuntimeStartupManager:
 
         :return: 是否支持交互确认
         """
-        return AppConfig.app_workers == 1 and sys.stdin.isatty()
+        _ = AppConfig.app_workers
+        _ = sys.stdin.isatty()
+        return False
 
     async def _install_plugin_python_dependencies(self, dependency_result: DependencyCheckResult) -> None:
         """

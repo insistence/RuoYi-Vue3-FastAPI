@@ -1,5 +1,6 @@
 # ruff: noqa: F403, F405
 
+from plugins.core.validation.dependency_policy import DependencyInstallPolicyDecision
 from tests.plugin_runtime_helpers import *
 
 
@@ -256,6 +257,43 @@ def test_plugin_dependency_install_payload_builder_builds_payload_from_dependenc
     assert payload['dependencyOk'] is True
     assert payload['planCount'] == 1
     assert payload['plan'][0]['name'] == 'missing-python'
+
+
+def test_plugin_dependency_install_payload_builder_includes_policy_decision() -> None:
+    """
+    校验依赖安装 payload 包含策略判定结果。
+
+    :return: None
+    """
+    dependency_result = DependencyCheckResult(plugin_id='demo', items=[])
+    policy_decision = DependencyInstallPolicyDecision(
+        allowed=False,
+        mode='plan_only',
+        reasons=['当前策略仅允许生成依赖安装计划'],
+        warnings=[],
+        requirements=[],
+        items=[],
+        install_plan_items=[],
+    )
+
+    payload = PluginDependencyInstallPayloadBuilder.build_payload(
+        plugin_id='demo',
+        dependency_result=dependency_result,
+        install_plan_items=[],
+        dry_run=True,
+        ok=True,
+        message='插件依赖安装演练完成，未执行实际安装',
+        policy_decision=policy_decision,
+    )
+
+    assert payload['policy'] == {
+        'allowed': False,
+        'mode': 'plan_only',
+        'reasons': ['当前策略仅允许生成依赖安装计划'],
+        'warnings': [],
+        'requirements': [],
+        'items': [],
+    }
 
 
 def test_plugin_dependency_install_payload_builder_builds_execution_payload() -> None:

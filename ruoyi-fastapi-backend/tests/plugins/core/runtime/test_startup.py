@@ -514,9 +514,9 @@ async def test_check_enabled_plugin_python_dependencies_skips_satisfied_dependen
 
 
 @pytest.mark.asyncio
-async def test_check_enabled_plugin_python_dependencies_installs_when_confirmed() -> None:
+async def test_check_enabled_plugin_python_dependencies_never_installs_during_startup() -> None:
     """
-    校验交互确认后会安装缺失 Python 依赖并重新检查。
+    校验启动期只做依赖门禁，不再交互安装缺失 Python 依赖。
 
     :return: None
     """
@@ -537,11 +537,8 @@ async def test_check_enabled_plugin_python_dependencies_installs_when_confirmed(
         required_version='==2.4.8',
         status='checked',
     )
-    satisfied_item = MagicMock(ok=True, message='Python 依赖已满足：agno')
     first_inspector = MagicMock()
     first_inspector.check.return_value = [missing_item]
-    refreshed_inspector = MagicMock()
-    refreshed_inspector.check.return_value = [satisfied_item]
     command_runner_gateway = MagicMock()
     command_runner_gateway.run_command.return_value = CompletedProcess(
         args=['python', '-m', 'pip', 'install', 'agno==2.4.8'],
@@ -552,7 +549,7 @@ async def test_check_enabled_plugin_python_dependencies_installs_when_confirmed(
     startup_manager = PluginRuntimeStartupManager(
         MagicMock(),
         python_dependency_inspector=first_inspector,
-        python_dependency_inspector_factory=MagicMock(return_value=refreshed_inspector),
+        python_dependency_inspector_factory=MagicMock(),
         command_runner_gateway=command_runner_gateway,
     )
 
@@ -563,9 +560,13 @@ async def test_check_enabled_plugin_python_dependencies_installs_when_confirmed(
     ):
         await startup_manager.check_enabled_plugin_python_dependencies(app)
 
-    command_runner_gateway.run_command.assert_called_once()
-    refreshed_inspector.check.assert_called_once_with(['agno==2.4.8'])
-    mark_plugin_runtime_error.assert_not_awaited()
+    command_runner_gateway.run_command.assert_not_called()
+    startup_manager.python_dependency_inspector_factory.assert_not_called()
+    mark_plugin_runtime_error.assert_awaited_once_with(
+        app,
+        'ai',
+        '插件启动依赖检查失败：Python 依赖未安装：agno',
+    )
 
 
 @pytest.mark.asyncio
@@ -607,7 +608,7 @@ async def test_check_enabled_plugin_python_dependencies_marks_error_when_install
 
 def test_can_prompt_dependency_install_requires_single_worker_tty() -> None:
     """
-    校验启动期交互安装仅允许单 worker TTY 环境。
+    校验启动期不再允许交互安装插件依赖。
 
     :return: None
     """
@@ -615,7 +616,7 @@ def test_can_prompt_dependency_install_requires_single_worker_tty() -> None:
         patch('plugins.core.runtime.startup.AppConfig.app_workers', 1),
         patch('plugins.core.runtime.startup.sys.stdin.isatty', return_value=True),
     ):
-        assert PluginRuntimeStartupManager._can_prompt_dependency_install() is True
+        assert PluginRuntimeStartupManager._can_prompt_dependency_install() is False
 
     with (
         patch('plugins.core.runtime.startup.AppConfig.app_workers', 2),

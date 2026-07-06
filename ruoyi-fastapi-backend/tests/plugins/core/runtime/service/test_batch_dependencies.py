@@ -12,6 +12,7 @@ from tests.plugin_runtime_helpers import *
 from plugins.core.runtime.service.audit import PluginAuditUseCase
 import plugins.core.runtime.service.audit as audit_module
 from plugins.core.runtime.service.dependencies import PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS
+from plugins.core.validation.dependency_policy import DependencyInstallPolicyConfig
 
 
 def test_plugin_runtime_check_deps_reports_dependency_items(tmp_path: Path) -> None:
@@ -784,17 +785,30 @@ def test_plugin_runtime_install_plugin_dependencies_delegates_to_dependency_use_
             """
             self.plugin_id: str | None = None
             self.dry_run: bool | None = None
+            self.policy_config: object | None = None
+            self.confirmed: bool | None = None
 
-        def install_plugin_dependencies(self, plugin_id: str, *, dry_run: bool = False) -> dict:
+        def install_plugin_dependencies(
+            self,
+            plugin_id: str,
+            *,
+            dry_run: bool = False,
+            policy_config: object | None = None,
+            confirmed: bool = False,
+        ) -> dict:
             """
             记录插件依赖安装调用。
 
             :param plugin_id: 插件ID
             :param dry_run: 是否仅预演
+            :param policy_config: 依赖安装策略配置
+            :param confirmed: 是否已确认
             :return: 测试负载
             """
             self.plugin_id = plugin_id
             self.dry_run = dry_run
+            self.policy_config = policy_config
+            self.confirmed = confirmed
             return {'ok': True, 'pluginId': plugin_id, 'dryRun': dry_run}
 
     dependency = FakeDependencyUseCase()
@@ -804,6 +818,8 @@ def test_plugin_runtime_install_plugin_dependencies_delegates_to_dependency_use_
 
     assert dependency.plugin_id == 'demo'
     assert dependency.dry_run is True
+    assert dependency.policy_config is None
+    assert dependency.confirmed is False
     assert payload == {'ok': True, 'pluginId': 'demo', 'dryRun': True}
 
 
@@ -832,6 +848,8 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_delegates_to_dep
             self.dependency_result: DependencyCheckResult | None = None
             self.dry_run: bool | None = None
             self.discovered_plugin: object | None = None
+            self.policy_config: object | None = None
+            self.confirmed: bool | None = None
 
         def install_plugin_dependencies_from_result(
             self,
@@ -840,6 +858,8 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_delegates_to_dep
             *,
             dry_run: bool = False,
             discovered_plugin: object | None = None,
+            policy_config: object | None = None,
+            confirmed: bool = False,
         ) -> dict:
             """
             记录插件依赖安装内部调用。
@@ -848,12 +868,16 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_delegates_to_dep
             :param dependency_result: 依赖检查结果
             :param dry_run: 是否仅预演
             :param discovered_plugin: 已发现插件
+            :param policy_config: 依赖安装策略配置
+            :param confirmed: 是否已确认
             :return: 测试负载
             """
             self.plugin_id = plugin_id
             self.dependency_result = dependency_result
             self.dry_run = dry_run
             self.discovered_plugin = discovered_plugin
+            self.policy_config = policy_config
+            self.confirmed = confirmed
             return {'ok': True, 'pluginId': plugin_id, 'fromResult': True}
 
     dependency = FakeDependencyUseCase()
@@ -865,6 +889,8 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_delegates_to_dep
     assert dependency.dependency_result is dependency_result
     assert dependency.dry_run is True
     assert dependency.discovered_plugin is None
+    assert dependency.policy_config is None
+    assert dependency.confirmed is False
     assert payload == {'ok': True, 'pluginId': 'demo', 'fromResult': True}
 
 
@@ -892,11 +918,173 @@ dependencies:
     gateway = FakePluginRuntimeGateway()
     runtime = build_runtime_with_gateway(backend_root, gateway)
 
-    payload = runtime.install_plugin_dependencies('demo')
+    payload = runtime.install_plugin_dependencies(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig(mode='explicit', env='dev'),
+        confirmed=True,
+    )
 
     assert payload['ok'] is True
     assert len(gateway.commands) == 1
     assert gateway.commands[0][2] == PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS
+
+
+def test_plugin_runtime_dependency_install_plan_only_policy_blocks_command_execution(tmp_path: Path) -> None:
+    """
+    校验 plan_only 策略会阻断真实依赖安装并返回策略 payload。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+dependencies:
+  python:
+    - missing-python
+""",
+    )
+    gateway = FakePluginRuntimeGateway()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+
+    payload = runtime.install_plugin_dependencies(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig(mode='plan_only', env='dev'),
+        confirmed=True,
+    )
+
+    assert payload['ok'] is False
+    assert payload['dryRun'] is False
+    assert payload['policy']['mode'] == 'plan_only'
+    assert payload['policy']['allowed'] is False
+    assert '当前策略仅允许生成依赖安装计划' in payload['policy']['reasons']
+    assert gateway.commands == []
+
+
+def test_plugin_runtime_dependency_install_policy_block_records_operation_log(tmp_path: Path) -> None:
+    """
+    校验 standalone 依赖安装被策略阻断时仍记录审计日志。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+dependencies:
+  python:
+    - missing-python
+""",
+    )
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+
+    payload = runtime.install_plugin_dependencies(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig(mode='plan_only', env='dev'),
+        confirmed=True,
+    )
+
+    assert payload['ok'] is False
+    assert gateway.commands == []
+    assert len(FakePluginService.operation_logs) == 1
+    log_payload = FakePluginService.operation_logs[0].payload
+    assert log_payload['operation'] == 'dependency_install'
+    assert log_payload['pluginId'] == 'demo'
+    assert log_payload['confirmed'] is True
+    assert log_payload['policy']['allowed'] is False
+
+
+def test_plugin_runtime_dependency_install_explicit_policy_requires_confirmation(tmp_path: Path) -> None:
+    """
+    校验 explicit 策略未确认时不执行真实依赖安装。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+dependencies:
+  python:
+    - missing-python
+""",
+    )
+    gateway = FakePluginRuntimeGateway()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+
+    payload = runtime.install_plugin_dependencies(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig(mode='explicit', env='dev'),
+        confirmed=False,
+    )
+
+    assert payload['ok'] is False
+    assert payload['policy']['mode'] == 'explicit'
+    assert payload['policy']['requirements'] == ['需要显式确认 --yes']
+    assert gateway.commands == []
+
+
+def test_plugin_runtime_dependency_install_success_records_operation_log(tmp_path: Path) -> None:
+    """
+    校验 standalone 依赖安装成功时记录策略、确认和结果审计。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+dependencies:
+  python:
+    - missing-python
+""",
+    )
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+
+    payload = runtime.install_plugin_dependencies(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig(mode='explicit', env='dev'),
+        confirmed=True,
+    )
+
+    assert payload['ok'] is True
+    assert len(gateway.commands) == 1
+    assert len(FakePluginService.operation_logs) == 1
+    log_payload = FakePluginService.operation_logs[0].payload
+    assert log_payload['operation'] == 'dependency_install'
+    assert log_payload['pluginId'] == 'demo'
+    assert log_payload['confirmed'] is True
+    assert log_payload['policy']['mode'] == 'explicit'
+    assert log_payload['policy']['allowed'] is True
+    assert log_payload['results'][0]['returnCode'] == 0
 
 
 def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_to_dependency_use_case(
@@ -924,6 +1112,8 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_
             self.dependency_result: DependencyCheckResult | None = None
             self.dry_run: bool | None = None
             self.discovered_plugin: object | None = None
+            self.policy_config: object | None = None
+            self.confirmed: bool | None = None
 
         async def install_plugin_dependencies_from_result_async(
             self,
@@ -932,6 +1122,8 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_
             *,
             dry_run: bool = False,
             discovered_plugin: object | None = None,
+            policy_config: object | None = None,
+            confirmed: bool = False,
         ) -> dict:
             """
             记录插件依赖安装异步调用。
@@ -940,12 +1132,16 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_
             :param dependency_result: 依赖检查结果
             :param dry_run: 是否仅预演
             :param discovered_plugin: 已发现插件
+            :param policy_config: 依赖安装策略配置
+            :param confirmed: 是否已确认
             :return: 测试负载
             """
             self.plugin_id = plugin_id
             self.dependency_result = dependency_result
             self.dry_run = dry_run
             self.discovered_plugin = discovered_plugin
+            self.policy_config = policy_config
+            self.confirmed = confirmed
             return {'ok': True, 'pluginId': plugin_id, 'fromResultAsync': True}
 
     dependency = FakeDependencyUseCase()
@@ -959,6 +1155,8 @@ def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_
     assert dependency.dependency_result is dependency_result
     assert dependency.dry_run is True
     assert dependency.discovered_plugin is None
+    assert dependency.policy_config is None
+    assert dependency.confirmed is False
     assert payload == {'ok': True, 'pluginId': 'demo', 'fromResultAsync': True}
 
 
@@ -994,6 +1192,8 @@ dependencies:
             'demo',
             dependency_result,
             discovered_plugin=discovered_plugin,
+            policy_config=DependencyInstallPolicyConfig(mode='explicit', env='dev'),
+            confirmed=True,
         )
     )
 

@@ -319,8 +319,71 @@ class PluginCommandPresenter:
         results = payload.get('results')
         if isinstance(results, list):
             lines.append(f'results: {len(results)}')
+        policy = payload.get('policy')
+        if isinstance(policy, dict):
+            lines.extend(
+                [
+                    f'policy_mode: {policy.get("mode", "-")}',
+                    f'policy_allowed: {str(policy.get("allowed", False)).lower()}',
+                ]
+            )
+            reasons = policy.get('reasons')
+            if isinstance(reasons, list) and reasons:
+                lines.append('policy_reasons:')
+                lines.extend(f'  - {reason}' for reason in reasons)
+            requirements = policy.get('requirements')
+            if isinstance(requirements, list) and requirements:
+                lines.append('policy_requirements:')
+                lines.extend(f'  - {requirement}' for requirement in requirements)
 
         return '\n'.join(lines)
+
+    def build_dependency_lock_text(self, payload: dict[str, object]) -> str:
+        """
+        将插件依赖锁文件模板负载渲染为文本。
+
+        :param payload: 插件依赖锁文件模板负载
+        :return: 文本输出
+        """
+        lines = [
+            f'ok: {str(payload.get("ok", False)).lower()}',
+            f'message: {payload.get("message", "-")}',
+            f'plugin_id: {payload.get("pluginId", "-")}',
+            f'env: {payload.get("env", "-")}',
+            f'dry_run: {str(payload.get("dryRun", False)).lower()}',
+            f'output_file: {payload.get("outputFile", "-")}',
+            f'written: {str(payload.get("written", False)).lower()}',
+            f'overwritten: {str(payload.get("overwritten", False)).lower()}',
+            f'entry_count: {payload.get("entryCount", 0)}',
+            f'artifact_count: {payload.get("artifactCount", 0)}',
+        ]
+        warnings = payload.get('warnings')
+        if isinstance(warnings, list) and warnings:
+            lines.append('warnings:')
+            lines.extend(f'  - {warning}' for warning in warnings)
+        return '\n'.join(lines)
+
+    def build_dependency_allowlist_example_text(self, payload: dict[str, object]) -> str:
+        """
+        将插件依赖允许列表示例负载渲染为文本。
+
+        :param payload: 插件依赖允许列表示例负载
+        :return: 文本输出
+        """
+        if payload.get('ok') and isinstance(payload.get('allowlist'), str) and payload.get('dryRun'):
+            return str(payload.get('allowlist', ''))
+
+        return '\n'.join(
+            [
+                f'ok: {str(payload.get("ok", False)).lower()}',
+                f'message: {payload.get("message", "-")}',
+                f'env: {payload.get("env", "-")}',
+                f'dry_run: {str(payload.get("dryRun", False)).lower()}',
+                f'output_file: {payload.get("outputFile", "-")}',
+                f'written: {str(payload.get("written", False)).lower()}',
+                f'overwritten: {str(payload.get("overwritten", False)).lower()}',
+            ]
+        )
 
     def build_plan_text(self, payload: dict[str, object]) -> str:
         """

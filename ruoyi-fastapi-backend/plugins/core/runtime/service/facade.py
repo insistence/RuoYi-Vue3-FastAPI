@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Awaitable, Callable, Mapping
 from typing import cast
 
@@ -5,6 +6,7 @@ from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT, PluginRuntimeEn
 from plugins.core.runtime.support import PluginRuntimePayloadBuilder
 from plugins.core.types import PluginConfigValue
 from plugins.core.validation.dependencies import NpmDependencyInspector, PluginDependencyChecker
+from plugins.core.validation.dependency_policy import DependencyInstallPolicyConfig
 
 from .audit import PluginAuditUseCase
 from .batch import PluginBatchUseCase
@@ -90,6 +92,7 @@ class PluginRuntimeService:
             )
         )
         self.lifecycle_lock = lifecycle_lock or NoopPluginLifecycleLock()
+        self._background_audit_tasks: set[asyncio.Task[None]] = set()
 
     def _replace_dependencies(self, dependencies: PluginRuntimeDependencies) -> None:
         """
@@ -340,17 +343,66 @@ class PluginRuntimeService:
             'PluginBatchItemExecutionResponse', await self.batch.execute_batch_plugin_item(operation, plugin_id)
         )
 
-    def install_plugin_dependencies(self, plugin_id: str, *, dry_run: bool = False) -> PluginDependencyInstallResponse:
+    def install_plugin_dependencies(
+        self,
+        plugin_id: str,
+        *,
+        dry_run: bool = False,
+        policy_config: DependencyInstallPolicyConfig | None = None,
+        confirmed: bool = False,
+        record_operation_log: bool = True,
+    ) -> PluginDependencyInstallResponse:
         """
         安装插件依赖。
 
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
+        :param policy_config: 依赖安装策略配置
+        :param confirmed: 是否已显式确认
+        :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件依赖安装负载
         """
-        return cast(
-            'PluginDependencyInstallResponse', self.dependency.install_plugin_dependencies(plugin_id, dry_run=dry_run)
+        payload = cast(
+            'PluginDependencyInstallResponse',
+            self.dependency.install_plugin_dependencies(
+                plugin_id,
+                dry_run=dry_run,
+                policy_config=policy_config,
+                confirmed=confirmed,
+            ),
         )
+        if record_operation_log and not dry_run:
+            self._record_plugin_operation_log_sync(payload, dry_run=False, continue_on_error=False)
+        return payload
+
+    def _record_plugin_operation_log_sync(
+        self,
+        payload: Mapping[str, object],
+        *,
+        dry_run: bool,
+        continue_on_error: bool,
+    ) -> None:
+        """
+        从同步入口记录插件操作审计日志。
+
+        :param payload: 操作结果负载
+        :param dry_run: 是否预演
+        :param continue_on_error: 失败后是否继续
+        :return: None
+        """
+        record_coro = self.record_plugin_operation_log(
+            payload,
+            dry_run=dry_run,
+            continue_on_error=continue_on_error,
+        )
+        try:
+            running_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(record_coro)
+            return
+        task = running_loop.create_task(record_coro)
+        self._background_audit_tasks.add(task)
+        task.add_done_callback(self._background_audit_tasks.discard)
 
     def install_plugin_dependencies_from_result(
         self,
@@ -359,6 +411,8 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         discovered_plugin: object | None = None,
+        policy_config: DependencyInstallPolicyConfig | None = None,
+        confirmed: bool = False,
     ) -> PluginDependencyInstallResponse:
         """
         根据既有依赖检查结果生成计划并执行依赖安装。
@@ -367,6 +421,8 @@ class PluginRuntimeService:
         :param dependency_result: 依赖检查结果
         :param dry_run: 是否仅预演
         :param discovered_plugin: 已发现插件
+        :param policy_config: 依赖安装策略配置
+        :param confirmed: 是否已显式确认
         :return: 插件依赖安装负载
         """
         return cast(
@@ -376,6 +432,8 @@ class PluginRuntimeService:
                 dependency_result,
                 dry_run=dry_run,
                 discovered_plugin=discovered_plugin,
+                policy_config=policy_config,
+                confirmed=confirmed,
             ),
         )
 
@@ -386,6 +444,8 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         discovered_plugin: object | None = None,
+        policy_config: DependencyInstallPolicyConfig | None = None,
+        confirmed: bool = False,
     ) -> PluginDependencyInstallResponse:
         """
         根据既有依赖检查结果异步生成计划并执行依赖安装。
@@ -394,6 +454,8 @@ class PluginRuntimeService:
         :param dependency_result: 依赖检查结果
         :param dry_run: 是否仅预演
         :param discovered_plugin: 已发现插件
+        :param policy_config: 依赖安装策略配置
+        :param confirmed: 是否已显式确认
         :return: 插件依赖安装负载
         """
         return cast(
@@ -403,6 +465,8 @@ class PluginRuntimeService:
                 dependency_result,
                 dry_run=dry_run,
                 discovered_plugin=discovered_plugin,
+                policy_config=policy_config,
+                confirmed=confirmed,
             ),
         )
 

@@ -1067,6 +1067,10 @@ function handleDependencyInstall() {
     proxy.$modal.msgWarning(getCapabilityReason(dependencyResult.value.capability));
     return;
   }
+  if (dependencyResult.value.policy?.allowed === false) {
+    proxy.$modal.msgWarning(getDependencyPolicyReason(dependencyResult.value.policy));
+    return;
+  }
   proxy.$modal.confirm('确认要安装"' + dependencyPluginId.value + '"插件缺失依赖吗?').then(function () {
     dependencyLoading.value = true;
     return installPluginDependencies(dependencyPluginId.value, false);
@@ -1411,6 +1415,14 @@ function isCapabilityOperationBlocked(capability, operation) {
 
 function getCapabilityReason(capability) {
   return capability?.primaryReason || capability?.warnings?.[0] || "当前环境不允许执行该插件操作";
+}
+
+function getDependencyPolicyReason(policy) {
+  const messages = [
+    ...(Array.isArray(policy?.reasons) ? policy.reasons : []),
+    ...(Array.isArray(policy?.requirements) ? policy.requirements : [])
+  ];
+  return messages[0] || "当前依赖安装策略不允许执行真实安装";
 }
 
 function getOperationTooltip(row, operation, label) {

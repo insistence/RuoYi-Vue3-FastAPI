@@ -295,15 +295,17 @@ async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: py
             plugin_id: str,
             *,
             dry_run: bool = True,
+            policy_config: object | None = None,
         ) -> dict[str, object]:
             """
             记录依赖安装参数。
 
             :param plugin_id: 插件ID
             :param dry_run: 是否仅预演
+            :param policy_config: 依赖安装策略配置
             :return: 依赖安装计划
             """
-            recorded.update({'plugin_id': plugin_id, 'dry_run': dry_run})
+            recorded.update({'plugin_id': plugin_id, 'dry_run': dry_run, 'policy_mode': policy_config.mode})
             return {'ok': True, 'message': '插件依赖安装演练完成', 'pluginId': plugin_id}
 
     monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
@@ -317,7 +319,7 @@ async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: py
 
     assert response.status_code == HTTP_OK
     assert body['success'] is True
-    assert recorded == {'plugin_id': 'demo', 'dry_run': True}
+    assert recorded == {'plugin_id': 'demo', 'dry_run': True, 'policy_mode': 'plan_only'}
 
 
 @pytest.mark.asyncio

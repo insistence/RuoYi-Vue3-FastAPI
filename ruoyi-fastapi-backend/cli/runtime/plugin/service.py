@@ -6,7 +6,15 @@ from cli.exit_codes import RUNTIME_ERROR, SUCCESS
 
 from .gateway import PluginRuntimeGateway
 from .scaffold import PluginScaffoldBuilder
-from .support import CliPluginRuntimeExceptionPayload, PluginTestPayloadBuilder, PluginTestPlanBuilder
+from .support import (
+    PLUGIN_DEPENDENCY_ALLOWLIST_EXAMPLE_YAML,
+    CliPluginRuntimeExceptionPayload,
+    PluginDependencyAllowlistExamplePayloadBuilder,
+    PluginDependencyLockfileTemplateBuilder,
+    PluginDependencyLockPayloadBuilder,
+    PluginTestPayloadBuilder,
+    PluginTestPlanBuilder,
+)
 
 PYTEST_COMMAND_TIMEOUT_SECONDS = 120
 
@@ -325,15 +333,177 @@ class CliPluginRuntimeService:
             continue_on_error=continue_on_error,
         )
 
-    def install_plugin_dependencies(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    def install_plugin_dependencies(
+        self,
+        plugin_id: str,
+        *,
+        dry_run: bool = False,
+        policy_config: object | None = None,
+        confirmed: bool = False,
+    ) -> dict[str, Any]:
         """
         安装插件依赖。
 
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
+        :param policy_config: 依赖安装策略配置
+        :param confirmed: 是否已显式确认
         :return: 插件依赖安装负载
         """
-        return self._delegate('install_plugin_dependencies', plugin_id, dry_run=dry_run)
+        return self._delegate(
+            'install_plugin_dependencies',
+            plugin_id,
+            dry_run=dry_run,
+            policy_config=policy_config,
+            confirmed=confirmed,
+        )
+
+    def lock_plugin_dependencies(
+        self,
+        plugin_id: str,
+        *,
+        output_path: str = '',
+        offline_dir: str = '',
+        dry_run: bool = False,
+        overwrite: bool = False,
+    ) -> dict[str, object]:
+        """
+        生成插件依赖锁文件模板。
+
+        :param plugin_id: 插件ID
+        :param output_path: 输出锁文件路径
+        :param offline_dir: 离线制品根目录
+        :param dry_run: 是否仅预演
+        :param overwrite: 是否覆盖已有文件
+        :return: 插件依赖锁文件模板负载
+        """
+        try:
+            runtime_environment = self._resolve_runtime_environment()
+            discovered_plugin = self._find_discovered_plugin(plugin_id)
+            if discovered_plugin is None:
+                return PluginDependencyLockPayloadBuilder.build_not_found_payload(plugin_id)
+
+            backend_root = Path(runtime_environment.get_backend_dir())
+            resolved_output_path = self._resolve_lockfile_output_path(
+                backend_root,
+                discovered_plugin.backend_path,
+                output_path,
+            )
+            lockfile_template = PluginDependencyLockfileTemplateBuilder.build(
+                discovered_plugin.manifest,
+                offline_dir=offline_dir or None,
+            )
+            if resolved_output_path.exists() and not overwrite and not dry_run:
+                return PluginDependencyLockPayloadBuilder.build_exists_payload(plugin_id, resolved_output_path)
+
+            written = False
+            overwritten = resolved_output_path.exists()
+            if not dry_run:
+                resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+                resolved_output_path.write_text(lockfile_template.to_yaml(), encoding='utf-8')
+                written = True
+
+            return PluginDependencyLockPayloadBuilder.build_success_payload(
+                plugin_id,
+                lockfile_template,
+                resolved_output_path,
+                dry_run=dry_run,
+                written=written,
+                overwritten=overwritten and written,
+            )
+        except Exception as exc:
+            return self._build_exception_payload('生成插件依赖锁文件模板失败', exc)
+
+    def _find_discovered_plugin(self, plugin_id: str) -> Any | None:
+        """
+        根据插件ID发现本地插件。
+
+        :param plugin_id: 插件ID
+        :return: 已发现插件
+        """
+        from plugins.core.discovery.scanner import PluginScanner  # noqa: PLC0415
+
+        runtime_environment = self._resolve_runtime_environment()
+        return next(
+            (
+                discovered_plugin
+                for discovered_plugin in PluginScanner(runtime_environment.get_backend_plugins_dir()).discover()
+                if discovered_plugin.manifest.id == plugin_id
+            ),
+            None,
+        )
+
+    @staticmethod
+    def _resolve_lockfile_output_path(backend_root: Path, plugin_path: Path, output_path: str) -> Path:
+        """
+        解析锁文件输出路径。
+
+        :param backend_root: 后端项目根目录
+        :param plugin_path: 插件目录
+        :param output_path: 用户指定输出路径
+        :return: 输出路径
+        """
+        if not output_path:
+            return plugin_path / 'plugin.lock.yaml'
+        resolved_output_path = Path(output_path)
+        if resolved_output_path.is_absolute():
+            return resolved_output_path
+        return backend_root / resolved_output_path
+
+    def generate_plugin_dependency_allowlist_example(
+        self,
+        *,
+        output_path: str = '',
+        dry_run: bool = False,
+        overwrite: bool = False,
+    ) -> dict[str, object]:
+        """
+        生成插件依赖允许列表示例。
+
+        :param output_path: 输出允许列表路径
+        :param dry_run: 是否仅预演
+        :param overwrite: 是否覆盖已有文件
+        :return: 允许列表示例负载
+        """
+        try:
+            runtime_environment = self._resolve_runtime_environment()
+            backend_root = Path(runtime_environment.get_backend_dir())
+            resolved_output_path = self._resolve_allowlist_example_output_path(backend_root, output_path)
+            if resolved_output_path.exists() and not overwrite and not dry_run:
+                return PluginDependencyAllowlistExamplePayloadBuilder.build_exists_payload(resolved_output_path)
+
+            written = False
+            overwritten = resolved_output_path.exists()
+            if not dry_run:
+                resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+                resolved_output_path.write_text(PLUGIN_DEPENDENCY_ALLOWLIST_EXAMPLE_YAML, encoding='utf-8')
+                written = True
+
+            return PluginDependencyAllowlistExamplePayloadBuilder.build_success_payload(
+                resolved_output_path,
+                allowlist_text=PLUGIN_DEPENDENCY_ALLOWLIST_EXAMPLE_YAML,
+                dry_run=dry_run,
+                written=written,
+                overwritten=overwritten and written,
+            )
+        except Exception as exc:
+            return self._build_exception_payload('生成插件依赖允许列表示例失败', exc)
+
+    @staticmethod
+    def _resolve_allowlist_example_output_path(backend_root: Path, output_path: str) -> Path:
+        """
+        解析允许列表示例输出路径。
+
+        :param backend_root: 后端项目根目录
+        :param output_path: 用户指定输出路径
+        :return: 输出路径
+        """
+        if not output_path:
+            return backend_root / 'config' / 'plugin_dependency_allowlist.yaml'
+        resolved_output_path = Path(output_path)
+        if resolved_output_path.is_absolute():
+            return resolved_output_path
+        return backend_root / resolved_output_path
 
     async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
         """

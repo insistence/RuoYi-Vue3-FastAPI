@@ -32,6 +32,7 @@ from plugins.core.management.entity.vo.schemas import (
     PluginPageQueryModel,
 )
 from plugins.core.runtime.result import PluginOperationResult
+from plugins.core.validation.dependency_policy import DependencyInstallPolicyConfig
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
@@ -872,6 +873,7 @@ async def install_system_plugin_dependencies(
     dependency_result = get_plugin_runtime_service().install_plugin_dependencies(
         plugin_id,
         dry_run=dry_run if dry_run else True,
+        policy_config=DependencyInstallPolicyConfig(mode='plan_only', env='web'),
     )
     logger.info(dependency_result.get('message', '插件依赖安装演练完成'))
 

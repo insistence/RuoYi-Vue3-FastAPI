@@ -132,6 +132,8 @@ def test_plugin_registered_commands_match_workflow_groups() -> None:
         'config',
         'check-deps',
         'install-deps',
+        'lock-deps',
+        'allowlist-example',
         'precheck',
         'plan',
         'batch',
@@ -198,7 +200,7 @@ def test_plugin_dependency_commands_are_registered_from_workflow_module() -> Non
     unload_plugin_modules()
 
     command_module = importlib.import_module('cli.groups.plugin.command')
-    dependency_commands = {'check-deps', 'install-deps', 'precheck', 'plan'}
+    dependency_commands = {'check-deps', 'install-deps', 'lock-deps', 'allowlist-example', 'precheck', 'plan'}
     callbacks = {
         command.name: command.callback
         for command in command_module.app.registered_commands

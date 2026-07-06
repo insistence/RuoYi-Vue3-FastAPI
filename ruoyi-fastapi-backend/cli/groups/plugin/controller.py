@@ -1,12 +1,22 @@
 import importlib
 import json
+import sys
 from typing import TYPE_CHECKING
+
+import click
+import typer
 
 from cli.core import DEFAULT_CORE_SERVICES, CliContextFactory, CliExecutionService
 from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, RUNTIME_ERROR, SUCCESS
+from plugins.core.validation.dependency_policy import DependencyInstallPolicyConfig
 
 from .exporter import PluginCommandFileAdapter
-from .options import PluginCreateCommandOptions
+from .options import (
+    PluginCreateCommandOptions,
+    PluginDependencyAllowlistExampleCommandOptions,
+    PluginDependencyInstallCommandOptions,
+    PluginDependencyLockCommandOptions,
+)
 from .presenter import PluginCommandPresenter
 
 if TYPE_CHECKING:
@@ -365,9 +375,7 @@ class PluginCommandController:
         env: str,
         output: str,
         *,
-        allow_prod: bool,
-        yes: bool,
-        dry_run: bool,
+        options: PluginDependencyInstallCommandOptions,
     ) -> None:
         """
         安装插件依赖。
@@ -375,26 +383,207 @@ class PluginCommandController:
         :param plugin_id: 插件ID
         :param env: 当前命令运行环境
         :param output: 输出格式
-        :param allow_prod: 是否允许生产环境危险命令
-        :param yes: 是否跳过确认
-        :param dry_run: 是否仅预演
+        :param options: 依赖安装命令选项
         :return: None
         """
-        ctx = self.context_factory.build_dangerous(
+        ctx = self.context_factory.build_regular(
             env,
             output,
-            allow_prod,
-            yes,
-            dry_run,
-            command_name='plugin install-deps',
+            options.allow_prod,
+            options.yes,
+            options.dry_run,
         )
-        payload = self.plugin_runtime.install_plugin_dependencies(plugin_id, dry_run=dry_run)
+        policy_config = DependencyInstallPolicyConfig.from_environment(
+            env=env,
+            mode=options.policy_mode,
+            allow_prod=options.allow_prod,
+            allow_unlisted=options.allow_unlisted,
+            lockfile_path=options.lockfile or None,
+            offline_dir=options.offline_dir or None,
+            require_lockfile=options.require_lockfile,
+        )
+        if self._should_interactive_confirm_dependency_install(ctx, options):
+            preview_payload = self.plugin_runtime.install_plugin_dependencies(
+                plugin_id,
+                dry_run=True,
+                policy_config=policy_config,
+                confirmed=True,
+            )
+            preview_payload['env'] = ctx.env
+            if self._dependency_install_policy_blocked(preview_payload):
+                payload = self.plugin_runtime.install_plugin_dependencies(
+                    plugin_id,
+                    dry_run=False,
+                    policy_config=policy_config,
+                    confirmed=True,
+                )
+                payload['env'] = ctx.env
+                self._complete_plugin_payload(
+                    ctx,
+                    payload,
+                    text_builder=self.presenter.build_dependency_install_text,
+                )
+                return
+            typer.echo(self.presenter.build_dependency_install_text(preview_payload))
+            if not self._confirm_dependency_install(ctx.env):
+                payload = self._build_dependency_install_cancel_payload(plugin_id, ctx.env, preview_payload)
+                self._complete_plugin_payload(
+                    ctx,
+                    payload,
+                    text_builder=self.presenter.build_dependency_install_text,
+                )
+                return
+            confirmed = True
+        else:
+            confirmed = options.yes
+
+        payload = self.plugin_runtime.install_plugin_dependencies(
+            plugin_id,
+            dry_run=options.dry_run,
+            policy_config=policy_config,
+            confirmed=confirmed,
+        )
         payload['env'] = ctx.env
         self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_dependency_install_text,
         )
+
+    def lock_plugin_dependencies(
+        self,
+        plugin_id: str,
+        env: str,
+        output: str,
+        *,
+        options: PluginDependencyLockCommandOptions,
+    ) -> None:
+        """
+        生成插件依赖锁文件模板。
+
+        :param plugin_id: 插件ID
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param options: 依赖锁文件命令选项
+        :return: None
+        """
+        ctx = self.context_factory.build_regular(
+            env,
+            output,
+            False,
+            True,
+            options.dry_run,
+        )
+        payload = self.plugin_runtime.lock_plugin_dependencies(
+            plugin_id,
+            output_path=options.output_path,
+            offline_dir=options.offline_dir,
+            dry_run=options.dry_run,
+            overwrite=options.overwrite,
+        )
+        payload['env'] = ctx.env
+        self._complete_plugin_payload(
+            ctx,
+            payload,
+            text_builder=self.presenter.build_dependency_lock_text,
+        )
+
+    def generate_plugin_dependency_allowlist_example(
+        self,
+        env: str,
+        output: str,
+        *,
+        options: PluginDependencyAllowlistExampleCommandOptions,
+    ) -> None:
+        """
+        生成插件依赖允许列表示例。
+
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param options: 允许列表示例命令选项
+        :return: None
+        """
+        ctx = self.context_factory.build_regular(
+            env,
+            output,
+            False,
+            True,
+            options.dry_run,
+        )
+        payload = self.plugin_runtime.generate_plugin_dependency_allowlist_example(
+            output_path=options.output_path,
+            dry_run=options.dry_run,
+            overwrite=options.overwrite,
+        )
+        payload['env'] = ctx.env
+        self._complete_plugin_payload(
+            ctx,
+            payload,
+            text_builder=self.presenter.build_dependency_allowlist_example_text,
+        )
+
+    @staticmethod
+    def _should_interactive_confirm_dependency_install(
+        ctx: object,
+        options: PluginDependencyInstallCommandOptions,
+    ) -> bool:
+        """
+        判断插件依赖安装是否应进入 CLI 交互确认流程。
+
+        :param ctx: CLI上下文
+        :param options: 依赖安装命令选项
+        :return: 是否进入交互确认
+        """
+        return (
+            not options.yes and not options.dry_run and getattr(ctx, 'output', 'text') == 'text' and sys.stdin.isatty()
+        )
+
+    @staticmethod
+    def _dependency_install_policy_blocked(payload: dict[str, object]) -> bool:
+        """
+        判断依赖安装预览中的策略是否已阻断真实安装。
+
+        :param payload: 依赖安装预览负载
+        :return: 是否被策略阻断
+        """
+        policy = payload.get('policy')
+        return isinstance(policy, dict) and policy.get('allowed') is False
+
+    @staticmethod
+    def _confirm_dependency_install(env: str) -> bool:
+        """
+        询问用户是否执行插件依赖安装。
+
+        :param env: 当前运行环境
+        :return: 是否确认执行
+        """
+        try:
+            return bool(typer.confirm(f'确认执行插件依赖安装吗？ 当前环境：{env}', default=False))
+        except (click.Abort, EOFError, KeyboardInterrupt):
+            return False
+
+    @staticmethod
+    def _build_dependency_install_cancel_payload(
+        plugin_id: str,
+        env: str,
+        preview_payload: dict[str, object],
+    ) -> dict[str, object]:
+        """
+        构建用户取消插件依赖安装的负载。
+
+        :param plugin_id: 插件ID
+        :param env: 当前运行环境
+        :param preview_payload: 安装预览负载
+        :return: 取消安装负载
+        """
+        return {
+            'ok': False,
+            'message': '已取消插件依赖安装',
+            'pluginId': plugin_id,
+            'env': env,
+            'dryRun': False,
+            'preview': preview_payload,
+        }
 
     def create_plugin(
         self,
