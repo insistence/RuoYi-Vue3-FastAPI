@@ -27,7 +27,7 @@ class CliPluginRuntimeDependencies:
 
     runtime_environment: object | None = None
     dependency_checker: object | None = None
-    state_gateway: object | None = None
+    management_gateway: object | None = None
     model_gateway: object | None = None
     command_gateway: object | None = None
     lifecycle_lock: object | None = None
@@ -37,8 +37,8 @@ class CliPluginRuntimeService:
     """
     插件 CLI 运行时服务。
 
-    该服务继承共享插件运行时能力，并补充仅 CLI 使用的开发命令能力，
-    例如插件测试执行和插件模板创建。
+    该服务负责为 CLI 组装核心插件运行时，并只承载 CLI 专属开发命令能力，
+    例如插件测试执行、插件模板创建和本地辅助文件生成。
     """
 
     def __init__(
@@ -48,7 +48,7 @@ class CliPluginRuntimeService:
         runtime_error_code: int = RUNTIME_ERROR,
         runtime_environment: object | None = None,
         dependency_checker: object | None = None,
-        state_gateway: object | None = None,
+        management_gateway: object | None = None,
         model_gateway: object | None = None,
         command_gateway: object | None = None,
         lifecycle_lock: object | None = None,
@@ -61,7 +61,7 @@ class CliPluginRuntimeService:
         :param runtime_error_code: CLI 运行失败退出码
         :param runtime_environment: 插件运行时环境服务
         :param dependency_checker: 插件依赖检查器
-        :param state_gateway: 插件管理状态网关
+        :param management_gateway: 插件管理运行时适配器
         :param model_gateway: 插件管理模型工厂网关
         :param command_gateway: 插件命令执行网关
         :param lifecycle_lock: 插件生命周期操作锁
@@ -74,7 +74,7 @@ class CliPluginRuntimeService:
         self.dependencies = CliPluginRuntimeDependencies(
             runtime_environment=runtime_environment,
             dependency_checker=dependency_checker,
-            state_gateway=state_gateway,
+            management_gateway=management_gateway,
             model_gateway=model_gateway,
             command_gateway=command_gateway,
             lifecycle_lock=lifecycle_lock,
@@ -90,10 +90,12 @@ class CliPluginRuntimeService:
         """
         if self._core_runtime is None:
             runtime_service_class = self.plugin_gateway.get_core_runtime_service_class()
+            management_gateway = self._resolve_management_gateway()
+            gateway_overrides_class = self.plugin_gateway.get_core_runtime_gateway_overrides_class()
             self._core_runtime = runtime_service_class(
                 runtime_environment=self._resolve_runtime_environment(),
                 dependency_checker=self.dependencies.dependency_checker,
-                state_gateway=self._resolve_state_gateway(),
+                gateways=self._build_gateway_overrides(gateway_overrides_class, management_gateway),
                 model_gateway=self._resolve_model_gateway(),
                 command_gateway=self._resolve_command_gateway(),
                 lifecycle_lock=self._resolve_lifecycle_lock(),
@@ -112,7 +114,7 @@ class CliPluginRuntimeService:
         self.dependencies = replace(self.dependencies, runtime_environment=runtime_environment)
         return runtime_environment
 
-    def _resolve_management_gateway(self) -> object:
+    def _load_management_gateway(self) -> object:
         """
         解析插件管理运行时适配器。
 
@@ -121,21 +123,41 @@ class CliPluginRuntimeService:
         management_gateway = self.plugin_gateway.get_management_runtime_gateway()
         self.dependencies = replace(
             self.dependencies,
-            state_gateway=self.dependencies.state_gateway or management_gateway,
+            management_gateway=self.dependencies.management_gateway or management_gateway,
             model_gateway=self.dependencies.model_gateway or management_gateway,
             command_gateway=self.dependencies.command_gateway or management_gateway,
         )
         return management_gateway
 
-    def _resolve_state_gateway(self) -> object:
+    def _resolve_management_gateway(self) -> object:
         """
-        解析插件核心运行时状态网关。
+        解析插件管理运行时适配器。
 
-        :return: 插件核心运行时状态网关
+        :return: 插件管理运行时适配器
         """
-        if self.dependencies.state_gateway is None:
-            self._resolve_management_gateway()
-        return self.dependencies.state_gateway
+        if self.dependencies.management_gateway is None:
+            self._load_management_gateway()
+        return self.dependencies.management_gateway
+
+    @staticmethod
+    def _build_gateway_overrides(gateway_overrides_class: object, management_gateway: object) -> object:
+        """
+        构建插件核心运行时窄端口覆盖项。
+
+        :param gateway_overrides_class: 插件核心运行时窄端口覆盖项类
+        :param management_gateway: 插件管理运行时适配器
+        :return: 插件核心运行时窄端口覆盖项
+        """
+        return gateway_overrides_class(
+            config_gateway=management_gateway,
+            audit_gateway=management_gateway,
+            state_query_gateway=management_gateway,
+            migration_history_gateway=management_gateway,
+            purge_plan_gateway=management_gateway,
+            lifecycle_state_gateway=management_gateway,
+            lifecycle_uow_gateway=management_gateway,
+            migration_execution_gateway=management_gateway,
+        )
 
     def _resolve_model_gateway(self) -> object:
         """
@@ -169,48 +191,6 @@ class CliPluginRuntimeService:
         self.dependencies = replace(self.dependencies, lifecycle_lock=lifecycle_lock)
         return lifecycle_lock
 
-    def _delegate(self, method_name: str, *args: object, **kwargs: object) -> Any:
-        """
-        调用插件核心运行时方法。
-
-        :param method_name: 核心运行时方法名
-        :param args: 位置参数
-        :param kwargs: 关键字参数
-        :return: 核心运行时方法返回值
-        """
-        return getattr(self.core_runtime, method_name)(*args, **kwargs)
-
-    def __getattr__(self, name: str) -> Any:
-        """
-        将未在 CLI runtime 定义的插件能力转发给核心运行时。
-
-        :param name: 属性名
-        :return: 核心运行时属性
-        """
-        if name.startswith('_') or '_core_runtime' not in self.__dict__:
-            raise AttributeError(name)
-        return getattr(self.core_runtime, name)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        """
-        设置 CLI runtime 属性，并在必要时同步给已创建的核心运行时。
-
-        :param name: 属性名
-        :param value: 属性值
-        :return: None
-        """
-        object.__setattr__(self, name, value)
-        if name.startswith('_') or name in {
-            'success_code',
-            'runtime_error_code',
-            'plugin_gateway',
-            'dependencies',
-        }:
-            return
-        core_runtime = self.__dict__.get('_core_runtime')
-        if core_runtime is not None:
-            setattr(core_runtime, name, value)
-
     def _build_exception_payload(self, message: str, exc: Exception) -> dict[str, object]:
         """
         构建 CLI 插件运行时异常负载。
@@ -223,140 +203,6 @@ class CliPluginRuntimeService:
             self.plugin_gateway.build_exception_payload(message, exc),
             failure_code=self.runtime_error_code,
         ).to_payload()
-
-    def list_plugins(self) -> dict[str, Any]:
-        """
-        查看本地插件列表。
-
-        :return: 插件列表负载
-        """
-        return self._delegate('list_plugins')
-
-    async def get_plugin_info_with_state(self, plugin_id: str) -> dict[str, Any]:
-        """
-        查看插件详情与管理状态。
-
-        :param plugin_id: 插件ID
-        :return: 插件详情负载
-        """
-        return await self._delegate('get_plugin_info_with_state', plugin_id)
-
-    def check_plugin(self, plugin_id: str | None = None) -> dict[str, Any]:
-        """
-        检查插件状态。
-
-        :param plugin_id: 插件ID
-        :return: 插件检查负载
-        """
-        return self._delegate('check_plugin', plugin_id)
-
-    def check_plugin_dependencies(self, plugin_id: str) -> dict[str, Any]:
-        """
-        检查插件依赖。
-
-        :param plugin_id: 插件ID
-        :return: 插件依赖检查负载
-        """
-        return self._delegate('check_plugin_dependencies', plugin_id)
-
-    async def precheck_plugin_operation(self, plugin_id: str, operation: str) -> dict[str, Any]:
-        """
-        执行插件操作预检。
-
-        :param plugin_id: 插件ID
-        :param operation: 操作类型
-        :return: 插件操作预检负载
-        """
-        return await self._delegate('precheck_plugin_operation', plugin_id, operation)
-
-    async def health_plugin(self, plugin_id: str) -> dict[str, Any]:
-        """
-        执行插件健康检查。
-
-        :param plugin_id: 插件ID
-        :return: 插件健康检查负载
-        """
-        return await self._delegate('health_plugin', plugin_id)
-
-    async def diagnose_plugin(self, plugin_id: str) -> dict[str, Any]:
-        """
-        生成插件诊断信息。
-
-        :param plugin_id: 插件ID
-        :return: 插件诊断负载
-        """
-        return await self._delegate('diagnose_plugin', plugin_id)
-
-    def generate_plugin_docs(self, plugin_id: str) -> dict[str, Any]:
-        """
-        生成插件文档片段。
-
-        :param plugin_id: 插件ID
-        :return: 插件文档负载
-        """
-        return self._delegate('generate_plugin_docs', plugin_id)
-
-    def plan_plugins(self, operation: str, plugin_ids: list[str] | None = None) -> dict[str, Any]:
-        """
-        生成插件批量操作计划。
-
-        :param operation: 操作类型
-        :param plugin_ids: 插件ID列表
-        :return: 插件批量操作计划负载
-        """
-        return self._delegate('plan_plugins', operation, plugin_ids)
-
-    async def batch_plugins(
-        self,
-        operation: str,
-        plugin_ids: list[str] | None = None,
-        *,
-        dry_run: bool = False,
-        continue_on_error: bool = False,
-    ) -> dict[str, Any]:
-        """
-        执行插件批量操作。
-
-        :param operation: 操作类型
-        :param plugin_ids: 插件ID列表
-        :param dry_run: 是否仅预演
-        :param continue_on_error: 失败后是否继续执行后续插件
-        :return: 插件批量操作负载
-        """
-        if '_execute_batch_plugin_item' in self.__dict__:
-            self.core_runtime._execute_batch_plugin_item = self.__dict__['_execute_batch_plugin_item']
-        return await self._delegate(
-            'batch_plugins',
-            operation,
-            plugin_ids,
-            dry_run=dry_run,
-            continue_on_error=continue_on_error,
-        )
-
-    def install_plugin_dependencies(
-        self,
-        plugin_id: str,
-        *,
-        dry_run: bool = False,
-        policy_config: object | None = None,
-        confirmed: bool = False,
-    ) -> dict[str, Any]:
-        """
-        安装插件依赖。
-
-        :param plugin_id: 插件ID
-        :param dry_run: 是否仅预演
-        :param policy_config: 依赖安装策略配置
-        :param confirmed: 是否已显式确认
-        :return: 插件依赖安装负载
-        """
-        return self._delegate(
-            'install_plugin_dependencies',
-            plugin_id,
-            dry_run=dry_run,
-            policy_config=policy_config,
-            confirmed=confirmed,
-        )
 
     def lock_plugin_dependencies(
         self,
@@ -445,10 +291,7 @@ class CliPluginRuntimeService:
         """
         if not output_path:
             return plugin_path / 'plugin.lock.yaml'
-        resolved_output_path = Path(output_path)
-        if resolved_output_path.is_absolute():
-            return resolved_output_path
-        return backend_root / resolved_output_path
+        return CliPluginRuntimeService._resolve_backend_output_path(backend_root, output_path)
 
     def generate_plugin_dependency_allowlist_example(
         self,
@@ -500,144 +343,27 @@ class CliPluginRuntimeService:
         """
         if not output_path:
             return backend_root / 'config' / 'plugin_dependency_allowlist.yaml'
-        resolved_output_path = Path(output_path)
-        if resolved_output_path.is_absolute():
-            return resolved_output_path
-        return backend_root / resolved_output_path
+        return CliPluginRuntimeService._resolve_backend_output_path(backend_root, output_path)
 
-    async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
+    @staticmethod
+    def _resolve_backend_output_path(backend_root: Path, output_path: str) -> Path:
         """
-        安装插件。
+        解析 CLI 输出路径，并限制在后端项目目录内。
 
-        :param plugin_id: 插件ID
-        :param dry_run: 是否仅预演
-        :return: 插件安装负载
+        :param backend_root: 后端项目根目录
+        :param output_path: 用户指定输出路径
+        :return: 规范化后的输出路径
         """
-        return await self._delegate('install_plugin', plugin_id, dry_run=dry_run)
-
-    async def upgrade_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
-        """
-        升级插件。
-
-        :param plugin_id: 插件ID
-        :param dry_run: 是否仅预演
-        :return: 插件升级负载
-        """
-        return await self._delegate('upgrade_plugin', plugin_id, dry_run=dry_run)
-
-    async def set_plugin_enabled(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict[str, Any]:
-        """
-        设置插件启停状态。
-
-        :param plugin_id: 插件ID
-        :param enabled: 是否启用
-        :param dry_run: 是否仅预演
-        :return: 插件启停状态负载
-        """
-        return await self._delegate('set_plugin_enabled', plugin_id, enabled=enabled, dry_run=dry_run)
-
-    async def uninstall_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
-        """
-        卸载插件。
-
-        :param plugin_id: 插件ID
-        :param dry_run: 是否仅预演
-        :return: 插件卸载负载
-        """
-        return await self._delegate('uninstall_plugin', plugin_id, dry_run=dry_run)
-
-    async def purge_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
-        """
-        物理清理插件。
-
-        :param plugin_id: 插件ID
-        :param dry_run: 是否仅预演
-        :return: 插件物理清理负载
-        """
-        return await self._delegate('purge_plugin', plugin_id, dry_run=dry_run)
-
-    async def list_plugin_migrations(self, plugin_id: str, status: str | None = None) -> dict[str, Any]:
-        """
-        查询插件 migration 历史。
-
-        :param plugin_id: 插件ID
-        :param status: 执行状态
-        :return: 插件 migration 历史负载
-        """
-        return await self._delegate('list_plugin_migrations', plugin_id, status)
-
-    async def mark_plugin_migration_success(
-        self,
-        plugin_id: str,
-        migration_path: str,
-        *,
-        note: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        人工标记插件 migration 为成功。
-
-        :param plugin_id: 插件ID
-        :param migration_path: migration 相对路径
-        :param note: 人工恢复备注
-        :return: 插件 migration 状态标记负载
-        """
-        return await self._delegate('mark_plugin_migration_success', plugin_id, migration_path, note=note)
-
-    async def mark_plugin_migration_failed(
-        self,
-        plugin_id: str,
-        migration_path: str,
-        *,
-        note: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        人工标记插件 migration 为失败。
-
-        :param plugin_id: 插件ID
-        :param migration_path: migration 相对路径
-        :param note: 人工恢复备注
-        :return: 插件 migration 状态标记负载
-        """
-        return await self._delegate('mark_plugin_migration_failed', plugin_id, migration_path, note=note)
-
-    async def get_plugin_config(self, plugin_id: str) -> dict[str, Any]:
-        """
-        读取插件配置。
-
-        :param plugin_id: 插件ID
-        :return: 插件配置负载
-        """
-        return await self._delegate('get_plugin_config', plugin_id)
-
-    async def export_plugin_config(self, plugin_id: str, *, reveal_secret: bool = False) -> dict[str, Any]:
-        """
-        导出插件配置。
-
-        :param plugin_id: 插件ID
-        :param reveal_secret: 是否显示敏感值
-        :return: 插件配置导出负载
-        """
-        return await self._delegate('export_plugin_config', plugin_id, reveal_secret=reveal_secret)
-
-    async def import_plugin_config(self, plugin_id: str, values: dict[str, Any]) -> dict[str, Any]:
-        """
-        导入插件配置。
-
-        :param plugin_id: 插件ID
-        :param values: 配置键值
-        :return: 插件配置导入负载
-        """
-        return await self._delegate('import_plugin_config', plugin_id, values)
-
-    async def set_plugin_config(self, plugin_id: str, values: dict[str, Any]) -> dict[str, Any]:
-        """
-        更新插件配置。
-
-        :param plugin_id: 插件ID
-        :param values: 配置键值
-        :return: 插件配置更新负载
-        """
-        return await self._delegate('set_plugin_config', plugin_id, values)
+        raw_output_path = Path(output_path)
+        resolved_backend_root = backend_root.resolve(strict=False)
+        resolved_output_path = (
+            raw_output_path if raw_output_path.is_absolute() else resolved_backend_root / raw_output_path
+        ).resolve(strict=False)
+        try:
+            resolved_output_path.relative_to(resolved_backend_root)
+        except ValueError as exc:
+            raise ValueError(f'输出路径必须位于后端项目目录内：{output_path}') from exc
+        return resolved_output_path
 
     def test_plugin(
         self,

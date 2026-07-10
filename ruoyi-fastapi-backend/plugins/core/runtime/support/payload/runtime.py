@@ -111,8 +111,26 @@ class PluginRuntimePrecheckPayload(PluginPayloadModel):
     operation: str
     database_available: bool = Field(alias='databaseAvailable')
     database_error: str | None = Field(alias='databaseError')
+    purge_plan_error: str | None = Field(default=None, alias='purgePlanError')
+    installed: bool | None = None
+    installed_version: str | None = Field(default=None, alias='installedVersion')
+    current_version: str | None = Field(default=None, alias='currentVersion')
+    needs_upgrade: bool | None = Field(default=None, alias='needsUpgrade')
+    manifest_ok: bool | None = Field(default=None, alias='manifestOk')
+    dependency_ok: bool | None = Field(default=None, alias='dependencyOk')
+    plugin_dependency_ok: bool | None = Field(default=None, alias='pluginDependencyOk')
+    structure_ok: bool | None = Field(default=None, alias='structureOk')
+    menu_conflict_ok: bool | None = Field(default=None, alias='menuConflictOk')
+    manifest_issues: list[dict[str, object]] | None = Field(default=None, alias='manifestIssues')
+    manifest_warnings: list[dict[str, object]] | None = Field(default=None, alias='manifestWarnings')
+    plugin_dependency_errors: list[dict[str, object]] | None = Field(default=None, alias='pluginDependencyErrors')
+    structure_errors: list[dict[str, object]] | None = Field(default=None, alias='structureErrors')
+    menu_conflicts: list[dict[str, object]] | None = Field(default=None, alias='menuConflicts')
+    dependencies: list[dict[str, object]] | None = None
+    plugin_dependencies: list[dict[str, object]] | None = Field(default=None, alias='pluginDependencies')
     actions: list[dict[str, object]]
     precheck: dict[str, object]
+    plan: dict[str, object] | None = None
 
 
 class PluginRuntimeExceptionPayload(PluginPayloadModel):
@@ -169,6 +187,22 @@ class PluginRuntimeUpgradeBlockerPayload(PluginPayloadModel):
     message: str
     plugin_id: str = Field(alias='pluginId')
     dry_run: bool = Field(alias='dryRun')
+    installed: bool
+    installed_version: str | None = Field(alias='installedVersion')
+    current_version: str = Field(alias='currentVersion')
+    needs_upgrade: bool = Field(alias='needsUpgrade')
+    manifest_ok: bool = Field(alias='manifestOk')
+    dependency_ok: bool = Field(alias='dependencyOk')
+    plugin_dependency_ok: bool | None = Field(default=None, alias='pluginDependencyOk')
+    structure_ok: bool | None = Field(default=None, alias='structureOk')
+    menu_conflict_ok: bool | None = Field(default=None, alias='menuConflictOk')
+    manifest_issues: list[dict[str, object]] | None = Field(default=None, alias='manifestIssues')
+    manifest_warnings: list[dict[str, object]] | None = Field(default=None, alias='manifestWarnings')
+    plugin_dependency_errors: list[dict[str, object]] | None = Field(default=None, alias='pluginDependencyErrors')
+    structure_errors: list[dict[str, object]] | None = Field(default=None, alias='structureErrors')
+    menu_conflicts: list[dict[str, object]] | None = Field(default=None, alias='menuConflicts')
+    dependencies: list[dict[str, object]] | None = None
+    plugin_dependencies: list[dict[str, object]] | None = Field(default=None, alias='pluginDependencies')
     actions: list[dict[str, object]]
 
 
@@ -344,6 +378,7 @@ class PluginRuntimePayloadBuilder:
         actions: list[ActionPayload],
         database_error: str | None,
         purge_plan: PluginPurgePlan | None = None,
+        purge_plan_error: str | None = None,
     ) -> PluginRuntimePrecheckPayloadDict:
         """
         构建插件操作预检负载。
@@ -355,24 +390,35 @@ class PluginRuntimePayloadBuilder:
         :param actions: 操作动作清单
         :param database_error: 数据库状态读取错误信息
         :param purge_plan: 插件物理清理计划
+        :param purge_plan_error: 插件物理清理计划构建错误
         :return: 插件操作预检负载
         """
+        check_payload = dict(precheck.check_payload)
+        if purge_plan_error:
+            check_payload['warnings'] = [
+                *[str(warning) for warning in check_payload.get('warnings', [])],
+                f'插件物理清理计划构建失败：{purge_plan_error}',
+            ]
         payload: PluginRuntimePrecheckPayloadDict = {
-            'ok': precheck.ok,
-            'message': '插件操作预检通过' if precheck.ok else '插件操作预检存在问题',
+            'ok': precheck.ok and purge_plan_error is None,
+            'message': '插件操作预检通过' if precheck.ok and purge_plan_error is None else '插件操作预检存在问题',
             'pluginId': plugin_id,
             'operation': operation,
             'databaseAvailable': database_error is None,
             'databaseError': database_error,
+            'purgePlanError': purge_plan_error,
             **version_state,
             'actions': actions,
             **precheck.operation_payload,
-            'precheck': precheck.check_payload,
+            'precheck': check_payload,
         }
         if purge_plan:
             payload['plan'] = PluginPayloadBuilder.build_purge_plan(purge_plan)
 
-        return PluginRuntimePrecheckPayload.model_validate(payload).to_payload()
+        result = PluginRuntimePrecheckPayload.model_validate(payload).to_payload()
+        if purge_plan_error is None:
+            result.pop('purgePlanError', None)
+        return result
 
     @staticmethod
     def build_health_payload(health_result: PluginHealthResultProtocol) -> PluginRuntimeHealthPayloadDict:

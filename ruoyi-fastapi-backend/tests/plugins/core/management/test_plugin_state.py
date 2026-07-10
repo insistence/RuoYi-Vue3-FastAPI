@@ -14,6 +14,7 @@ sys.path.insert(0, str(BACKEND_ROOT))
 
 from config.database import Base  # noqa: E402
 from module_admin.dao.job_dao import JobDao  # noqa: E402
+from module_admin.entity.do.job_do import SysJob  # noqa: E402
 from module_admin.entity.do.menu_do import SysMenu  # noqa: E402
 from module_admin.entity.do.role_do import SysRoleMenu  # noqa: E402
 from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
@@ -1451,6 +1452,17 @@ def test_secret_plugin_config_encrypts_user_value_with_encrypted_prefix() -> Non
     assert revealed_value == user_value
 
 
+def test_plugin_config_options_exposes_parse_error() -> None:
+    """
+    校验插件配置选项 JSON 损坏时返回可见解析错误。
+
+    :return: None
+    """
+    options = PluginConfigManager.deserialize_options('{broken')
+
+    assert options == [{'parseError': '配置选项 JSON 解析失败'}]
+
+
 @pytest.mark.asyncio
 async def test_get_plugin_config_services_reuses_bulk_config_lookup(
     tmp_path: Path,
@@ -1697,6 +1709,57 @@ async def test_purge_plugin_services_deletes_platform_metadata(tmp_path: Path) -
 
 
 @pytest.mark.asyncio
+async def test_plugin_job_prefix_queries_treat_like_wildcards_as_literals() -> None:
+    """
+    校验插件任务前缀查询会把插件 ID 中的 LIKE 通配符当作普通字符。
+
+    :return: None
+    """
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await create_sqlite_sys_job_table(connection)
+
+    try:
+        async with session_maker() as session:
+            session.add_all(
+                [
+                    SysJob(
+                        job_name='foo_bar:cleanup',
+                        job_group='default',
+                        invoke_target='plugins.foo_bar.jobs.cleanup',
+                        status='0',
+                        remark=f'{PluginJobModelBuilder.REMARK_PREFIX} foo_bar:cleanup',
+                    ),
+                    SysJob(
+                        job_name='fooXbar:cleanup',
+                        job_group='default',
+                        invoke_target='plugins.fooXbar.jobs.cleanup',
+                        status='0',
+                        remark=f'{PluginJobModelBuilder.REMARK_PREFIX} fooXbar:cleanup',
+                    ),
+                ]
+            )
+            await session.commit()
+
+            repository = PluginJobRepository(session)
+            before_count = await repository.count_jobs_by_name_prefix('foo_bar:')
+            await repository.pause_jobs_by_name_prefix('foo_bar:')
+            await session.commit()
+
+            rows = (await session.execute(text('select job_name, status from sys_job order by job_name'))).all()
+            await repository.delete_jobs_by_name_prefix('foo_bar:')
+            await session.commit()
+            remaining_rows = (await session.execute(text('select job_name from sys_job order by job_name'))).all()
+
+        assert before_count == 1
+        assert rows == [('fooXbar:cleanup', '0'), ('foo_bar:cleanup', '1')]
+        assert remaining_rows == [('fooXbar:cleanup',)]
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_add_plugin_operation_log_services_persists_batch_report() -> None:
     """
     校验插件批量操作审计日志可以落库。
@@ -1815,6 +1878,29 @@ def test_build_plugin_operation_log_model_supports_single_plugin_payload() -> No
     assert operation_log.status == 'success'
 
 
+def test_plugin_operation_log_detail_exposes_invalid_json_parse_error() -> None:
+    """
+    校验插件操作日志详情 JSON 损坏时返回可见解析错误。
+
+    :return: None
+    """
+    detail = PluginOperationLogBuilder.build_detail(
+        {
+            'operationId': 1,
+            'operation': 'install',
+            'pluginIds': '["demo"]',
+            'dryRun': '1',
+            'continueOnError': '1',
+            'status': 'failed',
+            'summary': '{broken',
+            'result': '[]',
+        }
+    )
+
+    assert detail.summary == {'parseError': 'JSON 解析失败'}
+    assert detail.result == {'parseError': 'JSON 内容不是对象'}
+
+
 @pytest.mark.asyncio
 async def test_plugin_operation_log_plugin_id_filter_matches_json_array_element() -> None:
     """
@@ -1857,6 +1943,59 @@ async def test_plugin_operation_log_plugin_id_filter_matches_json_array_element(
 
         assert page_result.total == 1
         assert page_result.rows[0].plugin_ids == ['foo']
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_plugin_operation_log_plugin_id_filter_treats_like_wildcards_as_literals() -> None:
+    """
+    校验操作日志插件 ID 过滤不会把 _ 和 % 当成 SQL LIKE 通配符。
+
+    :return: None
+    """
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPluginOperationLog.__table__])
+
+    try:
+        async with session_maker() as session:
+            session.add_all(
+                [
+                    SysPluginOperationLog(
+                        operation='install',
+                        plugin_ids='["foo_bar"]',
+                        dry_run='1',
+                        continue_on_error='1',
+                        status='success',
+                    ),
+                    SysPluginOperationLog(
+                        operation='install',
+                        plugin_ids='["prefix", "fooXbar", "suffix"]',
+                        dry_run='1',
+                        continue_on_error='1',
+                        status='success',
+                    ),
+                    SysPluginOperationLog(
+                        operation='install',
+                        plugin_ids='["prefix", "foo%bar", "suffix"]',
+                        dry_run='1',
+                        continue_on_error='1',
+                        status='success',
+                    ),
+                ]
+            )
+            await session.commit()
+
+            page_result = await PluginService.get_plugin_operation_log_page_list_services(
+                session,
+                PluginOperationLogPageQueryModel(pageNum=1, pageSize=10, pluginId='foo_bar'),
+                is_page=True,
+            )
+
+        assert page_result.total == 1
+        assert page_result.rows[0].plugin_ids == ['foo_bar']
     finally:
         await engine.dispose()
 

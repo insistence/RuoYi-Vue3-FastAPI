@@ -33,11 +33,7 @@ class PluginMigrationUseCase:
         :return: 插件 migration 历史负载
         """
         try:
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                migrations = await plugin_service.get_plugin_migration_list_services(session, plugin_id, status)
+            migrations = await self.dependencies.migration_history_gateway.list_plugin_migrations(plugin_id, status)
 
             return {
                 'ok': True,
@@ -72,44 +68,37 @@ class PluginMigrationUseCase:
         :return: 插件 migration 状态标记负载
         """
         try:
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
             error_message = None if status == 'success' else note or '人工标记为失败'
-            async with async_session_local() as session:
-                existing_migration = await plugin_service.get_plugin_migration_services(
-                    session,
+            existing_migration = await self.dependencies.migration_history_gateway.get_plugin_migration(
+                plugin_id,
+                migration_path,
+            )
+            if not existing_migration:
+                return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
                     plugin_id,
-                    migration_path,
+                    f'migration_mark_{status}',
+                    message='插件 migration 历史不存在',
                 )
-                if not existing_migration:
-                    return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
-                        plugin_id,
-                        f'migration_mark_{status}',
-                        message='插件 migration 历史不存在',
-                    )
-                current_status = getattr(existing_migration, 'status', 'success') or 'success'
-                if current_status not in MIGRATION_MANUAL_TRANSITIONS[status]:
-                    label = '成功' if status == 'success' else '失败'
-                    return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
-                        plugin_id,
-                        f'migration_mark_{status}',
-                        message=f'插件 migration 当前状态为 {current_status}，不能人工标记为{label}',
-                    )
-                migration = await plugin_service.mark_plugin_migration_status_services(
-                    session,
+            current_status = getattr(existing_migration, 'status', 'success') or 'success'
+            if current_status not in MIGRATION_MANUAL_TRANSITIONS[status]:
+                label = '成功' if status == 'success' else '失败'
+                return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
                     plugin_id,
-                    migration_path,
-                    status,
-                    error_message,
+                    f'migration_mark_{status}',
+                    message=f'插件 migration 当前状态为 {current_status}，不能人工标记为{label}',
                 )
-                if not migration:
-                    return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
-                        plugin_id,
-                        f'migration_mark_{status}',
-                        message='插件 migration 历史不存在',
-                    )
-                await session.commit()
+            migration = await self.dependencies.migration_history_gateway.mark_plugin_migration_status(
+                plugin_id,
+                migration_path,
+                status,
+                error_message,
+            )
+            if not migration:
+                return PluginRuntimePayloadBuilder.build_invalid_operation_payload(
+                    plugin_id,
+                    f'migration_mark_{status}',
+                    message='插件 migration 历史不存在',
+                )
 
             label = '成功' if status == 'success' else '失败'
             payload = {

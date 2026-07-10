@@ -3,6 +3,111 @@
 from tests.plugin_runtime_helpers import *
 
 
+class MigrationOnlyGateway:
+    """
+    仅提供插件 migration 历史能力的测试网关。
+    """
+
+    def __init__(self) -> None:
+        """
+        初始化测试 migration 历史网关。
+
+        :return: None
+        """
+        self.records = [
+            SimpleNamespace(
+                plugin_id='demo',
+                migration_path='migrations/001.sql',
+                migration_checksum='checksum-1',
+                version='1.0.0',
+                statement_count=1,
+                status='running',
+                error_message='interrupted',
+                attempt_count=1,
+                started_time=None,
+                finished_time=None,
+                create_time=None,
+                update_time=None,
+            ),
+            SimpleNamespace(
+                plugin_id='demo',
+                migration_path='migrations/002.sql',
+                migration_checksum='checksum-2',
+                version='1.0.0',
+                statement_count=1,
+                status='success',
+                error_message=None,
+                attempt_count=1,
+                started_time=None,
+                finished_time=None,
+                create_time=None,
+                update_time=None,
+            ),
+        ]
+        self.list_calls: list[tuple[str, str | None]] = []
+        self.mark_calls: list[tuple[str, str, str, str | None]] = []
+
+    async def list_plugin_migrations(self, plugin_id: str, status: str | None = None) -> list[object]:
+        """
+        查询测试 migration 历史。
+
+        :param plugin_id: 插件ID
+        :param status: 执行状态
+        :return: migration 历史列表
+        """
+        self.list_calls.append((plugin_id, status))
+        return [
+            record
+            for record in self.records
+            if record.plugin_id == plugin_id and (status is None or record.status == status)
+        ]
+
+    async def get_plugin_migration(self, plugin_id: str, migration_path: str) -> object | None:
+        """
+        获取测试 migration 历史。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :return: migration 历史
+        """
+        for record in reversed(self.records):
+            if record.plugin_id == plugin_id and record.migration_path == migration_path:
+                return record
+        return None
+
+    async def mark_plugin_migration_status(
+        self,
+        plugin_id: str,
+        migration_path: str,
+        status: str,
+        error_message: str | None = None,
+    ) -> object | None:
+        """
+        标记测试 migration 历史状态。
+
+        :param plugin_id: 插件ID
+        :param migration_path: migration 相对路径
+        :param status: 执行状态
+        :param error_message: 失败错误信息
+        :return: migration 历史
+        """
+        self.mark_calls.append((plugin_id, migration_path, status, error_message))
+        record = await self.get_plugin_migration(plugin_id, migration_path)
+        if record:
+            record.status = status
+            record.error_message = error_message
+        return record
+
+    def get_plugin_service(self) -> object:
+        """
+        禁止 migration 链路回退到管理服务胖接口。
+
+        :return: 永不返回
+        :raises AssertionError: migration 链路不应调用该方法
+        """
+        raise AssertionError('migration 历史不应依赖 PluginManagementServiceProtocol')
+
+
 def test_plugin_runtime_lists_plugin_migration_history(tmp_path: Path) -> None:
     """
     校验运行时可以查询插件 migration 历史。
@@ -26,6 +131,41 @@ def test_plugin_runtime_lists_plugin_migration_history(tmp_path: Path) -> None:
     assert result['status'] == 'running'
     assert result['count'] == 1
     assert result['migrations'][0]['migrationPath'] == 'migrations/002.sql'
+
+
+def test_plugin_runtime_migration_uses_migration_history_port(tmp_path: Path) -> None:
+    """
+    校验 migration 查询和人工标记只依赖 migration 历史窄端口。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    gateway = MigrationOnlyGateway()
+    runtime = PluginRuntimeService(
+        runtime_environment=FakeRuntimeEnvironment(tmp_path / 'backend'),
+        dependency_checker=PluginDependencyChecker(),
+        gateways=PluginRuntimeGatewayOverrides(migration_history_gateway=gateway),
+    )
+
+    list_result = asyncio.run(runtime.list_plugin_migrations('demo', 'running'))
+    mark_result = asyncio.run(
+        runtime.mark_plugin_migration_failed(
+            'demo',
+            'migrations/001.sql',
+            note='retry later',
+            record_operation_log=False,
+        )
+    )
+
+    assert list_result['ok'] is True
+    assert list_result['count'] == 1
+    assert list_result['migrations'][0]['migrationPath'] == 'migrations/001.sql'
+    assert mark_result['ok'] is True
+    assert mark_result['operation'] == 'migration_mark_failed'
+    assert gateway.records[0].status == 'failed'
+    assert gateway.records[0].error_message == 'retry later'
+    assert gateway.list_calls == [('demo', 'running')]
+    assert gateway.mark_calls == [('demo', 'migrations/001.sql', 'failed', 'retry later')]
 
 
 def test_plugin_runtime_marks_plugin_migration_success_and_records_audit(tmp_path: Path) -> None:
@@ -216,6 +356,7 @@ def test_plugin_runtime_install_plugin_delegates_to_install_use_case(tmp_path: P
             self.plugin_id: str | None = None
             self.dry_run: bool | None = None
             self.record_operation_log: bool | None = None
+            self.operated_by: str | None = None
 
         async def install_plugin(
             self,
@@ -223,6 +364,7 @@ def test_plugin_runtime_install_plugin_delegates_to_install_use_case(tmp_path: P
             *,
             dry_run: bool = False,
             record_operation_log: bool = True,
+            operated_by: str | None = None,
         ) -> dict:
             """
             记录插件安装调用。
@@ -230,11 +372,13 @@ def test_plugin_runtime_install_plugin_delegates_to_install_use_case(tmp_path: P
             :param plugin_id: 插件ID
             :param dry_run: 是否仅预演
             :param record_operation_log: 是否记录审计日志
+            :param operated_by: 操作者用户名
             :return: 测试负载
             """
             self.plugin_id = plugin_id
             self.dry_run = dry_run
             self.record_operation_log = record_operation_log
+            self.operated_by = operated_by
             return {'ok': True, 'pluginId': plugin_id, 'operation': 'install'}
 
     install = FakeInstallUseCase()
@@ -656,6 +800,92 @@ backend:
     assert result['hooks'][0]['hook_name'] == 'on_upgrade'
 
 
+def test_plugin_runtime_upgrade_plugin_uses_lifecycle_uow_and_migration_gateway_without_fat_service(
+    tmp_path: Path,
+) -> None:
+    """
+    校验插件升级通过生命周期 UoW 和 migration 执行端口完成，不回退到 fat state gateway。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: Demo
+version: 1.2.0
+enabled: true
+backend:
+  module: plugins.demo
+  migrations:
+    - migrations/001_upgrade.sql
+  seeds:
+    - seeds/demo_seed.sql
+frontend:
+  menus: []
+dependencies:
+  python: []
+  npm: []
+""",
+    )
+    create_controller_dir(plugin_root)
+    (plugin_root / 'migrations').mkdir()
+    (plugin_root / 'migrations' / '001_upgrade.sql').write_text('select 4;\n', encoding='utf-8')
+    (plugin_root / 'seeds').mkdir()
+    (plugin_root / 'seeds' / 'demo_seed.sql').write_text('select 5;\n', encoding='utf-8')
+
+    class NoFatUpgradeGateway(FakePluginRuntimeGateway):
+        """
+        禁止升级流程读取 fat state gateway 的测试适配器。
+        """
+
+        def get_async_session_local(self) -> object:
+            """
+            禁止通过 state gateway 打开数据库会话。
+
+            :return: 不返回
+            :raises AssertionError: 升级流程不应使用 fat state gateway
+            """
+            raise AssertionError('升级流程不应通过 state gateway 打开数据库会话')
+
+        def get_plugin_service(self) -> object:
+            """
+            禁止通过 state gateway 获取管理服务。
+
+            :return: 不返回
+            :raises AssertionError: 升级流程不应使用 fat state gateway
+            """
+            raise AssertionError('升级流程不应通过 state gateway 获取管理服务')
+
+    gateway = NoFatUpgradeGateway()
+    FakePluginService.reset()
+    FakePluginService.detail_plugin = SimpleNamespace(
+        plugin_id='demo',
+        installed_version='1.0.0',
+        enabled='0',
+        status='installed',
+    )
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).upgrade_plugin('demo', record_operation_log=False)
+    )
+
+    assert result['ok'] is True
+    assert FakePluginService.install_enabled_menu_called is True
+    assert FakePluginService.mark_installed_called is True
+    assert [record.status for record in FakePluginService.migration_records] == ['running', 'success']
+    executed_statements = [session.executed_statements for session in gateway.session_local.sessions]
+    assert ['select 4'] in executed_statements
+    assert ['select 5'] in executed_statements
+    seed_session = next(
+        session for session in gateway.session_local.sessions if session.executed_statements == ['select 5']
+    )
+    assert seed_session.committed is True
+
+
 def test_plugin_runtime_upgrade_plugin_reports_failed_lifecycle_step(tmp_path: Path) -> None:
     """
     校验插件升级执行失败时返回失败生命周期步骤。
@@ -782,6 +1012,7 @@ def test_plugin_runtime_upgrade_plugin_delegates_to_upgrade_use_case(tmp_path: P
             self.plugin_id: str | None = None
             self.dry_run: bool | None = None
             self.record_operation_log: bool | None = None
+            self.operated_by: str | None = None
 
         async def upgrade_plugin(
             self,
@@ -789,6 +1020,7 @@ def test_plugin_runtime_upgrade_plugin_delegates_to_upgrade_use_case(tmp_path: P
             *,
             dry_run: bool = False,
             record_operation_log: bool = True,
+            operated_by: str | None = None,
         ) -> dict:
             """
             记录插件升级调用。
@@ -796,11 +1028,13 @@ def test_plugin_runtime_upgrade_plugin_delegates_to_upgrade_use_case(tmp_path: P
             :param plugin_id: 插件ID
             :param dry_run: 是否仅预演
             :param record_operation_log: 是否记录审计日志
+            :param operated_by: 操作者用户名
             :return: 测试负载
             """
             self.plugin_id = plugin_id
             self.dry_run = dry_run
             self.record_operation_log = record_operation_log
+            self.operated_by = operated_by
             return {'ok': True, 'pluginId': plugin_id, 'operation': 'upgrade'}
 
     upgrade = FakeUpgradeUseCase()
@@ -1155,6 +1389,104 @@ dependencies:
     assert gateway.session_local.sessions[0].committed is True
     assert len(FakePluginService.operation_logs) == 1
     assert FakePluginService.operation_logs[0].payload['operation'] == 'enable'
+
+
+def test_plugin_runtime_set_plugin_enabled_uses_lifecycle_state_gateway_without_fat_service(
+    tmp_path: Path,
+) -> None:
+    """
+    校验插件启用通过生命周期状态窄端口写入，不回退到 fat state gateway。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: Demo
+version: 1.0.0
+enabled: false
+backend:
+  module: plugins.demo
+frontend:
+  menus: []
+dependencies:
+  python: []
+  npm: []
+""",
+    )
+    create_controller_dir(plugin_root)
+
+    class NoFatLifecycleStateGateway(FakePluginRuntimeGateway):
+        """
+        禁止启用流程读取 fat state gateway 的测试适配器。
+        """
+
+        def __init__(self) -> None:
+            """
+            初始化测试生命周期状态网关。
+            """
+            super().__init__()
+            self.enabled_state_calls: list[tuple[str, bool, object | None]] = []
+
+        def get_async_session_local(self) -> object:
+            """
+            禁止通过 state gateway 打开数据库会话。
+
+            :return: 不返回
+            :raises AssertionError: 启用流程不应使用 fat state gateway
+            """
+            raise AssertionError('启用流程不应通过 state gateway 打开数据库会话')
+
+        def get_plugin_service(self) -> object:
+            """
+            禁止通过 state gateway 获取管理服务。
+
+            :return: 不返回
+            :raises AssertionError: 启用流程不应使用 fat state gateway
+            """
+            raise AssertionError('启用流程不应通过 state gateway 获取管理服务')
+
+        async def set_plugin_enabled_state(
+            self,
+            plugin_id: str,
+            enabled: bool,
+            discovered_plugin: object | None = None,
+        ) -> object:
+            """
+            通过窄端口更新插件启停状态。
+
+            :param plugin_id: 插件ID
+            :param enabled: 是否启用
+            :param discovered_plugin: 已发现插件
+            :return: 操作响应
+            """
+            self.enabled_state_calls.append((plugin_id, enabled, discovered_plugin))
+            async with self.session_local() as session:
+                response = await FakePluginService.update_plugin_enabled_services(
+                    session,
+                    plugin_id,
+                    enabled,
+                    discovered_plugin,
+                )
+                if response.is_success and enabled and discovered_plugin:
+                    await FakePluginService.install_plugin_menu_services(session, discovered_plugin, enabled=True)
+                await session.commit()
+                return response
+
+    gateway = NoFatLifecycleStateGateway()
+    FakePluginService.reset()
+
+    result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).set_plugin_enabled('demo', enabled=True))
+
+    assert result['ok'] is True
+    assert gateway.enabled_state_calls[0][0:2] == ('demo', True)
+    assert gateway.enabled_state_calls[0][2].manifest.id == 'demo'
+    assert FakePluginService.install_plugin_menu_called_with == ('demo', True)
+    assert gateway.session_local.sessions[0].committed is True
 
 
 def test_plugin_runtime_set_plugin_enabled_reports_failed_lifecycle_step(tmp_path: Path) -> None:
@@ -1570,6 +1902,7 @@ def test_plugin_runtime_uninstall_plugin_delegates_to_enable_use_case(tmp_path: 
             self.plugin_id: str | None = None
             self.dry_run: bool | None = None
             self.record_operation_log: bool | None = None
+            self.operated_by: str | None = None
 
         async def uninstall_plugin(
             self,
@@ -1577,6 +1910,7 @@ def test_plugin_runtime_uninstall_plugin_delegates_to_enable_use_case(tmp_path: 
             *,
             dry_run: bool = False,
             record_operation_log: bool = True,
+            operated_by: str | None = None,
         ) -> dict:
             """
             记录插件卸载调用。
@@ -1584,11 +1918,13 @@ def test_plugin_runtime_uninstall_plugin_delegates_to_enable_use_case(tmp_path: 
             :param plugin_id: 插件ID
             :param dry_run: 是否仅预演
             :param record_operation_log: 是否记录审计日志
+            :param operated_by: 操作者用户名
             :return: 测试负载
             """
             self.plugin_id = plugin_id
             self.dry_run = dry_run
             self.record_operation_log = record_operation_log
+            self.operated_by = operated_by
             return {'ok': True, 'pluginId': plugin_id, 'operation': 'uninstall'}
 
     enable = FakeEnableUseCase()
@@ -1721,6 +2057,73 @@ def test_plugin_runtime_uninstall_plugin_marks_plugin_uninstalled(tmp_path: Path
     assert FakePluginService.operation_logs[0].payload['operation'] == 'uninstall'
 
 
+def test_plugin_runtime_uninstall_plugin_uses_lifecycle_state_gateway_without_fat_service(
+    tmp_path: Path,
+) -> None:
+    """
+    校验插件安全卸载通过生命周期状态窄端口写入，不回退到 fat state gateway。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    backend_root.mkdir()
+
+    class NoFatLifecycleStateGateway(FakePluginRuntimeGateway):
+        """
+        禁止卸载流程读取 fat state gateway 的测试适配器。
+        """
+
+        def __init__(self) -> None:
+            """
+            初始化测试生命周期状态网关。
+            """
+            super().__init__()
+            self.uninstalled_state_calls: list[str] = []
+
+        def get_async_session_local(self) -> object:
+            """
+            禁止通过 state gateway 打开数据库会话。
+
+            :return: 不返回
+            :raises AssertionError: 卸载流程不应使用 fat state gateway
+            """
+            raise AssertionError('卸载流程不应通过 state gateway 打开数据库会话')
+
+        def get_plugin_service(self) -> object:
+            """
+            禁止通过 state gateway 获取管理服务。
+
+            :return: 不返回
+            :raises AssertionError: 卸载流程不应使用 fat state gateway
+            """
+            raise AssertionError('卸载流程不应通过 state gateway 获取管理服务')
+
+        async def mark_plugin_uninstalled_state(self, plugin_id: str) -> object:
+            """
+            通过窄端口标记插件卸载。
+
+            :param plugin_id: 插件ID
+            :return: 操作响应
+            """
+            self.uninstalled_state_calls.append(plugin_id)
+            async with self.session_local() as session:
+                response = await FakePluginService.mark_plugin_uninstalled_services(session, plugin_id)
+                if response.is_success:
+                    await session.commit()
+                return response
+
+    gateway = NoFatLifecycleStateGateway()
+    FakePluginService.reset()
+
+    result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).uninstall_plugin('demo'))
+
+    assert result['ok'] is True
+    assert gateway.uninstalled_state_calls == ['demo']
+    assert FakePluginService.mark_uninstalled_called_with == 'demo'
+    assert gateway.session_local.sessions[0].committed is True
+
+
 def test_plugin_runtime_uninstall_plugin_reports_failed_lifecycle_step(tmp_path: Path) -> None:
     """
     校验插件卸载执行失败时返回失败生命周期步骤。
@@ -1841,6 +2244,7 @@ def test_plugin_runtime_purge_plugin_delegates_to_purge_use_case(tmp_path: Path)
             self.plugin_id: str | None = None
             self.dry_run: bool | None = None
             self.record_operation_log: bool | None = None
+            self.operated_by: str | None = None
 
         async def purge_plugin(
             self,
@@ -1848,6 +2252,7 @@ def test_plugin_runtime_purge_plugin_delegates_to_purge_use_case(tmp_path: Path)
             *,
             dry_run: bool = False,
             record_operation_log: bool = True,
+            operated_by: str | None = None,
         ) -> dict:
             """
             记录插件物理清理调用。
@@ -1855,11 +2260,13 @@ def test_plugin_runtime_purge_plugin_delegates_to_purge_use_case(tmp_path: Path)
             :param plugin_id: 插件ID
             :param dry_run: 是否仅预演
             :param record_operation_log: 是否记录审计日志
+            :param operated_by: 操作者用户名
             :return: 测试负载
             """
             self.plugin_id = plugin_id
             self.dry_run = dry_run
             self.record_operation_log = record_operation_log
+            self.operated_by = operated_by
             return {'ok': True, 'pluginId': plugin_id, 'operation': 'purge'}
 
     purge = FakePurgeUseCase()
@@ -2074,6 +2481,69 @@ backend:
     assert gateway.session_local.sessions[0].committed is True
     assert len(FakePluginService.operation_logs) == 1
     assert FakePluginService.operation_logs[0].payload['operation'] == 'purge'
+
+
+def test_plugin_runtime_purge_plugin_uses_lifecycle_uow_without_fat_service(tmp_path: Path) -> None:
+    """
+    校验插件物理清理通过生命周期 UoW 完成，不回退到 fat state gateway。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+  hooks:
+    onPurge: hooks:on_purge
+""",
+    )
+    (plugin_root / 'hooks.py').write_text(
+        'async def on_purge(context):\n    context.query_db.purge_hook_ran = context.plugin_id\n',
+        encoding='utf-8',
+    )
+
+    class NoFatPurgeGateway(FakePluginRuntimeGateway):
+        """
+        禁止物理清理流程读取 fat state gateway 的测试适配器。
+        """
+
+        def get_async_session_local(self) -> object:
+            """
+            禁止通过 state gateway 打开数据库会话。
+
+            :return: 不返回
+            :raises AssertionError: 物理清理流程不应使用 fat state gateway
+            """
+            raise AssertionError('物理清理流程不应通过 state gateway 打开数据库会话')
+
+        def get_plugin_service(self) -> object:
+            """
+            禁止通过 state gateway 获取管理服务。
+
+            :return: 不返回
+            :raises AssertionError: 物理清理流程不应使用 fat state gateway
+            """
+            raise AssertionError('物理清理流程不应通过 state gateway 获取管理服务')
+
+    gateway = NoFatPurgeGateway()
+    FakePluginService.reset()
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).purge_plugin('demo', record_operation_log=False)
+    )
+
+    assert result['ok'] is True
+    assert result['operation'] == 'purge'
+    assert FakePluginService.purge_called is True
+    assert gateway.session_local.sessions[0].purge_hook_ran == 'demo'
+    assert gateway.session_local.sessions[0].committed is True
 
 
 def test_plugin_runtime_purge_plugin_reports_failed_lifecycle_step(tmp_path: Path) -> None:

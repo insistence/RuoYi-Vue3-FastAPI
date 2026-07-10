@@ -3,6 +3,77 @@
 from tests.plugin_runtime_helpers import *
 
 
+class PrecheckStateQueryGateway:
+    """
+    仅提供预检所需插件状态查询能力的测试网关。
+    """
+
+    async def get_plugin_state(self, plugin_id: str) -> object | None:
+        """
+        获取插件状态。
+
+        :param plugin_id: 插件ID
+        :return: 插件状态
+        """
+        return None
+
+    async def list_plugin_states(self) -> list[object]:
+        """
+        获取插件状态列表。
+
+        :return: 插件状态列表
+        """
+        return []
+
+    def get_plugin_service(self) -> object:
+        """
+        禁止预检状态读取回退到管理服务胖接口。
+
+        :return: 永不返回
+        :raises AssertionError: 状态读取不应调用该方法
+        """
+        raise AssertionError('预检状态读取不应依赖 PluginManagementServiceProtocol')
+
+
+class PurgePlanOnlyGateway:
+    """
+    仅提供插件清理计划能力的测试网关。
+    """
+
+    def __init__(self) -> None:
+        """
+        初始化测试清理计划网关。
+
+        :return: None
+        """
+        self.calls: list[str] = []
+
+    async def build_plugin_purge_plan(self, discovered_plugin: object) -> object:
+        """
+        构建测试清理计划。
+
+        :param discovered_plugin: 已发现插件
+        :return: 插件清理计划
+        """
+        self.calls.append(discovered_plugin.manifest.id)
+        return PluginPurgePlanner.build_plan(
+            discovered_plugin,
+            menu_count=1,
+            config_count=2,
+            migration_count=3,
+            job_count=4,
+        )
+
+    def get_plugin_service(self) -> object:
+        """
+        禁止清理计划链路回退到管理服务胖接口。
+
+        :return: 永不返回
+        :raises AssertionError: 清理计划链路不应调用该方法
+        """
+        raise AssertionError('清理计划不应依赖 PluginManagementServiceProtocol')
+
+
 def test_plugin_runtime_check_reports_missing_dependencies(tmp_path: Path) -> None:
     """
     校验插件运行时检查会报告缺失依赖。
@@ -333,6 +404,46 @@ permissions:
     assert result['menuConflictOk'] is True
     assert result['precheck']['menuConflicts'] == []
     assert any(action['name'] == 'install_menus' for action in result['actions'])
+
+
+def test_plugin_runtime_precheck_purge_uses_purge_plan_port(tmp_path: Path) -> None:
+    """
+    校验 purge 预检只依赖清理计划窄端口。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+""",
+    )
+    create_controller_dir(plugin_root)
+    purge_plan_gateway = PurgePlanOnlyGateway()
+    runtime = PluginRuntimeService(
+        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        dependency_checker=PluginDependencyChecker(),
+        gateways=PluginRuntimeGatewayOverrides(
+            state_query_gateway=PrecheckStateQueryGateway(),
+            purge_plan_gateway=purge_plan_gateway,
+        ),
+    )
+
+    result = asyncio.run(runtime.precheck_plugin_operation('demo', 'purge'))
+
+    assert result['ok'] is True
+    assert result['operation'] == 'purge'
+    assert result['plan']['pluginId'] == 'demo'
+    assert result['plan']['destructiveCount'] == EXPECTED_PURGE_DESTRUCTIVE_COUNT
+    assert purge_plan_gateway.calls == ['demo']
 
 
 def test_plugin_runtime_precheck_plugin_operation_delegates_to_precheck_use_case(tmp_path: Path) -> None:

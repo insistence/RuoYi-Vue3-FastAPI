@@ -7,10 +7,23 @@ import pytest
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BACKEND_ROOT))
 
+from plugins.core.runtime.application import (  # noqa: E402
+    get_plugin_application_runtime as get_runtime_plugin_application_runtime,
+)
 from server import (  # noqa: E402
     _initialize_application_runtime,
     create_app,
+    get_plugin_application_runtime,
 )
+
+
+def test_server_reuses_plugin_application_runtime_getter() -> None:
+    """
+    校验 server 入口不直接装配插件管理适配器。
+
+    :return: None
+    """
+    assert get_plugin_application_runtime is get_runtime_plugin_application_runtime
 
 
 def test_create_app_registers_builtin_routes_and_binds_plugin_runtime() -> None:

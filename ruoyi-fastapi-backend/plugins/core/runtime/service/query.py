@@ -33,6 +33,8 @@ from .responses import (
     PluginHealthResponse,
 )
 
+AUDIT_LOG_OVERFETCH_MULTIPLIER = 3
+
 
 class PluginQueryRuntimeOperations(Protocol):
     """
@@ -387,17 +389,9 @@ class PluginQueryUseCase:
         :return: 最近审计记录快照
         """
         try:
-            gateway = self.dependencies.state_gateway
-            model_gateway = self.dependencies.model_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                operation_logs = await plugin_service.get_plugin_operation_log_export_list_services(
-                    session,
-                    model_gateway.build_operation_log_export_query(
-                        export_limit=max(audit_limit * 3, audit_limit),
-                    ),
-                )
+            operation_logs = await self.dependencies.audit_gateway.list_plugin_operation_logs(
+                export_limit=max(audit_limit * AUDIT_LOG_OVERFETCH_MULTIPLIER, audit_limit),
+            )
         except Exception as exc:
             return PluginAuditPayloadBuilder.build_recent_snapshot_failure(exc)
 

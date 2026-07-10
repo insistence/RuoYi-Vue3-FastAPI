@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from typing import Annotated, Literal
 
 from fastapi import Form, Path, Query, Request, Response
@@ -8,10 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.annotation.log_annotation import Log
 from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
-from common.aspect.pre_auth import PreAuthDependency
+from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel
+from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_plugin.service.plugin_service import (
     PluginOperationService,
     PluginService,
@@ -74,6 +75,27 @@ def _plugin_operation_response(payload: dict, default_message: str) -> Response:
     return ResponseUtil.success(msg=operation_result.message, data=response_payload)
 
 
+async def _execute_plugin_operation(
+    operation: Callable[[], Awaitable[dict]],
+    default_message: str,
+) -> Response:
+    """
+    执行插件操作并统一处理异常与响应构造。
+
+    :param operation: 返回插件操作协程的可调用对象
+    :param default_message: 默认响应消息
+    :return: 响应对象
+    """
+    try:
+        payload = await operation()
+    except Exception:
+        logger.exception('插件操作执行异常：%s', default_message)
+        return ResponseUtil.failure(msg=default_message)
+
+    logger.info(payload.get('message', default_message))
+    return _plugin_operation_response(payload, default_message)
+
+
 @plugin_controller.get(
     '/list',
     summary='获取插件分页列表接口',
@@ -126,10 +148,10 @@ async def plan_system_plugins(
     :param plugin_ids: 插件ID列表
     :return: 插件批量操作拓扑计划响应
     """
-    plan_result = await get_plugin_runtime_service().plan_plugins_async(operation, plugin_ids)
-    logger.info(plan_result.get('message', '插件批量操作计划生成完成'))
-
-    return _plugin_operation_response(plan_result, '插件批量操作计划生成完成')
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().plan_plugins_async(operation, plugin_ids),
+        '插件批量操作计划生成完成',
+    )
 
 
 @plugin_controller.get(
@@ -155,10 +177,10 @@ async def precheck_system_plugin(
     :param operation: 预检操作类型
     :return: 插件操作预检响应
     """
-    precheck_result = await get_plugin_runtime_service().precheck_plugin_operation(plugin_id, operation)
-    logger.info(precheck_result.get('message', '插件操作预检完成'))
-
-    return _plugin_operation_response(precheck_result, '插件操作预检完成')
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().precheck_plugin_operation(plugin_id, operation),
+        '插件操作预检完成',
+    )
 
 
 @plugin_controller.post(
@@ -180,15 +202,15 @@ async def batch_system_plugins(
     :param batch_action: 插件批量执行请求体
     :return: 插件批量执行结果响应
     """
-    batch_result = await get_plugin_runtime_service().batch_plugins(
-        batch_action.operation,
-        batch_action.plugin_ids,
-        dry_run=batch_action.dry_run,
-        continue_on_error=batch_action.continue_on_error,
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().batch_plugins(
+            batch_action.operation,
+            batch_action.plugin_ids,
+            dry_run=batch_action.dry_run,
+            continue_on_error=batch_action.continue_on_error,
+        ),
+        '插件批量操作完成',
     )
-    logger.info(batch_result.get('message', '插件批量操作完成'))
-
-    return _plugin_operation_response(batch_result, '插件批量操作完成')
 
 
 @plugin_controller.get(
@@ -462,10 +484,10 @@ async def enable_system_plugin(
     :param query_db: orm对象
     :return: 启用结果响应
     """
-    enable_plugin_result = await get_plugin_runtime_service().set_plugin_enabled(plugin_id, enabled=True)
-    logger.info(enable_plugin_result.get('message', '插件启用完成'))
-
-    return _plugin_operation_response(enable_plugin_result, '插件启用完成')
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().set_plugin_enabled(plugin_id, enabled=True),
+        '插件启用完成',
+    )
 
 
 @plugin_controller.put(
@@ -487,10 +509,10 @@ async def disable_system_plugin(
     :param plugin_id: 插件ID
     :return: 停用结果响应
     """
-    disable_plugin_result = await get_plugin_runtime_service().set_plugin_enabled(plugin_id, enabled=False)
-    logger.info(disable_plugin_result.get('message', '插件停用完成'))
-
-    return _plugin_operation_response(disable_plugin_result, '插件停用完成')
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().set_plugin_enabled(plugin_id, enabled=False),
+        '插件停用完成',
+    )
 
 
 @plugin_controller.get(
@@ -604,6 +626,7 @@ async def generate_system_plugin_docs(
 async def install_system_plugin(
     request: Request,
     plugin_id: Annotated[str, Path(description='插件ID')],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     dry_run: Annotated[bool, Query(alias='dryRun', description='是否仅预演操作')] = False,
 ) -> Response:
     """
@@ -612,15 +635,17 @@ async def install_system_plugin(
     :param request: 请求对象
     :param plugin_id: 插件ID
     :param dry_run: 是否仅预演操作
+    :param current_user: 当前登录用户
     :return: 插件安装结果响应
     """
-    install_plugin_result = await get_plugin_runtime_service().install_plugin(
-        plugin_id,
-        dry_run=dry_run,
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().install_plugin(
+            plugin_id,
+            dry_run=dry_run,
+            operated_by=current_user.user.user_name,
+        ),
+        '插件安装完成',
     )
-    logger.info(install_plugin_result.get('message', '插件安装完成'))
-
-    return _plugin_operation_response(install_plugin_result, '插件安装完成')
 
 
 @plugin_controller.post(
@@ -634,6 +659,7 @@ async def install_system_plugin(
 async def upgrade_system_plugin(
     request: Request,
     plugin_id: Annotated[str, Path(description='插件ID')],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     dry_run: Annotated[bool, Query(alias='dryRun', description='是否仅预演操作')] = False,
 ) -> Response:
     """
@@ -642,15 +668,17 @@ async def upgrade_system_plugin(
     :param request: 请求对象
     :param plugin_id: 插件ID
     :param dry_run: 是否仅预演操作
+    :param current_user: 当前登录用户
     :return: 插件升级结果响应
     """
-    upgrade_plugin_result = await get_plugin_runtime_service().upgrade_plugin(
-        plugin_id,
-        dry_run=dry_run,
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().upgrade_plugin(
+            plugin_id,
+            dry_run=dry_run,
+            operated_by=current_user.user.user_name,
+        ),
+        '插件升级完成',
     )
-    logger.info(upgrade_plugin_result.get('message', '插件升级完成'))
-
-    return _plugin_operation_response(upgrade_plugin_result, '插件升级完成')
 
 
 @plugin_controller.post(
@@ -664,6 +692,7 @@ async def upgrade_system_plugin(
 async def uninstall_system_plugin(
     request: Request,
     plugin_id: Annotated[str, Path(description='插件ID')],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     dry_run: Annotated[bool, Query(alias='dryRun', description='是否仅预演操作')] = False,
 ) -> Response:
     """
@@ -672,15 +701,17 @@ async def uninstall_system_plugin(
     :param request: 请求对象
     :param plugin_id: 插件ID
     :param dry_run: 是否仅预演操作
+    :param current_user: 当前登录用户
     :return: 插件安全卸载结果响应
     """
-    uninstall_plugin_result = await get_plugin_runtime_service().uninstall_plugin(
-        plugin_id,
-        dry_run=dry_run,
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().uninstall_plugin(
+            plugin_id,
+            dry_run=dry_run,
+            operated_by=current_user.user.user_name,
+        ),
+        '插件卸载完成',
     )
-    logger.info(uninstall_plugin_result.get('message', '插件卸载完成'))
-
-    return _plugin_operation_response(uninstall_plugin_result, '插件卸载完成')
 
 
 @plugin_controller.post(
@@ -688,12 +719,13 @@ async def uninstall_system_plugin(
     summary='物理清理插件接口',
     description='用于物理清理指定插件的平台元数据，默认不删除源码目录',
     response_model=DataResponseModel[dict],
-    dependencies=[UserInterfaceAuthDependency('system:plugin:edit')],
+    dependencies=[UserInterfaceAuthDependency('system:plugin:remove')],
 )
 @Log(title='插件管理', business_type=BusinessType.DELETE)
 async def purge_system_plugin(
     request: Request,
     plugin_id: Annotated[str, Path(description='插件ID')],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
     dry_run: Annotated[bool, Query(alias='dryRun', description='是否仅预演操作')] = False,
 ) -> Response:
     """
@@ -702,15 +734,17 @@ async def purge_system_plugin(
     :param request: 请求对象
     :param plugin_id: 插件ID
     :param dry_run: 是否仅预演操作
+    :param current_user: 当前登录用户
     :return: 插件物理清理结果响应
     """
-    purge_plugin_result = await get_plugin_runtime_service().purge_plugin(
-        plugin_id,
-        dry_run=dry_run,
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().purge_plugin(
+            plugin_id,
+            dry_run=dry_run,
+            operated_by=current_user.user.user_name,
+        ),
+        '插件物理清理完成',
     )
-    logger.info(purge_plugin_result.get('message', '插件物理清理完成'))
-
-    return _plugin_operation_response(purge_plugin_result, '插件物理清理完成')
 
 
 @plugin_controller.get(
@@ -758,13 +792,13 @@ async def update_system_plugin_config(
     :param plugin_config: 插件配置更新对象
     :return: 插件配置更新响应
     """
-    plugin_config_result = await get_plugin_runtime_service().set_plugin_config(
-        plugin_id,
-        plugin_config.values,
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().set_plugin_config(
+            plugin_id,
+            plugin_config.values,
+        ),
+        '插件配置已更新',
     )
-    logger.info(plugin_config_result.get('message', '插件配置已更新'))
-
-    return _plugin_operation_response(plugin_config_result, '插件配置已更新')
 
 
 @plugin_controller.get(
@@ -787,9 +821,11 @@ async def export_system_plugin_config(
     :param reveal_secret: 是否导出敏感配置明文
     :return: 插件配置导出响应
     """
+    if reveal_secret:
+        return ResponseUtil.failure(msg='Web 端不允许导出敏感配置明文，请使用 CLI 通道')
     plugin_config_result = await get_plugin_runtime_service().export_plugin_config(
         plugin_id,
-        reveal_secret=reveal_secret,
+        reveal_secret=False,
     )
     logger.info(plugin_config_result.get('message', '插件配置导出完成'))
 
@@ -817,13 +853,13 @@ async def import_system_plugin_config(
     :param plugin_config: 插件配置导入对象
     :return: 插件配置导入响应
     """
-    plugin_config_result = await get_plugin_runtime_service().import_plugin_config(
-        plugin_id,
-        plugin_config.values,
+    return await _execute_plugin_operation(
+        lambda: get_plugin_runtime_service().import_plugin_config(
+            plugin_id,
+            plugin_config.values,
+        ),
+        '插件配置导入完成',
     )
-    logger.info(plugin_config_result.get('message', '插件配置导入完成'))
-
-    return _plugin_operation_response(plugin_config_result, '插件配置导入完成')
 
 
 @plugin_controller.get(

@@ -6,6 +6,51 @@ import plugins.core.runtime.service.context as runtime_context_module
 from tests.plugin_runtime_helpers import *
 
 
+class QueryOnlyStateGateway:
+    """
+    仅提供插件状态查询能力的测试网关。
+    """
+
+    def __init__(self, plugin_state: object | None = None) -> None:
+        """
+        初始化查询网关。
+
+        :param plugin_state: 插件状态记录
+        :return: None
+        """
+        self.plugin_state = plugin_state
+        self.detail_calls: list[str] = []
+        self.list_called = False
+
+    async def get_plugin_state(self, plugin_id: str) -> object | None:
+        """
+        获取插件状态。
+
+        :param plugin_id: 插件ID
+        :return: 插件状态记录
+        """
+        self.detail_calls.append(plugin_id)
+        return self.plugin_state
+
+    async def list_plugin_states(self) -> list[object]:
+        """
+        获取插件状态列表。
+
+        :return: 插件状态列表
+        """
+        self.list_called = True
+        return [self.plugin_state] if self.plugin_state is not None else []
+
+    def get_plugin_service(self) -> object:
+        """
+        禁止查询链路回退到管理服务胖接口。
+
+        :return: 永不返回
+        :raises AssertionError: 查询链路不应调用该方法
+        """
+        raise AssertionError('状态查询不应依赖 PluginManagementServiceProtocol')
+
+
 def test_plugin_runtime_environment_defaults_to_backend_project_root() -> None:
     """
     校验插件运行时默认后端根目录指向 backend 项目根。
@@ -32,16 +77,16 @@ def test_plugin_runtime_exposes_grouped_dependencies(tmp_path: Path) -> None:
     runtime = PluginRuntimeService(
         runtime_environment=environment,
         dependency_checker=dependency_checker,
-        state_gateway=gateway,
+        gateways=build_gateway_overrides(gateway),
         model_gateway=gateway,
         command_gateway=gateway,
     )
 
     assert runtime.dependencies.runtime_environment is environment
     assert runtime.dependencies.dependency_checker is dependency_checker
-    assert runtime.dependencies.state_gateway is gateway
     assert runtime.dependencies.model_gateway is gateway
     assert runtime.dependencies.command_gateway is gateway
+    assert not hasattr(runtime.dependencies, 'state_gateway')
     assert not hasattr(runtime.dependencies, 'infrastructure_gateway')
     assert runtime.batch.dependencies is runtime.dependencies
     assert runtime.batch.context is runtime.context
@@ -54,6 +99,25 @@ def test_plugin_runtime_exposes_grouped_dependencies(tmp_path: Path) -> None:
     assert runtime.tools.dependencies is runtime.dependencies
     assert runtime.tools.context is runtime.context
     assert runtime.context.dependencies is runtime.dependencies
+
+
+def test_plugin_runtime_rejects_legacy_state_gateway_argument(tmp_path: Path) -> None:
+    """
+    校验 runtime facade 构造期不再接受 state_gateway 兼容入口。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    gateway = FakePluginRuntimeGateway()
+
+    with pytest.raises(TypeError):
+        PluginRuntimeService(
+            runtime_environment=FakeRuntimeEnvironment(tmp_path / 'backend'),
+            dependency_checker=PluginDependencyChecker(),
+            state_gateway=gateway,
+            model_gateway=gateway,
+            command_gateway=gateway,
+        )
 
 
 def test_plugin_runtime_legacy_dependency_aliases_are_removed(tmp_path: Path) -> None:
@@ -125,7 +189,7 @@ config:
     runtime = PluginRuntimeService(
         runtime_environment=FakeRuntimeEnvironment(backend_root),
         dependency_checker=PluginDependencyChecker(),
-        state_gateway=gateway,
+        gateways=build_gateway_overrides(gateway),
         model_gateway=gateway,
         command_gateway=gateway,
     )
@@ -147,7 +211,6 @@ def test_plugin_runtime_updates_dependency_checker_in_container(tmp_path: Path) 
     runtime = build_runtime(tmp_path / 'backend')
     original_dependencies = runtime.dependencies
     original_environment = runtime.dependencies.runtime_environment
-    original_state_gateway = runtime.dependencies.state_gateway
     original_model_gateway = runtime.dependencies.model_gateway
     original_command_gateway = runtime.dependencies.command_gateway
     original_use_cases = {
@@ -173,7 +236,6 @@ def test_plugin_runtime_updates_dependency_checker_in_container(tmp_path: Path) 
     assert runtime.dependencies is original_dependencies
     assert runtime.dependencies.dependency_checker is refreshed_checker
     assert runtime.dependencies.runtime_environment is original_environment
-    assert runtime.dependencies.state_gateway is original_state_gateway
     assert runtime.dependencies.model_gateway is original_model_gateway
     assert runtime.dependencies.command_gateway is original_command_gateway
     assert runtime.audit is original_use_cases['audit']
@@ -854,6 +916,51 @@ config:
     assert payload['plugin']['installedVersion'] == '1.0.0'
     assert payload['plugin']['database']['available'] is True
     assert payload['plugin']['database']['installed'] is True
+
+
+def test_plugin_runtime_gets_plugin_info_with_state_through_query_port(tmp_path: Path) -> None:
+    """
+    校验插件详情查询只依赖状态查询窄端口，不依赖完整管理服务端口。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+""",
+    )
+    query_gateway = QueryOnlyStateGateway(
+        SimpleNamespace(
+            plugin_id='demo',
+            installed_version='1.0.0',
+            enabled='0',
+            status='installed',
+            source='local',
+            frontend_path='demo',
+            last_error='',
+        )
+    )
+    runtime = PluginRuntimeService(
+        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        dependency_checker=PluginDependencyChecker(),
+        gateways=PluginRuntimeGatewayOverrides(state_query_gateway=query_gateway),
+    )
+
+    payload = asyncio.run(runtime.get_plugin_info_with_state('demo'))
+
+    assert payload['ok'] is True
+    assert payload['plugin']['pluginId'] == 'demo'
+    assert payload['plugin']['status'] == 'installed'
+    assert payload['plugin']['database']['available'] is True
+    assert query_gateway.detail_calls == ['demo']
 
 
 def test_plugin_runtime_gets_plugin_info_when_database_unavailable(tmp_path: Path) -> None:

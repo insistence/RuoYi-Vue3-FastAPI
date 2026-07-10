@@ -10,9 +10,12 @@ from plugins.core.management.entity.vo.schemas import (
 from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
 from plugins.core.management.service.service import PluginService
 from plugins.core.runtime.service import PluginRuntimeService
+from plugins.core.runtime.service.dependency_container import PluginRuntimeGatewayOverrides
 from plugins.core.runtime.service.lifecycle_lock import RedisPluginLifecycleLock
 from plugins.core.runtime.service.responses import PluginDiagnoseResponse
 from plugins.core.runtime.support import PluginAuditPayloadBuilder, PluginAuditSnapshotPayloadDict
+
+AUDIT_LOG_OVERFETCH_MULTIPLIER = 3
 
 
 class PluginOperationService:
@@ -85,7 +88,7 @@ class PluginOperationService:
         """
         operation_logs = await PluginService.get_plugin_operation_log_export_list_services(
             query_db,
-            PluginOperationLogExportQueryModel(exportLimit=audit_limit * 3),
+            PluginOperationLogExportQueryModel(exportLimit=audit_limit * AUDIT_LOG_OVERFETCH_MULTIPLIER),
         )
         return PluginAuditPayloadBuilder.build_recent_snapshot_payload(
             plugin_id,
@@ -112,7 +115,16 @@ def get_plugin_runtime_service() -> PluginRuntimeService:
     if runtime_service is None:
         runtime_gateway = PluginManagementRuntimeGateway()
         runtime_service = PluginRuntimeService(
-            state_gateway=runtime_gateway,
+            gateways=PluginRuntimeGatewayOverrides(
+                config_gateway=runtime_gateway,
+                audit_gateway=runtime_gateway,
+                state_query_gateway=runtime_gateway,
+                migration_history_gateway=runtime_gateway,
+                purge_plan_gateway=runtime_gateway,
+                lifecycle_state_gateway=runtime_gateway,
+                lifecycle_uow_gateway=runtime_gateway,
+                migration_execution_gateway=runtime_gateway,
+            ),
             model_gateway=runtime_gateway,
             command_gateway=runtime_gateway,
             lifecycle_lock=RedisPluginLifecycleLock(),

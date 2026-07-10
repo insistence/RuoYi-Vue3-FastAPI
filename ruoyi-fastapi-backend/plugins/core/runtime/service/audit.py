@@ -36,17 +36,11 @@ class PluginAuditUseCase:
         :param continue_on_error: 失败后是否继续执行后续插件
         :return: None
         """
-        gateway = self.dependencies.state_gateway
-        async_session_local = gateway.get_async_session_local()
-        plugin_service = gateway.get_plugin_service()
-        async with async_session_local() as session:
-            await plugin_service.add_plugin_operation_log_services(
-                session,
-                dict(payload),
-                dry_run=dry_run,
-                continue_on_error=continue_on_error,
-            )
-            await session.commit()
+        await self.dependencies.audit_gateway.add_plugin_operation_log(
+            dict(payload),
+            dry_run=dry_run,
+            continue_on_error=continue_on_error,
+        )
 
     async def record_plugin_failure_state(
         self,
@@ -70,13 +64,7 @@ class PluginAuditUseCase:
 
         error_message = PluginRuntimePayloadBuilder.build_failure_state_message(payload, default_message)
         try:
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                result = await plugin_service.mark_plugin_error_services(session, plugin_id, error_message)
-                if getattr(result, 'is_success', False):
-                    await session.commit()
+            await self.dependencies.audit_gateway.mark_plugin_error(plugin_id, error_message)
         except Exception:
             logger.exception('记录插件失败状态失败：plugin_id=%s', plugin_id)
             return

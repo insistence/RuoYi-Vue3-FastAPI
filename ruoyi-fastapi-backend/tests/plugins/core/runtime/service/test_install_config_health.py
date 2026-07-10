@@ -1,6 +1,108 @@
 # ruff: noqa: F403, F405
 
+from pytest import MonkeyPatch
+
+from plugins.core.runtime.service.migration_store import PluginDatabaseMigrationHistoryStore
 from tests.plugin_runtime_helpers import *
+
+
+class ConfigOnlyGateway:
+    """
+    仅提供插件配置读写能力的测试网关。
+    """
+
+    def __init__(self) -> None:
+        """
+        初始化测试配置网关。
+
+        :return: None
+        """
+        self.get_calls: list[tuple[str, bool]] = []
+        self.update_calls: list[tuple[str, dict[str, object]]] = []
+        self.audit_payloads: list[dict[str, object]] = []
+
+    async def get_plugin_config(self, discovered_plugin: object, *, reveal_secret: bool = False) -> list[object]:
+        """
+        获取插件配置。
+
+        :param discovered_plugin: 已发现插件
+        :param reveal_secret: 是否展示敏感值
+        :return: 配置列表
+        """
+        plugin_id = discovered_plugin.manifest.id
+        self.get_calls.append((plugin_id, reveal_secret))
+        value = 'openai-key' if reveal_secret else '******'
+        return [
+            SimpleNamespace(
+                model_dump=lambda by_alias=True: {
+                    'key': 'provider',
+                    'value': value,
+                    'default': value,
+                    'secret': True,
+                }
+            )
+        ]
+
+    async def update_plugin_config(self, discovered_plugin: object, values: dict[str, object]) -> list[object]:
+        """
+        更新插件配置。
+
+        :param discovered_plugin: 已发现插件
+        :param values: 配置键值
+        :return: 更新后的配置列表
+        """
+        plugin_id = discovered_plugin.manifest.id
+        self.update_calls.append((plugin_id, values))
+        return [
+            SimpleNamespace(
+                model_dump=lambda by_alias=True, key=key, value=value: {
+                    'key': key,
+                    'value': value,
+                    'secret': False,
+                }
+            )
+            for key, value in values.items()
+        ]
+
+    async def set_plugin_config(
+        self,
+        discovered_plugin: object,
+        values: dict[str, object],
+        *,
+        audit_operation: str,
+        success_message: str,
+    ) -> list[object]:
+        """
+        在同一事务语义中更新插件配置并记录审计负载。
+
+        :param discovered_plugin: 已发现插件
+        :param values: 配置键值
+        :param audit_operation: 审计操作类型
+        :param success_message: 操作成功提示
+        :return: 更新后的配置列表
+        """
+        before_configs = await self.get_plugin_config(discovered_plugin, reveal_secret=True)
+        configs = await self.update_plugin_config(discovered_plugin, values)
+        self.audit_payloads.append(
+            PluginConfigPayloadBuilder.build_audit_payload(
+                discovered_plugin.manifest.id,
+                operation=audit_operation,
+                values=values,
+                before_configs=before_configs,
+                after_configs=configs,
+                message=success_message,
+            )
+        )
+        return configs
+
+    def get_plugin_service(self) -> object:
+        """
+        禁止配置链路回退到管理服务胖接口。
+
+        :return: 永不返回
+        :raises AssertionError: 配置链路不应调用该方法
+        """
+        raise AssertionError('配置读写不应依赖 PluginManagementServiceProtocol')
 
 
 def test_plugin_runtime_install_plugin_dry_run_returns_actions(tmp_path: Path) -> None:
@@ -70,6 +172,209 @@ backend:
     assert FakePluginService.upsert_called is True
     assert FakePluginService.mark_installed_called is True
     assert gateway.session_local.sessions[0].committed is True
+
+
+def test_plugin_runtime_install_plugin_uses_lifecycle_uow_and_migration_gateway_without_fat_service(
+    tmp_path: Path,
+) -> None:
+    """
+    校验插件安装通过生命周期 UoW 和 migration 执行端口完成，不回退到 fat state gateway。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+  migrations:
+    - migrations/001_demo.sql
+  seeds:
+    - seeds/demo_seed.sql
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'migrations').mkdir()
+    (plugin_root / 'migrations' / '001_demo.sql').write_text('select 2;\n', encoding='utf-8')
+    (plugin_root / 'seeds').mkdir()
+    (plugin_root / 'seeds' / 'demo_seed.sql').write_text('select 3;\n', encoding='utf-8')
+
+    class InstallLifecycleUnitOfWork:
+        """
+        测试用插件安装生命周期 UoW。
+        """
+
+        def __init__(self, gateway: 'NoFatInstallGateway') -> None:
+            """
+            初始化测试 UoW。
+
+            :param gateway: 测试网关
+            """
+            self.gateway = gateway
+            self.session: FakeSession | None = None
+            self.session_context: FakeSession | None = None
+
+        async def __aenter__(self) -> 'InstallLifecycleUnitOfWork':
+            """
+            打开测试 UoW 会话。
+
+            :return: 测试 UoW
+            """
+            self.session_context = self.gateway.session_local()
+            self.session = await self.session_context.__aenter__()
+            return self
+
+        async def __aexit__(self, exc_type: object, exc: object, traceback: object) -> None:
+            """
+            关闭测试 UoW 会话。
+
+            :param exc_type: 异常类型
+            :param exc: 异常对象
+            :param traceback: 异常堆栈
+            :return: None
+            """
+            await self.session_context.__aexit__(exc_type, exc, traceback)
+
+        async def check_installed_menu_conflicts(self, discovered_plugin: object) -> list[object]:
+            """
+            检查已安装菜单冲突。
+
+            :param discovered_plugin: 已发现插件
+            :return: 菜单冲突列表
+            """
+            return await FakePluginService.check_installed_menu_conflict_services(self.session, discovered_plugin)
+
+        async def upsert_discovered_plugin(
+            self,
+            discovered_plugin: object,
+            backend_root: Path,
+            frontend_root: Path,
+        ) -> object:
+            """
+            写入插件基础状态。
+
+            :param discovered_plugin: 已发现插件
+            :param backend_root: 后端插件根目录
+            :param frontend_root: 前端插件根目录
+            :return: 插件模型
+            """
+            return await FakePluginService.upsert_discovered_plugin_services(
+                self.session,
+                discovered_plugin,
+                backend_root,
+                frontend_root,
+            )
+
+        async def install_plugin_menu(self, discovered_plugin: object, *, enabled: bool) -> None:
+            """
+            安装插件菜单。
+
+            :param discovered_plugin: 已发现插件
+            :param enabled: 菜单是否启用
+            :return: None
+            """
+            await FakePluginService.install_plugin_menu_services(self.session, discovered_plugin, enabled=enabled)
+
+        async def install_plugin_default_config(self, discovered_plugin: object) -> list[object]:
+            """
+            安装插件默认配置。
+
+            :param discovered_plugin: 已发现插件
+            :return: 插件配置列表
+            """
+            return await FakePluginService.install_plugin_default_config_services(self.session, discovered_plugin)
+
+        async def mark_plugin_installed(self, discovered_plugin: object) -> object:
+            """
+            标记插件已安装。
+
+            :param discovered_plugin: 已发现插件
+            :return: 插件模型
+            """
+            return await FakePluginService.mark_plugin_installed_services(self.session, discovered_plugin)
+
+        async def commit(self) -> None:
+            """
+            提交测试 UoW。
+
+            :return: None
+            """
+            await self.session.commit()
+
+    class NoFatInstallGateway(FakePluginRuntimeGateway):
+        """
+        禁止安装流程读取 fat state gateway 的测试适配器。
+        """
+
+        def get_async_session_local(self) -> object:
+            """
+            禁止通过 state gateway 打开数据库会话。
+
+            :return: 不返回
+            :raises AssertionError: 安装流程不应使用 fat state gateway
+            """
+            raise AssertionError('安装流程不应通过 state gateway 打开数据库会话')
+
+        def get_plugin_service(self) -> object:
+            """
+            禁止通过 state gateway 获取管理服务。
+
+            :return: 不返回
+            :raises AssertionError: 安装流程不应使用 fat state gateway
+            """
+            raise AssertionError('安装流程不应通过 state gateway 获取管理服务')
+
+        def open_lifecycle_unit_of_work(self) -> InstallLifecycleUnitOfWork:
+            """
+            打开测试生命周期 UoW。
+
+            :return: 测试 UoW
+            """
+            return InstallLifecycleUnitOfWork(self)
+
+        async def run_plugin_migrations(self, discovered_plugin: object) -> list[object]:
+            """
+            通过独立 migration session 执行插件 migration。
+
+            :param discovered_plugin: 已发现插件
+            :return: migration 执行结果列表
+            """
+            async with self.session_local() as migration_session:
+                return await PluginMigrationRunner(
+                    discovered_plugin,
+                    PluginDatabaseMigrationHistoryStore.with_model_gateway(
+                        FakePluginService,
+                        self,
+                        self.session_local,
+                    ),
+                    manage_execution_transaction=True,
+                ).run(migration_session)
+
+    gateway = NoFatInstallGateway()
+    FakePluginService.reset()
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).install_plugin('demo', record_operation_log=False)
+    )
+
+    assert result['ok'] is True
+    assert FakePluginService.upsert_called is True
+    assert FakePluginService.mark_installed_called is True
+    assert [record.status for record in FakePluginService.migration_records] == ['running', 'success']
+    executed_statements = [session.executed_statements for session in gateway.session_local.sessions]
+    assert ['select 2'] in executed_statements
+    assert ['select 3'] in executed_statements
+    seed_session = next(
+        session for session in gateway.session_local.sessions if session.executed_statements == ['select 3']
+    )
+    assert seed_session.committed is True
 
 
 def test_plugin_runtime_install_plugin_uses_runtime_plugin_roots(tmp_path: Path) -> None:
@@ -307,6 +612,65 @@ backend:
     assert result['manifestIssues'][0]['kind'] == 'migration_checksum_changed'
     assert result['manifestIssues'][0]['path'] == 'backend.migrations.migrations/001_demo.sql'
     assert result['message'] == '插件安装演练完成，未执行实际写入'
+
+
+def test_plugin_runtime_lifecycle_precheck_uses_migration_history_gateway(tmp_path: Path) -> None:
+    """
+    校验生命周期脚本预检通过 migration 历史窄端口读取历史，不再回退到 fat state gateway。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+  migrations:
+    - migrations/001_demo.sql
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'migrations').mkdir()
+    (plugin_root / 'migrations' / '001_demo.sql').write_text('select 1;\n', encoding='utf-8')
+
+    class NoFatStateGateway(FakePluginRuntimeGateway):
+        """
+        禁止生命周期预检读取 fat state gateway 的测试适配器。
+        """
+
+        def get_async_session_local(self) -> object:
+            """
+            禁止通过 state gateway 打开数据库会话。
+
+            :return: 不返回
+            :raises AssertionError: 预检不应使用 fat state gateway
+            """
+            raise AssertionError('生命周期脚本预检不应通过 state gateway 打开数据库会话')
+
+        def get_plugin_service(self) -> object:
+            """
+            禁止通过 state gateway 获取管理服务。
+
+            :return: 不返回
+            :raises AssertionError: 预检不应使用 fat state gateway
+            """
+            raise AssertionError('生命周期脚本预检不应通过 state gateway 获取管理服务')
+
+    gateway = NoFatStateGateway()
+    FakePluginService.reset()
+
+    result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).precheck_plugin_operation('demo', 'install'))
+
+    assert result['ok'] is True
+    assert result['manifestOk'] is True
+    assert [issue['kind'] for issue in result['manifestWarnings']] == ['migration_pending']
 
 
 def test_plugin_runtime_install_plugin_accepts_namespaced_permissions_across_plugins(tmp_path: Path) -> None:
@@ -663,6 +1027,116 @@ config:
     assert operation_log.payload['summary']['changedKeys'] == ['provider']
     assert operation_log.payload['summary']['changes'][0]['before'] == 'openai'
     assert operation_log.payload['summary']['changes'][0]['after'] == 'mistral'
+
+
+def test_plugin_runtime_set_plugin_config_keeps_audit_and_update_atomic(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """
+    校验插件配置更新和审计日志写入保持同一事务边界。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+config:
+  items:
+    - key: provider
+      default: openai
+""",
+    )
+
+    async def fail_add_plugin_operation_log_services(
+        cls: type[FakePluginService],
+        query_db: object,
+        payload: dict[str, object],
+        *,
+        dry_run: bool,
+        continue_on_error: bool,
+    ) -> None:
+        """
+        模拟管理服务审计日志写入失败。
+
+        :param cls: 插件服务类
+        :param query_db: orm对象
+        :param payload: 操作日志负载
+        :param dry_run: 是否预演
+        :param continue_on_error: 失败后是否继续
+        :return: None
+        :raises RuntimeError: 始终模拟审计失败
+        """
+        raise RuntimeError('audit failed')
+
+    gateway = FakePluginRuntimeGateway()
+    FakePluginService.reset()
+    monkeypatch.setattr(
+        FakePluginService,
+        'add_plugin_operation_log_services',
+        classmethod(fail_add_plugin_operation_log_services),
+    )
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+
+    result = asyncio.run(runtime.set_plugin_config('demo', {'provider': 'mistral'}))
+
+    assert result['ok'] is False
+    assert result['message'] == '更新插件配置失败'
+    assert FakePluginService.operation_logs == []
+    assert gateway.session_local.committed_session is None
+
+
+def test_plugin_runtime_config_uses_config_port_without_fat_service_fallback(tmp_path: Path) -> None:
+    """
+    校验插件配置读写只依赖配置窄端口且不回退管理服务胖接口。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+enabled: true
+backend:
+  module: plugins.demo
+config:
+  items:
+    - key: provider
+      secret: true
+      default: openai-key
+""",
+    )
+    config_gateway = ConfigOnlyGateway()
+    runtime = PluginRuntimeService(
+        runtime_environment=FakeRuntimeEnvironment(backend_root),
+        dependency_checker=PluginDependencyChecker(),
+        gateways=PluginRuntimeGatewayOverrides(config_gateway=config_gateway),
+    )
+
+    get_result = asyncio.run(runtime.get_plugin_config('demo', reveal_secret=True))
+    set_result = asyncio.run(runtime.set_plugin_config('demo', {'provider': 'mistral'}))
+
+    assert get_result['ok'] is True
+    assert get_result['configs'][0]['value'] == 'openai-key'
+    assert set_result['ok'] is True
+    assert set_result['configs'][0]['value'] == 'mistral'
+    assert config_gateway.get_calls == [('demo', True), ('demo', True)]
+    assert config_gateway.update_calls == [('demo', {'provider': 'mistral'})]
+    assert len(config_gateway.audit_payloads) == 1
+    assert config_gateway.audit_payloads[0]['operation'] == 'config_set'
 
 
 def test_plugin_runtime_get_plugin_config_delegates_to_config_use_case(tmp_path: Path) -> None:
@@ -1029,6 +1503,85 @@ config:
         'missingRequiredKeys': [],
         'masked': True,
     }
+    assert result['audit']['available'] is True
+    assert result['audit']['count'] == 1
+    assert result['audit']['items'][0]['operation'] == 'install'
+
+
+def test_plugin_runtime_diagnose_plugin_uses_audit_gateway_for_snapshot(tmp_path: Path) -> None:
+    """
+    校验插件诊断包通过审计窄端口读取最近审计快照，不再回退到 fat state gateway。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+config:
+  items:
+    - key: api_key
+      label: API Key
+      type: password
+      default: sk-test
+      secret: true
+""",
+    )
+    create_controller_dir(plugin_root)
+    FakePluginService.reset()
+    FakePluginService.plugin_list = [
+        SimpleNamespace(
+            plugin_id='demo',
+            installed_version='1.0.0',
+            enabled='0',
+            status='installed',
+            last_error=None,
+            source='local',
+            backend_path='plugins/demo',
+            frontend_path='plugins/demo',
+        )
+    ]
+    FakePluginService.operation_logs = [
+        SimpleNamespace(
+            payload={'ok': True, 'operation': 'install', 'pluginId': 'demo', 'message': 'installed'},
+            dry_run=False,
+            continue_on_error=False,
+        )
+    ]
+
+    class NoFatStateGateway(FakePluginRuntimeGateway):
+        """
+        禁止诊断审计快照读取 fat state gateway 的测试适配器。
+        """
+
+        def get_async_session_local(self) -> object:
+            """
+            禁止通过 state gateway 打开数据库会话。
+
+            :return: 不返回
+            :raises AssertionError: 诊断审计快照不应使用 fat state gateway
+            """
+            raise AssertionError('诊断审计快照不应通过 state gateway 打开数据库会话')
+
+        def get_plugin_service(self) -> object:
+            """
+            禁止通过 state gateway 获取管理服务。
+
+            :return: 不返回
+            :raises AssertionError: 诊断审计快照不应使用 fat state gateway
+            """
+            raise AssertionError('诊断审计快照不应通过 state gateway 获取管理服务')
+
+    result = asyncio.run(build_runtime_with_gateway(backend_root, NoFatStateGateway()).diagnose_plugin('demo'))
+
+    assert result['ok'] is True
     assert result['audit']['available'] is True
     assert result['audit']['count'] == 1
     assert result['audit']['items'][0]['operation'] == 'install'

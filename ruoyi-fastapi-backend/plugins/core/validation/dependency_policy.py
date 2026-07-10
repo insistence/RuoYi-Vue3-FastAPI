@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
+from pydantic import ValidationError
 
 from plugins.core.validation.dependencies import (
     DependencyInstallPlan,
@@ -169,7 +170,10 @@ class DependencyInstallPolicyConfig:
         getter = getattr(get_config, 'get_plugin_dependency_policy_config', None)
         if getter is None:
             return None
-        return getter()
+        try:
+            return getter()
+        except ValidationError as exc:
+            raise ValueError(f'非法插件依赖策略布尔配置：{exc}') from exc
 
     @staticmethod
     def _read_value(settings: Any | None, attr: str, env_name: str, default: Any = None) -> Any:
@@ -209,7 +213,9 @@ class DependencyInstallPolicyConfig:
             for part in value.split(',')
             if '=' in part and part.split('=', maxsplit=1)[0].strip()
         )
-        return cls._normalize_mode(entries.get(env, ''), cls._default_mode(env))
+        if env not in entries:
+            return cls._default_mode(env)
+        return cls._normalize_mode(entries[env], cls._default_mode(env))
 
     @staticmethod
     def _normalize_mode(value: str, default: DependencyInstallPolicyMode) -> DependencyInstallPolicyMode:
@@ -223,7 +229,27 @@ class DependencyInstallPolicyConfig:
         normalized_value = value.strip()
         if normalized_value in {'disabled', 'plan_only', 'explicit', 'locked', 'offline'}:
             return normalized_value  # type: ignore[return-value]
-        return default
+        if not normalized_value:
+            return default
+        raise ValueError(f'非法插件依赖安装策略模式：{value}')
+
+    @staticmethod
+    def _parse_bool(value: object, *, name: str) -> bool:
+        """
+        解析布尔配置，拒绝未知字符串。
+
+        :param value: 原始配置值
+        :param name: 配置名称
+        :return: 布尔值
+        """
+        if isinstance(value, bool):
+            return value
+        normalized_value = str(value).strip().lower()
+        if normalized_value in {'1', 'true', 'yes', 'on'}:
+            return True
+        if normalized_value in {'0', 'false', 'no', 'off'}:
+            return False
+        raise ValueError(f'非法插件依赖策略布尔配置：{name}={value}')
 
     @classmethod
     def _read_bool(cls, name: str, *, default: bool, attr: str, settings: Any | None = None) -> bool:
@@ -239,9 +265,7 @@ class DependencyInstallPolicyConfig:
         value = cls._read_value(settings, attr, name)
         if value is None or value == '':
             return default
-        if isinstance(value, bool):
-            return value
-        return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+        return cls._parse_bool(value, name=name)
 
     @classmethod
     def _read_optional_bool(cls, name: str, *, attr: str, settings: Any | None = None) -> bool | None:
@@ -256,9 +280,7 @@ class DependencyInstallPolicyConfig:
         value = cls._read_value(settings, attr, name)
         if value is None or value == '':
             return None
-        if isinstance(value, bool):
-            return value
-        return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
+        return cls._parse_bool(value, name=name)
 
     @classmethod
     def _read_int(cls, name: str, *, attr: str, settings: Any | None, default: int) -> int:
@@ -854,11 +876,36 @@ class DependencyInstallPolicyEvaluator:
         if not lock_entry.resolved_version:
             reasons.append(f'锁文件缺少 resolvedVersion：{item.kind} {item.name}')
             return None
+        if not self._lockfile_version_satisfies_requirement(item, lock_entry):
+            reasons.append(
+                f'锁文件 resolvedVersion 不满足依赖声明：{item.kind} {item.name} '
+                f'{lock_entry.resolved_version} not in {item.requirement}'
+            )
+            return None
         if item.kind == 'python' and not lock_entry.hashes:
             reasons.append(f'锁文件缺少 Python 哈希：{item.kind} {item.name}')
         if item.kind in {'npm', 'npmDev'} and not lock_entry.integrity:
             reasons.append(f'锁文件缺少 npm integrity：{item.kind} {item.name}')
         return lock_entry
+
+    @staticmethod
+    def _lockfile_version_satisfies_requirement(
+        item: DependencyInstallPlanItem,
+        lock_entry: DependencyLockEntry,
+    ) -> bool:
+        """
+        判断锁文件 resolvedVersion 是否满足插件依赖声明。
+
+        :param item: 安装计划项
+        :param lock_entry: 锁文件项
+        :return: 是否满足
+        """
+        if not lock_entry.resolved_version:
+            return False
+        required_version = extract_dependency_required_version(item.requirement)
+        if not required_version:
+            return True
+        return version_satisfies_range(lock_entry.resolved_version, required_version)
 
     @staticmethod
     def _build_lockfile_extra_reasons(

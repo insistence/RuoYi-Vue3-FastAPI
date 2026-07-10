@@ -71,11 +71,11 @@ class PluginScanner:
             manifest = PluginManifestFactory.create(raw_manifest)
         except ValidationError as exc:
             error_summary = self._format_validation_errors(exc)
-            raise PluginManifestError(f'插件清单校验失败：{current_manifest_path}；{error_summary}') from exc
+            raise PluginManifestError(f'插件清单校验失败：{current_manifest_path}，{error_summary}') from exc
 
         backend_path = current_manifest_path.parent
         if backend_path.name != manifest.id:
-            raise PluginManifestError(f'插件目录名必须与插件 id 一致：目录={backend_path.name}, id={manifest.id}')
+            raise PluginManifestError(f'插件目录名必须与插件 id 一致：目录={backend_path.name}，id={manifest.id}')
 
         return DiscoveredPlugin(manifest=manifest, backend_path=backend_path, manifest_path=current_manifest_path)
 

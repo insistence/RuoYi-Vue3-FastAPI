@@ -26,6 +26,7 @@ from plugins.core.management.entity.vo.schemas import (
     PluginOperationLogPageQueryModel,
     PluginPageQueryModel,
 )
+from plugins.core.utils import escape_sql_like
 from utils.page_util import PageUtil
 
 PLUGIN_MODEL_RUNTIME_FIELDS = {
@@ -656,13 +657,14 @@ class PluginDao:
         if not plugin_id:
             return True
 
+        escaped_plugin_id = escape_sql_like(plugin_id)
         return or_(
             SysPluginOperationLog.plugin_ids == f'["{plugin_id}"]',
-            SysPluginOperationLog.plugin_ids.like(f'["{plugin_id}",%'),
-            SysPluginOperationLog.plugin_ids.like(f'%, "{plugin_id}",%'),
-            SysPluginOperationLog.plugin_ids.like(f'%, "{plugin_id}"]'),
-            SysPluginOperationLog.plugin_ids.like(f'%,"{plugin_id}",%'),
-            SysPluginOperationLog.plugin_ids.like(f'%,"{plugin_id}"]'),
+            SysPluginOperationLog.plugin_ids.like(f'["{escaped_plugin_id}",%', escape='\\'),
+            SysPluginOperationLog.plugin_ids.like(f'%, "{escaped_plugin_id}",%', escape='\\'),
+            SysPluginOperationLog.plugin_ids.like(f'%, "{escaped_plugin_id}"]', escape='\\'),
+            SysPluginOperationLog.plugin_ids.like(f'%,"{escaped_plugin_id}",%', escape='\\'),
+            SysPluginOperationLog.plugin_ids.like(f'%,"{escaped_plugin_id}"]', escape='\\'),
         )
 
     @staticmethod

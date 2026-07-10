@@ -499,7 +499,7 @@ async def test_plugin_migration_runner_rolls_back_managed_execution_transaction(
             manage_execution_transaction=True,
         ).run(query_db)
 
-    assert query_db.committed is False
+    assert query_db.committed is True
     assert query_db.rolled_back is True
     assert len(history_store.failure_records) == 1
 

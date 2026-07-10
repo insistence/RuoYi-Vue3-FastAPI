@@ -461,31 +461,44 @@ frontend:
     ]
 
 
-def test_structure_checker_restores_sys_path_after_callable_import(tmp_path: Path) -> None:
+def test_structure_checker_does_not_execute_job_module_top_level_code(tmp_path: Path) -> None:
     """
-    校验结构检查器导入 callable 时临时加入 backend_root 后会恢复 sys.path。
+    校验结构检查验证任务 callable 时不会执行插件模块顶层代码。
 
     :param tmp_path: pytest 临时目录
     :return: None
     """
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
-    module_dir = backend_root / 'temp_plugin_checks'
-    module_dir.mkdir(parents=True)
-    (module_dir / '__init__.py').write_text('', encoding='utf-8')
-    (module_dir / 'jobs.py').write_text('def cleanup():\n    return None\n', encoding='utf-8')
-    backend_root_text = str(backend_root)
-    original_sys_path = list(sys.path)
-    if backend_root_text in sys.path:
-        sys.path.remove(backend_root_text)
+    side_effect_file = tmp_path / 'job_side_effect.txt'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+  jobs:
+    - id: cleanup
+      name: 清理任务
+      callable: plugins.demo.jobs.cleanup
+      cronExpression: '0 0/5 * * * ?'
+frontend:
+  menus: []
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'jobs.py').write_text(
+        f"from pathlib import Path\nPath({str(side_effect_file)!r}).write_text('executed')\n"
+        'def cleanup():\n    return None\n',
+        encoding='utf-8',
+    )
 
-    try:
-        module = PluginStructureChecker(backend_root)._import_job_module('temp_plugin_checks.jobs')
-        leaked_backend_root = backend_root_text in sys.path
-    finally:
-        sys.path[:] = original_sys_path
+    result = PluginStructureChecker(backend_root).check(load_discovered_plugin(backend_root, 'demo'))
 
-    assert callable(module.cleanup)
-    assert leaked_backend_root is False
+    assert result.ok is True
+    assert side_effect_file.exists() is False
 
 
 def test_structure_checker_reports_invalid_plugin_job(tmp_path: Path) -> None:
@@ -507,7 +520,7 @@ backend:
   module: plugins.demo
   jobs:
     - id: cleanup
-      callable: module_task.missing.cleanup
+      callable: plugins.demo.missing.cleanup
       cronExpression: invalid
 frontend:
   menus: []
@@ -519,7 +532,6 @@ frontend:
 
     assert result.ok is False
     assert [item.kind for item in result.failed_items] == [
-        'job_callable_boundary',
         'job_callable',
         'job_cron',
     ]
@@ -558,6 +570,43 @@ frontend:
         'hook_boundary',
         'hook_callable',
     ]
+
+
+def test_structure_checker_does_not_execute_hook_module_top_level_code(tmp_path: Path) -> None:
+    """
+    校验结构检查验证生命周期钩子时不会执行插件模块顶层代码。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    side_effect_file = tmp_path / 'hook_side_effect.txt'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+  hooks:
+    onInstall: hooks:on_install
+frontend:
+  menus: []
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'hooks.py').write_text(
+        f"from pathlib import Path\nPath({str(side_effect_file)!r}).write_text('executed')\n"
+        'async def on_install(context):\n    return None\n',
+        encoding='utf-8',
+    )
+
+    result = PluginStructureChecker(backend_root).check(load_discovered_plugin(backend_root, 'demo'))
+
+    assert result.ok is True
+    assert side_effect_file.exists() is False
 
 
 def test_structure_checker_reports_invalid_plugin_hook(tmp_path: Path) -> None:

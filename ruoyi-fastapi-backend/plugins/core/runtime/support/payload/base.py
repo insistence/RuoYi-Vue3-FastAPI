@@ -8,7 +8,7 @@ class PluginPayloadModel(BaseModel):
     插件运行时 payload 模型基类。
     """
 
-    model_config = ConfigDict(populate_by_name=True, extra='allow')
+    model_config = ConfigDict(populate_by_name=True, extra='forbid')
 
     def to_payload(self, *, exclude_none: bool = False) -> dict[str, Any]:
         """

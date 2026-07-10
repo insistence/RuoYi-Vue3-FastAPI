@@ -1,19 +1,22 @@
 import re
+from collections import Counter
 from typing import Any, Literal
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.types import PluginConfigValue
+from plugins.core.utils import PLUGIN_ID_PATTERN_TEXT, validate_plugin_id_value
 
-PLUGIN_ID_PATTERN = re.compile(r'^[a-z][a-z0-9_-]{1,63}$')
 RESERVED_PLUGIN_IDS = {'admin', 'system', 'monitor', 'tool'}
 PERMISSION_PATTERN = re.compile(r'^[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)+$')
 HOOK_PATTERN = re.compile(r'^[A-Za-z_][\w.]*:[A-Za-z_]\w*$')
 CONFIG_KEY_PATTERN = re.compile(r'^[a-z][a-z0-9_.-]{0,127}$')
 JOB_ID_PATTERN = re.compile(r'^[a-z][a-z0-9_-]{0,63}$')
 JOB_CALLABLE_PATTERN = re.compile(r'^[A-Za-z_][\w.]*\.[A-Za-z_]\w*$')
-PLUGIN_DEPENDENCY_PATTERN = re.compile(r'^\s*([a-z][a-z0-9_-]{1,63})\s*([<>=!~^]{1,2})?\s*([A-Za-z0-9_.+\-!*]+)?\s*$')
+PLUGIN_DEPENDENCY_PATTERN = re.compile(
+    rf'^\s*({PLUGIN_ID_PATTERN_TEXT})\s*([<>=!~^]{{1,2}})?\s*([A-Za-z0-9_.+\-!*]+)?\s*$'
+)
 VERSION_CONSTRAINT_PATTERN = re.compile(r'^([<>=!~^]{1,2})?[A-Za-z0-9_.+\-!*]+$')
 ROUTE_PATH_PATTERN = re.compile(r'^[a-z][a-z0-9_-]*(/[a-z][a-z0-9_-]*)*$')
 EXTERNAL_URL_PATTERN = re.compile(r'^https?://\S+$')
@@ -214,10 +217,10 @@ class BackendManifest(BaseModel):
 
         :return: 校验后的后端声明
         """
-        job_ids = [job.id for job in self.jobs]
-        duplicated_job_ids = {job_id for job_id in job_ids if job_ids.count(job_id) > 1}
+        job_id_counts = Counter(job.id for job in self.jobs)
+        duplicated_job_ids = {job_id for job_id, count in job_id_counts.items() if count > 1}
         if duplicated_job_ids:
-            raise ValueError(f'插件任务 id 不能重复：{", ".join(sorted(duplicated_job_ids))}')
+            raise ValueError(f'插件任务 id 不能重复：{"、".join(sorted(duplicated_job_ids))}')
         return self
 
 
@@ -260,9 +263,7 @@ class PluginDependencyManifest(BaseModel):
         :param value: 依赖插件 ID
         :return: 校验后的依赖插件 ID
         """
-        if not PLUGIN_ID_PATTERN.match(value):
-            raise ValueError('依赖插件 id 只能包含小写字母、数字、下划线和中划线，并且必须以小写字母开头')
-        return value
+        return validate_plugin_id_value(value, field_name='依赖插件 id')
 
     @field_validator('version')
     @classmethod
@@ -299,10 +300,10 @@ class DependencyManifest(BaseModel):
 
         :return: 校验后的依赖声明
         """
-        plugin_ids = [plugin.id for plugin in self.plugins]
-        duplicated_plugin_ids = {plugin_id for plugin_id in plugin_ids if plugin_ids.count(plugin_id) > 1}
+        plugin_id_counts = Counter(plugin.id for plugin in self.plugins)
+        duplicated_plugin_ids = {plugin_id for plugin_id, count in plugin_id_counts.items() if count > 1}
         if duplicated_plugin_ids:
-            raise ValueError(f'依赖插件 id 不能重复：{", ".join(sorted(duplicated_plugin_ids))}')
+            raise ValueError(f'依赖插件 id 不能重复：{"、".join(sorted(duplicated_plugin_ids))}')
         return self
 
 
@@ -355,9 +356,10 @@ class PluginMetadataManifest(BaseModel):
         :return: 清理后的标签列表
         """
         tags = [tag.strip() for tag in value if tag.strip()]
-        duplicated_tags = {tag for tag in tags if tags.count(tag) > 1}
+        tag_counts = Counter(tags)
+        duplicated_tags = {tag for tag, count in tag_counts.items() if count > 1}
         if duplicated_tags:
-            raise ValueError(f'插件 metadata.tags 不能重复：{", ".join(sorted(duplicated_tags))}')
+            raise ValueError(f'插件 metadata.tags 不能重复：{"、".join(sorted(duplicated_tags))}')
         return tags
 
 
@@ -400,9 +402,10 @@ class CompatibilityManifest(BaseModel):
         :param value: 数据库类型列表
         :return: 校验后的数据库类型列表
         """
-        duplicated_databases = {database for database in value if value.count(database) > 1}
+        database_counts = Counter(value)
+        duplicated_databases = {database for database, count in database_counts.items() if count > 1}
         if duplicated_databases:
-            raise ValueError(f'compatibility.databases 不能重复：{", ".join(sorted(duplicated_databases))}')
+            raise ValueError(f'compatibility.databases 不能重复：{"、".join(sorted(duplicated_databases))}')
         return value
 
 
@@ -424,12 +427,13 @@ class PluginResourceManifest(BaseModel):
         :param value: 资源相对路径列表
         :return: 校验后的资源相对路径列表
         """
-        duplicated_paths = {path for path in value if value.count(path) > 1}
+        path_counts = Counter(value)
+        duplicated_paths = {path for path, count in path_counts.items() if count > 1}
         if duplicated_paths:
-            raise ValueError(f'插件资源路径不能重复：{", ".join(sorted(duplicated_paths))}')
+            raise ValueError(f'插件资源路径不能重复：{"、".join(sorted(duplicated_paths))}')
         invalid_paths = [path for path in value if not RESOURCE_RELATIVE_PATH_PATTERN.match(path)]
         if invalid_paths:
-            raise ValueError(f'插件资源路径必须是安全相对路径：{", ".join(sorted(invalid_paths))}')
+            raise ValueError(f'插件资源路径必须是安全相对路径：{"、".join(sorted(invalid_paths))}')
         return value
 
 
@@ -609,7 +613,8 @@ class PluginConfigItemManifest(BaseModel):
         if not self.options:
             raise ValueError(f'配置 {self.key} 类型为 select 时必须声明 options')
         option_values = [option.value for option in self.options]
-        duplicated_values = {value for value in option_values if option_values.count(value) > 1}
+        option_value_counts = Counter(option_values)
+        duplicated_values = {value for value, count in option_value_counts.items() if count > 1}
         if duplicated_values:
             raise ValueError(f'配置 {self.key} 的 options.value 不能重复')
         if self.default is not None and self.default not in option_values:
@@ -704,10 +709,10 @@ class PluginConfigManifest(BaseModel):
 
         :return: 校验后的配置声明
         """
-        keys = [item.key for item in self.items]
-        duplicated_keys = {key for key in keys if keys.count(key) > 1}
+        key_counts = Counter(item.key for item in self.items)
+        duplicated_keys = {key for key, count in key_counts.items() if count > 1}
         if duplicated_keys:
-            raise ValueError(f'插件配置 key 不能重复：{", ".join(sorted(duplicated_keys))}')
+            raise ValueError(f'插件配置 key 不能重复：{"、".join(sorted(duplicated_keys))}')
         return self
 
 
@@ -837,9 +842,7 @@ class FrontendManifest(BaseModel):
         :param value: 前端插件目录名
         :return: 校验后的前端插件目录名
         """
-        if value is not None and not PLUGIN_ID_PATTERN.match(value):
-            raise ValueError('frontend.pluginId 只能包含小写字母、数字、下划线和中划线，并且必须以小写字母开头')
-        return value
+        return validate_plugin_id_value(value, field_name='frontend.pluginId') if value is not None else value
 
     @field_validator('base_path')
     @classmethod
@@ -902,8 +905,7 @@ class PluginManifest(BaseModel):
         :param value: 插件 ID
         :return: 校验后的插件 ID
         """
-        if not PLUGIN_ID_PATTERN.match(value):
-            raise ValueError('插件 id 只能包含小写字母、数字、下划线和中划线，并且必须以小写字母开头')
+        validate_plugin_id_value(value, field_name='插件 id')
         if value in RESERVED_PLUGIN_IDS:
             raise ValueError(f'插件 id 不能使用保留名称：{value}')
         return value
@@ -930,12 +932,10 @@ class PluginManifest(BaseModel):
         :param value: 权限声明列表
         :return: 校验后的权限声明列表
         """
-        permission_codes = [permission.code for permission in value]
-        duplicated_permissions = {
-            permission for permission in permission_codes if permission_codes.count(permission) > 1
-        }
+        permission_code_counts = Counter(permission.code for permission in value)
+        duplicated_permissions = {permission for permission, count in permission_code_counts.items() if count > 1}
         if duplicated_permissions:
-            raise ValueError(f'插件权限不能重复：{", ".join(sorted(duplicated_permissions))}')
+            raise ValueError(f'插件权限不能重复：{"、".join(sorted(duplicated_permissions))}')
         return value
 
     @property
@@ -975,6 +975,7 @@ class PluginManifest(BaseModel):
         self._validate_menu_permissions_declared()
         self._validate_menu_components()
         self._validate_unique_menu_paths()
+        self._validate_job_callable_prefixes()
         return self
 
     def _validate_backend_module(self) -> None:
@@ -1008,7 +1009,7 @@ class PluginManifest(BaseModel):
             permission for permission in permission_set if not permission.startswith(expected_prefix)
         )
         if invalid_permissions:
-            raise ValueError(f'插件权限必须使用 {expected_prefix} 前缀：{", ".join(invalid_permissions)}')
+            raise ValueError(f'插件权限必须使用 {expected_prefix} 前缀：{"、".join(invalid_permissions)}')
 
     def _fill_frontend_delivery_defaults(self) -> None:
         """
@@ -1040,7 +1041,7 @@ class PluginManifest(BaseModel):
         menu_permissions = PluginMenuTree.collect_permissions(self.frontend.menus)
         undeclared_permissions = sorted(menu_permissions - set(self.permission_codes))
         if undeclared_permissions:
-            raise ValueError(f'菜单权限必须在 permissions 中声明：{", ".join(undeclared_permissions)}')
+            raise ValueError(f'菜单权限必须在 permissions 中声明：{"、".join(undeclared_permissions)}')
 
     def _validate_menu_components(self) -> None:
         """
@@ -1080,9 +1081,24 @@ class PluginManifest(BaseModel):
         :return: None
         """
         route_paths = PluginMenuTree.collect_route_paths(self.frontend.menus)
-        duplicated_paths = {route_path for route_path in route_paths if route_paths.count(route_path) > 1}
+        route_path_counts = Counter(route_paths)
+        duplicated_paths = {route_path for route_path, count in route_path_counts.items() if count > 1}
         if duplicated_paths:
-            raise ValueError(f'菜单 path 不能重复：{", ".join(sorted(duplicated_paths))}')
+            raise ValueError(f'菜单 path 不能重复：{"、".join(sorted(duplicated_paths))}')
+
+    def _validate_job_callable_prefixes(self) -> None:
+        """
+        校验插件定时任务 callable 必须归属当前插件模块。
+
+        定时任务由系统调度器直接 importlib 导入执行，不经过 PluginCallableLoader 的模块归属
+        校验，因此必须在清单校验阶段限制 callable 模块前缀，防止插件执行任意模块的函数。
+
+        :return: None
+        """
+        expected_prefix = f'plugins.{self.id}.'
+        invalid_callables = [job.callable for job in self.backend.jobs if not job.callable.startswith(expected_prefix)]
+        if invalid_callables:
+            raise ValueError(f'插件任务 callable 必须使用 {expected_prefix} 前缀：{"、".join(invalid_callables)}')
 
 
 PluginMenuManifest.model_rebuild()

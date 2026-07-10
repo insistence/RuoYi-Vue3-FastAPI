@@ -7,7 +7,7 @@ from typing import Any
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(BACKEND_ROOT))
 
-from cli.exit_codes import DEPENDENCY_ERROR, RUNTIME_ERROR  # noqa: E402
+from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, RUNTIME_ERROR  # noqa: E402
 from cli.groups.plugin.controller import PluginCommandController  # noqa: E402
 from cli.groups.plugin.options import (  # noqa: E402
     PluginDependencyAllowlistExampleCommandOptions,
@@ -180,20 +180,19 @@ class FakePresenter:
         return str(payload)
 
 
-class FakePluginRuntime:
+class FakeCoreRuntime:
     """
-    测试用插件运行时。
+    测试用核心插件运行时。
     """
 
     def __init__(self) -> None:
         """
-        初始化测试用插件运行时。
+        初始化测试用核心插件运行时。
 
         :return: None
         """
         self.dependency_install_calls: list[dict[str, Any]] = []
-        self.dependency_lock_calls: list[dict[str, Any]] = []
-        self.dependency_allowlist_example_calls: list[dict[str, Any]] = []
+        self.config_set_calls: list[dict[str, Any]] = []
 
     async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
         """
@@ -223,6 +222,7 @@ class FakePluginRuntime:
         :param values: 配置键值
         :return: 配置更新结果
         """
+        self.config_set_calls.append({'plugin_id': plugin_id, 'values': values})
         return {'ok': False, 'message': '插件配置更新失败', 'pluginId': plugin_id, 'values': values}
 
     def install_plugin_dependencies(
@@ -258,6 +258,22 @@ class FakePluginRuntime:
             'policyConfig': policy_config,
             'confirmed': confirmed,
         }
+
+
+class FakePluginRuntime:
+    """
+    测试用插件 CLI 运行时。
+    """
+
+    def __init__(self) -> None:
+        """
+        初始化测试用插件 CLI 运行时。
+
+        :return: None
+        """
+        self.core_runtime = FakeCoreRuntime()
+        self.dependency_lock_calls: list[dict[str, Any]] = []
+        self.dependency_allowlist_example_calls: list[dict[str, Any]] = []
 
     def lock_plugin_dependencies(
         self,
@@ -400,6 +416,38 @@ def test_plugin_config_set_uses_failure_exit_code_when_payload_is_not_ok() -> No
     assert execution_service.default_exit_code == DEPENDENCY_ERROR
 
 
+def test_plugin_config_set_argument_error_uses_structured_payload() -> None:
+    """
+    校验插件配置参数格式错误时 CLI 走统一 payload 输出。
+
+    :return: None
+    """
+    execution_service = FakeExecutionService()
+    plugin_runtime = FakePluginRuntime()
+    controller = PluginCommandController(
+        context_factory=FakeContextFactory(),
+        execution_service=execution_service,
+        presenter=FakePresenter(),
+        plugin_runtime=plugin_runtime,
+    )
+
+    controller.plugin_config(
+        'demo',
+        'set',
+        ['badpair'],
+        'dev',
+        'text',
+        allow_prod=False,
+        yes=True,
+    )
+
+    assert plugin_runtime.core_runtime.config_set_calls == []
+    assert execution_service.completed_payload is not None
+    assert execution_service.completed_payload['ok'] is False
+    assert execution_service.completed_payload['message'] == '配置参数必须使用 key=value 格式：badpair'
+    assert execution_service.default_exit_code == ARGUMENT_ERROR
+
+
 def test_plugin_payload_with_error_uses_runtime_error_exit_code() -> None:
     """
     校验带 error 的插件运行时异常负载由 CLI 映射为运行时错误退出码。
@@ -458,7 +506,7 @@ def test_install_plugin_dependencies_passes_policy_config_to_runtime() -> None:
     assert str(policy_config.lockfile_path) == 'plugins/demo/plugin.lock.yaml'
     assert str(policy_config.offline_dir) == 'artifacts/plugin-dependencies'
     assert policy_config.require_lockfile is True
-    assert len(plugin_runtime.dependency_install_calls) == 1
+    assert len(plugin_runtime.core_runtime.dependency_install_calls) == 1
 
 
 def test_install_plugin_dependencies_tty_confirm_previews_then_executes(
@@ -490,8 +538,8 @@ def test_install_plugin_dependencies_tty_confirm_previews_then_executes(
         options=PluginDependencyInstallCommandOptions(dry_run=False, yes=False),
     )
 
-    assert [call['dry_run'] for call in plugin_runtime.dependency_install_calls] == [True, False]
-    assert [call['confirmed'] for call in plugin_runtime.dependency_install_calls] == [True, True]
+    assert [call['dry_run'] for call in plugin_runtime.core_runtime.dependency_install_calls] == [True, False]
+    assert [call['confirmed'] for call in plugin_runtime.core_runtime.dependency_install_calls] == [True, True]
     assert emitted_lines
     assert execution_service.completed_payload is not None
     assert execution_service.completed_payload['dryRun'] is False
@@ -526,7 +574,7 @@ def test_install_plugin_dependencies_tty_decline_does_not_execute_real_install(
         options=PluginDependencyInstallCommandOptions(dry_run=False, yes=False),
     )
 
-    assert [call['dry_run'] for call in plugin_runtime.dependency_install_calls] == [True]
+    assert [call['dry_run'] for call in plugin_runtime.core_runtime.dependency_install_calls] == [True]
     assert execution_service.completed_payload is not None
     assert execution_service.completed_payload['ok'] is False
     assert execution_service.completed_payload['message'] == '已取消插件依赖安装'
@@ -558,8 +606,8 @@ def test_install_plugin_dependencies_non_tty_without_yes_does_not_preview(
         options=PluginDependencyInstallCommandOptions(dry_run=False, yes=False),
     )
 
-    assert [call['dry_run'] for call in plugin_runtime.dependency_install_calls] == [False]
-    assert plugin_runtime.dependency_install_calls[0]['confirmed'] is False
+    assert [call['dry_run'] for call in plugin_runtime.core_runtime.dependency_install_calls] == [False]
+    assert plugin_runtime.core_runtime.dependency_install_calls[0]['confirmed'] is False
 
 
 def test_lock_plugin_dependencies_passes_options_to_runtime() -> None:

@@ -51,6 +51,24 @@ def test_plugin_runtime_allowlist_example_writes_relative_output_path(tmp_path: 
     assert output_path.read_text(encoding='utf-8') == payload['allowlist']
 
 
+def test_plugin_runtime_allowlist_example_rejects_output_path_escape(tmp_path: Path) -> None:
+    """
+    校验允许列表示例输出路径不能逃逸后端项目根目录。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    runtime = build_runtime(backend_root)
+    escaped_allowlist = tmp_path / 'escaped_allowlist.yaml'
+
+    payload = runtime.generate_plugin_dependency_allowlist_example(output_path='../escaped_allowlist.yaml')
+
+    assert payload['ok'] is False
+    assert '输出路径' in str(payload['error'])
+    assert escaped_allowlist.exists() is False
+
+
 def test_plugin_runtime_allowlist_example_rejects_existing_file_without_overwrite(tmp_path: Path) -> None:
     """
     校验允许列表示例文件已存在时必须显式 overwrite。

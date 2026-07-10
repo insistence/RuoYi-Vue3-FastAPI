@@ -3,6 +3,7 @@ from collections.abc import Mapping
 from typing import cast
 
 from plugins.core.management.entity.vo.schemas import PluginOperationLogDetailModel, PluginOperationLogModel
+from utils.log_util import logger
 
 
 class PluginOperationLogBuilder:
@@ -71,10 +72,15 @@ class PluginOperationLogBuilder:
             return {}
         try:
             result = json.loads(value)
-        except json.JSONDecodeError:
-            return {}
+        except json.JSONDecodeError as exc:
+            logger.warning(f'插件操作审计日志 JSON 字典解析失败：{exc}')
+            return {'parseError': 'JSON 解析失败'}
 
-        return cast('dict[str, object]', result) if isinstance(result, dict) else {}
+        if not isinstance(result, dict):
+            logger.warning('插件操作审计日志 JSON 内容不是对象')
+            return {'parseError': 'JSON 内容不是对象'}
+
+        return cast('dict[str, object]', result)
 
     @staticmethod
     def deserialize_json_list(value: object) -> list[str]:

@@ -58,9 +58,28 @@ class PluginSafeUninstallPayload(PluginPayloadModel):
     message: object | None = None
     plugin_id: object | None = Field(default=None, alias='pluginId')
     operation: str
+    enabled: bool | None = None
+    dry_run: bool | None = Field(default=None, alias='dryRun')
     safe_mode: bool = Field(alias='safeMode')
     removes_source: bool = Field(alias='removesSource')
     removes_menus: bool = Field(alias='removesMenus')
+    actions: list[dict[str, object]] | None = None
+    precheck: dict[str, object] | None = None
+    manifest_ok: object | None = Field(default=None, alias='manifestOk')
+    dependency_ok: object | None = Field(default=None, alias='dependencyOk')
+    plugin_dependency_ok: object | None = Field(default=None, alias='pluginDependencyOk')
+    structure_ok: object | None = Field(default=None, alias='structureOk')
+    menu_conflict_ok: object | None = Field(default=None, alias='menuConflictOk')
+    manifest_issues: object | None = Field(default=None, alias='manifestIssues')
+    manifest_warnings: object | None = Field(default=None, alias='manifestWarnings')
+    plugin_dependency_errors: object | None = Field(default=None, alias='pluginDependencyErrors')
+    structure_errors: object | None = Field(default=None, alias='structureErrors')
+    menu_conflicts: object | None = Field(default=None, alias='menuConflicts')
+    dependencies: object | None = None
+    plugin_dependencies: object | None = Field(default=None, alias='pluginDependencies')
+    error: object | None = None
+    failed_step: str | None = Field(default=None, alias='failedStep')
+    capability: dict[str, object] | None = None
 
 
 PluginEnableDependencyPayloadDict: TypeAlias = dict[str, object]

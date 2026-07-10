@@ -643,7 +643,14 @@ def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path)
     manual_controller = backend_root / 'plugins' / 'manual' / 'controller' / 'manual_controller.py'
     for path in (demo_controller, manual_controller):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('', encoding='utf-8')
+    demo_controller.write_text(
+        "from common.router import APIRouterPro\n\ndemo_controller = APIRouterPro(prefix='/demo/items')\n",
+        encoding='utf-8',
+    )
+    manual_controller.write_text(
+        "from common.router import APIRouterPro\n\nmanual_controller = APIRouterPro(prefix='/manual/items')\n",
+        encoding='utf-8',
+    )
 
     class FakePluginRegistry:
         """
@@ -676,7 +683,8 @@ def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path)
     app.state.plugin_routes_registered = False
     builder = MagicMock()
     builder.backend_root = backend_root
-    startup_manager = PluginRuntimeStartupManager(builder)
+    route_state_gateway = MagicMock()
+    startup_manager = PluginRuntimeStartupManager(builder, route_state_gateway=route_state_gateway)
 
     auto_register_controller_files = MagicMock()
     with patch_startup_global('auto_register_controller_files', auto_register_controller_files):
@@ -689,6 +697,120 @@ def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path)
     assert controller_files == [str(demo_controller)]
     assert len(dependencies) == 1
     assert dependencies[0].dependency.plugin_id == 'demo'
+    assert dependencies[0].dependency.state_gateway is route_state_gateway
+    assert app.state.plugin_routes_registered is True
+
+
+def test_register_enabled_plugin_routers_skips_invalid_route_prefix(tmp_path: Path) -> None:
+    """
+    校验启动期路由注册会再次拦截越过插件命名空间的 controller。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    valid_controller = backend_root / 'plugins' / 'demo' / 'controller' / 'demo_controller.py'
+    invalid_controller = backend_root / 'plugins' / 'bad' / 'controller' / 'bad_controller.py'
+    valid_controller.parent.mkdir(parents=True, exist_ok=True)
+    invalid_controller.parent.mkdir(parents=True, exist_ok=True)
+    valid_controller.write_text(
+        "from common.router import APIRouterPro\n\ndemo_controller = APIRouterPro(prefix='/demo/items')\n",
+        encoding='utf-8',
+    )
+    invalid_controller.write_text(
+        "from common.router import APIRouterPro\n\nbad_controller = APIRouterPro(prefix='/system/user')\n",
+        encoding='utf-8',
+    )
+
+    class FakePluginRegistry:
+        """
+        测试用插件运行时注册表。
+        """
+
+        def list_enabled_plugins(self) -> list[MagicMock]:
+            """
+            获取启用插件列表。
+
+            :return: 插件列表
+            """
+            return [
+                MagicMock(
+                    plugin_id='demo',
+                    discovered_plugin=MagicMock(
+                        manifest=MagicMock(backend=MagicMock(routers=MagicMock(auto_scan=True)))
+                    ),
+                ),
+                MagicMock(
+                    plugin_id='bad',
+                    discovered_plugin=MagicMock(
+                        manifest=MagicMock(backend=MagicMock(routers=MagicMock(auto_scan=True)))
+                    ),
+                ),
+            ]
+
+    app = FastAPI()
+    app.state.plugin_registry = FakePluginRegistry()
+    app.state.plugin_routes_registered = False
+    builder = MagicMock()
+    builder.backend_root = backend_root
+    startup_manager = PluginRuntimeStartupManager(builder)
+
+    auto_register_controller_files = MagicMock()
+    with patch_startup_global('auto_register_controller_files', auto_register_controller_files):
+        startup_manager.register_enabled_plugin_routers(app)
+
+    auto_register_controller_files.assert_called_once()
+    assert auto_register_controller_files.call_args.args[1] == [str(valid_controller)]
+    assert app.state.plugin_routes_registered is True
+
+
+def test_register_enabled_plugin_routers_skips_unrecognized_router_factory(tmp_path: Path) -> None:
+    """
+    校验启动期路由注册会跳过无法静态确认路由前缀的 controller。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    controller = backend_root / 'plugins' / 'demo' / 'controller' / 'demo_controller.py'
+    controller.parent.mkdir(parents=True, exist_ok=True)
+    controller.write_text(
+        "from common.router import APIRouterPro as Router\n\nrouter = Router(prefix='/demo/items')\n",
+        encoding='utf-8',
+    )
+
+    class FakePluginRegistry:
+        """
+        测试用插件运行时注册表。
+        """
+
+        def list_enabled_plugins(self) -> list[MagicMock]:
+            """
+            获取启用插件列表。
+
+            :return: 插件列表
+            """
+            return [
+                MagicMock(
+                    plugin_id='demo',
+                    discovered_plugin=MagicMock(
+                        manifest=MagicMock(backend=MagicMock(routers=MagicMock(auto_scan=True)))
+                    ),
+                )
+            ]
+
+    app = FastAPI()
+    app.state.plugin_registry = FakePluginRegistry()
+    app.state.plugin_routes_registered = False
+    builder = MagicMock()
+    builder.backend_root = backend_root
+    startup_manager = PluginRuntimeStartupManager(builder)
+
+    auto_register_controller_files = MagicMock()
+    with patch_startup_global('auto_register_controller_files', auto_register_controller_files):
+        startup_manager.register_enabled_plugin_routers(app)
+
+    auto_register_controller_files.assert_not_called()
     assert app.state.plugin_routes_registered is True
 
 

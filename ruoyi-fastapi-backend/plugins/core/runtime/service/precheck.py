@@ -6,6 +6,7 @@ from plugins.core.lifecycle.purge import PluginPurgePlan
 from plugins.core.runtime.support import PluginPayloadBuilder, PluginPrecheckContext, PluginRuntimePayloadBuilder
 from plugins.core.types import PluginStateRecord
 from plugins.core.validation.plugin_deps import PluginBatchOperation
+from utils.log_util import logger
 
 from .context import PluginRuntimeContextService
 from .dependency_container import PluginRuntimeDependencies
@@ -117,7 +118,10 @@ class PluginPrecheckUseCase:
             database_plugin, database_error = await self._load_database_plugin_state(plugin_id)
             actions = PluginRuntimePayloadBuilder.build_precheck_actions(operation, discovered_plugin, precheck)
             version_state = PluginPayloadBuilder.build_upgrade_version_state(discovered_plugin, database_plugin)
-            purge_plan = await self._build_precheck_purge_plan(discovered_plugin) if operation == 'purge' else None
+            purge_plan = None
+            purge_plan_error = None
+            if operation == 'purge':
+                purge_plan, purge_plan_error = await self._build_precheck_purge_plan(discovered_plugin)
             payload = PluginRuntimePayloadBuilder.build_precheck_payload(
                 plugin_id,
                 operation,
@@ -126,6 +130,7 @@ class PluginPrecheckUseCase:
                 actions=actions,
                 database_error=database_error,
                 purge_plan=purge_plan,
+                purge_plan_error=purge_plan_error,
             )
             return cast(
                 'PluginPrecheckResponse',
@@ -134,18 +139,18 @@ class PluginPrecheckUseCase:
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('插件操作预检失败', exc)
 
-    async def _build_precheck_purge_plan(self, discovered_plugin: DiscoveredPlugin) -> PluginPurgePlan | None:
+    async def _build_precheck_purge_plan(
+        self,
+        discovered_plugin: DiscoveredPlugin,
+    ) -> tuple[PluginPurgePlan | None, str | None]:
         """
         构建插件预检物理清理计划。
 
         :param discovered_plugin: 已发现插件
-        :return: 插件物理清理计划，构建失败时返回 None
+        :return: 插件物理清理计划和构建错误
         """
         try:
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                return await plugin_service.build_plugin_purge_plan_services(session, discovered_plugin)
-        except Exception:
-            return None
+            return await self.dependencies.purge_plan_gateway.build_plugin_purge_plan(discovered_plugin), None
+        except Exception as exc:
+            logger.warning(f'插件 {discovered_plugin.manifest.id} 预检物理清理计划构建失败：{exc}')
+            return None, str(exc)

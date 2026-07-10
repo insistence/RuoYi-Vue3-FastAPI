@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from plugins.core.management.dao.dao import PluginDao
 from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
 from plugins.core.management.service.service import PluginService
 
@@ -184,3 +185,21 @@ class PluginManagementStartupGateway:
             status,
             error_message,
         )
+
+
+class PluginManagementRouteStateGateway:
+    """
+    插件路由状态读取适配器。
+    """
+
+    @staticmethod
+    async def is_plugin_enabled(query_db: AsyncSession, plugin_id: str) -> bool:
+        """
+        判断插件是否启用。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :return: 插件是否启用
+        """
+        plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        return bool(plugin and getattr(plugin, 'enabled', None) == '0')

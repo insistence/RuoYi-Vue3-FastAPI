@@ -648,71 +648,91 @@ class PluginDependencyPlanBuilder:
         """
         blockers = []
         for dependency in manifest.dependencies.plugins:
-            discovered_dependency = self.discovered_plugin_map.get(dependency.id)
-            database_dependency = self.database_plugin_map.get(dependency.id)
-            if not discovered_dependency:
-                continue
-            source_version = discovered_dependency.manifest.version
-            installed_version = getattr(database_dependency, 'installed_version', None)
-            if not PluginDependencyVersionMatcher.is_satisfied(source_version, dependency.version):
-                blockers.append(
-                    self._build_blocker(
-                        manifest.id,
-                        dependency.id,
-                        'source_version_unsatisfied',
-                        f'依赖插件源码版本不满足：{dependency.id} source={source_version} required={dependency.version}',
-                    )
+            blockers.extend(self._build_single_dependency_blocker(manifest, dependency, operation))
+
+        return blockers
+
+    def _build_single_dependency_blocker(
+        self,
+        manifest: PluginManifest,
+        dependency: PluginDependencyManifest,
+        operation: PluginBatchOperation,
+    ) -> list[PluginDependencyPlanBlocker]:
+        """
+        检查单个依赖的阻塞项。
+
+        :param manifest: 插件清单
+        :param dependency: 插件依赖声明
+        :param operation: 批量操作类型
+        :return: 依赖阻塞项列表
+        """
+        discovered_dependency = self.discovered_plugin_map.get(dependency.id)
+        if not discovered_dependency:
+            return []
+
+        database_dependency = self.database_plugin_map.get(dependency.id)
+        source_version = discovered_dependency.manifest.version
+        installed_version = getattr(database_dependency, 'installed_version', None)
+
+        if not PluginDependencyVersionMatcher.is_satisfied(source_version, dependency.version):
+            return [
+                self._build_blocker(
+                    manifest.id,
+                    dependency.id,
+                    'source_version_unsatisfied',
+                    f'依赖插件源码版本不满足：{dependency.id} source={source_version} required={dependency.version}',
                 )
-                continue
-            if operation == 'install':
-                if database_dependency and not PluginStateResolver.is_database_plugin_enabled(database_dependency):
-                    blockers.append(
-                        self._build_blocker(
-                            manifest.id,
-                            dependency.id,
-                            'disabled',
-                            f'依赖插件未启用：{dependency.id}',
-                        )
-                    )
-                    continue
-                continue
-            if not database_dependency or not installed_version:
-                blockers.append(
-                    self._build_blocker(
-                        manifest.id,
-                        dependency.id,
-                        'not_installed',
-                        f'依赖插件未安装：{dependency.id}',
-                    )
-                )
-                continue
-            if operation == 'enable' and not PluginDependencyVersionMatcher.is_satisfied(
-                installed_version,
-                dependency.version,
-            ):
-                blockers.append(
-                    self._build_blocker(
-                        manifest.id,
-                        dependency.id,
-                        'version_unsatisfied',
-                        (
-                            f'依赖插件版本不满足：{dependency.id} '
-                            f'installed={installed_version} required={dependency.version}'
-                        ),
-                    )
-                )
-                continue
-            if operation == 'upgrade' and not PluginStateResolver.is_database_plugin_enabled(database_dependency):
-                blockers.append(
+            ]
+
+        if operation == 'install':
+            if database_dependency and not PluginStateResolver.is_database_plugin_enabled(database_dependency):
+                return [
                     self._build_blocker(
                         manifest.id,
                         dependency.id,
                         'disabled',
                         f'依赖插件未启用：{dependency.id}',
                     )
-                )
+                ]
+            return []
 
-        return blockers
+        if not database_dependency or not installed_version:
+            return [
+                self._build_blocker(
+                    manifest.id,
+                    dependency.id,
+                    'not_installed',
+                    f'依赖插件未安装：{dependency.id}',
+                )
+            ]
+
+        if operation == 'enable' and not PluginDependencyVersionMatcher.is_satisfied(
+            installed_version,
+            dependency.version,
+        ):
+            return [
+                self._build_blocker(
+                    manifest.id,
+                    dependency.id,
+                    'version_unsatisfied',
+                    (
+                        f'依赖插件版本不满足：{dependency.id} '
+                        f'installed={installed_version} required={dependency.version}'
+                    ),
+                )
+            ]
+
+        if operation == 'upgrade' and not PluginStateResolver.is_database_plugin_enabled(database_dependency):
+            return [
+                self._build_blocker(
+                    manifest.id,
+                    dependency.id,
+                    'disabled',
+                    f'依赖插件未启用：{dependency.id}',
+                )
+            ]
+
+        return []
 
     @staticmethod
     def _build_blocker(

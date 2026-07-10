@@ -127,16 +127,6 @@ class PluginSeedRunner:
             label='seed',
         )
 
-    @staticmethod
-    def _split_sql_statements(sql_content: str) -> list[str]:
-        """
-        将 SQL seed 内容拆分为语句列表。
-
-        :param sql_content: SQL 文件内容
-        :return: SQL 语句列表
-        """
-        return PluginLifecycleScriptHelper.split_sql_statements(sql_content)
-
     @classmethod
     def _filter_current_database_seeds(cls, seed_paths: list[str]) -> list[str]:
         """

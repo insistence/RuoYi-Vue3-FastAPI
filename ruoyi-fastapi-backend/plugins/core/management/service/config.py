@@ -6,6 +6,7 @@ from plugins.core.management.entity.vo.schemas import PluginConfigModel, PluginC
 from plugins.core.manifest.schema import PluginConfigItemManifest
 from plugins.core.types import PluginConfigValue
 from utils.crypto_util import CryptoUtil
+from utils.log_util import logger
 
 
 class PluginConfigManager:
@@ -177,9 +178,13 @@ class PluginConfigManager:
             return []
         try:
             options = json.loads(value)
-        except json.JSONDecodeError:
-            return []
-        return cast('list[dict[str, PluginConfigValue]]', options) if isinstance(options, list) else []
+        except json.JSONDecodeError as exc:
+            logger.warning(f'插件配置选项 JSON 解析失败：{exc}')
+            return [{'parseError': '配置选项 JSON 解析失败'}]
+        if not isinstance(options, list):
+            logger.warning('插件配置选项 JSON 内容不是数组')
+            return [{'parseError': '配置选项 JSON 内容不是数组'}]
+        return cast('list[dict[str, PluginConfigValue]]', options)
 
     @classmethod
     def validate_update_value(cls, item: PluginConfigItemManifest, value: PluginConfigValue) -> None:

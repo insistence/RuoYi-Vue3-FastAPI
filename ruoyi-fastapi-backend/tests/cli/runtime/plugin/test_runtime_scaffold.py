@@ -167,7 +167,7 @@ def test_plugin_runtime_create_plugin_generates_checkable_template(tmp_path: Pat
     runtime = build_runtime(backend_root)
 
     create_payload = runtime.create_plugin('demo')
-    check_payload = runtime.check_plugin('demo')
+    check_payload = runtime.core_runtime.check_plugin('demo')
 
     assert create_payload['ok'] is True
     assert check_payload['ok'] is True
@@ -205,7 +205,7 @@ def test_plugin_runtime_create_plugin_supports_optional_scaffold_parts(tmp_path:
         config=False,
         test=False,
     )
-    check_payload = runtime.check_plugin('demo')
+    check_payload = runtime.core_runtime.check_plugin('demo')
 
     assert create_payload['ok'] is True
     assert create_payload['frontend'] is False
@@ -237,7 +237,7 @@ def test_plugin_runtime_create_plugin_supports_minimal_template(tmp_path: Path) 
     runtime = build_runtime(backend_root)
 
     create_payload = runtime.create_plugin('demo', template='minimal')
-    check_payload = runtime.check_plugin('demo')
+    check_payload = runtime.core_runtime.check_plugin('demo')
 
     assert create_payload['ok'] is True
     assert create_payload['template'] == 'minimal'
@@ -267,7 +267,7 @@ def test_plugin_runtime_create_plugin_supports_scheduled_job_template(tmp_path: 
     runtime = build_runtime(backend_root)
 
     create_payload = runtime.create_plugin('demo', template='scheduled-job')
-    check_payload = runtime.check_plugin('demo')
+    check_payload = runtime.core_runtime.check_plugin('demo')
 
     assert create_payload['ok'] is True
     assert create_payload['template'] == 'scheduled-job'
@@ -295,7 +295,7 @@ def test_plugin_runtime_create_plugin_supports_crud_page_template(tmp_path: Path
     runtime = build_runtime(backend_root)
 
     create_payload = runtime.create_plugin('demo', template='crud-page')
-    check_payload = runtime.check_plugin('demo')
+    check_payload = runtime.core_runtime.check_plugin('demo')
 
     assert create_payload['ok'] is True
     assert create_payload['template'] == 'crud-page'

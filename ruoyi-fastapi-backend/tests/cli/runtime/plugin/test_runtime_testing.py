@@ -210,6 +210,42 @@ def test_plugin_runtime_test_plugin_reports_missing_test_dir(tmp_path: Path) -> 
     ]
 
 
+def test_plugin_runtime_test_plugin_rejects_unsafe_plugin_id(tmp_path: Path) -> None:
+    """
+    校验插件测试命令拒绝可逃逸测试目录的插件ID。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    escaped_target = tmp_path / 'external_tests'
+    escaped_target.mkdir()
+    gateway = FakePluginRuntimeGateway()
+
+    result = build_runtime_with_gateway(backend_root, gateway).test_plugin(str(escaped_target))
+
+    assert result['ok'] is False
+    assert '插件ID必须' in str(result['error'])
+    assert gateway.commands == []
+
+
+def test_plugin_runtime_test_plugin_rejects_hyphenated_plugin_id(tmp_path: Path) -> None:
+    """
+    校验插件测试命令短期拒绝带短横线的插件 ID，保持与脚手架规则一致。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    gateway = FakePluginRuntimeGateway()
+
+    result = build_runtime_with_gateway(backend_root, gateway).test_plugin('demo-plugin')
+
+    assert result['ok'] is False
+    assert '只能包含小写字母、数字和下划线' in str(result['error'])
+    assert gateway.commands == []
+
+
 def test_plugin_runtime_test_plugin_reports_pytest_failure(tmp_path: Path) -> None:
     """
     校验 pytest 返回失败时插件测试命令返回失败负载。

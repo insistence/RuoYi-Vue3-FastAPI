@@ -9,7 +9,12 @@ BACKEND_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from common.constant import LockConstant  # noqa: E402
-from plugins.core.runtime.application import PluginApplicationRuntime  # noqa: E402
+from plugins.core.management.service.startup_gateway import (  # noqa: E402
+    PluginManagementRouteStateGateway,
+    PluginManagementStartupGateway,
+)
+from plugins.core.runtime.application import PluginApplicationRuntime, get_plugin_application_runtime  # noqa: E402
+from plugins.core.runtime.startup_gateway import UnavailablePluginStartupManagementGateway  # noqa: E402
 
 
 class FakeRedis:
@@ -87,6 +92,29 @@ def test_plugin_application_runtime_binds_startup_manager() -> None:
 
     assert app.state.plugin_application_runtime is runtime
     startup_manager.bind_app.assert_called_once_with(app)
+
+
+def test_plugin_application_runtime_default_startup_manager_uses_runtime_port_only() -> None:
+    """
+    校验应用插件运行时默认不装配 management 具体适配器。
+
+    :return: None
+    """
+    runtime = PluginApplicationRuntime()
+
+    assert isinstance(runtime.startup_manager.management_gateway, UnavailablePluginStartupManagementGateway)
+
+
+def test_plugin_application_runtime_global_getter_uses_management_adapters() -> None:
+    """
+    校验应用全局插件运行时完成管理适配器装配。
+
+    :return: None
+    """
+    runtime = get_plugin_application_runtime()
+
+    assert isinstance(runtime.startup_manager.management_gateway, PluginManagementStartupGateway)
+    assert isinstance(runtime.startup_manager.route_state_gateway, PluginManagementRouteStateGateway)
 
 
 def test_prepare_metadata_delegates_builtin_entity_import() -> None:

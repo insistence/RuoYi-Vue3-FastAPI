@@ -285,9 +285,11 @@ class AiChatService:
         :return: 对话响应流
         """
         ai_model = await AiModelDao.get_ai_model_detail_by_id(query_db, chat_req.model_id)
-        model_config = AiModelModel(**CamelCaseUtil.transform_result(ai_model)) if ai_model else AiModelModel()
-        if not model_config:
+        if ai_model is None:
             raise ServiceException(message='模型不存在')
+        model_config = AiModelModel(**CamelCaseUtil.transform_result(ai_model))
+        if model_config.status != '0':
+            raise ServiceException(message='模型已停用')
 
         user_config = await cls.ai_chat_config_detail_services(query_db, user_id)
 

@@ -80,6 +80,10 @@ class PluginBatchRunPayload(PluginPayloadModel):
 
     ok: bool | None = None
     message: str
+    operation: str | None = None
+    database_available: bool | None = Field(default=None, alias='databaseAvailable')
+    database_error: str | None = Field(default=None, alias='databaseError')
+    plan: dict[str, object] | None = None
     dry_run: bool = Field(alias='dryRun')
     continue_on_error: bool = Field(alias='continueOnError')
     executed: list[dict[str, object]]

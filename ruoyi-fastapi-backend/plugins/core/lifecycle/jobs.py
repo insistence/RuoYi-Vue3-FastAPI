@@ -10,6 +10,7 @@ from module_admin.entity.vo.job_vo import JobModel
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.manifest.schema import PluginJobManifest
+from plugins.core.utils import escape_sql_like
 
 
 class PluginJobModelBuilder:
@@ -34,6 +35,7 @@ class PluginJobModelBuilder:
         :param enabled: 任务是否启用
         :return: 系统定时任务模型
         """
+        cls._validate_callable_belongs_to_plugin(plugin_id, job.callable)
         return JobModel(
             jobName=cls.build_job_name(plugin_id, job.id),
             jobGroup=cls.JOB_GROUP,
@@ -49,6 +51,22 @@ class PluginJobModelBuilder:
             updateBy='plugin',
             remark=cls.build_remark(plugin_id, job),
         )
+
+    @classmethod
+    def _validate_callable_belongs_to_plugin(cls, plugin_id: str, callable_path: str) -> None:
+        """
+        校验插件任务 callable 模块归属。
+
+        定时任务由系统调度器直接 importlib 导入执行，需在此二次校验模块前缀归属，
+        与 PluginManifest 清单校验形成防御纵深。
+
+        :param plugin_id: 插件ID
+        :param callable_path: 任务调用目标
+        :return: None
+        """
+        expected_prefix = f'plugins.{plugin_id}.'
+        if not callable_path.startswith(expected_prefix):
+            raise ValueError(f'插件任务 callable 必须归属当前插件模块（{expected_prefix}）：{callable_path}')
 
     @classmethod
     def build_job_name(cls, plugin_id: str, job_id: str) -> str:
@@ -119,8 +137,9 @@ class PluginJobRepository:
         :param job_name_prefix: 任务名称前缀
         :return: None
         """
+        escaped_prefix = escape_sql_like(job_name_prefix)
         await self.query_db.execute(
-            update(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%')).values(status='1')
+            update(SysJob).where(SysJob.job_name.like(f'{escaped_prefix}%', escape='\\')).values(status='1')
         )
 
     async def count_jobs_by_name_prefix(self, job_name_prefix: str) -> int:
@@ -130,9 +149,10 @@ class PluginJobRepository:
         :param job_name_prefix: 任务名称前缀
         :return: 定时任务数量
         """
+        escaped_prefix = escape_sql_like(job_name_prefix)
         job_count = (
             await self.query_db.execute(
-                select(func.count()).select_from(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%'))
+                select(func.count()).select_from(SysJob).where(SysJob.job_name.like(f'{escaped_prefix}%', escape='\\'))
             )
         ).scalar_one()
 
@@ -145,7 +165,8 @@ class PluginJobRepository:
         :param job_name_prefix: 任务名称前缀
         :return: None
         """
-        await self.query_db.execute(delete(SysJob).where(SysJob.job_name.like(f'{job_name_prefix}%')))
+        escaped_prefix = escape_sql_like(job_name_prefix)
+        await self.query_db.execute(delete(SysJob).where(SysJob.job_name.like(f'{escaped_prefix}%', escape='\\')))
 
     async def pause_plugin_jobs_except(self, enabled_plugin_ids: set[str]) -> None:
         """
@@ -154,9 +175,11 @@ class PluginJobRepository:
         :param enabled_plugin_ids: 启用插件ID集合
         :return: None
         """
-        query = update(SysJob).where(SysJob.remark.like(f'{PluginJobModelBuilder.REMARK_PREFIX}%'))
+        escaped_remark_prefix = escape_sql_like(PluginJobModelBuilder.REMARK_PREFIX)
+        query = update(SysJob).where(SysJob.remark.like(f'{escaped_remark_prefix}%', escape='\\'))
         for plugin_id in enabled_plugin_ids:
-            query = query.where(SysJob.job_name.not_like(f'{plugin_id}:%'))
+            escaped_plugin_prefix = escape_sql_like(f'{plugin_id}:')
+            query = query.where(SysJob.job_name.not_like(f'{escaped_plugin_prefix}%', escape='\\'))
         await self.query_db.execute(query.values(status='1'))
 
 

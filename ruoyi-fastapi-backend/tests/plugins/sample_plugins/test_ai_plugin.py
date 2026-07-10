@@ -8,9 +8,12 @@ PROJECT_ROOT = BACKEND_ROOT.parent
 FRONTEND_ROOT = PROJECT_ROOT / 'ruoyi-fastapi-frontend'
 sys.path.insert(0, str(BACKEND_ROOT))
 
+from exceptions.exception import ServiceException  # noqa: E402
 from plugins.ai.dao.ai_chat_dao import AiChatConfigDao  # noqa: E402
-from plugins.ai.entity.vo.ai_chat_vo import AiChatConfigModel  # noqa: E402
+from plugins.ai.dao.ai_model_dao import AiModelDao  # noqa: E402
+from plugins.ai.entity.vo.ai_chat_vo import AiChatConfigModel, AiChatRequestModel  # noqa: E402
 from plugins.ai.service.ai_chat_service import AiChatService  # noqa: E402
+from plugins.ai.utils.ai_util import AiUtil  # noqa: E402
 from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
 from plugins.core.discovery.scanner import PluginScanner  # noqa: E402
 from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
@@ -211,6 +214,95 @@ async def test_ai_chat_config_detail_returns_vo_when_config_missing(monkeypatch:
 
     assert isinstance(result, AiChatConfigModel)
     assert result.num_history_runs == EXPECTED_DEFAULT_NUM_HISTORY_RUNS
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_services_rejects_missing_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    校验 AI 对话在模型不存在时直接返回明确业务异常。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+
+    async def fake_get_ai_model_detail_by_id(*_args: object, **_kwargs: object) -> None:
+        return None
+
+    monkeypatch.setattr(AiModelDao, 'get_ai_model_detail_by_id', fake_get_ai_model_detail_by_id)
+
+    stream = AiChatService.chat_services(
+        query_db=object(),
+        chat_req=AiChatRequestModel(modelId=404, message='hi'),
+        user_id=1,
+    )
+
+    with pytest.raises(ServiceException) as exc_info:
+        await anext(stream)
+    assert exc_info.value.message == '模型不存在'
+
+
+@pytest.mark.asyncio
+async def test_ai_chat_services_rejects_disabled_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    校验 AI 对话不能使用已停用模型。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+
+    async def fake_get_ai_model_detail_by_id(*_args: object, **_kwargs: object) -> dict[str, object]:
+        return {
+            'model_id': 1,
+            'model_code': 'gpt-4o-mini',
+            'model_name': 'GPT',
+            'provider': 'OpenAI',
+            'api_key': 'encrypted',
+            'status': '1',
+            'support_reasoning': 'N',
+            'support_images': 'N',
+        }
+
+    monkeypatch.setattr(AiModelDao, 'get_ai_model_detail_by_id', fake_get_ai_model_detail_by_id)
+
+    stream = AiChatService.chat_services(
+        query_db=object(),
+        chat_req=AiChatRequestModel(modelId=1, message='hi'),
+        user_id=1,
+    )
+
+    with pytest.raises(ServiceException) as exc_info:
+        await anext(stream)
+    assert exc_info.value.message == '模型已停用'
+
+
+def test_ai_model_factory_rejects_unknown_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    校验未知 AI provider 不会静默回退到 OpenAI。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+
+    class FakeModel:
+        """
+        测试用模型类。
+        """
+
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+    def fake_resolve_provider_class(cls: type[AiUtil], provider: str) -> type[FakeModel] | None:
+        return FakeModel if provider == 'OpenAI' else None
+
+    monkeypatch.setattr(AiUtil, '_resolve_provider_class', classmethod(fake_resolve_provider_class))
+
+    with pytest.raises(ValueError, match='未知AI模型提供商'):
+        AiUtil.get_model_from_factory(
+            provider='UnknownAI',
+            model_code='demo',
+            model_name='Demo',
+            api_key='secret',
+        )
 
 
 def test_ai_plugin_model_factory_blocks_private_base_url() -> None:

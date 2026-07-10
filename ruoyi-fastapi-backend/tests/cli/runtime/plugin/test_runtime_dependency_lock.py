@@ -107,6 +107,26 @@ def test_plugin_runtime_lock_dependencies_rejects_existing_file_without_overwrit
     assert lockfile_path.read_text(encoding='utf-8') == 'plugin: existing\n'
 
 
+def test_plugin_runtime_lock_dependencies_rejects_output_path_escape(tmp_path: Path) -> None:
+    """
+    校验插件依赖锁文件输出路径不能逃逸后端项目根目录。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    runtime = build_runtime(backend_root)
+    runtime.create_plugin('demo', frontend=True, dry_run=False)
+    write_demo_dependency_manifest(backend_root)
+    escaped_lockfile = tmp_path / 'escaped.lock.yaml'
+
+    payload = runtime.lock_plugin_dependencies('demo', output_path='../escaped.lock.yaml')
+
+    assert payload['ok'] is False
+    assert '输出路径' in str(payload['error'])
+    assert escaped_lockfile.exists() is False
+
+
 def test_plugin_runtime_lock_dependencies_fills_lockfile_from_offline_artifacts(tmp_path: Path) -> None:
     """
     校验锁文件模板可以从本地离线制品反填版本和完整性校验值。
@@ -137,6 +157,38 @@ def test_plugin_runtime_lock_dependencies_fills_lockfile_from_offline_artifacts(
     assert lockfile['npm'][0]['resolvedVersion'] == '1.11.19'
     expected_integrity = base64.b64encode(hashlib.sha512(b'tgz').digest()).decode('ascii')
     assert lockfile['npm'][0]['integrity'] == f'sha512-{expected_integrity}'
+
+
+def test_plugin_runtime_lock_dependencies_filters_offline_artifacts_by_requirement(tmp_path: Path) -> None:
+    """
+    校验多个离线制品中只有一个满足版本声明时可以自动匹配。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    backend_root = tmp_path / 'backend'
+    runtime = build_runtime(backend_root)
+    runtime.create_plugin('demo', frontend=True, dry_run=False)
+    write_demo_dependency_manifest(backend_root)
+    offline_dir = tmp_path / 'artifacts'
+    old_python_artifact = offline_dir / 'python' / 'openai-1.9.0-py3-none-any.whl'
+    valid_python_artifact = offline_dir / 'python' / 'openai-2.17.0-py3-none-any.whl'
+    old_npm_artifact = offline_dir / 'npm' / 'dayjs-0.9.0.tgz'
+    valid_npm_artifact = offline_dir / 'npm' / 'dayjs-1.11.19.tgz'
+    valid_python_artifact.parent.mkdir(parents=True)
+    valid_npm_artifact.parent.mkdir(parents=True)
+    old_python_artifact.write_bytes(b'old-wheel')
+    valid_python_artifact.write_bytes(b'wheel')
+    old_npm_artifact.write_bytes(b'old-tgz')
+    valid_npm_artifact.write_bytes(b'tgz')
+
+    payload = runtime.lock_plugin_dependencies('demo', dry_run=True, offline_dir=str(offline_dir))
+
+    assert payload['ok'] is True
+    assert payload['warnings'] == []
+    lockfile = yaml.safe_load(payload['lockfile'])
+    assert lockfile['python'][0]['resolvedVersion'] == '2.17.0'
+    assert lockfile['npm'][0]['resolvedVersion'] == '1.11.19'
 
 
 def test_plugin_runtime_lock_dependencies_warns_when_offline_artifact_missing(tmp_path: Path) -> None:

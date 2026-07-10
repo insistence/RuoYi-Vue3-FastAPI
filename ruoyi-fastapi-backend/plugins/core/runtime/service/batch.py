@@ -180,6 +180,9 @@ class PluginBatchUseCase:
         """
         生成插件批量操作拓扑计划。
 
+        .. note:: 本方法内部以同步方式读取数据库，禁止在异步上下文中调用，
+            异步场景请使用 :meth:`plan_plugins_async`。
+
         :param operation: 批量操作类型
         :param plugin_ids: 插件ID列表
         :return: 插件批量操作拓扑计划负载
@@ -239,23 +242,11 @@ class PluginBatchUseCase:
                 plugin_ids,
             )
             payload = PluginPayloadBuilder.build_plan_payload(plan, database_error)
-            blocked_operation = f'batch_{operation}'
-            capability_blockers = []
-            target_plugin_ids = set(plugin_ids or plan.requested_plugin_ids)
-            for discovered_plugin in discovered_plugins:
-                if target_plugin_ids and discovered_plugin.manifest.id not in target_plugin_ids:
-                    continue
-                capability = self._resolve_plugin_capability(discovered_plugin)
-                if capability.allows(blocked_operation):
-                    continue
-                capability_blockers.append(
-                    {
-                        'pluginId': discovered_plugin.manifest.id,
-                        'operation': blocked_operation,
-                        'message': capability.primary_reason or '当前环境不允许执行该插件操作',
-                        'capability': capability.to_payload(),
-                    }
-                )
+            capability_blockers = self._collect_capability_blockers(
+                discovered_plugins,
+                operation,
+                plugin_ids or plan.requested_plugin_ids,
+            )
             if capability_blockers:
                 payload['ok'] = False
                 payload['message'] = '插件批量操作计划存在环境阻断项'
@@ -263,6 +254,40 @@ class PluginBatchUseCase:
             return cast('PluginPlanResponse', payload)
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('生成插件批量操作计划失败', exc)
+
+    def _collect_capability_blockers(
+        self,
+        discovered_plugins: list[DiscoveredPlugin],
+        operation: PluginBatchOperation,
+        requested_plugin_ids: list[str],
+    ) -> list[dict[str, object]]:
+        """
+        收集插件能力阻断项。
+
+        :param discovered_plugins: 已发现插件列表
+        :param operation: 批量操作类型
+        :param requested_plugin_ids: 请求的插件ID列表
+        :return: 能力阻断项列表
+        """
+        blocked_operation = f'batch_{operation}'
+        target_plugin_ids = set(requested_plugin_ids)
+        blockers: list[dict[str, object]] = []
+        for discovered_plugin in discovered_plugins:
+            if target_plugin_ids and discovered_plugin.manifest.id not in target_plugin_ids:
+                continue
+            capability = self._resolve_plugin_capability(discovered_plugin)
+            if capability.allows(blocked_operation):
+                continue
+            blockers.append(
+                {
+                    'pluginId': discovered_plugin.manifest.id,
+                    'operation': blocked_operation,
+                    'message': capability.primary_reason or '当前环境不允许执行该插件操作',
+                    'capability': capability.to_payload(),
+                }
+            )
+
+        return blockers
 
     async def batch_plugins(
         self,

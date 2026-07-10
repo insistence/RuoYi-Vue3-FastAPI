@@ -205,7 +205,6 @@ class AiUtil:
             params['base_url'] = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
         model_class = cls._resolve_provider_class(provider)
         if model_class is None:
-            # 未知提供商，回退到OpenAI
-            model_class = cls._resolve_provider_class('OpenAI')
+            raise ValueError(f'未知AI模型提供商：{provider}')
 
         return model_class(**params)

@@ -317,16 +317,18 @@ def test_record_plugin_failure_state_logs_and_swallows_persistence_error(monkeyp
     """
     logged_messages = []
 
-    class BrokenStateGateway:
+    class BrokenAuditGateway:
         """
-        测试用异常状态网关。
+        测试用异常审计网关。
         """
 
         @staticmethod
-        def get_async_session_local() -> None:
+        async def mark_plugin_error(plugin_id: str, error_message: str) -> None:
             """
-            模拟获取数据库会话失败。
+            模拟标记插件异常失败。
 
+            :param plugin_id: 插件ID
+            :param error_message: 错误信息
             :return: None
             """
             raise RuntimeError('db unavailable')
@@ -335,7 +337,7 @@ def test_record_plugin_failure_state_logs_and_swallows_persistence_error(monkeyp
         logged_messages.append(message % args)
 
     monkeypatch.setattr(audit_module.logger, 'exception', fake_exception)
-    use_case = PluginAuditUseCase(SimpleNamespace(state_gateway=BrokenStateGateway()))
+    use_case = PluginAuditUseCase(SimpleNamespace(audit_gateway=BrokenAuditGateway()))
 
     asyncio.run(use_case.record_plugin_failure_state({'ok': False, 'pluginId': 'demo'}, '失败'))
 

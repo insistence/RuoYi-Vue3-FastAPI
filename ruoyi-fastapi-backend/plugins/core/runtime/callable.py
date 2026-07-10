@@ -55,7 +55,7 @@ class PluginCallableLoader:
         module = self.import_module(module_name)
         callable_object = getattr(module, callable_name, None)
         if not callable(callable_object):
-            raise RuntimeError(f'插件{self.label}不存在或不可调用：{callable_path}')
+            raise RuntimeError(f'插件 {self.label} 不存在或不可调用：{callable_path}')
 
         return LoadedPluginCallable(
             module_name=module_name,
@@ -74,7 +74,7 @@ class PluginCallableLoader:
         if module_path == plugin_module or module_path.startswith(f'{plugin_module}.'):
             return module_path
         if module_path.startswith('plugins.'):
-            raise RuntimeError(f'{self.label}只能指向当前插件模块：{module_path}')
+            raise RuntimeError(f'{self.label} 只能指向当前插件模块：{module_path}')
 
         return f'{plugin_module}.{module_path}'
 
@@ -91,10 +91,14 @@ class PluginCallableLoader:
 
         backend_root = self.resolve_backend_root()
         backend_root_text = str(backend_root)
-        if backend_root_text not in sys.path:
+        path_inserted = backend_root_text not in sys.path
+        if path_inserted:
             sys.path.insert(0, backend_root_text)
-
-        return importlib.import_module(module_name)
+        try:
+            return importlib.import_module(module_name)
+        finally:
+            if path_inserted:
+                sys.path.remove(backend_root_text)
 
     def resolve_module_file(self, module_name: str) -> Path | None:
         """

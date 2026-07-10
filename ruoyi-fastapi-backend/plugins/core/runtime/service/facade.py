@@ -13,14 +13,20 @@ from .batch import PluginBatchUseCase
 from .config import PluginConfigUseCase
 from .context import PluginRuntimeContextService
 from .dependencies import PluginDependencyUseCase
-from .dependency_container import PluginRuntimeDependencies
+from .dependency_container import PluginRuntimeDependencies, PluginRuntimeGatewayOverrides
 from .gateway import (
     DefaultPluginCommandRunnerGateway,
     PluginCommandRunnerGateway,
     PluginManagementModelGateway,
-    PluginStateGateway,
+    UnavailablePluginAuditGateway,
+    UnavailablePluginConfigGateway,
+    UnavailablePluginLifecycleStateGateway,
+    UnavailablePluginLifecycleUnitOfWorkGateway,
     UnavailablePluginManagementModelGateway,
-    UnavailablePluginStateGateway,
+    UnavailablePluginMigrationExecutionGateway,
+    UnavailablePluginMigrationHistoryGateway,
+    UnavailablePluginPurgePlanGateway,
+    UnavailablePluginStateQueryGateway,
 )
 from .lifecycle import PluginEnableUseCase, PluginInstallUseCase, PluginPurgeUseCase, PluginUpgradeUseCase
 from .lifecycle_lock import NoopPluginLifecycleLock, PluginLifecycleLock
@@ -61,7 +67,7 @@ class PluginRuntimeService:
         *,
         runtime_environment: PluginRuntimeEnvironmentService | None = None,
         dependency_checker: PluginDependencyChecker | None = None,
-        state_gateway: PluginStateGateway | None = None,
+        gateways: PluginRuntimeGatewayOverrides | None = None,
         model_gateway: PluginManagementModelGateway | None = None,
         command_gateway: PluginCommandRunnerGateway | None = None,
         lifecycle_lock: PluginLifecycleLock | None = None,
@@ -71,7 +77,7 @@ class PluginRuntimeService:
 
         :param runtime_environment: 插件运行时环境服务
         :param dependency_checker: 插件依赖检查器
-        :param state_gateway: 插件管理状态网关
+        :param gateways: 插件运行时窄端口覆盖项
         :param model_gateway: 插件管理模型工厂网关
         :param command_gateway: 插件命令执行网关
         :param lifecycle_lock: 插件生命周期操作锁
@@ -82,11 +88,27 @@ class PluginRuntimeService:
             npm_inspector=NpmDependencyInspector(frontend_root=resolved_environment.get_frontend_dir()),
             frontend_mode=resolved_environment.get_frontend_mode(),
         )
+        gateway_overrides = gateways or PluginRuntimeGatewayOverrides()
         self._replace_dependencies(
             PluginRuntimeDependencies(
                 runtime_environment=resolved_environment,
                 dependency_checker=resolved_dependency_checker,
-                state_gateway=state_gateway or UnavailablePluginStateGateway(),
+                config_gateway=gateway_overrides.config_gateway or UnavailablePluginConfigGateway(),
+                audit_gateway=gateway_overrides.audit_gateway or UnavailablePluginAuditGateway(),
+                state_query_gateway=gateway_overrides.state_query_gateway or UnavailablePluginStateQueryGateway(),
+                migration_history_gateway=(
+                    gateway_overrides.migration_history_gateway or UnavailablePluginMigrationHistoryGateway()
+                ),
+                purge_plan_gateway=gateway_overrides.purge_plan_gateway or UnavailablePluginPurgePlanGateway(),
+                lifecycle_state_gateway=(
+                    gateway_overrides.lifecycle_state_gateway or UnavailablePluginLifecycleStateGateway()
+                ),
+                lifecycle_uow_gateway=(
+                    gateway_overrides.lifecycle_uow_gateway or UnavailablePluginLifecycleUnitOfWorkGateway()
+                ),
+                migration_execution_gateway=(
+                    gateway_overrides.migration_execution_gateway or UnavailablePluginMigrationExecutionGateway()
+                ),
                 model_gateway=model_gateway or UnavailablePluginManagementModelGateway(),
                 command_gateway=command_gateway or DefaultPluginCommandRunnerGateway(),
             )
@@ -609,6 +631,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
+        operated_by: str | None = None,
     ) -> PluginLifecycleResponse:
         """
         安装插件并按需记录审计日志。
@@ -616,6 +639,7 @@ class PluginRuntimeService:
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
         :param record_operation_log: 是否记录插件操作审计日志
+        :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件安装结果负载
         """
         return await self._run_with_lifecycle_lock(
@@ -626,6 +650,7 @@ class PluginRuntimeService:
                 plugin_id,
                 dry_run=dry_run,
                 record_operation_log=record_operation_log,
+                operated_by=operated_by,
             ),
         )
 
@@ -665,6 +690,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
+        operated_by: str | None = None,
     ) -> PluginLifecycleResponse:
         """
         安全卸载插件。
@@ -672,6 +698,7 @@ class PluginRuntimeService:
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
         :param record_operation_log: 是否记录插件操作审计日志
+        :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件卸载结果负载
         """
         return await self._run_with_lifecycle_lock(
@@ -682,6 +709,7 @@ class PluginRuntimeService:
                 plugin_id,
                 dry_run=dry_run,
                 record_operation_log=record_operation_log,
+                operated_by=operated_by,
             ),
         )
 
@@ -691,6 +719,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
+        operated_by: str | None = None,
     ) -> PluginLifecycleResponse:
         """
         物理清理插件平台元数据并按需记录审计日志。
@@ -698,6 +727,7 @@ class PluginRuntimeService:
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
         :param record_operation_log: 是否记录插件操作审计日志
+        :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件物理清理结果负载
         """
         return await self._run_with_lifecycle_lock(
@@ -708,6 +738,7 @@ class PluginRuntimeService:
                 plugin_id,
                 dry_run=dry_run,
                 record_operation_log=record_operation_log,
+                operated_by=operated_by,
             ),
         )
 
@@ -717,6 +748,7 @@ class PluginRuntimeService:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
+        operated_by: str | None = None,
     ) -> PluginLifecycleResponse:
         """
         升级插件并按需记录审计日志。
@@ -724,6 +756,7 @@ class PluginRuntimeService:
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
         :param record_operation_log: 是否记录插件操作审计日志
+        :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件升级结果负载
         """
         return await self._run_with_lifecycle_lock(
@@ -734,6 +767,7 @@ class PluginRuntimeService:
                 plugin_id,
                 dry_run=dry_run,
                 record_operation_log=record_operation_log,
+                operated_by=operated_by,
             ),
         )
 

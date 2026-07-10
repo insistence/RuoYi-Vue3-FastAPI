@@ -21,6 +21,7 @@ from .presenter import PluginCommandPresenter
 
 if TYPE_CHECKING:
     from cli.runtime.plugin.service import CliPluginRuntimeService
+    from plugins.core.runtime.service import PluginRuntimeService
 
 
 class PluginCommandController:
@@ -61,6 +62,15 @@ class PluginCommandController:
             self._plugin_runtime = importlib.import_module('cli.runtime.plugin').PLUGIN_RUNTIME
         return self._plugin_runtime
 
+    @property
+    def core_runtime(self) -> 'PluginRuntimeService':
+        """
+        获取插件核心运行时服务。
+
+        :return: 插件核心运行时服务
+        """
+        return self.plugin_runtime.core_runtime
+
     def list_plugins(self, env: str, output: str) -> None:
         """
         查看插件列表。
@@ -70,7 +80,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.plugin_runtime.list_plugins()
+        payload = self.core_runtime.list_plugins()
         self.execution_service.complete_payload_with_text(
             ctx,
             payload,
@@ -140,7 +150,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.execution_service.run_async(self.plugin_runtime.get_plugin_info_with_state(plugin_id))
+        payload = self.execution_service.run_async(self.core_runtime.get_plugin_info_with_state(plugin_id))
         self.execution_service.complete_payload_with_text(
             ctx,
             payload,
@@ -158,7 +168,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.plugin_runtime.check_plugin(plugin_id)
+        payload = self.core_runtime.check_plugin(plugin_id)
         self._complete_plugin_payload(
             ctx,
             payload,
@@ -175,7 +185,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.plugin_runtime.check_plugin_dependencies(plugin_id)
+        payload = self.core_runtime.check_plugin_dependencies(plugin_id)
         self._complete_plugin_payload(
             ctx,
             payload,
@@ -193,7 +203,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.execution_service.run_async(self.plugin_runtime.precheck_plugin_operation(plugin_id, operation))
+        payload = self.execution_service.run_async(self.core_runtime.precheck_plugin_operation(plugin_id, operation))
         self._complete_plugin_payload(
             ctx,
             payload,
@@ -210,7 +220,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.execution_service.run_async(self.plugin_runtime.health_plugin(plugin_id))
+        payload = self.execution_service.run_async(self.core_runtime.health_plugin(plugin_id))
         self._complete_plugin_payload(
             ctx,
             payload,
@@ -228,7 +238,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.execution_service.run_async(self.plugin_runtime.diagnose_plugin(plugin_id))
+        payload = self.execution_service.run_async(self.core_runtime.diagnose_plugin(plugin_id))
         if output_file.strip():
             payload = PluginCommandFileAdapter.write_json_file(
                 payload,
@@ -252,7 +262,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.plugin_runtime.generate_plugin_docs(plugin_id)
+        payload = self.core_runtime.generate_plugin_docs(plugin_id)
         if output_file.strip():
             payload = PluginCommandFileAdapter.write_markdown_file(
                 payload,
@@ -314,7 +324,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.plugin_runtime.plan_plugins(operation, plugin_ids or None)
+        payload = self.core_runtime.plan_plugins(operation, plugin_ids or None)
         self._complete_plugin_payload(
             ctx,
             payload,
@@ -355,7 +365,7 @@ class PluginCommandController:
             command_name='plugin batch',
         )
         payload = self.execution_service.run_async(
-            self.plugin_runtime.batch_plugins(
+            self.core_runtime.batch_plugins(
                 operation,
                 plugin_ids or None,
                 dry_run=dry_run,
@@ -402,8 +412,9 @@ class PluginCommandController:
             offline_dir=options.offline_dir or None,
             require_lockfile=options.require_lockfile,
         )
+        core_runtime = self.core_runtime
         if self._should_interactive_confirm_dependency_install(ctx, options):
-            preview_payload = self.plugin_runtime.install_plugin_dependencies(
+            preview_payload = core_runtime.install_plugin_dependencies(
                 plugin_id,
                 dry_run=True,
                 policy_config=policy_config,
@@ -411,7 +422,7 @@ class PluginCommandController:
             )
             preview_payload['env'] = ctx.env
             if self._dependency_install_policy_blocked(preview_payload):
-                payload = self.plugin_runtime.install_plugin_dependencies(
+                payload = core_runtime.install_plugin_dependencies(
                     plugin_id,
                     dry_run=False,
                     policy_config=policy_config,
@@ -437,7 +448,7 @@ class PluginCommandController:
         else:
             confirmed = options.yes
 
-        payload = self.plugin_runtime.install_plugin_dependencies(
+        payload = core_runtime.install_plugin_dependencies(
             plugin_id,
             dry_run=options.dry_run,
             policy_config=policy_config,
@@ -662,7 +673,7 @@ class PluginCommandController:
             dry_run,
             command_name='plugin install',
         )
-        payload = self.execution_service.run_async(self.plugin_runtime.install_plugin(plugin_id, dry_run=dry_run))
+        payload = self.execution_service.run_async(self.core_runtime.install_plugin(plugin_id, dry_run=dry_run))
         payload['env'] = ctx.env
         self._complete_plugin_payload(
             ctx,
@@ -699,7 +710,7 @@ class PluginCommandController:
             dry_run,
             command_name='plugin upgrade',
         )
-        payload = self.execution_service.run_async(self.plugin_runtime.upgrade_plugin(plugin_id, dry_run=dry_run))
+        payload = self.execution_service.run_async(self.core_runtime.upgrade_plugin(plugin_id, dry_run=dry_run))
         payload['env'] = ctx.env
         self._complete_plugin_payload(
             ctx,
@@ -740,7 +751,7 @@ class PluginCommandController:
             command_name=command_name,
         )
         payload = self.execution_service.run_async(
-            self.plugin_runtime.set_plugin_enabled(plugin_id, enabled=enabled, dry_run=dry_run)
+            self.core_runtime.set_plugin_enabled(plugin_id, enabled=enabled, dry_run=dry_run)
         )
         payload['env'] = ctx.env
         self._complete_plugin_payload(
@@ -778,7 +789,7 @@ class PluginCommandController:
             dry_run,
             command_name='plugin uninstall',
         )
-        payload = self.execution_service.run_async(self.plugin_runtime.uninstall_plugin(plugin_id, dry_run=dry_run))
+        payload = self.execution_service.run_async(self.core_runtime.uninstall_plugin(plugin_id, dry_run=dry_run))
         payload['env'] = ctx.env
         self._complete_plugin_payload(
             ctx,
@@ -815,7 +826,7 @@ class PluginCommandController:
             dry_run,
             command_name='plugin purge',
         )
-        payload = self.execution_service.run_async(self.plugin_runtime.purge_plugin(plugin_id, dry_run=dry_run))
+        payload = self.execution_service.run_async(self.core_runtime.purge_plugin(plugin_id, dry_run=dry_run))
         payload['env'] = ctx.env
         self._complete_plugin_payload(
             ctx,
@@ -834,7 +845,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.execution_service.run_async(self.plugin_runtime.list_plugin_migrations(plugin_id, status))
+        payload = self.execution_service.run_async(self.core_runtime.list_plugin_migrations(plugin_id, status))
         self._complete_plugin_payload(
             ctx,
             payload,
@@ -873,7 +884,7 @@ class PluginCommandController:
             command_name='plugin mark-success',
         )
         payload = self.execution_service.run_async(
-            self.plugin_runtime.mark_plugin_migration_success(plugin_id, migration_path, note=note or None)
+            self.core_runtime.mark_plugin_migration_success(plugin_id, migration_path, note=note or None)
         )
         payload['env'] = ctx.env
         self._complete_plugin_payload(
@@ -914,7 +925,7 @@ class PluginCommandController:
             command_name='plugin mark-failed',
         )
         payload = self.execution_service.run_async(
-            self.plugin_runtime.mark_plugin_migration_failed(plugin_id, migration_path, note=note or None)
+            self.core_runtime.mark_plugin_migration_failed(plugin_id, migration_path, note=note or None)
         )
         payload['env'] = ctx.env
         self._complete_plugin_payload(
@@ -1012,7 +1023,7 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.execution_service.run_async(self.plugin_runtime.get_plugin_config(plugin_id))
+        payload = self.execution_service.run_async(self.core_runtime.get_plugin_config(plugin_id))
         self._complete_plugin_payload(
             ctx,
             payload,
@@ -1055,7 +1066,7 @@ class PluginCommandController:
             else self.context_factory.build_readonly(env, output)
         )
         payload = self.execution_service.run_async(
-            self.plugin_runtime.export_plugin_config(plugin_id, reveal_secret=reveal_secret)
+            self.core_runtime.export_plugin_config(plugin_id, reveal_secret=reveal_secret)
         )
         if output_file.strip():
             payload = PluginCommandFileAdapter.write_json_file(
@@ -1109,7 +1120,7 @@ class PluginCommandController:
             )
             return
         payload = self.execution_service.run_async(
-            self.plugin_runtime.import_plugin_config(plugin_id, values_payload.get('values', {}))
+            self.core_runtime.import_plugin_config(plugin_id, values_payload.get('values', {}))
         )
         payload['env'] = ctx.env
         self._complete_plugin_payload(
@@ -1147,8 +1158,17 @@ class PluginCommandController:
             dry_run=False,
             command_name='plugin config set',
         )
-        values = self._parse_config_pairs(pairs)
-        payload = self.execution_service.run_async(self.plugin_runtime.set_plugin_config(plugin_id, values))
+        try:
+            values = self._parse_config_pairs(pairs)
+        except ValueError as exc:
+            self.execution_service.complete_payload_with_text(
+                ctx,
+                {'ok': False, 'message': str(exc), 'pluginId': plugin_id},
+                text_builder=self.presenter.build_config_text,
+                default_exit_code=ARGUMENT_ERROR,
+            )
+            return
+        payload = self.execution_service.run_async(self.core_runtime.set_plugin_config(plugin_id, values))
         payload['env'] = ctx.env
         self._complete_plugin_payload(
             ctx,

@@ -22,7 +22,7 @@ from plugins.core.validation.structure import PluginStructureChecker
 from utils.log_util import logger
 
 from .dependency_container import PluginRuntimeDependencies
-from .migration_store import PluginDatabaseMigrationHistoryStore
+from .migration_store import PluginMigrationHistoryGatewayStore
 from .responses import PluginRuntimeBlockedPayload, PluginRuntimeBlockedPayloadDict
 
 PLUGIN_DISCOVERY_CACHE_TTL_SECONDS = 2.0
@@ -91,11 +91,7 @@ class PluginRuntimeContextService:
         :return: 数据库插件状态和错误信息
         """
         try:
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                return await plugin_service.plugin_detail_services(session, plugin_id), None
+            return await self.dependencies.state_query_gateway.get_plugin_state(plugin_id), None
         except Exception as exc:
             logger.exception(f'读取数据库插件状态失败：{plugin_id}，{exc}')
             return None, str(exc)
@@ -107,11 +103,7 @@ class PluginRuntimeContextService:
         :return: 数据库插件状态列表和错误信息
         """
         try:
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                return await plugin_service.get_plugin_list_services(session), None
+            return await self.dependencies.state_query_gateway.list_plugin_states(), None
         except Exception as exc:
             logger.exception(f'读取数据库插件状态列表失败：{exc}')
             return [], str(exc)
@@ -306,20 +298,11 @@ class PluginRuntimeContextService:
         if not discovered_plugin.manifest.backend.migrations and not discovered_plugin.manifest.backend.seeds:
             return manifest_result
         try:
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                migration_runner = PluginMigrationRunner(
-                    discovered_plugin,
-                    PluginDatabaseMigrationHistoryStore.with_model_gateway(
-                        plugin_service,
-                        self.dependencies.model_gateway,
-                    ),
-                )
-                script_result = await PluginLifecycleScriptPrechecker(discovered_plugin, migration_runner).check(
-                    session
-                )
+            migration_runner = PluginMigrationRunner(
+                discovered_plugin,
+                PluginMigrationHistoryGatewayStore(self.dependencies.migration_history_gateway),
+            )
+            script_result = await PluginLifecycleScriptPrechecker(discovered_plugin, migration_runner).check(object())
         except Exception as exc:
             logger.exception(f'插件生命周期脚本预检失败：{discovered_plugin.manifest.id}，{exc}')
             return PluginManifestCheckResult(

@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, cast
 
-from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.support import (
     PluginEnablePayloadBuilder,
     PluginLifecyclePayloadBuilder,
@@ -11,11 +12,18 @@ from plugins.core.runtime.support import (
     PluginRuntimePayloadBuilder,
 )
 
-from ..context import PluginRuntimeContextService
-from ..dependency_container import PluginRuntimeDependencies
-from ..responses import PluginLifecycleResponse, PluginRuntimeBlockedPayloadDict
-from .operations import PluginLifecycleRuntimeOperations
+from .common import PluginLifecycleUseCaseSupport
 from .runner import PluginLifecycleStep, PluginLifecycleStepFailed, PluginLifecycleStepRunner
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from plugins.core.discovery.scanner import DiscoveredPlugin
+
+    from ..context import PluginRuntimeContextService
+    from ..dependency_container import PluginRuntimeDependencies
+    from ..responses import PluginLifecycleResponse
+    from .operations import PluginLifecycleRuntimeOperations
 
 
 @dataclass(slots=True)
@@ -34,10 +42,10 @@ class PluginEnabledLifecycleContext:
     precheck: PluginPrecheckContext | None = None
     actions: list[dict[str, object]] | None = None
     dependency_payload: dict[str, object] | None = None
-    response: Any | None = None
-    session: Any | None = None
-    plugin_service: Any | None = None
-    session_context: Any | None = None
+    response: dict[str, object] | None = None
+    session: AsyncSession | None = None
+    plugin_service: object | None = None
+    session_context: object | None = None
 
 
 @dataclass(slots=True)
@@ -54,13 +62,13 @@ class PluginUninstallLifecycleContext:
     precheck: PluginPrecheckContext | None = None
     actions: list[dict[str, object]] | None = None
     dependency_payload: dict[str, object] | None = None
-    response: Any | None = None
-    session: Any | None = None
-    plugin_service: Any | None = None
-    session_context: Any | None = None
+    response: dict[str, object] | None = None
+    session: AsyncSession | None = None
+    plugin_service: object | None = None
+    session_context: object | None = None
 
 
-class PluginEnableUseCase:
+class PluginEnableUseCase(PluginLifecycleUseCaseSupport):
     """
     插件启停和安全卸载 use case。
     """
@@ -81,71 +89,6 @@ class PluginEnableUseCase:
         self.dependencies = dependencies
         self.runtime_operations = runtime_operations
         self.context = context
-
-    def _get_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
-        """
-        根据插件 ID 获取已发现插件。
-
-        :param plugin_id: 插件ID
-        :return: 已发现插件对象
-        """
-        return self.context.get_discovered_plugin(plugin_id)
-
-    def _discover_plugins(self, backend_root: Path) -> list[DiscoveredPlugin]:
-        """
-        发现本地插件。
-
-        :param backend_root: 后端项目根目录
-        :return: 已发现插件列表
-        """
-        return self.context.discover_plugins(backend_root)
-
-    def _get_discovered_plugin_from_list(
-        self,
-        discovered_plugins: list[DiscoveredPlugin],
-        plugin_id: str,
-    ) -> DiscoveredPlugin | None:
-        """
-        从已发现插件列表中查找指定插件。
-
-        :param discovered_plugins: 已发现插件列表
-        :param plugin_id: 插件ID
-        :return: 已发现插件对象
-        """
-        return self.context.get_discovered_plugin_from_list(discovered_plugins, plugin_id)
-
-    def _build_operation_blocked_payload(
-        self,
-        discovered_plugin: DiscoveredPlugin,
-        operation: str,
-        *,
-        dry_run: bool | None = None,
-    ) -> PluginRuntimeBlockedPayloadDict | None:
-        """
-        构建运行模式阻断负载。
-
-        :param discovered_plugin: 已发现插件
-        :param operation: 操作类型
-        :param dry_run: 是否预演
-        :return: 阻断负载，不阻断时返回 None
-        """
-        return self.context.build_operation_blocked_payload(discovered_plugin, operation, dry_run=dry_run)
-
-    async def _build_precheck_context(
-        self,
-        backend_root: Path,
-        discovered_plugin: DiscoveredPlugin,
-        discovered_plugins: list[DiscoveredPlugin],
-    ) -> PluginPrecheckContext:
-        """
-        构建插件操作预检上下文。
-
-        :param backend_root: 后端项目根目录
-        :param discovered_plugin: 当前插件
-        :param discovered_plugins: 已发现插件列表
-        :return: 插件操作预检上下文
-        """
-        return await self.context.build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
 
     async def _build_enabled_dependents_payload(
         self,
@@ -219,25 +162,7 @@ class PluginEnableUseCase:
         return [
             PluginLifecycleStep('check_enabled_dependents', self._enabled_step_check_enabled_dependents),
             PluginLifecycleStep('update_enabled_state', self._enabled_step_update_enabled_state),
-            PluginLifecycleStep('commit', self._enabled_step_commit),
         ]
-
-    def _with_plugin_capability(
-        self,
-        payload: PluginLifecycleResponse,
-        discovered_plugin: DiscoveredPlugin | None,
-    ) -> PluginLifecycleResponse:
-        """
-        为运行时响应负载附加插件操作能力。
-
-        :param payload: 运行时响应负载
-        :param discovered_plugin: 已发现插件
-        :return: 附加能力后的响应负载
-        """
-        return cast(
-            'PluginLifecycleResponse',
-            self.context.with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
-        )
 
     async def set_plugin_enabled(
         self,
@@ -331,8 +256,6 @@ class PluginEnableUseCase:
                 [
                     PluginLifecycleStep('build_precheck', self._enabled_step_build_precheck),
                     PluginLifecycleStep('update_enabled_state', self._enabled_step_update_enabled_state),
-                    PluginLifecycleStep('install_menus', self._enabled_step_install_menus),
-                    PluginLifecycleStep('commit', self._enabled_step_commit),
                 ]
             )
 
@@ -458,13 +381,7 @@ class PluginEnableUseCase:
         :param context: 插件启停上下文
         :return: 更新失败 payload 或 None
         """
-        gateway = self.dependencies.state_gateway
-        async_session_local = gateway.get_async_session_local()
-        context.session_context = async_session_local()
-        context.session = await context.session_context.__aenter__()
-        context.plugin_service = gateway.get_plugin_service()
-        context.response = await context.plugin_service.update_plugin_enabled_services(
-            context.session,
+        context.response = await self.dependencies.lifecycle_state_gateway.set_plugin_enabled_state(
             context.plugin_id,
             context.enabled,
             context.discovered_plugin,
@@ -476,40 +393,6 @@ class PluginEnableUseCase:
                 enabled=context.enabled,
                 message=context.response.message,
             )
-
-        return None
-
-    async def _enabled_step_install_menus(
-        self,
-        context: PluginEnabledLifecycleContext,
-    ) -> PluginLifecycleResponse | None:
-        """
-        启用插件时安装菜单。
-
-        :param context: 插件启停上下文
-        :return: None
-        """
-        if context.enabled:
-            await context.plugin_service.install_plugin_menu_services(
-                context.session,
-                context.discovered_plugin,
-                enabled=True,
-            )
-
-        return None
-
-    async def _enabled_step_commit(
-        self,
-        context: PluginEnabledLifecycleContext,
-    ) -> PluginLifecycleResponse | None:
-        """
-        提交插件启停事务。
-
-        :param context: 插件启停上下文
-        :return: None
-        """
-        await context.session.commit()
-        await self._close_enabled_session(context)
 
         return None
 
@@ -539,11 +422,7 @@ class PluginEnableUseCase:
         :param context: 插件启停上下文
         :return: None
         """
-        if context.session_context is None:
-            return
-        await context.session_context.__aexit__(None, None, None)
-        context.session_context = None
-        context.session = None
+        await self._close_lifecycle_session(context)
 
     async def uninstall_plugin(
         self,
@@ -551,6 +430,7 @@ class PluginEnableUseCase:
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
+        operated_by: str | None = None,
     ) -> PluginLifecycleResponse:
         """
         安全卸载插件。
@@ -560,12 +440,15 @@ class PluginEnableUseCase:
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
         :param record_operation_log: 是否记录插件操作审计日志
+        :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件卸载结果负载
         """
         result = await self._uninstall_plugin(plugin_id, dry_run=dry_run)
         result = PluginEnablePayloadBuilder.build_uninstall_payload(cast('dict[str, object]', result), dry_run=dry_run)
         result_view = cast('dict[str, object]', result)
         if record_operation_log and not dry_run:
+            if operated_by is not None:
+                result_view['operatedBy'] = operated_by
             await self.runtime_operations.record_plugin_operation_log(
                 result_view,
                 dry_run=dry_run,
@@ -617,7 +500,6 @@ class PluginEnableUseCase:
             PluginLifecycleStep('check_enabled_dependents', self._uninstall_step_check_enabled_dependents),
             PluginLifecycleStep('build_precheck', self._uninstall_step_build_precheck),
             PluginLifecycleStep('mark_uninstalled', self._uninstall_step_mark_uninstalled),
-            PluginLifecycleStep('commit', self._uninstall_step_commit),
         ]
 
     async def _uninstall_step_discover_plugin(
@@ -724,13 +606,7 @@ class PluginEnableUseCase:
         :param context: 插件卸载上下文
         :return: 更新失败 payload 或 None
         """
-        gateway = self.dependencies.state_gateway
-        async_session_local = gateway.get_async_session_local()
-        context.session_context = async_session_local()
-        context.session = await context.session_context.__aenter__()
-        context.plugin_service = gateway.get_plugin_service()
-        context.response = await context.plugin_service.mark_plugin_uninstalled_services(
-            context.session,
+        context.response = await self.dependencies.lifecycle_state_gateway.mark_plugin_uninstalled_state(
             context.plugin_id,
         )
         if context.response.is_success:
@@ -742,21 +618,6 @@ class PluginEnableUseCase:
             enabled=False,
             message=context.response.message,
         )
-
-    async def _uninstall_step_commit(
-        self,
-        context: PluginUninstallLifecycleContext,
-    ) -> PluginLifecycleResponse | None:
-        """
-        提交插件卸载事务。
-
-        :param context: 插件卸载上下文
-        :return: None
-        """
-        await context.session.commit()
-        await self._close_uninstall_session(context)
-
-        return None
 
     def _build_uninstall_success_payload(
         self,
@@ -784,8 +645,4 @@ class PluginEnableUseCase:
         :param context: 插件卸载上下文
         :return: None
         """
-        if context.session_context is None:
-            return
-        await context.session_context.__aexit__(None, None, None)
-        context.session_context = None
-        context.session = None
+        await self._close_lifecycle_session(context)

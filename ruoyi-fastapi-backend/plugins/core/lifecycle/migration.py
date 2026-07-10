@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import inspect
 import time
@@ -13,6 +14,7 @@ from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.lifecycle.script import PluginLifecycleScriptHelper
 
 SUPPORTED_MIGRATION_SUFFIXES = {'.py', '.sql'}
+MIGRATION_ERROR_MESSAGE_MAX_LENGTH = 1000
 
 
 class PluginMigrationError(RuntimeError):
@@ -248,7 +250,7 @@ class PluginMigrationRunner:
         :return: migration 执行结果
         """
         migration_file = self._resolve_migration_file(migration_path)
-        checksum = self._calculate_checksum(migration_file)
+        checksum = await asyncio.to_thread(self._calculate_checksum, migration_file)
         existing_record = await self._get_existing_record(query_db, migration_path)
         if existing_record:
             if existing_record.status == 'success':
@@ -297,6 +299,7 @@ class PluginMigrationRunner:
             with suppress(Exception):
                 await self._rollback_execution_transaction(query_db)
             await self._record_failure(query_db, migration_path, checksum, str(exc))
+            await self._commit_execution_transaction(query_db)
             raise PluginMigrationError(
                 f'插件 migration 执行失败：{migration_path}，{exc}',
                 migration_path=migration_path,
@@ -417,7 +420,7 @@ class PluginMigrationRunner:
         :param checksum: migration 内容校验值
         :return: migration 执行结果
         """
-        statements = self._load_sql_statements(migration_file)
+        statements = await asyncio.to_thread(self._load_sql_statements, migration_file)
         for statement in statements:
             await query_db.execute(text(statement))
 
@@ -440,19 +443,6 @@ class PluginMigrationRunner:
             return None
 
         return await self.history_store.get_record(query_db, self.discovered_plugin.manifest.id, migration_path)
-
-    async def _get_existing_checksum(self, query_db: Any, migration_path: str) -> str | None:
-        """
-        获取已执行 migration 的内容校验值。
-
-        :param query_db: orm对象
-        :param migration_path: migration 相对路径
-        :return: 内容校验值，不存在时返回 None
-        """
-        if not self.history_store:
-            return None
-
-        return await self.history_store.get_checksum(query_db, self.discovered_plugin.manifest.id, migration_path)
 
     async def _record_running(self, query_db: Any, migration_path: str, checksum: str) -> None:
         """
@@ -525,7 +515,7 @@ class PluginMigrationRunner:
             checksum,
             self.discovered_plugin.manifest.version,
             statement_count,
-            error_message[:1000],
+            error_message[:MIGRATION_ERROR_MESSAGE_MAX_LENGTH],
         )
 
     def _get_statement_count(self, migration_path: str) -> int:
@@ -562,16 +552,6 @@ class PluginMigrationRunner:
             supported_suffixes=SUPPORTED_MIGRATION_SUFFIXES,
             label='migration',
         )
-
-    @staticmethod
-    def _split_sql_statements(sql_content: str) -> list[str]:
-        """
-        将 SQL migration 内容拆分为语句列表。
-
-        :param sql_content: SQL 文件内容
-        :return: SQL 语句列表
-        """
-        return PluginLifecycleScriptHelper.split_sql_statements(sql_content)
 
     @classmethod
     def _filter_current_database_migrations(cls, migration_paths: list[str]) -> list[str]:

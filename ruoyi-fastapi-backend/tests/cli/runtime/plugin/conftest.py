@@ -171,7 +171,7 @@ def build_runtime_with_gateway(
             python_inspector=PythonDependencyInspector(installed_packages={'openai': '2.17.0'}),
             npm_inspector=NpmDependencyInspector(installed_packages={'vue': '3.5.26'}),
         ),
-        state_gateway=gateway,
+        management_gateway=gateway,
         model_gateway=gateway,
         command_gateway=gateway,
     )

@@ -8,7 +8,7 @@ BACKEND_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(BACKEND_ROOT))
 
 import plugins.core.validation.manifest as manifest_module  # noqa: E402
-from plugins.core.manifest.schema import PluginManifest  # noqa: E402
+from plugins.core.manifest.schema import FrontendManifest, PluginDependencyManifest, PluginManifest  # noqa: E402
 from plugins.core.validation.manifest import PluginManifestChecker  # noqa: E402
 
 
@@ -24,6 +24,27 @@ def write_project_versions(backend_root: Path, frontend_root: Path) -> None:
     frontend_root.mkdir(parents=True)
     (backend_root / 'pyproject.toml').write_text('[project]\nversion = "1.9.0"\n', encoding='utf-8')
     (frontend_root / 'package.json').write_text('{"version": "1.9.0"}\n', encoding='utf-8')
+
+
+def test_manifest_rejects_hyphenated_plugin_ids() -> None:
+    """
+    校验插件 manifest 短期全局拒绝带短横线的插件 ID。
+
+    :return: None
+    """
+    with pytest.raises(ValueError, match='只能包含小写字母、数字和下划线'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo-plugin',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo-plugin'},
+            }
+        )
+    with pytest.raises(ValueError, match='只能包含小写字母、数字和下划线'):
+        FrontendManifest.model_validate({'pluginId': 'demo-plugin'})
+    with pytest.raises(ValueError, match='只能包含小写字母、数字和下划线'):
+        PluginDependencyManifest.model_validate({'id': 'base-plugin'})
 
 
 def test_manifest_checker_warns_secret_config_default() -> None:

@@ -50,16 +50,10 @@ class PluginConfigUseCase:
             if not discovered_plugin:
                 return PluginPayloadBuilder.build_plugin_not_found_payload(plugin_id)
 
-            gateway = self.dependencies.state_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                configs = await plugin_service.get_plugin_config_services(
-                    session,
-                    discovered_plugin,
-                    reveal_secret=reveal_secret,
-                )
-                await session.commit()
+            configs = await self.dependencies.config_gateway.get_plugin_config(
+                discovered_plugin,
+                reveal_secret=reveal_secret,
+            )
 
             return PluginConfigPayloadBuilder.build_read_payload(plugin_id, configs)
         except Exception as exc:
@@ -106,36 +100,12 @@ class PluginConfigUseCase:
             if not discovered_plugin:
                 return PluginPayloadBuilder.build_plugin_not_found_payload(plugin_id)
 
-            gateway = self.dependencies.state_gateway
-            model_gateway = self.dependencies.model_gateway
-            async_session_local = gateway.get_async_session_local()
-            plugin_service = gateway.get_plugin_service()
-            async with async_session_local() as session:
-                before_configs = await plugin_service.get_plugin_config_services(
-                    session,
-                    discovered_plugin,
-                    reveal_secret=True,
-                )
-                configs = await plugin_service.update_plugin_config_services(
-                    session,
-                    discovered_plugin,
-                    model_gateway.build_config_update(values),
-                )
-                audit_payload = PluginConfigPayloadBuilder.build_audit_payload(
-                    plugin_id,
-                    operation=audit_operation,
-                    values=values,
-                    before_configs=before_configs,
-                    after_configs=configs,
-                    message=success_message,
-                )
-                await plugin_service.add_plugin_operation_log_services(
-                    session,
-                    audit_payload,
-                    dry_run=False,
-                    continue_on_error=False,
-                )
-                await session.commit()
+            configs = await self.dependencies.config_gateway.set_plugin_config(
+                discovered_plugin,
+                values,
+                audit_operation=audit_operation,
+                success_message=success_message,
+            )
 
             return PluginConfigPayloadBuilder.build_update_payload(
                 plugin_id,

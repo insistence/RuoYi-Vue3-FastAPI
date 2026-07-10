@@ -136,6 +136,45 @@ def test_dependency_policy_reads_require_lockfile_environment(monkeypatch: pytes
     assert config.resolved_require_lockfile is True
 
 
+def test_dependency_policy_rejects_invalid_mode_from_unified_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    校验依赖安装策略拒绝非法策略模式，而不是静默回退默认值。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+    config = SimpleNamespace(
+        plugin_dependency_policy_mode='prod=lockd',
+        plugin_dependency_allow_prod_install=False,
+        plugin_dependency_require_yes=True,
+        plugin_dependency_require_lockfile=None,
+        plugin_dependency_require_allowlist=None,
+        plugin_dependency_lockfile=None,
+        plugin_dependency_allowlist=None,
+        plugin_dependency_offline_dir=None,
+        plugin_dependency_pip_index_url=None,
+        plugin_dependency_npm_registry=None,
+        plugin_dependency_install_timeout=600,
+    )
+    monkeypatch.setattr(env_config.get_config, 'get_plugin_dependency_policy_config', lambda: config, raising=False)
+
+    with pytest.raises(ValueError, match='非法插件依赖安装策略模式'):
+        DependencyInstallPolicyConfig.from_environment(env='prod')
+
+
+def test_dependency_policy_rejects_invalid_bool_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    校验依赖安装策略拒绝非法布尔配置，而不是把未知字符串当作 False。
+
+    :param monkeypatch: pytest monkeypatch对象
+    :return: None
+    """
+    monkeypatch.setenv('PLUGIN_DEPENDENCY_REQUIRE_LOCKFILE', 'fales')
+
+    with pytest.raises(ValueError, match='非法插件依赖策略布尔配置'):
+        DependencyInstallPolicyConfig.from_environment(env='dev')
+
+
 def test_dependency_policy_plan_only_blocks_real_install() -> None:
     """
     校验 plan_only 策略只允许生成计划，不允许真实安装。
@@ -242,6 +281,43 @@ npmDev: []
 
     assert decision.allowed is False
     assert '锁文件缺少匹配依赖：python openai openai>=2.0.0' in decision.reasons
+
+
+def test_dependency_policy_locked_mode_blocks_resolved_version_outside_requirement(tmp_path: Path) -> None:
+    """
+    校验 locked 策略阻断锁文件 resolvedVersion 超出插件依赖声明范围。
+
+    :param tmp_path: pytest 临时目录
+    :return: None
+    """
+    lockfile_path = tmp_path / 'plugin.lock.yaml'
+    lockfile_path.write_text(
+        """
+plugin: demo
+version: 1.0.0
+python:
+  - name: openai
+    requirement: openai>=2.0.0,<3.0.0
+    resolvedVersion: 9.0.0
+    hashes:
+      - sha256:demo
+npm: []
+npmDev: []
+""",
+        encoding='utf-8',
+    )
+
+    decision = DependencyInstallPolicyEvaluator(
+        DependencyInstallPolicyConfig(
+            mode='locked',
+            env='stage',
+            lockfile_path=lockfile_path,
+            require_allowlist=False,
+        )
+    ).evaluate(build_plan(build_python_item('openai>=2.0.0,<3.0.0')), confirmed=True)
+
+    assert decision.allowed is False
+    assert '锁文件 resolvedVersion 不满足依赖声明：python openai 9.0.0 not in openai>=2.0.0,<3.0.0' in decision.reasons
 
 
 def test_dependency_policy_locked_mode_blocks_extra_lockfile_entry(tmp_path: Path) -> None:

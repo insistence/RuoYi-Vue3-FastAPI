@@ -69,6 +69,8 @@ class PluginConfigImportPayload(PluginPayloadModel):
     ok: object | None = None
     message: object | None = None
     plugin_id: object | None = Field(default=None, alias='pluginId')
+    operation: str | None = None
+    configs: list[dict[str, object]] | None = None
     imported_keys: list[str] = Field(alias='importedKeys')
 
 

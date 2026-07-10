@@ -20,6 +20,15 @@ class PluginRuntimeGateway:
         return import_module('plugins.core.runtime.service').PluginRuntimeService
 
     @staticmethod
+    def get_core_runtime_gateway_overrides_class() -> Any:
+        """
+        获取插件核心运行时窄端口覆盖项类。
+
+        :return: 插件核心运行时窄端口覆盖项类
+        """
+        return import_module('plugins.core.runtime.service.dependency_container').PluginRuntimeGatewayOverrides
+
+    @staticmethod
     def get_management_runtime_gateway() -> Any:
         """
         获取插件管理运行时适配器。

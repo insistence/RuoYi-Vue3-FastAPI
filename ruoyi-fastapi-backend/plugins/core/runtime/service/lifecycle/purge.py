@@ -1,8 +1,8 @@
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, cast
+from __future__ import annotations
 
-from plugins.core.discovery.scanner import DiscoveredPlugin
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
+
 from plugins.core.runtime.hooks import PluginHookRunner
 from plugins.core.runtime.support import (
     PluginEnablePayloadBuilder,
@@ -13,11 +13,21 @@ from plugins.core.runtime.support import (
     PluginRuntimePayloadBuilder,
 )
 
-from ..context import PluginRuntimeContextService
-from ..dependency_container import PluginRuntimeDependencies
-from ..responses import PluginLifecycleResponse, PluginRuntimeBlockedPayloadDict
-from .operations import PluginLifecycleRuntimeOperations
+from .common import PluginLifecycleUseCaseSupport
 from .runner import PluginLifecycleStep, PluginLifecycleStepFailed, PluginLifecycleStepRunner
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from plugins.core.discovery.scanner import DiscoveredPlugin
+    from plugins.core.runtime.hooks import PluginHookResult
+
+    from ..context import PluginRuntimeContextService
+    from ..dependency_container import PluginRuntimeDependencies
+    from ..responses import PluginLifecycleResponse
+    from .operations import PluginLifecycleRuntimeOperations
 
 
 @dataclass(slots=True)
@@ -34,14 +44,14 @@ class PluginPurgeLifecycleContext:
     precheck: PluginPrecheckContext | None = None
     dependency_payload: dict[str, object] | None = None
     actions: list[dict[str, object]] | None = None
-    plan: Any | None = None
-    hook_result: Any | None = None
-    session: Any | None = None
-    plugin_service: Any | None = None
-    session_context: Any | None = None
+    plan: object | None = None
+    hook_result: PluginHookResult | None = None
+    session: AsyncSession | None = None
+    lifecycle_uow: object | None = None
+    session_context: object | None = None
 
 
-class PluginPurgeUseCase:
+class PluginPurgeUseCase(PluginLifecycleUseCaseSupport):
     """
     插件物理清理 use case。
     """
@@ -63,57 +73,6 @@ class PluginPurgeUseCase:
         self.runtime_operations = runtime_operations
         self.context = context
 
-    def _get_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
-        """
-        根据插件 ID 获取已发现插件。
-
-        :param plugin_id: 插件ID
-        :return: 已发现插件对象
-        """
-        return self.context.get_discovered_plugin(plugin_id)
-
-    def _build_operation_blocked_payload(
-        self,
-        discovered_plugin: DiscoveredPlugin,
-        operation: str,
-        *,
-        dry_run: bool | None = None,
-    ) -> PluginRuntimeBlockedPayloadDict | None:
-        """
-        构建运行模式阻断负载。
-
-        :param discovered_plugin: 已发现插件
-        :param operation: 操作类型
-        :param dry_run: 是否预演
-        :return: 阻断负载，不阻断时返回 None
-        """
-        return self.context.build_operation_blocked_payload(discovered_plugin, operation, dry_run=dry_run)
-
-    def _discover_plugins(self, backend_root: Path) -> list[DiscoveredPlugin]:
-        """
-        发现本地插件。
-
-        :param backend_root: 后端项目根目录
-        :return: 已发现插件列表
-        """
-        return self.context.discover_plugins(backend_root)
-
-    async def _build_precheck_context(
-        self,
-        backend_root: Path,
-        discovered_plugin: DiscoveredPlugin,
-        discovered_plugins: list[DiscoveredPlugin],
-    ) -> PluginPrecheckContext:
-        """
-        构建插件操作预检上下文。
-
-        :param backend_root: 后端项目根目录
-        :param discovered_plugin: 当前插件
-        :param discovered_plugins: 已发现插件列表
-        :return: 插件操作预检上下文
-        """
-        return await self.context.build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
-
     async def _build_enabled_dependents_payload(
         self,
         plugin_id: str,
@@ -129,29 +88,13 @@ class PluginPurgeUseCase:
         dependent_result = await self.context.check_enabled_plugin_dependents(plugin_id, discovered_plugins)
         return cast('dict[str, object]', PluginEnablePayloadBuilder.build_dependency_payload(dependent_result))
 
-    def _with_plugin_capability(
-        self,
-        payload: PluginLifecycleResponse,
-        discovered_plugin: DiscoveredPlugin | None,
-    ) -> PluginLifecycleResponse:
-        """
-        为运行时响应负载附加插件操作能力。
-
-        :param payload: 运行时响应负载
-        :param discovered_plugin: 已发现插件
-        :return: 附加能力后的响应负载
-        """
-        return cast(
-            'PluginLifecycleResponse',
-            self.context.with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
-        )
-
     async def purge_plugin(
         self,
         plugin_id: str,
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
+        operated_by: str | None = None,
     ) -> PluginLifecycleResponse:
         """
         物理清理插件平台元数据并按需记录审计日志。
@@ -159,12 +102,15 @@ class PluginPurgeUseCase:
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
         :param record_operation_log: 是否记录插件操作审计日志
+        :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件物理清理结果负载
         """
         payload = await self._purge_plugin(plugin_id, dry_run=dry_run)
         payload_view = cast('dict[str, object]', payload)
         payload_view['operation'] = 'purge'
         if record_operation_log and not dry_run:
+            if operated_by is not None:
+                payload_view['operatedBy'] = operated_by
             await self.runtime_operations.record_plugin_operation_log(
                 payload_view,
                 dry_run=dry_run,
@@ -320,13 +266,10 @@ class PluginPurgeUseCase:
         :param context: 插件物理清理上下文
         :return: None
         """
-        gateway = self.dependencies.state_gateway
-        async_session_local = gateway.get_async_session_local()
-        context.session_context = async_session_local()
-        context.session = await context.session_context.__aenter__()
-        context.plugin_service = gateway.get_plugin_service()
-        context.plan = await context.plugin_service.build_plugin_purge_plan_services(
-            context.session,
+        context.session_context = self.dependencies.lifecycle_uow_gateway.open_lifecycle_unit_of_work()
+        context.lifecycle_uow = await context.session_context.__aenter__()
+        context.session = context.lifecycle_uow.session
+        context.plan = await context.lifecycle_uow.build_plugin_purge_plan(
             context.discovered_plugin,
         )
 
@@ -397,7 +340,7 @@ class PluginPurgeUseCase:
         :param context: 插件物理清理上下文
         :return: None
         """
-        await context.plugin_service.purge_plugin_services(context.session, context.discovered_plugin)
+        await context.lifecycle_uow.purge_plugin_metadata(context.discovered_plugin)
 
         return None
 
@@ -411,7 +354,7 @@ class PluginPurgeUseCase:
         :param context: 插件物理清理上下文
         :return: None
         """
-        await context.session.commit()
+        await context.lifecycle_uow.commit()
         await self._close_purge_session(context)
 
         return None
@@ -423,8 +366,4 @@ class PluginPurgeUseCase:
         :param context: 插件物理清理上下文
         :return: None
         """
-        if context.session_context is None:
-            return
-        await context.session_context.__aexit__(None, None, None)
-        context.session_context = None
-        context.session = None
+        await self._close_lifecycle_session(context)

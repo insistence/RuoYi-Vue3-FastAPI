@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from cli.exit_codes import RUNTIME_ERROR, SUCCESS
+from plugins.core.utils import validate_plugin_id_value
 
 DEPENDENCY_OPERATOR_PATTERN = re.compile(r'==|!=|>=|<=|=|>|<|\^|~')
 PYTHON_PACKAGE_SEPARATOR_PATTERN = re.compile(r'[-_.]+')
@@ -564,11 +565,17 @@ class PluginDependencyOfflineArtifactResolver:
         """
         if not candidates:
             return None, None, f'未找到离线制品：{kind} {name}'
-        if len(candidates) > 1:
+        matching_candidates = [
+            (artifact_path, version)
+            for artifact_path, version in candidates
+            if self._artifact_version_satisfies_requirement(version, requirement)
+        ]
+        if not matching_candidates:
+            candidate_versions = ', '.join(version for _, version in candidates)
+            return None, None, f'离线制品版本不满足声明：{kind} {name} {candidate_versions}'
+        if len(matching_candidates) > 1:
             return None, None, f'离线制品不唯一：{kind} {name}'
-        artifact_path, version = candidates[0]
-        if not self._artifact_version_satisfies_requirement(version, requirement):
-            return None, None, f'离线制品版本不满足声明：{kind} {name} {version}'
+        artifact_path, version = matching_candidates[0]
         return artifact_path, version, None
 
     @staticmethod
@@ -859,6 +866,7 @@ class PluginTestPlanBuilder:
         :param frontend_build: 是否追加前端构建验收目标
         :return: 插件测试目标列表
         """
+        validate_plugin_id_value(plugin_id)
         targets = []
         backend_target = self.backend_root / 'tests' / 'plugins' / plugin_id
         if backend_target.exists():

@@ -78,6 +78,10 @@ class PluginLifecyclePayload(PluginPayloadModel):
     current_version: str | None = Field(default=None, alias='currentVersion')
     needs_upgrade: bool | None = Field(default=None, alias='needsUpgrade')
     dependency_install: object | None = Field(default=None, alias='dependencyInstall')
+    enabled: bool | None = None
+    safe_mode: bool | None = Field(default=None, alias='safeMode')
+    removes_source: bool | None = Field(default=None, alias='removesSource')
+    plan: dict[str, object] | None = None
 
 
 PluginLifecyclePayloadDict: TypeAlias = dict[str, object]

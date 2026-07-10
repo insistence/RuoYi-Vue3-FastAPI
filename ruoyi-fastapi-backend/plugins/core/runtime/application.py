@@ -1,11 +1,11 @@
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
+from functools import cache
 
 from fastapi import FastAPI
 
 from common.constant import LockConstant
-from plugins.core.management.service.startup_gateway import PluginManagementStartupGateway
 from plugins.core.runtime.startup import PluginRuntimeStartupManager
 from utils.log_util import logger
 
@@ -37,9 +37,7 @@ class PluginApplicationRuntime:
         :param ready_wait_interval_seconds: 等待 ready 轮询间隔
         :return: None
         """
-        self.startup_manager = startup_manager or PluginRuntimeStartupManager(
-            management_gateway=PluginManagementStartupGateway()
-        )
+        self.startup_manager = startup_manager or PluginRuntimeStartupManager()
         self.ready_key = ready_key
         self.ready_expire_seconds = ready_expire_seconds
         self.ready_wait_timeout_seconds = ready_wait_timeout_seconds
@@ -166,13 +164,20 @@ class PluginApplicationRuntime:
             self.bind_app(app)
 
 
-PLUGIN_APPLICATION_RUNTIME = PluginApplicationRuntime()
-
-
+@cache
 def get_plugin_application_runtime() -> PluginApplicationRuntime:
     """
     获取应用插件运行时适配器。
 
     :return: 应用插件运行时适配器
     """
-    return PLUGIN_APPLICATION_RUNTIME
+    from plugins.core.management.service.startup_gateway import (  # noqa: PLC0415
+        PluginManagementRouteStateGateway,
+        PluginManagementStartupGateway,
+    )
+
+    startup_manager = PluginRuntimeStartupManager(
+        management_gateway=PluginManagementStartupGateway(),
+        route_state_gateway=PluginManagementRouteStateGateway(),
+    )
+    return PluginApplicationRuntime(startup_manager=startup_manager)

@@ -1,9 +1,4 @@
 import ast
-import importlib
-import importlib.util
-import sys
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,28 +13,6 @@ MAX_PLUGIN_JOB_NAME_LENGTH = 64
 SUPPORTED_SEED_SUFFIXES = {'.py', '.sql'}
 SUPPORTED_MIGRATION_SUFFIXES = {'.py', '.sql'}
 ROUTER_FACTORY_NAMES = {'APIRouter', 'APIRouterPro'}
-
-
-@contextmanager
-def temporary_sys_path(path: Path) -> Iterator[None]:
-    """
-    临时把路径加入 sys.path，并在导入结束后恢复原状。
-
-    :param path: 需要临时加入的路径
-    :return: None
-    """
-    path_text = str(path)
-    existed = path_text in sys.path
-    if not existed:
-        sys.path.insert(0, path_text)
-    try:
-        yield
-    finally:
-        if not existed:
-            try:
-                sys.path.remove(path_text)
-            except ValueError:
-                pass
 
 
 @dataclass(frozen=True)
@@ -184,11 +157,11 @@ class PluginStructureChecker:
 
         items = []
         for controller_file in sorted(controller_dir.glob('[!_]*.py')):
-            items.extend(self._check_controller_file_route_prefixes(discovered_plugin.manifest.id, controller_file))
+            items.extend(self.check_controller_file_route_prefixes(discovered_plugin.manifest.id, controller_file))
 
         return items
 
-    def _check_controller_file_route_prefixes(
+    def check_controller_file_route_prefixes(
         self,
         plugin_id: str,
         controller_file: Path,
@@ -323,15 +296,14 @@ class PluginStructureChecker:
         try:
             module_path, callable_name = hook_path.split(':', maxsplit=1)
             module_name = self._resolve_hook_module_name(discovered_plugin.manifest.backend.module, module_path)
-            module = self._import_plugin_module(discovered_plugin, module_name)
-            target = getattr(module, callable_name)
-            ok = callable(target)
+            module_file = self._resolve_plugin_module_file(discovered_plugin, module_name)
+            ok = self._module_file_declares_callable(module_file, callable_name)
         except Exception as exc:
             return PluginStructureCheckItem(
                 kind='hook_callable',
                 path=f'{hook_name}:{hook_path}',
                 ok=False,
-                message=f'生命周期钩子不可导入：{exc}',
+                message=f'生命周期钩子不可静态解析：{exc}',
             )
 
         return PluginStructureCheckItem(
@@ -434,22 +406,21 @@ class PluginStructureChecker:
 
     def _check_job_callable_importable(self, job: PluginJobManifest) -> PluginStructureCheckItem:
         """
-        检查任务 callable 是否可以导入。
+        检查任务 callable 是否可通过源码静态解析。
 
         :param job: 插件定时任务声明
         :return: 结构检查项
         """
         try:
             module_path, callable_name = job.callable.rsplit('.', 1)
-            module = self._import_job_module(module_path)
-            target = getattr(module, callable_name)
-            ok = callable(target)
+            module_file = self._resolve_backend_module_file(module_path)
+            ok = self._module_file_declares_callable(module_file, callable_name)
         except Exception as exc:
             return PluginStructureCheckItem(
                 kind='job_callable',
                 path=job.callable,
                 ok=False,
-                message=f'任务 callable 不可导入：{exc}',
+                message=f'任务 callable 不可静态解析：{exc}',
             )
 
         return PluginStructureCheckItem(
@@ -459,34 +430,30 @@ class PluginStructureChecker:
             message=f'任务 callable 可调用：{job.callable}' if ok else f'任务 callable 不是可调用对象：{job.callable}',
         )
 
-    def _import_job_module(self, module_path: str) -> object:
+    def _resolve_backend_module_file(self, module_path: str) -> Path:
         """
-        导入插件任务模块，优先从当前检查的后端根目录解析。
+        解析后端模块对应的 Python 文件。
 
         :param module_path: Python 模块路径
-        :return: 导入后的模块对象
+        :return: 模块文件路径
         """
         module_file = self.backend_root / Path(*module_path.split('.')).with_suffix('.py')
         if module_file.is_file():
-            module_name = f'_plugin_check_{module_path}'
-            spec = importlib.util.spec_from_file_location(module_name, module_file)
-            if spec is None or spec.loader is None:
-                raise ImportError(f'无法加载模块文件：{module_file}')
-            module = importlib.util.module_from_spec(spec)
-            with temporary_sys_path(self.backend_root):
-                spec.loader.exec_module(module)
-            return module
+            return module_file
 
-        with temporary_sys_path(self.backend_root):
-            return importlib.import_module(module_path)
+        package_init = self.backend_root / Path(*module_path.split('.')) / '__init__.py'
+        if package_init.is_file():
+            return package_init
 
-    def _import_plugin_module(self, discovered_plugin: DiscoveredPlugin, module_path: str) -> object:
+        raise ImportError(f'无法找到模块文件：{module_path}')
+
+    def _resolve_plugin_module_file(self, discovered_plugin: DiscoveredPlugin, module_path: str) -> Path:
         """
-        导入插件内模块，优先从当前插件目录解析。
+        解析插件模块对应的 Python 文件，不导入执行模块。
 
         :param discovered_plugin: 已发现插件对象
         :param module_path: Python 模块路径
-        :return: 导入后的模块对象
+        :return: 模块文件路径
         """
         backend_module = discovered_plugin.manifest.backend.module
         if module_path == backend_module:
@@ -498,17 +465,24 @@ class PluginStructureChecker:
             module_file = self.backend_root / Path(*module_path.split('.')).with_suffix('.py')
 
         if module_file.is_file():
-            module_name = f'_plugin_check_{module_path}'
-            spec = importlib.util.spec_from_file_location(module_name, module_file)
-            if spec is None or spec.loader is None:
-                raise ImportError(f'无法加载模块文件：{module_file}')
-            module = importlib.util.module_from_spec(spec)
-            with temporary_sys_path(self.backend_root):
-                spec.loader.exec_module(module)
-            return module
+            return module_file
 
-        with temporary_sys_path(self.backend_root):
-            return importlib.import_module(module_path)
+        raise ImportError(f'无法找到模块文件：{module_path}')
+
+    @staticmethod
+    def _module_file_declares_callable(module_file: Path, callable_name: str) -> bool:
+        """
+        通过 AST 判断模块是否声明了顶层可调用符号。
+
+        :param module_file: 模块文件路径
+        :param callable_name: callable 名称
+        :return: 是否声明了可调用符号
+        """
+        module_ast = ast.parse(module_file.read_text(encoding='utf-8'), filename=str(module_file))
+        return any(
+            isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and node.name == callable_name
+            for node in module_ast.body
+        )
 
     @staticmethod
     def _check_job_cron_expression(job: PluginJobManifest) -> PluginStructureCheckItem:

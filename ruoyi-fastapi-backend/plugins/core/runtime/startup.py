@@ -2,6 +2,7 @@ import asyncio
 import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
@@ -19,7 +20,11 @@ from plugins.core.lifecycle.migration import (
 from plugins.core.lifecycle.seed import PluginSeedRunner
 from plugins.core.runtime.bootstrap import PluginRuntimeBuilder
 from plugins.core.runtime.hooks import PluginHookRunner
-from plugins.core.runtime.route_guard import PluginEnabledDependency
+from plugins.core.runtime.route_guard import (
+    PluginEnabledDependency,
+    PluginRouteStateGateway,
+    UnavailablePluginRouteStateGateway,
+)
 from plugins.core.runtime.service.gateway import DefaultPluginCommandRunnerGateway, PluginCommandRunnerGateway
 from plugins.core.runtime.startup_gateway import (
     PluginStartupManagementGateway,
@@ -30,6 +35,7 @@ from plugins.core.validation.dependencies import (
     PluginDependencyInstallPlanner,
     PythonDependencyInspector,
 )
+from plugins.core.validation.structure import PluginStructureChecker
 from utils.log_util import logger
 
 
@@ -199,6 +205,7 @@ class PluginRuntimeStartupManager:
         self,
         builder: PluginRuntimeBuilder | None = None,
         management_gateway: PluginStartupManagementGateway | None = None,
+        route_state_gateway: PluginRouteStateGateway | None = None,
         python_dependency_inspector: PythonDependencyInspector | None = None,
         python_dependency_inspector_factory: Callable[[], PythonDependencyInspector] | None = None,
         command_runner_gateway: PluginCommandRunnerGateway | None = None,
@@ -209,6 +216,7 @@ class PluginRuntimeStartupManager:
 
         :param builder: 插件运行时构建器
         :param management_gateway: 插件启动期管理端口
+        :param route_state_gateway: 插件路由状态读取端口
         :param python_dependency_inspector: Python 依赖检查器
         :param python_dependency_inspector_factory: Python 依赖检查器工厂
         :param command_runner_gateway: 插件命令执行网关
@@ -217,6 +225,7 @@ class PluginRuntimeStartupManager:
         """
         self.builder = builder or PluginRuntimeBuilder()
         self.management_gateway = management_gateway or UnavailablePluginStartupManagementGateway()
+        self.route_state_gateway = route_state_gateway or UnavailablePluginRouteStateGateway()
         self.python_dependency_inspector_factory = python_dependency_inspector_factory or PythonDependencyInspector
         self.python_dependency_inspector = python_dependency_inspector or self.python_dependency_inspector_factory()
         self.command_runner_gateway = command_runner_gateway or DefaultPluginCommandRunnerGateway()
@@ -613,9 +622,40 @@ class PluginRuntimeStartupManager:
             ]
         for plugin_id in plugin_ids:
             controller_files = self._find_plugin_controller_files([plugin_id])
+            controller_files = self._filter_plugin_controller_files_by_route_prefix(plugin_id, controller_files)
             if controller_files:
-                auto_register_controller_files(app, controller_files, dependencies=[PluginEnabledDependency(plugin_id)])
+                auto_register_controller_files(
+                    app,
+                    controller_files,
+                    dependencies=[PluginEnabledDependency(plugin_id, self.route_state_gateway)],
+                )
         app.state.plugin_routes_registered = True
+
+    def _filter_plugin_controller_files_by_route_prefix(self, plugin_id: str, controller_files: list[str]) -> list[str]:
+        """
+        启动期再次校验插件 controller 路由前缀，避免绕过预检注册宿主命名空间路由。
+
+        :param plugin_id: 插件ID
+        :param controller_files: controller 文件路径列表
+        :return: 通过命名空间校验的 controller 文件路径列表
+        """
+        checker = PluginStructureChecker(self.builder.backend_root)
+        valid_controller_files = []
+        for controller_file in controller_files:
+            check_items = checker.check_controller_file_route_prefixes(plugin_id, Path(controller_file))
+            if not check_items:
+                logger.error(f'插件 {plugin_id} controller 路由前缀无法静态确认，启动期跳过注册：{controller_file}')
+                continue
+            failed_items = [item for item in check_items if not item.ok]
+            if failed_items:
+                logger.error(
+                    f'插件 {plugin_id} controller 路由前缀非法，启动期跳过注册：'
+                    f'{"、".join(item.message for item in failed_items)}'
+                )
+                continue
+            valid_controller_files.append(controller_file)
+
+        return valid_controller_files
 
     def _find_plugin_controller_files(self, plugin_ids: list[str]) -> list[str]:
         """

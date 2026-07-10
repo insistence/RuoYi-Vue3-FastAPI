@@ -1,5 +1,9 @@
 # ruff: noqa: F403, F405
 
+import pytest
+from pydantic import ValidationError
+
+from plugins.core.runtime.support.payload.runtime import PluginRuntimeExceptionPayload
 from tests.plugin_runtime_helpers import *
 
 
@@ -42,6 +46,37 @@ def test_plugin_runtime_exception_payload_includes_migration_recovery() -> None:
     assert payload['failedStep'] == 'run_migrations'
     assert payload['migrationRecovery']['migrationPath'] == 'migrations/001_init.sql'
     assert payload['migrationRecovery']['status'] == 'running'
+
+
+def test_plugin_runtime_exception_payload_rejects_unknown_extra_fields() -> None:
+    """
+    校验运行时异常 payload 不再接受未声明字段。
+
+    :return: None
+    """
+    with pytest.raises(ValidationError):
+        PluginRuntimeExceptionPayload.model_validate(
+            {
+                'ok': False,
+                'message': '插件安装失败',
+                'error': 'boom',
+                'unexpected': True,
+            }
+        )
+
+
+def test_plugin_runtime_exception_builder_rejects_unknown_extra_payload() -> None:
+    """
+    校验异常 payload 构建器只允许白名单扩展字段。
+
+    :return: None
+    """
+    with pytest.raises(ValidationError):
+        PluginRuntimePayloadBuilder.build_exception_payload(
+            '插件安装失败',
+            RuntimeError('boom'),
+            extra_payload={'unexpected': True},
+        )
 
 
 def test_plugin_runtime_payload_builder_builds_health_payload() -> None:
@@ -345,3 +380,32 @@ def test_plugin_runtime_payload_builder_builds_precheck_payload() -> None:
     assert payload['dependencyOk'] is False
     assert payload['precheck'] == {'missingDependencies': ['missing-python']}
     assert payload['plan']['pluginId'] == 'demo'
+    assert 'purgePlanError' not in payload
+
+
+def test_plugin_runtime_payload_builder_exposes_precheck_purge_plan_error() -> None:
+    """
+    校验 purge 预检计划构建失败时 payload 会暴露可见错误。
+
+    :return: None
+    """
+    precheck = SimpleNamespace(
+        ok=True,
+        operation_payload={'manifestOk': True, 'dependencyOk': True},
+        check_payload={},
+    )
+
+    payload = PluginRuntimePayloadBuilder.build_precheck_payload(
+        'demo',
+        'purge',
+        precheck=precheck,
+        version_state={'installed': True, 'needsUpgrade': False},
+        actions=[{'name': 'build_purge_plan'}],
+        database_error=None,
+        purge_plan_error='database unavailable',
+    )
+
+    assert payload['ok'] is False
+    assert payload['message'] == '插件操作预检存在问题'
+    assert payload['purgePlanError'] == 'database unavailable'
+    assert payload['precheck']['warnings'] == ['插件物理清理计划构建失败：database unavailable']

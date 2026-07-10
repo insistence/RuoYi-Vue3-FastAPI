@@ -258,6 +258,10 @@ class RedisPluginLifecycleLock:
         """
         构建插件生命周期操作锁 key。
 
+        当前采用全局串行化设计：所有插件的生命周期操作共用一把锁，防止并行安装/卸载
+        操作在共享资源（菜单表、配置表、sys_job 表、插件状态）上产生竞态。如未来需要
+        允许无依赖插件并行操作，可将 plugin_id 纳入 lock_key 并配合共享资源的细粒度锁。
+
         :return: 锁 key
         """
         return f'{LockConstant.PLUGIN_LIFECYCLE_LOCK_PREFIX}:global'

@@ -1,6 +1,7 @@
-import re
 from pathlib import Path
 from typing import Any
+
+from plugins.core.utils import validate_plugin_id_value
 
 from .backend import PluginBackendScaffoldTemplateBuilder
 from .frontend import PluginFrontendScaffoldTemplateBuilder
@@ -14,8 +15,6 @@ class PluginScaffoldBuilder:
 
     使用 Builder 模式生成后端与前端插件模板文件计划，并在确认无冲突后落地。
     """
-
-    PLUGIN_ID_PATTERN = re.compile(r'^[a-z][a-z0-9_]{1,63}$')
 
     def __init__(self, backend_root: Path, frontend_root: Path) -> None:
         """
@@ -115,8 +114,7 @@ class PluginScaffoldBuilder:
         :param plugin_id: 插件ID
         :return: None
         """
-        if not cls.PLUGIN_ID_PATTERN.match(plugin_id):
-            raise ValueError('插件ID必须以小写字母开头，且只能包含小写字母、数字和下划线，长度为2-64')
+        validate_plugin_id_value(plugin_id)
 
     @staticmethod
     def _merge_options(

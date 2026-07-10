@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, cast
 
-from plugins.core.discovery.scanner import DiscoveredPlugin
-from plugins.core.lifecycle.migration import PluginMigrationError, PluginMigrationRunner
+from plugins.core.lifecycle.migration import PluginMigrationError
 from plugins.core.lifecycle.seed import PluginSeedRunner
 from plugins.core.runtime.hooks import PluginHookRunner
 from plugins.core.runtime.support import (
@@ -13,12 +14,21 @@ from plugins.core.runtime.support import (
     PluginRuntimePayloadBuilder,
 )
 
-from ..context import PluginRuntimeContextService
-from ..dependency_container import PluginRuntimeDependencies
-from ..migration_store import PluginDatabaseMigrationHistoryStore
-from ..responses import PluginLifecycleResponse, PluginRuntimeBlockedPayloadDict
-from .operations import PluginLifecycleRuntimeOperations
+from .common import PluginLifecycleUseCaseSupport
 from .runner import PluginLifecycleStep, PluginLifecycleStepFailed, PluginLifecycleStepRunner
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from plugins.core.discovery.scanner import DiscoveredPlugin
+    from plugins.core.lifecycle.migration import PluginMigrationResult
+    from plugins.core.lifecycle.seed import PluginSeedResult
+    from plugins.core.runtime.hooks import PluginHookResult
+
+    from ..context import PluginRuntimeContextService
+    from ..dependency_container import PluginRuntimeDependencies
+    from ..responses import PluginLifecycleResponse
+    from .operations import PluginLifecycleRuntimeOperations
 
 
 @dataclass(slots=True)
@@ -35,17 +45,17 @@ class PluginInstallLifecycleContext:
     precheck: PluginPrecheckContext | None = None
     actions: list[dict[str, object]] | None = None
     dependency_install_view: dict[str, object] | None = None
-    plugin: Any | None = None
-    installed_configs: Any | None = None
-    migration_results: Any | None = None
-    seed_results: Any | None = None
-    hook_result: Any | None = None
-    session: Any | None = None
-    plugin_service: Any | None = None
-    session_context: Any | None = None
+    plugin: object | None = None
+    installed_configs: list[object] | None = None
+    migration_results: list[PluginMigrationResult] | None = None
+    seed_results: list[PluginSeedResult] | None = None
+    hook_result: PluginHookResult | None = None
+    session: AsyncSession | None = None
+    lifecycle_uow: object | None = None
+    session_context: object | None = None
 
 
-class PluginInstallUseCase:
+class PluginInstallUseCase(PluginLifecycleUseCaseSupport):
     """
     插件安装 use case。
     """
@@ -67,85 +77,13 @@ class PluginInstallUseCase:
         self.runtime_operations = runtime_operations
         self.context = context
 
-    def _discover_plugins(self, backend_root: Path) -> list[DiscoveredPlugin]:
-        """
-        发现本地插件。
-
-        :param backend_root: 后端项目根目录
-        :return: 已发现插件列表
-        """
-        return self.context.discover_plugins(backend_root)
-
-    def _get_discovered_plugin_from_list(
-        self,
-        discovered_plugins: list[DiscoveredPlugin],
-        plugin_id: str,
-    ) -> DiscoveredPlugin | None:
-        """
-        从已发现插件列表中查找指定插件。
-
-        :param discovered_plugins: 已发现插件列表
-        :param plugin_id: 插件ID
-        :return: 已发现插件对象
-        """
-        return self.context.get_discovered_plugin_from_list(discovered_plugins, plugin_id)
-
-    def _build_operation_blocked_payload(
-        self,
-        discovered_plugin: DiscoveredPlugin,
-        operation: str,
-        *,
-        dry_run: bool | None = None,
-    ) -> PluginRuntimeBlockedPayloadDict | None:
-        """
-        构建运行模式阻断负载。
-
-        :param discovered_plugin: 已发现插件
-        :param operation: 操作类型
-        :param dry_run: 是否预演
-        :return: 阻断负载，不阻断时返回 None
-        """
-        return self.context.build_operation_blocked_payload(discovered_plugin, operation, dry_run=dry_run)
-
-    async def _build_precheck_context(
-        self,
-        backend_root: Path,
-        discovered_plugin: DiscoveredPlugin,
-        discovered_plugins: list[DiscoveredPlugin],
-    ) -> PluginPrecheckContext:
-        """
-        构建插件操作预检上下文。
-
-        :param backend_root: 后端项目根目录
-        :param discovered_plugin: 当前插件
-        :param discovered_plugins: 已发现插件列表
-        :return: 插件操作预检上下文
-        """
-        return await self.context.build_precheck_context(backend_root, discovered_plugin, discovered_plugins)
-
-    def _with_plugin_capability(
-        self,
-        payload: PluginLifecycleResponse,
-        discovered_plugin: DiscoveredPlugin | None,
-    ) -> PluginLifecycleResponse:
-        """
-        为运行时响应负载附加插件操作能力。
-
-        :param payload: 运行时响应负载
-        :param discovered_plugin: 已发现插件
-        :return: 附加能力后的响应负载
-        """
-        return cast(
-            'PluginLifecycleResponse',
-            self.context.with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
-        )
-
     async def install_plugin(
         self,
         plugin_id: str,
         *,
         dry_run: bool = False,
         record_operation_log: bool = True,
+        operated_by: str | None = None,
     ) -> PluginLifecycleResponse:
         """
         安装插件并按需记录审计日志。
@@ -153,6 +91,7 @@ class PluginInstallUseCase:
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
         :param record_operation_log: 是否记录插件操作审计日志
+        :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件安装结果负载
         """
         payload = await self._install_plugin(plugin_id, dry_run=dry_run)
@@ -161,6 +100,8 @@ class PluginInstallUseCase:
         if not dry_run:
             await self.runtime_operations.record_plugin_failure_state(payload_view, '插件安装失败')
         if record_operation_log and not dry_run:
+            if operated_by is not None:
+                payload_view['operatedBy'] = operated_by
             await self.runtime_operations.record_plugin_operation_log(
                 payload_view,
                 dry_run=dry_run,
@@ -354,11 +295,9 @@ class PluginInstallUseCase:
         :param context: 插件安装上下文
         :return: None
         """
-        gateway = self.dependencies.state_gateway
-        async_session_local = gateway.get_async_session_local()
-        context.session_context = async_session_local()
-        context.session = await context.session_context.__aenter__()
-        context.plugin_service = gateway.get_plugin_service()
+        context.session_context = self.dependencies.lifecycle_uow_gateway.open_lifecycle_unit_of_work()
+        context.lifecycle_uow = await context.session_context.__aenter__()
+        context.session = context.lifecycle_uow.session
 
         return None
 
@@ -372,8 +311,7 @@ class PluginInstallUseCase:
         :param context: 插件安装上下文
         :return: 菜单冲突 payload 或 None
         """
-        installed_menu_conflicts = await context.plugin_service.check_installed_menu_conflict_services(
-            context.session,
+        installed_menu_conflicts = await context.lifecycle_uow.check_installed_menu_conflicts(
             context.discovered_plugin,
         )
         if not installed_menu_conflicts:
@@ -397,8 +335,7 @@ class PluginInstallUseCase:
         :param context: 插件安装上下文
         :return: None
         """
-        context.plugin = await context.plugin_service.upsert_discovered_plugin_services(
-            context.session,
+        context.plugin = await context.lifecycle_uow.upsert_discovered_plugin(
             context.discovered_plugin,
             Path(self.dependencies.runtime_environment.get_backend_plugins_dir()),
             Path(self.dependencies.runtime_environment.get_frontend_plugins_dir()),
@@ -417,8 +354,7 @@ class PluginInstallUseCase:
         :return: None
         """
         plugin_enabled = getattr(context.plugin, 'enabled', '0') == '0'
-        await context.plugin_service.install_plugin_menu_services(
-            context.session,
+        await context.lifecycle_uow.install_plugin_menu(
             context.discovered_plugin,
             enabled=plugin_enabled,
         )
@@ -435,8 +371,7 @@ class PluginInstallUseCase:
         :param context: 插件安装上下文
         :return: None
         """
-        context.installed_configs = await context.plugin_service.install_plugin_default_config_services(
-            context.session,
+        context.installed_configs = await context.lifecycle_uow.install_plugin_default_config(
             context.discovered_plugin,
         )
 
@@ -452,17 +387,9 @@ class PluginInstallUseCase:
         :param context: 插件安装上下文
         :return: None
         """
-        async_session_local = self.dependencies.state_gateway.get_async_session_local()
-        async with async_session_local() as migration_session:
-            context.migration_results = await PluginMigrationRunner(
-                context.discovered_plugin,
-                PluginDatabaseMigrationHistoryStore.with_model_gateway(
-                    context.plugin_service,
-                    self.dependencies.model_gateway,
-                    async_session_local,
-                ),
-                manage_execution_transaction=True,
-            ).run(migration_session)
+        context.migration_results = await self.dependencies.migration_execution_gateway.run_plugin_migrations(
+            context.discovered_plugin,
+        )
 
         return None
 
@@ -507,8 +434,7 @@ class PluginInstallUseCase:
         :param context: 插件安装上下文
         :return: None
         """
-        context.plugin = await context.plugin_service.mark_plugin_installed_services(
-            context.session,
+        context.plugin = await context.lifecycle_uow.mark_plugin_installed(
             context.discovered_plugin,
         )
 
@@ -524,7 +450,7 @@ class PluginInstallUseCase:
         :param context: 插件安装上下文
         :return: None
         """
-        await context.session.commit()
+        await context.lifecycle_uow.commit()
 
         return None
 
@@ -550,11 +476,7 @@ class PluginInstallUseCase:
         :param context: 插件安装上下文
         :return: None
         """
-        if context.session_context is None:
-            return
-        await context.session_context.__aexit__(None, None, None)
-        context.session_context = None
-        context.session = None
+        await self._close_lifecycle_session(context)
 
     async def _build_install_precheck(
         self,

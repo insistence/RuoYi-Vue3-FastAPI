@@ -180,4 +180,5 @@ def test_lifecycle_dry_run_skips_lock() -> None:
         'demo',
         dry_run=True,
         record_operation_log=True,
+        operated_by=None,
     )
