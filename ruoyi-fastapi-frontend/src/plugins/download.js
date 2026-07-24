@@ -43,6 +43,28 @@ export default {
       }
     })
   },
+  file(resource) {
+    var url = baseURL + resource;
+    axios({
+      method: 'get',
+      url: url,
+      responseType: 'blob',
+      headers: { 'Authorization': 'Bearer ' + getToken() }
+    }).then((res) => {
+      const isBlob = blobValidate(res.data);
+      if (isBlob) {
+        const blob = new Blob([res.data])
+        const responseFileName = res.headers['download-filename'];
+        const fallbackFileName = resource.split('/').pop();
+        this.saveAs(blob, responseFileName ? decodeURIComponent(responseFileName) : fallbackFileName)
+      } else {
+        this.printErrMsg(res.data);
+      }
+    }).catch((r) => {
+      console.error(r)
+      ElMessage.error('下载文件出现错误，请联系管理员！')
+    })
+  },
   zip(url, name) {
     var url = baseURL + url
     downloadLoadingInstance = ElLoading.service({ text: "正在下载数据，请稍候", background: "rgba(0, 0, 0, 0.7)", })

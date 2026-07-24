@@ -203,6 +203,11 @@ class ApiNamespace:
     SYSTEM_MENU_DETAIL: 菜单详情接口命名空间
     SYSTEM_NOTICE_LIST: 通知公告列表接口命名空间
     SYSTEM_NOTICE_DETAIL: 通知公告详情接口命名空间
+      SYSTEM_FILE_DOWNLOAD: 文件管理下载接口命名空间
+      SYSTEM_FILE_DELETE: 文件管理删除接口命名空间
+      SYSTEM_FILE_RETENTION_POLICY: 文件业务保留策略接口命名空间
+      SYSTEM_FILE_TRANSFER: 文件管理转移接口命名空间
+      SYSTEM_FILE_RESTORE: 文件管理恢复接口命名空间
     SYSTEM_POST_LIST: 岗位列表接口命名空间
     SYSTEM_POST_DETAIL: 岗位详情接口命名空间
     SYSTEM_POST_EXPORT: 岗位导出接口命名空间
@@ -247,6 +252,8 @@ class ApiNamespace:
     LOGIN_USER_ROUTERS = 'login:user:routers'
     CAPTCHA_IMAGE = 'captcha:image'
     COMMON_UPLOAD = 'common:upload'
+    COMMON_PRIVATE_UPLOAD = 'common:private-upload'
+    COMMON_FILE_DOWNLOAD = 'common:file-download'
     TRANSPORT_CRYPTO_PUBLIC_KEY = 'transport-crypto:public-key'
     TRANSPORT_CRYPTO_FRONTEND_CONFIG = 'transport-crypto:frontend-config'
 
@@ -296,6 +303,13 @@ class ApiNamespace:
 
     SYSTEM_NOTICE_LIST = 'system:notice:list'
     SYSTEM_NOTICE_DETAIL = 'system:notice:detail'
+
+    SYSTEM_FILE_DOWNLOAD = 'system:file:download'
+    SYSTEM_FILE_DELETE = 'system:file:delete'
+    SYSTEM_FILE_ACL = 'system:file:acl'
+    SYSTEM_FILE_RETENTION_POLICY = 'system:file:retention-policy'
+    SYSTEM_FILE_TRANSFER = 'system:file:transfer'
+    SYSTEM_FILE_RESTORE = 'system:file:restore'
 
     SYSTEM_POST_LIST = 'system:post:list'
     SYSTEM_POST_DETAIL = 'system:post:detail'
