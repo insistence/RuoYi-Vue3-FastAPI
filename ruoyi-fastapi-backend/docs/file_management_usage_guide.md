@@ -9,7 +9,7 @@
 | 头像、Logo、富文本图片等公开资源 | `/common/upload` 或 `ImageUpload` | `/profile/...` URL |
 | 旧业务的普通公开附件 | 默认 `FileUpload` | URL 字符串 |
 | 简单私有附件，不需要业务引用保护 | `FileUpload :is-private="true"` | 鉴权下载 URL |
-| 合同、审批材料等正式业务附件 | `/common/files/upload` | `fileId` 列表 |
+| 合同、审批材料等正式业务附件 | `BusinessFileUpload` | `{ fileId, name, url }` 列表 |
 
 正式业务附件推荐使用最后一种方式，它支持：
 
@@ -72,134 +72,83 @@ Authorization: Bearer <token>
 
 ### 3.2 Vue3 写法
 
-Vue3 项目使用 Element Plus 和 Composition API：
+Vue3 项目已经全局注册 `BusinessFileUpload`：
 
 ```vue
 <template>
-  <div>
-    <el-upload
-      multiple
-      :action="uploadUrl"
-      :headers="headers"
-      :file-list="attachmentList"
-      :on-success="handleUploadSuccess"
-      :show-file-list="false"
-    >
-      <el-button type="primary">选择附件</el-button>
-    </el-upload>
-    <el-link
-      v-for="item in attachmentList"
-      :key="item.fileId"
-      @click.prevent="downloadAttachment(item)"
-    >
-      {{ item.name }}
-    </el-link>
-  </div>
+  <business-file-upload
+    ref="attachmentUploadRef"
+    v-model="form.attachmentList"
+    :limit="10"
+    :file-size="20"
+  />
 </template>
 
 <script setup>
-import { getToken } from "@/utils/auth";
+const attachmentUploadRef = ref();
+const form = reactive({
+  attachmentList: []
+});
 
-const { proxy } = getCurrentInstance();
-const uploadUrl = `${import.meta.env.VITE_APP_BASE_API}/common/files/upload`;
-const headers = { Authorization: `Bearer ${getToken()}` };
-const attachmentList = ref([]);
-
-function handleUploadSuccess(response, uploadFile) {
-  if (response.code !== 200) {
-    proxy.$modal.msgError(response.msg);
-    return;
-  }
-  attachmentList.value.push({
-    uid: uploadFile.uid,
-    fileId: response.fileId,
-    name: response.originalFilename,
-    url: response.downloadUrl
-  });
-}
-
-function buildSubmitData(form) {
+function buildSubmitData() {
   return {
     ...form,
-    attachmentFileIds: attachmentList.value.map(item => item.fileId)
+    attachmentFileIds: attachmentUploadRef.value.getFileIds()
   };
-}
-
-function downloadAttachment(attachment) {
-  proxy.$download.file(attachment.url);
 }
 </script>
 ```
 
 ### 3.3 Vue2 写法
 
-Vue2 项目使用 Element UI、Options API 和 `process.env.VUE_APP_BASE_API`：
+Vue2 项目同样全局注册 `BusinessFileUpload`：
 
 ```vue
 <template>
-  <div>
-    <el-upload
-      multiple
-      :action="uploadUrl"
-      :headers="headers"
-      :file-list="attachmentList"
-      :on-success="handleUploadSuccess"
-      :show-file-list="false"
-    >
-      <el-button size="mini" type="primary">选择附件</el-button>
-    </el-upload>
-    <el-link
-      v-for="item in attachmentList"
-      :key="item.fileId"
-      @click.prevent="downloadAttachment(item)"
-    >
-      {{ item.name }}
-    </el-link>
-  </div>
+  <business-file-upload
+    ref="attachmentUpload"
+    v-model="form.attachmentList"
+    :limit="10"
+    :file-size="20"
+  />
 </template>
 
 <script>
-import { getToken } from "@/utils/auth";
-
 export default {
-  name: "ContractAttachment",
   data() {
     return {
-      uploadUrl: process.env.VUE_APP_BASE_API + "/common/files/upload",
-      headers: {
-        Authorization: "Bearer " + getToken()
-      },
-      attachmentList: []
+      form: {
+        attachmentList: []
+      }
     };
   },
   methods: {
-    handleUploadSuccess(response, uploadFile) {
-      if (response.code !== 200) {
-        this.$modal.msgError(response.msg);
-        return;
-      }
-      this.attachmentList.push({
-        uid: uploadFile.uid,
-        fileId: response.fileId,
-        name: response.originalFilename,
-        url: response.downloadUrl
-      });
-    },
-    buildSubmitData(form) {
+    buildSubmitData() {
       return {
-        ...form,
-        attachmentFileIds: this.attachmentList.map(item => item.fileId)
+        ...this.form,
+        attachmentFileIds: this.$refs.attachmentUpload.getFileIds()
       };
-    },
-    downloadAttachment(attachment) {
-      this.$download.file(attachment.url);
     }
   }
 };
 </script>
 ```
 
-### 3.4 现有上传组件的适用范围
+组件支持结构化数据回显、上传失败重试、删除、拖动排序和鉴权下载。`v-model` 的数据格式始终为：
+
+```json
+[
+  {
+    "fileId": "8e5787b4-daf7-4e31-bf04-f1cc16e0f65a",
+    "name": "合同.pdf",
+    "url": "/common/files/8e5787b4-daf7-4e31-bf04-f1cc16e0f65a/download/存储文件名.pdf"
+  }
+]
+```
+
+也可以监听 `change` 事件，事件参数依次为结构化文件列表和文件 ID 列表。
+
+### 3.4 上传组件的适用范围
 
 Vue2 和 Vue3 都可以使用下面的写法上传简单私有附件：
 
@@ -207,9 +156,7 @@ Vue2 和 Vue3 都可以使用下面的写法上传简单私有附件：
 <file-upload v-model="form.attachment" :is-private="true" />
 ```
 
-两个版本的现有 `FileUpload` 都只把下载 URL 写入 `v-model`，不会保留 `fileId`。因此它们只适合旧业务或不需要引用保护的简单附件。正式业务附件应使用前述结构化写法，或分别封装 Vue2、Vue3 结构化上传组件。
-
-封装复用组件时，Vue3 使用 `modelValue` 和 `update:modelValue`，Vue2 使用 `value` 和 `input` 事件。
+两个版本的 `FileUpload` 都只把下载 URL 写入 `v-model`，不会保留 `fileId`。因此它们只适合旧业务或不需要引用保护的简单附件。正式业务附件统一使用 `BusinessFileUpload`。
 
 两个版本的 `ImageUpload` 都继续用于公开图片。受保护文件下载应调用 `$download.file()`，不要使用普通 `<a>` 标签直接打开。
 

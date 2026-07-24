@@ -37,6 +37,8 @@ import RightToolbar from '@/components/RightToolbar'
 import Editor from "@/components/Editor"
 // 文件上传组件
 import FileUpload from "@/components/FileUpload"
+// 业务附件上传组件
+import BusinessFileUpload from "@/components/BusinessFileUpload"
 // 图片上传组件
 import ImageUpload from "@/components/ImageUpload"
 // 图片预览组件
@@ -61,6 +63,7 @@ app.config.globalProperties.selectDictLabels = selectDictLabels
 app.component('DictTag', DictTag)
 app.component('Pagination', Pagination)
 app.component('FileUpload', FileUpload)
+app.component('BusinessFileUpload', BusinessFileUpload)
 app.component('ImageUpload', ImageUpload)
 app.component('ImagePreview', ImagePreview)
 app.component('RightToolbar', RightToolbar)
