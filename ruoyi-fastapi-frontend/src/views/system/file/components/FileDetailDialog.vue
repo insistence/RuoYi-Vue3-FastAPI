@@ -5,7 +5,12 @@
     width="820px"
     append-to-body
   >
-    <el-descriptions :column="2" border>
+    <el-descriptions
+      :column="2"
+      border
+      label-width="110px"
+      class="file-descriptions"
+    >
       <el-descriptions-item label="文件ID" :span="2">
         {{ detail.fileId }}
       </el-descriptions-item>
@@ -26,6 +31,16 @@
       </el-descriptions-item>
       <el-descriptions-item label="上传用户ID">
         {{ detail.uploadUserId || "-" }}
+      </el-descriptions-item>
+      <el-descriptions-item label="上传人权限">
+        <el-tag
+          v-if="detail.accessType === 'private' && detail.uploadUserId"
+          :type="uploaderPermissionTagType(detail)"
+          effect="plain"
+        >
+          {{ uploaderPermissionLabel(detail) }}
+        </el-tag>
+        <span v-else>{{ uploaderPermissionLabel(detail) }}</span>
       </el-descriptions-item>
       <el-descriptions-item label="所有者">
         {{ detail.ownerName || detail.ownerUserId || "-" }}
@@ -106,9 +121,48 @@ const open = defineModel({
   type: Boolean,
   default: false
 });
+
+function uploaderPermissionLabel(file) {
+  if (file.accessType !== "private") {
+    return "公开文件无需单独授权";
+  }
+  if (!file.uploadUserId) {
+    return "未记录上传人";
+  }
+  const accessEnabled =
+    file.uploaderAccessEnabled === "1" ||
+    file.uploaderAccessEnabled === true;
+  if (file.uploadUserId === file.ownerUserId) {
+    return accessEnabled
+      ? "兼容访问已保留；同时为所有者"
+      : "兼容访问已移除；仍通过所有者访问";
+  }
+  return accessEnabled
+    ? "已保留，显式拒绝可覆盖"
+    : "已移除，不再因上传身份放行";
+}
+
+function uploaderPermissionTagType(file) {
+  if (
+    file.uploaderAccessEnabled !== "1" &&
+    file.uploaderAccessEnabled !== true
+  ) {
+    return "info";
+  }
+  return file.uploadUserId === file.ownerUserId ? "primary" : "warning";
+}
 </script>
 
 <style scoped>
+.file-descriptions :deep(.el-descriptions__label) {
+  white-space: nowrap;
+}
+
+.file-descriptions :deep(.el-descriptions__content) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .file-hash {
   word-break: break-all;
   font-family: monospace;

@@ -1116,6 +1116,7 @@ create table sys_file_info (
     storage_type varchar(20) not null default 'local',
     access_type varchar(20) not null default 'public',
     upload_user_id bigint,
+    uploader_access_enabled char(1) not null default '1',
     owner_user_id bigint,
     dept_id bigint,
     acl_version integer not null default 0,
@@ -1148,6 +1149,7 @@ comment on column sys_file_info.storage_key is '存储相对路径';
 comment on column sys_file_info.storage_type is '存储类型';
 comment on column sys_file_info.access_type is '访问类型';
 comment on column sys_file_info.upload_user_id is '上传用户ID';
+comment on column sys_file_info.uploader_access_enabled is '是否保留上传人访问权限';
 comment on column sys_file_info.owner_user_id is '所有者用户ID';
 comment on column sys_file_info.dept_id is '所属部门ID';
 comment on column sys_file_info.acl_version is '访问控制版本';

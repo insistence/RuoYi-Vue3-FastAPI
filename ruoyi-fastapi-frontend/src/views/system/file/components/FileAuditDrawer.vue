@@ -154,7 +154,12 @@
     width="720px"
     append-to-body
   >
-    <el-descriptions :column="2" border>
+    <el-descriptions
+      :column="2"
+      border
+      label-width="110px"
+      class="audit-descriptions"
+    >
       <el-descriptions-item label="操作类型">
         {{ actionLabel(detail.action) }}
       </el-descriptions-item>
@@ -285,3 +290,14 @@ function handleDetail(row) {
 
 defineExpose({ open });
 </script>
+
+<style scoped>
+.audit-descriptions :deep(.el-descriptions__label) {
+  white-space: nowrap;
+}
+
+.audit-descriptions :deep(.el-descriptions__content) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+</style>

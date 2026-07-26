@@ -122,6 +122,7 @@ def test_file_detail_reads_sqlalchemy_attributes_and_outputs_camel_case() -> Non
 
     assert result.file_id == PUBLIC_FILE_ID
     assert result.model_dump(by_alias=True)['originalName'] == 'report.pdf'
+    assert result.model_dump(by_alias=True)['uploaderAccessEnabled'] == '1'
 
 
 def test_file_storage_status_distinguishes_normal_quarantined_and_missing(tmp_path: Path) -> None:
@@ -168,10 +169,22 @@ def test_file_storage_status_marks_invalid_paths() -> None:
 
 def test_transfer_file_updates_owner_and_department_with_data_scope() -> None:
     query_db = make_query_db()
-    transfer_model = TransferFileModel(ownerUserId=TARGET_USER_ID, deptId=TARGET_DEPT_ID, reason='岗位调整')
+    transfer_model = TransferFileModel(
+        ownerUserId=TARGET_USER_ID,
+        deptId=TARGET_DEPT_ID,
+        retainUploaderAccess=False,
+        reason='岗位调整',
+    )
     target_user = SimpleNamespace(user_id=TARGET_USER_ID, user_name='target-user', dept_id=TARGET_DEPT_ID)
     target_dept = SimpleNamespace(dept_id=TARGET_DEPT_ID)
-    source_files = [SimpleNamespace(file_id=PUBLIC_FILE_ID)]
+    source_files = [
+        SimpleNamespace(
+            file_id=PUBLIC_FILE_ID,
+            owner_user_id=10,
+            dept_id=100,
+            uploader_access_enabled='1',
+        )
+    ]
     query_db.commit.side_effect = lambda: expire_model_attributes(target_user, target_dept, *source_files)
 
     with (
@@ -201,11 +214,19 @@ def test_transfer_file_updates_owner_and_department_with_data_scope() -> None:
     assert get_user.await_args.args[1] == TARGET_USER_ID
     assert get_dept.await_args.args[1] == TARGET_DEPT_ID
     assert get_files.await_args.args[2].compare(true())
-    assert transfer_files.await_args.args[1:4] == ([PUBLIC_FILE_ID], TARGET_USER_ID, TARGET_DEPT_ID)
+    assert transfer_files.await_args.args[1:5] == ([PUBLIC_FILE_ID], TARGET_USER_ID, TARGET_DEPT_ID, False)
     query_db.commit.assert_awaited_once()
     enqueue_file_audit.assert_awaited_once()
     assert enqueue_file_audit.await_args.args[2:5] == (PUBLIC_FILE_ID, 'transfer', 'completed')
     assert enqueue_file_audit.await_args.kwargs['operation_detail']['reason'] == '岗位调整'
+    assert enqueue_file_audit.await_args.kwargs['operation_detail']['previousUploaderAccessEnabled'] is True
+    assert enqueue_file_audit.await_args.kwargs['operation_detail']['newUploaderAccessEnabled'] is False
+
+
+def test_transfer_file_model_retains_uploader_access_by_default() -> None:
+    transfer_model = TransferFileModel(ownerUserId=TARGET_USER_ID, deptId=TARGET_DEPT_ID, reason='岗位调整')
+
+    assert transfer_model.retain_uploader_access is True
 
 
 def test_transfer_file_rejects_target_outside_data_scope() -> None:

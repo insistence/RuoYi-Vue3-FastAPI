@@ -41,6 +41,20 @@
           style="width: 100%"
         />
       </el-form-item>
+      <el-form-item label="上传人权限">
+        <el-switch
+          v-model="form.retainUploaderAccess"
+          active-text="保留"
+          inactive-text="移除"
+        />
+        <div class="form-tip">
+          {{
+            form.retainUploaderAccess
+              ? "原上传人继续拥有内置下载权限，匹配的显式拒绝仍可覆盖。"
+              : "原上传人不再因上传身份获得下载权限，上传记录仍会保留。"
+          }}
+        </div>
+      </el-form-item>
       <el-form-item label="转移原因" prop="reason">
         <el-input
           v-model="form.reason"
@@ -83,6 +97,7 @@ const formRef = ref();
 const form = reactive({
   ownerUserId: undefined,
   deptId: undefined,
+  retainUploaderAccess: true,
   reason: undefined
 });
 const rules = {
@@ -100,6 +115,7 @@ function open(row, selectedIds) {
   Object.assign(form, {
     ownerUserId: undefined,
     deptId: undefined,
+    retainUploaderAccess: true,
     reason: undefined
   });
   userOptions.value = [];
@@ -147,3 +163,13 @@ function submit() {
 
 defineExpose({ open });
 </script>
+
+<style scoped>
+.form-tip {
+  width: 100%;
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 20px;
+}
+</style>

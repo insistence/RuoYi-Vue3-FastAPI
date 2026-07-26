@@ -1148,6 +1148,7 @@ class FileInfoDao:
         file_ids: list[str],
         owner_user_id: int,
         dept_id: int,
+        retain_uploader_access: bool,
         update_by: str,
         update_time: datetime,
     ) -> None:
@@ -1158,6 +1159,7 @@ class FileInfoDao:
         :param file_ids: 文件ID列表
         :param owner_user_id: 新所有者用户ID
         :param dept_id: 新所属部门ID
+        :param retain_uploader_access: 是否保留上传人访问权限
         :param update_by: 更新者
         :param update_time: 更新时间
         :return: None
@@ -1168,6 +1170,7 @@ class FileInfoDao:
             .values(
                 owner_user_id=owner_user_id,
                 dept_id=dept_id,
+                uploader_access_enabled='1' if retain_uploader_access else '0',
                 acl_version=SysFileInfo.acl_version + 1,
                 update_by=update_by,
                 update_time=update_time,

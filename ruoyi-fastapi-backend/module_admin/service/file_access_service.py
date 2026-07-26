@@ -16,6 +16,7 @@ from module_admin.entity.vo.dept_vo import DeptTreeModel
 from module_admin.entity.vo.file_vo import (
     BatchSaveFileAclModel,
     FileAccessLogModel,
+    FileAclBuiltinPermissionModel,
     FileAclListModel,
     FileAclModel,
     FileAclSubjectOptionModel,
@@ -53,14 +54,20 @@ class FileAclService:
         if file_info is None:
             raise ServiceException(message='文件信息不存在或超出数据权限')
         file_acl_list = await FileAclDao.get_file_acl_list(query_db, file_id)
+        subject_ids = cls._group_acl_subject_ids(file_acl_list)
+        if file_info.access_type == 'private' and file_info.owner_user_id:
+            subject_ids['user'].add(file_info.owner_user_id)
+        if file_info.access_type == 'private' and file_info.upload_user_id:
+            subject_ids['user'].add(file_info.upload_user_id)
         subject_name_map = await FileAclDao.get_acl_subject_name_map(
             query_db,
-            cls._group_acl_subject_ids(file_acl_list),
+            subject_ids,
             user_data_scope_sql,
             dept_data_scope_sql,
         )
         return FileAclListModel(
             aclVersion=file_info.acl_version,
+            builtinPermissions=cls._build_builtin_permissions(file_info, subject_name_map),
             entries=[
                 FileAclModel(
                     aclId=file_acl.acl_id,
@@ -81,6 +88,75 @@ class FileAclService:
                 for file_acl in file_acl_list
             ],
         )
+
+    @staticmethod
+    def _build_builtin_permissions(
+        file_info: object,
+        subject_name_map: dict[tuple[str, int], str],
+    ) -> list[FileAclBuiltinPermissionModel]:
+        """
+        构建文件内置访问权限
+
+        :param file_info: 文件信息
+        :param subject_name_map: 主体名称映射
+        :return: 文件内置访问权限列表
+        """
+        if getattr(file_info, 'access_type', None) != 'private':
+            return []
+        builtin_permissions = [
+            FileAclBuiltinPermissionModel(
+                source='admin',
+                subjectName='平台管理员',
+                enabled=True,
+                denyOverridable=False,
+                description='平台管理员始终允许下载，显式拒绝不能覆盖。',
+            )
+        ]
+        owner_user_id = getattr(file_info, 'owner_user_id', None)
+        upload_user_id = getattr(file_info, 'upload_user_id', None)
+        if owner_user_id:
+            builtin_permissions.append(
+                FileAclBuiltinPermissionModel(
+                    source='owner',
+                    subjectId=owner_user_id,
+                    subjectName=subject_name_map.get(
+                        ('user', owner_user_id),
+                        f'不可用或无权查看主体（{owner_user_id}）',
+                    ),
+                    enabled=True,
+                    denyOverridable=False,
+                    description='文件所有者始终允许下载，显式拒绝不能覆盖。',
+                )
+            )
+        if upload_user_id:
+            uploader_is_owner = upload_user_id == owner_user_id
+            uploader_access_enabled = getattr(file_info, 'uploader_access_enabled', '1') in {'1', True}
+            builtin_permissions.append(
+                FileAclBuiltinPermissionModel(
+                    source='uploader',
+                    subjectId=upload_user_id,
+                    subjectName=subject_name_map.get(
+                        ('user', upload_user_id),
+                        f'不可用或无权查看主体（{upload_user_id}）',
+                    ),
+                    enabled=uploader_access_enabled,
+                    denyOverridable=uploader_access_enabled and not uploader_is_owner,
+                    description=(
+                        (
+                            '当前上传人同时是文件所有者，显式拒绝不能覆盖；所有权转移后按上传人规则判断。'
+                            if uploader_is_owner
+                            else '上传人默认允许下载，匹配的显式拒绝可以覆盖。'
+                        )
+                        if uploader_access_enabled
+                        else (
+                            '上传人访问权限已移除；当前用户仍通过文件所有者权限访问。'
+                            if uploader_is_owner
+                            else '上传人访问权限已在文件转移时移除。'
+                        )
+                    ),
+                )
+            )
+        return builtin_permissions
 
     @classmethod
     async def search_file_acl_subjects_services(

@@ -320,7 +320,10 @@ class CommonService:
 
         if 'deny' in matched_effects:
             return False
-        if user.user_id == file_info.upload_user_id:
+        if user.user_id == file_info.upload_user_id and getattr(file_info, 'uploader_access_enabled', '1') in {
+            '1',
+            True,
+        }:
             return True
         return 'allow' in matched_effects
 

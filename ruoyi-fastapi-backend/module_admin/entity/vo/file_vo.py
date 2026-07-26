@@ -32,6 +32,7 @@ class FileInfoModel(BaseModel):
     storage_type: str = Field(default='local', max_length=20, description='存储类型')
     access_type: Literal['public', 'private'] = Field(description='访问类型')
     upload_user_id: int | None = Field(default=None, description='上传用户ID')
+    uploader_access_enabled: Literal['0', '1'] = Field(default='1', description='是否保留上传人访问权限')
     owner_user_id: int | None = Field(default=None, description='所有者用户ID')
     dept_id: int | None = Field(default=None, description='所属部门ID')
     acl_version: int = Field(default=0, ge=0, description='访问控制版本')
@@ -244,6 +245,22 @@ class FileAclItemModel(BaseModel):
     expire_time: datetime | None = Field(default=None, description='授权过期时间')
 
 
+class FileAclBuiltinPermissionModel(BaseModel):
+    """
+    文件内置访问权限展示模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    source: Literal['admin', 'owner', 'uploader'] = Field(description='权限来源')
+    subject_id: int | None = Field(default=None, description='权限主体ID')
+    subject_name: str = Field(description='权限主体名称')
+    permission: Literal['download'] = Field(default='download', description='权限类型')
+    enabled: bool = Field(description='权限是否启用')
+    deny_overridable: bool = Field(description='是否可以被显式拒绝覆盖')
+    description: str = Field(description='权限说明')
+
+
 class FileAclListModel(BaseModel):
     """
     文件访问控制列表模型
@@ -252,6 +269,9 @@ class FileAclListModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     acl_version: int = Field(ge=0, description='访问控制版本')
+    builtin_permissions: list[FileAclBuiltinPermissionModel] = Field(
+        default_factory=list, description='文件内置访问权限'
+    )
     entries: list[FileAclModel] = Field(default_factory=list, description='访问控制配置项')
 
 
@@ -392,6 +412,7 @@ class TransferFileModel(BaseModel):
 
     owner_user_id: int = Field(gt=0, description='新所有者用户ID')
     dept_id: int = Field(gt=0, description='新所属部门ID')
+    retain_uploader_access: bool = Field(default=True, description='是否保留上传人访问权限')
     reason: str = Field(min_length=1, max_length=500, description='转移原因')
 
 

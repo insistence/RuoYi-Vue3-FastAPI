@@ -1027,6 +1027,7 @@ class FileTransferService:
             file_info.file_id: {
                 'previousOwnerUserId': getattr(file_info, 'owner_user_id', None),
                 'previousDeptId': getattr(file_info, 'dept_id', None),
+                'previousUploaderAccessEnabled': getattr(file_info, 'uploader_access_enabled', '1') in {'1', True},
             }
             for file_info in file_infos
         }
@@ -1037,6 +1038,7 @@ class FileTransferService:
                 parsed_file_ids,
                 target_user_id,
                 target_dept_id,
+                transfer_file.retain_uploader_access,
                 user.user_name,
                 datetime.now(),
             )
@@ -1055,6 +1057,7 @@ class FileTransferService:
                         **ownership_snapshots[file_id],
                         'newOwnerUserId': target_user_id,
                         'newDeptId': target_dept_id,
+                        'newUploaderAccessEnabled': transfer_file.retain_uploader_access,
                         'reason': transfer_file.reason,
                     },
                 )
@@ -1071,6 +1074,7 @@ class FileTransferService:
                     'newOwnerUserId': target_user_id,
                     'newOwnerName': target_user_name,
                     'newDeptId': target_dept_id,
+                    'newUploaderAccessEnabled': transfer_file.retain_uploader_access,
                     'reason': transfer_file.reason,
                 },
             )

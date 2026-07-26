@@ -49,8 +49,16 @@ def make_current_user(
     return SimpleNamespace(user=user)
 
 
-def make_file_info(owner_user_id: int = 10, upload_user_id: int = 11) -> SimpleNamespace:
-    return SimpleNamespace(owner_user_id=owner_user_id, upload_user_id=upload_user_id)
+def make_file_info(
+    owner_user_id: int = 10,
+    upload_user_id: int = 11,
+    uploader_access_enabled: str = '1',
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        owner_user_id=owner_user_id,
+        upload_user_id=upload_user_id,
+        uploader_access_enabled=uploader_access_enabled,
+    )
 
 
 def make_acl(
@@ -131,9 +139,22 @@ def test_file_acl_list_returns_current_version() -> None:
         patch.object(
             FileInfoDao,
             'get_file_info_detail_by_id',
-            new=AsyncMock(return_value=SimpleNamespace(acl_version=acl_version)),
+            new=AsyncMock(
+                return_value=SimpleNamespace(
+                    acl_version=acl_version,
+                    access_type='private',
+                    owner_user_id=10,
+                    upload_user_id=11,
+                    uploader_access_enabled='1',
+                )
+            ),
         ),
         patch.object(FileAclDao, 'get_file_acl_list', new=AsyncMock(return_value=[])),
+        patch.object(
+            FileAclDao,
+            'get_acl_subject_name_map',
+            new=AsyncMock(return_value={('user', 10): '文件所有者', ('user', 11): '文件上传人'}),
+        ),
     ):
         result = asyncio.run(
             FileAclService.get_file_acl_list_services(
@@ -147,6 +168,69 @@ def test_file_acl_list_returns_current_version() -> None:
 
     assert result.acl_version == acl_version
     assert result.entries == []
+    assert [item.source for item in result.builtin_permissions] == ['admin', 'owner', 'uploader']
+    assert result.builtin_permissions[1].subject_name == '文件所有者'
+    assert result.builtin_permissions[1].deny_overridable is False
+    assert result.builtin_permissions[2].subject_name == '文件上传人'
+    assert result.builtin_permissions[2].enabled is True
+    assert result.builtin_permissions[2].deny_overridable is True
+
+
+def test_file_acl_list_marks_uploader_permission_non_overridable_when_uploader_is_owner() -> None:
+    file_info = SimpleNamespace(
+        acl_version=0,
+        access_type='private',
+        owner_user_id=10,
+        upload_user_id=10,
+        uploader_access_enabled='1',
+    )
+    with (
+        patch.object(
+            FileInfoDao,
+            'get_file_info_detail_by_id',
+            new=AsyncMock(return_value=file_info),
+        ),
+        patch.object(FileAclDao, 'get_file_acl_list', new=AsyncMock(return_value=[])),
+        patch.object(
+            FileAclDao,
+            'get_acl_subject_name_map',
+            new=AsyncMock(return_value={('user', 10): '上传人与所有者'}),
+        ),
+    ):
+        result = asyncio.run(
+            FileAclService.get_file_acl_list_services(
+                make_query_db(),
+                FILE_ID,
+                true(),
+                true(),
+                true(),
+            )
+        )
+
+    uploader_permission = result.builtin_permissions[2]
+    assert uploader_permission.source == 'uploader'
+    assert uploader_permission.enabled is True
+    assert uploader_permission.deny_overridable is False
+
+
+def test_file_acl_list_exposes_disabled_uploader_permission() -> None:
+    file_info = SimpleNamespace(
+        access_type='private',
+        owner_user_id=10,
+        upload_user_id=11,
+        uploader_access_enabled='0',
+    )
+
+    builtin_permissions = FileAclService._build_builtin_permissions(
+        file_info,
+        {('user', 10): '文件所有者', ('user', 11): '文件上传人'},
+    )
+
+    uploader_permission = builtin_permissions[2]
+    assert uploader_permission.source == 'uploader'
+    assert uploader_permission.enabled is False
+    assert uploader_permission.deny_overridable is False
+    assert uploader_permission.description == '上传人访问权限已在文件转移时移除。'
 
 
 def test_file_acl_role_options_exclude_roles_with_members_outside_user_data_scope() -> None:
@@ -180,6 +264,23 @@ def test_private_file_acl_explicit_deny_overrides_uploader_and_allow_rule() -> N
                 make_query_db(),
                 current_user,
                 make_file_info(upload_user_id=20),
+                FILE_ID,
+                datetime.now(),
+            )
+        )
+
+    assert result is False
+
+
+def test_private_file_acl_does_not_allow_uploader_when_compatibility_access_is_disabled() -> None:
+    current_user = make_current_user(20)
+
+    with patch.object(FileAclDao, 'get_effective_file_acl_list', new=AsyncMock(return_value=[])):
+        result = asyncio.run(
+            CommonService._has_private_file_download_permission(
+                make_query_db(),
+                current_user,
+                make_file_info(upload_user_id=20, uploader_access_enabled='0'),
                 FILE_ID,
                 datetime.now(),
             )

@@ -32,6 +32,12 @@ class SysFileInfo(Base):
     storage_type = Column(String(20), nullable=False, server_default='local', comment='存储类型')
     access_type = Column(String(20), nullable=False, server_default='public', comment='访问类型')
     upload_user_id = Column(BigInteger, nullable=True, comment='上传用户ID')
+    uploader_access_enabled = Column(
+        CHAR(1),
+        nullable=False,
+        server_default='1',
+        comment='是否保留上传人访问权限',
+    )
     owner_user_id = Column(BigInteger, nullable=True, comment='所有者用户ID')
     dept_id = Column(BigInteger, nullable=True, comment='所属部门ID')
     acl_version = Column(Integer, nullable=False, server_default='0', comment='访问控制版本')

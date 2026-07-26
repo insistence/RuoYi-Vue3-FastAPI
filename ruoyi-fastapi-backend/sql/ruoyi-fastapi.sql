@@ -838,6 +838,7 @@ create table sys_file_info (
   storage_type     varchar(20)     not null default 'local'   comment '存储类型',
   access_type      varchar(20)     not null default 'public'  comment '访问类型',
   upload_user_id   bigint(20)                                 comment '上传用户ID',
+  uploader_access_enabled char(1)  not null default '1'       comment '是否保留上传人访问权限',
   owner_user_id    bigint(20)                                 comment '所有者用户ID',
   dept_id          bigint(20)                                 comment '所属部门ID',
   acl_version      int             not null default 0         comment '访问控制版本',
