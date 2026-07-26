@@ -70,7 +70,9 @@ async def common_private_upload(
             'content': {
                 'application/octet-stream': {},
             },
-        }
+        },
+        206: {'description': '分段返回文件'},
+        416: {'description': '请求的字节范围不可满足'},
     },
 )
 @ApiRateLimit(namespace=ApiNamespace.COMMON_FILE_DOWNLOAD, preset=ApiRateLimitPreset.USER_RESOURCE_DOWNLOAD)
@@ -81,18 +83,24 @@ async def common_managed_file_download(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    file_stream, filename = await CommonService.download_managed_file_services(
+    download_result = await CommonService.download_managed_file_services(
         request,
         query_db,
         current_user,
         str(file_id),
+        range_header=request.headers.get('Range'),
     )
     logger.info(f'文件{file_id}下载成功')
 
     return ResponseUtil.streaming(
-        data=file_stream,
-        headers=UploadUtil.build_download_headers(filename),
+        data=download_result.data,
+        headers=UploadUtil.build_download_headers(
+            download_result.filename,
+            download_result.byte_range,
+            download_result.accept_ranges,
+        ),
         media_type='application/octet-stream',
+        status_code=206 if download_result.byte_range.is_partial else 200,
     )
 
 
@@ -107,7 +115,9 @@ async def common_managed_file_download(
             'content': {
                 'application/octet-stream': {},
             },
-        }
+        },
+        206: {'description': '分段返回文件'},
+        416: {'description': '请求的字节范围不可满足'},
     },
 )
 async def common_download(
@@ -116,13 +126,23 @@ async def common_download(
     file_name: Annotated[str, Query(alias='fileName')],
     delete: Annotated[bool, Query()],
 ) -> Response:
-    download_result = await CommonService.download_services(background_tasks, file_name, delete)
-    logger.info(download_result.message)
+    download_result = await CommonService.download_services(
+        background_tasks,
+        file_name,
+        delete,
+        range_header=request.headers.get('Range'),
+    )
+    logger.info('下载成功')
 
     return ResponseUtil.streaming(
-        data=download_result.result,
-        headers=UploadUtil.build_download_headers(file_name),
+        data=download_result.data,
+        headers=UploadUtil.build_download_headers(
+            download_result.filename,
+            download_result.byte_range,
+            download_result.accept_ranges,
+        ),
         media_type='application/octet-stream',
+        status_code=206 if download_result.byte_range.is_partial else 200,
     )
 
 
@@ -137,15 +157,25 @@ async def common_download(
             'content': {
                 'application/octet-stream': {},
             },
-        }
+        },
+        206: {'description': '分段返回文件'},
+        416: {'description': '请求的字节范围不可满足'},
     },
 )
 async def common_download_resource(request: Request, resource: Annotated[str, Query()]) -> Response:
-    download_resource_result = await CommonService.download_resource_services(resource)
-    logger.info(download_resource_result.message)
+    download_result = await CommonService.download_resource_services(
+        resource,
+        range_header=request.headers.get('Range'),
+    )
+    logger.info('下载成功')
 
     return ResponseUtil.streaming(
-        data=download_resource_result.result,
-        headers=UploadUtil.build_download_headers(resource),
+        data=download_result.data,
+        headers=UploadUtil.build_download_headers(
+            download_result.filename,
+            download_result.byte_range,
+            download_result.accept_ranges,
+        ),
         media_type='application/octet-stream',
+        status_code=206 if download_result.byte_range.is_partial else 200,
     )

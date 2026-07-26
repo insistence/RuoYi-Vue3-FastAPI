@@ -17,13 +17,19 @@ from sqlalchemy import false
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from config.env import UploadConfig
-from exceptions.exception import ServiceException
+from exceptions.exception import FileRangeNotSatisfiableException, ServiceException
 from middlewares.cors_middleware import add_cors_middleware
 from module_admin.dao.file_access_dao import FileAclDao
 from module_admin.dao.file_info_dao import FileInfoDao
 from module_admin.service.common_service import CommonService
 from sub_applications.staticfiles import SecureStaticFiles
+from utils.file_util import FileUtil
 from utils.upload_util import FilePathUtil, UploadUtil
+
+RANGE_TEST_FILE_SIZE = 10
+RANGE_TEST_START = 3
+RANGE_TEST_END = 6
+RANGE_TEST_LENGTH = RANGE_TEST_END - RANGE_TEST_START + 1
 
 
 async def collect_stream(stream: AsyncGenerator[bytes, None]) -> bytes:
@@ -48,6 +54,59 @@ def make_current_user(user_id: int = 10, admin: bool = False, dept_id: int = 100
 
 def make_query_db() -> SimpleNamespace:
     return SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
+
+
+@pytest.mark.parametrize(
+    ('range_header', 'expected'),
+    [
+        (None, (0, 9, 10, False, 10)),
+        ('bytes=2-5', (2, 5, 10, True, 4)),
+        ('bytes=7-', (7, 9, 10, True, 3)),
+        ('bytes=-3', (7, 9, 10, True, 3)),
+        ('bytes=-99', (0, 9, 10, True, 10)),
+        ('bytes=3-99', (3, 9, 10, True, 7)),
+    ],
+)
+def test_parse_byte_range_supports_standard_single_ranges(
+    range_header: str | None,
+    expected: tuple[int, int, int, bool, int],
+) -> None:
+    byte_range = FileUtil.parse_byte_range(range_header, 10)
+
+    assert (
+        byte_range.start,
+        byte_range.end,
+        byte_range.file_size,
+        byte_range.is_partial,
+        byte_range.length,
+    ) == expected
+
+
+@pytest.mark.parametrize(
+    'range_header',
+    [
+        'items=0-1',
+        'bytes=',
+        'bytes=-0',
+        'bytes=10-',
+        'bytes=8-7',
+        'bytes=0-1,3-4',
+    ],
+)
+def test_parse_byte_range_rejects_invalid_or_multiple_ranges(range_header: str) -> None:
+    with pytest.raises(FileRangeNotSatisfiableException) as range_error:
+        FileUtil.parse_byte_range(range_header, RANGE_TEST_FILE_SIZE)
+
+    assert range_error.value.file_size == RANGE_TEST_FILE_SIZE
+
+
+def test_parse_byte_range_allows_empty_full_download_but_rejects_empty_partial_download() -> None:
+    byte_range = FileUtil.parse_byte_range(None, 0)
+
+    assert byte_range.length == 0
+    assert byte_range.is_partial is False
+    with pytest.raises(FileRangeNotSatisfiableException):
+        FileUtil.parse_byte_range('bytes=0-', 0)
 
 
 def test_resolve_file_within_root_accepts_nested_relative_file(tmp_path: Path) -> None:
@@ -121,8 +180,17 @@ def test_download_keeps_delete_compatibility_inside_download_root(tmp_path: Path
     background_tasks = BackgroundTasks()
 
     with patch.object(UploadConfig, 'DOWNLOAD_PATH', str(download_root)):
-        result = asyncio.run(CommonService.download_services(background_tasks, 'report.txt', True))
-        assert asyncio.run(collect_stream(result.result)) == b'report-content'
+        result = asyncio.run(
+            CommonService.download_services(
+                background_tasks,
+                'report.txt',
+                True,
+                range_header='bytes=0-5',
+            )
+        )
+        assert asyncio.run(collect_stream(result.data)) == b'report-content'
+        assert result.byte_range.is_partial is False
+        assert result.accept_ranges is False
         assert target.exists()
         asyncio.run(background_tasks())
 
@@ -139,7 +207,16 @@ def test_resource_download_is_confined_to_upload_root(tmp_path: Path) -> None:
         result = asyncio.run(
             CommonService.download_resource_services('/profile/upload/2026/07/report_20260719120000A001.txt')
         )
-        assert asyncio.run(collect_stream(result.result)) == b'resource-content'
+        assert asyncio.run(collect_stream(result.data)) == b'resource-content'
+
+        range_result = asyncio.run(
+            CommonService.download_resource_services(
+                '/profile/upload/2026/07/report_20260719120000A001.txt',
+                range_header='bytes=3-10',
+            )
+        )
+        assert asyncio.run(collect_stream(range_result.data)) == b'ource-co'
+        assert range_result.byte_range.is_partial is True
 
         with pytest.raises(ServiceException):
             asyncio.run(CommonService.download_resource_services('/profile/../outside.txt'))
@@ -192,7 +269,7 @@ def test_upload_uses_server_generated_filename_and_stays_in_upload_root(tmp_path
 
     with patch.object(UploadConfig, 'UPLOAD_PATH', str(upload_root)):
         download_result = asyncio.run(CommonService.download_resource_services(result.result.file_name))
-        assert asyncio.run(collect_stream(download_result.result)) == b'safe-content'
+        assert asyncio.run(collect_stream(download_result.data)) == b'safe-content'
 
 
 @pytest.mark.parametrize('extension', ['html', 'htm'])
@@ -216,7 +293,7 @@ def test_upload_accepts_html_as_download_only_file(tmp_path: Path, extension: st
     assert len(written_files) == 1
     assert written_files[0].read_bytes() == file_content
     assert re.fullmatch(rf'attack_\d{{14}}A\d{{3}}\.{extension}', result.result.new_file_name)
-    assert asyncio.run(collect_stream(download_result.result)) == file_content
+    assert asyncio.run(collect_stream(download_result.data)) == file_content
 
 
 def test_upload_enforces_total_size_and_removes_partial_file(tmp_path: Path) -> None:
@@ -309,17 +386,17 @@ def test_private_upload_is_physically_isolated_and_owner_can_download(tmp_path: 
         )
         file_info = add_file_info.await_args.args[1]
         with patch.object(FileInfoDao, 'get_file_info_by_id', new=AsyncMock(return_value=file_info)):
-            stream, filename = asyncio.run(
+            download_result = asyncio.run(
                 CommonService.download_managed_file_services(request, query_db, current_user, result.result.file_id)
             )
-            assert asyncio.run(collect_stream(stream)) == b'private-content'
+            assert asyncio.run(collect_stream(download_result.data)) == b'private-content'
 
     assert list(public_root.rglob('*')) == []
     assert len([path for path in private_root.rglob('*') if path.is_file()]) == 1
     assert result.result.file_name.startswith('/common/files/')
     assert not result.result.file_name.startswith(UploadConfig.UPLOAD_PREFIX)
     assert result.result.access_type == 'private'
-    assert filename == 'contract.pdf'
+    assert download_result.filename == 'contract.pdf'
     audit_results = [call.kwargs['result'] for call in enqueue_audit.await_args_list]
     assert audit_results == ['completed', 'allowed', 'completed']
 
@@ -378,7 +455,7 @@ def test_file_manager_can_download_private_file_without_owner_match(tmp_path: Pa
         patch.object(FileInfoDao, 'get_file_info_by_id', new=AsyncMock(return_value=file_info)),
         patch.object(CommonService, '_enqueue_file_access_log', new_callable=AsyncMock),
     ):
-        stream, filename = asyncio.run(
+        download_result = asyncio.run(
             CommonService.download_managed_file_services(
                 request,
                 query_db,
@@ -387,9 +464,9 @@ def test_file_manager_can_download_private_file_without_owner_match(tmp_path: Pa
                 enforce_owner_permission=False,
             )
         )
-        assert asyncio.run(collect_stream(stream)) == b'private-content'
+        assert asyncio.run(collect_stream(download_result.data)) == b'private-content'
 
-    assert filename == 'contract.pdf'
+    assert download_result.filename == 'contract.pdf'
 
 
 def test_file_manager_download_rejects_file_outside_data_scope() -> None:
@@ -452,12 +529,12 @@ def test_managed_download_allows_administrator_or_public_file(
         patch.object(FileInfoDao, 'get_file_info_by_id', new=AsyncMock(return_value=file_info)),
         patch.object(CommonService, '_enqueue_file_access_log', new_callable=AsyncMock) as enqueue_audit,
     ):
-        stream, filename = asyncio.run(
+        download_result = asyncio.run(
             CommonService.download_managed_file_services(request, query_db, current_user, 'file-id')
         )
-        assert asyncio.run(collect_stream(stream)) == b'file-content'
+        assert asyncio.run(collect_stream(download_result.data)) == b'file-content'
 
-    assert filename == 'report.txt'
+    assert download_result.filename == 'report.txt'
     assert [call.kwargs['result'] for call in enqueue_audit.await_args_list] == ['allowed', 'completed']
 
 
@@ -496,7 +573,8 @@ def test_managed_download_records_interrupted_stream(tmp_path: Path) -> None:
     current_user = make_current_user()
 
     with patch.object(CommonService, '_enqueue_file_access_log', new_callable=AsyncMock) as enqueue_audit:
-        stream = CommonService._generate_audited_file(request, current_user, 'file-id', target)
+        byte_range = FileUtil.parse_byte_range(None, target.stat().st_size)
+        stream = CommonService._generate_audited_file(request, current_user, 'file-id', target, byte_range)
         assert asyncio.run(collect_first_chunk_and_close(stream)) == b'partial-content'
 
     enqueue_audit.assert_awaited_once()
@@ -504,11 +582,98 @@ def test_managed_download_records_interrupted_stream(tmp_path: Path) -> None:
     assert enqueue_audit.await_args.kwargs['error_message'] == 'StreamClosed'
 
 
+def test_managed_download_supports_range_and_records_partial_bytes(tmp_path: Path) -> None:
+    storage_root = tmp_path / 'private'
+    target = storage_root / 'upload' / '2026' / '07' / 'report_20260719120000A001.txt'
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b'0123456789')
+    file_info = SimpleNamespace(
+        storage_type='local',
+        access_type='private',
+        upload_user_id=10,
+        owner_user_id=10,
+        expire_time=None,
+        storage_key='upload/2026/07/report_20260719120000A001.txt',
+        original_name='report.txt',
+    )
+    request = SimpleNamespace(base_url='https://example.test/prod-api/', headers={}, client=None)
+    query_db = make_query_db()
+    current_user = make_current_user()
+
+    with (
+        patch.object(UploadConfig, 'PRIVATE_UPLOAD_PATH', str(storage_root)),
+        patch.object(FileInfoDao, 'get_file_info_by_id', new=AsyncMock(return_value=file_info)),
+        patch.object(CommonService, '_enqueue_file_access_log', new_callable=AsyncMock) as enqueue_audit,
+    ):
+        download_result = asyncio.run(
+            CommonService.download_managed_file_services(
+                request,
+                query_db,
+                current_user,
+                'file-id',
+                range_header='bytes=3-6',
+            )
+        )
+        assert asyncio.run(collect_stream(download_result.data)) == b'3456'
+
+    assert download_result.byte_range.start == RANGE_TEST_START
+    assert download_result.byte_range.end == RANGE_TEST_END
+    assert download_result.byte_range.length == RANGE_TEST_LENGTH
+    assert [call.kwargs['result'] for call in enqueue_audit.await_args_list] == ['allowed', 'completed']
+    assert enqueue_audit.await_args_list[0].kwargs['operation_detail'] == {
+        'rangeStart': RANGE_TEST_START,
+        'rangeEnd': RANGE_TEST_END,
+        'fileSize': RANGE_TEST_FILE_SIZE,
+    }
+    assert enqueue_audit.await_args_list[1].kwargs['bytes_sent'] == RANGE_TEST_LENGTH
+
+
+def test_managed_download_audits_unsatisfied_range_without_disclosing_before_permission(tmp_path: Path) -> None:
+    storage_root = tmp_path / 'private'
+    target = storage_root / 'upload' / '2026' / '07' / 'report_20260719120000A001.txt'
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b'0123456789')
+    file_info = SimpleNamespace(
+        storage_type='local',
+        access_type='private',
+        upload_user_id=10,
+        owner_user_id=10,
+        expire_time=None,
+        storage_key='upload/2026/07/report_20260719120000A001.txt',
+        original_name='report.txt',
+    )
+    request = SimpleNamespace(base_url='https://example.test/prod-api/', headers={}, client=None)
+
+    with (
+        patch.object(UploadConfig, 'PRIVATE_UPLOAD_PATH', str(storage_root)),
+        patch.object(FileInfoDao, 'get_file_info_by_id', new=AsyncMock(return_value=file_info)),
+        patch.object(CommonService, '_enqueue_file_access_log', new_callable=AsyncMock) as enqueue_audit,
+        pytest.raises(FileRangeNotSatisfiableException),
+    ):
+        asyncio.run(
+            CommonService.download_managed_file_services(
+                request,
+                make_query_db(),
+                make_current_user(),
+                'file-id',
+                range_header='bytes=20-',
+            )
+        )
+
+    enqueue_audit.assert_awaited_once()
+    assert enqueue_audit.await_args.kwargs['result'] == 'failed'
+    assert enqueue_audit.await_args.kwargs['error_message'] == 'RangeNotSatisfiable'
+
+
 def test_download_headers_force_attachment_and_disable_sniffing() -> None:
-    headers = UploadUtil.build_download_headers('../../report.html')
+    byte_range = FileUtil.parse_byte_range('bytes=2-5', 10)
+    headers = UploadUtil.build_download_headers('../../report.html', byte_range)
 
     assert headers['Content-Disposition'].startswith('attachment;')
     assert headers['download-filename'] == 'report.html'
+    assert headers['Accept-Ranges'] == 'bytes'
+    assert headers['Content-Length'] == '4'
+    assert headers['Content-Range'] == 'bytes 2-5/10'
     assert headers['X-Content-Type-Options'] == 'nosniff'
     assert headers['Content-Security-Policy'].startswith('sandbox;')
     assert headers['X-Frame-Options'] == 'DENY'
@@ -551,3 +716,6 @@ def test_cors_exposes_download_headers() -> None:
 
     assert 'download-filename' in expose_headers
     assert 'content-disposition' in expose_headers
+    assert 'accept-ranges' in expose_headers
+    assert 'content-range' in expose_headers
+    assert 'content-length' in expose_headers

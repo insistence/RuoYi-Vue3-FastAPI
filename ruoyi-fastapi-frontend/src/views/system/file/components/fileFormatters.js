@@ -136,6 +136,10 @@ function auditDetailKeyLabel(key) {
     previousExpireTime: "原到期时间",
     newExpireTime: "新到期时间",
     expireTime: "到期时间",
+    range: "请求范围",
+    rangeStart: "分段起始字节",
+    rangeEnd: "分段结束字节",
+    fileSize: "文件总大小",
     releasedReferenceCount: "解除引用数量",
     releasedReferences: "解除引用明细"
   }[key] || key;

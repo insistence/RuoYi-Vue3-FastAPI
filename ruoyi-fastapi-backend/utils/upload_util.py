@@ -4,12 +4,16 @@ import re
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import aiofiles
 from fastapi import UploadFile
 
 from config.env import UploadConfig
+
+if TYPE_CHECKING:
+    from utils.file_util import FileByteRange
 
 
 class FilePathUtil:
@@ -159,24 +163,37 @@ class UploadUtil:
         return safe_file_stem or 'file'
 
     @classmethod
-    def build_download_headers(cls, filename: str) -> dict[str, str]:
+    def build_download_headers(
+        cls,
+        filename: str,
+        byte_range: 'FileByteRange | None' = None,
+        accept_ranges: bool = True,
+    ) -> dict[str, str]:
         """
         构造文件下载响应头
 
         :param filename: 文件名称
+        :param byte_range: 文件字节范围
+        :param accept_ranges: 是否支持Range请求
         :return: 文件下载响应头
         """
         safe_name = cls.get_original_filename(filename) or 'download'
         encoded_name = quote(safe_name)
-        return {
+        headers = {
             'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_name}",
             'download-filename': encoded_name,
+            'Accept-Ranges': 'bytes' if accept_ranges else 'none',
             'X-Content-Type-Options': 'nosniff',
             'Content-Security-Policy': (
                 "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
             ),
             'X-Frame-Options': 'DENY',
         }
+        if byte_range is not None:
+            headers['Content-Length'] = str(byte_range.length)
+            if byte_range.is_partial:
+                headers['Content-Range'] = f'bytes {byte_range.start}-{byte_range.end}/{byte_range.file_size}'
+        return headers
 
     @classmethod
     def check_file_timestamp(cls, filename: str) -> bool:
@@ -227,15 +244,32 @@ class UploadUtil:
         )
 
     @classmethod
-    async def generate_file(cls, filepath: str | os.PathLike[str]) -> AsyncGenerator[bytes, None]:
+    async def generate_file(
+        cls,
+        filepath: str | os.PathLike[str],
+        start: int = 0,
+        length: int | None = None,
+    ) -> AsyncGenerator[bytes, None]:
         """
         根据文件生成二进制数据
 
         :param filepath: 文件路径
+        :param start: 读取起始字节位置
+        :param length: 读取字节数
         :yield: 二进制数据
         """
+        if start < 0 or (length is not None and length < 0):
+            raise ValueError('文件读取范围不合法')
         async with aiofiles.open(filepath, 'rb') as response_file:
-            while chunk := await response_file.read(1024 * 1024):
+            await response_file.seek(start)
+            remaining = length
+            while remaining is None or remaining > 0:
+                chunk_size = 1024 * 1024 if remaining is None else min(1024 * 1024, remaining)
+                chunk = await response_file.read(chunk_size)
+                if not chunk:
+                    break
+                if remaining is not None:
+                    remaining -= len(chunk)
                 yield chunk
 
     @classmethod

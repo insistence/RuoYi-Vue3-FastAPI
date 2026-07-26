@@ -1,15 +1,16 @@
 import hashlib
 import os
+import re
 import shutil
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncGenerator, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
 
 from config.env import UploadConfig
-from exceptions.exception import ServiceException
+from exceptions.exception import FileRangeNotSatisfiableException, ServiceException
 from utils.log_util import logger
 from utils.upload_util import FilePathUtil, UploadUtil
 
@@ -24,6 +25,39 @@ class FileStorageInfo(Protocol):
     access_type: str
     storage_key: str
     stored_name: str
+
+
+@dataclass(frozen=True)
+class FileByteRange:
+    """
+    文件字节范围
+    """
+
+    start: int
+    end: int
+    file_size: int
+    is_partial: bool
+
+    @property
+    def length(self) -> int:
+        """
+        获取范围字节数
+
+        :return: 范围字节数
+        """
+        return max(self.end - self.start + 1, 0)
+
+
+@dataclass(frozen=True)
+class FileDownloadResult:
+    """
+    文件下载结果
+    """
+
+    data: AsyncGenerator[bytes, None]
+    filename: str
+    byte_range: FileByteRange
+    accept_ranges: bool = True
 
 
 @dataclass(frozen=True)
@@ -88,6 +122,56 @@ class FileUtil:
     """
     文件工具类
     """
+
+    FILE_RANGE_PATTERN = re.compile(r'^bytes=(\d*)-(\d*)$', re.IGNORECASE)
+
+    @classmethod
+    def parse_byte_range(cls, range_header: str | None, file_size: int) -> FileByteRange:
+        """
+        解析HTTP单区间Range请求头
+
+        :param range_header: Range请求头
+        :param file_size: 文件总大小
+        :return: 文件字节范围
+        """
+        if file_size < 0:
+            raise ValueError('文件大小不能小于0')
+        if not range_header:
+            return FileByteRange(
+                start=0,
+                end=file_size - 1,
+                file_size=file_size,
+                is_partial=False,
+            )
+
+        range_match = cls.FILE_RANGE_PATTERN.fullmatch(range_header.strip())
+        if range_match is None or file_size == 0:
+            raise FileRangeNotSatisfiableException(file_size)
+
+        start_text, end_text = range_match.groups()
+        if not start_text and not end_text:
+            raise FileRangeNotSatisfiableException(file_size)
+
+        if not start_text:
+            suffix_length = int(end_text)
+            if suffix_length <= 0:
+                raise FileRangeNotSatisfiableException(file_size)
+            start = max(file_size - suffix_length, 0)
+            end = file_size - 1
+        else:
+            start = int(start_text)
+            if start >= file_size:
+                raise FileRangeNotSatisfiableException(file_size)
+            end = file_size - 1 if not end_text else min(int(end_text), file_size - 1)
+            if end < start:
+                raise FileRangeNotSatisfiableException(file_size)
+
+        return FileByteRange(
+            start=start,
+            end=end,
+            file_size=file_size,
+            is_partial=True,
+        )
 
     @classmethod
     def parse_file_ids(cls, file_ids: str) -> list[str]:

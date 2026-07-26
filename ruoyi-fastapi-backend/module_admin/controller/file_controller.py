@@ -721,7 +721,9 @@ async def get_system_file_access_log_list(
             'content': {
                 'application/octet-stream': {},
             },
-        }
+        },
+        206: {'description': '分段返回文件'},
+        416: {'description': '请求的字节范围不可满足'},
     },
     dependencies=[UserInterfaceAuthDependency('system:file:download')],
 )
@@ -738,20 +740,26 @@ async def download_system_file(
         DataScopeDependency(SysFileInfo, user_alias='owner_user_id', dept_alias='dept_id'),
     ],
 ) -> Response:
-    file_stream, filename = await CommonService.download_managed_file_services(
+    download_result = await CommonService.download_managed_file_services(
         request,
         query_db,
         current_user,
         str(file_id),
         enforce_owner_permission=False,
         file_data_scope_sql=file_data_scope_sql,
+        range_header=request.headers.get('Range'),
     )
     logger.info(f'文件{file_id}下载成功')
 
     return ResponseUtil.streaming(
-        data=file_stream,
-        headers=UploadUtil.build_download_headers(filename),
+        data=download_result.data,
+        headers=UploadUtil.build_download_headers(
+            download_result.filename,
+            download_result.byte_range,
+            download_result.accept_ranges,
+        ),
         media_type='application/octet-stream',
+        status_code=206 if download_result.byte_range.is_partial else 200,
     )
 
 

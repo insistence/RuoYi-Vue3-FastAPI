@@ -19,7 +19,12 @@ from user_agents import parse
 from common.context import RequestContext
 from common.enums import BusinessType
 from config.env import AppConfig
-from exceptions.exception import LoginException, ServiceException, ServiceWarning
+from exceptions.exception import (
+    FileRangeNotSatisfiableException,
+    LoginException,
+    ServiceException,
+    ServiceWarning,
+)
 from module_admin.entity.vo.log_vo import LogininforModel, OperLogModel
 from module_admin.service.log_service import LogQueueService
 from utils.client_ip_util import ClientIPUtil
@@ -196,6 +201,8 @@ class Log:
             except ServiceException as e:
                 logger.error(e.message)
                 result = ResponseUtil.error(data=e.data, msg=e.message)
+            except FileRangeNotSatisfiableException:
+                raise
             except Exception as e:
                 logger.exception(e)
                 result = ResponseUtil.error(msg=str(e))

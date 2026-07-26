@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel
 from config.env import UploadConfig
-from exceptions.exception import ServiceException
+from exceptions.exception import FileRangeNotSatisfiableException, ServiceException
 from module_admin.dao.file_access_dao import FileAclDao
 from module_admin.dao.file_info_dao import FileInfoDao
 from module_admin.entity.do.file_do import SysFileInfo
@@ -21,6 +21,7 @@ from module_admin.entity.vo.common_vo import UploadResponseModel
 from module_admin.entity.vo.file_vo import FileInfoModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.file_access_service import FileAuditService
+from utils.file_util import FileByteRange, FileDownloadResult, FileUtil
 from utils.upload_util import FilePathUtil, UploadUtil
 
 
@@ -186,7 +187,8 @@ class CommonService:
         file_id: str,
         enforce_owner_permission: bool = True,
         file_data_scope_sql: ColumnElement | None = None,
-    ) -> tuple[AsyncGenerator[bytes, None], str]:
+        range_header: str | None = None,
+    ) -> FileDownloadResult:
         """
         下载已登记文件service
 
@@ -196,7 +198,8 @@ class CommonService:
         :param file_id: 文件ID
         :param enforce_owner_permission: 是否校验文件所有者权限
         :param file_data_scope_sql: 文件数据权限对应的查询sql语句
-        :return: 文件流和下载文件名
+        :param range_header: Range请求头
+        :return: 文件下载结果
         """
         file_info = await FileInfoDao.get_file_info_by_id(query_db, file_id, file_data_scope_sql)
         user = current_user.user
@@ -263,6 +266,19 @@ class CommonService:
                 error_message='文件不存在或存储路径异常',
             )
             raise ServiceException(message='文件不存在或无权访问') from exc
+        try:
+            byte_range = FileUtil.parse_byte_range(range_header, filepath.stat().st_size)
+        except FileRangeNotSatisfiableException:
+            await cls._enqueue_file_access_log(
+                request,
+                current_user,
+                file_id,
+                action='download',
+                result='failed',
+                error_message='RangeNotSatisfiable',
+                operation_detail={'range': range_header or ''},
+            )
+            raise
 
         original_name = file_info.original_name
         await query_db.rollback()
@@ -272,9 +288,14 @@ class CommonService:
             file_id,
             action='download',
             result='allowed',
+            operation_detail=cls._build_download_operation_detail(byte_range),
         )
-        stream = cls._generate_audited_file(request, current_user, file_id, filepath)
-        return stream, original_name
+        stream = cls._generate_audited_file(request, current_user, file_id, filepath, byte_range)
+        return FileDownloadResult(
+            data=stream,
+            filename=original_name,
+            byte_range=byte_range,
+        )
 
     @classmethod
     async def _has_private_file_download_permission(
@@ -366,6 +387,7 @@ class CommonService:
         current_user: CurrentUserModel,
         file_id: str,
         filepath: Path,
+        byte_range: FileByteRange,
     ) -> AsyncGenerator[bytes, None]:
         """
         生成带有完成审计的文件流
@@ -374,15 +396,22 @@ class CommonService:
         :param current_user: 当前用户对象
         :param file_id: 文件ID
         :param filepath: 文件路径
+        :param byte_range: 文件字节范围
         :yield: 文件二进制数据
         """
         bytes_sent = 0
         audit_result: Literal['completed', 'failed'] = 'failed'
         error_message = 'StreamClosed'
         try:
-            async for chunk in UploadUtil.generate_file(filepath):
+            async for chunk in UploadUtil.generate_file(
+                filepath,
+                start=byte_range.start,
+                length=byte_range.length,
+            ):
                 bytes_sent += len(chunk)
                 yield chunk
+            if bytes_sent != byte_range.length:
+                raise OSError('文件在下载期间发生变化')
         except asyncio.CancelledError:
             error_message = 'CancelledError'
             raise
@@ -401,6 +430,7 @@ class CommonService:
                 result=audit_result,
                 bytes_sent=bytes_sent,
                 error_message=error_message,
+                operation_detail=cls._build_download_operation_detail(byte_range),
             )
 
     @classmethod
@@ -413,6 +443,7 @@ class CommonService:
         result: Literal['allowed', 'denied', 'completed', 'failed'],
         bytes_sent: int = 0,
         error_message: str = '',
+        operation_detail: dict[str, object] | None = None,
     ) -> None:
         """
         将文件访问审计写入日志队列
@@ -424,6 +455,7 @@ class CommonService:
         :param result: 操作结果
         :param bytes_sent: 已发送字节数
         :param error_message: 失败原因
+        :param operation_detail: 操作详情
         :return: None
         """
         await FileAuditService.enqueue_file_audit(
@@ -434,35 +466,73 @@ class CommonService:
             result,
             bytes_sent=bytes_sent,
             error_message=error_message,
+            operation_detail=operation_detail,
         )
+
+    @staticmethod
+    def _build_download_operation_detail(byte_range: FileByteRange) -> dict[str, object] | None:
+        """
+        构造分段下载审计详情
+
+        :param byte_range: 文件字节范围
+        :return: 分段下载审计详情
+        """
+        if not byte_range.is_partial:
+            return None
+        return {
+            'rangeStart': byte_range.start,
+            'rangeEnd': byte_range.end,
+            'fileSize': byte_range.file_size,
+        }
 
     @classmethod
     async def download_services(
-        cls, background_tasks: BackgroundTasks, file_name: str, delete: bool
-    ) -> CrudResponseModel:
+        cls,
+        background_tasks: BackgroundTasks,
+        file_name: str,
+        delete: bool,
+        range_header: str | None = None,
+    ) -> FileDownloadResult:
         """
         下载下载目录文件service
 
         :param background_tasks: 后台任务对象
         :param file_name: 下载的文件名称
         :param delete: 是否在下载完成后删除文件
-        :return: 上传结果
+        :param range_header: Range请求头
+        :return: 文件下载结果
         """
         try:
             filepath = FilePathUtil.resolve_file_within_root(UploadConfig.DOWNLOAD_PATH, file_name)
         except (FileNotFoundError, ValueError) as exc:
             raise ServiceException(message='文件名称不合法或文件不存在') from exc
+        accept_ranges = not delete
+        byte_range = FileUtil.parse_byte_range(range_header if accept_ranges else None, filepath.stat().st_size)
         if delete:
             background_tasks.add_task(UploadUtil.delete_file, filepath)
-        return CrudResponseModel(is_success=True, result=UploadUtil.generate_file(filepath), message='下载成功')
+        return FileDownloadResult(
+            data=UploadUtil.generate_file(
+                filepath,
+                start=byte_range.start,
+                length=byte_range.length,
+            ),
+            filename=file_name,
+            byte_range=byte_range,
+            accept_ranges=accept_ranges,
+        )
 
     @classmethod
-    async def download_resource_services(cls, resource: str) -> CrudResponseModel:
+    async def download_resource_services(
+        cls,
+        resource: str,
+        range_header: str | None = None,
+    ) -> FileDownloadResult:
         """
         下载上传目录文件service
 
         :param resource: 下载的文件名称
-        :return: 上传结果
+        :param range_header: Range请求头
+        :return: 文件下载结果
         """
         resource_prefix = f'{UploadConfig.UPLOAD_PREFIX.rstrip("/")}/'
         if not resource.startswith(resource_prefix):
@@ -481,4 +551,13 @@ class CommonService:
             or UploadUtil.get_file_extension(filename) not in UploadConfig.DEFAULT_ALLOWED_EXTENSION
         ):
             raise ServiceException(message='资源文件名称不合法')
-        return CrudResponseModel(is_success=True, result=UploadUtil.generate_file(filepath), message='下载成功')
+        byte_range = FileUtil.parse_byte_range(range_header, filepath.stat().st_size)
+        return FileDownloadResult(
+            data=UploadUtil.generate_file(
+                filepath,
+                start=byte_range.start,
+                length=byte_range.length,
+            ),
+            filename=filename,
+            byte_range=byte_range,
+        )
