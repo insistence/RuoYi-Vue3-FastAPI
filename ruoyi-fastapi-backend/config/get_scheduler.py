@@ -5,6 +5,7 @@ from asyncio import iscoroutinefunction
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
 from apscheduler.events import EVENT_ALL, SchedulerEvent
 from apscheduler.executors.asyncio import AsyncIOExecutor
@@ -14,7 +15,6 @@ from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.jobstores.redis import RedisJobStore
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from redis import asyncio as aioredis
@@ -131,6 +131,8 @@ class SchedulerUtil:
     _sync_async_engine: AsyncEngine | None = None
     _sync_async_sessionmaker: Any | None = None
     _disposed_sync_engines: bool = False
+    _run_once_job_id_prefix: str = '_run_once_'
+    _run_once_job_log_cache: dict[str, dict[str, Any]] = {}
 
     # 懒加载的同步 Engine 和 SessionLocal
     _jobstore_engine: Engine | None = None
@@ -321,7 +323,11 @@ class SchedulerUtil:
                     str(job.job_id): job.update_time for job in db_jobs_enabled if job.update_time is not None
                 }
                 scheduler_jobs = scheduler.get_jobs()
-                scheduler_job_map = {job.id: job for job in scheduler_jobs if not job.id.startswith('_')}
+                scheduler_job_map = {
+                    job.id: job
+                    for job in scheduler_jobs
+                    if not cls._is_internal_scheduler_job(job.id) and not cls._is_run_once_job_id(job.id)
+                }
                 scheduler_job_ids = set(scheduler_job_map.keys())
 
                 jobs_to_remove = scheduler_job_ids - db_enabled_ids
@@ -684,6 +690,79 @@ class SchedulerUtil:
             logger.error(f'❌ 记录任务执行日志失败: {e}')
 
     @classmethod
+    def _is_run_once_job_id(cls, job_id: str | int) -> bool:
+        """
+        判断是否为执行一次产生的临时任务ID
+
+        :param job_id: 任务ID
+        :return: 是否为执行一次临时任务
+        """
+        return str(job_id).startswith(cls._run_once_job_id_prefix)
+
+    @classmethod
+    def _is_internal_scheduler_job(cls, job_id: str | int) -> bool:
+        """
+        判断是否为系统内部调度任务
+
+        :param job_id: 任务ID
+        :return: 是否为系统内部任务
+        """
+        return str(job_id).startswith('_') and not cls._is_run_once_job_id(job_id)
+
+    @classmethod
+    def _build_run_once_job_id(cls, job_info: JobModel) -> str:
+        """
+        构建执行一次临时任务ID
+
+        :param job_info: 任务对象信息
+        :return: 临时任务ID
+        """
+        return f'{cls._run_once_job_id_prefix}{job_info.job_id}_{uuid4().hex}'
+
+    @classmethod
+    def _build_job_log_cache_from_job_info(
+        cls, job_info: JobModel, job_executor: str, job_trigger: DateTrigger
+    ) -> dict[str, Any]:
+        """
+        根据任务信息构建执行日志缓存
+
+        :param job_info: 任务对象信息
+        :param job_executor: 任务执行器
+        :param job_trigger: 任务触发器
+        :return: 执行日志缓存
+        """
+        return {
+            'job_name': job_info.job_name,
+            'job_group': job_info.job_group,
+            'job_executor': job_executor,
+            'invoke_target': job_info.invoke_target,
+            'job_args': job_info.job_args if job_info.job_args else '',
+            'job_kwargs': job_info.job_kwargs if job_info.job_kwargs else '{}',
+            'job_trigger': str(job_trigger),
+        }
+
+    @classmethod
+    def _get_scheduler_job_log_cache(cls, query_job: Job) -> dict[str, Any]:
+        """
+        根据调度器任务构建执行日志缓存
+
+        :param query_job: 调度器任务
+        :return: 执行日志缓存
+        """
+        query_job_info = query_job.__getstate__()
+        args = query_job_info.get('args')
+        kwargs = query_job_info.get('kwargs')
+        return {
+            'job_name': query_job_info.get('name'),
+            'job_group': query_job._jobstore_alias,
+            'job_executor': query_job_info.get('executor'),
+            'invoke_target': query_job_info.get('func'),
+            'job_args': ','.join(str(arg) for arg in args) if args else '',
+            'job_kwargs': json.dumps(kwargs) if kwargs else '{}',
+            'job_trigger': str(query_job_info.get('trigger')),
+        }
+
+    @classmethod
     def _prepare_scheduler_job_add(cls, job_info: JobModel) -> dict[str, Any]:
         """
         构建调度器任务参数
@@ -845,23 +924,29 @@ class SchedulerUtil:
                     cls._record_job_execution_log(job_info, job_executor, status, exception_info)
             return
 
-        # 应用锁 worker：通过 scheduler 执行
+        # 应用锁 worker：添加独立的一次性任务，不覆盖原有 Cron 任务
         job_trigger = DateTrigger()
-        if job_info.status == '0':
-            job_trigger = OrTrigger(triggers=[DateTrigger(), MyCronTrigger.from_crontab(job_info.cron_expression)])
-        scheduler.add_job(
-            func=job_func,
-            trigger=job_trigger,
-            args=job_info.job_args.split(',') if job_info.job_args else None,
-            kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
-            id=str(job_info.job_id),
-            name=job_info.job_name,
-            misfire_grace_time=1000000000000 if job_info.misfire_policy == '3' else None,
-            coalesce=job_info.misfire_policy == '2',
-            max_instances=3 if job_info.concurrent == '0' else 1,
-            jobstore=job_info.job_group,
-            executor=job_executor,
+        run_once_job_id = cls._build_run_once_job_id(job_info)
+        cls._run_once_job_log_cache[run_once_job_id] = cls._build_job_log_cache_from_job_info(
+            job_info, job_executor, job_trigger
         )
+        try:
+            scheduler.add_job(
+                func=job_func,
+                trigger=job_trigger,
+                args=job_info.job_args.split(',') if job_info.job_args else None,
+                kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
+                id=run_once_job_id,
+                name=job_info.job_name,
+                misfire_grace_time=1000000000000 if job_info.misfire_policy == '3' else None,
+                coalesce=job_info.misfire_policy == '2',
+                max_instances=3 if job_info.concurrent == '0' else 1,
+                jobstore='default',
+                executor=job_executor,
+            )
+        except Exception:
+            cls._run_once_job_log_cache.pop(run_once_job_id, None)
+            raise
 
     @classmethod
     def remove_scheduler_job(cls, job_id: str | int) -> None:
@@ -894,38 +979,29 @@ class SchedulerUtil:
                 status = '1'
             if hasattr(event, 'job_id'):
                 job_id = event.job_id
-                # 跳过内部系统任务（以 _ 开头的任务ID），不记录日志
-                if str(job_id).startswith('_'):
+                # 跳过内部系统任务，不记录日志；执行一次的临时任务需要保留日志
+                if cls._is_internal_scheduler_job(job_id):
                     return
-                query_job = cls.get_scheduler_job(job_id=job_id)
-                if query_job:
-                    query_job_info = query_job.__getstate__()
-                    # 获取任务名称
-                    job_name = query_job_info.get('name')
-                    # 获取任务组名
-                    job_group = query_job._jobstore_alias
-                    # 获取任务执行器
-                    job_executor = query_job_info.get('executor')
-                    # 获取调用目标字符串
-                    invoke_target = query_job_info.get('func')
-                    # 获取调用函数位置参数（安全处理）
-                    args = query_job_info.get('args')
-                    job_args = ','.join(str(arg) for arg in args) if args else ''
-                    # 获取调用函数关键字参数
-                    kwargs = query_job_info.get('kwargs')
-                    job_kwargs = json.dumps(kwargs) if kwargs else '{}'
-                    # 获取任务触发器
-                    job_trigger = str(query_job_info.get('trigger'))
+                if cls._is_run_once_job_id(job_id):
+                    job_log_cache = cls._run_once_job_log_cache.get(str(job_id))
+                else:
+                    query_job = cls.get_scheduler_job(job_id=job_id)
+                    job_log_cache = cls._get_scheduler_job_log_cache(query_job) if query_job else None
+                if job_log_cache:
                     # 构造日志消息
-                    job_message = f'事件类型: {event_type}, 任务ID: {job_id}, 任务名称: {job_name}, 执行于{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    job_message = (
+                        f'事件类型: {event_type}, 任务ID: {job_id}, '
+                        f'任务名称: {job_log_cache.get("job_name")}, '
+                        f'执行于{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    )
                     job_log = JobLogModel(
-                        jobName=job_name,
-                        jobGroup=job_group,
-                        jobExecutor=job_executor,
-                        invokeTarget=invoke_target,
-                        jobArgs=job_args,
-                        jobKwargs=job_kwargs,
-                        jobTrigger=job_trigger,
+                        jobName=job_log_cache.get('job_name'),
+                        jobGroup=job_log_cache.get('job_group'),
+                        jobExecutor=job_log_cache.get('job_executor'),
+                        invokeTarget=job_log_cache.get('invoke_target'),
+                        jobArgs=job_log_cache.get('job_args'),
+                        jobKwargs=job_log_cache.get('job_kwargs'),
+                        jobTrigger=job_log_cache.get('job_trigger'),
                         jobMessage=job_message,
                         status=status,
                         exceptionInfo=exception_info,
@@ -936,5 +1012,7 @@ class SchedulerUtil:
                         JobLogService.add_job_log_services(session, job_log)
                     finally:
                         session.close()
+                if event_type == 'JobExecutionEvent':
+                    cls._run_once_job_log_cache.pop(str(job_id), None)
         except Exception as e:
             logger.error(f'❌ 调度任务事件监听器异常: {e}')

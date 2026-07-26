@@ -162,7 +162,6 @@ class JobService:
         :param page_object: 定时任务对象
         :return: 执行一次定时任务结果
         """
-        SchedulerUtil.remove_scheduler_job(job_id=page_object.job_id)
         job_info = await cls.job_detail_services(query_db, page_object.job_id)
         if job_info:
             SchedulerUtil.execute_scheduler_job_once(job_info=job_info)
