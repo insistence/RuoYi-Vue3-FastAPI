@@ -6,7 +6,7 @@
     append-to-body
   >
     <el-alert
-      title="仅对受保护文件生成提醒；文件到期后的下载限制直接按到期时间生效，不依赖提醒扫描是否按时执行。"
+      title="到期前可延长保留期限；到期后仅在全部业务引用均已到期时才可移入回收站，处置会解除这些业务引用。"
       type="info"
       :closable="false"
       show-icon
@@ -145,6 +145,12 @@
         </template>
       </el-table-column>
       <el-table-column
+        label="业务引用"
+        align="center"
+        prop="referenceCount"
+        width="90"
+      />
+      <el-table-column
         label="提醒时间"
         align="center"
         prop="createTime"
@@ -161,6 +167,44 @@
       >
         <template #default="scope">{{ scope.row.readBy || "-" }}</template>
       </el-table-column>
+      <el-table-column
+        label="操作"
+        align="center"
+        width="100"
+        fixed="right"
+      >
+        <template #default="scope">
+          <el-tooltip content="延长保留期限" placement="top">
+            <el-button
+              link
+              type="primary"
+              icon="Clock"
+              @click="handleExtend(scope.row)"
+              v-hasPermi="['system:file:edit']"
+            />
+          </el-tooltip>
+          <el-tooltip
+            v-if="isExpired(scope.row)"
+            :content="
+              scope.row.canDispose
+                ? '移入回收站'
+                : '存在永久或尚未到期的业务引用，暂不可处置'
+            "
+            placement="top"
+          >
+            <span>
+              <el-button
+                link
+                type="danger"
+                icon="Delete"
+                :disabled="!scope.row.canDispose"
+                @click="handleDispose(scope.row)"
+                v-hasPermi="['system:file:remove']"
+              />
+            </span>
+          </el-tooltip>
+        </template>
+      </el-table-column>
     </el-table>
     <pagination
       v-show="total > 0"
@@ -170,10 +214,60 @@
       @pagination="getList"
     />
   </el-drawer>
+
+  <el-dialog
+    title="延长文件保留期限"
+    v-model="extendOpen"
+    width="520px"
+    append-to-body
+  >
+    <el-form
+      ref="extendRef"
+      :model="extendForm"
+      :rules="extendRules"
+      label-width="92px"
+    >
+      <el-form-item label="文件名称">
+        <span>{{ currentRow.originalName }}</span>
+      </el-form-item>
+      <el-form-item label="原到期时间">
+        <span>{{ parseTime(currentRow.expireTime) }}</span>
+      </el-form-item>
+      <el-form-item label="新到期时间" prop="expireTime">
+        <el-date-picker
+          v-model="extendForm.expireTime"
+          type="datetime"
+          value-format="YYYY-MM-DD HH:mm:ss"
+          placeholder="请选择新的到期时间"
+          style="width: 100%"
+        />
+      </el-form-item>
+      <el-form-item label="延期原因" prop="reason">
+        <el-input
+          v-model="extendForm.reason"
+          type="textarea"
+          :rows="3"
+          maxlength="500"
+          show-word-limit
+          placeholder="请输入延期原因"
+        />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button type="primary" :loading="submitting" @click="submitExtend">
+          确 定
+        </el-button>
+        <el-button @click="extendOpen = false">取 消</el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
 import {
+  disposeExpiredFile,
+  extendFileRetention,
   listFileRetentionReminder,
   readFileRetentionReminder,
   scanFileRetentionReminder
@@ -188,6 +282,22 @@ const reminderList = ref([]);
 const total = ref(0);
 const ids = ref([]);
 const queryRef = ref();
+const extendRef = ref();
+const extendOpen = ref(false);
+const submitting = ref(false);
+const currentRow = ref({});
+const extendForm = reactive({
+  expireTime: undefined,
+  reason: undefined
+});
+const extendRules = {
+  expireTime: [
+    { required: true, message: "新的到期时间不能为空", trigger: "change" }
+  ],
+  reason: [
+    { required: true, message: "延期原因不能为空", trigger: "blur" }
+  ]
+};
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 10,
@@ -250,6 +360,77 @@ function handleRead() {
     proxy.$modal.msgSuccess("提醒已标记为已读");
     getList();
   });
+}
+
+function isExpired(row) {
+  return new Date(row.expireTime).getTime() <= Date.now();
+}
+
+function handleExtend(row) {
+  currentRow.value = row;
+  Object.assign(extendForm, {
+    expireTime: defaultExtendTime(row.expireTime),
+    reason: undefined
+  });
+  extendOpen.value = true;
+  nextTick(() => extendRef.value?.clearValidate());
+}
+
+function submitExtend() {
+  extendRef.value.validate(valid => {
+    if (!valid) return;
+    submitting.value = true;
+    extendFileRetention(currentRow.value.noticeId, extendForm)
+      .then(() => {
+        proxy.$modal.msgSuccess("文件保留期限已延长");
+        extendOpen.value = false;
+        getList();
+        emit("refresh");
+      })
+      .finally(() => {
+        submitting.value = false;
+      });
+  });
+}
+
+function handleDispose(row) {
+  proxy
+    .$prompt(
+      `处置后“${row.originalName}”将移入回收站，并解除${row.referenceCount || 0}条已到期业务引用。请输入处置原因：`,
+      "到期文件处置",
+      {
+        confirmButtonText: "确定处置",
+        cancelButtonText: "取消",
+        closeOnClickModal: false,
+        inputType: "textarea",
+        inputPlaceholder: "请输入处置原因",
+        inputValidator: value => {
+          const reason = value?.trim();
+          if (!reason) return "处置原因不能为空";
+          if (reason.length > 500) return "处置原因不能超过500个字符";
+          return true;
+        }
+      }
+    )
+    .then(({ value }) => {
+      disposeExpiredFile(row.noticeId, { reason: value.trim() }).then(() => {
+        proxy.$modal.msgSuccess("到期文件已移入回收站");
+        getList();
+        emit("refresh");
+      });
+    })
+    .catch(() => {});
+}
+
+function defaultExtendTime(expireTime) {
+  const baseTime = Math.max(Date.now(), new Date(expireTime).getTime());
+  const target = new Date(baseTime + 30 * 24 * 60 * 60 * 1000);
+  const pad = value => String(value).padStart(2, "0");
+  return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(
+    target.getDate()
+  )} ${pad(target.getHours())}:${pad(target.getMinutes())}:${pad(
+    target.getSeconds()
+  )}`;
 }
 
 defineExpose({ open });

@@ -236,6 +236,30 @@ def test_replace_business_file_references_applies_retention_policy() -> None:
     assert reference.retention_expire_time == create_time + timedelta(days=30)
 
 
+def test_replace_business_file_references_preserves_extended_expiration() -> None:
+    policy_expire_time = datetime(2026, 8, 22, 10, 0, 0)
+    extended_expire_time = datetime(2027, 7, 23, 10, 0, 0)
+    old_reference = SysFileReference(
+        file_id=FILE_ID,
+        business_type='notice',
+        business_id='10',
+        retention_expire_time=extended_expire_time,
+    )
+    new_reference = SysFileReference(
+        file_id=FILE_ID,
+        business_type='notice',
+        business_id='10',
+        retention_expire_time=policy_expire_time,
+    )
+
+    FileReferenceDao._preserve_later_retention_expire_times(
+        [old_reference],
+        [new_reference],
+    )
+
+    assert new_reference.retention_expire_time == extended_expire_time
+
+
 def test_refresh_file_expire_times_uses_latest_reference_expiration() -> None:
     first_expire_time = datetime(2026, 8, 1)
     last_expire_time = datetime(2026, 9, 1)

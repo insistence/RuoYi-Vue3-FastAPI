@@ -121,6 +121,24 @@ export function readFileRetentionReminder(noticeIds) {
   })
 }
 
+// 延长文件保留期限
+export function extendFileRetention(noticeId, data) {
+  return request({
+    url: '/system/file/retention-reminder/' + noticeId + '/extend',
+    method: 'put',
+    data: data
+  })
+}
+
+// 处置到期文件
+export function disposeExpiredFile(noticeId, data) {
+  return request({
+    url: '/system/file/retention-reminder/' + noticeId + '/dispose',
+    method: 'put',
+    data: data
+  })
+}
+
 // 查询文件详情
 export function getFile(fileId) {
   return request({

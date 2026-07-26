@@ -196,7 +196,7 @@
           content="存在业务引用，无法删除"
           placement="top"
         >
-          <span>
+          <span class="file-action-disabled-wrapper">
             <el-button
               link
               type="danger"
@@ -286,3 +286,12 @@ const emit = defineEmits([
   "purge"
 ]);
 </script>
+
+<style scoped>
+.file-action-disabled-wrapper {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 12px;
+  vertical-align: middle;
+}
+</style>

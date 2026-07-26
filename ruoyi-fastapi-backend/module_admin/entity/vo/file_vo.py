@@ -119,6 +119,8 @@ class FileRetentionNoticeModel(BaseModel):
     create_time: datetime = Field(description='创建时间')
     read_by: str | None = Field(default=None, description='读取者')
     read_time: datetime | None = Field(default=None, description='读取时间')
+    reference_count: int = Field(default=0, ge=0, description='业务引用数量')
+    can_dispose: bool = Field(default=False, description='是否允许到期处置')
 
 
 class FileRetentionNoticeQueryModel(BaseModel):
@@ -153,6 +155,27 @@ class FileRetentionScanModel(BaseModel):
     expired_count: int = Field(default=0, ge=0, description='新增已到期提醒数')
 
 
+class ExtendFileRetentionModel(BaseModel):
+    """
+    延长文件保留期限模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, str_strip_whitespace=True)
+
+    expire_time: datetime = Field(description='新的到期时间')
+    reason: str = Field(min_length=1, max_length=500, description='延期原因')
+
+
+class DisposeExpiredFileModel(BaseModel):
+    """
+    到期文件处置模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, str_strip_whitespace=True)
+
+    reason: str = Field(min_length=1, max_length=500, description='处置原因')
+
+
 class FileAccessLogModel(BaseModel):
     """
     文件访问审计表对应pydantic模型
@@ -162,9 +185,18 @@ class FileAccessLogModel(BaseModel):
 
     audit_id: int | None = Field(default=None, description='审计ID')
     file_id: str = Field(description='文件ID')
-    action: Literal['upload', 'download', 'acl_update', 'transfer', 'delete', 'restore', 'purge', 'reconcile'] = Field(
-        description='操作类型'
-    )
+    action: Literal[
+        'upload',
+        'download',
+        'acl_update',
+        'transfer',
+        'delete',
+        'restore',
+        'purge',
+        'reconcile',
+        'retention_extend',
+        'retention_dispose',
+    ] = Field(description='操作类型')
     actor_user_id: int | None = Field(default=None, description='操作用户ID')
     actor_name: str | None = Field(default=None, description='操作用户名称')
     result: Literal['allowed', 'denied', 'completed', 'failed'] = Field(description='操作结果')
@@ -312,7 +344,19 @@ class FileAccessLogQueryModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     action: (
-        Literal['upload', 'download', 'acl_update', 'transfer', 'delete', 'restore', 'purge', 'reconcile'] | None
+        Literal[
+            'upload',
+            'download',
+            'acl_update',
+            'transfer',
+            'delete',
+            'restore',
+            'purge',
+            'reconcile',
+            'retention_extend',
+            'retention_dispose',
+        ]
+        | None
     ) = Field(default=None, description='操作类型')
     result: Literal['allowed', 'denied', 'completed', 'failed'] | None = Field(default=None, description='操作结果')
     actor_name: str | None = Field(default=None, description='操作用户名称')

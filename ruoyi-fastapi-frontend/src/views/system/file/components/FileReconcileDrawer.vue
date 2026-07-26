@@ -205,34 +205,41 @@
           </el-table-column>
           <el-table-column label="操作" align="center" width="70" fixed="right">
             <template #default="scope">
-              <el-dropdown
+              <el-tooltip
                 v-if="scope.row.availableActions?.length"
-                trigger="click"
-                :disabled="stats.latestRun?.status === 'running'"
-                @command="handleCommand($event, scope.row)"
+                :content="
+                  stats.latestRun?.status === 'running'
+                    ? '对账任务运行中，请等待扫描完成'
+                    : '处理异常'
+                "
+                placement="top"
               >
-                <el-tooltip
-                  :content="
-                    stats.latestRun?.status === 'running'
-                      ? '对账任务运行中，请等待扫描完成'
-                      : '处理异常'
-                  "
-                  placement="top"
-                >
-                  <el-button link type="primary" icon="Operation" />
-                </el-tooltip>
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item
-                      v-for="action in scope.row.availableActions"
-                      :key="action"
-                      :command="action"
-                    >
-                      {{ actionLabel(action) }}
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
+                <span class="reconcile-action-trigger">
+                  <el-dropdown
+                    trigger="click"
+                    :disabled="stats.latestRun?.status === 'running'"
+                    @command="handleCommand($event, scope.row)"
+                  >
+                    <el-button
+                      link
+                      type="primary"
+                      icon="Setting"
+                      :disabled="stats.latestRun?.status === 'running'"
+                    />
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item
+                          v-for="action in scope.row.availableActions"
+                          :key="action"
+                          :command="action"
+                        >
+                          {{ actionLabel(action) }}
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </span>
+              </el-tooltip>
               <span v-else>-</span>
             </template>
           </el-table-column>
@@ -739,6 +746,11 @@ defineExpose({ open });
   display: flex;
   align-items: center;
   white-space: nowrap;
+}
+
+.reconcile-action-trigger {
+  display: inline-flex;
+  align-items: center;
 }
 
 .cell-secondary {

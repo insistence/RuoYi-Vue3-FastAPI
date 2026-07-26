@@ -27,6 +27,8 @@
           <el-option label="恢复" value="restore" />
           <el-option label="永久清理" value="purge" />
           <el-option label="存储对账" value="reconcile" />
+          <el-option label="保留延期" value="retention_extend" />
+          <el-option label="到期处置" value="retention_dispose" />
         </el-select>
       </el-form-item>
       <el-form-item label="操作结果" prop="result">

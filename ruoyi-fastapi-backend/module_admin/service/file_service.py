@@ -3,7 +3,7 @@ import mimetypes
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import Request
 from sqlalchemy import ColumnElement
@@ -15,10 +15,13 @@ from config.database import AsyncSessionLocal
 from config.env import UploadConfig
 from exceptions.exception import ServiceException
 from module_admin.dao.file_access_dao import FileAccessLogDao
+from module_admin.dao.file_business_dao import FileReferenceDao, FileRetentionNoticeDao
 from module_admin.dao.file_info_dao import FileInfoDao
-from module_admin.entity.do.file_do import SysFileInfo, SysFileReconcileIssue, SysFileReconcileRun
+from module_admin.entity.do.file_do import SysFileInfo, SysFileReconcileIssue, SysFileReconcileRun, SysFileReference
 from module_admin.entity.vo.file_vo import (
     DeleteFileModel,
+    DisposeExpiredFileModel,
+    ExtendFileRetentionModel,
     FileAccessLogPageQueryModel,
     FileInfoDisplayModel,
     FileInfoModel,
@@ -48,6 +51,335 @@ class FileAuditSnapshot:
     file_id: str
     original_name: str
     access_type: str
+
+
+class FileRetentionDispositionService:
+    """
+    文件到期处置服务层
+    """
+
+    @classmethod
+    async def extend_file_retention_services(
+        cls,
+        query_db: AsyncSession,
+        current_user: CurrentUserModel,
+        notice_id: int,
+        extend_retention: ExtendFileRetentionModel,
+        file_data_scope_sql: ColumnElement,
+        request: Request | None = None,
+    ) -> CrudResponseModel:
+        """
+        延长文件保留期限service
+
+        :param query_db: orm对象
+        :param current_user: 当前用户对象
+        :param notice_id: 提醒ID
+        :param extend_retention: 延期参数
+        :param file_data_scope_sql: 文件数据权限对应的查询sql语句
+        :param request: Request对象
+        :return: 延期结果
+        """
+        user = current_user.user
+        if user is None or not user.user_name:
+            raise ServiceException(message='无法获取当前用户信息')
+        context = await FileRetentionNoticeDao.get_file_retention_notice_context_for_update(
+            query_db,
+            notice_id,
+            file_data_scope_sql,
+        )
+        if context is None:
+            await query_db.rollback()
+            raise ServiceException(message='提醒不存在、已失效或超出数据权限')
+        _, file_info = context
+        file_snapshot = FileAuditSnapshot(
+            file_id=file_info.file_id,
+            original_name=file_info.original_name,
+            access_type=file_info.access_type,
+        )
+        current_time = datetime.now()
+        new_expire_time = extend_retention.expire_time
+        if new_expire_time.tzinfo:
+            new_expire_time = new_expire_time.astimezone().replace(tzinfo=None)
+        previous_expire_time = file_info.expire_time
+        if previous_expire_time is None:
+            await query_db.rollback()
+            raise ServiceException(message='文件未配置保留期限')
+        if new_expire_time <= current_time or new_expire_time <= previous_expire_time:
+            await cls._enqueue_retention_audit(
+                request,
+                current_user,
+                file_snapshot,
+                'retention_extend',
+                'denied',
+                extend_retention.reason,
+                previous_expire_time,
+                new_expire_time,
+                error_message='InvalidExpireTime',
+            )
+            await query_db.rollback()
+            raise ServiceException(message='新的到期时间必须晚于当前时间和原到期时间')
+
+        reference_list = await FileReferenceDao.get_file_reference_list_for_update(query_db, file_info.file_id)
+        if not reference_list:
+            await cls._enqueue_retention_audit(
+                request,
+                current_user,
+                file_snapshot,
+                'retention_extend',
+                'denied',
+                extend_retention.reason,
+                previous_expire_time,
+                new_expire_time,
+                error_message='TimedBusinessReferenceNotFound',
+            )
+            await query_db.rollback()
+            raise ServiceException(message='文件不存在可延期的限时业务引用，请先重新关联业务')
+        if (file_info.business_type and file_info.business_id) or any(
+            reference.retention_expire_time is None for reference in reference_list
+        ):
+            await cls._enqueue_retention_audit(
+                request,
+                current_user,
+                file_snapshot,
+                'retention_extend',
+                'denied',
+                extend_retention.reason,
+                previous_expire_time,
+                new_expire_time,
+                error_message='PermanentBusinessReferenceExists',
+            )
+            await query_db.rollback()
+            raise ServiceException(message='文件存在永久业务引用，不能通过到期提醒延期')
+
+        terminal_references = [
+            reference for reference in reference_list if reference.retention_expire_time == previous_expire_time
+        ]
+        if reference_list and not terminal_references:
+            await query_db.rollback()
+            raise ServiceException(message='文件到期时间与业务引用不一致，请先检查业务引用')
+
+        for reference in terminal_references:
+            reference.retention_expire_time = new_expire_time
+        file_info.expire_time = new_expire_time
+        file_info.update_by = user.user_name
+        file_info.update_time = current_time
+        await FileRetentionNoticeDao.invalidate_file_retention_notices(query_db, file_info.file_id)
+        try:
+            await query_db.commit()
+        except Exception as exc:
+            await query_db.rollback()
+            await cls._enqueue_retention_audit(
+                request,
+                current_user,
+                file_snapshot,
+                'retention_extend',
+                'failed',
+                extend_retention.reason,
+                previous_expire_time,
+                new_expire_time,
+                reference_count=len(terminal_references),
+                error_message=exc.__class__.__name__,
+            )
+            raise
+
+        await cls._enqueue_retention_audit(
+            request,
+            current_user,
+            file_snapshot,
+            'retention_extend',
+            'completed',
+            extend_retention.reason,
+            previous_expire_time,
+            new_expire_time,
+            reference_count=len(terminal_references),
+        )
+        return CrudResponseModel(is_success=True, message='文件保留期限已延长')
+
+    @classmethod
+    async def dispose_expired_file_services(
+        cls,
+        query_db: AsyncSession,
+        current_user: CurrentUserModel,
+        notice_id: int,
+        dispose_file: DisposeExpiredFileModel,
+        file_data_scope_sql: ColumnElement,
+        request: Request | None = None,
+    ) -> CrudResponseModel:
+        """
+        将到期文件移入回收站service
+
+        :param query_db: orm对象
+        :param current_user: 当前用户对象
+        :param notice_id: 提醒ID
+        :param dispose_file: 处置参数
+        :param file_data_scope_sql: 文件数据权限对应的查询sql语句
+        :param request: Request对象
+        :return: 处置结果
+        """
+        user = current_user.user
+        if user is None or not user.user_name:
+            raise ServiceException(message='无法获取当前用户信息')
+        context = await FileRetentionNoticeDao.get_file_retention_notice_context_for_update(
+            query_db,
+            notice_id,
+            file_data_scope_sql,
+        )
+        if context is None:
+            await query_db.rollback()
+            raise ServiceException(message='提醒不存在、已失效或超出数据权限')
+        _, file_info = context
+        file_snapshot = FileAuditSnapshot(
+            file_id=file_info.file_id,
+            original_name=file_info.original_name,
+            access_type=file_info.access_type,
+        )
+        current_time = datetime.now()
+        expire_time = file_info.expire_time
+        if expire_time is None or expire_time > current_time:
+            await cls._enqueue_retention_audit(
+                request,
+                current_user,
+                file_snapshot,
+                'retention_dispose',
+                'denied',
+                dispose_file.reason,
+                expire_time,
+                error_message='FileNotExpired',
+            )
+            await query_db.rollback()
+            raise ServiceException(message='文件尚未到期，不能执行到期处置')
+
+        reference_list = await FileReferenceDao.get_file_reference_list_for_update(query_db, file_info.file_id)
+        blocking_references = [
+            reference
+            for reference in reference_list
+            if reference.retention_expire_time is None or reference.retention_expire_time > current_time
+        ]
+        if (file_info.business_type and file_info.business_id) or blocking_references:
+            await cls._enqueue_retention_audit(
+                request,
+                current_user,
+                file_snapshot,
+                'retention_dispose',
+                'denied',
+                dispose_file.reason,
+                expire_time,
+                reference_count=len(reference_list),
+                error_message='ActiveBusinessReferenceExists',
+            )
+            await query_db.rollback()
+            raise ServiceException(message='文件存在永久或尚未到期的业务引用，不能执行到期处置')
+
+        reference_snapshots = cls._build_reference_snapshots(reference_list)
+        try:
+            staged_files = await asyncio.to_thread(FileUtil.stage_file_deletions, [file_info])
+        except (OSError, ValueError) as exc:
+            await query_db.rollback()
+            await cls._enqueue_retention_audit(
+                request,
+                current_user,
+                file_snapshot,
+                'retention_dispose',
+                'failed',
+                dispose_file.reason,
+                expire_time,
+                reference_count=len(reference_list),
+                error_message=exc.__class__.__name__,
+            )
+            raise ServiceException(message='到期文件移入回收区失败') from exc
+
+        try:
+            await FileReferenceDao.delete_file_references(query_db, file_info.file_id)
+            await FileInfoDao.soft_delete_file_infos(
+                query_db,
+                [file_info.file_id],
+                user.user_name,
+                current_time,
+            )
+            await query_db.commit()
+        except Exception as exc:
+            await query_db.rollback()
+            await asyncio.to_thread(FileUtil.restore_staged_files, staged_files)
+            await cls._enqueue_retention_audit(
+                request,
+                current_user,
+                file_snapshot,
+                'retention_dispose',
+                'failed',
+                dispose_file.reason,
+                expire_time,
+                reference_count=len(reference_list),
+                error_message=exc.__class__.__name__,
+            )
+            raise
+
+        await FileAuditService.enqueue_file_audit(
+            request,
+            current_user,
+            file_snapshot.file_id,
+            'retention_dispose',
+            'completed',
+            operation_detail={
+                'originalName': file_snapshot.original_name,
+                'accessType': file_snapshot.access_type,
+                'reason': dispose_file.reason,
+                'expireTime': expire_time,
+                'releasedReferenceCount': len(reference_snapshots),
+                'releasedReferences': reference_snapshots,
+                'previousStatus': 'active',
+                'newStatus': 'deleted',
+            },
+        )
+        return CrudResponseModel(is_success=True, message='到期文件已移入回收站')
+
+    @classmethod
+    async def _enqueue_retention_audit(
+        cls,
+        request: Request | None,
+        current_user: CurrentUserModel,
+        file_snapshot: FileAuditSnapshot,
+        action: Literal['retention_extend', 'retention_dispose'],
+        result: Literal['denied', 'completed', 'failed'],
+        reason: str,
+        previous_expire_time: datetime | None,
+        new_expire_time: datetime | None = None,
+        reference_count: int | None = None,
+        error_message: str = '',
+    ) -> None:
+        """写入文件到期处置审计。"""
+        operation_detail = {
+            'originalName': file_snapshot.original_name,
+            'accessType': file_snapshot.access_type,
+            'reason': reason,
+            'previousExpireTime': previous_expire_time,
+        }
+        if new_expire_time is not None:
+            operation_detail['newExpireTime'] = new_expire_time
+        if reference_count is not None:
+            operation_detail['referenceCount'] = reference_count
+        await FileAuditService.enqueue_file_audit(
+            request,
+            current_user,
+            file_snapshot.file_id,
+            action,
+            result,
+            error_message=error_message,
+            operation_detail=operation_detail,
+        )
+
+    @staticmethod
+    def _build_reference_snapshots(reference_list: list[SysFileReference]) -> list[dict[str, Any]]:
+        """构建释放业务引用的审计快照。"""
+        return [
+            {
+                'referenceId': reference.reference_id,
+                'businessType': reference.business_type,
+                'businessId': reference.business_id,
+                'businessName': reference.business_name,
+                'retentionExpireTime': reference.retention_expire_time,
+            }
+            for reference in reference_list
+        ]
 
 
 class FileLifecycleService:

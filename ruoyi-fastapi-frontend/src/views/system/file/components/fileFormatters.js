@@ -68,7 +68,9 @@ export function actionLabel(action) {
     delete: "移入回收站",
     restore: "恢复",
     purge: "永久清理",
-    reconcile: "存储对账"
+    reconcile: "存储对账",
+    retention_extend: "保留延期",
+    retention_dispose: "到期处置"
   }[action] || action;
 }
 
@@ -116,7 +118,7 @@ function auditDetailKeyLabel(key) {
     newOwnerUserId: "新所有者ID",
     newOwnerName: "新所有者",
     newDeptId: "新所属部门ID",
-    reason: "转移原因",
+    reason: "操作原因",
     originalName: "原始文件名",
     accessType: "访问类型",
     referenceCount: "业务引用数量",
@@ -130,6 +132,11 @@ function auditDetailKeyLabel(key) {
     actualRoot: "实际存储区域",
     actualKey: "实际相对路径",
     expectedRoot: "预期存储区域",
-    expectedKey: "预期相对路径"
+    expectedKey: "预期相对路径",
+    previousExpireTime: "原到期时间",
+    newExpireTime: "新到期时间",
+    expireTime: "到期时间",
+    releasedReferenceCount: "解除引用数量",
+    releasedReferences: "解除引用明细"
   }[key] || key;
 }

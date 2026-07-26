@@ -15,14 +15,19 @@ from config.env import UploadConfig
 from exceptions.exception import ServiceException
 from module_admin.dao.file_business_dao import FileReferenceDao, FileRetentionNoticeDao
 from module_admin.dao.file_info_dao import FileInfoDao
-from module_admin.entity.vo.file_vo import FileRetentionNoticePageQueryModel
+from module_admin.entity.vo.file_vo import (
+    DisposeExpiredFileModel,
+    ExtendFileRetentionModel,
+    FileRetentionNoticePageQueryModel,
+)
 from module_admin.service.file_access_service import FileAuditService
 from module_admin.service.file_business_service import (
     FileReferenceService,
     FileRetentionNoticeService,
     FileRetentionPolicyService,
 )
-from module_admin.service.file_service import FileLifecycleService
+from module_admin.service.file_service import FileLifecycleService, FileRetentionDispositionService
+from utils.file_util import FileUtil
 
 FILE_ID = '11111111-1111-4111-8111-111111111111'
 PURGE_COMMIT_COUNT = 2
@@ -48,6 +53,10 @@ def make_file_info(
         storage_key='upload/private.txt',
         stored_name='private.txt',
         expire_time=expire_time,
+        business_type=None,
+        business_id=None,
+        update_by='',
+        update_time=None,
     )
 
 
@@ -255,3 +264,139 @@ def test_retention_policy_rejects_public_business_file() -> None:
 
     assert access_type_error.value.message == '配置保留策略的业务只能引用受保护文件'
     replace_references.assert_not_awaited()
+
+
+def test_extend_file_retention_updates_terminal_references() -> None:
+    current_time = datetime.now()
+    previous_expire_time = current_time + timedelta(days=1)
+    new_expire_time = current_time + timedelta(days=31)
+    file_info = make_file_info(expire_time=previous_expire_time)
+    reference = SimpleNamespace(
+        reference_id=1,
+        retention_expire_time=previous_expire_time,
+    )
+    query_db = make_query_db()
+
+    with (
+        patch.object(
+            FileRetentionNoticeDao,
+            'get_file_retention_notice_context_for_update',
+            new=AsyncMock(return_value=(SimpleNamespace(notice_id=1), file_info)),
+        ),
+        patch.object(
+            FileReferenceDao,
+            'get_file_reference_list_for_update',
+            new=AsyncMock(return_value=[reference]),
+        ),
+        patch.object(
+            FileRetentionNoticeDao,
+            'invalidate_file_retention_notices',
+            new_callable=AsyncMock,
+        ) as invalidate_notices,
+        patch.object(FileAuditService, 'enqueue_file_audit', new_callable=AsyncMock) as enqueue_file_audit,
+    ):
+        result = asyncio.run(
+            FileRetentionDispositionService.extend_file_retention_services(
+                query_db,
+                make_current_user(),
+                1,
+                ExtendFileRetentionModel(expireTime=new_expire_time, reason='业务继续留存'),
+                true(),
+                request=SimpleNamespace(),
+            )
+        )
+
+    assert result.is_success is True
+    assert file_info.expire_time == new_expire_time
+    assert reference.retention_expire_time == new_expire_time
+    invalidate_notices.assert_awaited_once_with(query_db, FILE_ID)
+    query_db.commit.assert_awaited_once()
+    assert enqueue_file_audit.await_args.args[3:5] == ('retention_extend', 'completed')
+
+
+def test_dispose_expired_file_releases_expired_references() -> None:
+    current_time = datetime.now()
+    expire_time = current_time - timedelta(days=1)
+    file_info = make_file_info(expire_time=expire_time)
+    reference = SimpleNamespace(
+        reference_id=1,
+        business_type='notice',
+        business_id='1',
+        business_name='测试公告',
+        retention_expire_time=expire_time,
+    )
+    query_db = make_query_db()
+
+    with (
+        patch.object(
+            FileRetentionNoticeDao,
+            'get_file_retention_notice_context_for_update',
+            new=AsyncMock(return_value=(SimpleNamespace(notice_id=1), file_info)),
+        ),
+        patch.object(
+            FileReferenceDao,
+            'get_file_reference_list_for_update',
+            new=AsyncMock(return_value=[reference]),
+        ),
+        patch.object(FileUtil, 'stage_file_deletions', return_value=[]),
+        patch.object(FileReferenceDao, 'delete_file_references', new_callable=AsyncMock) as delete_references,
+        patch.object(FileInfoDao, 'soft_delete_file_infos', new_callable=AsyncMock) as soft_delete_file_infos,
+        patch.object(FileAuditService, 'enqueue_file_audit', new_callable=AsyncMock) as enqueue_file_audit,
+    ):
+        result = asyncio.run(
+            FileRetentionDispositionService.dispose_expired_file_services(
+                query_db,
+                make_current_user(),
+                1,
+                DisposeExpiredFileModel(reason='保留期已结束'),
+                true(),
+                request=SimpleNamespace(),
+            )
+        )
+
+    assert result.is_success is True
+    delete_references.assert_awaited_once_with(query_db, FILE_ID)
+    soft_delete_file_infos.assert_awaited_once()
+    query_db.commit.assert_awaited_once()
+    assert enqueue_file_audit.await_args.args[3:5] == ('retention_dispose', 'completed')
+    assert enqueue_file_audit.await_args.kwargs['operation_detail']['releasedReferenceCount'] == 1
+
+
+def test_dispose_expired_file_rejects_active_reference() -> None:
+    expire_time = datetime.now() - timedelta(days=1)
+    file_info = make_file_info(expire_time=expire_time)
+    reference = SimpleNamespace(
+        reference_id=1,
+        retention_expire_time=None,
+    )
+    query_db = make_query_db()
+
+    with (
+        patch.object(
+            FileRetentionNoticeDao,
+            'get_file_retention_notice_context_for_update',
+            new=AsyncMock(return_value=(SimpleNamespace(notice_id=1), file_info)),
+        ),
+        patch.object(
+            FileReferenceDao,
+            'get_file_reference_list_for_update',
+            new=AsyncMock(return_value=[reference]),
+        ),
+        patch.object(FileUtil, 'stage_file_deletions') as stage_file_deletions,
+        patch.object(FileReferenceDao, 'delete_file_references', new_callable=AsyncMock) as delete_references,
+        pytest.raises(ServiceException) as active_reference_error,
+    ):
+        asyncio.run(
+            FileRetentionDispositionService.dispose_expired_file_services(
+                query_db,
+                make_current_user(),
+                1,
+                DisposeExpiredFileModel(reason='保留期已结束'),
+                true(),
+            )
+        )
+
+    assert active_reference_error.value.message == '文件存在永久或尚未到期的业务引用，不能执行到期处置'
+    stage_file_deletions.assert_not_called()
+    delete_references.assert_not_awaited()
+    query_db.rollback.assert_awaited_once()

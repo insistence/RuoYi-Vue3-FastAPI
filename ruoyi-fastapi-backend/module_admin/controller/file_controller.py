@@ -23,6 +23,8 @@ from module_admin.entity.vo.dept_vo import DeptTreeModel
 from module_admin.entity.vo.file_vo import (
     BatchSaveFileAclModel,
     DeleteFileModel,
+    DisposeExpiredFileModel,
+    ExtendFileRetentionModel,
     FileAccessLogModel,
     FileAccessLogPageQueryModel,
     FileAclListModel,
@@ -57,6 +59,7 @@ from module_admin.service.file_service import (
     FileLifecycleService,
     FileQueryService,
     FileReconcileService,
+    FileRetentionDispositionService,
     FileTransferService,
 )
 from utils.log_util import logger
@@ -432,6 +435,75 @@ async def read_system_file_retention_reminder(
     logger.info(read_result.message)
 
     return ResponseUtil.success(msg=read_result.message)
+
+
+@file_controller.put(
+    '/retention-reminder/{notice_id}/extend',
+    summary='延长文件保留期限接口',
+    description='用于延长当前数据权限范围内文件的保留期限',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('system:file:edit')],
+)
+@ApiRateLimit(
+    namespace=ApiNamespace.SYSTEM_FILE_RETENTION_POLICY,
+    preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION,
+)
+@Log(title='文件到期处置', business_type=BusinessType.UPDATE)
+async def extend_system_file_retention(
+    request: Request,
+    notice_id: Annotated[int, Path(gt=0, description='提醒ID')],
+    extend_retention: ExtendFileRetentionModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    file_data_scope_sql: Annotated[
+        ColumnElement,
+        DataScopeDependency(SysFileInfo, user_alias='owner_user_id', dept_alias='dept_id'),
+    ],
+) -> Response:
+    extend_result = await FileRetentionDispositionService.extend_file_retention_services(
+        query_db,
+        current_user,
+        notice_id,
+        extend_retention,
+        file_data_scope_sql,
+        request=request,
+    )
+    logger.info(extend_result.message)
+
+    return ResponseUtil.success(msg=extend_result.message)
+
+
+@file_controller.put(
+    '/retention-reminder/{notice_id}/dispose',
+    summary='处置到期文件接口',
+    description='用于释放已到期业务引用并将文件移入回收站',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('system:file:remove')],
+)
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_FILE_DELETE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
+@Log(title='文件到期处置', business_type=BusinessType.DELETE)
+async def dispose_system_expired_file(
+    request: Request,
+    notice_id: Annotated[int, Path(gt=0, description='提醒ID')],
+    dispose_file: DisposeExpiredFileModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    file_data_scope_sql: Annotated[
+        ColumnElement,
+        DataScopeDependency(SysFileInfo, user_alias='owner_user_id', dept_alias='dept_id'),
+    ],
+) -> Response:
+    dispose_result = await FileRetentionDispositionService.dispose_expired_file_services(
+        query_db,
+        current_user,
+        notice_id,
+        dispose_file,
+        file_data_scope_sql,
+        request=request,
+    )
+    logger.info(dispose_result.message)
+
+    return ResponseUtil.success(msg=dispose_result.message)
 
 
 @file_controller.get(
