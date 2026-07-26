@@ -300,6 +300,7 @@ class ResponseUtil:
         headers: Mapping[str, str] | None = None,
         media_type: str | None = None,
         background: BackgroundTask | None = None,
+        status_code: int = status.HTTP_200_OK,
     ) -> Response:
         """
         流式响应方法
@@ -308,8 +309,13 @@ class ResponseUtil:
         :param headers: 可选，响应头信息
         :param media_type: 可选，响应结果媒体类型
         :param background: 可选，响应返回后执行的后台任务
+        :param status_code: 响应状态码
         :return: 流式响应结果
         """
         return StreamingResponse(
-            status_code=status.HTTP_200_OK, content=data, headers=headers, media_type=media_type, background=background
+            status_code=status_code,
+            content=data,
+            headers=headers,
+            media_type=media_type,
+            background=background,
         )

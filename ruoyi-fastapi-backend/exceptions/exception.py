@@ -48,6 +48,15 @@ class ServiceWarning(Exception):
         self.message = message
 
 
+class FileRangeNotSatisfiableException(Exception):
+    """
+    文件Range范围不可满足异常
+    """
+
+    def __init__(self, file_size: int) -> None:
+        self.file_size = file_size
+
+
 class ModelValidatorException(Exception):
     """
     自定义模型校验异常ModelValidatorException

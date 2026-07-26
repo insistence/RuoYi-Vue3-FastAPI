@@ -7,7 +7,9 @@ const EXCLUDED_URL_PATTERNS = [
   '/transport/crypto/frontend-config',
   '/transport/crypto/public-key',
   '/common/download',
-  '/common/download/resource'
+  '/common/download/resource',
+  '/common/files/',
+  '/system/file/download/'
 ]
 const TRANSPORT_FRONTEND_CONFIG_CACHE_KEY = 'transportCryptoFrontendConfig'
 const TRANSPORT_FRONTEND_CONFIG_URL = '/transport/crypto/frontend-config'

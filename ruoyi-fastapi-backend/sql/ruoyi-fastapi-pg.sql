@@ -257,6 +257,7 @@ insert into sys_menu values(105,  '字典管理', 1,   '6', 'dict',             
 insert into sys_menu values(106,  '参数设置', 1,   '7', 'config',              'system/config/index',               '', '', 1, 0, 'C', '0', '0', 'system:config:list',               'edit',          'admin', current_timestamp, '', null, '参数设置菜单');
 insert into sys_menu values(107,  '通知公告', 1,   '8', 'notice',              'system/notice/index',               '', '', 1, 0, 'C', '0', '0', 'system:notice:list',               'message',       'admin', current_timestamp, '', null, '通知公告菜单');
 insert into sys_menu values(108,  '日志管理', 1,   '9', 'log',                 '',                                  '', '', 1, 0, 'M', '0', '0', '',                                 'log',           'admin', current_timestamp, '', null, '日志管理菜单');
+insert into sys_menu values(121,  '文件管理', 1,  '10', 'file',                'system/file/index',                 '', '', 1, 0, 'C', '0', '0', 'system:file:list',                 'documentation', 'admin', current_timestamp, '', null, '文件管理菜单');
 insert into sys_menu values(109,  '在线用户', 2,   '1', 'online',              'monitor/online/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:online:list',              'online',        'admin', current_timestamp, '', null, '在线用户菜单');
 insert into sys_menu values(110,  '定时任务', 2,   '2', 'job',                 'monitor/job/index',                 '', '', 1, 0, 'C', '0', '0', 'monitor:job:list',                 'job',           'admin', current_timestamp, '', null, '定时任务菜单');
 insert into sys_menu values(111,  '数据监控', 2,   '3', 'druid',               'monitor/druid/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list',               'druid',         'admin', current_timestamp, '', null, '数据监控菜单');
@@ -319,6 +320,15 @@ insert into sys_menu values(1035, '公告查询', 107, '1', '#', '', '', '', 1, 
 insert into sys_menu values(1036, '公告新增', 107, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:add',          '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1037, '公告修改', 107, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:edit',         '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1038, '公告删除', 107, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:remove',       '#', 'admin', current_timestamp, '', null, '');
+-- 文件管理按钮
+insert into sys_menu values(1065, '文件查询', 121, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:query',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1066, '文件下载', 121, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:download',       '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1067, '文件删除', 121, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:remove',         '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1068, '文件授权', 121, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:edit',           '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1069, '文件转移', 121, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:transfer',       '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1070, '文件恢复', 121, '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:restore',        '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1071, '文件清理', 121, '7', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:purge',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1072, '存储对账', 121, '8', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:reconcile',      '#', 'admin', current_timestamp, '', null, '');
 -- 操作日志按钮
 insert into sys_menu values(1039, '操作查询', 500, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:query',      '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1040, '操作删除', 500, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:remove',     '#', 'admin', current_timestamp, '', null, '');
@@ -835,6 +845,9 @@ comment on table sys_job is '定时任务调度表';
 insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', null,   null, '0/10 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
 insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', null, '0/15 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
 insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{test: 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
+insert into sys_job values(4, '文件保留期限提醒', 'default', 'default', 'module_task.file_task.scan_retention_reminders', null, '{"remind_days": 7, "batch_size": 500}', '0 0 1 * * ?', '3', '1', '0', 'admin', current_timestamp, '', null, '每天扫描即将到期和已到期的受保护文件');
+insert into sys_job values(5, '回收站永久清理', 'default', 'default', 'module_task.file_task.purge_recycle_bin', null, '{"retention_days": 30, "batch_size": 100}', '0 0 2 * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '永久清理超过保留期限的回收站文件，默认暂停');
+insert into sys_job values(6, '文件存储对账', 'default', 'default', 'module_task.file_task.reconcile_file_storage', null, '{"check_hash": false}', '0 0 3 * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '校验文件信息表和本地存储一致性，默认暂停');
 
 -- ----------------------------
 -- 16、定时任务调度日志表
@@ -1090,6 +1103,329 @@ comment on column ai_chat_config.vision_enabled is '是否开启视觉(0是, 1�
 comment on column ai_chat_config.image_max_size_mb is '图片最大大小(MB)';
 comment on column ai_chat_config.create_time is '创建时间';
 comment on column ai_chat_config.update_time is '更新时间';
+
+-- ----------------------------
+-- 22、文件信息表
+-- ----------------------------
+drop table if exists sys_file_info;
+create table sys_file_info (
+    file_id varchar(36) not null,
+    original_name varchar(255) not null,
+    stored_name varchar(255) not null,
+    storage_key varchar(500) not null,
+    storage_type varchar(20) not null default 'local',
+    access_type varchar(20) not null default 'public',
+    upload_user_id bigint,
+    uploader_access_enabled char(1) not null default '1',
+    owner_user_id bigint,
+    dept_id bigint,
+    acl_version integer not null default 0,
+    business_type varchar(50),
+    business_id varchar(64),
+    extension varchar(20) not null default '',
+    content_type varchar(255),
+    file_size bigint not null default 0,
+    file_hash varchar(64) not null,
+    status varchar(20) not null default 'active',
+    create_by varchar(64) default '',
+    create_time timestamp(0) not null,
+    update_by varchar(64) default '',
+    update_time timestamp(0) not null,
+    expire_time timestamp(0),
+    deleted_time timestamp(0),
+    del_flag char(1) not null default '0',
+    primary key (file_id)
+);
+create index idx_sys_file_info_access_status on sys_file_info(access_type, status);
+create index idx_sys_file_info_owner_status on sys_file_info(owner_user_id, status);
+create index idx_sys_file_info_dept_status on sys_file_info(dept_id, status);
+create index idx_sys_file_info_status_deleted_time on sys_file_info(status, deleted_time);
+create unique index uk_sys_file_info_storage_location on sys_file_info(storage_type, access_type, storage_key);
+comment on table sys_file_info is '文件信息表';
+comment on column sys_file_info.file_id is '文件ID';
+comment on column sys_file_info.original_name is '原始文件名';
+comment on column sys_file_info.stored_name is '存储文件名';
+comment on column sys_file_info.storage_key is '存储相对路径';
+comment on column sys_file_info.storage_type is '存储类型';
+comment on column sys_file_info.access_type is '访问类型';
+comment on column sys_file_info.upload_user_id is '上传用户ID';
+comment on column sys_file_info.uploader_access_enabled is '是否保留上传人访问权限';
+comment on column sys_file_info.owner_user_id is '所有者用户ID';
+comment on column sys_file_info.dept_id is '所属部门ID';
+comment on column sys_file_info.acl_version is '访问控制版本';
+comment on column sys_file_info.business_type is '业务类型';
+comment on column sys_file_info.business_id is '业务ID';
+comment on column sys_file_info.extension is '文件扩展名';
+comment on column sys_file_info.content_type is '内容类型';
+comment on column sys_file_info.file_size is '文件大小';
+comment on column sys_file_info.file_hash is '文件SHA-256';
+comment on column sys_file_info.status is '文件状态';
+comment on column sys_file_info.create_by is '创建者';
+comment on column sys_file_info.create_time is '创建时间';
+comment on column sys_file_info.update_by is '更新者';
+comment on column sys_file_info.update_time is '更新时间';
+comment on column sys_file_info.expire_time is '过期时间';
+comment on column sys_file_info.deleted_time is '移入回收站时间';
+comment on column sys_file_info.del_flag is '删除标志';
+
+-- ----------------------------
+-- 23、文件业务引用表
+-- ----------------------------
+drop table if exists sys_file_reference;
+create table sys_file_reference (
+    reference_id bigserial not null,
+    file_id varchar(36) not null,
+    business_type varchar(50) not null,
+    business_id varchar(64) not null,
+    business_name varchar(255),
+    retention_expire_time timestamp(0),
+    create_by varchar(64) default '',
+    create_time timestamp(0) not null,
+    primary key (reference_id)
+);
+create unique index uk_sys_file_reference_business on sys_file_reference(file_id, business_type, business_id);
+create index idx_sys_file_reference_file on sys_file_reference(file_id);
+create index idx_sys_file_reference_business on sys_file_reference(business_type, business_id);
+comment on table sys_file_reference is '文件业务引用表';
+comment on column sys_file_reference.reference_id is '引用ID';
+comment on column sys_file_reference.file_id is '文件ID';
+comment on column sys_file_reference.business_type is '业务类型';
+comment on column sys_file_reference.business_id is '业务ID';
+comment on column sys_file_reference.business_name is '业务名称';
+comment on column sys_file_reference.retention_expire_time is '保留期限到期时间';
+comment on column sys_file_reference.create_by is '创建者';
+comment on column sys_file_reference.create_time is '创建时间';
+
+-- ----------------------------
+-- 24、文件业务保留策略表
+-- ----------------------------
+drop table if exists sys_file_retention_policy;
+create table sys_file_retention_policy (
+    business_type varchar(50) not null,
+    retention_days integer not null,
+    status char(1) not null default '0',
+    remark varchar(500),
+    create_by varchar(64) default '',
+    create_time timestamp(0) not null,
+    update_by varchar(64) default '',
+    update_time timestamp(0) not null,
+    primary key (business_type)
+);
+comment on table sys_file_retention_policy is '文件业务保留策略表';
+comment on column sys_file_retention_policy.business_type is '业务类型';
+comment on column sys_file_retention_policy.retention_days is '保留天数';
+comment on column sys_file_retention_policy.status is '状态（0启用 1停用）';
+comment on column sys_file_retention_policy.remark is '备注';
+comment on column sys_file_retention_policy.create_by is '创建者';
+comment on column sys_file_retention_policy.create_time is '创建时间';
+comment on column sys_file_retention_policy.update_by is '更新者';
+comment on column sys_file_retention_policy.update_time is '更新时间';
+
+-- ----------------------------
+-- 25、文件保留期限提醒表
+-- ----------------------------
+drop table if exists sys_file_retention_notice;
+create table sys_file_retention_notice (
+    notice_id bigserial not null,
+    file_id varchar(36) not null,
+    notice_type varchar(20) not null,
+    expire_time timestamp(0) not null,
+    status char(1) not null default '0',
+    create_time timestamp(0) not null,
+    read_by varchar(64) default '',
+    read_time timestamp(0),
+    primary key (notice_id)
+);
+create unique index uk_sys_file_retention_notice_file_type_time
+    on sys_file_retention_notice(file_id, notice_type, expire_time);
+create index idx_sys_file_retention_notice_file on sys_file_retention_notice(file_id);
+create index idx_sys_file_retention_notice_status_time on sys_file_retention_notice(status, create_time);
+comment on table sys_file_retention_notice is '文件保留期限提醒表';
+comment on column sys_file_retention_notice.notice_id is '提醒ID';
+comment on column sys_file_retention_notice.file_id is '文件ID';
+comment on column sys_file_retention_notice.notice_type is '提醒类型';
+comment on column sys_file_retention_notice.expire_time is '文件过期时间';
+comment on column sys_file_retention_notice.status is '状态（0未读 1已读 2已失效）';
+comment on column sys_file_retention_notice.create_time is '创建时间';
+comment on column sys_file_retention_notice.read_by is '读取者';
+comment on column sys_file_retention_notice.read_time is '读取时间';
+
+-- ----------------------------
+-- 26、文件访问控制表
+-- ----------------------------
+drop table if exists sys_file_acl;
+create table sys_file_acl (
+    acl_id bigserial not null,
+    file_id varchar(36) not null,
+    subject_type varchar(20) not null,
+    subject_id bigint not null,
+    permission varchar(20) not null default 'download',
+    effect varchar(10) not null default 'allow',
+    include_children char(1) not null default '0',
+    expire_time timestamp(0),
+    create_by varchar(64) default '',
+    create_time timestamp(0) not null,
+    del_flag char(1) not null default '0',
+    primary key (acl_id)
+);
+create unique index uk_sys_file_acl_subject_permission on sys_file_acl(file_id, subject_type, subject_id, permission);
+create index idx_sys_file_acl_file_status on sys_file_acl(file_id, del_flag, expire_time);
+create index idx_sys_file_acl_subject on sys_file_acl(subject_type, subject_id);
+comment on table sys_file_acl is '文件访问控制表';
+comment on column sys_file_acl.acl_id is '访问控制ID';
+comment on column sys_file_acl.file_id is '文件ID';
+comment on column sys_file_acl.subject_type is '主体类型';
+comment on column sys_file_acl.subject_id is '主体ID';
+comment on column sys_file_acl.permission is '权限类型';
+comment on column sys_file_acl.effect is '授权效果';
+comment on column sys_file_acl.include_children is '部门是否包含下级';
+comment on column sys_file_acl.expire_time is '授权过期时间';
+comment on column sys_file_acl.create_by is '创建者';
+comment on column sys_file_acl.create_time is '创建时间';
+comment on column sys_file_acl.del_flag is '删除标志';
+
+-- ----------------------------
+-- 27、文件访问审计表
+-- ----------------------------
+drop table if exists sys_file_access_log;
+create table sys_file_access_log (
+    audit_id bigserial not null,
+    file_id varchar(36) not null,
+    action varchar(20) not null,
+    actor_user_id bigint,
+    actor_name varchar(64) default '',
+    result varchar(20) not null,
+    request_id varchar(64) default '',
+    trace_id varchar(64) default '',
+    ip_address varchar(128) default '',
+    user_agent varchar(500) default '',
+    bytes_sent bigint not null default 0,
+    error_message varchar(500) default '',
+    operation_detail text,
+    access_time timestamp(0) not null,
+    primary key (audit_id)
+);
+create index idx_sys_file_access_log_file_time on sys_file_access_log(file_id, access_time);
+create index idx_sys_file_access_log_actor_time on sys_file_access_log(actor_user_id, access_time);
+comment on table sys_file_access_log is '文件访问审计表';
+comment on column sys_file_access_log.audit_id is '审计ID';
+comment on column sys_file_access_log.file_id is '文件ID';
+comment on column sys_file_access_log.action is '操作类型';
+comment on column sys_file_access_log.actor_user_id is '操作用户ID';
+comment on column sys_file_access_log.actor_name is '操作用户名称';
+comment on column sys_file_access_log.result is '操作结果';
+comment on column sys_file_access_log.request_id is '请求ID';
+comment on column sys_file_access_log.trace_id is '链路ID';
+comment on column sys_file_access_log.ip_address is '客户端地址';
+comment on column sys_file_access_log.user_agent is '用户代理';
+comment on column sys_file_access_log.bytes_sent is '发送字节数';
+comment on column sys_file_access_log.error_message is '失败原因';
+comment on column sys_file_access_log.operation_detail is '操作详情';
+comment on column sys_file_access_log.access_time is '访问时间';
+
+-- ----------------------------
+-- 28、文件存储对账任务表
+-- ----------------------------
+drop table if exists sys_file_reconcile_run;
+create table sys_file_reconcile_run (
+    run_id varchar(36) not null,
+    trigger_type varchar(20) not null,
+    status varchar(20) not null,
+    check_hash char(1) not null default '0',
+    lock_name varchar(32),
+    scanned_file_count bigint not null default 0,
+    scanned_storage_count bigint not null default 0,
+    issue_count bigint not null default 0,
+    new_issue_count bigint not null default 0,
+    resolved_issue_count bigint not null default 0,
+    started_by varchar(64) default '',
+    started_time timestamp(0) not null,
+    finished_time timestamp(0),
+    error_message text,
+    primary key (run_id)
+);
+create unique index uk_sys_file_reconcile_run_lock on sys_file_reconcile_run(lock_name);
+create index idx_sys_file_reconcile_run_status_time on sys_file_reconcile_run(status, started_time);
+comment on table sys_file_reconcile_run is '文件存储对账任务表';
+comment on column sys_file_reconcile_run.run_id is '任务ID';
+comment on column sys_file_reconcile_run.trigger_type is '触发类型';
+comment on column sys_file_reconcile_run.status is '任务状态';
+comment on column sys_file_reconcile_run.check_hash is '是否校验文件摘要';
+comment on column sys_file_reconcile_run.lock_name is '运行锁名称';
+comment on column sys_file_reconcile_run.scanned_file_count is '扫描文件记录数';
+comment on column sys_file_reconcile_run.scanned_storage_count is '扫描物理文件数';
+comment on column sys_file_reconcile_run.issue_count is '发现异常数';
+comment on column sys_file_reconcile_run.new_issue_count is '新增或重新出现异常数';
+comment on column sys_file_reconcile_run.resolved_issue_count is '自动恢复异常数';
+comment on column sys_file_reconcile_run.started_by is '发起人';
+comment on column sys_file_reconcile_run.started_time is '开始时间';
+comment on column sys_file_reconcile_run.finished_time is '完成时间';
+comment on column sys_file_reconcile_run.error_message is '失败原因';
+
+-- ----------------------------
+-- 29、文件存储对账异常表
+-- ----------------------------
+drop table if exists sys_file_reconcile_issue;
+create table sys_file_reconcile_issue (
+    issue_id bigserial not null,
+    issue_key varchar(64) not null,
+    last_run_id varchar(36) not null,
+    issue_type varchar(32) not null,
+    severity varchar(10) not null,
+    file_id varchar(36),
+    storage_type varchar(20),
+    access_type varchar(20),
+    expected_root varchar(20),
+    expected_key varchar(500),
+    actual_root varchar(20),
+    actual_key varchar(500),
+    expected_size bigint,
+    actual_size bigint,
+    expected_hash varchar(64),
+    actual_hash varchar(64),
+    status varchar(20) not null default 'open',
+    detail text,
+    occurrence_count integer not null default 1,
+    first_seen_time timestamp(0) not null,
+    last_seen_time timestamp(0) not null,
+    handle_action varchar(32),
+    handle_reason varchar(500),
+    handled_by varchar(64),
+    handled_time timestamp(0),
+    quarantine_key varchar(500),
+    primary key (issue_id)
+);
+create unique index uk_sys_file_reconcile_issue_key on sys_file_reconcile_issue(issue_key);
+create index idx_sys_file_reconcile_issue_status_severity on sys_file_reconcile_issue(status, severity);
+create index idx_sys_file_reconcile_issue_file on sys_file_reconcile_issue(file_id);
+create index idx_sys_file_reconcile_issue_run on sys_file_reconcile_issue(last_run_id);
+comment on table sys_file_reconcile_issue is '文件存储对账异常表';
+comment on column sys_file_reconcile_issue.issue_id is '异常ID';
+comment on column sys_file_reconcile_issue.issue_key is '异常唯一标识';
+comment on column sys_file_reconcile_issue.last_run_id is '最近发现任务ID';
+comment on column sys_file_reconcile_issue.issue_type is '异常类型';
+comment on column sys_file_reconcile_issue.severity is '严重级别';
+comment on column sys_file_reconcile_issue.file_id is '文件ID';
+comment on column sys_file_reconcile_issue.storage_type is '存储类型';
+comment on column sys_file_reconcile_issue.access_type is '访问类型';
+comment on column sys_file_reconcile_issue.expected_root is '预期存储区域';
+comment on column sys_file_reconcile_issue.expected_key is '预期相对路径';
+comment on column sys_file_reconcile_issue.actual_root is '实际存储区域';
+comment on column sys_file_reconcile_issue.actual_key is '实际相对路径';
+comment on column sys_file_reconcile_issue.expected_size is '预期文件大小';
+comment on column sys_file_reconcile_issue.actual_size is '实际文件大小';
+comment on column sys_file_reconcile_issue.expected_hash is '预期SHA-256';
+comment on column sys_file_reconcile_issue.actual_hash is '实际SHA-256';
+comment on column sys_file_reconcile_issue.status is '处理状态';
+comment on column sys_file_reconcile_issue.detail is '异常说明';
+comment on column sys_file_reconcile_issue.occurrence_count is '发现次数';
+comment on column sys_file_reconcile_issue.first_seen_time is '首次发现时间';
+comment on column sys_file_reconcile_issue.last_seen_time is '最近发现时间';
+comment on column sys_file_reconcile_issue.handle_action is '处理动作';
+comment on column sys_file_reconcile_issue.handle_reason is '处理原因';
+comment on column sys_file_reconcile_issue.handled_by is '处理人';
+comment on column sys_file_reconcile_issue.handled_time is '处理时间';
+comment on column sys_file_reconcile_issue.quarantine_key is '隔离区相对路径';
 
 CREATE OR REPLACE FUNCTION "find_in_set"(int8, varchar)
     RETURNS "pg_catalog"."bool" AS $BODY$

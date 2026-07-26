@@ -174,6 +174,7 @@ insert into sys_menu values('105',  '字典管理', '1',   '6', 'dict',         
 insert into sys_menu values('106',  '参数设置', '1',   '7', 'config',              'system/config/index',               '', '', 1, 0, 'C', '0', '0', 'system:config:list',               'edit',          'admin', sysdate(), '', null, '参数设置菜单');
 insert into sys_menu values('107',  '通知公告', '1',   '8', 'notice',              'system/notice/index',               '', '', 1, 0, 'C', '0', '0', 'system:notice:list',               'message',       'admin', sysdate(), '', null, '通知公告菜单');
 insert into sys_menu values('108',  '日志管理', '1',   '9', 'log',                 '',                                  '', '', 1, 0, 'M', '0', '0', '',                                 'log',           'admin', sysdate(), '', null, '日志管理菜单');
+insert into sys_menu values('121',  '文件管理', '1',  '10', 'file',                'system/file/index',                 '', '', 1, 0, 'C', '0', '0', 'system:file:list',                 'documentation', 'admin', sysdate(), '', null, '文件管理菜单');
 insert into sys_menu values('109',  '在线用户', '2',   '1', 'online',              'monitor/online/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:online:list',              'online',        'admin', sysdate(), '', null, '在线用户菜单');
 insert into sys_menu values('110',  '定时任务', '2',   '2', 'job',                 'monitor/job/index',                 '', '', 1, 0, 'C', '0', '0', 'monitor:job:list',                 'job',           'admin', sysdate(), '', null, '定时任务菜单');
 insert into sys_menu values('111',  '数据监控', '2',   '3', 'druid',               'monitor/druid/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list',               'druid',         'admin', sysdate(), '', null, '数据监控菜单');
@@ -236,6 +237,15 @@ insert into sys_menu values('1035', '公告查询', '107', '1', '#', '', '', '',
 insert into sys_menu values('1036', '公告新增', '107', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:add',          '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1037', '公告修改', '107', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:edit',         '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1038', '公告删除', '107', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:remove',       '#', 'admin', sysdate(), '', null, '');
+-- 文件管理按钮
+insert into sys_menu values('1065', '文件查询', '121', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:query',          '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1066', '文件下载', '121', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:download',       '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1067', '文件删除', '121', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:remove',         '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1068', '文件授权', '121', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:edit',           '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1069', '文件转移', '121', '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:transfer',       '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1070', '文件恢复', '121', '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:restore',        '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1071', '文件清理', '121', '7', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:purge',          '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1072', '存储对账', '121', '8', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:reconcile',      '#', 'admin', sysdate(), '', null, '');
 -- 操作日志按钮
 insert into sys_menu values('1039', '操作查询', '500', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:query',      '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1040', '操作删除', '500', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:remove',     '#', 'admin', sysdate(), '', null, '');
@@ -654,6 +664,9 @@ create table sys_job (
 insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', NULL,   NULL, '0/10 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
 insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', NULL, '0/15 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
 insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{\"test\": 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
+insert into sys_job values(4, '文件保留期限提醒', 'default', 'default', 'module_task.file_task.scan_retention_reminders', NULL, '{\"remind_days\": 7, \"batch_size\": 500}', '0 0 1 * * ?', '3', '1', '0', 'admin', sysdate(), '', null, '每天扫描即将到期和已到期的受保护文件');
+insert into sys_job values(5, '回收站永久清理', 'default', 'default', 'module_task.file_task.purge_recycle_bin', NULL, '{\"retention_days\": 30, \"batch_size\": 100}', '0 0 2 * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '永久清理超过保留期限的回收站文件，默认暂停');
+insert into sys_job values(6, '文件存储对账', 'default', 'default', 'module_task.file_task.reconcile_file_storage', NULL, '{\"check_hash\": false}', '0 0 3 * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '校验文件信息表和本地存储一致性，默认暂停');
 
 
 -- ----------------------------
@@ -811,3 +824,211 @@ create table ai_chat_config (
   update_time             datetime                                   comment '更新时间',
   primary key (chat_config_id)
 ) engine=innodb auto_increment=1 comment = 'AI对话配置表';
+
+
+-- ----------------------------
+-- 22、文件信息表
+-- ----------------------------
+drop table if exists sys_file_info;
+create table sys_file_info (
+  file_id          varchar(36)     not null                   comment '文件ID',
+  original_name    varchar(255)    not null                   comment '原始文件名',
+  stored_name      varchar(255)    not null                   comment '存储文件名',
+  storage_key      varchar(500)    not null                   comment '存储相对路径',
+  storage_type     varchar(20)     not null default 'local'   comment '存储类型',
+  access_type      varchar(20)     not null default 'public'  comment '访问类型',
+  upload_user_id   bigint(20)                                 comment '上传用户ID',
+  uploader_access_enabled char(1)  not null default '1'       comment '是否保留上传人访问权限',
+  owner_user_id    bigint(20)                                 comment '所有者用户ID',
+  dept_id          bigint(20)                                 comment '所属部门ID',
+  acl_version      int             not null default 0         comment '访问控制版本',
+  business_type    varchar(50)                                comment '业务类型',
+  business_id      varchar(64)                                comment '业务ID',
+  extension        varchar(20)     not null default ''        comment '文件扩展名',
+  content_type     varchar(255)                               comment '内容类型',
+  file_size        bigint(20)      not null default 0         comment '文件大小',
+  file_hash        varchar(64)     not null                   comment '文件SHA-256',
+  status           varchar(20)     not null default 'active'  comment '文件状态',
+  create_by        varchar(64)     default ''                 comment '创建者',
+  create_time      datetime        not null                   comment '创建时间',
+  update_by        varchar(64)     default ''                 comment '更新者',
+  update_time      datetime        not null                   comment '更新时间',
+  expire_time      datetime                                   comment '过期时间',
+  deleted_time     datetime                                   comment '移入回收站时间',
+  del_flag         char(1)         not null default '0'       comment '删除标志',
+  primary key (file_id),
+  unique key uk_sys_file_info_storage_location (storage_type, access_type, storage_key),
+  key idx_sys_file_info_access_status (access_type, status),
+  key idx_sys_file_info_owner_status (owner_user_id, status),
+  key idx_sys_file_info_dept_status (dept_id, status),
+  key idx_sys_file_info_status_deleted_time (status, deleted_time)
+) engine=innodb comment = '文件信息表';
+
+
+-- ----------------------------
+-- 23、文件业务引用表
+-- ----------------------------
+drop table if exists sys_file_reference;
+create table sys_file_reference (
+  reference_id    bigint(20)      not null auto_increment    comment '引用ID',
+  file_id         varchar(36)     not null                   comment '文件ID',
+  business_type   varchar(50)     not null                   comment '业务类型',
+  business_id     varchar(64)     not null                   comment '业务ID',
+  business_name   varchar(255)                               comment '业务名称',
+  retention_expire_time datetime                             comment '保留期限到期时间',
+  create_by       varchar(64)     default ''                 comment '创建者',
+  create_time     datetime        not null                   comment '创建时间',
+  primary key (reference_id),
+  unique key uk_sys_file_reference_business (file_id, business_type, business_id),
+  key idx_sys_file_reference_file (file_id),
+  key idx_sys_file_reference_business (business_type, business_id)
+) engine=innodb auto_increment=1 comment = '文件业务引用表';
+
+
+-- ----------------------------
+-- 24、文件业务保留策略表
+-- ----------------------------
+drop table if exists sys_file_retention_policy;
+create table sys_file_retention_policy (
+  business_type   varchar(50)     not null                   comment '业务类型',
+  retention_days  int             not null                   comment '保留天数',
+  status          char(1)         not null default '0'       comment '状态（0启用 1停用）',
+  remark          varchar(500)                               comment '备注',
+  create_by       varchar(64)     default ''                 comment '创建者',
+  create_time     datetime        not null                   comment '创建时间',
+  update_by       varchar(64)     default ''                 comment '更新者',
+  update_time     datetime        not null                   comment '更新时间',
+  primary key (business_type)
+) engine=innodb comment = '文件业务保留策略表';
+
+
+-- ----------------------------
+-- 25、文件保留期限提醒表
+-- ----------------------------
+drop table if exists sys_file_retention_notice;
+create table sys_file_retention_notice (
+  notice_id        bigint(20)      not null auto_increment    comment '提醒ID',
+  file_id          varchar(36)     not null                   comment '文件ID',
+  notice_type      varchar(20)     not null                   comment '提醒类型',
+  expire_time      datetime        not null                   comment '文件过期时间',
+  status           char(1)         not null default '0'       comment '状态（0未读 1已读 2已失效）',
+  create_time      datetime        not null                   comment '创建时间',
+  read_by          varchar(64)     default ''                 comment '读取者',
+  read_time        datetime                                   comment '读取时间',
+  primary key (notice_id),
+  unique key uk_sys_file_retention_notice_file_type_time (file_id, notice_type, expire_time),
+  key idx_sys_file_retention_notice_file (file_id),
+  key idx_sys_file_retention_notice_status_time (status, create_time)
+) engine=innodb auto_increment=1 comment = '文件保留期限提醒表';
+
+
+-- ----------------------------
+-- 26、文件访问控制表
+-- ----------------------------
+drop table if exists sys_file_acl;
+create table sys_file_acl (
+  acl_id            bigint(20)      not null auto_increment    comment '访问控制ID',
+  file_id           varchar(36)     not null                   comment '文件ID',
+  subject_type      varchar(20)     not null                   comment '主体类型',
+  subject_id        bigint(20)      not null                   comment '主体ID',
+  permission        varchar(20)     not null default 'download' comment '权限类型',
+  effect            varchar(10)     not null default 'allow'   comment '授权效果',
+  include_children  char(1)         not null default '0'       comment '部门是否包含下级',
+  expire_time       datetime                                   comment '授权过期时间',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime        not null                   comment '创建时间',
+  del_flag          char(1)         not null default '0'       comment '删除标志',
+  primary key (acl_id),
+  unique key uk_sys_file_acl_subject_permission (file_id, subject_type, subject_id, permission),
+  key idx_sys_file_acl_file_status (file_id, del_flag, expire_time),
+  key idx_sys_file_acl_subject (subject_type, subject_id)
+) engine=innodb auto_increment=1 comment = '文件访问控制表';
+
+
+-- ----------------------------
+-- 27、文件访问审计表
+-- ----------------------------
+drop table if exists sys_file_access_log;
+create table sys_file_access_log (
+  audit_id         bigint(20)      not null auto_increment    comment '审计ID',
+  file_id          varchar(36)     not null                   comment '文件ID',
+  action           varchar(20)     not null                   comment '操作类型',
+  actor_user_id    bigint(20)                                 comment '操作用户ID',
+  actor_name       varchar(64)     default ''                 comment '操作用户名称',
+  result           varchar(20)     not null                   comment '操作结果',
+  request_id       varchar(64)     default ''                 comment '请求ID',
+  trace_id         varchar(64)     default ''                 comment '链路ID',
+  ip_address       varchar(128)    default ''                 comment '客户端地址',
+  user_agent       varchar(500)    default ''                 comment '用户代理',
+  bytes_sent       bigint(20)      not null default 0         comment '发送字节数',
+  error_message    varchar(500)    default ''                 comment '失败原因',
+  operation_detail text                                       comment '操作详情',
+  access_time      datetime        not null                   comment '访问时间',
+  primary key (audit_id),
+  key idx_sys_file_access_log_file_time (file_id, access_time),
+  key idx_sys_file_access_log_actor_time (actor_user_id, access_time)
+) engine=innodb auto_increment=1 comment = '文件访问审计表';
+
+
+-- ----------------------------
+-- 28、文件存储对账任务表
+-- ----------------------------
+drop table if exists sys_file_reconcile_run;
+create table sys_file_reconcile_run (
+  run_id                   varchar(36)     not null                   comment '任务ID',
+  trigger_type             varchar(20)     not null                   comment '触发类型',
+  status                   varchar(20)     not null                   comment '任务状态',
+  check_hash               char(1)         not null default '0'       comment '是否校验文件摘要',
+  lock_name                varchar(32)                                comment '运行锁名称',
+  scanned_file_count       bigint(20)      not null default 0         comment '扫描文件记录数',
+  scanned_storage_count    bigint(20)      not null default 0         comment '扫描物理文件数',
+  issue_count              bigint(20)      not null default 0         comment '发现异常数',
+  new_issue_count          bigint(20)      not null default 0         comment '新增或重新出现异常数',
+  resolved_issue_count     bigint(20)      not null default 0         comment '自动恢复异常数',
+  started_by               varchar(64)     default ''                 comment '发起人',
+  started_time             datetime        not null                   comment '开始时间',
+  finished_time            datetime                                   comment '完成时间',
+  error_message            text                                       comment '失败原因',
+  primary key (run_id),
+  unique key uk_sys_file_reconcile_run_lock (lock_name),
+  key idx_sys_file_reconcile_run_status_time (status, started_time)
+) engine=innodb comment = '文件存储对账任务表';
+
+
+-- ----------------------------
+-- 29、文件存储对账异常表
+-- ----------------------------
+drop table if exists sys_file_reconcile_issue;
+create table sys_file_reconcile_issue (
+  issue_id          bigint(20)      not null auto_increment    comment '异常ID',
+  issue_key         varchar(64)     not null                   comment '异常唯一标识',
+  last_run_id       varchar(36)     not null                   comment '最近发现任务ID',
+  issue_type        varchar(32)     not null                   comment '异常类型',
+  severity          varchar(10)     not null                   comment '严重级别',
+  file_id           varchar(36)                                comment '文件ID',
+  storage_type      varchar(20)                                comment '存储类型',
+  access_type       varchar(20)                                comment '访问类型',
+  expected_root     varchar(20)                                comment '预期存储区域',
+  expected_key      varchar(500)                               comment '预期相对路径',
+  actual_root       varchar(20)                                comment '实际存储区域',
+  actual_key        varchar(500)                               comment '实际相对路径',
+  expected_size     bigint(20)                                 comment '预期文件大小',
+  actual_size       bigint(20)                                 comment '实际文件大小',
+  expected_hash     varchar(64)                                comment '预期SHA-256',
+  actual_hash       varchar(64)                                comment '实际SHA-256',
+  status            varchar(20)     not null default 'open'    comment '处理状态',
+  detail            text                                       comment '异常说明',
+  occurrence_count  int(11)         not null default 1         comment '发现次数',
+  first_seen_time   datetime        not null                   comment '首次发现时间',
+  last_seen_time    datetime        not null                   comment '最近发现时间',
+  handle_action     varchar(32)                                comment '处理动作',
+  handle_reason     varchar(500)                               comment '处理原因',
+  handled_by        varchar(64)                                comment '处理人',
+  handled_time      datetime                                   comment '处理时间',
+  quarantine_key    varchar(500)                               comment '隔离区相对路径',
+  primary key (issue_id),
+  unique key uk_sys_file_reconcile_issue_key (issue_key),
+  key idx_sys_file_reconcile_issue_status_severity (status, severity),
+  key idx_sys_file_reconcile_issue_file (file_id),
+  key idx_sys_file_reconcile_issue_run (last_run_id)
+) engine=innodb auto_increment=1 comment = '文件存储对账异常表';

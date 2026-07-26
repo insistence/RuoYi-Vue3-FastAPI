@@ -15,6 +15,11 @@ def add_cors_middleware(app: FastAPI) -> None:
         'x-body-encrypted',
         'x-key-id',
         'x-encrypt-alg',
+        'download-filename',
+        'content-disposition',
+        'accept-ranges',
+        'content-range',
+        'content-length',
     ]
 
     # 后台api允许跨域

@@ -140,7 +140,8 @@ class TransportCryptoSettings(BaseSettings):
     transport_crypto_required_paths: str = ''
     transport_crypto_exclude_paths: str = (
         '/openapi.json,/docs,/docs/oauth2-redirect,/redoc,'
-        '/transport/crypto/frontend-config,/transport/crypto/public-key,/common/download,/common/download/resource'
+        '/transport/crypto/frontend-config,/transport/crypto/public-key,/common/download,/common/download/resource,'
+        '/common/files,/system/file/download'
     )
 
 
@@ -169,6 +170,9 @@ class UploadSettings:
 
     UPLOAD_PREFIX = '/profile'
     UPLOAD_PATH = 'vf_admin/upload_path'
+    PRIVATE_UPLOAD_PATH = 'vf_admin/private_upload_path'
+    FILE_TRASH_PATH = 'vf_admin/file_trash_path'
+    FILE_RECONCILE_QUARANTINE_PATH = 'vf_admin/file_reconcile_quarantine_path'
     UPLOAD_MACHINE = 'A'
     DEFAULT_ALLOWED_EXTENSION = [
         # 图片
@@ -200,10 +204,17 @@ class UploadSettings:
         'pdf',
     ]
     DOWNLOAD_PATH = 'vf_admin/download_path'
+    MAX_FILE_SIZE = 100 * 1024 * 1024
 
     def __init__(self) -> None:
         if not os.path.exists(self.UPLOAD_PATH):
             os.makedirs(self.UPLOAD_PATH)
+        if not os.path.exists(self.PRIVATE_UPLOAD_PATH):
+            os.makedirs(self.PRIVATE_UPLOAD_PATH)
+        if not os.path.exists(self.FILE_TRASH_PATH):
+            os.makedirs(self.FILE_TRASH_PATH)
+        if not os.path.exists(self.FILE_RECONCILE_QUARANTINE_PATH):
+            os.makedirs(self.FILE_RECONCILE_QUARANTINE_PATH)
         if not os.path.exists(self.DOWNLOAD_PATH):
             os.makedirs(self.DOWNLOAD_PATH)
 
