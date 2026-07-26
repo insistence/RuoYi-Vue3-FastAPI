@@ -4,6 +4,19 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+FileReconcileAction = Literal[
+    'ignore',
+    'reopen',
+    'restore_source',
+    'move_to_trash',
+    'move_to_expected_root',
+    'quarantine_file',
+    'restore_quarantine',
+    'delete_quarantine',
+    'accept_current',
+    'register_orphan',
+]
+
 
 class FileInfoModel(BaseModel):
     """
@@ -149,7 +162,7 @@ class FileAccessLogModel(BaseModel):
 
     audit_id: int | None = Field(default=None, description='审计ID')
     file_id: str = Field(description='文件ID')
-    action: Literal['upload', 'download', 'acl_update', 'transfer', 'delete', 'restore', 'purge'] = Field(
+    action: Literal['upload', 'download', 'acl_update', 'transfer', 'delete', 'restore', 'purge', 'reconcile'] = Field(
         description='操作类型'
     )
     actor_user_id: int | None = Field(default=None, description='操作用户ID')
@@ -298,9 +311,9 @@ class FileAccessLogQueryModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    action: Literal['upload', 'download', 'acl_update', 'transfer', 'delete', 'restore', 'purge'] | None = Field(
-        default=None, description='操作类型'
-    )
+    action: (
+        Literal['upload', 'download', 'acl_update', 'transfer', 'delete', 'restore', 'purge', 'reconcile'] | None
+    ) = Field(default=None, description='操作类型')
     result: Literal['allowed', 'denied', 'completed', 'failed'] | None = Field(default=None, description='操作结果')
     actor_name: str | None = Field(default=None, description='操作用户名称')
     begin_time: str | None = Field(default=None, description='开始时间')
@@ -336,3 +349,138 @@ class TransferFileModel(BaseModel):
     owner_user_id: int = Field(gt=0, description='新所有者用户ID')
     dept_id: int = Field(gt=0, description='新所属部门ID')
     reason: str = Field(min_length=1, max_length=500, description='转移原因')
+
+
+class FileReconcileRunModel(BaseModel):
+    """
+    文件存储对账任务展示模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    run_id: str = Field(description='任务ID')
+    trigger_type: Literal['manual', 'scheduled'] = Field(description='触发类型')
+    status: Literal['running', 'completed', 'failed'] = Field(description='任务状态')
+    check_hash: bool = Field(default=False, description='是否校验文件摘要')
+    scanned_file_count: int = Field(default=0, ge=0, description='扫描文件记录数')
+    scanned_storage_count: int = Field(default=0, ge=0, description='扫描物理文件数')
+    issue_count: int = Field(default=0, ge=0, description='发现异常数')
+    new_issue_count: int = Field(default=0, ge=0, description='新增或重新出现异常数')
+    resolved_issue_count: int = Field(default=0, ge=0, description='自动恢复异常数')
+    started_by: str | None = Field(default=None, description='发起人')
+    started_time: datetime = Field(description='开始时间')
+    finished_time: datetime | None = Field(default=None, description='完成时间')
+    error_message: str | None = Field(default=None, description='失败原因')
+
+
+class FileReconcileRunPageQueryModel(BaseModel):
+    """
+    文件存储对账任务分页查询模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    status: Literal['running', 'completed', 'failed'] | None = Field(default=None, description='任务状态')
+    trigger_type: Literal['manual', 'scheduled'] | None = Field(default=None, description='触发类型')
+    page_num: int = Field(default=1, ge=1, description='当前页码')
+    page_size: int = Field(default=10, ge=1, le=100, description='每页记录数')
+
+
+class FileReconcileIssueModel(BaseModel):
+    """
+    文件存储对账异常展示模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    issue_id: int = Field(description='异常ID')
+    issue_key: str = Field(description='异常唯一标识')
+    last_run_id: str = Field(description='最近发现任务ID')
+    issue_type: Literal[
+        'invalid_metadata',
+        'missing_file',
+        'unexpected_trash',
+        'unexpected_source',
+        'duplicate_file',
+        'wrong_storage_root',
+        'size_mismatch',
+        'hash_mismatch',
+        'orphan_file',
+        'unsafe_entry',
+    ] = Field(description='异常类型')
+    severity: Literal['critical', 'warning', 'info'] = Field(description='严重级别')
+    file_id: str | None = Field(default=None, description='文件ID')
+    original_name: str | None = Field(default=None, description='原始文件名')
+    storage_type: str | None = Field(default=None, description='存储类型')
+    access_type: str | None = Field(default=None, description='访问类型')
+    expected_root: str | None = Field(default=None, description='预期存储区域')
+    expected_key: str | None = Field(default=None, description='预期相对路径')
+    actual_root: str | None = Field(default=None, description='实际存储区域')
+    actual_key: str | None = Field(default=None, description='实际相对路径')
+    expected_size: int | None = Field(default=None, ge=0, description='预期文件大小')
+    actual_size: int | None = Field(default=None, ge=0, description='实际文件大小')
+    expected_hash: str | None = Field(default=None, description='预期SHA-256')
+    actual_hash: str | None = Field(default=None, description='实际SHA-256')
+    status: Literal['open', 'ignored', 'quarantined', 'resolved'] = Field(description='处理状态')
+    detail: str | None = Field(default=None, description='异常说明')
+    occurrence_count: int = Field(default=1, ge=1, description='发现次数')
+    first_seen_time: datetime = Field(description='首次发现时间')
+    last_seen_time: datetime = Field(description='最近发现时间')
+    handle_action: str | None = Field(default=None, description='处理动作')
+    handle_reason: str | None = Field(default=None, description='处理原因')
+    handled_by: str | None = Field(default=None, description='处理人')
+    handled_time: datetime | None = Field(default=None, description='处理时间')
+    quarantine_key: str | None = Field(default=None, description='隔离区相对路径')
+    available_actions: list[FileReconcileAction] = Field(default_factory=list, description='可用处理动作')
+
+
+class FileReconcileIssuePageQueryModel(BaseModel):
+    """
+    文件存储对账异常分页查询模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    issue_type: str | None = Field(default=None, max_length=32, description='异常类型')
+    severity: Literal['critical', 'warning', 'info'] | None = Field(default=None, description='严重级别')
+    status: Literal['open', 'ignored', 'quarantined', 'resolved'] | None = Field(default=None, description='处理状态')
+    keyword: str | None = Field(default=None, max_length=100, description='文件或路径关键字')
+    page_num: int = Field(default=1, ge=1, description='当前页码')
+    page_size: int = Field(default=10, ge=1, le=100, description='每页记录数')
+
+
+class FileReconcileStartModel(BaseModel):
+    """
+    启动文件存储对账模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    check_hash: bool = Field(default=False, description='是否校验文件SHA-256')
+
+
+class FileReconcileHandleModel(BaseModel):
+    """
+    文件存储对账异常处理模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, str_strip_whitespace=True)
+
+    action: FileReconcileAction = Field(description='处理动作')
+    reason: str = Field(min_length=1, max_length=500, description='处理原因')
+    original_name: str | None = Field(default=None, min_length=1, max_length=255, description='登记原始文件名')
+
+
+class FileReconcileStatsModel(BaseModel):
+    """
+    文件存储对账统计模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    open_count: int = Field(default=0, ge=0, description='待处理异常数')
+    critical_count: int = Field(default=0, ge=0, description='严重异常数')
+    warning_count: int = Field(default=0, ge=0, description='警告异常数')
+    ignored_count: int = Field(default=0, ge=0, description='已忽略异常数')
+    quarantined_count: int = Field(default=0, ge=0, description='隔离文件数')
+    latest_run: FileReconcileRunModel | None = Field(default=None, description='最近对账任务')

@@ -95,6 +95,17 @@
         <el-button
           type="info"
           plain
+          icon="Connection"
+          @click="reconcileDrawerRef?.open()"
+          v-hasPermi="['system:file:reconcile']"
+        >
+          对账
+        </el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="info"
+          plain
           icon="Bell"
           @click="retentionReminderDrawerRef?.open()"
           v-hasPermi="['system:file:list']"
@@ -145,6 +156,7 @@
     <file-acl-drawer ref="aclDrawerRef" @refresh="getList" />
     <file-transfer-dialog ref="transferDialogRef" @refresh="getList" />
     <file-audit-drawer ref="auditDrawerRef" />
+    <file-reconcile-drawer ref="reconcileDrawerRef" @refresh="getList" />
   </div>
 </template>
 
@@ -162,6 +174,7 @@ import FileAclDrawer from "./components/FileAclDrawer.vue";
 import FileAuditDrawer from "./components/FileAuditDrawer.vue";
 import FileDetailDialog from "./components/FileDetailDialog.vue";
 import FileReferenceDrawer from "./components/FileReferenceDrawer.vue";
+import FileReconcileDrawer from "./components/FileReconcileDrawer.vue";
 import FileRetentionPolicyDrawer from "./components/FileRetentionPolicyDrawer.vue";
 import FileRetentionReminderDrawer from "./components/FileRetentionReminderDrawer.vue";
 import FileSearchForm from "./components/FileSearchForm.vue";
@@ -192,6 +205,7 @@ const retentionReminderDrawerRef = ref();
 const aclDrawerRef = ref();
 const transferDialogRef = ref();
 const auditDrawerRef = ref();
+const reconcileDrawerRef = ref();
 const fileStats = reactive({
   totalCount: 0,
   totalSize: 0,

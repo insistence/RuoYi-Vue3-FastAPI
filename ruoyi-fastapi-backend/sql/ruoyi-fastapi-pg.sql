@@ -328,6 +328,7 @@ insert into sys_menu values(1068, '文件授权', 121, '4', '#', '', '', '', 1, 
 insert into sys_menu values(1069, '文件转移', 121, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:transfer',       '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1070, '文件恢复', 121, '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:restore',        '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1071, '文件清理', 121, '7', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:purge',          '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1072, '存储对账', 121, '8', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:reconcile',      '#', 'admin', current_timestamp, '', null, '');
 -- 操作日志按钮
 insert into sys_menu values(1039, '操作查询', 500, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:query',      '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1040, '操作删除', 500, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:remove',     '#', 'admin', current_timestamp, '', null, '');
@@ -846,6 +847,7 @@ insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 
 insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{test: 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
 insert into sys_job values(4, '文件保留期限提醒', 'default', 'default', 'module_task.file_task.scan_retention_reminders', null, '{"remind_days": 7, "batch_size": 500}', '0 0 1 * * ?', '3', '1', '0', 'admin', current_timestamp, '', null, '每天扫描即将到期和已到期的受保护文件');
 insert into sys_job values(5, '回收站永久清理', 'default', 'default', 'module_task.file_task.purge_recycle_bin', null, '{"retention_days": 30, "batch_size": 100}', '0 0 2 * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '永久清理超过保留期限的回收站文件，默认暂停');
+insert into sys_job values(6, '文件存储对账', 'default', 'default', 'module_task.file_task.reconcile_file_storage', null, '{"check_hash": false}', '0 0 3 * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '校验文件信息表和本地存储一致性，默认暂停');
 
 -- ----------------------------
 -- 16、定时任务调度日志表
@@ -1318,6 +1320,110 @@ comment on column sys_file_access_log.bytes_sent is '发送字节数';
 comment on column sys_file_access_log.error_message is '失败原因';
 comment on column sys_file_access_log.operation_detail is '操作详情';
 comment on column sys_file_access_log.access_time is '访问时间';
+
+-- ----------------------------
+-- 28、文件存储对账任务表
+-- ----------------------------
+drop table if exists sys_file_reconcile_run;
+create table sys_file_reconcile_run (
+    run_id varchar(36) not null,
+    trigger_type varchar(20) not null,
+    status varchar(20) not null,
+    check_hash char(1) not null default '0',
+    lock_name varchar(32),
+    scanned_file_count bigint not null default 0,
+    scanned_storage_count bigint not null default 0,
+    issue_count bigint not null default 0,
+    new_issue_count bigint not null default 0,
+    resolved_issue_count bigint not null default 0,
+    started_by varchar(64) default '',
+    started_time timestamp(0) not null,
+    finished_time timestamp(0),
+    error_message text,
+    primary key (run_id)
+);
+create unique index uk_sys_file_reconcile_run_lock on sys_file_reconcile_run(lock_name);
+create index idx_sys_file_reconcile_run_status_time on sys_file_reconcile_run(status, started_time);
+comment on table sys_file_reconcile_run is '文件存储对账任务表';
+comment on column sys_file_reconcile_run.run_id is '任务ID';
+comment on column sys_file_reconcile_run.trigger_type is '触发类型';
+comment on column sys_file_reconcile_run.status is '任务状态';
+comment on column sys_file_reconcile_run.check_hash is '是否校验文件摘要';
+comment on column sys_file_reconcile_run.lock_name is '运行锁名称';
+comment on column sys_file_reconcile_run.scanned_file_count is '扫描文件记录数';
+comment on column sys_file_reconcile_run.scanned_storage_count is '扫描物理文件数';
+comment on column sys_file_reconcile_run.issue_count is '发现异常数';
+comment on column sys_file_reconcile_run.new_issue_count is '新增或重新出现异常数';
+comment on column sys_file_reconcile_run.resolved_issue_count is '自动恢复异常数';
+comment on column sys_file_reconcile_run.started_by is '发起人';
+comment on column sys_file_reconcile_run.started_time is '开始时间';
+comment on column sys_file_reconcile_run.finished_time is '完成时间';
+comment on column sys_file_reconcile_run.error_message is '失败原因';
+
+-- ----------------------------
+-- 29、文件存储对账异常表
+-- ----------------------------
+drop table if exists sys_file_reconcile_issue;
+create table sys_file_reconcile_issue (
+    issue_id bigserial not null,
+    issue_key varchar(64) not null,
+    last_run_id varchar(36) not null,
+    issue_type varchar(32) not null,
+    severity varchar(10) not null,
+    file_id varchar(36),
+    storage_type varchar(20),
+    access_type varchar(20),
+    expected_root varchar(20),
+    expected_key varchar(500),
+    actual_root varchar(20),
+    actual_key varchar(500),
+    expected_size bigint,
+    actual_size bigint,
+    expected_hash varchar(64),
+    actual_hash varchar(64),
+    status varchar(20) not null default 'open',
+    detail text,
+    occurrence_count integer not null default 1,
+    first_seen_time timestamp(0) not null,
+    last_seen_time timestamp(0) not null,
+    handle_action varchar(32),
+    handle_reason varchar(500),
+    handled_by varchar(64),
+    handled_time timestamp(0),
+    quarantine_key varchar(500),
+    primary key (issue_id)
+);
+create unique index uk_sys_file_reconcile_issue_key on sys_file_reconcile_issue(issue_key);
+create index idx_sys_file_reconcile_issue_status_severity on sys_file_reconcile_issue(status, severity);
+create index idx_sys_file_reconcile_issue_file on sys_file_reconcile_issue(file_id);
+create index idx_sys_file_reconcile_issue_run on sys_file_reconcile_issue(last_run_id);
+comment on table sys_file_reconcile_issue is '文件存储对账异常表';
+comment on column sys_file_reconcile_issue.issue_id is '异常ID';
+comment on column sys_file_reconcile_issue.issue_key is '异常唯一标识';
+comment on column sys_file_reconcile_issue.last_run_id is '最近发现任务ID';
+comment on column sys_file_reconcile_issue.issue_type is '异常类型';
+comment on column sys_file_reconcile_issue.severity is '严重级别';
+comment on column sys_file_reconcile_issue.file_id is '文件ID';
+comment on column sys_file_reconcile_issue.storage_type is '存储类型';
+comment on column sys_file_reconcile_issue.access_type is '访问类型';
+comment on column sys_file_reconcile_issue.expected_root is '预期存储区域';
+comment on column sys_file_reconcile_issue.expected_key is '预期相对路径';
+comment on column sys_file_reconcile_issue.actual_root is '实际存储区域';
+comment on column sys_file_reconcile_issue.actual_key is '实际相对路径';
+comment on column sys_file_reconcile_issue.expected_size is '预期文件大小';
+comment on column sys_file_reconcile_issue.actual_size is '实际文件大小';
+comment on column sys_file_reconcile_issue.expected_hash is '预期SHA-256';
+comment on column sys_file_reconcile_issue.actual_hash is '实际SHA-256';
+comment on column sys_file_reconcile_issue.status is '处理状态';
+comment on column sys_file_reconcile_issue.detail is '异常说明';
+comment on column sys_file_reconcile_issue.occurrence_count is '发现次数';
+comment on column sys_file_reconcile_issue.first_seen_time is '首次发现时间';
+comment on column sys_file_reconcile_issue.last_seen_time is '最近发现时间';
+comment on column sys_file_reconcile_issue.handle_action is '处理动作';
+comment on column sys_file_reconcile_issue.handle_reason is '处理原因';
+comment on column sys_file_reconcile_issue.handled_by is '处理人';
+comment on column sys_file_reconcile_issue.handled_time is '处理时间';
+comment on column sys_file_reconcile_issue.quarantine_key is '隔离区相对路径';
 
 CREATE OR REPLACE FUNCTION "find_in_set"(int8, varchar)
     RETURNS "pg_catalog"."bool" AS $BODY$

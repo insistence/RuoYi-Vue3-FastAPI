@@ -52,6 +52,55 @@ def test_get_file_reference_list_includes_legacy_reference() -> None:
     assert result[0].legacy is True
 
 
+def test_get_file_reference_list_converts_orm_reference() -> None:
+    create_time = datetime(2026, 7, 26, 10, 0, 0)
+    file_info = {
+        'file_id': FILE_ID,
+        'business_type': None,
+        'business_id': None,
+    }
+    file_reference = SysFileReference(
+        reference_id=1,
+        file_id=FILE_ID,
+        business_type='contract',
+        business_id='100',
+        business_name='Contract',
+        create_by='admin',
+        create_time=create_time,
+    )
+    with (
+        patch.object(
+            FileInfoDao,
+            'get_file_management_detail_by_id',
+            new=AsyncMock(return_value=file_info),
+        ),
+        patch.object(
+            FileReferenceDao,
+            'get_file_reference_list',
+            new=AsyncMock(return_value=[file_reference]),
+        ),
+    ):
+        result = asyncio.run(
+            FileReferenceService.get_file_reference_list_services(
+                make_query_db(),
+                FILE_ID,
+                true(),
+            )
+        )
+
+    assert result[0].model_dump(by_alias=True) == {
+        'referenceId': 1,
+        'fileId': FILE_ID,
+        'businessType': 'contract',
+        'businessId': '100',
+        'businessName': 'Contract',
+        'retentionExpireTime': None,
+        'createBy': 'admin',
+        'createTime': create_time,
+        'legacy': False,
+    }
+
+
 def test_replace_business_file_references_locks_files_without_committing() -> None:
     query_db = make_query_db()
     file_infos = [SimpleNamespace(file_id=FILE_ID)]

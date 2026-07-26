@@ -1,30 +1,44 @@
 import asyncio
-from dataclasses import dataclass
+import mimetypes
+import uuid
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import Request
 from sqlalchemy import ColumnElement
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
+from config.database import AsyncSessionLocal
+from config.env import UploadConfig
 from exceptions.exception import ServiceException
 from module_admin.dao.file_access_dao import FileAccessLogDao
 from module_admin.dao.file_info_dao import FileInfoDao
-from module_admin.entity.do.file_do import SysFileInfo
+from module_admin.entity.do.file_do import SysFileInfo, SysFileReconcileIssue, SysFileReconcileRun
 from module_admin.entity.vo.file_vo import (
     DeleteFileModel,
     FileAccessLogPageQueryModel,
     FileInfoDisplayModel,
+    FileInfoModel,
     FileInfoPageQueryModel,
+    FileReconcileAction,
+    FileReconcileHandleModel,
+    FileReconcileIssueModel,
+    FileReconcileIssuePageQueryModel,
+    FileReconcileRunModel,
+    FileReconcileRunPageQueryModel,
+    FileReconcileStatsModel,
     FileStatsModel,
     TransferFileModel,
 )
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.file_access_service import FileAuditService
 from module_admin.service.file_business_service import FileReferenceService
-from utils.file_util import FileUtil
+from utils.file_util import FileReconcileUtil, FileUtil
 from utils.log_util import logger
+from utils.upload_util import UploadUtil
 
 
 @dataclass(frozen=True)
@@ -729,3 +743,576 @@ class FileTransferService:
                 },
             )
         return CrudResponseModel(is_success=True, message='文件转移成功')
+
+
+class FileReconcileService:
+    """
+    文件存储对账服务
+    """
+
+    RUN_LOCK_NAME = 'storage_reconcile'
+    RUN_STALE_HOURS = 6
+    ISSUE_ACTIONS: dict[str, list[FileReconcileAction]] = {
+        'unexpected_trash': ['restore_source'],
+        'unexpected_source': ['move_to_trash'],
+        'wrong_storage_root': ['move_to_expected_root'],
+        'duplicate_file': ['quarantine_file'],
+        'orphan_file': ['quarantine_file', 'register_orphan'],
+        'size_mismatch': ['accept_current'],
+        'hash_mismatch': ['accept_current'],
+    }
+
+    @classmethod
+    async def start_reconcile_run_services(
+        cls,
+        query_db: AsyncSession,
+        *,
+        check_hash: bool = False,
+        trigger_type: str = 'manual',
+        current_user: CurrentUserModel | None = None,
+    ) -> FileReconcileRunModel:
+        """
+        创建文件存储对账任务
+
+        :param query_db: orm对象
+        :param check_hash: 是否校验文件摘要
+        :param trigger_type: 触发类型
+        :param current_user: 当前用户对象
+        :return: 对账任务
+        """
+        if trigger_type not in {'manual', 'scheduled'}:
+            raise ServiceException(message='对账任务触发类型不正确')
+        started_by = 'system'
+        if trigger_type == 'manual':
+            user = cls._require_admin(current_user)
+            started_by = user.user_name
+        current_time = datetime.now()
+        reconcile_run = SysFileReconcileRun(
+            run_id=str(uuid.uuid4()),
+            trigger_type=trigger_type,
+            status='running',
+            check_hash='1' if check_hash else '0',
+            lock_name=cls.RUN_LOCK_NAME,
+            started_by=started_by,
+            started_time=current_time,
+        )
+        run_data = cls._build_run_data(reconcile_run)
+        try:
+            await FileInfoDao.release_stale_runs(
+                query_db,
+                current_time - timedelta(hours=cls.RUN_STALE_HOURS),
+                current_time,
+            )
+            await FileInfoDao.add_reconcile_run(query_db, reconcile_run)
+            await query_db.commit()
+        except IntegrityError as exc:
+            await query_db.rollback()
+            raise ServiceException(message='已有文件存储对账任务正在运行') from exc
+        except Exception:
+            await query_db.rollback()
+            raise
+        return FileReconcileRunModel.model_validate(run_data, by_name=True)
+
+    @classmethod
+    async def execute_reconcile_run_services(cls, run_id: str) -> None:
+        """
+        在独立会话中执行文件存储对账任务
+
+        :param run_id: 任务ID
+        :return: None
+        """
+        try:
+            async with AsyncSessionLocal() as query_db:
+                reconcile_run = await FileInfoDao.get_reconcile_run_by_id(query_db, run_id)
+                if reconcile_run is None or reconcile_run.status != 'running':
+                    return
+                check_hash = reconcile_run.check_hash == '1'
+                file_infos = await FileInfoDao.get_all_local_file_infos(query_db)
+                scan_result = await asyncio.to_thread(
+                    FileReconcileUtil.scan_storage,
+                    file_infos,
+                    check_hash,
+                )
+                current_time = datetime.now()
+                new_issue_count = await FileInfoDao.upsert_reconcile_issues(
+                    query_db,
+                    run_id,
+                    [asdict(finding) for finding in scan_result.findings],
+                    current_time,
+                )
+                resolved_issue_count = await FileInfoDao.resolve_disappeared_issues(
+                    query_db,
+                    run_id,
+                    current_time,
+                )
+                await FileInfoDao.finish_reconcile_run(
+                    query_db,
+                    run_id,
+                    status='completed',
+                    finished_time=current_time,
+                    scanned_file_count=scan_result.scanned_file_count,
+                    scanned_storage_count=scan_result.scanned_storage_count,
+                    issue_count=len(scan_result.findings),
+                    new_issue_count=new_issue_count,
+                    resolved_issue_count=resolved_issue_count,
+                )
+                await query_db.commit()
+                logger.info(
+                    f'文件存储对账任务{run_id}完成，扫描文件记录{scan_result.scanned_file_count}条，'
+                    f'物理文件{scan_result.scanned_storage_count}个，发现异常{len(scan_result.findings)}个'
+                )
+        except Exception as exc:
+            logger.exception(f'文件存储对账任务{run_id}执行失败')
+            async with AsyncSessionLocal() as query_db:
+                try:
+                    await FileInfoDao.finish_reconcile_run(
+                        query_db,
+                        run_id,
+                        status='failed',
+                        finished_time=datetime.now(),
+                        error_message=f'{exc.__class__.__name__}：对账任务执行失败',
+                    )
+                    await query_db.commit()
+                except Exception:
+                    await query_db.rollback()
+                    logger.exception(f'文件存储对账任务{run_id}失败状态更新失败')
+
+    @classmethod
+    async def run_scheduled_reconcile_services(cls, check_hash: bool = False) -> None:
+        """
+        执行定时文件存储对账
+
+        :param check_hash: 是否校验文件摘要
+        :return: None
+        """
+        async with AsyncSessionLocal() as query_db:
+            try:
+                reconcile_run = await cls.start_reconcile_run_services(
+                    query_db,
+                    check_hash=check_hash,
+                    trigger_type='scheduled',
+                )
+            except ServiceException as exc:
+                logger.warning(f'定时文件存储对账未启动：{exc.message}')
+                return
+        await cls.execute_reconcile_run_services(reconcile_run.run_id)
+
+    @classmethod
+    async def get_reconcile_run_list_services(
+        cls,
+        query_db: AsyncSession,
+        current_user: CurrentUserModel,
+        query_object: FileReconcileRunPageQueryModel,
+        is_page: bool = True,
+    ) -> PageModel | list[FileReconcileRunModel]:
+        """
+        获取文件存储对账任务列表
+        """
+        cls._require_admin(current_user)
+        run_list = await FileInfoDao.get_reconcile_run_list(query_db, query_object, is_page)
+        if isinstance(run_list, PageModel):
+            return PageModel.model_validate(
+                {
+                    'rows': [FileReconcileRunModel.model_validate(row, by_name=True) for row in run_list.rows],
+                    'page_num': run_list.page_num,
+                    'page_size': run_list.page_size,
+                    'total': run_list.total,
+                    'has_next': run_list.has_next,
+                },
+                by_name=True,
+            )
+        return [FileReconcileRunModel.model_validate(row, by_name=True) for row in run_list]
+
+    @classmethod
+    async def get_reconcile_issue_list_services(
+        cls,
+        query_db: AsyncSession,
+        current_user: CurrentUserModel,
+        query_object: FileReconcileIssuePageQueryModel,
+        is_page: bool = True,
+    ) -> PageModel | list[FileReconcileIssueModel]:
+        """
+        获取文件存储对账异常列表
+        """
+        cls._require_admin(current_user)
+        issue_list = await FileInfoDao.get_reconcile_issue_list(query_db, query_object, is_page)
+        issue_rows = issue_list.rows if isinstance(issue_list, PageModel) else issue_list
+        issue_models = []
+        for issue_row in issue_rows:
+            issue_model = FileReconcileIssueModel.model_validate(issue_row, by_name=True)
+            issue_model.available_actions = cls._get_available_actions(issue_model)
+            issue_models.append(issue_model)
+        if isinstance(issue_list, PageModel):
+            return PageModel.model_validate(
+                {
+                    'rows': issue_models,
+                    'page_num': issue_list.page_num,
+                    'page_size': issue_list.page_size,
+                    'total': issue_list.total,
+                    'has_next': issue_list.has_next,
+                },
+                by_name=True,
+            )
+        return issue_models
+
+    @classmethod
+    async def get_reconcile_stats_services(
+        cls,
+        query_db: AsyncSession,
+        current_user: CurrentUserModel,
+    ) -> FileReconcileStatsModel:
+        """
+        获取文件存储对账统计
+        """
+        cls._require_admin(current_user)
+        stats = await FileInfoDao.get_reconcile_stats(query_db)
+        latest_run = stats.pop('latest_run')
+        stats['latest_run'] = (
+            FileReconcileRunModel.model_validate(cls._build_run_data(latest_run), by_name=True) if latest_run else None
+        )
+        return FileReconcileStatsModel.model_validate(stats, by_name=True)
+
+    @classmethod
+    async def handle_reconcile_issue_services(
+        cls,
+        query_db: AsyncSession,
+        current_user: CurrentUserModel,
+        issue_id: int,
+        handle: FileReconcileHandleModel,
+        request: Request | None = None,
+    ) -> CrudResponseModel:
+        """
+        处理文件存储对账异常
+
+        :param query_db: orm对象
+        :param current_user: 当前用户对象
+        :param issue_id: 异常ID
+        :param handle: 处理参数
+        :param request: Request对象
+        :return: 处理结果
+        """
+        cls._require_admin(current_user)
+        if await FileInfoDao.has_running_reconcile_run(query_db):
+            raise ServiceException(message='文件存储对账任务运行中，请等待扫描完成后再处理异常')
+        issue = await FileInfoDao.get_reconcile_issue_for_update(query_db, issue_id)
+        if issue is None:
+            raise ServiceException(message='文件存储对账异常不存在')
+        available_actions = cls._get_available_actions(issue)
+        if handle.action not in available_actions:
+            await query_db.rollback()
+            raise ServiceException(message='当前异常状态不支持该处理动作')
+
+        file_id = issue.file_id
+        issue_type = issue.issue_type
+        operation_location = {
+            'actualRoot': issue.actual_root,
+            'actualKey': issue.actual_key,
+            'expectedRoot': issue.expected_root,
+            'expectedKey': issue.expected_key,
+        }
+        performed_move: tuple[str, str, str, str] | None = None
+        current_time = datetime.now()
+        try:
+            file_id, performed_move = await cls._apply_reconcile_action(
+                query_db,
+                issue,
+                handle,
+                current_user,
+                current_time,
+            )
+            await query_db.commit()
+        except ServiceException:
+            await query_db.rollback()
+            if performed_move:
+                await cls._rollback_file_move(performed_move)
+            raise
+        except Exception as exc:
+            await query_db.rollback()
+            if performed_move:
+                await cls._rollback_file_move(performed_move)
+            if isinstance(exc, (FileExistsError, FileNotFoundError, OSError, ValueError)):
+                raise ServiceException(message=f'文件存储异常处理失败：{exc}') from exc
+            raise
+
+        if file_id:
+            await FileAuditService.enqueue_file_audit(
+                request,
+                current_user,
+                file_id,
+                'reconcile',
+                'completed',
+                operation_detail={
+                    'issueId': issue_id,
+                    'issueType': issue_type,
+                    'action': handle.action,
+                    'reason': handle.reason,
+                    **operation_location,
+                },
+            )
+        return CrudResponseModel(is_success=True, message='文件存储异常处理成功')
+
+    @classmethod
+    async def _apply_reconcile_action(
+        cls,
+        query_db: AsyncSession,
+        issue: SysFileReconcileIssue,
+        handle: FileReconcileHandleModel,
+        current_user: CurrentUserModel,
+        current_time: datetime,
+    ) -> tuple[str | None, tuple[str, str, str, str] | None]:
+        """执行已通过状态校验的对账处理动作。"""
+        user = cls._require_admin(current_user)
+        performed_move: tuple[str, str, str, str] | None = None
+        file_id = issue.file_id
+        if handle.action in {'ignore', 'reopen'}:
+            status = 'ignored' if handle.action == 'ignore' else 'open'
+            cls._mark_issue_handled(issue, status, handle, user.user_name, current_time)
+        elif handle.action in {'restore_source', 'move_to_trash', 'move_to_expected_root'}:
+            performed_move = await cls._move_issue_file(issue)
+            cls._mark_issue_handled(issue, 'resolved', handle, user.user_name, current_time)
+        elif handle.action == 'quarantine_file':
+            performed_move = await cls._quarantine_issue_file(issue)
+            cls._mark_issue_handled(issue, 'quarantined', handle, user.user_name, current_time)
+        elif handle.action == 'restore_quarantine':
+            performed_move = await cls._restore_quarantine_file(issue)
+            cls._mark_issue_handled(issue, 'open', handle, user.user_name, current_time)
+        elif handle.action == 'delete_quarantine':
+            await cls._delete_quarantine_file(issue)
+            cls._mark_issue_handled(issue, 'resolved', handle, user.user_name, current_time)
+        elif handle.action == 'accept_current':
+            file_id = await cls._accept_current_file(
+                query_db,
+                issue,
+                user.user_name,
+                handle.reason,
+                current_time,
+            )
+        else:
+            file_id = await cls._register_orphan_file(
+                query_db,
+                issue,
+                handle,
+                current_user,
+                current_time,
+            )
+        return file_id, performed_move
+
+    @classmethod
+    async def _move_issue_file(
+        cls,
+        issue: SysFileReconcileIssue,
+    ) -> tuple[str, str, str, str]:
+        move = cls._get_issue_move_locations(issue)
+        await asyncio.to_thread(FileReconcileUtil.move_regular_file, *move)
+        return move
+
+    @classmethod
+    async def _quarantine_issue_file(
+        cls,
+        issue: SysFileReconcileIssue,
+    ) -> tuple[str, str, str, str]:
+        source_root, source_key = cls._require_location(issue.actual_root, issue.actual_key)
+        quarantine_key = f'{issue.issue_id}/{source_root}/{source_key}'
+        move = (source_root, source_key, 'quarantine', quarantine_key)
+        await asyncio.to_thread(FileReconcileUtil.move_regular_file, *move)
+        issue.quarantine_key = quarantine_key
+        return move
+
+    @classmethod
+    async def _restore_quarantine_file(
+        cls,
+        issue: SysFileReconcileIssue,
+    ) -> tuple[str, str, str, str]:
+        if not issue.quarantine_key:
+            raise ServiceException(message='隔离区文件路径不存在')
+        target_root, target_key = cls._require_location(issue.actual_root, issue.actual_key)
+        move = ('quarantine', issue.quarantine_key, target_root, target_key)
+        await asyncio.to_thread(FileReconcileUtil.move_regular_file, *move)
+        issue.quarantine_key = None
+        return move
+
+    @staticmethod
+    async def _delete_quarantine_file(issue: SysFileReconcileIssue) -> None:
+        if not issue.quarantine_key:
+            raise ServiceException(message='隔离区文件路径不存在')
+        await asyncio.to_thread(FileReconcileUtil.delete_quarantine_file, issue.quarantine_key)
+        issue.quarantine_key = None
+
+    @classmethod
+    async def _accept_current_file(
+        cls,
+        query_db: AsyncSession,
+        issue: SysFileReconcileIssue,
+        handled_by: str,
+        reason: str,
+        current_time: datetime,
+    ) -> str:
+        if not issue.file_id:
+            raise ServiceException(message='异常未关联文件信息')
+        file_info = await FileInfoDao.get_file_info_for_reconcile(query_db, issue.file_id)
+        if file_info is None:
+            raise ServiceException(message='异常关联的文件信息不存在')
+        root_name, relative_key = cls._require_location(
+            issue.actual_root or issue.expected_root,
+            issue.actual_key or issue.expected_key,
+        )
+        file_path = FileReconcileUtil.resolve_location(root_name, relative_key)
+        file_size, file_hash = await asyncio.to_thread(
+            FileReconcileUtil.calculate_file_integrity,
+            file_path,
+        )
+        file_info.file_size = file_size
+        file_info.file_hash = file_hash
+        file_info.update_by = handled_by
+        file_info.update_time = current_time
+        await FileInfoDao.resolve_file_integrity_issues(
+            query_db,
+            issue.file_id,
+            current_time,
+            handled_by,
+            reason,
+        )
+        return issue.file_id
+
+    @classmethod
+    async def _register_orphan_file(
+        cls,
+        query_db: AsyncSession,
+        issue: SysFileReconcileIssue,
+        handle: FileReconcileHandleModel,
+        current_user: CurrentUserModel,
+        current_time: datetime,
+    ) -> str:
+        user = cls._require_admin(current_user)
+        access_type, storage_key = cls._require_location(issue.actual_root, issue.actual_key)
+        if issue.issue_type != 'orphan_file' or access_type not in {'public', 'private'}:
+            raise ServiceException(message='仅公开或受保护存储区的孤立文件可以登记')
+        if await FileInfoDao.get_file_info_by_storage_key(query_db, storage_key, access_type) is not None:
+            raise ServiceException(message='该物理文件已登记到文件信息表')
+        stored_name = storage_key.rsplit('/', 1)[-1]
+        extension = UploadUtil.get_file_extension(stored_name)
+        if extension not in UploadConfig.DEFAULT_ALLOWED_EXTENSION:
+            raise ServiceException(message='孤立文件扩展名不在允许范围内')
+        original_name = UploadUtil.get_original_filename(handle.original_name or stored_name)
+        if not original_name or UploadUtil.get_file_extension(original_name) != extension:
+            raise ServiceException(message='原始文件名扩展名必须与物理文件一致')
+        file_path = FileReconcileUtil.resolve_location(access_type, storage_key)
+        file_size, file_hash = await asyncio.to_thread(
+            FileReconcileUtil.calculate_file_integrity,
+            file_path,
+        )
+        file_id = str(uuid.uuid4())
+        await FileInfoDao.add_file_info_dao(
+            query_db,
+            FileInfoModel(
+                fileId=file_id,
+                originalName=original_name,
+                storedName=stored_name,
+                storageKey=storage_key,
+                storageType='local',
+                accessType=access_type,
+                uploadUserId=user.user_id,
+                ownerUserId=user.user_id,
+                deptId=user.dept_id,
+                extension=extension,
+                contentType=mimetypes.guess_type(original_name)[0] or 'application/octet-stream',
+                fileSize=file_size,
+                fileHash=file_hash,
+                status='active',
+                createBy=user.user_name,
+                createTime=current_time,
+                updateBy=user.user_name,
+                updateTime=current_time,
+                delFlag='0',
+            ),
+        )
+        issue.file_id = file_id
+        cls._mark_issue_handled(issue, 'resolved', handle, user.user_name, current_time)
+        return file_id
+
+    @classmethod
+    def _get_available_actions(
+        cls,
+        issue: SysFileReconcileIssue | FileReconcileIssueModel,
+    ) -> list[FileReconcileAction]:
+        if issue.quarantine_key or issue.status == 'quarantined':
+            return ['restore_quarantine', 'delete_quarantine']
+        if issue.status == 'ignored':
+            return ['reopen']
+        if issue.status != 'open':
+            return []
+        actions: list[FileReconcileAction] = ['ignore']
+        actions.extend(cls.ISSUE_ACTIONS.get(issue.issue_type, []))
+        if issue.issue_type == 'orphan_file' and issue.actual_root not in {'public', 'private'}:
+            actions = [action for action in actions if action != 'register_orphan']
+        return actions
+
+    @classmethod
+    def _get_issue_move_locations(
+        cls,
+        issue: SysFileReconcileIssue,
+    ) -> tuple[str, str, str, str]:
+        source_root, source_key = cls._require_location(issue.actual_root, issue.actual_key)
+        target_root, target_key = cls._require_location(issue.expected_root, issue.expected_key)
+        return source_root, source_key, target_root, target_key
+
+    @staticmethod
+    def _require_location(root_name: str | None, relative_key: str | None) -> tuple[str, str]:
+        if not root_name or not relative_key:
+            raise ServiceException(message='异常记录缺少可处理的存储位置')
+        if root_name not in {'public', 'private', 'trash', 'quarantine'}:
+            raise ServiceException(message='异常记录的存储区域不合法')
+        return root_name, relative_key
+
+    @staticmethod
+    def _mark_issue_handled(
+        issue: SysFileReconcileIssue,
+        status: str,
+        handle: FileReconcileHandleModel,
+        handled_by: str,
+        handled_time: datetime,
+    ) -> None:
+        issue.status = status
+        issue.handle_action = handle.action
+        issue.handle_reason = handle.reason
+        issue.handled_by = handled_by
+        issue.handled_time = handled_time
+
+    @classmethod
+    async def _rollback_file_move(cls, move: tuple[str, str, str, str]) -> None:
+        source_root, source_key, target_root, target_key = move
+        try:
+            await asyncio.to_thread(
+                FileReconcileUtil.move_regular_file,
+                target_root,
+                target_key,
+                source_root,
+                source_key,
+            )
+        except Exception:
+            logger.exception('文件存储异常处理数据库回滚后，物理文件补偿失败')
+
+    @staticmethod
+    def _build_run_data(reconcile_run: SysFileReconcileRun) -> dict[str, Any]:
+        return {
+            'run_id': reconcile_run.run_id,
+            'trigger_type': reconcile_run.trigger_type,
+            'status': reconcile_run.status,
+            'check_hash': reconcile_run.check_hash == '1',
+            'scanned_file_count': reconcile_run.scanned_file_count or 0,
+            'scanned_storage_count': reconcile_run.scanned_storage_count or 0,
+            'issue_count': reconcile_run.issue_count or 0,
+            'new_issue_count': reconcile_run.new_issue_count or 0,
+            'resolved_issue_count': reconcile_run.resolved_issue_count or 0,
+            'started_by': reconcile_run.started_by,
+            'started_time': reconcile_run.started_time,
+            'finished_time': reconcile_run.finished_time,
+            'error_message': reconcile_run.error_message,
+        }
+
+    @staticmethod
+    def _require_admin(current_user: CurrentUserModel | None) -> Any:
+        user = current_user.user if current_user else None
+        if user is None or not user.admin or not user.user_name:
+            raise ServiceException(message='仅系统管理员可以使用文件存储对账功能')
+        return user

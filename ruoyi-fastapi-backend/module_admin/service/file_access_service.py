@@ -393,7 +393,7 @@ class FileAuditService:
         request: Request | None,
         current_user: CurrentUserModel,
         file_id: str,
-        action: Literal['upload', 'download', 'acl_update', 'transfer', 'delete', 'restore', 'purge'],
+        action: Literal['upload', 'download', 'acl_update', 'transfer', 'delete', 'restore', 'purge', 'reconcile'],
         result: Literal['allowed', 'denied', 'completed', 'failed'],
         bytes_sent: int = 0,
         error_message: str = '',

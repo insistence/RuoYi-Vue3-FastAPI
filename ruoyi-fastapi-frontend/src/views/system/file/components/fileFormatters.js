@@ -67,7 +67,8 @@ export function actionLabel(action) {
     transfer: "归属转移",
     delete: "移入回收站",
     restore: "恢复",
-    purge: "永久清理"
+    purge: "永久清理",
+    reconcile: "存储对账"
   }[action] || action;
 }
 
@@ -122,6 +123,13 @@ function auditDetailKeyLabel(key) {
     previousStatus: "原状态",
     newStatus: "新状态",
     truncated: "详情已截断",
-    preview: "详情预览"
+    preview: "详情预览",
+    issueId: "对账异常ID",
+    issueType: "异常类型",
+    action: "处理动作",
+    actualRoot: "实际存储区域",
+    actualKey: "实际相对路径",
+    expectedRoot: "预期存储区域",
+    expectedKey: "预期相对路径"
   }[key] || key;
 }

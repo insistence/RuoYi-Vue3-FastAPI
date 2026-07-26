@@ -183,3 +183,73 @@ class SysFileAccessLog(Base):
     error_message = Column(String(500), nullable=True, server_default="''", comment='失败原因')
     operation_detail = Column(Text, nullable=True, comment='操作详情')
     access_time = Column(DateTime, nullable=False, default=datetime.now, comment='访问时间')
+
+
+class SysFileReconcileRun(Base):
+    """
+    文件存储对账任务表
+    """
+
+    __tablename__ = 'sys_file_reconcile_run'
+    __table_args__ = (
+        UniqueConstraint('lock_name', name='uk_sys_file_reconcile_run_lock'),
+        Index('idx_sys_file_reconcile_run_status_time', 'status', 'started_time'),
+        {'comment': '文件存储对账任务表'},
+    )
+
+    run_id = Column(String(36), primary_key=True, nullable=False, comment='任务ID')
+    trigger_type = Column(String(20), nullable=False, comment='触发类型')
+    status = Column(String(20), nullable=False, comment='任务状态')
+    check_hash = Column(CHAR(1), nullable=False, server_default='0', comment='是否校验文件摘要')
+    lock_name = Column(String(32), nullable=True, comment='运行锁名称')
+    scanned_file_count = Column(BigInteger, nullable=False, server_default='0', comment='扫描文件记录数')
+    scanned_storage_count = Column(BigInteger, nullable=False, server_default='0', comment='扫描物理文件数')
+    issue_count = Column(BigInteger, nullable=False, server_default='0', comment='发现异常数')
+    new_issue_count = Column(BigInteger, nullable=False, server_default='0', comment='新增或重新出现异常数')
+    resolved_issue_count = Column(BigInteger, nullable=False, server_default='0', comment='自动恢复异常数')
+    started_by = Column(String(64), nullable=True, server_default="''", comment='发起人')
+    started_time = Column(DateTime, nullable=False, default=datetime.now, comment='开始时间')
+    finished_time = Column(DateTime, nullable=True, comment='完成时间')
+    error_message = Column(Text, nullable=True, comment='失败原因')
+
+
+class SysFileReconcileIssue(Base):
+    """
+    文件存储对账异常表
+    """
+
+    __tablename__ = 'sys_file_reconcile_issue'
+    __table_args__ = (
+        UniqueConstraint('issue_key', name='uk_sys_file_reconcile_issue_key'),
+        Index('idx_sys_file_reconcile_issue_status_severity', 'status', 'severity'),
+        Index('idx_sys_file_reconcile_issue_file', 'file_id'),
+        Index('idx_sys_file_reconcile_issue_run', 'last_run_id'),
+        {'comment': '文件存储对账异常表'},
+    )
+
+    issue_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='异常ID')
+    issue_key = Column(String(64), nullable=False, comment='异常唯一标识')
+    last_run_id = Column(String(36), nullable=False, comment='最近发现任务ID')
+    issue_type = Column(String(32), nullable=False, comment='异常类型')
+    severity = Column(String(10), nullable=False, comment='严重级别')
+    file_id = Column(String(36), nullable=True, comment='文件ID')
+    storage_type = Column(String(20), nullable=True, comment='存储类型')
+    access_type = Column(String(20), nullable=True, comment='访问类型')
+    expected_root = Column(String(20), nullable=True, comment='预期存储区域')
+    expected_key = Column(String(500), nullable=True, comment='预期相对路径')
+    actual_root = Column(String(20), nullable=True, comment='实际存储区域')
+    actual_key = Column(String(500), nullable=True, comment='实际相对路径')
+    expected_size = Column(BigInteger, nullable=True, comment='预期文件大小')
+    actual_size = Column(BigInteger, nullable=True, comment='实际文件大小')
+    expected_hash = Column(String(64), nullable=True, comment='预期SHA-256')
+    actual_hash = Column(String(64), nullable=True, comment='实际SHA-256')
+    status = Column(String(20), nullable=False, server_default='open', comment='处理状态')
+    detail = Column(Text, nullable=True, comment='异常说明')
+    occurrence_count = Column(Integer, nullable=False, server_default='1', comment='发现次数')
+    first_seen_time = Column(DateTime, nullable=False, default=datetime.now, comment='首次发现时间')
+    last_seen_time = Column(DateTime, nullable=False, default=datetime.now, comment='最近发现时间')
+    handle_action = Column(String(32), nullable=True, comment='处理动作')
+    handle_reason = Column(String(500), nullable=True, comment='处理原因')
+    handled_by = Column(String(64), nullable=True, comment='处理人')
+    handled_time = Column(DateTime, nullable=True, comment='处理时间')
+    quarantine_key = Column(String(500), nullable=True, comment='隔离区相对路径')

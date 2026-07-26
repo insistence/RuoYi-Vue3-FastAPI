@@ -1,7 +1,7 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Path, Query, Request, Response
+from fastapi import BackgroundTasks, Path, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +29,13 @@ from module_admin.entity.vo.file_vo import (
     FileAclSubjectOptionModel,
     FileInfoDisplayModel,
     FileInfoPageQueryModel,
+    FileReconcileHandleModel,
+    FileReconcileIssueModel,
+    FileReconcileIssuePageQueryModel,
+    FileReconcileRunModel,
+    FileReconcileRunPageQueryModel,
+    FileReconcileStartModel,
+    FileReconcileStatsModel,
     FileReferenceModel,
     FileRetentionNoticeModel,
     FileRetentionNoticePageQueryModel,
@@ -49,6 +56,7 @@ from module_admin.service.file_business_service import (
 from module_admin.service.file_service import (
     FileLifecycleService,
     FileQueryService,
+    FileReconcileService,
     FileTransferService,
 )
 from utils.log_util import logger
@@ -111,6 +119,130 @@ async def get_system_file_stats(
     logger.info('文件统计获取成功')
 
     return ResponseUtil.success(data=file_stats_result)
+
+
+@file_controller.get(
+    '/reconcile/issues/list',
+    summary='获取文件存储对账异常分页列表接口',
+    description='用于获取文件存储对账异常和可用处理动作',
+    response_model=PageResponseModel[FileReconcileIssueModel],
+    dependencies=[UserInterfaceAuthDependency('system:file:reconcile')],
+)
+async def get_system_file_reconcile_issue_list(
+    request: Request,
+    issue_page_query: Annotated[FileReconcileIssuePageQueryModel, Query()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    issue_page_query_result = await FileReconcileService.get_reconcile_issue_list_services(
+        query_db,
+        current_user,
+        issue_page_query,
+        is_page=True,
+    )
+    logger.info('文件存储对账异常列表获取成功')
+
+    return ResponseUtil.success(model_content=issue_page_query_result)
+
+
+@file_controller.get(
+    '/reconcile/runs/list',
+    summary='获取文件存储对账任务分页列表接口',
+    description='用于获取文件存储对账任务执行记录',
+    response_model=PageResponseModel[FileReconcileRunModel],
+    dependencies=[UserInterfaceAuthDependency('system:file:reconcile')],
+)
+async def get_system_file_reconcile_run_list(
+    request: Request,
+    run_page_query: Annotated[FileReconcileRunPageQueryModel, Query()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    run_page_query_result = await FileReconcileService.get_reconcile_run_list_services(
+        query_db,
+        current_user,
+        run_page_query,
+        is_page=True,
+    )
+    logger.info('文件存储对账任务列表获取成功')
+
+    return ResponseUtil.success(model_content=run_page_query_result)
+
+
+@file_controller.get(
+    '/reconcile/stats',
+    summary='获取文件存储对账统计接口',
+    description='用于获取待处理异常和最近任务统计',
+    response_model=DataResponseModel[FileReconcileStatsModel],
+    dependencies=[UserInterfaceAuthDependency('system:file:reconcile')],
+)
+async def get_system_file_reconcile_stats(
+    request: Request,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    reconcile_stats = await FileReconcileService.get_reconcile_stats_services(
+        query_db,
+        current_user,
+    )
+    logger.info('文件存储对账统计获取成功')
+
+    return ResponseUtil.success(data=reconcile_stats)
+
+
+@file_controller.post(
+    '/reconcile/run',
+    summary='启动文件存储对账任务接口',
+    description='用于启动数据库和本地文件系统双向对账任务',
+    response_model=DataResponseModel[FileReconcileRunModel],
+    dependencies=[UserInterfaceAuthDependency('system:file:reconcile')],
+)
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_FILE_RECONCILE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
+@Log(title='文件存储对账', business_type=BusinessType.UPDATE)
+async def start_system_file_reconcile(
+    request: Request,
+    start_reconcile: FileReconcileStartModel,
+    background_tasks: BackgroundTasks,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    reconcile_run = await FileReconcileService.start_reconcile_run_services(
+        query_db,
+        check_hash=start_reconcile.check_hash,
+        current_user=current_user,
+    )
+    background_tasks.add_task(FileReconcileService.execute_reconcile_run_services, reconcile_run.run_id)
+    logger.info(f'文件存储对账任务{reconcile_run.run_id}已启动')
+
+    return ResponseUtil.success(data=reconcile_run, msg='文件存储对账任务已启动')
+
+
+@file_controller.put(
+    '/reconcile/issues/{issue_id}',
+    summary='处理文件存储对账异常接口',
+    description='用于忽略、修复、隔离或登记文件存储异常',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('system:file:reconcile')],
+)
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_FILE_RECONCILE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
+@Log(title='文件存储对账', business_type=BusinessType.UPDATE)
+async def handle_system_file_reconcile_issue(
+    request: Request,
+    issue_id: Annotated[int, Path(gt=0, description='对账异常ID')],
+    handle_reconcile: FileReconcileHandleModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    handle_result = await FileReconcileService.handle_reconcile_issue_services(
+        query_db,
+        current_user,
+        issue_id,
+        handle_reconcile,
+        request=request,
+    )
+    logger.info(handle_result.message)
+
+    return ResponseUtil.success(msg=handle_result.message)
 
 
 @file_controller.get(

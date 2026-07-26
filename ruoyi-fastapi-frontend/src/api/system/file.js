@@ -18,6 +18,50 @@ export function getFileStats(query) {
   })
 }
 
+// 查询文件存储对账异常
+export function listFileReconcileIssue(query) {
+  return request({
+    url: '/system/file/reconcile/issues/list',
+    method: 'get',
+    params: query
+  })
+}
+
+// 查询文件存储对账任务
+export function listFileReconcileRun(query) {
+  return request({
+    url: '/system/file/reconcile/runs/list',
+    method: 'get',
+    params: query
+  })
+}
+
+// 查询文件存储对账统计
+export function getFileReconcileStats() {
+  return request({
+    url: '/system/file/reconcile/stats',
+    method: 'get'
+  })
+}
+
+// 启动文件存储对账任务
+export function startFileReconcile(data) {
+  return request({
+    url: '/system/file/reconcile/run',
+    method: 'post',
+    data: data
+  })
+}
+
+// 处理文件存储对账异常
+export function handleFileReconcileIssue(issueId, data) {
+  return request({
+    url: '/system/file/reconcile/issues/' + issueId,
+    method: 'put',
+    data: data
+  })
+}
+
 // 查询文件业务保留策略
 export function listFileRetentionPolicy() {
   return request({

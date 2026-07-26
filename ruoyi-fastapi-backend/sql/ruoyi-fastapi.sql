@@ -245,6 +245,7 @@ insert into sys_menu values('1068', '文件授权', '121', '4', '#', '', '', '',
 insert into sys_menu values('1069', '文件转移', '121', '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:transfer',       '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1070', '文件恢复', '121', '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:restore',        '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1071', '文件清理', '121', '7', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:purge',          '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1072', '存储对账', '121', '8', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:reconcile',      '#', 'admin', sysdate(), '', null, '');
 -- 操作日志按钮
 insert into sys_menu values('1039', '操作查询', '500', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:query',      '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1040', '操作删除', '500', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:remove',     '#', 'admin', sysdate(), '', null, '');
@@ -665,6 +666,7 @@ insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 
 insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{\"test\": 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
 insert into sys_job values(4, '文件保留期限提醒', 'default', 'default', 'module_task.file_task.scan_retention_reminders', NULL, '{\"remind_days\": 7, \"batch_size\": 500}', '0 0 1 * * ?', '3', '1', '0', 'admin', sysdate(), '', null, '每天扫描即将到期和已到期的受保护文件');
 insert into sys_job values(5, '回收站永久清理', 'default', 'default', 'module_task.file_task.purge_recycle_bin', NULL, '{\"retention_days\": 30, \"batch_size\": 100}', '0 0 2 * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '永久清理超过保留期限的回收站文件，默认暂停');
+insert into sys_job values(6, '文件存储对账', 'default', 'default', 'module_task.file_task.reconcile_file_storage', NULL, '{\"check_hash\": false}', '0 0 3 * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '校验文件信息表和本地存储一致性，默认暂停');
 
 
 -- ----------------------------
@@ -965,3 +967,67 @@ create table sys_file_access_log (
   key idx_sys_file_access_log_file_time (file_id, access_time),
   key idx_sys_file_access_log_actor_time (actor_user_id, access_time)
 ) engine=innodb auto_increment=1 comment = '文件访问审计表';
+
+
+-- ----------------------------
+-- 28、文件存储对账任务表
+-- ----------------------------
+drop table if exists sys_file_reconcile_run;
+create table sys_file_reconcile_run (
+  run_id                   varchar(36)     not null                   comment '任务ID',
+  trigger_type             varchar(20)     not null                   comment '触发类型',
+  status                   varchar(20)     not null                   comment '任务状态',
+  check_hash               char(1)         not null default '0'       comment '是否校验文件摘要',
+  lock_name                varchar(32)                                comment '运行锁名称',
+  scanned_file_count       bigint(20)      not null default 0         comment '扫描文件记录数',
+  scanned_storage_count    bigint(20)      not null default 0         comment '扫描物理文件数',
+  issue_count              bigint(20)      not null default 0         comment '发现异常数',
+  new_issue_count          bigint(20)      not null default 0         comment '新增或重新出现异常数',
+  resolved_issue_count     bigint(20)      not null default 0         comment '自动恢复异常数',
+  started_by               varchar(64)     default ''                 comment '发起人',
+  started_time             datetime        not null                   comment '开始时间',
+  finished_time            datetime                                   comment '完成时间',
+  error_message            text                                       comment '失败原因',
+  primary key (run_id),
+  unique key uk_sys_file_reconcile_run_lock (lock_name),
+  key idx_sys_file_reconcile_run_status_time (status, started_time)
+) engine=innodb comment = '文件存储对账任务表';
+
+
+-- ----------------------------
+-- 29、文件存储对账异常表
+-- ----------------------------
+drop table if exists sys_file_reconcile_issue;
+create table sys_file_reconcile_issue (
+  issue_id          bigint(20)      not null auto_increment    comment '异常ID',
+  issue_key         varchar(64)     not null                   comment '异常唯一标识',
+  last_run_id       varchar(36)     not null                   comment '最近发现任务ID',
+  issue_type        varchar(32)     not null                   comment '异常类型',
+  severity          varchar(10)     not null                   comment '严重级别',
+  file_id           varchar(36)                                comment '文件ID',
+  storage_type      varchar(20)                                comment '存储类型',
+  access_type       varchar(20)                                comment '访问类型',
+  expected_root     varchar(20)                                comment '预期存储区域',
+  expected_key      varchar(500)                               comment '预期相对路径',
+  actual_root       varchar(20)                                comment '实际存储区域',
+  actual_key        varchar(500)                               comment '实际相对路径',
+  expected_size     bigint(20)                                 comment '预期文件大小',
+  actual_size       bigint(20)                                 comment '实际文件大小',
+  expected_hash     varchar(64)                                comment '预期SHA-256',
+  actual_hash       varchar(64)                                comment '实际SHA-256',
+  status            varchar(20)     not null default 'open'    comment '处理状态',
+  detail            text                                       comment '异常说明',
+  occurrence_count  int(11)         not null default 1         comment '发现次数',
+  first_seen_time   datetime        not null                   comment '首次发现时间',
+  last_seen_time    datetime        not null                   comment '最近发现时间',
+  handle_action     varchar(32)                                comment '处理动作',
+  handle_reason     varchar(500)                               comment '处理原因',
+  handled_by        varchar(64)                                comment '处理人',
+  handled_time      datetime                                   comment '处理时间',
+  quarantine_key    varchar(500)                               comment '隔离区相对路径',
+  primary key (issue_id),
+  unique key uk_sys_file_reconcile_issue_key (issue_key),
+  key idx_sys_file_reconcile_issue_status_severity (status, severity),
+  key idx_sys_file_reconcile_issue_file (file_id),
+  key idx_sys_file_reconcile_issue_run (last_run_id)
+) engine=innodb auto_increment=1 comment = '文件存储对账异常表';

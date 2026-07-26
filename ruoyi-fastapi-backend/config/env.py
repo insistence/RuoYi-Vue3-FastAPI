@@ -172,6 +172,7 @@ class UploadSettings:
     UPLOAD_PATH = 'vf_admin/upload_path'
     PRIVATE_UPLOAD_PATH = 'vf_admin/private_upload_path'
     FILE_TRASH_PATH = 'vf_admin/file_trash_path'
+    FILE_RECONCILE_QUARANTINE_PATH = 'vf_admin/file_reconcile_quarantine_path'
     UPLOAD_MACHINE = 'A'
     DEFAULT_ALLOWED_EXTENSION = [
         # 图片
@@ -212,6 +213,8 @@ class UploadSettings:
             os.makedirs(self.PRIVATE_UPLOAD_PATH)
         if not os.path.exists(self.FILE_TRASH_PATH):
             os.makedirs(self.FILE_TRASH_PATH)
+        if not os.path.exists(self.FILE_RECONCILE_QUARANTINE_PATH):
+            os.makedirs(self.FILE_RECONCILE_QUARANTINE_PATH)
         if not os.path.exists(self.DOWNLOAD_PATH):
             os.makedirs(self.DOWNLOAD_PATH)
 

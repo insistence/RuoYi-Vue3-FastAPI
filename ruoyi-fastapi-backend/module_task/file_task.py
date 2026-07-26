@@ -1,6 +1,6 @@
 from config.database import AsyncSessionLocal
 from module_admin.service.file_business_service import FileRetentionNoticeService
-from module_admin.service.file_service import FileLifecycleService
+from module_admin.service.file_service import FileLifecycleService, FileReconcileService
 from utils.log_util import logger
 
 MAX_TASK_BATCHES = 100
@@ -54,3 +54,13 @@ async def purge_recycle_bin(retention_days: int = 30, batch_size: int = 100) -> 
         else:
             logger.warning('回收站永久清理达到最大批次数，请检查待处理文件数量')
     logger.info(f'回收站永久清理完成，共清理{purge_count}个文件')
+
+
+async def reconcile_file_storage(check_hash: bool = False) -> None:
+    """
+    执行数据库和本地文件系统双向对账
+
+    :param check_hash: 是否校验文件SHA-256
+    :return: None
+    """
+    await FileReconcileService.run_scheduled_reconcile_services(check_hash)

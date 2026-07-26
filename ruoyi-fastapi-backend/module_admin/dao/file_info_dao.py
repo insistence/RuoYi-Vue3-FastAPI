@@ -6,11 +6,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
 from module_admin.entity.do.dept_do import SysDept
-from module_admin.entity.do.file_do import SysFileAcl, SysFileInfo, SysFileReference, SysFileRetentionNotice
+from module_admin.entity.do.file_do import (
+    SysFileAcl,
+    SysFileInfo,
+    SysFileReconcileIssue,
+    SysFileReconcileRun,
+    SysFileReference,
+    SysFileRetentionNotice,
+)
 from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.file_vo import (
     FileInfoModel,
     FileInfoPageQueryModel,
+    FileReconcileIssuePageQueryModel,
+    FileReconcileRunPageQueryModel,
     FileStatsModel,
 )
 from utils.page_util import PageUtil
@@ -67,6 +76,455 @@ class FileInfoDao:
             .scalars()
             .first()
         )
+
+    @classmethod
+    async def release_stale_runs(cls, db: AsyncSession, stale_before: datetime, current_time: datetime) -> None:
+        """
+        释放超时未完成的对账任务锁
+
+        :param db: orm对象
+        :param stale_before: 超时边界
+        :param current_time: 当前时间
+        :return: None
+        """
+        await db.execute(
+            update(SysFileReconcileRun)
+            .where(
+                SysFileReconcileRun.status == 'running',
+                SysFileReconcileRun.started_time < stale_before,
+            )
+            .values(
+                status='failed',
+                lock_name=None,
+                finished_time=current_time,
+                error_message='对账任务运行超时，已自动释放运行锁',
+            )
+        )
+
+    @classmethod
+    async def add_reconcile_run(cls, db: AsyncSession, reconcile_run: SysFileReconcileRun) -> None:
+        """
+        新增文件存储对账任务
+
+        :param db: orm对象
+        :param reconcile_run: 对账任务
+        :return: None
+        """
+        db.add(reconcile_run)
+        await db.flush()
+
+    @classmethod
+    async def get_reconcile_run_by_id(cls, db: AsyncSession, run_id: str) -> SysFileReconcileRun | None:
+        """
+        根据任务ID获取文件存储对账任务
+
+        :param db: orm对象
+        :param run_id: 任务ID
+        :return: 对账任务
+        """
+        return (
+            (await db.execute(select(SysFileReconcileRun).where(SysFileReconcileRun.run_id == run_id)))
+            .scalars()
+            .first()
+        )
+
+    @classmethod
+    async def has_running_reconcile_run(cls, db: AsyncSession) -> bool:
+        """
+        判断是否存在运行中的文件存储对账任务
+
+        :param db: orm对象
+        :return: 是否正在运行
+        """
+        return bool(await db.scalar(select(exists().where(SysFileReconcileRun.status == 'running'))))
+
+    @classmethod
+    async def get_reconcile_run_list(
+        cls,
+        db: AsyncSession,
+        query_object: FileReconcileRunPageQueryModel,
+        is_page: bool = True,
+    ) -> PageModel | list[dict[str, Any]]:
+        """
+        获取文件存储对账任务列表
+
+        :param db: orm对象
+        :param query_object: 查询参数
+        :param is_page: 是否分页
+        :return: 对账任务列表
+        """
+        query = (
+            select(
+                SysFileReconcileRun.run_id,
+                SysFileReconcileRun.trigger_type,
+                SysFileReconcileRun.status,
+                SysFileReconcileRun.check_hash,
+                SysFileReconcileRun.scanned_file_count,
+                SysFileReconcileRun.scanned_storage_count,
+                SysFileReconcileRun.issue_count,
+                SysFileReconcileRun.new_issue_count,
+                SysFileReconcileRun.resolved_issue_count,
+                SysFileReconcileRun.started_by,
+                SysFileReconcileRun.started_time,
+                SysFileReconcileRun.finished_time,
+                SysFileReconcileRun.error_message,
+            )
+            .where(
+                SysFileReconcileRun.status == query_object.status if query_object.status else True,
+                SysFileReconcileRun.trigger_type == query_object.trigger_type if query_object.trigger_type else True,
+            )
+            .order_by(SysFileReconcileRun.started_time.desc(), SysFileReconcileRun.run_id.desc())
+        )
+        return await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+
+    @classmethod
+    async def get_all_local_file_infos(cls, db: AsyncSession) -> list[dict[str, Any]]:
+        """
+        获取全部本地文件存储信息
+
+        :param db: orm对象
+        :return: 文件存储信息列表
+        """
+        rows = (
+            (
+                await db.execute(
+                    select(
+                        SysFileInfo.file_id,
+                        SysFileInfo.storage_type,
+                        SysFileInfo.access_type,
+                        SysFileInfo.storage_key,
+                        SysFileInfo.stored_name,
+                        SysFileInfo.file_size,
+                        SysFileInfo.file_hash,
+                        SysFileInfo.status,
+                        SysFileInfo.del_flag,
+                    ).where(SysFileInfo.storage_type == 'local')
+                )
+            )
+            .mappings()
+            .all()
+        )
+        return [dict(row) for row in rows]
+
+    @classmethod
+    async def upsert_reconcile_issues(
+        cls,
+        db: AsyncSession,
+        run_id: str,
+        findings: list[dict[str, Any]],
+        current_time: datetime,
+    ) -> int:
+        """
+        新增或更新文件存储对账异常
+
+        :param db: orm对象
+        :param run_id: 任务ID
+        :param findings: 对账异常列表
+        :param current_time: 当前时间
+        :return: 新增或重新出现异常数
+        """
+        issue_keys = [finding['issue_key'] for finding in findings]
+        issue_map: dict[str, SysFileReconcileIssue] = {}
+        for start in range(0, len(issue_keys), 500):
+            batch_keys = issue_keys[start : start + 500]
+            issue_map.update(
+                {
+                    issue.issue_key: issue
+                    for issue in (
+                        (
+                            await db.execute(
+                                select(SysFileReconcileIssue).where(SysFileReconcileIssue.issue_key.in_(batch_keys))
+                            )
+                        )
+                        .scalars()
+                        .all()
+                    )
+                }
+            )
+
+        new_issue_count = 0
+        for finding in findings:
+            issue = issue_map.get(finding['issue_key'])
+            if issue is None:
+                db.add(
+                    SysFileReconcileIssue(
+                        **finding,
+                        last_run_id=run_id,
+                        status='open',
+                        occurrence_count=1,
+                        first_seen_time=current_time,
+                        last_seen_time=current_time,
+                    )
+                )
+                new_issue_count += 1
+                continue
+            if issue.status in {'resolved', 'quarantined'}:
+                issue.status = 'open'
+                issue.handle_action = 'reopened_by_scan'
+                issue.handle_reason = '异常在后续扫描中再次出现'
+                issue.handled_by = 'system'
+                issue.handled_time = current_time
+                new_issue_count += 1
+            for field_name, value in finding.items():
+                if field_name != 'issue_key':
+                    setattr(issue, field_name, value)
+            issue.last_run_id = run_id
+            issue.last_seen_time = current_time
+            issue.occurrence_count = (issue.occurrence_count or 0) + 1
+        await db.flush()
+        return new_issue_count
+
+    @classmethod
+    async def resolve_disappeared_issues(
+        cls,
+        db: AsyncSession,
+        run_id: str,
+        current_time: datetime,
+    ) -> int:
+        """
+        自动关闭本次扫描未再次出现的异常
+
+        :param db: orm对象
+        :param run_id: 任务ID
+        :param current_time: 当前时间
+        :return: 自动关闭数量
+        """
+        result = await db.execute(
+            update(SysFileReconcileIssue)
+            .where(
+                SysFileReconcileIssue.status.in_(['open', 'ignored']),
+                SysFileReconcileIssue.last_run_id != run_id,
+            )
+            .values(
+                status='resolved',
+                handle_action='auto_resolved',
+                handle_reason='异常在后续完整扫描中未再次出现',
+                handled_by='system',
+                handled_time=current_time,
+            )
+        )
+        return int(result.rowcount or 0)
+
+    @classmethod
+    async def finish_reconcile_run(
+        cls,
+        db: AsyncSession,
+        run_id: str,
+        *,
+        status: str,
+        finished_time: datetime,
+        scanned_file_count: int = 0,
+        scanned_storage_count: int = 0,
+        issue_count: int = 0,
+        new_issue_count: int = 0,
+        resolved_issue_count: int = 0,
+        error_message: str = '',
+    ) -> None:
+        """
+        完成文件存储对账任务
+
+        :return: None
+        """
+        await db.execute(
+            update(SysFileReconcileRun)
+            .where(SysFileReconcileRun.run_id == run_id)
+            .values(
+                status=status,
+                lock_name=None,
+                finished_time=finished_time,
+                scanned_file_count=scanned_file_count,
+                scanned_storage_count=scanned_storage_count,
+                issue_count=issue_count,
+                new_issue_count=new_issue_count,
+                resolved_issue_count=resolved_issue_count,
+                error_message=error_message,
+            )
+        )
+
+    @classmethod
+    async def get_reconcile_issue_list(
+        cls,
+        db: AsyncSession,
+        query_object: FileReconcileIssuePageQueryModel,
+        is_page: bool = True,
+    ) -> PageModel | list[dict[str, Any]]:
+        """
+        获取文件存储对账异常列表
+
+        :param db: orm对象
+        :param query_object: 查询参数
+        :param is_page: 是否分页
+        :return: 对账异常列表
+        """
+        keyword_condition: ColumnElement | bool = True
+        if query_object.keyword:
+            keyword = f'%{query_object.keyword}%'
+            keyword_condition = or_(
+                SysFileReconcileIssue.file_id.like(keyword),
+                SysFileInfo.original_name.like(keyword),
+                SysFileReconcileIssue.expected_key.like(keyword),
+                SysFileReconcileIssue.actual_key.like(keyword),
+            )
+        query = (
+            select(
+                *SysFileReconcileIssue.__table__.c,
+                SysFileInfo.original_name,
+            )
+            .outerjoin(SysFileInfo, SysFileInfo.file_id == SysFileReconcileIssue.file_id)
+            .where(
+                SysFileReconcileIssue.issue_type == query_object.issue_type if query_object.issue_type else True,
+                SysFileReconcileIssue.severity == query_object.severity if query_object.severity else True,
+                SysFileReconcileIssue.status == query_object.status if query_object.status else True,
+                keyword_condition,
+            )
+            .order_by(
+                case(
+                    (SysFileReconcileIssue.status == 'open', 0),
+                    (SysFileReconcileIssue.status == 'quarantined', 1),
+                    (SysFileReconcileIssue.status == 'ignored', 2),
+                    else_=3,
+                ),
+                case((SysFileReconcileIssue.severity == 'critical', 0), else_=1),
+                SysFileReconcileIssue.last_seen_time.desc(),
+                SysFileReconcileIssue.issue_id.desc(),
+            )
+        )
+        return await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
+
+    @classmethod
+    async def get_reconcile_issue_for_update(
+        cls,
+        db: AsyncSession,
+        issue_id: int,
+    ) -> SysFileReconcileIssue | None:
+        """
+        锁定文件存储对账异常
+
+        :param db: orm对象
+        :param issue_id: 异常ID
+        :return: 对账异常
+        """
+        return (
+            (
+                await db.execute(
+                    select(SysFileReconcileIssue).where(SysFileReconcileIssue.issue_id == issue_id).with_for_update()
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+    @classmethod
+    async def get_file_info_for_reconcile(
+        cls,
+        db: AsyncSession,
+        file_id: str,
+    ) -> SysFileInfo | None:
+        """
+        锁定对账异常关联的文件信息
+
+        :param db: orm对象
+        :param file_id: 文件ID
+        :return: 文件信息
+        """
+        return (
+            (await db.execute(select(SysFileInfo).where(SysFileInfo.file_id == file_id).with_for_update()))
+            .scalars()
+            .first()
+        )
+
+    @classmethod
+    async def resolve_file_integrity_issues(
+        cls,
+        db: AsyncSession,
+        file_id: str,
+        current_time: datetime,
+        handled_by: str,
+        reason: str,
+    ) -> None:
+        """
+        关闭文件大小和摘要不一致异常
+
+        :return: None
+        """
+        await db.execute(
+            update(SysFileReconcileIssue)
+            .where(
+                SysFileReconcileIssue.file_id == file_id,
+                SysFileReconcileIssue.issue_type.in_(['size_mismatch', 'hash_mismatch']),
+                SysFileReconcileIssue.status.in_(['open', 'ignored']),
+            )
+            .values(
+                status='resolved',
+                handle_action='accept_current',
+                handle_reason=reason,
+                handled_by=handled_by,
+                handled_time=current_time,
+            )
+        )
+
+    @classmethod
+    async def get_reconcile_stats(cls, db: AsyncSession) -> dict[str, Any]:
+        """
+        获取文件存储对账统计
+
+        :param db: orm对象
+        :return: 对账统计
+        """
+        row = (
+            (
+                await db.execute(
+                    select(
+                        func.coalesce(
+                            func.sum(case((SysFileReconcileIssue.status == 'open', 1), else_=0)),
+                            0,
+                        ).label('open_count'),
+                        func.coalesce(
+                            func.sum(
+                                case(
+                                    (
+                                        (SysFileReconcileIssue.status == 'open')
+                                        & (SysFileReconcileIssue.severity == 'critical'),
+                                        1,
+                                    ),
+                                    else_=0,
+                                )
+                            ),
+                            0,
+                        ).label('critical_count'),
+                        func.coalesce(
+                            func.sum(
+                                case(
+                                    (
+                                        (SysFileReconcileIssue.status == 'open')
+                                        & (SysFileReconcileIssue.severity == 'warning'),
+                                        1,
+                                    ),
+                                    else_=0,
+                                )
+                            ),
+                            0,
+                        ).label('warning_count'),
+                        func.coalesce(
+                            func.sum(case((SysFileReconcileIssue.status == 'ignored', 1), else_=0)),
+                            0,
+                        ).label('ignored_count'),
+                        func.coalesce(
+                            func.sum(case((SysFileReconcileIssue.status == 'quarantined', 1), else_=0)),
+                            0,
+                        ).label('quarantined_count'),
+                    )
+                )
+            )
+            .mappings()
+            .one()
+        )
+        latest_run = (
+            (await db.execute(select(SysFileReconcileRun).order_by(SysFileReconcileRun.started_time.desc()).limit(1)))
+            .scalars()
+            .first()
+        )
+        return {**dict(row), 'latest_run': latest_run}
 
     @classmethod
     async def get_file_info_detail_by_id(

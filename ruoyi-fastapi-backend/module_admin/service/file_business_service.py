@@ -25,6 +25,7 @@ from module_admin.entity.vo.file_vo import (
     FileRetentionPolicyModel,
     FileRetentionScanModel,
 )
+from utils.common_util import CamelCaseUtil
 
 
 class FileReferenceService:
@@ -53,7 +54,7 @@ class FileReferenceService:
         if file_info is None:
             raise ServiceException(message='文件信息不存在或超出数据权限')
         file_reference_list = await FileReferenceDao.get_file_reference_list(query_db, file_id)
-        result = [FileReferenceModel.model_validate(item) for item in file_reference_list]
+        result = [FileReferenceModel(**CamelCaseUtil.transform_result(item)) for item in file_reference_list]
         business_type = file_info.get('business_type')
         business_id = file_info.get('business_id')
         reference_keys = {(item.business_type, item.business_id) for item in file_reference_list}
@@ -230,7 +231,7 @@ class FileRetentionPolicyService:
         :return: 文件业务保留策略列表
         """
         policy_list = await FileRetentionPolicyDao.get_file_retention_policy_list(query_db)
-        return [FileRetentionPolicyModel.model_validate(policy, by_name=True) for policy in policy_list]
+        return [FileRetentionPolicyModel(**CamelCaseUtil.transform_result(policy)) for policy in policy_list]
 
     @classmethod
     async def get_enabled_file_retention_policy_services(
@@ -250,7 +251,7 @@ class FileRetentionPolicyService:
             business_type,
             enabled_only=True,
         )
-        return FileRetentionPolicyModel.model_validate(policy, by_name=True) if policy else None
+        return FileRetentionPolicyModel(**CamelCaseUtil.transform_result(policy)) if policy else None
 
     @classmethod
     async def add_file_retention_policy_services(
