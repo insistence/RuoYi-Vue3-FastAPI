@@ -1,15 +1,10 @@
-# ruff: noqa: F403, F405
+from pathlib import Path
 
-from tests.plugin_runtime_helpers import *
+from tests.plugins.core.runtime.fakes import build_runtime, create_controller_dir, create_frontend_view, write_manifest
 
 
 def test_plugin_runtime_check_reports_structure_errors(tmp_path: Path) -> None:
-    """
-    校验插件运行时检查会报告结构错误。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时检查会报告结构错误。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
@@ -19,7 +14,6 @@ def test_plugin_runtime_check_reports_structure_errors(tmp_path: Path) -> None:
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
   seeds:
@@ -47,12 +41,7 @@ frontend:
 
 
 def test_plugin_runtime_check_uses_runtime_frontend_plugin_root(tmp_path: Path) -> None:
-    """
-    校验插件检查使用运行时环境提供的前端插件目录。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件检查使用运行时环境提供的前端插件目录。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'api-server'
     frontend_root = project_root / 'web-client'
@@ -63,7 +52,6 @@ def test_plugin_runtime_check_uses_runtime_frontend_plugin_root(tmp_path: Path) 
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 frontend:
@@ -83,12 +71,7 @@ frontend:
 
 
 def test_plugin_runtime_check_reports_migration_structure_errors(tmp_path: Path) -> None:
-    """
-    校验插件运行时检查会报告 migration 结构错误。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时检查会报告 migration 结构错误。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -97,7 +80,6 @@ def test_plugin_runtime_check_reports_migration_structure_errors(tmp_path: Path)
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
   migrations:
@@ -118,12 +100,7 @@ frontend:
 
 
 def test_plugin_runtime_check_reports_hook_structure_errors(tmp_path: Path) -> None:
-    """
-    校验插件运行时检查会报告 hook 结构错误。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时检查会报告 hook 结构错误。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -132,7 +109,6 @@ def test_plugin_runtime_check_reports_hook_structure_errors(tmp_path: Path) -> N
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
   hooks:
@@ -153,12 +129,7 @@ frontend:
 
 
 def test_plugin_runtime_check_accepts_sql_seed(tmp_path: Path) -> None:
-    """
-    校验插件运行时检查接受 SQL seed。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时检查接受 SQL seed。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -167,7 +138,6 @@ def test_plugin_runtime_check_accepts_sql_seed(tmp_path: Path) -> None:
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
   seeds:
@@ -185,12 +155,7 @@ backend:
 
 
 def test_plugin_runtime_check_accepts_namespaced_permissions(tmp_path: Path) -> None:
-    """
-    校验插件运行时检查接受不同插件使用各自权限命名空间。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时检查接受不同插件使用各自权限命名空间。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -198,7 +163,6 @@ def test_plugin_runtime_check_accepts_namespaced_permissions(tmp_path: Path) -> 
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 frontend:
@@ -219,7 +183,6 @@ permissions:
 id: sample
 name: 样例插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.sample
 frontend:

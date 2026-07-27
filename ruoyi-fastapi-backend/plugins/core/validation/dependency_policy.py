@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
+from packaging.requirements import InvalidRequirement
 from pydantic import ValidationError
 
 from plugins.core.validation.dependencies import (
@@ -15,6 +16,7 @@ from plugins.core.validation.dependencies import (
     DependencyKind,
     DependencyRequirementParser,
 )
+from plugins.core.validation.python_requirements import PythonRequirementParser
 from plugins.core.validation.versioning import PluginVersionComparator, PluginVersionConstraintMatcher
 
 DependencyInstallPolicyMode = Literal['disabled', 'plan_only', 'explicit', 'locked', 'offline']
@@ -523,10 +525,19 @@ class DependencyAllowlist:
         versions = [str(version) for version in entry.get('versions', []) or []]
         if not versions:
             return True
-        requested_range = parse_dependency_requirement_range(item.requirement)
+        if item.kind == 'python':
+            try:
+                requested_version_text = PythonRequirementParser.parse(item.requirement).required_version
+            except InvalidRequirement:
+                return False
+            if not requested_version_text:
+                return False
+            requested_range = parse_version_range(requested_version_text)
+        else:
+            requested_version_text = extract_dependency_required_version(item.requirement)
+            requested_range = parse_dependency_requirement_range(item.requirement)
         if requested_range is None:
-            return False
-        requested_version_text = extract_dependency_required_version(item.requirement)
+            return requested_version_text in versions
         if requested_version_text in versions:
             return True
         for version_range in versions:
@@ -902,6 +913,12 @@ class DependencyInstallPolicyEvaluator:
         """
         if not lock_entry.resolved_version:
             return False
+        if item.kind == 'python':
+            try:
+                parsed_requirement = PythonRequirementParser.parse(item.requirement)
+            except InvalidRequirement:
+                return False
+            return parsed_requirement.is_version_satisfied(lock_entry.resolved_version)
         required_version = extract_dependency_required_version(item.requirement)
         if not required_version:
             return True

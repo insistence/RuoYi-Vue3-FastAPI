@@ -29,9 +29,15 @@ class SysPlugin(Base):
     last_error = Column(String(1000), nullable=True, comment='最近一次错误信息')
     description = Column(String(500), nullable=True, comment='插件说明')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
+    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
+    update_time = Column(
+        DateTime,
+        nullable=True,
+        default=datetime.now,
+        onupdate=datetime.now,
+        comment='更新时间',
+    )
     remark = Column(
         String(500),
         nullable=True,
@@ -56,7 +62,7 @@ class SysPluginMenu(Base):
     plugin_id = Column(String(64), primary_key=True, nullable=False, comment='插件ID')
     menu_id = Column(BigInteger, primary_key=True, nullable=False, comment='菜单ID')
     menu_key = Column(String(255), nullable=False, comment='插件内菜单自然键')
-    create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
+    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
 
 
 class SysPluginMigration(Base):
@@ -79,8 +85,8 @@ class SysPluginMigration(Base):
     attempt_count = Column(Integer, nullable=False, default=0, comment='尝试次数')
     started_time = Column(DateTime, nullable=True, comment='最近开始时间')
     finished_time = Column(DateTime, nullable=True, comment='最近结束时间')
-    create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='执行时间')
-    update_time = Column(DateTime, nullable=True, comment='更新时间')
+    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='执行时间')
+    update_time = Column(DateTime, nullable=True, onupdate=datetime.now, comment='更新时间')
 
 
 class SysPluginConfig(Base):
@@ -103,8 +109,14 @@ class SysPluginConfig(Base):
     secret = Column(CHAR(1), nullable=False, server_default='1', comment='是否敏感（0是 1否）')
     options = Column(Text, nullable=True, comment='配置选项JSON')
     description = Column(String(500), nullable=True, comment='配置说明')
-    create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
-    update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
+    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
+    update_time = Column(
+        DateTime,
+        nullable=True,
+        default=datetime.now,
+        onupdate=datetime.now,
+        comment='更新时间',
+    )
 
 
 class SysPluginOperationLog(Base):
@@ -131,7 +143,7 @@ class SysPluginOperationLog(Base):
     status = Column(String(32), nullable=False, comment='执行状态')
     summary = Column(Text, nullable=True, comment='执行汇总JSON')
     result = Column(Text, nullable=True, comment='完整执行结果JSON')
-    create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
+    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     remark = Column(
         String(500),
         nullable=True,

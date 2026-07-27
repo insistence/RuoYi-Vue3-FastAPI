@@ -1,22 +1,16 @@
-# ruff: noqa: F403, F405
-
 import base64
 import hashlib
+from pathlib import Path
 
 import yaml
 
-from .conftest import *
+from .conftest import build_runtime
 
 EXPECTED_LOCK_ENTRY_COUNT = 2
 
 
 def write_demo_dependency_manifest(backend_root: Path) -> None:
-    """
-    为 demo 插件补充外部依赖声明。
-
-    :param backend_root: 后端项目根目录
-    :return: None
-    """
+    """为 demo 插件补充外部依赖声明。"""
     manifest_path = backend_root / 'plugins' / 'demo' / 'plugin.yaml'
     manifest = yaml.safe_load(manifest_path.read_text(encoding='utf-8'))
     manifest['dependencies'] = {
@@ -29,12 +23,7 @@ def write_demo_dependency_manifest(backend_root: Path) -> None:
 
 
 def test_plugin_runtime_lock_dependencies_dry_run_returns_lockfile_template(tmp_path: Path) -> None:
-    """
-    校验插件依赖锁文件 dry-run 只返回锁文件模板，不写文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件依赖锁文件 dry-run 只返回锁文件模板，不写文件。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     runtime.create_plugin('demo', frontend=True, dry_run=False)
@@ -63,12 +52,7 @@ def test_plugin_runtime_lock_dependencies_dry_run_returns_lockfile_template(tmp_
 
 
 def test_plugin_runtime_lock_dependencies_writes_default_lockfile(tmp_path: Path) -> None:
-    """
-    校验插件依赖锁文件命令默认写入插件目录下的 plugin.lock.yaml。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件依赖锁文件命令默认写入插件目录下的 plugin.lock.yaml。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     runtime.create_plugin('demo', frontend=True, dry_run=False)
@@ -85,12 +69,7 @@ def test_plugin_runtime_lock_dependencies_writes_default_lockfile(tmp_path: Path
 
 
 def test_plugin_runtime_lock_dependencies_rejects_existing_file_without_overwrite(tmp_path: Path) -> None:
-    """
-    校验已有锁文件时必须显式 overwrite。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验已有锁文件时必须显式 overwrite。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     runtime.create_plugin('demo', frontend=True, dry_run=False)
@@ -108,12 +87,7 @@ def test_plugin_runtime_lock_dependencies_rejects_existing_file_without_overwrit
 
 
 def test_plugin_runtime_lock_dependencies_rejects_output_path_escape(tmp_path: Path) -> None:
-    """
-    校验插件依赖锁文件输出路径不能逃逸后端项目根目录。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件依赖锁文件输出路径不能逃逸后端项目根目录。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     runtime.create_plugin('demo', frontend=True, dry_run=False)
@@ -128,12 +102,7 @@ def test_plugin_runtime_lock_dependencies_rejects_output_path_escape(tmp_path: P
 
 
 def test_plugin_runtime_lock_dependencies_fills_lockfile_from_offline_artifacts(tmp_path: Path) -> None:
-    """
-    校验锁文件模板可以从本地离线制品反填版本和完整性校验值。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验锁文件模板可以从本地离线制品反填版本和完整性校验值。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     runtime.create_plugin('demo', frontend=True, dry_run=False)
@@ -160,12 +129,7 @@ def test_plugin_runtime_lock_dependencies_fills_lockfile_from_offline_artifacts(
 
 
 def test_plugin_runtime_lock_dependencies_filters_offline_artifacts_by_requirement(tmp_path: Path) -> None:
-    """
-    校验多个离线制品中只有一个满足版本声明时可以自动匹配。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验多个离线制品中只有一个满足版本声明时可以自动匹配。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     runtime.create_plugin('demo', frontend=True, dry_run=False)
@@ -192,12 +156,7 @@ def test_plugin_runtime_lock_dependencies_filters_offline_artifacts_by_requireme
 
 
 def test_plugin_runtime_lock_dependencies_warns_when_offline_artifact_missing(tmp_path: Path) -> None:
-    """
-    校验本地离线制品缺失时保留锁文件占位并返回 warning。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验本地离线制品缺失时保留锁文件占位并返回 warning。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     runtime.create_plugin('demo', frontend=True, dry_run=False)

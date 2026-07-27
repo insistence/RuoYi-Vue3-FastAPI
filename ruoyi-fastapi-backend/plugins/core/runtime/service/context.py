@@ -4,7 +4,12 @@ from time import monotonic
 
 from plugins.core.capability import PluginRuntimeCapability, PluginRuntimeCapabilityResolver
 from plugins.core.discovery.registry import PluginRegistry
-from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
+from plugins.core.discovery.scanner import (
+    DiscoveredPlugin,
+    PluginDiscoveryError,
+    PluginDiscoveryResult,
+    PluginScanner,
+)
 from plugins.core.lifecycle.migration import PluginMigrationRunner
 from plugins.core.lifecycle.precheck import PluginLifecycleScriptPrechecker
 from plugins.core.runtime.support import PluginPrecheckContext
@@ -45,6 +50,7 @@ class PluginRuntimeContextService:
         """
         self.dependencies = dependencies
         self._discovered_plugins_cache: dict[Path, tuple[float, list[DiscoveredPlugin]]] = {}
+        self._discovery_errors_cache: dict[Path, list[PluginDiscoveryError]] = {}
 
     def build_registry(self) -> PluginRegistry:
         """
@@ -339,16 +345,42 @@ class PluginRuntimeContextService:
         """
         发现本地插件。
 
+        使用容错扫描，单个损坏插件不会影响其他插件。损坏插件的错误明细可通过
+        :meth:`get_discovery_errors` 获取。
+
         :param backend_root: 后端项目根目录
         :return: 已发现插件列表
+        """
+        return self.discover_plugins_with_errors(backend_root).plugins
+
+    def discover_plugins_with_errors(self, backend_root: Path) -> PluginDiscoveryResult:
+        """
+        发现本地插件并返回错误明细。
+
+        :param backend_root: 后端项目根目录
+        :return: 插件发现结果
         """
         resolved_backend_root = backend_root.resolve()
         cached_entry = self._discovered_plugins_cache.get(resolved_backend_root)
         if cached_entry is not None:
             cached_at, cached_plugins = cached_entry
             if monotonic() - cached_at <= PLUGIN_DISCOVERY_CACHE_TTL_SECONDS:
-                return list(cached_plugins)
+                cached_errors = self._discovery_errors_cache.get(resolved_backend_root, [])
+                return PluginDiscoveryResult(plugins=list(cached_plugins), errors=list(cached_errors))
 
-        discovered_plugins = PluginScanner(resolved_backend_root / 'plugins').discover()
-        self._discovered_plugins_cache[resolved_backend_root] = (monotonic(), discovered_plugins)
-        return list(discovered_plugins)
+        discovery_result = PluginScanner(resolved_backend_root / 'plugins').discover_with_errors()
+        self._discovered_plugins_cache[resolved_backend_root] = (monotonic(), discovery_result.plugins)
+        self._discovery_errors_cache[resolved_backend_root] = list(discovery_result.errors)
+        for error in discovery_result.errors:
+            logger.warning(f'插件扫描失败，已隔离损坏插件：目录={error.plugin_dir}，错误：{error.error_message}')
+        return discovery_result
+
+    def get_discovery_errors(self, backend_root: Path) -> list[PluginDiscoveryError]:
+        """
+        获取本地插件扫描错误明细。
+
+        :param backend_root: 后端项目根目录
+        :return: 扫描错误明细列表
+        """
+        self.discover_plugins_with_errors(backend_root)
+        return list(self._discovery_errors_cache.get(backend_root.resolve(), []))

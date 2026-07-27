@@ -1,27 +1,27 @@
-# ruff: noqa: E402, F403, F405, I001
-
-import sys
+import asyncio
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-BACKEND_ROOT = Path(__file__).resolve().parents[5]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from tests.plugin_runtime_helpers import *
-from plugins.core.runtime.service.audit import PluginAuditUseCase
 import plugins.core.runtime.service.audit as audit_module
+from plugins.core.runtime.service.audit import PluginAuditUseCase
 from plugins.core.runtime.service.dependencies import PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS
 from plugins.core.validation.dependency_policy import DependencyInstallPolicyConfig
+from tests.plugins.core.runtime.fakes import (
+    EXPECTED_DEPENDENCY_COUNT,
+    FakePluginRuntimeGateway,
+    FakePluginService,
+    build_runtime,
+    build_runtime_with_gateway,
+    create_controller_dir,
+    create_frontend_view,
+    write_manifest,
+)
 
 
 def test_plugin_runtime_check_deps_reports_dependency_items(tmp_path: Path) -> None:
-    """
-    校验插件依赖专项检查返回稳定负载。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件依赖专项检查返回稳定负载。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -29,7 +29,6 @@ def test_plugin_runtime_check_deps_reports_dependency_items(tmp_path: Path) -> N
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 dependencies:
@@ -49,12 +48,7 @@ dependencies:
 
 
 def test_plugin_runtime_plan_plugins_returns_dependency_order(tmp_path: Path) -> None:
-    """
-    校验插件运行时可以生成批量操作拓扑计划。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时可以生成批量操作拓扑计划。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'app',
@@ -75,7 +69,6 @@ dependencies:
 id: base
 name: Base
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.base
 """,
@@ -90,56 +83,8 @@ backend:
     assert payload['plan']['items'][1]['requested'] is True
 
 
-def test_plugin_runtime_plan_plugins_delegates_to_batch_use_case(tmp_path: Path) -> None:
-    """
-    校验插件批量计划入口委托给组合式批量 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeBatchUseCase:
-        """
-        测试用插件批量 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件批量 use case。
-            """
-            self.operation: str | None = None
-            self.plugin_ids: list[str] | None = None
-
-        def plan_plugins(self, operation: str, plugin_ids: list[str] | None = None) -> dict:
-            """
-            记录批量计划调用。
-
-            :param operation: 批量操作类型
-            :param plugin_ids: 插件ID列表
-            :return: 测试负载
-            """
-            self.operation = operation
-            self.plugin_ids = plugin_ids
-            return {'ok': True, 'operation': operation, 'pluginIds': plugin_ids}
-
-    batch = FakeBatchUseCase()
-    runtime.batch = batch
-
-    payload = runtime.plan_plugins('install', ['demo'])
-
-    assert batch.operation == 'install'
-    assert batch.plugin_ids == ['demo']
-    assert payload == {'ok': True, 'operation': 'install', 'pluginIds': ['demo']}
-
-
 def test_plugin_runtime_plan_plugins_reports_blockers(tmp_path: Path) -> None:
-    """
-    校验插件运行时计划会输出阻塞项。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时计划会输出阻塞项。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'app',
@@ -166,13 +111,7 @@ def test_plugin_runtime_plan_plugins_reports_database_state_read_error(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """
-    校验批量计划会显式输出数据库状态读取错误。
-
-    :param tmp_path: pytest 临时目录
-    :param monkeypatch: pytest monkeypatch fixture
-    :return: None
-    """
+    """校验批量计划会显式输出数据库状态读取错误。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'app',
@@ -210,111 +149,8 @@ backend:
     assert payload['databaseError'] == 'db unavailable'
 
 
-def test_plugin_runtime_record_plugin_operation_log_delegates_to_audit_use_case(tmp_path: Path) -> None:
-    """
-    校验插件操作日志记录入口委托给组合式审计 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeAuditUseCase:
-        """
-        测试用插件审计 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件审计 use case。
-            """
-            self.payload: dict[str, object] | None = None
-            self.dry_run: bool | None = None
-            self.continue_on_error: bool | None = None
-
-        async def record_plugin_operation_log(
-            self,
-            payload: dict[str, object],
-            *,
-            dry_run: bool,
-            continue_on_error: bool,
-        ) -> None:
-            """
-            记录插件操作日志调用。
-
-            :param payload: 插件操作结果负载
-            :param dry_run: 是否预演
-            :param continue_on_error: 失败后是否继续
-            :return: None
-            """
-            self.payload = payload
-            self.dry_run = dry_run
-            self.continue_on_error = continue_on_error
-
-    audit = FakeAuditUseCase()
-    runtime.audit = audit
-    payload = {'ok': True, 'pluginId': 'demo'}
-
-    asyncio.run(runtime.record_plugin_operation_log(payload, dry_run=False, continue_on_error=True))
-
-    assert audit.payload is payload
-    assert audit.dry_run is False
-    assert audit.continue_on_error is True
-
-
-def test_plugin_runtime_record_plugin_failure_state_delegates_to_audit_use_case(tmp_path: Path) -> None:
-    """
-    校验插件失败状态记录入口委托给组合式审计 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeAuditUseCase:
-        """
-        测试用插件审计 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件审计 use case。
-            """
-            self.payload: dict[str, object] | None = None
-            self.default_message: str | None = None
-
-        async def record_plugin_failure_state(
-            self,
-            payload: dict[str, object],
-            default_message: str,
-        ) -> None:
-            """
-            记录插件失败状态调用。
-
-            :param payload: 插件操作返回负载
-            :param default_message: 缺省失败信息
-            :return: None
-            """
-            self.payload = payload
-            self.default_message = default_message
-
-    audit = FakeAuditUseCase()
-    runtime.audit = audit
-    payload = {'ok': False, 'pluginId': 'demo'}
-
-    asyncio.run(runtime.record_plugin_failure_state(payload, '默认失败'))
-
-    assert audit.payload is payload
-    assert audit.default_message == '默认失败'
-
-
 def test_record_plugin_failure_state_logs_and_swallows_persistence_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验失败状态辅助写入异常会记录日志且不影响主流程。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验失败状态辅助写入异常会记录日志且不影响主流程。"""
     logged_messages = []
 
     class BrokenAuditGateway:
@@ -324,16 +160,11 @@ def test_record_plugin_failure_state_logs_and_swallows_persistence_error(monkeyp
 
         @staticmethod
         async def mark_plugin_error(plugin_id: str, error_message: str) -> None:
-            """
-            模拟标记插件异常失败。
-
-            :param plugin_id: 插件ID
-            :param error_message: 错误信息
-            :return: None
-            """
+            """模拟标记插件异常失败。"""
             raise RuntimeError('db unavailable')
 
     def fake_exception(message: str, *args: object) -> None:
+        """构造测试用批量操作异常。"""
         logged_messages.append(message % args)
 
     monkeypatch.setattr(audit_module.logger, 'exception', fake_exception)
@@ -345,12 +176,7 @@ def test_record_plugin_failure_state_logs_and_swallows_persistence_error(monkeyp
 
 
 def test_plugin_runtime_batch_plugins_dry_run_returns_plan(tmp_path: Path) -> None:
-    """
-    校验插件批量执行 dry-run 只返回拓扑计划，执行汇总只统计显式选择插件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件批量执行 dry-run 只返回拓扑计划，执行汇总只统计显式选择插件。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'app',
@@ -371,7 +197,6 @@ dependencies:
 id: base
 name: Base
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.base
 """,
@@ -388,156 +213,8 @@ backend:
     assert payload['summary'] == {'total': 1, 'succeeded': 0, 'failed': 0, 'skipped': 1}
 
 
-def test_plugin_runtime_batch_plugins_delegates_to_batch_use_case(tmp_path: Path) -> None:
-    """
-    校验插件批量执行入口委托给组合式批量 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeBatchUseCase:
-        """
-        测试用插件批量 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件批量 use case。
-            """
-            self.operation: str | None = None
-            self.plugin_ids: list[str] | None = None
-            self.dry_run: bool | None = None
-            self.continue_on_error: bool | None = None
-
-        async def batch_plugins(
-            self,
-            operation: str,
-            plugin_ids: list[str] | None = None,
-            *,
-            dry_run: bool = False,
-            continue_on_error: bool = False,
-        ) -> dict:
-            """
-            记录批量执行调用。
-
-            :param operation: 批量操作类型
-            :param plugin_ids: 插件ID列表
-            :param dry_run: 是否仅预演
-            :param continue_on_error: 失败后是否继续
-            :return: 测试负载
-            """
-            self.operation = operation
-            self.plugin_ids = plugin_ids
-            self.dry_run = dry_run
-            self.continue_on_error = continue_on_error
-            return {'ok': True, 'operation': operation, 'pluginIds': plugin_ids}
-
-    batch = FakeBatchUseCase()
-    runtime.batch = batch
-
-    payload = asyncio.run(
-        runtime.batch_plugins(
-            'install',
-            ['demo'],
-            dry_run=True,
-            continue_on_error=True,
-        )
-    )
-
-    assert batch.operation == 'install'
-    assert batch.plugin_ids == ['demo']
-    assert batch.dry_run is True
-    assert batch.continue_on_error is True
-    assert payload == {'ok': True, 'operation': 'install', 'pluginIds': ['demo']}
-
-
-def test_plugin_runtime_execute_batch_plugin_item_delegates_to_batch_use_case(tmp_path: Path) -> None:
-    """
-    校验批量单项执行入口委托给组合式批量 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeBatchUseCase:
-        """
-        测试用插件批量 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件批量 use case。
-            """
-            self.operation: str | None = None
-            self.plugin_id: str | None = None
-
-        async def execute_batch_plugin_item(self, operation: str, plugin_id: str) -> dict:
-            """
-            记录批量单项执行调用。
-
-            :param operation: 批量操作类型
-            :param plugin_id: 插件ID
-            :return: 测试负载
-            """
-            self.operation = operation
-            self.plugin_id = plugin_id
-            return {'ok': True, 'operation': operation, 'pluginId': plugin_id}
-
-    batch = FakeBatchUseCase()
-    runtime.batch = batch
-
-    payload = asyncio.run(runtime.execute_batch_plugin_item('install', 'demo'))
-
-    assert batch.operation == 'install'
-    assert batch.plugin_id == 'demo'
-    assert payload == {'ok': True, 'operation': 'install', 'pluginId': 'demo'}
-
-
-def test_plugin_runtime_batch_use_case_uses_injected_context_service(tmp_path: Path) -> None:
-    """
-    校验批量 use case 通过显式注入的 context service 使用上下文能力。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    sentinel = object()
-
-    class FakeBatchContextService:
-        """
-        测试用批量上下文服务。
-        """
-
-        @staticmethod
-        def resolve_plugin_capability(discovered_plugin: object) -> object:
-            """
-            返回测试 capability。
-
-            :param discovered_plugin: 已发现插件
-            :return: 测试对象
-            """
-            return sentinel
-
-    context = FakeBatchContextService()
-    assert runtime.batch.context is runtime.context
-
-    runtime.batch.context = context
-
-    capability = runtime.batch._resolve_plugin_capability(object())
-
-    assert capability is sentinel
-
-
 def test_plugin_runtime_batch_plugins_stops_when_plan_has_blockers(tmp_path: Path) -> None:
-    """
-    校验插件批量执行遇到计划阻塞时不会执行写操作。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件批量执行遇到计划阻塞时不会执行写操作。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'app',
@@ -553,7 +230,6 @@ dependencies:
 """,
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     payload = asyncio.run(build_runtime_with_gateway(backend_root, gateway).batch_plugins('install', ['app']))
 
@@ -569,12 +245,7 @@ dependencies:
 
 
 def test_plugin_runtime_batch_plugins_executes_requested_plugins_only(tmp_path: Path) -> None:
-    """
-    校验插件批量执行只执行显式选择插件，依赖插件只参与计划校验和排序展示。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件批量执行只执行显式选择插件，依赖插件只参与计划校验和排序展示。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'app',
@@ -597,7 +268,6 @@ dependencies:
 id: base
 name: Base
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.base
 frontend:
@@ -607,7 +277,6 @@ frontend:
     create_controller_dir(backend_root / 'plugins' / 'app')
     create_controller_dir(backend_root / 'plugins' / 'base')
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.plugin_list = [
         SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed')
     ]
@@ -627,12 +296,7 @@ frontend:
 
 
 def test_plugin_runtime_batch_plugins_continue_on_error_runs_remaining_items(tmp_path: Path) -> None:
-    """
-    校验插件批量执行开启 continue-on-error 后会继续执行后续插件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件批量执行开启 continue-on-error 后会继续执行后续插件。"""
     backend_root = tmp_path / 'backend'
     for plugin_id in ['alpha', 'beta', 'gamma']:
         write_manifest(
@@ -641,7 +305,6 @@ def test_plugin_runtime_batch_plugins_continue_on_error_runs_remaining_items(tmp
 id: {plugin_id}
 name: {plugin_id.title()}
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.{plugin_id}
 frontend:
@@ -650,7 +313,6 @@ frontend:
         )
 
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.operation_logs = [
         SimpleNamespace(
             payload={'ok': True, 'operation': 'install', 'pluginId': 'demo', 'message': 'installed'},
@@ -667,13 +329,7 @@ frontend:
     executed_plugin_ids = []
 
     async def fake_execute(operation: str, plugin_id: str) -> dict[str, object]:
-        """
-        测试用单插件执行函数。
-
-        :param operation: 批量操作类型
-        :param plugin_id: 插件ID
-        :return: 单插件执行负载
-        """
+        """测试用单插件执行函数。"""
         executed_plugin_ids.append(plugin_id)
         return {
             'ok': plugin_id != 'beta',
@@ -694,12 +350,7 @@ frontend:
 
 
 def test_plugin_runtime_batch_plugins_dry_run_does_not_record_operation_log(tmp_path: Path) -> None:
-    """
-    校验插件批量执行 dry-run 不写入审计日志。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件批量执行 dry-run 不写入审计日志。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -707,7 +358,6 @@ def test_plugin_runtime_batch_plugins_dry_run_does_not_record_operation_log(tmp_
 id: demo
 name: Demo
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 frontend:
@@ -715,7 +365,6 @@ frontend:
 """,
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     payload = asyncio.run(
         build_runtime_with_gateway(backend_root, gateway).batch_plugins('install', ['demo'], dry_run=True)
@@ -727,12 +376,7 @@ frontend:
 
 
 def test_plugin_runtime_install_deps_dry_run_returns_plan(tmp_path: Path) -> None:
-    """
-    校验插件依赖安装 dry-run 返回安装计划且不执行安装。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件依赖安装 dry-run 返回安装计划且不执行安装。"""
     backend_root = tmp_path / 'backend'
     expected_plan_count = 3
     write_manifest(
@@ -741,7 +385,6 @@ def test_plugin_runtime_install_deps_dry_run_returns_plan(tmp_path: Path) -> Non
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 dependencies:
@@ -767,142 +410,8 @@ dependencies:
     assert payload['plan'][2]['command'] == ['npm', 'install', '--save-dev', 'missing-dev-npm']
 
 
-def test_plugin_runtime_install_plugin_dependencies_delegates_to_dependency_use_case(tmp_path: Path) -> None:
-    """
-    校验插件依赖安装入口委托给组合式依赖 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeDependencyUseCase:
-        """
-        测试用插件依赖 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件依赖 use case。
-            """
-            self.plugin_id: str | None = None
-            self.dry_run: bool | None = None
-            self.policy_config: object | None = None
-            self.confirmed: bool | None = None
-
-        def install_plugin_dependencies(
-            self,
-            plugin_id: str,
-            *,
-            dry_run: bool = False,
-            policy_config: object | None = None,
-            confirmed: bool = False,
-        ) -> dict:
-            """
-            记录插件依赖安装调用。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :param policy_config: 依赖安装策略配置
-            :param confirmed: 是否已确认
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.dry_run = dry_run
-            self.policy_config = policy_config
-            self.confirmed = confirmed
-            return {'ok': True, 'pluginId': plugin_id, 'dryRun': dry_run}
-
-    dependency = FakeDependencyUseCase()
-    runtime.dependency = dependency
-
-    payload = runtime.install_plugin_dependencies('demo', dry_run=True)
-
-    assert dependency.plugin_id == 'demo'
-    assert dependency.dry_run is True
-    assert dependency.policy_config is None
-    assert dependency.confirmed is False
-    assert payload == {'ok': True, 'pluginId': 'demo', 'dryRun': True}
-
-
-def test_plugin_runtime_install_plugin_dependencies_from_result_delegates_to_dependency_use_case(
-    tmp_path: Path,
-) -> None:
-    """
-    校验插件依赖安装内部入口委托给组合式依赖 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    dependency_result = DependencyCheckResult(plugin_id='demo', items=[])
-
-    class FakeDependencyUseCase:
-        """
-        测试用插件依赖 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件依赖 use case。
-            """
-            self.plugin_id: str | None = None
-            self.dependency_result: DependencyCheckResult | None = None
-            self.dry_run: bool | None = None
-            self.discovered_plugin: object | None = None
-            self.policy_config: object | None = None
-            self.confirmed: bool | None = None
-
-        def install_plugin_dependencies_from_result(
-            self,
-            plugin_id: str,
-            dependency_result: DependencyCheckResult,
-            *,
-            dry_run: bool = False,
-            discovered_plugin: object | None = None,
-            policy_config: object | None = None,
-            confirmed: bool = False,
-        ) -> dict:
-            """
-            记录插件依赖安装内部调用。
-
-            :param plugin_id: 插件ID
-            :param dependency_result: 依赖检查结果
-            :param dry_run: 是否仅预演
-            :param discovered_plugin: 已发现插件
-            :param policy_config: 依赖安装策略配置
-            :param confirmed: 是否已确认
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.dependency_result = dependency_result
-            self.dry_run = dry_run
-            self.discovered_plugin = discovered_plugin
-            self.policy_config = policy_config
-            self.confirmed = confirmed
-            return {'ok': True, 'pluginId': plugin_id, 'fromResult': True}
-
-    dependency = FakeDependencyUseCase()
-    runtime.dependency = dependency
-
-    payload = runtime.install_plugin_dependencies_from_result('demo', dependency_result, dry_run=True)
-
-    assert dependency.plugin_id == 'demo'
-    assert dependency.dependency_result is dependency_result
-    assert dependency.dry_run is True
-    assert dependency.discovered_plugin is None
-    assert dependency.policy_config is None
-    assert dependency.confirmed is False
-    assert payload == {'ok': True, 'pluginId': 'demo', 'fromResult': True}
-
-
 def test_plugin_runtime_dependency_install_uses_default_command_timeout(tmp_path: Path) -> None:
-    """
-    校验插件依赖安装命令使用默认超时时间。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件依赖安装命令使用默认超时时间。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -932,12 +441,7 @@ dependencies:
 
 
 def test_plugin_runtime_dependency_install_plan_only_policy_blocks_command_execution(tmp_path: Path) -> None:
-    """
-    校验 plan_only 策略会阻断真实依赖安装并返回策略 payload。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 plan_only 策略会阻断真实依赖安装并返回策略 payload。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -970,12 +474,7 @@ dependencies:
 
 
 def test_plugin_runtime_dependency_install_policy_block_records_operation_log(tmp_path: Path) -> None:
-    """
-    校验 standalone 依赖安装被策略阻断时仍记录审计日志。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 standalone 依赖安装被策略阻断时仍记录审计日志。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -991,7 +490,6 @@ dependencies:
 """,
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     runtime = build_runtime_with_gateway(backend_root, gateway)
 
     payload = runtime.install_plugin_dependencies(
@@ -1011,12 +509,7 @@ dependencies:
 
 
 def test_plugin_runtime_dependency_install_explicit_policy_requires_confirmation(tmp_path: Path) -> None:
-    """
-    校验 explicit 策略未确认时不执行真实依赖安装。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 explicit 策略未确认时不执行真实依赖安装。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -1047,12 +540,7 @@ dependencies:
 
 
 def test_plugin_runtime_dependency_install_success_records_operation_log(tmp_path: Path) -> None:
-    """
-    校验 standalone 依赖安装成功时记录策略、确认和结果审计。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 standalone 依赖安装成功时记录策略、确认和结果审计。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -1068,7 +556,6 @@ dependencies:
 """,
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     runtime = build_runtime_with_gateway(backend_root, gateway)
 
     payload = runtime.install_plugin_dependencies(
@@ -1089,86 +576,8 @@ dependencies:
     assert log_payload['results'][0]['returnCode'] == 0
 
 
-def test_plugin_runtime_install_plugin_dependencies_from_result_async_delegates_to_dependency_use_case(
-    tmp_path: Path,
-) -> None:
-    """
-    校验插件依赖安装异步入口委托给组合式依赖 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    dependency_result = DependencyCheckResult(plugin_id='demo', items=[])
-
-    class FakeDependencyUseCase:
-        """
-        测试用插件依赖 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件依赖 use case。
-            """
-            self.plugin_id: str | None = None
-            self.dependency_result: DependencyCheckResult | None = None
-            self.dry_run: bool | None = None
-            self.discovered_plugin: object | None = None
-            self.policy_config: object | None = None
-            self.confirmed: bool | None = None
-
-        async def install_plugin_dependencies_from_result_async(
-            self,
-            plugin_id: str,
-            dependency_result: DependencyCheckResult,
-            *,
-            dry_run: bool = False,
-            discovered_plugin: object | None = None,
-            policy_config: object | None = None,
-            confirmed: bool = False,
-        ) -> dict:
-            """
-            记录插件依赖安装异步调用。
-
-            :param plugin_id: 插件ID
-            :param dependency_result: 依赖检查结果
-            :param dry_run: 是否仅预演
-            :param discovered_plugin: 已发现插件
-            :param policy_config: 依赖安装策略配置
-            :param confirmed: 是否已确认
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.dependency_result = dependency_result
-            self.dry_run = dry_run
-            self.discovered_plugin = discovered_plugin
-            self.policy_config = policy_config
-            self.confirmed = confirmed
-            return {'ok': True, 'pluginId': plugin_id, 'fromResultAsync': True}
-
-    dependency = FakeDependencyUseCase()
-    runtime.dependency = dependency
-
-    payload = asyncio.run(
-        runtime.install_plugin_dependencies_from_result_async('demo', dependency_result, dry_run=True)
-    )
-
-    assert dependency.plugin_id == 'demo'
-    assert dependency.dependency_result is dependency_result
-    assert dependency.dry_run is True
-    assert dependency.discovered_plugin is None
-    assert dependency.policy_config is None
-    assert dependency.confirmed is False
-    assert payload == {'ok': True, 'pluginId': 'demo', 'fromResultAsync': True}
-
-
 def test_plugin_runtime_dependency_install_async_uses_default_command_timeout(tmp_path: Path) -> None:
-    """
-    校验插件依赖异步安装命令使用默认超时时间。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件依赖异步安装命令使用默认超时时间。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -1204,50 +613,8 @@ dependencies:
     assert gateway.commands[0][2] == PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS
 
 
-def test_plugin_runtime_dependency_use_case_uses_injected_context_service(tmp_path: Path) -> None:
-    """
-    校验依赖 use case 通过显式注入的 context service 使用上下文能力。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    sentinel = object()
-
-    class FakeDependencyContextService:
-        """
-        测试用依赖上下文服务。
-        """
-
-        @staticmethod
-        def with_plugin_capability(payload: dict, discovered_plugin: object | None) -> dict:
-            """
-            记录 capability 附加调用。
-
-            :param payload: 响应负载
-            :param discovered_plugin: 已发现插件
-            :return: 附加后的响应负载
-            """
-            payload['contextPlugin'] = discovered_plugin
-            return payload
-
-    context = FakeDependencyContextService()
-    assert runtime.dependency.context is runtime.context
-
-    runtime.dependency.context = context
-
-    payload = runtime.dependency._with_plugin_capability({'ok': True}, sentinel)
-
-    assert payload == {'ok': True, 'contextPlugin': sentinel}
-
-
 def test_plugin_runtime_blocks_state_changes_in_service_mode(tmp_path: Path) -> None:
-    """
-    校验服务运行模式下阻断插件状态变更。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验服务运行模式下阻断插件状态变更。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -1255,7 +622,6 @@ def test_plugin_runtime_blocks_state_changes_in_service_mode(tmp_path: Path) -> 
 id: demo
 name: Demo
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 """,
@@ -1272,12 +638,7 @@ backend:
 
 
 def test_plugin_runtime_blocks_frontend_plugin_dependency_install_in_built_mode(tmp_path: Path) -> None:
-    """
-    校验已构建前端模式下阻断前端源码插件依赖安装。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验已构建前端模式下阻断前端源码插件依赖安装。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -1285,7 +646,6 @@ def test_plugin_runtime_blocks_frontend_plugin_dependency_install_in_built_mode(
 id: demo
 name: Demo
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 frontend:

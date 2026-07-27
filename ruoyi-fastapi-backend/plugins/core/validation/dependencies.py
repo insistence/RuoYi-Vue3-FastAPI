@@ -6,8 +6,11 @@ from importlib import metadata
 from pathlib import Path
 from typing import Literal
 
+from packaging.requirements import InvalidRequirement
+
 from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT
 from plugins.core.manifest.schema import PluginManifest
+from plugins.core.validation.python_requirements import PythonRequirementParser
 from plugins.core.validation.versioning import PluginVersionComparator, PluginVersionConstraintMatcher
 
 DependencyKind = Literal['python', 'npm', 'npmDev']
@@ -142,6 +145,9 @@ class DependencyRequirementParser:
     依赖声明解析器。
 
     使用 Strategy 模式为 Python 与 npm 提供共享的轻量依赖声明解析能力。
+
+    注意：该解析器基于正则，不支持 PEP 508 的逗号范围（``openai>=2,<3``）和 marker。
+    Python 依赖请使用 :class:`PythonRequirementParser`。
     """
 
     @classmethod
@@ -253,23 +259,58 @@ class PythonDependencyInspector:
         """
         检查单条 Python 依赖声明。
 
+        含 marker 的声明先评估 marker，不适用当前环境时返回 ``status='skipped'``，
+        避免合法的条件依赖阻断插件启动。
+
         :param requirement: Python 依赖声明
         :return: 依赖检查结果
         """
-        parsed_dependency = DependencyRequirementParser.parse(requirement)
-        installed_version = self.installed_packages.get(self._normalize_package_name(parsed_dependency.name))
-        version_satisfied = VersionConstraintMatcher.is_satisfied(installed_version, parsed_dependency)
+        try:
+            parsed = PythonRequirementParser.parse(requirement)
+        except InvalidRequirement as exc:
+            return DependencyCheckItem(
+                kind='python',
+                requirement=requirement,
+                name=requirement.strip(),
+                installed=False,
+                version_satisfied=False,
+                installed_version=None,
+                required_version=None,
+                message=f'Python 依赖声明无效：{requirement}，{exc}',
+            )
+        if not parsed.is_marker_applicable():
+            return DependencyCheckItem(
+                kind='python',
+                requirement=requirement,
+                name=parsed.name,
+                installed=False,
+                version_satisfied=True,
+                installed_version=None,
+                required_version=parsed.required_version,
+                message=f'Python 依赖 marker 不适用当前环境，已跳过：{parsed.name}',
+                status='skipped',
+            )
+
+        installed_version = self.installed_packages.get(self._normalize_package_name(parsed.name))
         installed = installed_version is not None
+        version_satisfied = parsed.is_version_satisfied(installed_version)
+        message = self._build_message(
+            parsed.name,
+            installed,
+            version_satisfied,
+            installed_version,
+            parsed.required_version,
+        )
 
         return DependencyCheckItem(
             kind='python',
             requirement=requirement,
-            name=parsed_dependency.name,
+            name=parsed.name,
             installed=installed,
             version_satisfied=version_satisfied,
             installed_version=installed_version,
-            required_version=parsed_dependency.required_version,
-            message=self._build_message(parsed_dependency, installed, version_satisfied, installed_version),
+            required_version=parsed.required_version,
+            message=message,
         )
 
     @staticmethod
@@ -306,25 +347,27 @@ class PythonDependencyInspector:
 
     @staticmethod
     def _build_message(
-        parsed_dependency: ParsedDependency,
+        name: str,
         installed: bool,
         version_satisfied: bool,
         installed_version: str | None,
+        required_version: str | None,
     ) -> str:
         """
         构建 Python 依赖检查消息。
 
-        :param parsed_dependency: 已解析依赖声明
+        :param name: 包名
         :param installed: 是否已安装
         :param version_satisfied: 版本是否满足
         :param installed_version: 已安装版本
+        :param required_version: 版本约束
         :return: 检查消息
         """
         if not installed:
-            return f'Python 依赖未安装：{parsed_dependency.name}'
+            return f'Python 依赖未安装：{name}'
         if not version_satisfied:
-            return f'Python 依赖版本不满足：{parsed_dependency.name} installed={installed_version} required={parsed_dependency.required_version}'
-        return f'Python 依赖已满足：{parsed_dependency.name}'
+            return f'Python 依赖版本不满足：{name} installed={installed_version} required={required_version}'
+        return f'Python 依赖已满足：{name}'
 
 
 class NpmDependencyInspector:

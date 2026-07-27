@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from plugins.core.manifest.schema import PluginManifest, PluginManifestError, PluginManifestFactory
 
 PLUGIN_MANIFEST_NAME = 'plugin.yaml'
-UNSUPPORTED_PLUGIN_MANIFEST_NAMES = {'plugin.yml'}
+UNSUPPORTED_PLUGIN_MANIFEST_NAMES = ('plugin.yml',)
 
 
 @dataclass(frozen=True)
@@ -22,9 +22,49 @@ class DiscoveredPlugin:
     manifest_path: Path
 
 
+@dataclass(frozen=True)
+class PluginDiscoveryError:
+    """
+    插件发现错误。
+
+    用于在容错扫描模式下记录单个插件加载失败，便于上层隔离损坏插件。
+    """
+
+    manifest_path: Path | None
+    plugin_dir: Path
+    error_message: str
+
+
+@dataclass(frozen=True)
+class PluginDiscoveryResult:
+    """
+    插件发现结果。
+
+    同时承载成功发现的插件和加载失败明细，避免单个错误插件拖垮整体扫描。
+    """
+
+    plugins: list[DiscoveredPlugin] = field(default_factory=list)
+    errors: list[PluginDiscoveryError] = field(default_factory=list)
+
+    @property
+    def has_errors(self) -> bool:
+        """
+        判断是否存在发现错误。
+
+        :return: 是否存在错误
+        """
+        return bool(self.errors)
+
+
 class PluginScanner:
     """
     插件扫描器。
+
+    提供两种扫描语义：
+
+    - :meth:`discover`：严格扫描，任一插件清单错误立即抛出 ``PluginManifestError``。
+    - :meth:`discover_with_errors`：容错扫描，逐插件隔离失败，plugin.yml 文件名错误、
+      YAML 损坏、清单校验失败等都作为对应插件的错误记录，不影响其他插件。
     """
 
     def __init__(self, plugins_root: Path | str) -> None:
@@ -37,21 +77,60 @@ class PluginScanner:
 
     def discover(self) -> list[DiscoveredPlugin]:
         """
-        扫描插件目录并返回清单校验通过的插件。
+        严格扫描插件目录并返回清单校验通过的插件。
+
+        任一插件清单错误（包括 plugin.yml 文件名、YAML 损坏、清单校验失败）都会立即
+        抛出 ``PluginManifestError``，保持与历史行为兼容。需要逐插件隔离时请使用
+        :meth:`discover_with_errors`。
 
         :return: 已发现插件列表
+        :raises PluginManifestError: 任一插件清单错误
         """
         if not self.plugins_root.exists():
             return []
-        if not self.plugins_root.is_dir():
-            raise PluginManifestError(f'插件根路径不是目录：{self.plugins_root}')
-
-        self._reject_unsupported_manifest_names()
+        self._ensure_plugins_root_is_dir()
+        self._reject_unsupported_manifest_names_strict()
 
         return [
             self.load_manifest(manifest_path)
             for manifest_path in sorted(self.plugins_root.glob(f'*/{PLUGIN_MANIFEST_NAME}'))
         ]
+
+    def discover_with_errors(self) -> PluginDiscoveryResult:
+        """
+        容错扫描插件目录，返回成功发现的插件及失败明细。
+
+        单个插件的任何错误（plugin.yml 文件名、YAML 损坏、清单校验失败、目录名不一致等）
+        都只隔离失败插件，不影响其他正常插件。根目录配置类错误（目录不存在、根路径不是
+        目录）仍以异常形式抛出。
+
+        :return: 插件发现结果
+        :raises PluginManifestError: 根路径不是目录
+        """
+        if not self.plugins_root.exists():
+            return PluginDiscoveryResult()
+        self._ensure_plugins_root_is_dir()
+
+        result = PluginDiscoveryResult()
+        # 先收集 plugin.yml 文件名错误，按插件目录隔离
+        unsupported_name_errors = self._collect_unsupported_manifest_name_errors()
+        result.errors.extend(unsupported_name_errors)
+        invalid_plugin_dirs = {error.plugin_dir for error in unsupported_name_errors}
+        # 再逐插件加载 plugin.yaml
+        for manifest_path in sorted(self.plugins_root.glob(f'*/{PLUGIN_MANIFEST_NAME}')):
+            if manifest_path.parent in invalid_plugin_dirs:
+                continue
+            try:
+                result.plugins.append(self.load_manifest(manifest_path))
+            except Exception as exc:
+                result.errors.append(
+                    PluginDiscoveryError(
+                        manifest_path=manifest_path,
+                        plugin_dir=manifest_path.parent,
+                        error_message=str(exc),
+                    )
+                )
+        return result
 
     def load_manifest(self, manifest_path: Path | str) -> DiscoveredPlugin:
         """
@@ -59,6 +138,7 @@ class PluginScanner:
 
         :param manifest_path: 插件清单路径
         :return: 已发现插件
+        :raises PluginManifestError: 清单不存在、不是文件、YAML 解析失败或清单校验失败
         """
         current_manifest_path = Path(manifest_path)
         if not current_manifest_path.exists():
@@ -86,6 +166,7 @@ class PluginScanner:
 
         :param manifest_path: 插件清单路径
         :return: YAML 解析后的字典
+        :raises PluginManifestError: YAML 解析失败或内容不是对象
         """
         try:
             with manifest_path.open('r', encoding='utf-8') as manifest_file:
@@ -118,10 +199,21 @@ class PluginScanner:
 
         return '；'.join(formatted_errors)
 
-    def _reject_unsupported_manifest_names(self) -> None:
+    def _ensure_plugins_root_is_dir(self) -> None:
         """
-        检查不支持的插件清单文件名。
+        校验插件根路径是目录。
 
+        :raises PluginManifestError: 根路径不是目录
+        :return: None
+        """
+        if not self.plugins_root.is_dir():
+            raise PluginManifestError(f'插件根路径不是目录：{self.plugins_root}')
+
+    def _reject_unsupported_manifest_names_strict(self) -> None:
+        """
+        严格模式下检查不支持的插件清单文件名，任一存在立即抛错。
+
+        :raises PluginManifestError: 存在不支持的清单文件名
         :return: None
         """
         for manifest_name in UNSUPPORTED_PLUGIN_MANIFEST_NAMES:
@@ -131,12 +223,43 @@ class PluginScanner:
                     f'插件清单文件名必须为 {PLUGIN_MANIFEST_NAME}：{unsupported_manifest_paths[0]}'
                 )
 
+    def _collect_unsupported_manifest_name_errors(self) -> list[PluginDiscoveryError]:
+        """
+        容错模式下收集不支持的清单文件名错误，按插件目录隔离。
+
+        :return: 发现错误列表
+        """
+        errors: list[PluginDiscoveryError] = []
+        for manifest_name in UNSUPPORTED_PLUGIN_MANIFEST_NAMES:
+            errors.extend(
+                [
+                    PluginDiscoveryError(
+                        manifest_path=manifest_path,
+                        plugin_dir=manifest_path.parent,
+                        error_message=f'插件清单文件名必须为 {PLUGIN_MANIFEST_NAME}：{manifest_path}',
+                    )
+                    for manifest_path in sorted(self.plugins_root.glob(f'*/{manifest_name}'))
+                ]
+            )
+        return errors
+
 
 def discover_plugins(plugins_root: Path | str) -> list[DiscoveredPlugin]:
     """
-    便捷函数：扫描插件目录。
+    便捷函数：严格扫描插件目录。
 
     :param plugins_root: 后端插件根目录
     :return: 已发现插件列表
+    :raises PluginManifestError: 任一插件清单错误
     """
     return PluginScanner(plugins_root).discover()
+
+
+def discover_plugins_with_errors(plugins_root: Path | str) -> PluginDiscoveryResult:
+    """
+    便捷函数：容错扫描插件目录。
+
+    :param plugins_root: 后端插件根目录
+    :return: 插件发现结果
+    """
+    return PluginScanner(plugins_root).discover_with_errors()

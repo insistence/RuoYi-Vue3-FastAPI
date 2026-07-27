@@ -1,20 +1,12 @@
-import sys
 from pathlib import Path
 
 import pytest
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.lifecycle.script import PluginLifecycleScriptHelper  # noqa: E402
+from plugins.core.lifecycle.script import PluginLifecycleScriptHelper
 
 
 def test_lifecycle_script_helper_splits_sql_statements() -> None:
-    """
-    校验生命周期脚本工具可以拆分 SQL 语句并跳过行注释。
-
-    :return: None
-    """
+    """校验生命周期脚本工具可以拆分 SQL 语句并跳过行注释。"""
     statements = PluginLifecycleScriptHelper.split_sql_statements(
         """
 -- create table
@@ -29,11 +21,7 @@ values (1);
 
 
 def test_lifecycle_script_helper_rejects_delimiter_sql() -> None:
-    """
-    校验生命周期脚本工具拒绝 DELIMITER 复杂 SQL 脚本。
-
-    :return: None
-    """
+    """校验生命周期脚本工具拒绝 DELIMITER 复杂 SQL 脚本。"""
     with pytest.raises(RuntimeError, match='暂不支持 DELIMITER'):
         PluginLifecycleScriptHelper.split_sql_statements(
             """
@@ -48,11 +36,7 @@ DELIMITER ;
 
 
 def test_lifecycle_script_helper_keeps_semicolon_inside_string_literal() -> None:
-    """
-    校验 SQL 字符串字面量中的分号不会被当作语句结束符。
-
-    :return: None
-    """
+    """校验 SQL 字符串字面量中的分号不会被当作语句结束符。"""
     statements = PluginLifecycleScriptHelper.split_sql_statements(
         """
 insert into demo(message, quoted)
@@ -70,11 +54,7 @@ set message = "a;b";
 
 
 def test_lifecycle_script_helper_filters_database_dialect_paths() -> None:
-    """
-    校验生命周期脚本工具按数据库方言过滤路径。
-
-    :return: None
-    """
+    """校验生命周期脚本工具按数据库方言过滤路径。"""
     paths = [
         'migrations/mysql/001_init.sql',
         'migrations/postgresql/001_init.sql',
@@ -96,11 +76,7 @@ def test_lifecycle_script_helper_filters_database_dialect_paths() -> None:
 
 
 def test_lifecycle_script_helper_rejects_escape_path(tmp_path: Path) -> None:
-    """
-    校验生命周期脚本工具拒绝越过插件根目录的路径。
-
-    :return: None
-    """
+    """校验生命周期脚本工具拒绝越过插件根目录的路径。"""
     plugin_root = tmp_path / 'plugins' / 'demo'
     plugin_root.mkdir(parents=True)
     escaped_file = tmp_path / 'outside.sql'
@@ -116,11 +92,7 @@ def test_lifecycle_script_helper_rejects_escape_path(tmp_path: Path) -> None:
 
 
 def test_lifecycle_script_helper_builds_module_name(tmp_path: Path) -> None:
-    """
-    校验生命周期脚本工具构建插件模块名。
-
-    :return: None
-    """
+    """校验生命周期脚本工具构建插件模块名。"""
     plugin_root = tmp_path / 'plugins' / 'demo'
     script_file = plugin_root / 'migrations' / '001_init.py'
     script_file.parent.mkdir(parents=True)

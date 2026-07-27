@@ -1,20 +1,11 @@
-import sys
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import FastAPI
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from common.constant import LockConstant  # noqa: E402
-from plugins.core.management.service.startup_gateway import (  # noqa: E402
-    PluginManagementRouteStateGateway,
-    PluginManagementStartupGateway,
-)
-from plugins.core.runtime.application import PluginApplicationRuntime, get_plugin_application_runtime  # noqa: E402
-from plugins.core.runtime.startup_gateway import UnavailablePluginStartupManagementGateway  # noqa: E402
+from common.constant import LockConstant
+from plugins.core.runtime.application import PluginApplicationRuntime, get_plugin_application_runtime
+from plugins.core.runtime.startup_gateway import UnavailablePluginStartupManagementGateway
 
 
 class FakeRedis:
@@ -23,67 +14,36 @@ class FakeRedis:
     """
 
     def __init__(self, values: dict[str, str] | None = None) -> None:
-        """
-        初始化测试 Redis。
-
-        :param values: 初始 key-value
-        :return: None
-        """
+        """初始化测试 Redis。"""
         self.values = values or {}
         self.deleted_keys: list[str] = []
         self.expires: dict[str, int] = {}
 
     async def get(self, key: str) -> str | None:
-        """
-        获取 Redis 值。
-
-        :param key: Redis key
-        :return: Redis value
-        """
+        """获取 Redis 值。"""
         return self.values.get(key)
 
     async def set(self, key: str, value: str, ex: int | None = None) -> None:
-        """
-        写入 Redis 值。
-
-        :param key: Redis key
-        :param value: Redis value
-        :param ex: 过期时间
-        :return: None
-        """
+        """写入 Redis 值。"""
         self.values[key] = value
         if ex is not None:
             self.expires[key] = ex
 
     async def delete(self, key: str) -> None:
-        """
-        删除 Redis key。
-
-        :param key: Redis key
-        :return: None
-        """
+        """删除 Redis key。"""
         self.deleted_keys.append(key)
         self.values.pop(key, None)
 
 
 def build_app(redis: FakeRedis) -> FastAPI:
-    """
-    构建测试 FastAPI app。
-
-    :param redis: 测试 Redis
-    :return: FastAPI app
-    """
+    """构建测试 FastAPI app。"""
     app = FastAPI()
     app.state.redis = redis
     return app
 
 
 def test_plugin_application_runtime_binds_startup_manager() -> None:
-    """
-    校验应用插件运行时会绑定启动协调器。
-
-    :return: None
-    """
+    """校验应用插件运行时会绑定启动协调器。"""
     app = FastAPI()
     startup_manager = MagicMock()
     runtime = PluginApplicationRuntime(startup_manager=startup_manager)
@@ -95,34 +55,33 @@ def test_plugin_application_runtime_binds_startup_manager() -> None:
 
 
 def test_plugin_application_runtime_default_startup_manager_uses_runtime_port_only() -> None:
-    """
-    校验应用插件运行时默认不装配 management 具体适配器。
-
-    :return: None
-    """
+    """校验应用插件运行时默认不装配 management 具体适配器。"""
     runtime = PluginApplicationRuntime()
 
     assert isinstance(runtime.startup_manager.management_gateway, UnavailablePluginStartupManagementGateway)
 
 
 def test_plugin_application_runtime_global_getter_uses_management_adapters() -> None:
-    """
-    校验应用全局插件运行时完成管理适配器装配。
-
-    :return: None
-    """
+    """校验应用全局插件运行时完成管理适配器装配。"""
+    get_plugin_application_runtime.cache_clear()
     runtime = get_plugin_application_runtime()
+    from plugins.core.management.service.startup_gateway import (  # noqa: PLC0415
+        PluginManagementRouteStateGateway,
+        PluginManagementStartupGateway,
+    )
 
-    assert isinstance(runtime.startup_manager.management_gateway, PluginManagementStartupGateway)
-    assert isinstance(runtime.startup_manager.route_state_gateway, PluginManagementRouteStateGateway)
+    assert isinstance(
+        runtime.startup_manager.management_gateway,
+        PluginManagementStartupGateway,
+    )
+    assert isinstance(
+        runtime.startup_manager.route_state_gateway,
+        PluginManagementRouteStateGateway,
+    )
 
 
 def test_prepare_metadata_delegates_builtin_entity_import() -> None:
-    """
-    校验插件平台元数据准备委托启动协调器导入内置实体。
-
-    :return: None
-    """
+    """校验插件平台元数据准备委托启动协调器导入内置实体。"""
     app = FastAPI()
     startup_manager = MagicMock()
     runtime = PluginApplicationRuntime(startup_manager=startup_manager)
@@ -135,11 +94,7 @@ def test_prepare_metadata_delegates_builtin_entity_import() -> None:
 
 @pytest.mark.asyncio
 async def test_startup_writer_creates_plugin_tables_installs_resources_and_marks_ready() -> None:
-    """
-    校验启动写入 worker 会执行插件二次建表、安装资源并标记 ready。
-
-    :return: None
-    """
+    """校验启动写入 worker 会执行插件二次建表、安装资源并标记 ready。"""
     redis = FakeRedis({LockConstant.APP_STARTUP_LOCK_KEY: 'worker-1'})
     app = build_app(redis)
     startup_manager = MagicMock()
@@ -160,11 +115,7 @@ async def test_startup_writer_creates_plugin_tables_installs_resources_and_marks
 
 @pytest.mark.asyncio
 async def test_startup_reader_waits_ready_then_activates_without_writes() -> None:
-    """
-    校验非启动写入 worker 等待 ready 后只做本地激活。
-
-    :return: None
-    """
+    """校验非启动写入 worker 等待 ready 后只做本地激活。"""
     redis = FakeRedis(
         {
             LockConstant.APP_STARTUP_LOCK_KEY: 'worker-1',
@@ -191,11 +142,7 @@ async def test_startup_reader_waits_ready_then_activates_without_writes() -> Non
 
 @pytest.mark.asyncio
 async def test_wait_startup_ready_times_out_when_writer_not_ready() -> None:
-    """
-    校验非启动写入 worker 等待插件 ready 超时会失败。
-
-    :return: None
-    """
+    """校验非启动写入 worker 等待插件 ready 超时会失败。"""
     redis = FakeRedis({LockConstant.APP_STARTUP_LOCK_KEY: 'worker-1'})
     app = build_app(redis)
     runtime = PluginApplicationRuntime(

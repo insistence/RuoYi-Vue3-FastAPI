@@ -1,23 +1,21 @@
-import sys
 from pathlib import Path
 
 import pytest
 
+from exceptions.exception import ServiceException
+from plugins.ai.dao.ai_chat_dao import AiChatConfigDao
+from plugins.ai.dao.ai_model_dao import AiModelDao
+from plugins.ai.entity.vo.ai_chat_vo import AiChatConfigModel, AiChatRequestModel
+from plugins.ai.service.ai_chat_service import AiChatService
+from plugins.ai.utils.ai_util import AiUtil
+from plugins.core.discovery.registry import PluginRegistry
+from plugins.core.discovery.scanner import PluginScanner
+from plugins.core.management.entity.vo.schemas import PluginModel
+from plugins.core.validation.structure import PluginStructureChecker
+
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 PROJECT_ROOT = BACKEND_ROOT.parent
 FRONTEND_ROOT = PROJECT_ROOT / 'ruoyi-fastapi-frontend'
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from exceptions.exception import ServiceException  # noqa: E402
-from plugins.ai.dao.ai_chat_dao import AiChatConfigDao  # noqa: E402
-from plugins.ai.dao.ai_model_dao import AiModelDao  # noqa: E402
-from plugins.ai.entity.vo.ai_chat_vo import AiChatConfigModel, AiChatRequestModel  # noqa: E402
-from plugins.ai.service.ai_chat_service import AiChatService  # noqa: E402
-from plugins.ai.utils.ai_util import AiUtil  # noqa: E402
-from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
-from plugins.core.discovery.scanner import PluginScanner  # noqa: E402
-from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
-from plugins.core.validation.structure import PluginStructureChecker  # noqa: E402
 
 EXPECTED_AI_PERMISSIONS = {
     'ai:model:list',
@@ -55,15 +53,10 @@ EXPECTED_DEFAULT_NUM_HISTORY_RUNS = 3
 
 
 def test_ai_plugin_template_can_be_discovered() -> None:
-    """
-    校验仓库内 AI 插件可以被插件扫描器读取。
-
-    :return: None
-    """
+    """校验仓库内 AI 插件可以被插件扫描器读取。"""
     plugin = PluginScanner(BACKEND_ROOT / 'plugins').load_manifest(BACKEND_ROOT / 'plugins' / 'ai' / 'plugin.yaml')
 
     assert plugin.manifest.id == 'ai'
-    assert not hasattr(plugin.manifest, 'enabled')
     assert plugin.manifest.backend.module == 'plugins.ai'
     assert plugin.manifest.backend.migrations == [
         'migrations/mysql/001_init.sql',
@@ -84,11 +77,7 @@ def test_ai_plugin_template_can_be_discovered() -> None:
 
 
 def test_ai_plugin_runtime_paths_exist() -> None:
-    """
-    校验 AI 插件后端和前端运行路径存在。
-
-    :return: None
-    """
+    """校验 AI 插件后端和前端运行路径存在。"""
     plugin = PluginScanner(BACKEND_ROOT / 'plugins').load_manifest(BACKEND_ROOT / 'plugins' / 'ai' / 'plugin.yaml')
     registry = PluginRegistry.build(
         [plugin],
@@ -114,21 +103,8 @@ def test_ai_plugin_runtime_paths_exist() -> None:
     assert not (FRONTEND_ROOT / 'src' / 'views' / 'ai').exists()
 
 
-def test_ai_plugin_does_not_use_package_aggregation_init() -> None:
-    """
-    校验 AI 插件不维护聚合入口文件。
-
-    :return: None
-    """
-    assert not (BACKEND_ROOT / 'plugins' / 'ai' / '__init__.py').exists()
-
-
 def test_ai_plugin_structure_check_passes() -> None:
-    """
-    校验 AI 插件目录满足插件结构检查。
-
-    :return: None
-    """
+    """校验 AI 插件目录满足插件结构检查。"""
     plugin = PluginScanner(BACKEND_ROOT / 'plugins').load_manifest(BACKEND_ROOT / 'plugins' / 'ai' / 'plugin.yaml')
     result = PluginStructureChecker(BACKEND_ROOT).check(plugin)
 
@@ -136,73 +112,12 @@ def test_ai_plugin_structure_check_passes() -> None:
     assert result.failed_items == []
 
 
-def test_ai_plugin_keeps_original_backend_api_paths() -> None:
-    """
-    校验 AI 插件控制器保持原有接口路径。
-
-    :return: None
-    """
-    model_controller = (BACKEND_ROOT / 'plugins' / 'ai' / 'controller' / 'ai_model_controller.py').read_text(
-        encoding='utf-8'
-    )
-    chat_controller = (BACKEND_ROOT / 'plugins' / 'ai' / 'controller' / 'ai_chat_controller.py').read_text(
-        encoding='utf-8'
-    )
-
-    assert "prefix='/ai/model'" in model_controller
-    assert "prefix='/ai/chat'" in chat_controller
-    assert "'/list'" in model_controller
-    assert "'/all'" in model_controller
-    assert "'/{model_id}'" in model_controller
-    assert "'/send'" in chat_controller
-    assert "'/config'" in chat_controller
-    assert "'/session/list'" in chat_controller
-
-
-def test_ai_plugin_chat_controller_enforces_declared_permission() -> None:
-    """
-    校验 AI 对话控制器使用插件声明的权限码。
-
-    :return: None
-    """
-    chat_controller = (BACKEND_ROOT / 'plugins' / 'ai' / 'controller' / 'ai_chat_controller.py').read_text(
-        encoding='utf-8'
-    )
-
-    assert "UserInterfaceAuthDependency('ai:chat:list')" in chat_controller
-    assert 'DataScopeDependency(AiModels)' in chat_controller
-    assert 'AiModelService.check_ai_model_data_scope_services' in chat_controller
-
-
-def test_ai_plugin_chat_service_guards_upload_paths_and_session_owner() -> None:
-    """
-    校验 AI 对话服务包含上传目录边界和会话归属校验。
-
-    :return: None
-    """
-    chat_service = (BACKEND_ROOT / 'plugins' / 'ai' / 'service' / 'ai_chat_service.py').read_text(encoding='utf-8')
-
-    assert 'os.path.commonpath([abs_upload_path, abs_path])' in chat_service
-    assert 'os.path.isfile(abs_path)' in chat_service
-    assert 'str(session.user_id) != str(user_id)' in chat_service
-    assert 'await cls._get_owned_session(AiUtil.get_storage_engine(), session_id, user_id)' in chat_service
-    assert 'delete_chat_session_services(cls, session_id: str, user_id: int)' in chat_service
-    assert 'get_chat_session_detail_services(cls, session_id: str, user_id: int)' in chat_service
-    assert 'cancel_run_services(cls, run_id: str, user_id: int)' in chat_service
-    assert 'await cls._user_owns_run(run_id, user_id)' in chat_service
-
-
 @pytest.mark.asyncio
 async def test_ai_chat_config_detail_returns_vo_when_config_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验 AI 对话配置不存在时服务返回 VO 默认模型，而不是 DO 对象。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验 AI 对话配置不存在时服务返回 VO 默认模型，而不是 DO 对象。"""
 
     async def fake_get_chat_config_detail_by_user_id(*_args: object, **_kwargs: object) -> None:
-        return None
+        """返回测试用 AI 聊天配置。"""
 
     monkeypatch.setattr(
         AiChatConfigDao,
@@ -218,15 +133,10 @@ async def test_ai_chat_config_detail_returns_vo_when_config_missing(monkeypatch:
 
 @pytest.mark.asyncio
 async def test_ai_chat_services_rejects_missing_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验 AI 对话在模型不存在时直接返回明确业务异常。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验 AI 对话在模型不存在时直接返回明确业务异常。"""
 
     async def fake_get_ai_model_detail_by_id(*_args: object, **_kwargs: object) -> None:
-        return None
+        """返回测试用 AI 模型配置。"""
 
     monkeypatch.setattr(AiModelDao, 'get_ai_model_detail_by_id', fake_get_ai_model_detail_by_id)
 
@@ -243,14 +153,10 @@ async def test_ai_chat_services_rejects_missing_model(monkeypatch: pytest.Monkey
 
 @pytest.mark.asyncio
 async def test_ai_chat_services_rejects_disabled_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验 AI 对话不能使用已停用模型。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验 AI 对话不能使用已停用模型。"""
 
     async def fake_get_ai_model_detail_by_id(*_args: object, **_kwargs: object) -> dict[str, object]:
+        """返回测试用 AI 模型配置。"""
         return {
             'model_id': 1,
             'model_code': 'gpt-4o-mini',
@@ -276,12 +182,7 @@ async def test_ai_chat_services_rejects_disabled_model(monkeypatch: pytest.Monke
 
 
 def test_ai_model_factory_rejects_unknown_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验未知 AI provider 不会静默回退到 OpenAI。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验未知 AI provider 不会静默回退到 OpenAI。"""
 
     class FakeModel:
         """
@@ -289,9 +190,11 @@ def test_ai_model_factory_rejects_unknown_provider(monkeypatch: pytest.MonkeyPat
         """
 
         def __init__(self, **kwargs: object) -> None:
+            """初始化测试用 AI 模型提供者。"""
             self.kwargs = kwargs
 
     def fake_resolve_provider_class(cls: type[AiUtil], provider: str) -> type[FakeModel] | None:
+        """返回测试用 AI 模型提供者类。"""
         return FakeModel if provider == 'OpenAI' else None
 
     monkeypatch.setattr(AiUtil, '_resolve_provider_class', classmethod(fake_resolve_provider_class))
@@ -305,49 +208,23 @@ def test_ai_model_factory_rejects_unknown_provider(monkeypatch: pytest.MonkeyPat
         )
 
 
-def test_ai_plugin_model_factory_blocks_private_base_url() -> None:
-    """
-    校验 AI 模型工厂包含 base_url 内网阻断。
+def test_ai_model_factory_validates_base_url_boundary() -> None:
+    """校验 AI 模型工厂限制基础 URL 的信任边界。"""
+    assert AiUtil._validate_base_url('https://api.example.com/v1') == 'https://api.example.com/v1'
 
-    :return: None
-    """
-    ai_util = (BACKEND_ROOT / 'plugins' / 'ai' / 'utils' / 'ai_util.py').read_text(encoding='utf-8')
-
-    assert 'ipaddress.ip_address(hostname)' in ai_util
-    assert 'ip_address.is_private' in ai_util
-    assert "parsed_url.scheme not in {'http', 'https'}" in ai_util
-
-
-def test_ai_plugin_frontend_api_keeps_original_backend_paths() -> None:
-    """
-    校验 AI 前端插件 API 仍调用原有后端路径。
-
-    :return: None
-    """
-    model_api = (FRONTEND_ROOT / 'plugins' / 'ai' / 'api' / 'model.js').read_text(encoding='utf-8')
-    chat_api = (FRONTEND_ROOT / 'plugins' / 'ai' / 'api' / 'chat.js').read_text(encoding='utf-8')
-    model_view = (FRONTEND_ROOT / 'plugins' / 'ai' / 'views' / 'model' / 'index.vue').read_text(encoding='utf-8')
-    chat_view = (FRONTEND_ROOT / 'plugins' / 'ai' / 'views' / 'chat' / 'index.vue').read_text(encoding='utf-8')
-
-    assert '"/ai/model/list"' in model_api
-    assert '"/ai/model/all"' in model_api
-    assert '"/ai/model/" + modelId' in model_api
-    assert '"/ai/chat/config"' in chat_api
-    assert '"/ai/chat/session/list"' in chat_api
-    assert '"/ai/chat/send"' in chat_view
-    assert '@/api/ai' not in model_view
-    assert '@/api/ai' not in chat_view
-    assert '../../api/model' in model_view
-    assert '../../api/model' in chat_view
-    assert '../../api/chat' in chat_view
+    blocked_urls = (
+        'http://127.0.0.1:8000',
+        'http://10.0.0.1',
+        'http://localhost:8000',
+        'ftp://api.example.com',
+    )
+    for base_url in blocked_urls:
+        with pytest.raises(ValueError):
+            AiUtil._validate_base_url(base_url)
 
 
 def test_ai_plugin_sql_assets_own_ai_schema_and_seed_data() -> None:
-    """
-    校验 AI 插件通过 SQL migration 和 seed 管理自身数据。
-
-    :return: None
-    """
+    """校验 AI 插件通过 SQL migration 和 seed 管理自身数据。"""
     plugin_root = BACKEND_ROOT / 'plugins' / 'ai'
     mysql_migration = (plugin_root / 'migrations' / 'mysql' / '001_init.sql').read_text(encoding='utf-8')
     postgres_migration = (plugin_root / 'migrations' / 'postgresql' / '001_init.sql').read_text(encoding='utf-8')

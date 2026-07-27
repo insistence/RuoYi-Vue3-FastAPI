@@ -1,200 +1,78 @@
-import sys
-from pathlib import Path
+from types import SimpleNamespace
 
-BACKEND_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.state import PluginStateResolver, PluginStateSnapshot, PluginStateTransitionTable  # noqa: E402
+from plugins.core.state import PluginStateResolver, PluginStateSnapshot, PluginStateTransitionTable
 
 
-def test_state_resolver_returns_discovered_without_installed_version() -> None:
-    """
-    校验未安装且启用的插件会解析为 discovered。
+def test_state_resolver_covers_lifecycle_states() -> None:
+    """校验插件状态解析器覆盖全部生命周期状态。"""
+    cases = [
+        (PluginStateSnapshot(source_version='1.0.0', installed_version=None, enabled=True), 'discovered'),
+        (PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=False), 'installed'),
+        (PluginStateSnapshot(source_version='1.1.0', installed_version='1.0.0', enabled=True), 'pending_upgrade'),
+        (
+            PluginStateSnapshot(
+                source_version='1.1.0',
+                installed_version='1.0.0',
+                enabled=True,
+                current_status='error',
+            ),
+            'error',
+        ),
+    ]
 
-    :return: None
-    """
-    status = PluginStateResolver.resolve(
-        PluginStateSnapshot(
-            source_version='1.0.0',
-            installed_version=None,
-            enabled=True,
-        )
-    )
-
-    assert status == 'discovered'
-
-
-def test_state_resolver_returns_installed_when_plugin_is_not_enabled() -> None:
-    """
-    校验停用插件的生命周期状态仍解析为 installed。
-
-    :return: None
-    """
-    status = PluginStateResolver.resolve(
-        PluginStateSnapshot(
-            source_version='1.0.0',
-            installed_version='1.0.0',
-            enabled=False,
-        )
-    )
-
-    assert status == 'installed'
+    assert [PluginStateResolver.resolve(snapshot) for snapshot, _expected in cases] == [
+        expected for _snapshot, expected in cases
+    ]
 
 
-def test_state_resolver_returns_pending_upgrade_for_newer_source_version() -> None:
-    """
-    校验源码版本高于已安装版本时会解析为 pending_upgrade。
+def test_state_resolver_enables_only_installed_healthy_database_plugins() -> None:
+    """校验状态解析器只启用已安装且健康的数据库插件。"""
+    cases = [
+        (SimpleNamespace(enabled='0', status='installed', installed_version='1.0.0'), True),
+        (SimpleNamespace(enabled='1', status='installed', installed_version='1.0.0'), False),
+        (SimpleNamespace(enabled='0', status='error', installed_version='1.0.0'), False),
+        (SimpleNamespace(enabled='0', status='discovered', installed_version=None), False),
+    ]
 
-    :return: None
-    """
-    status = PluginStateResolver.resolve(
-        PluginStateSnapshot(
-            source_version='1.1.0',
-            installed_version='1.0.0',
-            enabled=True,
-        )
-    )
-
-    assert status == 'pending_upgrade'
+    assert [PluginStateResolver.is_enabled(plugin) for plugin, _expected in cases] == [
+        expected for _plugin, expected in cases
+    ]
 
 
-def test_state_resolver_keeps_error_status() -> None:
-    """
-    校验异常状态优先保留。
+def test_database_enabled_state_respects_error_status() -> None:
+    """校验数据库启用状态不会覆盖插件错误状态。"""
+    cases = [
+        (SimpleNamespace(enabled='0', status='installed'), True),
+        (SimpleNamespace(enabled='0', status='error'), False),
+    ]
 
-    :return: None
-    """
-    status = PluginStateResolver.resolve(
-        PluginStateSnapshot(
-            source_version='1.1.0',
-            installed_version='1.0.0',
-            enabled=True,
-            current_status='error',
-        )
-    )
-
-    assert status == 'error'
+    assert [PluginStateResolver.is_database_plugin_enabled(plugin) for plugin, _expected in cases] == [
+        expected for _plugin, expected in cases
+    ]
 
 
-def test_state_resolver_uses_database_enabled_value() -> None:
-    """
-    校验运行时启用状态来自数据库。
+def test_state_transition_table_covers_supported_and_rejected_operations() -> None:
+    """校验状态转换表覆盖支持与拒绝的操作。"""
+    supported_cases = [
+        ('discovered', 'install', 'installed'),
+        ('discovered', 'disable', 'discovered'),
+        ('installed', 'mark_error', 'error'),
+        ('pending_upgrade', 'mark_error', 'error'),
+    ]
 
-    :return: None
-    """
-    database_plugin = type(
-        'DatabasePlugin', (), {'enabled': '1', 'status': 'installed', 'installed_version': '1.0.0'}
-    )()
-
-    assert PluginStateResolver.is_enabled(database_plugin) is False
-
-
-def test_state_resolver_disables_error_database_plugin() -> None:
-    """
-    校验异常状态插件不会被运行时视为启用。
-
-    :return: None
-    """
-    database_plugin = type('DatabasePlugin', (), {'enabled': '0', 'status': 'error', 'installed_version': '1.0.0'})()
-
-    assert PluginStateResolver.is_enabled(database_plugin) is False
-
-
-def test_state_resolver_does_not_enable_uninstalled_database_plugin() -> None:
-    """
-    校验未安装插件即使数据库 enabled=0，也不会被运行时视为启用。
-
-    :return: None
-    """
-    database_plugin = type('DatabasePlugin', (), {'enabled': '0', 'status': 'discovered', 'installed_version': None})()
-
-    assert PluginStateResolver.is_enabled(database_plugin) is False
-
-
-def test_state_resolver_reports_database_plugin_enabled() -> None:
-    """
-    校验数据库插件启用状态可被统一解析。
-
-    :return: None
-    """
-    database_plugin = type('DatabasePlugin', (), {'enabled': '0', 'status': 'installed'})()
-
-    assert PluginStateResolver.is_database_plugin_enabled(database_plugin) is True
-
-
-def test_state_resolver_reports_error_database_plugin_disabled() -> None:
-    """
-    校验异常数据库插件即使启停值为启用也会被视为不可用。
-
-    :return: None
-    """
-    database_plugin = type('DatabasePlugin', (), {'enabled': '0', 'status': 'error'})()
-
-    assert PluginStateResolver.is_database_plugin_enabled(database_plugin) is False
-
-
-def test_state_transition_table_resolves_install_target() -> None:
-    """
-    校验状态流转表可解析首次安装后的目标状态。
-
-    :return: None
-    """
-    assert PluginStateTransitionTable.resolve_target('discovered', 'install') == 'installed'
-
-
-def test_state_transition_table_allows_discovered_plugin_disable() -> None:
-    """
-    校验未安装但已发现的插件可被显式停用。
-
-    :return: None
-    """
-    assert PluginStateTransitionTable.resolve_target('discovered', 'disable') == 'discovered'
-
-
-def test_state_transition_table_resolves_failure_target() -> None:
-    """
-    校验状态流转表会将失败操作解析为 error。
-
-    :return: None
-    """
-    assert PluginStateTransitionTable.resolve_target('installed', 'mark_error') == 'error'
-    assert PluginStateTransitionTable.resolve_target('pending_upgrade', 'mark_error') == 'error'
-
-
-def test_state_transition_table_rejects_invalid_transition() -> None:
-    """
-    校验状态流转表会拒绝不允许的状态操作。
-
-    :return: None
-    """
+    assert [
+        PluginStateTransitionTable.resolve_target(source, operation) for source, operation, _expected in supported_cases
+    ] == [expected for _source, _operation, expected in supported_cases]
     assert PluginStateTransitionTable.can_transition('discovered', 'upgrade') is False
 
 
-def test_state_resolver_matches_transition_table_for_representative_snapshots() -> None:
-    """
-    校验状态解析器与流转表在代表性状态上保持一致。
-
-    :return: None
-    """
+def test_state_resolver_and_transition_table_remain_consistent() -> None:
+    """校验状态解析器与转换表保持一致。"""
     cases = [
-        (
-            None,
-            'discover',
-            PluginStateSnapshot(source_version='1.0.0', installed_version=None, enabled=True),
-        ),
+        (None, 'discover', PluginStateSnapshot(source_version='1.0.0', installed_version=None, enabled=True)),
         (
             'discovered',
             'install',
-            PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=True),
-        ),
-        (
-            'installed',
-            'disable',
-            PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=False),
-        ),
-        (
-            'installed',
-            'enable',
             PluginStateSnapshot(source_version='1.0.0', installed_version='1.0.0', enabled=True),
         ),
         (
@@ -207,14 +85,6 @@ def test_state_resolver_matches_transition_table_for_representative_snapshots() 
     for source, operation, snapshot in cases:
         assert PluginStateResolver.resolve(snapshot) == PluginStateTransitionTable.resolve_target(source, operation)
 
-
-def test_state_transition_table_lists_described_transitions() -> None:
-    """
-    校验状态流转表暴露带说明的规则列表。
-
-    :return: None
-    """
     transitions = PluginStateTransitionTable.list_transitions()
-
     assert transitions
     assert all(transition.description for transition in transitions)

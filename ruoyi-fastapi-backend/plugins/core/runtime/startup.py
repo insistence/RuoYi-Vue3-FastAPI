@@ -763,6 +763,9 @@ class PluginRuntimeStartupManager:
         """
         首次启动时将内置默认启用插件写入数据库安装状态。
 
+        安装脚本执行前先校验 Python 依赖，避免 migration/seed 导入缺失依赖导致启动
+        提前失败。缺失依赖的插件被标记为 error 并隔离，不影响其他插件继续启动。
+
         :return: None
         """
         if not self.default_enabled_builtin_plugin_ids:
@@ -793,9 +796,31 @@ class PluginRuntimeStartupManager:
                     self.builder.plugins_root,
                     self.builder.frontend_plugins_root,
                 )
+                dependency_failed_messages = self._check_default_plugin_python_dependencies(plugin)
+                if dependency_failed_messages:
+                    error_message = '插件启动依赖检查失败：' + '；'.join(dependency_failed_messages)
+                    logger.error(f'{plugin.manifest.id} {error_message}')
+                    await self.management_gateway.mark_plugin_error(query_db, plugin.manifest.id, error_message)
+                    continue
                 await self.run_plugin_install_scripts(query_db, plugin)
                 await self.management_gateway.mark_plugin_installed(query_db, plugin)
             await query_db.commit()
+
+    def _check_default_plugin_python_dependencies(self, discovered_plugin: Any) -> list[str]:
+        """
+        校验内置默认启用插件的 Python 依赖。
+
+        :param discovered_plugin: 已发现插件
+        :return: 依赖检查失败消息列表
+        """
+        python_requirements = discovered_plugin.manifest.dependencies.python
+        if not python_requirements:
+            return []
+        dependency_result = self._check_plugin_python_dependencies(
+            discovered_plugin.manifest.id,
+            python_requirements,
+        )
+        return self._build_dependency_failed_messages(dependency_result)
 
     @staticmethod
     def _should_sync_default_enabled_builtin_plugin(database_plugin: Any | None) -> bool:

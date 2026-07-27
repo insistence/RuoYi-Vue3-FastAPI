@@ -1,6 +1,16 @@
-# ruff: noqa: F403, F405
+import sys
+from pathlib import Path
+from subprocess import CompletedProcess
 
-from .conftest import *
+from cli.runtime.plugin.service import CliPluginRuntimeService
+
+from .conftest import (
+    EXPECTED_FRONTEND_BUILD_TIMEOUT,
+    FakePluginRuntimeGateway,
+    FakeRuntimeEnvironment,
+    build_runtime,
+    build_runtime_with_gateway,
+)
 
 
 class LazyPluginGateway:
@@ -9,55 +19,30 @@ class LazyPluginGateway:
     """
 
     def __init__(self, backend_root: Path, runtime_gateway: FakePluginRuntimeGateway) -> None:
-        """
-        初始化测试用 CLI 插件网关。
-
-        :param backend_root: 后端项目根目录
-        :param runtime_gateway: 测试运行时适配器
-        :return: None
-        """
+        """初始化测试用 CLI 插件网关。"""
         self.backend_root = backend_root
         self.runtime_gateway = runtime_gateway
         self.runtime_environment_requested = False
         self.runtime_gateway_requested = False
 
     def get_core_runtime_environment(self) -> FakeRuntimeEnvironment:
-        """
-        获取测试运行时环境。
-
-        :return: 测试运行时环境
-        """
+        """获取测试运行时环境。"""
         self.runtime_environment_requested = True
         return FakeRuntimeEnvironment(self.backend_root)
 
     def get_management_runtime_gateway(self) -> FakePluginRuntimeGateway:
-        """
-        获取测试运行时适配器。
-
-        :return: 测试运行时适配器
-        """
+        """获取测试运行时适配器。"""
         self.runtime_gateway_requested = True
         return self.runtime_gateway
 
     @staticmethod
     def build_exception_payload(message: str, exc: Exception) -> dict[str, object]:
-        """
-        构建测试异常负载。
-
-        :param message: 异常消息
-        :param exc: 异常对象
-        :return: 异常负载
-        """
+        """构建测试异常负载。"""
         return {'ok': False, 'message': message, 'error': str(exc)}
 
 
 def test_plugin_runtime_test_plugin_lazily_resolves_runtime_dependencies(tmp_path: Path) -> None:
-    """
-    校验插件测试命令会通过 CLI 网关懒解析运行时环境和运行时适配器。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件测试命令会通过 CLI 网关懒解析运行时环境和运行时适配器。"""
     backend_root = tmp_path / 'backend'
     test_root = backend_root / 'tests' / 'plugins' / 'demo'
     test_root.mkdir(parents=True)
@@ -74,12 +59,7 @@ def test_plugin_runtime_test_plugin_lazily_resolves_runtime_dependencies(tmp_pat
 
 
 def test_plugin_runtime_test_plugin_runs_pytest_target(tmp_path: Path) -> None:
-    """
-    校验插件测试命令会执行插件 pytest 目录。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件测试命令会执行插件 pytest 目录。"""
     backend_root = tmp_path / 'backend'
     test_root = backend_root / 'tests' / 'plugins' / 'demo'
     test_root.mkdir(parents=True)
@@ -111,12 +91,7 @@ def test_plugin_runtime_test_plugin_runs_pytest_target(tmp_path: Path) -> None:
 
 
 def test_plugin_runtime_test_plugin_runs_backend_and_frontend_targets(tmp_path: Path) -> None:
-    """
-    校验插件测试命令会聚合执行后端 pytest 和前端 node 测试。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件测试命令会聚合执行后端 pytest 和前端 node 测试。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'ruoyi-fastapi-backend'
     frontend_root = project_root / 'ruoyi-fastapi-frontend'
@@ -141,12 +116,7 @@ def test_plugin_runtime_test_plugin_runs_backend_and_frontend_targets(tmp_path: 
 
 
 def test_plugin_runtime_test_plugin_uses_runtime_frontend_dir(tmp_path: Path) -> None:
-    """
-    校验插件测试命令使用运行时环境提供的前端目录。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件测试命令使用运行时环境提供的前端目录。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'api-server'
     frontend_root = project_root / 'web-client'
@@ -165,12 +135,7 @@ def test_plugin_runtime_test_plugin_uses_runtime_frontend_dir(tmp_path: Path) ->
 
 
 def test_plugin_runtime_test_plugin_can_run_frontend_build_acceptance(tmp_path: Path) -> None:
-    """
-    校验插件测试命令可按需追加前端构建验收。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件测试命令可按需追加前端构建验收。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'ruoyi-fastapi-backend'
     frontend_root = project_root / 'ruoyi-fastapi-frontend'
@@ -192,12 +157,7 @@ def test_plugin_runtime_test_plugin_can_run_frontend_build_acceptance(tmp_path: 
 
 
 def test_plugin_runtime_test_plugin_reports_missing_test_dir(tmp_path: Path) -> None:
-    """
-    校验插件测试目录不存在时返回清晰错误。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件测试目录不存在时返回清晰错误。"""
     backend_root = tmp_path / 'backend'
 
     result = build_runtime(backend_root).test_plugin('demo')
@@ -211,12 +171,7 @@ def test_plugin_runtime_test_plugin_reports_missing_test_dir(tmp_path: Path) -> 
 
 
 def test_plugin_runtime_test_plugin_rejects_unsafe_plugin_id(tmp_path: Path) -> None:
-    """
-    校验插件测试命令拒绝可逃逸测试目录的插件ID。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件测试命令拒绝可逃逸测试目录的插件ID。"""
     backend_root = tmp_path / 'backend'
     escaped_target = tmp_path / 'external_tests'
     escaped_target.mkdir()
@@ -230,12 +185,7 @@ def test_plugin_runtime_test_plugin_rejects_unsafe_plugin_id(tmp_path: Path) -> 
 
 
 def test_plugin_runtime_test_plugin_rejects_hyphenated_plugin_id(tmp_path: Path) -> None:
-    """
-    校验插件测试命令短期拒绝带短横线的插件 ID，保持与脚手架规则一致。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件测试命令短期拒绝带短横线的插件 ID，保持与脚手架规则一致。"""
     backend_root = tmp_path / 'backend'
     gateway = FakePluginRuntimeGateway()
 
@@ -247,12 +197,7 @@ def test_plugin_runtime_test_plugin_rejects_hyphenated_plugin_id(tmp_path: Path)
 
 
 def test_plugin_runtime_test_plugin_reports_pytest_failure(tmp_path: Path) -> None:
-    """
-    校验 pytest 返回失败时插件测试命令返回失败负载。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 pytest 返回失败时插件测试命令返回失败负载。"""
     backend_root = tmp_path / 'backend'
     (backend_root / 'tests' / 'plugins' / 'demo').mkdir(parents=True)
     gateway = FakePluginRuntimeGateway()
@@ -264,3 +209,22 @@ def test_plugin_runtime_test_plugin_reports_pytest_failure(tmp_path: Path) -> No
     assert result['message'] == '插件测试执行失败'
     assert result['test']['returnCode'] == 1
     assert result['test']['stderr'] == 'failed\n'
+
+
+def test_plugin_runtime_test_plugin_truncates_command_output(tmp_path: Path) -> None:
+    """校验插件测试命令会截断过长的子进程输出。"""
+    backend_root = tmp_path / 'backend'
+    (backend_root / 'tests' / 'plugins' / 'demo').mkdir(parents=True)
+    gateway = FakePluginRuntimeGateway()
+    gateway.completed_process = CompletedProcess(
+        args=[],
+        returncode=0,
+        stdout='x' * 5000,
+        stderr='y' * 5000,
+    )
+
+    result = build_runtime_with_gateway(backend_root, gateway).test_plugin('demo')
+
+    assert result['ok'] is True
+    assert result['test']['stdout'] == 'x' * 4000
+    assert result['test']['stderr'] == 'y' * 4000

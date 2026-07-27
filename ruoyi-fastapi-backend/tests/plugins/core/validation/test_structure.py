@@ -1,21 +1,11 @@
-import sys
 from pathlib import Path
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner  # noqa: E402
-from plugins.core.validation.structure import PluginStructureChecker  # noqa: E402
+from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
+from plugins.core.validation.structure import PluginStructureChecker
 
 
 def write_manifest(plugin_dir: Path, content: str) -> Path:
-    """
-    写入测试插件清单。
-
-    :param plugin_dir: 插件目录
-    :param content: 清单内容
-    :return: 清单文件路径
-    """
+    """写入测试插件清单。"""
     plugin_dir.mkdir(parents=True)
     manifest_path = plugin_dir / 'plugin.yaml'
     manifest_path.write_text(content, encoding='utf-8')
@@ -23,23 +13,12 @@ def write_manifest(plugin_dir: Path, content: str) -> Path:
 
 
 def load_discovered_plugin(backend_root: Path, plugin_id: str) -> DiscoveredPlugin:
-    """
-    加载测试插件。
-
-    :param backend_root: 后端项目根目录
-    :param plugin_id: 插件ID
-    :return: 已发现插件对象
-    """
+    """加载测试插件。"""
     return PluginScanner(backend_root / 'plugins').load_manifest(backend_root / 'plugins' / plugin_id / 'plugin.yaml')
 
 
 def test_structure_checker_accepts_valid_backend_and_frontend_plugin(tmp_path: Path) -> None:
-    """
-    校验结构检查器接受完整插件结构。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器接受完整插件结构。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     frontend_root = tmp_path / 'ruoyi-fastapi-frontend'
     plugin_root = backend_root / 'plugins' / 'demo'
@@ -76,12 +55,7 @@ frontend:
 
 
 def test_structure_checker_reports_missing_frontend_directories_from_manifest(tmp_path: Path) -> None:
-    """
-    校验结构检查器按主清单 frontend 字段报告前端目录缺失问题。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器按主清单 frontend 字段报告前端目录缺失问题。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     frontend_root = tmp_path / 'ruoyi-fastapi-frontend'
     plugin_root = backend_root / 'plugins' / 'demo'
@@ -117,12 +91,7 @@ frontend:
 
 
 def test_structure_checker_accepts_plugin_controller_route_prefix(tmp_path: Path) -> None:
-    """
-    校验结构检查器接受当前插件命名空间内的 controller 路由前缀。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器接受当前插件命名空间内的 controller 路由前缀。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -149,12 +118,7 @@ backend:
 
 
 def test_structure_checker_reports_plugin_controller_route_prefix_escape(tmp_path: Path) -> None:
-    """
-    校验结构检查器拒绝越过当前插件命名空间的 controller 路由前缀。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器拒绝越过当前插件命名空间的 controller 路由前缀。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -180,12 +144,7 @@ backend:
 
 
 def test_structure_checker_reports_missing_seed_and_frontend_view(tmp_path: Path) -> None:
-    """
-    校验结构检查器能报告缺失 seed 和前端视图。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器能报告缺失 seed 和前端视图。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     frontend_root = tmp_path / 'ruoyi-fastapi-frontend'
     plugin_root = backend_root / 'plugins' / 'demo'
@@ -224,12 +183,7 @@ frontend:
 
 
 def test_structure_checker_does_not_require_frontend_for_backend_only_plugin(tmp_path: Path) -> None:
-    """
-    校验后端插件没有插件菜单视图时，不强制要求前端目录存在。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验后端插件没有插件菜单视图时，不强制要求前端目录存在。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -253,12 +207,7 @@ frontend:
 
 
 def test_structure_checker_accepts_sql_seed(tmp_path: Path) -> None:
-    """
-    校验结构检查器接受 SQL seed。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器接受 SQL seed。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -286,12 +235,7 @@ frontend:
 
 
 def test_structure_checker_checks_migration_files(tmp_path: Path) -> None:
-    """
-    校验结构检查器会检查 migration 文件存在性和类型。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器会检查 migration 文件存在性和类型。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -319,12 +263,7 @@ frontend:
 
 
 def test_structure_checker_reports_missing_migration_and_unsupported_type(tmp_path: Path) -> None:
-    """
-    校验结构检查器会报告缺失 migration 和暂不支持的 migration 类型。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器会报告缺失 migration 和暂不支持的 migration 类型。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -350,12 +289,7 @@ frontend:
 
 
 def test_structure_checker_reports_migration_escape_path(tmp_path: Path) -> None:
-    """
-    校验结构检查器会报告越过插件根目录的 migration 路径。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器会报告越过插件根目录的 migration 路径。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -386,12 +320,7 @@ frontend:
 
 
 def test_structure_checker_reports_seed_escape_path(tmp_path: Path) -> None:
-    """
-    校验结构检查器会报告越过插件根目录的 seed 路径。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器会报告越过插件根目录的 seed 路径。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -422,12 +351,7 @@ frontend:
 
 
 def test_structure_checker_accepts_valid_plugin_job(tmp_path: Path) -> None:
-    """
-    校验结构检查器接受有效的插件定时任务声明。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器接受有效的插件定时任务声明。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -462,12 +386,7 @@ frontend:
 
 
 def test_structure_checker_does_not_execute_job_module_top_level_code(tmp_path: Path) -> None:
-    """
-    校验结构检查验证任务 callable 时不会执行插件模块顶层代码。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查验证任务 callable 时不会执行插件模块顶层代码。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     side_effect_file = tmp_path / 'job_side_effect.txt'
     plugin_root = backend_root / 'plugins' / 'demo'
@@ -502,12 +421,7 @@ frontend:
 
 
 def test_structure_checker_reports_invalid_plugin_job(tmp_path: Path) -> None:
-    """
-    校验结构检查器报告越界 callable、不可导入 callable 和无效 cron。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器报告越界 callable、不可导入 callable 和无效 cron。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -538,12 +452,7 @@ frontend:
 
 
 def test_structure_checker_accepts_valid_plugin_hook(tmp_path: Path) -> None:
-    """
-    校验结构检查器接受有效的插件生命周期钩子声明。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器接受有效的插件生命周期钩子声明。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -573,12 +482,7 @@ frontend:
 
 
 def test_structure_checker_does_not_execute_hook_module_top_level_code(tmp_path: Path) -> None:
-    """
-    校验结构检查验证生命周期钩子时不会执行插件模块顶层代码。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查验证生命周期钩子时不会执行插件模块顶层代码。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     side_effect_file = tmp_path / 'hook_side_effect.txt'
     plugin_root = backend_root / 'plugins' / 'demo'
@@ -610,12 +514,7 @@ frontend:
 
 
 def test_structure_checker_reports_invalid_plugin_hook(tmp_path: Path) -> None:
-    """
-    校验结构检查器报告越界和不可导入生命周期钩子。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验结构检查器报告越界和不可导入生命周期钩子。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(

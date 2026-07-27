@@ -68,7 +68,6 @@ config:
 name: {plugin_id}
 version: 0.1.0
 description: {plugin_id} 插件
-enabled: false
 
 backend:
   module: plugins.{plugin_id}

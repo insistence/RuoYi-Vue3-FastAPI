@@ -1,13 +1,9 @@
-import sys
 from pathlib import Path
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
-from plugins.core.discovery.scanner import DiscoveredPlugin  # noqa: E402
-from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
-from plugins.core.manifest.schema import PluginManifest  # noqa: E402
+from plugins.core.discovery.registry import PluginRegistry
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.management.entity.vo.schemas import PluginModel
+from plugins.core.manifest.schema import PluginManifest
 
 
 def build_discovered_plugin(
@@ -16,15 +12,7 @@ def build_discovered_plugin(
     auto_scan: bool = True,
     version: str = '1.0.0',
 ) -> DiscoveredPlugin:
-    """
-    构造测试用已发现插件。
-
-    :param tmp_path: pytest 临时目录
-    :param plugin_id: 插件 ID
-    :param auto_scan: 是否自动扫描 controller
-    :param version: 插件版本
-    :return: 已发现插件对象
-    """
+    """构造测试用已发现插件。"""
     backend_path = tmp_path / plugin_id
     backend_path.mkdir(parents=True)
     manifest_path = backend_path / 'plugin.yaml'
@@ -42,14 +30,7 @@ def build_discovered_plugin(
 
 
 def build_database_plugin(plugin_id: str = 'demo', *, enabled: str = '0', status: str = 'installed') -> PluginModel:
-    """
-    构造测试用数据库插件状态。
-
-    :param plugin_id: 插件 ID
-    :param enabled: 数据库启停状态
-    :param status: 插件状态
-    :return: 插件状态模型
-    """
+    """构造测试用数据库插件状态。"""
     return PluginModel(
         pluginId=plugin_id,
         pluginName='演示插件',
@@ -61,6 +42,7 @@ def build_database_plugin(plugin_id: str = 'demo', *, enabled: str = '0', status
 
 
 def test_registry_keeps_discovered_plugin_disabled_when_database_state_missing(tmp_path: Path) -> None:
+    """校验缺少数据库状态时，已发现插件保持禁用。"""
     discovered_plugin = build_discovered_plugin(tmp_path)
 
     registry = PluginRegistry.build([discovered_plugin])
@@ -73,6 +55,7 @@ def test_registry_keeps_discovered_plugin_disabled_when_database_state_missing(t
 
 
 def test_registry_prefers_database_enabled_state(tmp_path: Path) -> None:
+    """校验插件注册表优先采用数据库启用状态。"""
     discovered_plugin = build_discovered_plugin(tmp_path)
     database_plugin = build_database_plugin(enabled='1', status='installed')
 
@@ -86,6 +69,7 @@ def test_registry_prefers_database_enabled_state(tmp_path: Path) -> None:
 
 
 def test_registry_marks_pending_upgrade_when_versions_differ(tmp_path: Path) -> None:
+    """校验源码版本高于已安装版本时标记待升级。"""
     discovered_plugin = build_discovered_plugin(tmp_path, version='1.1.0')
     database_plugin = PluginModel(
         pluginId='demo',
@@ -105,12 +89,7 @@ def test_registry_marks_pending_upgrade_when_versions_differ(tmp_path: Path) -> 
 
 
 def test_registry_keeps_installed_when_source_version_is_older(tmp_path: Path) -> None:
-    """
-    校验源码版本低于已安装版本时不会误标记待升级。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验源码版本低于已安装版本时不会误标记待升级。"""
     discovered_plugin = build_discovered_plugin(tmp_path, version='1.2.0')
     database_plugin = PluginModel(
         pluginId='demo',
@@ -129,12 +108,7 @@ def test_registry_keeps_installed_when_source_version_is_older(tmp_path: Path) -
 
 
 def test_registry_keeps_error_status(tmp_path: Path) -> None:
-    """
-    校验异常状态插件不会继续进入启用运行时列表。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验异常状态插件不会继续进入启用运行时列表。"""
     discovered_plugin = build_discovered_plugin(tmp_path)
     database_plugin = PluginModel(
         pluginId='demo',
@@ -155,6 +129,7 @@ def test_registry_keeps_error_status(tmp_path: Path) -> None:
 
 
 def test_registry_returns_existing_controller_and_entity_dirs(tmp_path: Path) -> None:
+    """校验注册表只返回实际存在的控制器与实体目录。"""
     discovered_plugin = build_discovered_plugin(tmp_path)
     database_plugin = build_database_plugin()
     controller_dir = discovered_plugin.backend_path / 'controller'
@@ -169,6 +144,7 @@ def test_registry_returns_existing_controller_and_entity_dirs(tmp_path: Path) ->
 
 
 def test_registry_skips_controller_dir_when_auto_scan_disabled(tmp_path: Path) -> None:
+    """校验关闭自动扫描后不返回控制器目录。"""
     discovered_plugin = build_discovered_plugin(tmp_path, auto_scan=False)
     database_plugin = build_database_plugin()
     controller_dir = discovered_plugin.backend_path / 'controller'

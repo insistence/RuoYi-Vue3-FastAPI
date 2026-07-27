@@ -1,14 +1,14 @@
 import sys
 from pathlib import Path
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
+from plugins.core.management.entity.vo.schemas import PluginModel
+from plugins.core.runtime.bootstrap import PluginRuntimeBuilder
 
-from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
-from plugins.core.runtime.bootstrap import PluginRuntimeBuilder  # noqa: E402
+BACKEND_ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_plugin_runtime_builder_defaults_to_backend_root() -> None:
+    """校验运行时构建器默认使用后端项目根目录。"""
     builder = PluginRuntimeBuilder()
 
     assert builder.backend_root == BACKEND_ROOT
@@ -17,6 +17,7 @@ def test_plugin_runtime_builder_defaults_to_backend_root() -> None:
 
 
 def test_plugin_runtime_builder_resolves_frontend_plugins_root_from_backend_root(tmp_path: Path) -> None:
+    """校验运行时构建器根据后端根目录解析前端插件目录。"""
     backend_root = tmp_path / 'api-server'
 
     builder = PluginRuntimeBuilder(backend_root)
@@ -25,18 +26,13 @@ def test_plugin_runtime_builder_resolves_frontend_plugins_root_from_backend_root
 
 
 def write_manifest(plugin_dir: Path, content: str) -> None:
-    """
-    写入测试插件清单。
-
-    :param plugin_dir: 插件目录
-    :param content: 清单内容
-    :return: None
-    """
+    """写入测试插件清单。"""
     plugin_dir.mkdir(parents=True)
     (plugin_dir / 'plugin.yaml').write_text(content, encoding='utf-8')
 
 
 def test_plugin_runtime_builder_builds_registry_from_backend_plugins(tmp_path: Path) -> None:
+    """校验运行时构建器从后端插件目录创建注册表。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -58,18 +54,14 @@ backend:
 
 
 def test_plugin_runtime_builder_returns_empty_registry_when_plugins_root_missing(tmp_path: Path) -> None:
+    """校验插件目录不存在时运行时构建器返回空注册表。"""
     registry = PluginRuntimeBuilder(tmp_path / 'backend').build_registry()
 
     assert registry.list_plugins() == []
 
 
 def test_plugin_runtime_builder_merges_database_plugin_state(tmp_path: Path) -> None:
-    """
-    校验运行时构建器会合并数据库插件状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验运行时构建器会合并数据库插件状态。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -99,12 +91,7 @@ backend:
 
 
 def test_plugin_runtime_builder_imports_enabled_plugin_entities(tmp_path: Path) -> None:
-    """
-    校验运行时构建器可以导入启用插件实体。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验运行时构建器可以导入启用插件实体。"""
     backend_root = tmp_path / 'backend'
     plugin_dir = backend_root / 'plugins' / 'sample_entity'
     write_manifest(
@@ -142,12 +129,7 @@ backend:
 
 
 def test_plugin_runtime_builder_reports_failed_plugin_entity_import(tmp_path: Path) -> None:
-    """
-    校验运行时构建器会按插件返回实体导入失败结果。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验运行时构建器会按插件返回实体导入失败结果。"""
     backend_root = tmp_path / 'backend'
     plugin_dir = backend_root / 'plugins' / 'broken_entity'
     write_manifest(

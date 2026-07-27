@@ -1,6 +1,21 @@
-# ruff: noqa: F403, F405
+import asyncio
+from pathlib import Path
+from types import SimpleNamespace
 
-from tests.plugin_runtime_helpers import *
+from plugins.core.lifecycle.migration import PluginMigrationRunner
+from plugins.core.runtime.service import PluginRuntimeService
+from plugins.core.runtime.service.dependency_container import PluginRuntimeGatewayOverrides
+from plugins.core.validation.dependencies import PluginDependencyChecker
+from tests.plugins.core.runtime.fakes import (
+    EXPECTED_PURGE_DESTRUCTIVE_COUNT,
+    FakePluginRuntimeGateway,
+    FakePluginService,
+    FakeRuntimeEnvironment,
+    build_runtime,
+    build_runtime_with_gateway,
+    create_controller_dir,
+    write_manifest,
+)
 
 
 class MigrationOnlyGateway:
@@ -9,11 +24,7 @@ class MigrationOnlyGateway:
     """
 
     def __init__(self) -> None:
-        """
-        初始化测试 migration 历史网关。
-
-        :return: None
-        """
+        """初始化测试 migration 历史网关。"""
         self.records = [
             SimpleNamespace(
                 plugin_id='demo',
@@ -48,13 +59,7 @@ class MigrationOnlyGateway:
         self.mark_calls: list[tuple[str, str, str, str | None]] = []
 
     async def list_plugin_migrations(self, plugin_id: str, status: str | None = None) -> list[object]:
-        """
-        查询测试 migration 历史。
-
-        :param plugin_id: 插件ID
-        :param status: 执行状态
-        :return: migration 历史列表
-        """
+        """查询测试 migration 历史。"""
         self.list_calls.append((plugin_id, status))
         return [
             record
@@ -63,13 +68,7 @@ class MigrationOnlyGateway:
         ]
 
     async def get_plugin_migration(self, plugin_id: str, migration_path: str) -> object | None:
-        """
-        获取测试 migration 历史。
-
-        :param plugin_id: 插件ID
-        :param migration_path: migration 相对路径
-        :return: migration 历史
-        """
+        """获取测试 migration 历史。"""
         for record in reversed(self.records):
             if record.plugin_id == plugin_id and record.migration_path == migration_path:
                 return record
@@ -82,15 +81,7 @@ class MigrationOnlyGateway:
         status: str,
         error_message: str | None = None,
     ) -> object | None:
-        """
-        标记测试 migration 历史状态。
-
-        :param plugin_id: 插件ID
-        :param migration_path: migration 相对路径
-        :param status: 执行状态
-        :param error_message: 失败错误信息
-        :return: migration 历史
-        """
+        """标记测试 migration 历史状态。"""
         self.mark_calls.append((plugin_id, migration_path, status, error_message))
         record = await self.get_plugin_migration(plugin_id, migration_path)
         if record:
@@ -99,25 +90,14 @@ class MigrationOnlyGateway:
         return record
 
     def get_plugin_service(self) -> object:
-        """
-        禁止 migration 链路回退到管理服务胖接口。
-
-        :return: 永不返回
-        :raises AssertionError: migration 链路不应调用该方法
-        """
+        """禁止 migration 链路回退到管理服务胖接口。"""
         raise AssertionError('migration 历史不应依赖 PluginManagementServiceProtocol')
 
 
 def test_plugin_runtime_lists_plugin_migration_history(tmp_path: Path) -> None:
-    """
-    校验运行时可以查询插件 migration 历史。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验运行时可以查询插件 migration 历史。"""
     backend_root = tmp_path / 'backend'
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.migration_records = [
         gateway.build_migration_record('demo', 'migrations/001.sql', 'checksum-1', '1.0.0', 1, 'success'),
         gateway.build_migration_record('demo', 'migrations/002.sql', 'checksum-2', '1.0.0', 1, 'running'),
@@ -134,12 +114,7 @@ def test_plugin_runtime_lists_plugin_migration_history(tmp_path: Path) -> None:
 
 
 def test_plugin_runtime_migration_uses_migration_history_port(tmp_path: Path) -> None:
-    """
-    校验 migration 查询和人工标记只依赖 migration 历史窄端口。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 migration 查询和人工标记只依赖 migration 历史窄端口。"""
     gateway = MigrationOnlyGateway()
     runtime = PluginRuntimeService(
         runtime_environment=FakeRuntimeEnvironment(tmp_path / 'backend'),
@@ -169,15 +144,9 @@ def test_plugin_runtime_migration_uses_migration_history_port(tmp_path: Path) ->
 
 
 def test_plugin_runtime_marks_plugin_migration_success_and_records_audit(tmp_path: Path) -> None:
-    """
-    校验运行时可以人工标记 migration 成功并记录审计日志。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验运行时可以人工标记 migration 成功并记录审计日志。"""
     backend_root = tmp_path / 'backend'
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     migration = gateway.build_migration_record(
         'demo',
         'migrations/001.sql',
@@ -205,15 +174,9 @@ def test_plugin_runtime_marks_plugin_migration_success_and_records_audit(tmp_pat
 
 
 def test_plugin_runtime_marks_plugin_migration_failed(tmp_path: Path) -> None:
-    """
-    校验运行时可以人工标记 migration 失败以允许后续重试。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验运行时可以人工标记 migration 失败以允许后续重试。"""
     backend_root = tmp_path / 'backend'
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     migration = gateway.build_migration_record('demo', 'migrations/001.sql', 'checksum-1', '1.0.0', 1, 'running')
     FakePluginService.migration_records = [migration]
 
@@ -232,15 +195,9 @@ def test_plugin_runtime_marks_plugin_migration_failed(tmp_path: Path) -> None:
 
 
 def test_plugin_runtime_rejects_invalid_plugin_migration_manual_transition(tmp_path: Path) -> None:
-    """
-    校验人工恢复不能把已成功 migration 标记为失败以触发重跑。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验人工恢复不能把已成功 migration 标记为失败以触发重跑。"""
     backend_root = tmp_path / 'backend'
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     migration = gateway.build_migration_record('demo', 'migrations/001.sql', 'checksum-1', '1.0.0', 1, 'success')
     FakePluginService.migration_records = [migration]
 
@@ -261,12 +218,7 @@ def test_plugin_runtime_rejects_invalid_plugin_migration_manual_transition(tmp_p
 
 
 def test_plugin_runtime_install_plugin_runs_install_hook(tmp_path: Path) -> None:
-    """
-    校验插件安装会执行 manifest 声明的 on_install 钩子。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安装会执行 manifest 声明的 on_install 钩子。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -275,7 +227,6 @@ def test_plugin_runtime_install_plugin_runs_install_hook(tmp_path: Path) -> None
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
   hooks:
@@ -288,7 +239,6 @@ backend:
         encoding='utf-8',
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
 
@@ -298,12 +248,7 @@ backend:
 
 
 def test_plugin_runtime_install_plugin_reports_failed_lifecycle_step(tmp_path: Path) -> None:
-    """
-    校验插件安装执行失败时返回失败生命周期步骤。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安装执行失败时返回失败生命周期步骤。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -324,7 +269,6 @@ backend:
         encoding='utf-8',
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
 
@@ -335,155 +279,8 @@ backend:
     assert FakePluginService.marked_errors == [('demo', '插件安装失败：install hook failed')]
 
 
-def test_plugin_runtime_install_plugin_delegates_to_install_use_case(tmp_path: Path) -> None:
-    """
-    校验插件安装入口委托给组合式安装 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeInstallUseCase:
-        """
-        测试用插件安装 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件安装 use case。
-            """
-            self.plugin_id: str | None = None
-            self.dry_run: bool | None = None
-            self.record_operation_log: bool | None = None
-            self.operated_by: str | None = None
-
-        async def install_plugin(
-            self,
-            plugin_id: str,
-            *,
-            dry_run: bool = False,
-            record_operation_log: bool = True,
-            operated_by: str | None = None,
-        ) -> dict:
-            """
-            记录插件安装调用。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :param record_operation_log: 是否记录审计日志
-            :param operated_by: 操作者用户名
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.dry_run = dry_run
-            self.record_operation_log = record_operation_log
-            self.operated_by = operated_by
-            return {'ok': True, 'pluginId': plugin_id, 'operation': 'install'}
-
-    install = FakeInstallUseCase()
-    runtime.install = install
-
-    payload = asyncio.run(runtime.install_plugin('demo', dry_run=True, record_operation_log=False))
-
-    assert install.plugin_id == 'demo'
-    assert install.dry_run is True
-    assert install.record_operation_log is False
-    assert payload == {'ok': True, 'pluginId': 'demo', 'operation': 'install'}
-
-
-def test_plugin_runtime_install_use_case_uses_injected_context_service(tmp_path: Path) -> None:
-    """
-    校验安装 use case 通过显式注入的 context service 使用上下文能力。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    sentinel = object()
-
-    assert runtime.install.context is runtime.context
-
-    class FakeInstallContextService:
-        """
-        测试用安装上下文服务。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用安装上下文服务。
-            """
-            self.discovered_plugins: list[object] | None = None
-            self.plugin_id: str | None = None
-            self.blocked_operation: str | None = None
-            self.capability_plugin: object | None = None
-
-        def get_discovered_plugin_from_list(self, discovered_plugins: list[object], plugin_id: str) -> object:
-            """
-            记录插件列表查找调用。
-
-            :param discovered_plugins: 已发现插件列表
-            :param plugin_id: 插件ID
-            :return: 测试插件对象
-            """
-            self.discovered_plugins = discovered_plugins
-            self.plugin_id = plugin_id
-            return sentinel
-
-        def build_operation_blocked_payload(
-            self,
-            discovered_plugin: object,
-            operation: str,
-            *,
-            dry_run: bool | None = None,
-        ) -> dict | None:
-            """
-            记录运行模式阻断检查调用。
-
-            :param discovered_plugin: 已发现插件
-            :param operation: 操作类型
-            :param dry_run: 是否预演
-            :return: 阻断负载
-            """
-            self.blocked_operation = operation
-            return None
-
-        def with_plugin_capability(self, payload: dict, discovered_plugin: object | None) -> dict:
-            """
-            记录 capability 附加调用。
-
-            :param payload: 响应负载
-            :param discovered_plugin: 已发现插件
-            :return: 附加后的响应负载
-            """
-            self.capability_plugin = discovered_plugin
-            payload['contextPlugin'] = discovered_plugin
-            return payload
-
-    context = FakeInstallContextService()
-    runtime.install.context = context
-    discovered_plugins = [object()]
-
-    listed_plugin = runtime.install._get_discovered_plugin_from_list(discovered_plugins, 'demo')
-    blocked_payload = runtime.install._build_operation_blocked_payload(sentinel, 'install', dry_run=True)
-    payload = runtime.install._with_plugin_capability({'ok': True}, sentinel)
-
-    assert listed_plugin is sentinel
-    assert context.discovered_plugins is discovered_plugins
-    assert context.plugin_id == 'demo'
-    assert context.blocked_operation == 'install'
-    assert blocked_payload is None
-    assert context.capability_plugin is sentinel
-    assert payload == {'ok': True, 'contextPlugin': sentinel}
-
-
 def test_plugin_runtime_upgrade_plugin_dry_run_reports_version_state(tmp_path: Path) -> None:
-    """
-    校验插件升级 dry-run 会返回版本状态和动作计划。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件升级 dry-run 会返回版本状态和动作计划。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -492,7 +289,6 @@ def test_plugin_runtime_upgrade_plugin_dry_run_reports_version_state(tmp_path: P
 id: demo
 name: 演示插件
 version: 1.1.0
-enabled: true
 backend:
   module: plugins.demo
 config:
@@ -505,7 +301,6 @@ config:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.0.0',
@@ -531,12 +326,7 @@ config:
 
 
 def test_plugin_runtime_upgrade_dry_run_reports_changed_recorded_migration(tmp_path: Path) -> None:
-    """
-    校验插件升级 dry-run 会提前报告已执行 migration 内容变更。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件升级 dry-run 会提前报告已执行 migration 内容变更。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -558,7 +348,6 @@ backend:
     old_checksum = PluginMigrationRunner._calculate_checksum(migration_file)
     migration_file.write_text('select 2;\n', encoding='utf-8')
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.0.0',
@@ -578,12 +367,7 @@ backend:
 
 
 def test_plugin_runtime_upgrade_plugin_rejects_manifest_errors(tmp_path: Path) -> None:
-    """
-    校验插件升级会被 manifest error 阻断。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件升级会被 manifest error 阻断。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -592,7 +376,6 @@ def test_plugin_runtime_upgrade_plugin_rejects_manifest_errors(tmp_path: Path) -
 id: demo
 name: 演示插件
 version: 1.1.0
-enabled: true
 backend:
   module: plugins.demo
 compatibility:
@@ -601,7 +384,6 @@ compatibility:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.0.0',
@@ -622,12 +404,7 @@ compatibility:
 
 
 def test_plugin_runtime_upgrade_plugin_rejects_uninstalled_plugin(tmp_path: Path) -> None:
-    """
-    校验未安装插件执行升级会被拒绝。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验未安装插件执行升级会被拒绝。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -636,14 +413,12 @@ def test_plugin_runtime_upgrade_plugin_rejects_uninstalled_plugin(tmp_path: Path
 id: demo
 name: 演示插件
 version: 1.1.0
-enabled: true
 backend:
   module: plugins.demo
 """,
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).upgrade_plugin('demo'))
 
@@ -655,12 +430,7 @@ backend:
 
 
 def test_plugin_runtime_upgrade_plugin_skips_latest_version(tmp_path: Path) -> None:
-    """
-    校验已是最新版本时升级命令不会写数据库。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验已是最新版本时升级命令不会写数据库。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -669,14 +439,12 @@ def test_plugin_runtime_upgrade_plugin_skips_latest_version(tmp_path: Path) -> N
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 """,
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.0.0',
@@ -694,12 +462,7 @@ backend:
 
 
 def test_plugin_runtime_upgrade_plugin_skips_older_source_version(tmp_path: Path) -> None:
-    """
-    校验源码版本低于已安装版本时升级命令不会写数据库。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验源码版本低于已安装版本时升级命令不会写数据库。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -708,14 +471,12 @@ def test_plugin_runtime_upgrade_plugin_skips_older_source_version(tmp_path: Path
 id: demo
 name: 演示插件
 version: 1.2.0
-enabled: true
 backend:
   module: plugins.demo
 """,
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.10.0',
@@ -734,12 +495,7 @@ backend:
 
 
 def test_plugin_runtime_upgrade_plugin_persists_upgrade(tmp_path: Path) -> None:
-    """
-    校验插件升级会执行幂等写入、seed、on_upgrade 钩子并提交事务。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件升级会执行幂等写入、seed、on_upgrade 钩子并提交事务。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -748,7 +504,6 @@ def test_plugin_runtime_upgrade_plugin_persists_upgrade(tmp_path: Path) -> None:
 id: demo
 name: 演示插件
 version: 1.1.0
-enabled: true
 backend:
   module: plugins.demo
   migrations:
@@ -775,7 +530,6 @@ backend:
         encoding='utf-8',
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.0.0',
@@ -800,99 +554,8 @@ backend:
     assert result['hooks'][0]['hook_name'] == 'on_upgrade'
 
 
-def test_plugin_runtime_upgrade_plugin_uses_lifecycle_uow_and_migration_gateway_without_fat_service(
-    tmp_path: Path,
-) -> None:
-    """
-    校验插件升级通过生命周期 UoW 和 migration 执行端口完成，不回退到 fat state gateway。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    backend_root = tmp_path / 'backend'
-    plugin_root = backend_root / 'plugins' / 'demo'
-    write_manifest(
-        plugin_root,
-        """
-id: demo
-name: Demo
-version: 1.2.0
-enabled: true
-backend:
-  module: plugins.demo
-  migrations:
-    - migrations/001_upgrade.sql
-  seeds:
-    - seeds/demo_seed.sql
-frontend:
-  menus: []
-dependencies:
-  python: []
-  npm: []
-""",
-    )
-    create_controller_dir(plugin_root)
-    (plugin_root / 'migrations').mkdir()
-    (plugin_root / 'migrations' / '001_upgrade.sql').write_text('select 4;\n', encoding='utf-8')
-    (plugin_root / 'seeds').mkdir()
-    (plugin_root / 'seeds' / 'demo_seed.sql').write_text('select 5;\n', encoding='utf-8')
-
-    class NoFatUpgradeGateway(FakePluginRuntimeGateway):
-        """
-        禁止升级流程读取 fat state gateway 的测试适配器。
-        """
-
-        def get_async_session_local(self) -> object:
-            """
-            禁止通过 state gateway 打开数据库会话。
-
-            :return: 不返回
-            :raises AssertionError: 升级流程不应使用 fat state gateway
-            """
-            raise AssertionError('升级流程不应通过 state gateway 打开数据库会话')
-
-        def get_plugin_service(self) -> object:
-            """
-            禁止通过 state gateway 获取管理服务。
-
-            :return: 不返回
-            :raises AssertionError: 升级流程不应使用 fat state gateway
-            """
-            raise AssertionError('升级流程不应通过 state gateway 获取管理服务')
-
-    gateway = NoFatUpgradeGateway()
-    FakePluginService.reset()
-    FakePluginService.detail_plugin = SimpleNamespace(
-        plugin_id='demo',
-        installed_version='1.0.0',
-        enabled='0',
-        status='installed',
-    )
-
-    result = asyncio.run(
-        build_runtime_with_gateway(backend_root, gateway).upgrade_plugin('demo', record_operation_log=False)
-    )
-
-    assert result['ok'] is True
-    assert FakePluginService.install_enabled_menu_called is True
-    assert FakePluginService.mark_installed_called is True
-    assert [record.status for record in FakePluginService.migration_records] == ['running', 'success']
-    executed_statements = [session.executed_statements for session in gateway.session_local.sessions]
-    assert ['select 4'] in executed_statements
-    assert ['select 5'] in executed_statements
-    seed_session = next(
-        session for session in gateway.session_local.sessions if session.executed_statements == ['select 5']
-    )
-    assert seed_session.committed is True
-
-
 def test_plugin_runtime_upgrade_plugin_reports_failed_lifecycle_step(tmp_path: Path) -> None:
-    """
-    校验插件升级执行失败时返回失败生命周期步骤。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件升级执行失败时返回失败生命周期步骤。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -917,7 +580,6 @@ backend:
         encoding='utf-8',
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.0.0',
@@ -942,12 +604,7 @@ backend:
 
 
 def test_plugin_runtime_upgrade_plugin_uses_injected_dependencies(tmp_path: Path) -> None:
-    """
-    校验插件升级使用构造期注入的集中依赖对象。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件升级使用构造期注入的集中依赖对象。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -956,7 +613,6 @@ def test_plugin_runtime_upgrade_plugin_uses_injected_dependencies(tmp_path: Path
 id: demo
 name: 演示插件
 version: 1.1.0
-enabled: true
 backend:
   module: plugins.demo
   migrations:
@@ -967,7 +623,6 @@ backend:
     (plugin_root / 'migrations').mkdir()
     (plugin_root / 'migrations' / '001_upgrade.sql').write_text('select 3;\n', encoding='utf-8')
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.0.0',
@@ -991,169 +646,8 @@ backend:
     assert gateway.session_local.committed_session is not None
 
 
-def test_plugin_runtime_upgrade_plugin_delegates_to_upgrade_use_case(tmp_path: Path) -> None:
-    """
-    校验插件升级入口委托给组合式升级 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeUpgradeUseCase:
-        """
-        测试用插件升级 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件升级 use case。
-            """
-            self.plugin_id: str | None = None
-            self.dry_run: bool | None = None
-            self.record_operation_log: bool | None = None
-            self.operated_by: str | None = None
-
-        async def upgrade_plugin(
-            self,
-            plugin_id: str,
-            *,
-            dry_run: bool = False,
-            record_operation_log: bool = True,
-            operated_by: str | None = None,
-        ) -> dict:
-            """
-            记录插件升级调用。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :param record_operation_log: 是否记录审计日志
-            :param operated_by: 操作者用户名
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.dry_run = dry_run
-            self.record_operation_log = record_operation_log
-            self.operated_by = operated_by
-            return {'ok': True, 'pluginId': plugin_id, 'operation': 'upgrade'}
-
-    upgrade = FakeUpgradeUseCase()
-    runtime.upgrade = upgrade
-
-    payload = asyncio.run(runtime.upgrade_plugin('demo', dry_run=True, record_operation_log=False))
-
-    assert upgrade.plugin_id == 'demo'
-    assert upgrade.dry_run is True
-    assert upgrade.record_operation_log is False
-    assert payload == {'ok': True, 'pluginId': 'demo', 'operation': 'upgrade'}
-
-
-def test_plugin_runtime_upgrade_use_case_uses_injected_context_service(tmp_path: Path) -> None:
-    """
-    校验升级 use case 通过显式注入的 context service 使用上下文能力。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    sentinel = object()
-    database_state = object()
-
-    assert runtime.upgrade.context is runtime.context
-
-    class FakeUpgradeContextService:
-        """
-        测试用升级上下文服务。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用升级上下文服务。
-            """
-            self.discovered_plugins: list[object] | None = None
-            self.plugin_id: str | None = None
-            self.blocked_operation: str | None = None
-            self.capability_plugin: object | None = None
-
-        def get_discovered_plugin_from_list(self, discovered_plugins: list[object], plugin_id: str) -> object:
-            """
-            记录插件列表查找调用。
-
-            :param discovered_plugins: 已发现插件列表
-            :param plugin_id: 插件ID
-            :return: 测试插件对象
-            """
-            self.discovered_plugins = discovered_plugins
-            self.plugin_id = plugin_id
-            return sentinel
-
-        def build_operation_blocked_payload(
-            self,
-            discovered_plugin: object,
-            operation: str,
-            *,
-            dry_run: bool | None = None,
-        ) -> dict | None:
-            """
-            记录运行模式阻断检查调用。
-
-            :param discovered_plugin: 已发现插件
-            :param operation: 操作类型
-            :param dry_run: 是否预演
-            :return: 阻断负载
-            """
-            self.blocked_operation = operation
-            return None
-
-        async def load_database_plugin_state(self, plugin_id: str) -> tuple[object, None]:
-            """
-            记录数据库状态读取调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试数据库状态
-            """
-            self.plugin_id = plugin_id
-            return database_state, None
-
-        def with_plugin_capability(self, payload: dict, discovered_plugin: object | None) -> dict:
-            """
-            记录 capability 附加调用。
-
-            :param payload: 响应负载
-            :param discovered_plugin: 已发现插件
-            :return: 附加后的响应负载
-            """
-            self.capability_plugin = discovered_plugin
-            payload['contextPlugin'] = discovered_plugin
-            return payload
-
-    context = FakeUpgradeContextService()
-    runtime.upgrade.context = context
-    discovered_plugins = [object()]
-
-    listed_plugin = runtime.upgrade._get_discovered_plugin_from_list(discovered_plugins, 'demo')
-    blocked_payload = runtime.upgrade._build_operation_blocked_payload(sentinel, 'upgrade', dry_run=True)
-    loaded_state, database_error = asyncio.run(runtime.upgrade._load_database_plugin_state('demo'))
-    payload = runtime.upgrade._with_plugin_capability({'ok': True}, sentinel)
-
-    assert listed_plugin is sentinel
-    assert context.discovered_plugins is discovered_plugins
-    assert context.plugin_id == 'demo'
-    assert context.blocked_operation == 'upgrade'
-    assert blocked_payload is None
-    assert loaded_state is database_state
-    assert database_error is None
-    assert context.capability_plugin is sentinel
-    assert payload == {'ok': True, 'contextPlugin': sentinel}
-
-
 def test_plugin_runtime_set_plugin_enabled_dry_run_returns_actions(tmp_path: Path) -> None:
-    """
-    校验插件启停 dry-run 返回动作计划。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件启停 dry-run 返回动作计划。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1162,7 +656,6 @@ def test_plugin_runtime_set_plugin_enabled_dry_run_returns_actions(tmp_path: Pat
 id: demo
 name: Demo
 version: 1.0.0
-enabled: false
 backend:
   module: plugins.demo
 frontend:
@@ -1188,175 +681,8 @@ dependencies:
     assert result['precheck']['structureErrors'] == []
 
 
-def test_plugin_runtime_set_plugin_enabled_delegates_to_enable_use_case(tmp_path: Path) -> None:
-    """
-    校验插件启停入口委托给组合式启停 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeEnableUseCase:
-        """
-        测试用插件启停 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件启停 use case。
-            """
-            self.plugin_id: str | None = None
-            self.enabled: bool | None = None
-            self.dry_run: bool | None = None
-            self.record_operation_log: bool | None = None
-
-        async def set_plugin_enabled(
-            self,
-            plugin_id: str,
-            *,
-            enabled: bool,
-            dry_run: bool = False,
-            record_operation_log: bool = True,
-        ) -> dict:
-            """
-            记录插件启停调用。
-
-            :param plugin_id: 插件ID
-            :param enabled: 是否启用
-            :param dry_run: 是否仅预演
-            :param record_operation_log: 是否记录审计日志
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.enabled = enabled
-            self.dry_run = dry_run
-            self.record_operation_log = record_operation_log
-            return {'ok': True, 'pluginId': plugin_id, 'enabled': enabled}
-
-    enable = FakeEnableUseCase()
-    runtime.enable = enable
-
-    payload = asyncio.run(
-        runtime.set_plugin_enabled(
-            'demo',
-            enabled=True,
-            dry_run=True,
-            record_operation_log=False,
-        )
-    )
-
-    assert enable.plugin_id == 'demo'
-    assert enable.enabled is True
-    assert enable.dry_run is True
-    assert enable.record_operation_log is False
-    assert payload == {'ok': True, 'pluginId': 'demo', 'enabled': True}
-
-
-def test_plugin_runtime_enable_use_case_uses_injected_context_service(tmp_path: Path) -> None:
-    """
-    校验启停 use case 通过显式注入的 context service 使用上下文能力。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    sentinel = object()
-
-    assert runtime.enable.context is runtime.context
-
-    class FakeEnableContextService:
-        """
-        测试用启停上下文服务。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用启停上下文服务。
-            """
-            self.plugin_id: str | None = None
-            self.discovered_plugins: list[object] | None = None
-            self.blocked_operation: str | None = None
-            self.capability_plugin: object | None = None
-
-        def get_discovered_plugin(self, plugin_id: str) -> object:
-            """
-            记录插件发现调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试插件对象
-            """
-            self.plugin_id = plugin_id
-            return sentinel
-
-        def get_discovered_plugin_from_list(self, discovered_plugins: list[object], plugin_id: str) -> object:
-            """
-            记录插件列表查找调用。
-
-            :param discovered_plugins: 已发现插件列表
-            :param plugin_id: 插件ID
-            :return: 测试插件对象
-            """
-            self.discovered_plugins = discovered_plugins
-            self.plugin_id = plugin_id
-            return sentinel
-
-        def build_operation_blocked_payload(
-            self,
-            discovered_plugin: object,
-            operation: str,
-            *,
-            dry_run: bool | None = None,
-        ) -> dict | None:
-            """
-            记录运行模式阻断检查调用。
-
-            :param discovered_plugin: 已发现插件
-            :param operation: 操作类型
-            :param dry_run: 是否预演
-            :return: 阻断负载
-            """
-            self.blocked_operation = operation
-            return None
-
-        def with_plugin_capability(self, payload: dict, discovered_plugin: object | None) -> dict:
-            """
-            记录 capability 附加调用。
-
-            :param payload: 响应负载
-            :param discovered_plugin: 已发现插件
-            :return: 附加后的响应负载
-            """
-            self.capability_plugin = discovered_plugin
-            payload['contextPlugin'] = discovered_plugin
-            return payload
-
-    context = FakeEnableContextService()
-    runtime.enable.context = context
-    discovered_plugins = [object()]
-
-    discovered_plugin = runtime.enable._get_discovered_plugin('demo')
-    listed_plugin = runtime.enable._get_discovered_plugin_from_list(discovered_plugins, 'demo')
-    blocked_payload = runtime.enable._build_operation_blocked_payload(sentinel, 'enable', dry_run=True)
-    payload = runtime.enable._with_plugin_capability({'ok': True}, sentinel)
-
-    assert context.plugin_id == 'demo'
-    assert discovered_plugin is sentinel
-    assert listed_plugin is sentinel
-    assert context.discovered_plugins is discovered_plugins
-    assert context.blocked_operation == 'enable'
-    assert blocked_payload is None
-    assert context.capability_plugin is sentinel
-    assert payload == {'ok': True, 'contextPlugin': sentinel}
-
-
 def test_plugin_runtime_set_plugin_enabled_persists_state(tmp_path: Path) -> None:
-    """
-    校验插件启停会调用插件服务并提交事务。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件启停会调用插件服务并提交事务。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1365,7 +691,6 @@ def test_plugin_runtime_set_plugin_enabled_persists_state(tmp_path: Path) -> Non
 id: demo
 name: Demo
 version: 1.0.0
-enabled: false
 backend:
   module: plugins.demo
 frontend:
@@ -1377,7 +702,6 @@ dependencies:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).set_plugin_enabled('demo', enabled=True))
 
@@ -1394,12 +718,7 @@ dependencies:
 def test_plugin_runtime_set_plugin_enabled_uses_lifecycle_state_gateway_without_fat_service(
     tmp_path: Path,
 ) -> None:
-    """
-    校验插件启用通过生命周期状态窄端口写入，不回退到 fat state gateway。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件启用通过生命周期状态窄端口写入，不回退到 fat state gateway。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1408,7 +727,6 @@ def test_plugin_runtime_set_plugin_enabled_uses_lifecycle_state_gateway_without_
 id: demo
 name: Demo
 version: 1.0.0
-enabled: false
 backend:
   module: plugins.demo
 frontend:
@@ -1426,28 +744,16 @@ dependencies:
         """
 
         def __init__(self) -> None:
-            """
-            初始化测试生命周期状态网关。
-            """
+            """初始化测试生命周期状态网关。"""
             super().__init__()
             self.enabled_state_calls: list[tuple[str, bool, object | None]] = []
 
         def get_async_session_local(self) -> object:
-            """
-            禁止通过 state gateway 打开数据库会话。
-
-            :return: 不返回
-            :raises AssertionError: 启用流程不应使用 fat state gateway
-            """
+            """禁止通过 state gateway 打开数据库会话。"""
             raise AssertionError('启用流程不应通过 state gateway 打开数据库会话')
 
         def get_plugin_service(self) -> object:
-            """
-            禁止通过 state gateway 获取管理服务。
-
-            :return: 不返回
-            :raises AssertionError: 启用流程不应使用 fat state gateway
-            """
+            """禁止通过 state gateway 获取管理服务。"""
             raise AssertionError('启用流程不应通过 state gateway 获取管理服务')
 
         async def set_plugin_enabled_state(
@@ -1456,14 +762,7 @@ dependencies:
             enabled: bool,
             discovered_plugin: object | None = None,
         ) -> object:
-            """
-            通过窄端口更新插件启停状态。
-
-            :param plugin_id: 插件ID
-            :param enabled: 是否启用
-            :param discovered_plugin: 已发现插件
-            :return: 操作响应
-            """
+            """通过窄端口更新插件启停状态。"""
             self.enabled_state_calls.append((plugin_id, enabled, discovered_plugin))
             async with self.session_local() as session:
                 response = await FakePluginService.update_plugin_enabled_services(
@@ -1478,7 +777,6 @@ dependencies:
                 return response
 
     gateway = NoFatLifecycleStateGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).set_plugin_enabled('demo', enabled=True))
 
@@ -1490,12 +788,7 @@ dependencies:
 
 
 def test_plugin_runtime_set_plugin_enabled_reports_failed_lifecycle_step(tmp_path: Path) -> None:
-    """
-    校验插件启用执行失败时返回失败生命周期步骤。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件启用执行失败时返回失败生命周期步骤。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1510,7 +803,6 @@ backend:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     async def raise_enable_failure(
         query_db: object,
@@ -1518,6 +810,7 @@ backend:
         enabled: bool,
         discovered_plugin: object | None = None,
     ) -> object:
+        """模拟启用插件失败。"""
         raise RuntimeError('enable update failed')
 
     original_update_enabled = FakePluginService.update_plugin_enabled_services
@@ -1537,12 +830,7 @@ backend:
 
 
 def test_plugin_runtime_disable_blocks_enabled_dependents(tmp_path: Path) -> None:
-    """
-    校验停用被启用插件依赖的插件时会阻断写库。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验停用被启用插件依赖的插件时会阻断写库。"""
     backend_root = tmp_path / 'backend'
     base_root = backend_root / 'plugins' / 'base'
     app_root = backend_root / 'plugins' / 'app'
@@ -1581,7 +869,6 @@ dependencies:
     create_controller_dir(base_root)
     create_controller_dir(app_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.plugin_list = [
         SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed'),
         SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed'),
@@ -1598,12 +885,7 @@ dependencies:
 
 
 def test_plugin_runtime_disable_dry_run_reports_enabled_dependents(tmp_path: Path) -> None:
-    """
-    校验停用预演会暴露被依赖方检查结果但不失败。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验停用预演会暴露被依赖方检查结果但不失败。"""
     backend_root = tmp_path / 'backend'
     base_root = backend_root / 'plugins' / 'base'
     app_root = backend_root / 'plugins' / 'app'
@@ -1642,7 +924,6 @@ dependencies:
     create_controller_dir(base_root)
     create_controller_dir(app_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.plugin_list = [
         SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed'),
         SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed'),
@@ -1660,12 +941,7 @@ dependencies:
 
 
 def test_plugin_runtime_set_plugin_enabled_uses_injected_dependencies(tmp_path: Path) -> None:
-    """
-    校验插件启用使用构造期注入的集中依赖对象。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件启用使用构造期注入的集中依赖对象。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1674,7 +950,6 @@ def test_plugin_runtime_set_plugin_enabled_uses_injected_dependencies(tmp_path: 
 id: demo
 name: Demo
 version: 1.0.0
-enabled: false
 backend:
   module: plugins.demo
 frontend:
@@ -1686,7 +961,6 @@ dependencies:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     runtime = build_runtime_with_gateway(backend_root, gateway)
 
     result = asyncio.run(runtime.set_plugin_enabled('demo', enabled=True, record_operation_log=False))
@@ -1700,12 +974,7 @@ dependencies:
 
 
 def test_plugin_runtime_check_reports_plugin_dependency_errors(tmp_path: Path) -> None:
-    """
-    校验插件检查会报告插件间依赖错误。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件检查会报告插件间依赖错误。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1735,12 +1004,7 @@ dependencies:
 
 
 def test_plugin_runtime_install_blocks_unsatisfied_plugin_dependency(tmp_path: Path) -> None:
-    """
-    校验插件安装会阻止未满足的插件间依赖。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安装会阻止未满足的插件间依赖。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1762,7 +1026,6 @@ dependencies:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).install_plugin('demo'))
 
@@ -1774,12 +1037,7 @@ dependencies:
 
 
 def test_plugin_runtime_enable_blocks_unsatisfied_plugin_dependency(tmp_path: Path) -> None:
-    """
-    校验插件启用会阻止未满足的插件间依赖。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件启用会阻止未满足的插件间依赖。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1788,7 +1046,6 @@ def test_plugin_runtime_enable_blocks_unsatisfied_plugin_dependency(tmp_path: Pa
 id: demo
 name: Demo
 version: 1.0.0
-enabled: false
 backend:
   module: plugins.demo
 frontend:
@@ -1802,7 +1059,6 @@ dependencies:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).set_plugin_enabled('demo', enabled=True))
 
@@ -1814,12 +1070,7 @@ dependencies:
 
 
 def test_plugin_runtime_disable_reports_failed_lifecycle_step(tmp_path: Path) -> None:
-    """
-    校验插件停用执行失败时返回失败生命周期步骤。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件停用执行失败时返回失败生命周期步骤。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1834,7 +1085,6 @@ backend:
     )
     create_controller_dir(plugin_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     async def raise_disable_failure(
         query_db: object,
@@ -1842,6 +1092,7 @@ backend:
         enabled: bool,
         discovered_plugin: object | None = None,
     ) -> object:
+        """模拟禁用插件失败。"""
         raise RuntimeError('disable update failed')
 
     original_update_enabled = FakePluginService.update_plugin_enabled_services
@@ -1862,12 +1113,7 @@ backend:
 
 
 def test_plugin_runtime_uninstall_plugin_dry_run_returns_safe_payload(tmp_path: Path) -> None:
-    """
-    校验插件安全卸载 dry-run 返回安全卸载语义。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安全卸载 dry-run 返回安全卸载语义。"""
     backend_root = tmp_path / 'backend'
     backend_root.mkdir()
 
@@ -1881,70 +1127,8 @@ def test_plugin_runtime_uninstall_plugin_dry_run_returns_safe_payload(tmp_path: 
     assert result['removesMenus'] is True
 
 
-def test_plugin_runtime_uninstall_plugin_delegates_to_enable_use_case(tmp_path: Path) -> None:
-    """
-    校验插件卸载入口委托给组合式启停 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeEnableUseCase:
-        """
-        测试用插件启停 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件启停 use case。
-            """
-            self.plugin_id: str | None = None
-            self.dry_run: bool | None = None
-            self.record_operation_log: bool | None = None
-            self.operated_by: str | None = None
-
-        async def uninstall_plugin(
-            self,
-            plugin_id: str,
-            *,
-            dry_run: bool = False,
-            record_operation_log: bool = True,
-            operated_by: str | None = None,
-        ) -> dict:
-            """
-            记录插件卸载调用。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :param record_operation_log: 是否记录审计日志
-            :param operated_by: 操作者用户名
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.dry_run = dry_run
-            self.record_operation_log = record_operation_log
-            self.operated_by = operated_by
-            return {'ok': True, 'pluginId': plugin_id, 'operation': 'uninstall'}
-
-    enable = FakeEnableUseCase()
-    runtime.enable = enable
-
-    payload = asyncio.run(runtime.uninstall_plugin('demo', dry_run=True, record_operation_log=False))
-
-    assert enable.plugin_id == 'demo'
-    assert enable.dry_run is True
-    assert enable.record_operation_log is False
-    assert payload == {'ok': True, 'pluginId': 'demo', 'operation': 'uninstall'}
-
-
 def test_plugin_runtime_uninstall_plugin_dry_run_includes_precheck_when_source_exists(tmp_path: Path) -> None:
-    """
-    校验插件安全卸载 dry-run 在源码存在时返回统一预检负载。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安全卸载 dry-run 在源码存在时返回统一预检负载。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -1974,12 +1158,7 @@ dependencies:
 
 
 def test_plugin_runtime_uninstall_plugin_blocks_enabled_dependents(tmp_path: Path) -> None:
-    """
-    校验卸载被启用插件依赖的插件时会阻断写库。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验卸载被启用插件依赖的插件时会阻断写库。"""
     backend_root = tmp_path / 'backend'
     base_root = backend_root / 'plugins' / 'base'
     app_root = backend_root / 'plugins' / 'app'
@@ -2018,7 +1197,6 @@ dependencies:
     create_controller_dir(base_root)
     create_controller_dir(app_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.plugin_list = [
         SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed'),
         SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed'),
@@ -2035,16 +1213,10 @@ dependencies:
 
 
 def test_plugin_runtime_uninstall_plugin_marks_plugin_uninstalled(tmp_path: Path) -> None:
-    """
-    校验插件安全卸载会标记卸载并提交事务。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安全卸载会标记卸载并提交事务。"""
     backend_root = tmp_path / 'backend'
     backend_root.mkdir()
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).uninstall_plugin('demo'))
 
@@ -2057,86 +1229,14 @@ def test_plugin_runtime_uninstall_plugin_marks_plugin_uninstalled(tmp_path: Path
     assert FakePluginService.operation_logs[0].payload['operation'] == 'uninstall'
 
 
-def test_plugin_runtime_uninstall_plugin_uses_lifecycle_state_gateway_without_fat_service(
-    tmp_path: Path,
-) -> None:
-    """
-    校验插件安全卸载通过生命周期状态窄端口写入，不回退到 fat state gateway。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    backend_root = tmp_path / 'backend'
-    backend_root.mkdir()
-
-    class NoFatLifecycleStateGateway(FakePluginRuntimeGateway):
-        """
-        禁止卸载流程读取 fat state gateway 的测试适配器。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试生命周期状态网关。
-            """
-            super().__init__()
-            self.uninstalled_state_calls: list[str] = []
-
-        def get_async_session_local(self) -> object:
-            """
-            禁止通过 state gateway 打开数据库会话。
-
-            :return: 不返回
-            :raises AssertionError: 卸载流程不应使用 fat state gateway
-            """
-            raise AssertionError('卸载流程不应通过 state gateway 打开数据库会话')
-
-        def get_plugin_service(self) -> object:
-            """
-            禁止通过 state gateway 获取管理服务。
-
-            :return: 不返回
-            :raises AssertionError: 卸载流程不应使用 fat state gateway
-            """
-            raise AssertionError('卸载流程不应通过 state gateway 获取管理服务')
-
-        async def mark_plugin_uninstalled_state(self, plugin_id: str) -> object:
-            """
-            通过窄端口标记插件卸载。
-
-            :param plugin_id: 插件ID
-            :return: 操作响应
-            """
-            self.uninstalled_state_calls.append(plugin_id)
-            async with self.session_local() as session:
-                response = await FakePluginService.mark_plugin_uninstalled_services(session, plugin_id)
-                if response.is_success:
-                    await session.commit()
-                return response
-
-    gateway = NoFatLifecycleStateGateway()
-    FakePluginService.reset()
-
-    result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).uninstall_plugin('demo'))
-
-    assert result['ok'] is True
-    assert gateway.uninstalled_state_calls == ['demo']
-    assert FakePluginService.mark_uninstalled_called_with == 'demo'
-    assert gateway.session_local.sessions[0].committed is True
-
-
 def test_plugin_runtime_uninstall_plugin_reports_failed_lifecycle_step(tmp_path: Path) -> None:
-    """
-    校验插件卸载执行失败时返回失败生命周期步骤。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件卸载执行失败时返回失败生命周期步骤。"""
     backend_root = tmp_path / 'backend'
     backend_root.mkdir()
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     async def raise_uninstall_failure(query_db: object, plugin_id: str) -> object:
+        """模拟卸载插件失败。"""
         raise RuntimeError('uninstall update failed')
 
     original_mark_uninstalled = FakePluginService.mark_plugin_uninstalled_services
@@ -2155,12 +1255,7 @@ def test_plugin_runtime_uninstall_plugin_reports_failed_lifecycle_step(tmp_path:
 
 
 def test_plugin_runtime_purge_plugin_dry_run_returns_plan(tmp_path: Path) -> None:
-    """
-    校验插件物理清理 dry-run 返回清理计划且不提交事务。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件物理清理 dry-run 返回清理计划且不提交事务。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -2181,7 +1276,6 @@ resources:
 """,
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).purge_plugin('demo', dry_run=True))
 
@@ -2223,70 +1317,8 @@ resources:
     assert gateway.session_local.sessions[0].committed is False
 
 
-def test_plugin_runtime_purge_plugin_delegates_to_purge_use_case(tmp_path: Path) -> None:
-    """
-    校验插件物理清理入口委托给组合式清理 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakePurgeUseCase:
-        """
-        测试用插件清理 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件清理 use case。
-            """
-            self.plugin_id: str | None = None
-            self.dry_run: bool | None = None
-            self.record_operation_log: bool | None = None
-            self.operated_by: str | None = None
-
-        async def purge_plugin(
-            self,
-            plugin_id: str,
-            *,
-            dry_run: bool = False,
-            record_operation_log: bool = True,
-            operated_by: str | None = None,
-        ) -> dict:
-            """
-            记录插件物理清理调用。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :param record_operation_log: 是否记录审计日志
-            :param operated_by: 操作者用户名
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.dry_run = dry_run
-            self.record_operation_log = record_operation_log
-            self.operated_by = operated_by
-            return {'ok': True, 'pluginId': plugin_id, 'operation': 'purge'}
-
-    purge = FakePurgeUseCase()
-    runtime.purge = purge
-
-    payload = asyncio.run(runtime.purge_plugin('demo', dry_run=True, record_operation_log=False))
-
-    assert purge.plugin_id == 'demo'
-    assert purge.dry_run is True
-    assert purge.record_operation_log is False
-    assert payload == {'ok': True, 'pluginId': 'demo', 'operation': 'purge'}
-
-
 def test_plugin_runtime_purge_plugin_blocks_enabled_dependents(tmp_path: Path) -> None:
-    """
-    校验物理清理被启用插件依赖的插件时会阻断写库。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验物理清理被启用插件依赖的插件时会阻断写库。"""
     backend_root = tmp_path / 'backend'
     base_root = backend_root / 'plugins' / 'base'
     app_root = backend_root / 'plugins' / 'app'
@@ -2316,7 +1348,6 @@ dependencies:
     create_controller_dir(base_root)
     create_controller_dir(app_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.plugin_list = [
         SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed'),
         SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed'),
@@ -2333,12 +1364,7 @@ dependencies:
 
 
 def test_plugin_runtime_purge_dry_run_reports_enabled_dependents(tmp_path: Path) -> None:
-    """
-    校验物理清理 dry-run 会暴露被依赖方检查结果但不执行清理。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验物理清理 dry-run 会暴露被依赖方检查结果但不执行清理。"""
     backend_root = tmp_path / 'backend'
     base_root = backend_root / 'plugins' / 'base'
     app_root = backend_root / 'plugins' / 'app'
@@ -2368,7 +1394,6 @@ dependencies:
     create_controller_dir(base_root)
     create_controller_dir(app_root)
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     FakePluginService.plugin_list = [
         SimpleNamespace(plugin_id='base', installed_version='1.0.0', enabled='0', status='installed'),
         SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed'),
@@ -2385,71 +1410,8 @@ dependencies:
     assert FakePluginService.purge_called is False
 
 
-def test_plugin_runtime_purge_use_case_uses_injected_context_service(tmp_path: Path) -> None:
-    """
-    校验物理清理 use case 通过显式注入的 context service 使用上下文能力。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    sentinel = object()
-
-    assert runtime.purge.context is runtime.context
-
-    class FakePurgeContextService:
-        """
-        测试用物理清理上下文服务。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用物理清理上下文服务。
-            """
-            self.plugin_id: str | None = None
-            self.capability_plugin: object | None = None
-
-        def get_discovered_plugin(self, plugin_id: str) -> object:
-            """
-            记录插件发现调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试插件对象
-            """
-            self.plugin_id = plugin_id
-            return sentinel
-
-        def with_plugin_capability(self, payload: dict, discovered_plugin: object | None) -> dict:
-            """
-            记录 capability 附加调用。
-
-            :param payload: 响应负载
-            :param discovered_plugin: 已发现插件
-            :return: 附加后的响应负载
-            """
-            self.capability_plugin = discovered_plugin
-            payload['contextPlugin'] = discovered_plugin
-            return payload
-
-    context = FakePurgeContextService()
-    runtime.purge.context = context
-
-    discovered_plugin = runtime.purge._get_discovered_plugin('demo')
-    payload = runtime.purge._with_plugin_capability({'ok': True}, sentinel)
-
-    assert context.plugin_id == 'demo'
-    assert discovered_plugin is sentinel
-    assert context.capability_plugin is sentinel
-    assert payload == {'ok': True, 'contextPlugin': sentinel}
-
-
 def test_plugin_runtime_purge_plugin_runs_hook_and_cleans_metadata(tmp_path: Path) -> None:
-    """
-    校验插件物理清理会执行 on_purge 钩子、清理平台元数据并提交事务。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件物理清理会执行 on_purge 钩子、清理平台元数据并提交事务。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -2469,7 +1431,6 @@ backend:
         encoding='utf-8',
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).purge_plugin('demo'))
 
@@ -2484,12 +1445,7 @@ backend:
 
 
 def test_plugin_runtime_purge_plugin_uses_lifecycle_uow_without_fat_service(tmp_path: Path) -> None:
-    """
-    校验插件物理清理通过生命周期 UoW 完成，不回退到 fat state gateway。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件物理清理通过生命周期 UoW 完成，不回退到 fat state gateway。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -2515,25 +1471,14 @@ backend:
         """
 
         def get_async_session_local(self) -> object:
-            """
-            禁止通过 state gateway 打开数据库会话。
-
-            :return: 不返回
-            :raises AssertionError: 物理清理流程不应使用 fat state gateway
-            """
+            """禁止通过 state gateway 打开数据库会话。"""
             raise AssertionError('物理清理流程不应通过 state gateway 打开数据库会话')
 
         def get_plugin_service(self) -> object:
-            """
-            禁止通过 state gateway 获取管理服务。
-
-            :return: 不返回
-            :raises AssertionError: 物理清理流程不应使用 fat state gateway
-            """
+            """禁止通过 state gateway 获取管理服务。"""
             raise AssertionError('物理清理流程不应通过 state gateway 获取管理服务')
 
     gateway = NoFatPurgeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(
         build_runtime_with_gateway(backend_root, gateway).purge_plugin('demo', record_operation_log=False)
@@ -2547,12 +1492,7 @@ backend:
 
 
 def test_plugin_runtime_purge_plugin_reports_failed_lifecycle_step(tmp_path: Path) -> None:
-    """
-    校验插件物理清理执行失败时返回失败生命周期步骤。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件物理清理执行失败时返回失败生命周期步骤。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -2572,7 +1512,6 @@ backend:
         encoding='utf-8',
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
 
     result = asyncio.run(build_runtime_with_gateway(backend_root, gateway).purge_plugin('demo'))
 
@@ -2585,12 +1524,7 @@ backend:
 
 
 def test_plugin_runtime_purge_plugin_uses_injected_dependencies(tmp_path: Path) -> None:
-    """
-    校验插件物理清理使用构造期注入的集中依赖网关。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件物理清理使用构造期注入的集中依赖网关。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -2610,7 +1544,6 @@ backend:
         encoding='utf-8',
     )
     gateway = FakePluginRuntimeGateway()
-    FakePluginService.reset()
     runtime = build_runtime_with_gateway(backend_root, gateway)
 
     result = asyncio.run(runtime.purge_plugin('demo', record_operation_log=False))

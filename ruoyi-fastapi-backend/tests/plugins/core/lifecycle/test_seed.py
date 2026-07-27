@@ -1,26 +1,15 @@
-import sys
 from pathlib import Path
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.discovery.scanner import PluginScanner  # noqa: E402
-from plugins.core.lifecycle.seed import PluginSeedRunner  # noqa: E402
+from plugins.core.discovery.scanner import PluginScanner
+from plugins.core.lifecycle.seed import PluginSeedRunner
 
 
 def write_plugin_with_seed(plugin_root: Path, seed_content: str, seed_name: str = 'demo_seed.py') -> None:
-    """
-    写入带 seed 的测试插件。
-
-    :param plugin_root: 插件根目录
-    :param seed_content: seed 文件内容
-    :param seed_name: seed 文件名
-    :return: None
-    """
+    """写入带 seed 的测试插件。"""
     (plugin_root / 'seeds').mkdir(parents=True)
     (plugin_root / 'seeds' / seed_name).write_text(seed_content, encoding='utf-8')
     (plugin_root / 'plugin.yaml').write_text(
@@ -39,12 +28,7 @@ backend:
 
 @pytest.mark.asyncio
 async def test_plugin_seed_runner_executes_async_seed(tmp_path: Path) -> None:
-    """
-    校验 seed 运行器可以执行异步 Python seed。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 seed 运行器可以执行异步 Python seed。"""
     plugin_root = tmp_path / 'plugins' / 'demo_seed'
     write_plugin_with_seed(plugin_root, 'async def run(query_db):\n    query_db.append("async_seed")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -58,12 +42,7 @@ async def test_plugin_seed_runner_executes_async_seed(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_plugin_seed_runner_rejects_missing_run_function(tmp_path: Path) -> None:
-    """
-    校验 seed 缺少 run 函数时会失败。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 seed 缺少 run 函数时会失败。"""
     plugin_root = tmp_path / 'plugins' / 'demo_seed'
     write_plugin_with_seed(plugin_root, 'VALUE = 1\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -74,12 +53,7 @@ async def test_plugin_seed_runner_rejects_missing_run_function(tmp_path: Path) -
 
 @pytest.mark.asyncio
 async def test_plugin_seed_runner_executes_sql_seed(tmp_path: Path) -> None:
-    """
-    校验 seed 运行器可以执行 SQL seed。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 seed 运行器可以执行 SQL seed。"""
     plugin_root = tmp_path / 'plugins' / 'demo_seed'
     write_plugin_with_seed(
         plugin_root,
@@ -111,13 +85,7 @@ insert into demo_seed_value (id, name) values (1, 'demo');
 async def test_plugin_seed_runner_filters_seed_by_database_dialect(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """
-    校验 seed 运行器只执行当前数据库方言目录下的 seed。
-
-    :param tmp_path: pytest 临时目录
-    :param monkeypatch: pytest monkeypatch
-    :return: None
-    """
+    """校验 seed 运行器只执行当前数据库方言目录下的 seed。"""
     plugin_root = tmp_path / 'plugins' / 'demo_seed'
     (plugin_root / 'seeds' / 'mysql').mkdir(parents=True)
     (plugin_root / 'seeds' / 'postgresql').mkdir(parents=True)

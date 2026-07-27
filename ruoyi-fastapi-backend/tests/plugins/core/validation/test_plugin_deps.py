@@ -1,13 +1,9 @@
-import sys
 from pathlib import Path
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.discovery.scanner import DiscoveredPlugin  # noqa: E402
-from plugins.core.management.entity.vo.schemas import PluginModel  # noqa: E402
-from plugins.core.manifest.schema import PluginManifest  # noqa: E402
-from plugins.core.validation.plugin_deps import (  # noqa: E402
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.management.entity.vo.schemas import PluginModel
+from plugins.core.manifest.schema import PluginManifest
+from plugins.core.validation.plugin_deps import (
     PluginDependencyChecker,
     PluginDependencyPlanBuilder,
 )
@@ -19,15 +15,7 @@ def build_discovered_plugin(
     version: str = '1.0.0',
     dependencies: list[object] | None = None,
 ) -> DiscoveredPlugin:
-    """
-    构造测试用已发现插件。
-
-    :param tmp_path: pytest 临时目录
-    :param plugin_id: 插件ID
-    :param version: 插件版本
-    :param dependencies: 插件间依赖声明
-    :return: 已发现插件对象
-    """
+    """构造测试用已发现插件。"""
     backend_path = tmp_path / 'plugins' / plugin_id
     manifest_path = backend_path / 'plugin.yaml'
     backend_path.mkdir(parents=True, exist_ok=True)
@@ -48,15 +36,7 @@ def build_discovered_plugin(
 def build_database_plugin(
     plugin_id: str, version: str, *, enabled: str = '0', status: str = 'installed'
 ) -> PluginModel:
-    """
-    构造测试用数据库插件状态。
-
-    :param plugin_id: 插件ID
-    :param version: 已安装版本
-    :param enabled: 是否启用（0启用 1停用）
-    :param status: 插件状态
-    :return: 插件数据库模型
-    """
+    """构造测试用数据库插件状态。"""
     return PluginModel(
         pluginId=plugin_id,
         pluginName=plugin_id,
@@ -68,12 +48,7 @@ def build_database_plugin(
 
 
 def test_plugin_dependency_checker_accepts_satisfied_dependency(tmp_path: Path) -> None:
-    """
-    校验插件间依赖满足时检查通过。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件间依赖满足时检查通过。"""
     target = build_discovered_plugin(tmp_path, 'target', dependencies=['base>=1.0.0'])
     base = build_discovered_plugin(tmp_path, 'base', version='1.2.0')
 
@@ -87,12 +62,7 @@ def test_plugin_dependency_checker_accepts_satisfied_dependency(tmp_path: Path) 
 
 
 def test_plugin_dependency_checker_reports_missing_and_not_installed(tmp_path: Path) -> None:
-    """
-    校验插件间依赖能报告缺失和未安装。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件间依赖能报告缺失和未安装。"""
     target = build_discovered_plugin(
         tmp_path,
         'target',
@@ -107,12 +77,7 @@ def test_plugin_dependency_checker_reports_missing_and_not_installed(tmp_path: P
 
 
 def test_plugin_dependency_checker_reports_disabled_and_version_unsatisfied(tmp_path: Path) -> None:
-    """
-    校验插件间依赖能报告未启用和版本不满足。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件间依赖能报告未启用和版本不满足。"""
     target = build_discovered_plugin(
         tmp_path,
         'target',
@@ -134,12 +99,7 @@ def test_plugin_dependency_checker_reports_disabled_and_version_unsatisfied(tmp_
 
 
 def test_plugin_dependency_checker_treats_bare_version_as_exact_constraint(tmp_path: Path) -> None:
-    """
-    校验插件依赖裸版本约束按精确版本匹配。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件依赖裸版本约束按精确版本匹配。"""
     target = build_discovered_plugin(
         tmp_path,
         'target',
@@ -157,12 +117,7 @@ def test_plugin_dependency_checker_treats_bare_version_as_exact_constraint(tmp_p
 
 
 def test_plugin_dependency_checker_reports_cycle(tmp_path: Path) -> None:
-    """
-    校验插件间依赖能报告循环依赖。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件间依赖能报告循环依赖。"""
     alpha = build_discovered_plugin(tmp_path, 'alpha', dependencies=['beta'])
     beta = build_discovered_plugin(tmp_path, 'beta', dependencies=['alpha'])
 
@@ -179,12 +134,7 @@ def test_plugin_dependency_checker_reports_cycle(tmp_path: Path) -> None:
 
 
 def test_plugin_dependency_checker_reports_enabled_dependents(tmp_path: Path) -> None:
-    """
-    校验停用被依赖方前会报告仍启用的依赖方。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验停用被依赖方前会报告仍启用的依赖方。"""
     base = build_discovered_plugin(tmp_path, 'base')
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['base>=1.0.0'])
     disabled_app = build_discovered_plugin(tmp_path, 'disabled_app', dependencies=['base'])
@@ -206,12 +156,7 @@ def test_plugin_dependency_checker_reports_enabled_dependents(tmp_path: Path) ->
 
 
 def test_plugin_dependency_plan_builder_sorts_dependencies_first_for_install(tmp_path: Path) -> None:
-    """
-    校验插件批量安装计划按依赖优先排序。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件批量安装计划按依赖优先排序。"""
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['base'])
     base = build_discovered_plugin(tmp_path, 'base')
 
@@ -225,12 +170,7 @@ def test_plugin_dependency_plan_builder_sorts_dependencies_first_for_install(tmp
 
 
 def test_plugin_dependency_plan_builder_blocks_install_when_database_dependency_disabled(tmp_path: Path) -> None:
-    """
-    校验批量安装计划会阻止依赖插件已停用的场景。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验批量安装计划会阻止依赖插件已停用的场景。"""
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['base'])
     base = build_discovered_plugin(tmp_path, 'base')
     database_base = build_database_plugin('base', '1.0.0', enabled='1', status='installed')
@@ -242,12 +182,7 @@ def test_plugin_dependency_plan_builder_blocks_install_when_database_dependency_
 
 
 def test_plugin_dependency_plan_builder_reports_missing_dependency(tmp_path: Path) -> None:
-    """
-    校验插件批量操作计划会报告缺失依赖。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件批量操作计划会报告缺失依赖。"""
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['missing'])
 
     plan = PluginDependencyPlanBuilder([app], []).build_plan('install', ['app'])
@@ -259,12 +194,7 @@ def test_plugin_dependency_plan_builder_reports_missing_dependency(tmp_path: Pat
 
 
 def test_plugin_dependency_plan_builder_blocks_enable_when_dependency_not_installed(tmp_path: Path) -> None:
-    """
-    校验批量启用计划会阻止未安装依赖。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验批量启用计划会阻止未安装依赖。"""
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['base'])
     base = build_discovered_plugin(tmp_path, 'base')
 
@@ -276,12 +206,7 @@ def test_plugin_dependency_plan_builder_blocks_enable_when_dependency_not_instal
 
 
 def test_plugin_dependency_plan_builder_allows_enable_with_disabled_installed_dependency(tmp_path: Path) -> None:
-    """
-    校验批量启用计划允许依赖插件在同一批次中从停用变为启用。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验批量启用计划允许依赖插件在同一批次中从停用变为启用。"""
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['base'])
     base = build_discovered_plugin(tmp_path, 'base')
 
@@ -298,12 +223,7 @@ def test_plugin_dependency_plan_builder_allows_enable_with_disabled_installed_de
 
 
 def test_plugin_dependency_plan_builder_blocks_upgrade_when_dependency_disabled(tmp_path: Path) -> None:
-    """
-    校验批量升级计划会阻止依赖插件处于停用状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验批量升级计划会阻止依赖插件处于停用状态。"""
     app = build_discovered_plugin(tmp_path, 'app', dependencies=['base'])
     base = build_discovered_plugin(tmp_path, 'base')
 
@@ -321,12 +241,7 @@ def test_plugin_dependency_plan_builder_blocks_upgrade_when_dependency_disabled(
 
 
 def test_plugin_dependency_plan_builder_reports_cycle(tmp_path: Path) -> None:
-    """
-    校验插件批量操作计划能报告循环依赖。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件批量操作计划能报告循环依赖。"""
     alpha = build_discovered_plugin(tmp_path, 'alpha', dependencies=['beta'])
     beta = build_discovered_plugin(tmp_path, 'beta', dependencies=['alpha'])
 

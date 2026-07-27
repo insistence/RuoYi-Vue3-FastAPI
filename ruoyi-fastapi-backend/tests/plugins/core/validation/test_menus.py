@@ -1,21 +1,11 @@
-import sys
 from pathlib import Path
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner  # noqa: E402
-from plugins.core.validation.menus import PluginMenuConflictChecker  # noqa: E402
+from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
+from plugins.core.validation.menus import PluginMenuConflictChecker
 
 
 def write_manifest(plugin_dir: Path, content: str) -> Path:
-    """
-    写入测试插件清单。
-
-    :param plugin_dir: 插件目录
-    :param content: 清单内容
-    :return: 清单文件路径
-    """
+    """写入测试插件清单。"""
     plugin_dir.mkdir(parents=True)
     manifest_path = plugin_dir / 'plugin.yaml'
     manifest_path.write_text(content, encoding='utf-8')
@@ -23,23 +13,12 @@ def write_manifest(plugin_dir: Path, content: str) -> Path:
 
 
 def load_plugin(backend_root: Path, plugin_id: str) -> DiscoveredPlugin:
-    """
-    加载测试插件。
-
-    :param backend_root: 后端项目根目录
-    :param plugin_id: 插件ID
-    :return: 已发现插件对象
-    """
+    """加载测试插件。"""
     return PluginScanner(backend_root / 'plugins').load_manifest(backend_root / 'plugins' / plugin_id / 'plugin.yaml')
 
 
 def test_menu_conflict_checker_reports_duplicate_menu_key_in_single_plugin(tmp_path: Path) -> None:
-    """
-    校验菜单冲突检查器会报告单插件内重复菜单自然键。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验菜单冲突检查器会报告单插件内重复菜单自然键。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -73,12 +52,7 @@ permissions:
 
 
 def test_menu_conflict_checker_accepts_namespaced_permissions_across_plugins(tmp_path: Path) -> None:
-    """
-    校验菜单冲突检查器接受不同插件使用各自权限命名空间。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验菜单冲突检查器接受不同插件使用各自权限命名空间。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -126,12 +100,7 @@ permissions:
 
 
 def test_menu_conflict_checker_accepts_unique_plugin_menus(tmp_path: Path) -> None:
-    """
-    校验菜单冲突检查器接受无冲突菜单。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验菜单冲突检查器接受无冲突菜单。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',

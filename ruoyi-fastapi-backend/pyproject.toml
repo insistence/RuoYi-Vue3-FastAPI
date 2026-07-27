@@ -11,5 +11,8 @@ requires-python = ">=3.10"
 [project.scripts]
 ruoyi = "cli.main:main"
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 [tool.setuptools.packages.find]
 include = ["cli*"]

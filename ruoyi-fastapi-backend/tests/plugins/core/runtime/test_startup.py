@@ -1,4 +1,3 @@
-import sys
 from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -6,52 +5,32 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import FastAPI
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
+from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
+from plugins.core.runtime.bootstrap import PluginRuntimeBuilder
+from plugins.core.runtime.startup import PluginRuntimeStartupManager, PluginStartupMigrationHistoryStore
 
-from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin  # noqa: E402
-from plugins.core.runtime.bootstrap import PluginRuntimeBuilder  # noqa: E402
-from plugins.core.runtime.startup import PluginRuntimeStartupManager, PluginStartupMigrationHistoryStore  # noqa: E402
+BACKEND_ROOT = Path(__file__).resolve().parents[4]
 
 
 def patch_startup_get_db(fake_get_db: object) -> object:
-    """
-    patch 启动管理器方法实际使用的 get_db 全局引用。
-
-    :param fake_get_db: 测试用 get_db 异步生成器
-    :return: patch 上下文管理器
-    """
+    """patch 启动管理器方法实际使用的 get_db 全局引用。"""
     return patch.dict(PluginRuntimeStartupManager.load_registry_from_database.__globals__, {'get_db': fake_get_db})
 
 
 def patch_startup_global(name: str, value: object) -> object:
-    """
-    patch 启动管理器方法实际使用的模块全局引用。
-
-    :param name: 全局名称
-    :param value: 替换值
-    :return: patch 上下文管理器
-    """
+    """patch 启动管理器方法实际使用的模块全局引用。"""
     return patch.dict(PluginRuntimeStartupManager.load_registry_from_database.__globals__, {name: value})
 
 
 def test_startup_manager_parses_default_enabled_builtin_plugin_ids() -> None:
-    """
-    校验默认启用内置插件配置按逗号分隔解析。
-
-    :return: None
-    """
+    """校验默认启用内置插件配置按逗号分隔解析。"""
     plugin_ids = PluginRuntimeStartupManager.parse_default_enabled_builtin_plugin_ids('ai, demo, ,report')
 
     assert plugin_ids == {'ai', 'demo', 'report'}
 
 
 def test_startup_manager_reads_default_enabled_builtin_plugins_from_app_config() -> None:
-    """
-    校验启动管理器默认从应用配置读取内置默认启用插件列表。
-
-    :return: None
-    """
+    """校验启动管理器默认从应用配置读取内置默认启用插件列表。"""
     with patch('plugins.core.runtime.startup.AppConfig.app_default_enabled_plugins', 'ai,demo'):
         startup_manager = PluginRuntimeStartupManager(MagicMock())
 
@@ -60,11 +39,7 @@ def test_startup_manager_reads_default_enabled_builtin_plugins_from_app_config()
 
 @pytest.mark.asyncio
 async def test_prepare_enabled_plugins_loads_registry_and_imports_entities() -> None:
-    """
-    校验插件启动协调器准备启用插件实体。
-
-    :return: None
-    """
+    """校验插件启动协调器准备启用插件实体。"""
     app = MagicMock()
     startup_manager = PluginRuntimeStartupManager(MagicMock())
     startup_manager.sync_default_enabled_builtin_plugin_install_states = AsyncMock()
@@ -88,11 +63,7 @@ async def test_prepare_enabled_plugins_loads_registry_and_imports_entities() -> 
 
 @pytest.mark.asyncio
 async def test_prepare_enabled_plugins_skips_builtin_state_sync_when_startup_write_disabled() -> None:
-    """
-    校验非启动写入 worker 不初始化内置默认启用插件状态。
-
-    :return: None
-    """
+    """校验非启动写入 worker 不初始化内置默认启用插件状态。"""
     app = MagicMock()
     startup_manager = PluginRuntimeStartupManager(MagicMock())
     startup_manager.sync_default_enabled_builtin_plugin_install_states = AsyncMock()
@@ -116,11 +87,7 @@ async def test_prepare_enabled_plugins_skips_builtin_state_sync_when_startup_wri
 
 @pytest.mark.asyncio
 async def test_activate_enabled_plugins_installs_resources_and_runs_hooks() -> None:
-    """
-    校验插件启动协调器激活启用插件资源。
-
-    :return: None
-    """
+    """校验插件启动协调器激活启用插件资源。"""
     app = MagicMock()
     startup_manager = PluginRuntimeStartupManager(MagicMock())
     startup_manager.sync_enabled_plugin_install_states = AsyncMock()
@@ -142,11 +109,7 @@ async def test_activate_enabled_plugins_installs_resources_and_runs_hooks() -> N
 
 @pytest.mark.asyncio
 async def test_activate_enabled_plugins_skips_resource_install_when_startup_write_disabled() -> None:
-    """
-    校验非启动写入 worker 会跳过插件资源安装，但仍注册本 worker 路由和执行本地钩子。
-
-    :return: None
-    """
+    """校验非启动写入 worker 会跳过插件资源安装，但仍注册本 worker 路由和执行本地钩子。"""
     app = MagicMock()
     startup_manager = PluginRuntimeStartupManager(MagicMock())
     startup_manager.sync_enabled_plugin_install_states = AsyncMock()
@@ -168,19 +131,11 @@ async def test_activate_enabled_plugins_skips_resource_install_when_startup_writ
 
 @pytest.mark.asyncio
 async def test_sync_enabled_plugin_install_states_marks_missing_database_plugin_installed() -> None:
-    """
-    校验启动写入 worker 会将默认启用但未落库的插件同步为已安装。
-
-    :return: None
-    """
+    """校验启动写入 worker 会将默认启用但未落库的插件同步为已安装。"""
     fake_session = AsyncMock()
 
     async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
-
-        :return: 测试数据库会话
-        """
+        """生成测试数据库会话。"""
         yield fake_session
 
     discovered_plugin = MagicMock()
@@ -218,11 +173,7 @@ async def test_sync_enabled_plugin_install_states_marks_missing_database_plugin_
 
 @pytest.mark.asyncio
 async def test_sync_enabled_plugin_install_states_keeps_installed_plugin_unchanged() -> None:
-    """
-    校验已安装插件不会在启动期重复标记安装。
-
-    :return: None
-    """
+    """校验已安装插件不会在启动期重复标记安装。"""
     discovered_plugin = MagicMock()
     database_plugin = MagicMock(installed_version='1.0.0', status='installed')
     app = FastAPI()
@@ -244,19 +195,11 @@ async def test_sync_enabled_plugin_install_states_keeps_installed_plugin_unchang
 
 @pytest.mark.asyncio
 async def test_sync_default_enabled_builtin_plugin_install_states_installs_missing_builtin() -> None:
-    """
-    校验内置默认启用插件缺少数据库状态时会初始化为已安装。
-
-    :return: None
-    """
+    """校验内置默认启用插件缺少数据库状态时会初始化为已安装。"""
     fake_session = AsyncMock()
 
     async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
-
-        :return: 测试数据库会话
-        """
+        """生成测试数据库会话。"""
         yield fake_session
 
     discovered_plugin = MagicMock()
@@ -290,20 +233,60 @@ async def test_sync_default_enabled_builtin_plugin_install_states_installs_missi
 
 
 @pytest.mark.asyncio
-async def test_sync_default_enabled_builtin_plugin_install_states_respects_uninstalled_builtin() -> None:
-    """
-    校验用户卸载后的内置插件不会在重启时被自动重新安装。
-
-    :return: None
-    """
+async def test_sync_default_enabled_builtin_checks_dependencies_before_install_scripts() -> None:
+    """校验默认启用内置插件会在安装脚本前检查依赖。"""
     fake_session = AsyncMock()
 
     async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
+        """提供测试用数据库会话生成器。"""
+        yield fake_session
 
-        :return: 测试数据库会话
-        """
+    discovered_plugin = MagicMock()
+    discovered_plugin.manifest.id = 'ai'
+    discovered_plugin.manifest.dependencies.python = ['missing-package>=1.0.0']
+    fake_builder = MagicMock()
+    fake_builder.plugins_root = BACKEND_ROOT / 'plugins'
+    fake_builder.frontend_plugins_root = BACKEND_ROOT.parent / 'frontend' / 'plugins'
+    fake_builder.discover_plugins.return_value = [discovered_plugin]
+    fake_gateway = MagicMock()
+    fake_gateway.list_plugins = AsyncMock(return_value=[])
+    fake_gateway.upsert_discovered_plugin = AsyncMock()
+    fake_gateway.mark_plugin_error = AsyncMock()
+    fake_gateway.mark_plugin_installed = AsyncMock()
+    dependency_item = MagicMock(ok=False, message='Python 依赖未安装：missing-package')
+    python_dependency_inspector = MagicMock()
+    python_dependency_inspector.check.return_value = [dependency_item]
+    startup_manager = PluginRuntimeStartupManager(
+        fake_builder,
+        fake_gateway,
+        python_dependency_inspector=python_dependency_inspector,
+        default_enabled_builtin_plugin_ids={'ai'},
+    )
+
+    with (
+        patch_startup_get_db(fake_get_db),
+        patch.object(startup_manager, 'run_plugin_install_scripts', new_callable=AsyncMock) as run_install_scripts,
+    ):
+        await startup_manager.sync_default_enabled_builtin_plugin_install_states()
+
+    python_dependency_inspector.check.assert_called_once_with(['missing-package>=1.0.0'])
+    fake_gateway.mark_plugin_error.assert_awaited_once_with(
+        fake_session,
+        'ai',
+        '插件启动依赖检查失败：Python 依赖未安装：missing-package',
+    )
+    run_install_scripts.assert_not_awaited()
+    fake_gateway.mark_plugin_installed.assert_not_awaited()
+    fake_session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_sync_default_enabled_builtin_plugin_install_states_respects_uninstalled_builtin() -> None:
+    """校验用户卸载后的内置插件不会在重启时被自动重新安装。"""
+    fake_session = AsyncMock()
+
+    async def fake_get_db() -> object:
+        """生成测试数据库会话。"""
         yield fake_session
 
     discovered_plugin = MagicMock()
@@ -328,11 +311,7 @@ async def test_sync_default_enabled_builtin_plugin_install_states_respects_unins
 
 @pytest.mark.asyncio
 async def test_run_plugin_install_scripts_runs_migrations_and_seeds() -> None:
-    """
-    校验启动期安装脚本会执行 migration 和 seed。
-
-    :return: None
-    """
+    """校验启动期安装脚本会执行 migration 和 seed。"""
     fake_session = object()
     fake_migration_session = object()
     discovered_plugin = MagicMock()
@@ -368,11 +347,7 @@ async def test_run_plugin_install_scripts_runs_migrations_and_seeds() -> None:
 
 @pytest.mark.asyncio
 async def test_shutdown_runs_plugin_shutdown_hooks() -> None:
-    """
-    校验插件关闭协调器执行关闭钩子。
-
-    :return: None
-    """
+    """校验插件关闭协调器执行关闭钩子。"""
     app = MagicMock()
     startup_manager = PluginRuntimeStartupManager(MagicMock())
     startup_manager.run_enabled_plugin_hooks = AsyncMock()
@@ -388,19 +363,11 @@ async def test_shutdown_runs_plugin_shutdown_hooks() -> None:
 
 @pytest.mark.asyncio
 async def test_load_registry_from_database_rebuilds_registry() -> None:
-    """
-    校验启动协调器会按数据库插件状态重建运行时注册表。
-
-    :return: None
-    """
+    """校验启动协调器会按数据库插件状态重建运行时注册表。"""
     fake_session = object()
 
     async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
-
-        :return: 测试数据库会话
-        """
+        """生成测试数据库会话。"""
         yield fake_session
 
     fake_registry = PluginRegistry.build([])
@@ -420,11 +387,7 @@ async def test_load_registry_from_database_rebuilds_registry() -> None:
 
 @pytest.mark.asyncio
 async def test_check_enabled_plugin_python_dependencies_marks_missing_dependency_error() -> None:
-    """
-    校验启用插件 Python 依赖缺失时会标记插件运行时异常。
-
-    :return: None
-    """
+    """校验启用插件 Python 依赖缺失时会标记插件运行时异常。"""
     app = FastAPI()
     plugin = MagicMock(plugin_id='ai')
     plugin.discovered_plugin.manifest.dependencies.python = ['agno==2.4.8']
@@ -453,11 +416,7 @@ async def test_check_enabled_plugin_python_dependencies_marks_missing_dependency
 
 @pytest.mark.asyncio
 async def test_check_enabled_plugin_python_dependencies_skips_database_write_when_startup_write_disabled() -> None:
-    """
-    校验非启动写入 worker 只返回依赖失败插件，不写入插件错误状态。
-
-    :return: None
-    """
+    """校验非启动写入 worker 只返回依赖失败插件，不写入插件错误状态。"""
     app = FastAPI()
     plugin = MagicMock(plugin_id='ai')
     plugin.discovered_plugin.manifest.dependencies.python = ['agno==2.4.8']
@@ -486,11 +445,7 @@ async def test_check_enabled_plugin_python_dependencies_skips_database_write_whe
 
 @pytest.mark.asyncio
 async def test_check_enabled_plugin_python_dependencies_skips_satisfied_dependencies() -> None:
-    """
-    校验启用插件 Python 依赖满足时不会标记异常。
-
-    :return: None
-    """
+    """校验启用插件 Python 依赖满足时不会标记异常。"""
     app = FastAPI()
     plugin = MagicMock(plugin_id='demo')
     plugin.discovered_plugin.manifest.dependencies.python = ['requests>=2.0.0']
@@ -515,11 +470,7 @@ async def test_check_enabled_plugin_python_dependencies_skips_satisfied_dependen
 
 @pytest.mark.asyncio
 async def test_check_enabled_plugin_python_dependencies_never_installs_during_startup() -> None:
-    """
-    校验启动期只做依赖门禁，不再交互安装缺失 Python 依赖。
-
-    :return: None
-    """
+    """校验启动期只做依赖门禁，不再交互安装缺失 Python 依赖。"""
     app = FastAPI()
     plugin = MagicMock(plugin_id='ai')
     plugin.discovered_plugin.manifest.dependencies.python = ['agno==2.4.8']
@@ -569,75 +520,8 @@ async def test_check_enabled_plugin_python_dependencies_never_installs_during_st
     )
 
 
-@pytest.mark.asyncio
-async def test_check_enabled_plugin_python_dependencies_marks_error_when_install_declined() -> None:
-    """
-    校验交互拒绝安装时仍会标记插件异常。
-
-    :return: None
-    """
-    app = FastAPI()
-    plugin = MagicMock(plugin_id='ai')
-    plugin.discovered_plugin.manifest.dependencies.python = ['agno==2.4.8']
-    app.state.plugin_registry = MagicMock()
-    app.state.plugin_registry.list_enabled_plugins.return_value = [plugin]
-    dependency_item = MagicMock(ok=False, message='Python 依赖未安装：agno')
-    python_dependency_inspector = MagicMock()
-    python_dependency_inspector.check.return_value = [dependency_item]
-    command_runner_gateway = MagicMock()
-    startup_manager = PluginRuntimeStartupManager(
-        MagicMock(),
-        python_dependency_inspector=python_dependency_inspector,
-        command_runner_gateway=command_runner_gateway,
-    )
-
-    with (
-        patch.object(startup_manager, '_can_prompt_dependency_install', return_value=True),
-        patch('builtins.input', return_value='n'),
-        patch.object(startup_manager, 'mark_plugin_runtime_error', new_callable=AsyncMock) as mark_plugin_runtime_error,
-    ):
-        await startup_manager.check_enabled_plugin_python_dependencies(app)
-
-    command_runner_gateway.run_command.assert_not_called()
-    mark_plugin_runtime_error.assert_awaited_once_with(
-        app,
-        'ai',
-        '插件启动依赖检查失败：Python 依赖未安装：agno',
-    )
-
-
-def test_can_prompt_dependency_install_requires_single_worker_tty() -> None:
-    """
-    校验启动期不再允许交互安装插件依赖。
-
-    :return: None
-    """
-    with (
-        patch('plugins.core.runtime.startup.AppConfig.app_workers', 1),
-        patch('plugins.core.runtime.startup.sys.stdin.isatty', return_value=True),
-    ):
-        assert PluginRuntimeStartupManager._can_prompt_dependency_install() is False
-
-    with (
-        patch('plugins.core.runtime.startup.AppConfig.app_workers', 2),
-        patch('plugins.core.runtime.startup.sys.stdin.isatty', return_value=True),
-    ):
-        assert PluginRuntimeStartupManager._can_prompt_dependency_install() is False
-
-    with (
-        patch('plugins.core.runtime.startup.AppConfig.app_workers', 1),
-        patch('plugins.core.runtime.startup.sys.stdin.isatty', return_value=False),
-    ):
-        assert PluginRuntimeStartupManager._can_prompt_dependency_install() is False
-
-
 def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path) -> None:
-    """
-    校验插件路由注册只向路由注册器传递启用且允许自动扫描的插件 ID。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件路由注册只向路由注册器传递启用且允许自动扫描的插件 ID。"""
     backend_root = tmp_path / 'backend'
     demo_controller = backend_root / 'plugins' / 'demo' / 'controller' / 'demo_controller.py'
     manual_controller = backend_root / 'plugins' / 'manual' / 'controller' / 'manual_controller.py'
@@ -658,11 +542,7 @@ def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path)
         """
 
         def list_enabled_plugins(self) -> list[MagicMock]:
-            """
-            获取启用插件列表。
-
-            :return: 插件列表
-            """
+            """获取启用插件列表。"""
             return [
                 MagicMock(
                     plugin_id='demo',
@@ -702,12 +582,7 @@ def test_register_enabled_plugin_routers_uses_enabled_plugin_ids(tmp_path: Path)
 
 
 def test_register_enabled_plugin_routers_skips_invalid_route_prefix(tmp_path: Path) -> None:
-    """
-    校验启动期路由注册会再次拦截越过插件命名空间的 controller。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验启动期路由注册会再次拦截越过插件命名空间的 controller。"""
     backend_root = tmp_path / 'backend'
     valid_controller = backend_root / 'plugins' / 'demo' / 'controller' / 'demo_controller.py'
     invalid_controller = backend_root / 'plugins' / 'bad' / 'controller' / 'bad_controller.py'
@@ -728,11 +603,7 @@ def test_register_enabled_plugin_routers_skips_invalid_route_prefix(tmp_path: Pa
         """
 
         def list_enabled_plugins(self) -> list[MagicMock]:
-            """
-            获取启用插件列表。
-
-            :return: 插件列表
-            """
+            """获取启用插件列表。"""
             return [
                 MagicMock(
                     plugin_id='demo',
@@ -765,12 +636,7 @@ def test_register_enabled_plugin_routers_skips_invalid_route_prefix(tmp_path: Pa
 
 
 def test_register_enabled_plugin_routers_skips_unrecognized_router_factory(tmp_path: Path) -> None:
-    """
-    校验启动期路由注册会跳过无法静态确认路由前缀的 controller。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验启动期路由注册会跳过无法静态确认路由前缀的 controller。"""
     backend_root = tmp_path / 'backend'
     controller = backend_root / 'plugins' / 'demo' / 'controller' / 'demo_controller.py'
     controller.parent.mkdir(parents=True, exist_ok=True)
@@ -785,11 +651,7 @@ def test_register_enabled_plugin_routers_skips_unrecognized_router_factory(tmp_p
         """
 
         def list_enabled_plugins(self) -> list[MagicMock]:
-            """
-            获取启用插件列表。
-
-            :return: 插件列表
-            """
+            """获取启用插件列表。"""
             return [
                 MagicMock(
                     plugin_id='demo',
@@ -815,12 +677,7 @@ def test_register_enabled_plugin_routers_skips_unrecognized_router_factory(tmp_p
 
 
 def test_find_plugin_controller_files_filters_private_and_missing_plugins(tmp_path: Path) -> None:
-    """
-    校验启动协调器只查找指定插件的公开 controller 文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验启动协调器只查找指定插件的公开 controller 文件。"""
     backend_root = tmp_path / 'backend'
     plugin_controller = backend_root / 'plugins' / 'demo' / 'controller' / 'demo_controller.py'
     private_controller = backend_root / 'plugins' / 'demo' / 'controller' / '_private_controller.py'
@@ -835,100 +692,42 @@ def test_find_plugin_controller_files_filters_private_and_missing_plugins(tmp_pa
     assert controller_files == [str(plugin_controller)]
 
 
+@pytest.mark.parametrize(
+    ('manager_method', 'gateway_method'),
+    (
+        ('install_enabled_plugin_menus', 'install_enabled_plugin_menus'),
+        ('install_enabled_plugin_configs', 'install_enabled_plugin_configs'),
+        ('install_enabled_plugin_jobs', 'install_enabled_plugin_jobs'),
+    ),
+)
 @pytest.mark.asyncio
-async def test_install_enabled_plugin_menus_commits_after_service_call() -> None:
-    """
-    校验启动协调器会安装启用插件菜单并提交事务。
-
-    :return: None
-    """
+async def test_install_enabled_plugin_resources_commit_after_service_call(
+    manager_method: str,
+    gateway_method: str,
+) -> None:
+    """校验启用插件资源在服务调用完成后提交事务。"""
     fake_session = AsyncMock()
 
     async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
-
-        :return: 测试数据库会话
-        """
+        """提供测试用数据库会话生成器。"""
         yield fake_session
 
     app = FastAPI()
     app.state.plugin_registry = PluginRegistry.build([])
     fake_gateway = MagicMock()
-    fake_gateway.install_enabled_plugin_menus = AsyncMock()
+    setattr(fake_gateway, gateway_method, AsyncMock())
+    manager = PluginRuntimeStartupManager(MagicMock(), fake_gateway)
 
     with patch_startup_get_db(fake_get_db):
-        await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_menus(app)
+        await getattr(manager, manager_method)(app)
 
-    fake_gateway.install_enabled_plugin_menus.assert_awaited_once_with(fake_session, app.state.plugin_registry)
-    fake_session.commit.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_install_enabled_plugin_configs_commits_after_service_call() -> None:
-    """
-    校验启动协调器会安装启用插件默认配置并提交事务。
-
-    :return: None
-    """
-    fake_session = AsyncMock()
-
-    async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
-
-        :return: 测试数据库会话
-        """
-        yield fake_session
-
-    app = FastAPI()
-    app.state.plugin_registry = PluginRegistry.build([])
-    fake_gateway = MagicMock()
-    fake_gateway.install_enabled_plugin_configs = AsyncMock()
-
-    with patch_startup_get_db(fake_get_db):
-        await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_configs(app)
-
-    fake_gateway.install_enabled_plugin_configs.assert_awaited_once_with(fake_session, app.state.plugin_registry)
-    fake_session.commit.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_install_enabled_plugin_jobs_commits_after_service_call() -> None:
-    """
-    校验启动协调器会安装启用插件定时任务并提交事务。
-
-    :return: None
-    """
-    fake_session = AsyncMock()
-
-    async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
-
-        :return: 测试数据库会话
-        """
-        yield fake_session
-
-    app = FastAPI()
-    app.state.plugin_registry = PluginRegistry.build([])
-    fake_gateway = MagicMock()
-    fake_gateway.install_enabled_plugin_jobs = AsyncMock()
-
-    with patch_startup_get_db(fake_get_db):
-        await PluginRuntimeStartupManager(MagicMock(), fake_gateway).install_enabled_plugin_jobs(app)
-
-    fake_gateway.install_enabled_plugin_jobs.assert_awaited_once_with(fake_session, app.state.plugin_registry)
+    getattr(fake_gateway, gateway_method).assert_awaited_once_with(fake_session, app.state.plugin_registry)
     fake_session.commit.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_install_enabled_plugin_resource_skips_without_registry() -> None:
-    """
-    校验启动资源安装在插件注册表缺失时跳过。
-
-    :return: None
-    """
+    """校验启动资源安装在插件注册表缺失时跳过。"""
     app = FastAPI()
     installer = AsyncMock()
 
@@ -938,11 +737,7 @@ async def test_install_enabled_plugin_resource_skips_without_registry() -> None:
 
 
 def test_disable_runtime_plugins_marks_plugins_disabled_in_current_registry() -> None:
-    """
-    校验当前 worker 可在运行时注册表中过滤失败插件，避免继续导入或注册。
-
-    :return: None
-    """
+    """校验当前 worker 可在运行时注册表中过滤失败插件，避免继续导入或注册。"""
     ai_discovered_plugin = MagicMock()
     ai_discovered_plugin.manifest.id = 'ai'
     demo_discovered_plugin = MagicMock()
@@ -964,19 +759,11 @@ def test_disable_runtime_plugins_marks_plugins_disabled_in_current_registry() ->
 
 @pytest.mark.asyncio
 async def test_mark_plugin_runtime_error_updates_database_and_rebuilds_registry() -> None:
-    """
-    校验运行时异常会写入插件错误状态并刷新运行时注册表。
-
-    :return: None
-    """
+    """校验运行时异常会写入插件错误状态并刷新运行时注册表。"""
     fake_session = AsyncMock()
 
     async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
-
-        :return: 测试数据库会话
-        """
+        """生成测试数据库会话。"""
         yield fake_session
 
     app = FastAPI()
@@ -999,19 +786,11 @@ async def test_mark_plugin_runtime_error_updates_database_and_rebuilds_registry(
 
 @pytest.mark.asyncio
 async def test_mark_plugin_runtime_error_upserts_discovered_plugin_when_missing() -> None:
-    """
-    校验数据库缺少插件记录时会先写入发现插件再标记异常。
-
-    :return: None
-    """
+    """校验数据库缺少插件记录时会先写入发现插件再标记异常。"""
     fake_session = AsyncMock()
 
     async def fake_get_db() -> object:
-        """
-        生成测试数据库会话。
-
-        :return: 测试数据库会话
-        """
+        """生成测试数据库会话。"""
         yield fake_session
 
     app = FastAPI()
@@ -1051,11 +830,7 @@ async def test_mark_plugin_runtime_error_upserts_discovered_plugin_when_missing(
 
 @pytest.mark.asyncio
 async def test_import_enabled_plugin_entities_marks_failures() -> None:
-    """
-    校验启用插件实体导入失败时会标记插件异常。
-
-    :return: None
-    """
+    """校验启用插件实体导入失败时会标记插件异常。"""
     app = FastAPI()
     app.state.plugin_registry = MagicMock()
     fake_builder = MagicMock()
@@ -1075,11 +850,7 @@ async def test_import_enabled_plugin_entities_marks_failures() -> None:
 
 @pytest.mark.asyncio
 async def test_import_enabled_plugin_entities_skips_database_write_when_startup_write_disabled() -> None:
-    """
-    校验非启动写入 worker 导入插件实体失败时只返回失败插件，不写入插件错误状态。
-
-    :return: None
-    """
+    """校验非启动写入 worker 导入插件实体失败时只返回失败插件，不写入插件错误状态。"""
     app = FastAPI()
     app.state.plugin_registry = MagicMock()
     fake_builder = MagicMock()
@@ -1103,11 +874,7 @@ async def test_import_enabled_plugin_entities_skips_database_write_when_startup_
 
 @pytest.mark.asyncio
 async def test_run_enabled_plugin_hooks_runs_startup_hooks() -> None:
-    """
-    校验启动协调器会执行启用插件生命周期钩子。
-
-    :return: None
-    """
+    """校验启动协调器会执行启用插件生命周期钩子。"""
     discovered_plugin = MagicMock()
     fake_registered_plugin = MagicMock(discovered_plugin=discovered_plugin)
     fake_registry = MagicMock()
@@ -1126,11 +893,7 @@ async def test_run_enabled_plugin_hooks_runs_startup_hooks() -> None:
 
 @pytest.mark.asyncio
 async def test_run_enabled_plugin_hooks_marks_error_and_continues() -> None:
-    """
-    校验插件生命周期钩子失败时会标记异常并继续执行后续插件。
-
-    :return: None
-    """
+    """校验插件生命周期钩子失败时会标记异常并继续执行后续插件。"""
     broken_discovered_plugin = MagicMock()
     healthy_discovered_plugin = MagicMock()
     broken_plugin = MagicMock(plugin_id='broken', discovered_plugin=broken_discovered_plugin)

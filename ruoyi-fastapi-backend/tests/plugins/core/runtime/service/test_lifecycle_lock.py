@@ -1,18 +1,13 @@
 import asyncio
-import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from redis.exceptions import RedisError
 
-BACKEND_ROOT = Path(__file__).resolve().parents[5]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.runtime.service import PluginRuntimeService  # noqa: E402
-from plugins.core.runtime.service.lifecycle_lock import (  # noqa: E402
+from plugins.core.runtime.service import PluginRuntimeService
+from plugins.core.runtime.service.lifecycle_lock import (
     PluginLifecycleLockLost,
     PluginLifecycleLockResult,
     RedisPluginLifecycleLock,
@@ -25,22 +20,12 @@ class DeniedLifecycleLock:
     """
 
     def __init__(self) -> None:
-        """
-        初始化测试锁。
-
-        :return: None
-        """
+        """初始化测试锁。"""
         self.calls: list[tuple[str, str]] = []
 
     @asynccontextmanager
     async def lock(self, plugin_id: str, operation: str) -> AsyncIterator[PluginLifecycleLockResult]:
-        """
-        返回未获取锁结果。
-
-        :param plugin_id: 插件ID
-        :param operation: 操作类型
-        :return: 锁结果上下文
-        """
+        """返回未获取锁结果。"""
         self.calls.append((plugin_id, operation))
         yield PluginLifecycleLockResult(acquired=False, message='插件正在操作中')
 
@@ -52,23 +37,13 @@ class FailingLifecycleLock:
 
     @asynccontextmanager
     async def lock(self, plugin_id: str, operation: str) -> AsyncIterator[PluginLifecycleLockResult]:
-        """
-        不应被调用的锁。
-
-        :param plugin_id: 插件ID
-        :param operation: 操作类型
-        :return: 锁结果上下文
-        """
+        """不应被调用的锁。"""
         raise AssertionError('dry_run 不应获取生命周期锁')
         yield PluginLifecycleLockResult(acquired=True)
 
 
 def test_lifecycle_operation_returns_failure_when_lock_denied() -> None:
-    """
-    校验生命周期锁未获取时不会执行真实插件安装。
-
-    :return: None
-    """
+    """校验生命周期锁未获取时不会执行真实插件安装。"""
     lifecycle_lock = DeniedLifecycleLock()
     runtime = PluginRuntimeService(lifecycle_lock=lifecycle_lock)
     runtime.install.install_plugin = AsyncMock(return_value={'ok': True, 'message': 'installed'})
@@ -84,21 +59,13 @@ def test_lifecycle_operation_returns_failure_when_lock_denied() -> None:
 
 
 def test_redis_lifecycle_lock_uses_global_key() -> None:
-    """
-    校验 Redis 生命周期锁串行化所有插件写操作。
-
-    :return: None
-    """
+    """校验 Redis 生命周期锁串行化所有插件写操作。"""
     assert RedisPluginLifecycleLock._build_lock_key() == 'plugin:lifecycle:lock:global'
 
 
 @pytest.mark.asyncio
 async def test_redis_lifecycle_lock_renews_until_lock_lost() -> None:
-    """
-    校验 Redis 生命周期锁会在持锁期间续期，并在锁不属于当前持有者时退出续期。
-
-    :return: None
-    """
+    """校验 Redis 生命周期锁会在持锁期间续期，并在锁不属于当前持有者时退出续期。"""
     redis = AsyncMock()
     redis.eval = AsyncMock(side_effect=[1, 0])
     lifecycle_lock = RedisPluginLifecycleLock(expire_seconds=3)
@@ -122,11 +89,7 @@ async def test_redis_lifecycle_lock_renews_until_lock_lost() -> None:
 
 @pytest.mark.asyncio
 async def test_redis_lifecycle_lock_raises_when_renew_fails() -> None:
-    """
-    校验 Redis 生命周期锁续期失败时会中断持锁操作。
-
-    :return: None
-    """
+    """校验 Redis 生命周期锁续期失败时会中断持锁操作。"""
     redis = AsyncMock()
     redis.eval = AsyncMock(side_effect=RedisError('renew failed'))
     lifecycle_lock = RedisPluginLifecycleLock(expire_seconds=3)
@@ -140,11 +103,7 @@ async def test_redis_lifecycle_lock_raises_when_renew_fails() -> None:
 
 @pytest.mark.asyncio
 async def test_redis_lifecycle_lock_preserves_body_redis_error() -> None:
-    """
-    校验持锁代码块抛 RedisError 时不会被锁获取失败分支吞掉。
-
-    :return: None
-    """
+    """校验持锁代码块抛 RedisError 时不会被锁获取失败分支吞掉。"""
     redis = AsyncMock()
     redis.set = AsyncMock(return_value=True)
     redis.eval = AsyncMock(return_value=1)
@@ -165,11 +124,7 @@ async def test_redis_lifecycle_lock_preserves_body_redis_error() -> None:
 
 
 def test_lifecycle_dry_run_skips_lock() -> None:
-    """
-    校验 dry_run 生命周期操作不会获取分布式锁。
-
-    :return: None
-    """
+    """校验 dry_run 生命周期操作不会获取分布式锁。"""
     runtime = PluginRuntimeService(lifecycle_lock=FailingLifecycleLock())
     runtime.install.install_plugin = AsyncMock(return_value={'ok': True, 'message': 'dry-run'})
 

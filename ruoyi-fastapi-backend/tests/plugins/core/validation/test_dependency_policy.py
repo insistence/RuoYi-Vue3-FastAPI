@@ -4,12 +4,9 @@ from types import SimpleNamespace
 
 import pytest
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-import config.env as env_config  # noqa: E402
-from plugins.core.validation.dependencies import DependencyInstallPlan, DependencyInstallPlanItem  # noqa: E402
-from plugins.core.validation.dependency_policy import (  # noqa: E402
+import config.env as env_config
+from plugins.core.validation.dependencies import DependencyInstallPlan, DependencyInstallPlanItem
+from plugins.core.validation.dependency_policy import (
     DependencyInstallPolicyConfig,
     DependencyInstallPolicyEvaluator,
 )
@@ -18,22 +15,12 @@ CONFIGURED_INSTALL_TIMEOUT_SECONDS = 42
 
 
 def build_plan(*items: DependencyInstallPlanItem) -> DependencyInstallPlan:
-    """
-    构建测试用依赖安装计划。
-
-    :param items: 计划项
-    :return: 安装计划
-    """
+    """构建测试用依赖安装计划。"""
     return DependencyInstallPlan(plugin_id='demo', items=list(items))
 
 
 def build_python_item(requirement: str = 'openai>=2.0.0') -> DependencyInstallPlanItem:
-    """
-    构建测试用 Python 安装计划项。
-
-    :param requirement: 依赖声明
-    :return: Python 安装计划项
-    """
+    """构建测试用 Python 安装计划项。"""
     return DependencyInstallPlanItem(
         kind='python',
         requirement=requirement,
@@ -50,14 +37,7 @@ def build_npm_item(
     kind: str = 'npm',
     name: str = 'dayjs',
 ) -> DependencyInstallPlanItem:
-    """
-    构建测试用 npm 安装计划项。
-
-    :param requirement: 依赖声明
-    :param kind: 依赖类型
-    :param name: 依赖名称
-    :return: npm 安装计划项
-    """
+    """构建测试用 npm 安装计划项。"""
     return DependencyInstallPlanItem(
         kind=kind,
         requirement=requirement,
@@ -69,11 +49,7 @@ def build_npm_item(
 
 
 def test_config_env_exposes_plugin_dependency_policy_config() -> None:
-    """
-    校验统一配置入口暴露插件依赖策略配置。
-
-    :return: None
-    """
+    """校验统一配置入口暴露插件依赖策略配置。"""
     config = env_config.get_config.get_plugin_dependency_policy_config()
 
     assert isinstance(config, env_config.PluginDependencyPolicySettings)
@@ -81,13 +57,7 @@ def test_config_env_exposes_plugin_dependency_policy_config() -> None:
 
 
 def test_dependency_policy_reads_unified_config_entry(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """
-    校验依赖策略从统一配置入口读取默认策略。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验依赖策略从统一配置入口读取默认策略。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     allowlist_path = tmp_path / 'allowlist.yaml'
     offline_dir = tmp_path / 'artifacts'
@@ -122,12 +92,7 @@ def test_dependency_policy_reads_unified_config_entry(monkeypatch: pytest.Monkey
 
 
 def test_dependency_policy_reads_require_lockfile_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验策略配置会读取锁文件要求环境变量。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验策略配置会读取锁文件要求环境变量。"""
     monkeypatch.setenv('PLUGIN_DEPENDENCY_REQUIRE_LOCKFILE', 'true')
 
     config = DependencyInstallPolicyConfig.from_environment(env='dev')
@@ -137,12 +102,7 @@ def test_dependency_policy_reads_require_lockfile_environment(monkeypatch: pytes
 
 
 def test_dependency_policy_rejects_invalid_mode_from_unified_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验依赖安装策略拒绝非法策略模式，而不是静默回退默认值。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验依赖安装策略拒绝非法策略模式，而不是静默回退默认值。"""
     config = SimpleNamespace(
         plugin_dependency_policy_mode='prod=lockd',
         plugin_dependency_allow_prod_install=False,
@@ -163,12 +123,7 @@ def test_dependency_policy_rejects_invalid_mode_from_unified_config(monkeypatch:
 
 
 def test_dependency_policy_rejects_invalid_bool_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验依赖安装策略拒绝非法布尔配置，而不是把未知字符串当作 False。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验依赖安装策略拒绝非法布尔配置，而不是把未知字符串当作 False。"""
     monkeypatch.setenv('PLUGIN_DEPENDENCY_REQUIRE_LOCKFILE', 'fales')
 
     with pytest.raises(ValueError, match='非法插件依赖策略布尔配置'):
@@ -176,11 +131,7 @@ def test_dependency_policy_rejects_invalid_bool_from_environment(monkeypatch: py
 
 
 def test_dependency_policy_plan_only_blocks_real_install() -> None:
-    """
-    校验 plan_only 策略只允许生成计划，不允许真实安装。
-
-    :return: None
-    """
+    """校验 plan_only 策略只允许生成计划，不允许真实安装。"""
     decision = DependencyInstallPolicyEvaluator(DependencyInstallPolicyConfig(mode='plan_only', env='dev')).evaluate(
         build_plan(build_python_item()), confirmed=True
     )
@@ -192,11 +143,7 @@ def test_dependency_policy_plan_only_blocks_real_install() -> None:
 
 
 def test_dependency_policy_explicit_requires_confirmation_before_install() -> None:
-    """
-    校验 explicit 策略执行真实安装前必须显式确认。
-
-    :return: None
-    """
+    """校验 explicit 策略执行真实安装前必须显式确认。"""
     evaluator = DependencyInstallPolicyEvaluator(DependencyInstallPolicyConfig(mode='explicit', env='dev'))
 
     blocked = evaluator.evaluate(build_plan(build_python_item()), confirmed=False)
@@ -209,12 +156,7 @@ def test_dependency_policy_explicit_requires_confirmation_before_install() -> No
 
 
 def test_dependency_policy_locked_mode_requires_matching_lockfile_and_rewrites_command(tmp_path: Path) -> None:
-    """
-    校验 locked 策略要求锁文件匹配，并使用锁定版本生成安装命令。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 locked 策略要求锁文件匹配，并使用锁定版本生成安装命令。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -247,12 +189,7 @@ npmDev: []
 
 
 def test_dependency_policy_locked_mode_blocks_lockfile_mismatch(tmp_path: Path) -> None:
-    """
-    校验 locked 策略阻断与插件依赖声明不一致的锁文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 locked 策略阻断与插件依赖声明不一致的锁文件。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -284,12 +221,7 @@ npmDev: []
 
 
 def test_dependency_policy_locked_mode_blocks_resolved_version_outside_requirement(tmp_path: Path) -> None:
-    """
-    校验 locked 策略阻断锁文件 resolvedVersion 超出插件依赖声明范围。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 locked 策略阻断锁文件 resolvedVersion 超出插件依赖声明范围。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -320,13 +252,55 @@ npmDev: []
     assert '锁文件 resolvedVersion 不满足依赖声明：python openai 9.0.0 not in openai>=2.0.0,<3.0.0' in decision.reasons
 
 
-def test_dependency_policy_locked_mode_blocks_extra_lockfile_entry(tmp_path: Path) -> None:
-    """
-    校验 locked 策略阻断锁文件中的未声明依赖。
+@pytest.mark.parametrize(
+    ('requirement', 'resolved_version'),
+    [
+        ('openai>=100; python_version >= "3"', '1.0.0'),
+        ('openai~=2.0', '3.0.0'),
+        ('openai===2.0', '3.0.0'),
+    ],
+)
+def test_dependency_policy_locked_mode_uses_pep440_semantics(
+    tmp_path: Path,
+    requirement: str,
+    resolved_version: str,
+) -> None:
+    """校验锁定模式使用 PEP 440 语义验证 Python 版本。"""
+    lockfile_path = tmp_path / 'plugin.lock.yaml'
+    lockfile_path.write_text(
+        f"""
+plugin: demo
+version: 1.0.0
+python:
+  - name: openai
+    requirement: '{requirement}'
+    resolvedVersion: {resolved_version}
+    hashes:
+      - sha256:demo
+npm: []
+npmDev: []
+""",
+        encoding='utf-8',
+    )
 
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    decision = DependencyInstallPolicyEvaluator(
+        DependencyInstallPolicyConfig(
+            mode='locked',
+            env='stage',
+            lockfile_path=lockfile_path,
+            require_allowlist=False,
+        )
+    ).evaluate(build_plan(build_python_item(requirement)), confirmed=True)
+
+    assert decision.allowed is False
+    assert (
+        f'锁文件 resolvedVersion 不满足依赖声明：python openai {resolved_version} not in {requirement}'
+        in decision.reasons
+    )
+
+
+def test_dependency_policy_locked_mode_blocks_extra_lockfile_entry(tmp_path: Path) -> None:
+    """校验 locked 策略阻断锁文件中的未声明依赖。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -363,12 +337,7 @@ npmDev: []
 
 
 def test_dependency_policy_locked_mode_blocks_missing_python_hash(tmp_path: Path) -> None:
-    """
-    校验 locked 策略阻断缺少 Python 哈希的锁文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 locked 策略阻断缺少 Python 哈希的锁文件。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -398,12 +367,7 @@ npmDev: []
 
 
 def test_dependency_policy_locked_mode_blocks_missing_npm_integrity(tmp_path: Path) -> None:
-    """
-    校验 locked 策略阻断缺少 npm integrity 的锁文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 locked 策略阻断缺少 npm integrity 的锁文件。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -433,12 +397,7 @@ npmDev: []
 
 
 def test_dependency_policy_offline_mode_uses_local_artifact_command(tmp_path: Path) -> None:
-    """
-    校验 offline 策略只生成本地离线制品安装命令。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 offline 策略只生成本地离线制品安装命令。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -480,12 +439,7 @@ npmDev: []
 
 
 def test_dependency_policy_offline_mode_blocks_python_artifact_hash_mismatch(tmp_path: Path) -> None:
-    """
-    校验 offline 策略阻断离线 Python 制品哈希不匹配。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 offline 策略阻断离线 Python 制品哈希不匹配。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -523,12 +477,7 @@ npmDev: []
 
 
 def test_dependency_policy_offline_mode_uses_npm_artifact_with_integrity(tmp_path: Path) -> None:
-    """
-    校验 offline 策略校验 npm integrity 并生成本地 tgz 安装命令。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 offline 策略校验 npm integrity 并生成本地 tgz 安装命令。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -567,12 +516,7 @@ npmDev: []
 
 
 def test_dependency_policy_offline_mode_blocks_npm_integrity_mismatch(tmp_path: Path) -> None:
-    """
-    校验 offline 策略阻断 npm 离线制品 integrity 不匹配。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 offline 策略阻断 npm 离线制品 integrity 不匹配。"""
     lockfile_path = tmp_path / 'plugin.lock.yaml'
     lockfile_path.write_text(
         """
@@ -609,12 +553,7 @@ npmDev: []
 
 
 def test_dependency_policy_allowlist_blocks_unlisted_dependency(tmp_path: Path) -> None:
-    """
-    校验要求允许列表时阻断未命中的依赖。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验要求允许列表时阻断未命中的依赖。"""
     allowlist_path = tmp_path / 'allowlist.yaml'
     allowlist_path.write_text(
         """
@@ -642,12 +581,7 @@ npmDev: {}
 
 
 def test_dependency_policy_allowlist_accepts_contained_python_range(tmp_path: Path) -> None:
-    """
-    校验允许列表接受完全落入允许范围的 Python 依赖范围。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验允许列表接受完全落入允许范围的 Python 依赖范围。"""
     allowlist_path = tmp_path / 'allowlist.yaml'
     allowlist_path.write_text(
         """
@@ -673,13 +607,36 @@ npmDev: {}
     assert decision.allowed is True
 
 
-def test_dependency_policy_allowlist_blocks_unbounded_python_range(tmp_path: Path) -> None:
-    """
-    校验允许列表阻断无法证明完全落入允许范围的 Python 依赖范围。
+def test_dependency_policy_allowlist_ignores_applicable_python_marker(tmp_path: Path) -> None:
+    """校验允许列表匹配时忽略已满足的 Python 环境标记。"""
+    allowlist_path = tmp_path / 'allowlist.yaml'
+    allowlist_path.write_text(
+        """
+python:
+  openai:
+    versions:
+      - ">=2.0.0,<3.0.0"
+npm: {}
+npmDev: {}
+""",
+        encoding='utf-8',
+    )
+    requirement = 'openai>=2.1.0,<3.0.0; python_version >= "3"'
 
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    decision = DependencyInstallPolicyEvaluator(
+        DependencyInstallPolicyConfig(
+            mode='explicit',
+            env='dev',
+            require_allowlist=True,
+            allowlist_path=allowlist_path,
+        )
+    ).evaluate(build_plan(build_python_item(requirement)), confirmed=True)
+
+    assert decision.allowed is True
+
+
+def test_dependency_policy_allowlist_blocks_unbounded_python_range(tmp_path: Path) -> None:
+    """校验允许列表阻断无法证明完全落入允许范围的 Python 依赖范围。"""
     allowlist_path = tmp_path / 'allowlist.yaml'
     allowlist_path.write_text(
         """
@@ -707,12 +664,7 @@ npmDev: {}
 
 
 def test_dependency_policy_allowlist_accepts_npm_and_dev_ranges(tmp_path: Path) -> None:
-    """
-    校验允许列表覆盖 npm 和 npmDev 依赖范围。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验允许列表覆盖 npm 和 npmDev 依赖范围。"""
     allowlist_path = tmp_path / 'allowlist.yaml'
     allowlist_path.write_text(
         """

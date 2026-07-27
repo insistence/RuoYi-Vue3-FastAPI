@@ -1,15 +1,11 @@
-import sys
 from pathlib import Path
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.discovery.scanner import PluginScanner  # noqa: E402
-from plugins.core.lifecycle.migration import (  # noqa: E402
+from plugins.core.discovery.scanner import PluginScanner
+from plugins.core.lifecycle.migration import (
     PluginMigrationError,
     PluginMigrationHistoryRecord,
     PluginMigrationHistoryStore,
@@ -23,27 +19,17 @@ class FakeManagedMigrationSession(list):
     """
 
     def __init__(self) -> None:
-        """
-        初始化测试用托管 migration 执行 session。
-        """
+        """初始化测试用托管 migration 执行 session。"""
         super().__init__()
         self.committed = False
         self.rolled_back = False
 
     async def commit(self) -> None:
-        """
-        记录提交动作。
-
-        :return: None
-        """
+        """记录提交动作。"""
         self.committed = True
 
     async def rollback(self) -> None:
-        """
-        记录回滚动作。
-
-        :return: None
-        """
+        """记录回滚动作。"""
         self.rolled_back = True
 
 
@@ -57,13 +43,7 @@ class FakeMigrationHistoryStore(PluginMigrationHistoryStore):
         checksums: dict[tuple[str, str], str] | None = None,
         records: dict[tuple[str, str], PluginMigrationHistoryRecord] | None = None,
     ) -> None:
-        """
-        初始化测试用 migration 历史存储。
-
-        :param checksums: 已执行 migration 校验值映射
-        :param records: 已执行 migration 记录映射
-        :return: None
-        """
+        """初始化测试用 migration 历史存储。"""
         self.history_records = records or {
             key: PluginMigrationHistoryRecord(checksum=value) for key, value in (checksums or {}).items()
         }
@@ -77,14 +57,7 @@ class FakeMigrationHistoryStore(PluginMigrationHistoryStore):
         plugin_id: str,
         migration_path: str,
     ) -> PluginMigrationHistoryRecord | None:
-        """
-        获取已执行 migration 记录。
-
-        :param query_db: orm对象
-        :param plugin_id: 插件ID
-        :param migration_path: migration 相对路径
-        :return: migration 记录
-        """
+        """获取已执行 migration 记录。"""
         return self.history_records.get((plugin_id, migration_path))
 
     async def record_running(
@@ -96,17 +69,7 @@ class FakeMigrationHistoryStore(PluginMigrationHistoryStore):
         version: str,
         statement_count: int,
     ) -> None:
-        """
-        记录 migration 开始执行。
-
-        :param query_db: orm对象
-        :param plugin_id: 插件ID
-        :param migration_path: migration 相对路径
-        :param checksum: 内容校验值
-        :param version: 插件版本
-        :param statement_count: SQL 语句数量
-        :return: None
-        """
+        """记录 migration 开始执行。"""
         self.running_records.append((plugin_id, migration_path, checksum, version, statement_count))
 
     async def record_success(
@@ -118,17 +81,7 @@ class FakeMigrationHistoryStore(PluginMigrationHistoryStore):
         version: str,
         statement_count: int,
     ) -> None:
-        """
-        记录 migration 成功执行历史。
-
-        :param query_db: orm对象
-        :param plugin_id: 插件ID
-        :param migration_path: migration 相对路径
-        :param checksum: 内容校验值
-        :param version: 插件版本
-        :param statement_count: SQL 语句数量
-        :return: None
-        """
+        """记录 migration 成功执行历史。"""
         self.records.append((plugin_id, migration_path, checksum, version, statement_count))
 
     async def record_failure(
@@ -141,18 +94,7 @@ class FakeMigrationHistoryStore(PluginMigrationHistoryStore):
         statement_count: int,
         error_message: str,
     ) -> None:
-        """
-        记录 migration 失败历史。
-
-        :param query_db: orm对象
-        :param plugin_id: 插件ID
-        :param migration_path: migration 相对路径
-        :param checksum: 内容校验值
-        :param version: 插件版本
-        :param statement_count: SQL 语句数量
-        :param error_message: 失败错误信息
-        :return: None
-        """
+        """记录 migration 失败历史。"""
         self.failure_records.append((plugin_id, migration_path, checksum, version, statement_count, error_message))
 
 
@@ -161,14 +103,7 @@ def write_plugin_with_migration(
     migration_content: str,
     migration_name: str = '001_demo.py',
 ) -> None:
-    """
-    写入带 migration 的测试插件。
-
-    :param plugin_root: 插件根目录
-    :param migration_content: migration 文件内容
-    :param migration_name: migration 文件名
-    :return: None
-    """
+    """写入带 migration 的测试插件。"""
     (plugin_root / 'migrations').mkdir(parents=True)
     (plugin_root / 'migrations' / migration_name).write_text(migration_content, encoding='utf-8')
     (plugin_root / 'plugin.yaml').write_text(
@@ -186,12 +121,7 @@ backend:
 
 
 def write_plugin_with_database_migrations(plugin_root: Path) -> None:
-    """
-    写入带数据库方言 migration 的测试插件。
-
-    :param plugin_root: 插件根目录
-    :return: None
-    """
+    """写入带数据库方言 migration 的测试插件。"""
     (plugin_root / 'migrations' / 'mysql').mkdir(parents=True)
     (plugin_root / 'migrations' / 'postgresql').mkdir(parents=True)
     (plugin_root / 'migrations' / 'mysql' / '001_demo.sql').write_text(
@@ -219,12 +149,7 @@ backend:
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_executes_async_migration(tmp_path: Path) -> None:
-    """
-    校验 migration 运行器可以执行异步 Python migration。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 migration 运行器可以执行异步 Python migration。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("async_migration")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -240,12 +165,7 @@ async def test_plugin_migration_runner_executes_async_migration(tmp_path: Path) 
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_rejects_missing_run_function(tmp_path: Path) -> None:
-    """
-    校验 migration 缺少 run 函数时会失败。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 migration 缺少 run 函数时会失败。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'VALUE = 1\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -256,12 +176,7 @@ async def test_plugin_migration_runner_rejects_missing_run_function(tmp_path: Pa
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_executes_sql_migration(tmp_path: Path) -> None:
-    """
-    校验 migration 运行器可以执行 SQL migration。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 migration 运行器可以执行 SQL migration。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(
         plugin_root,
@@ -294,13 +209,7 @@ async def test_plugin_migration_runner_filters_database_dialect_migrations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """
-    校验 migration 运行器只执行当前数据库方言目录下的 migration。
-
-    :param tmp_path: pytest 临时目录
-    :param monkeypatch: pytest monkeypatch fixture
-    :return: None
-    """
+    """校验 migration 运行器只执行当前数据库方言目录下的 migration。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_database_migrations(plugin_root)
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -327,12 +236,7 @@ async def test_plugin_migration_runner_filters_database_dialect_migrations(
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_records_success_history(tmp_path: Path) -> None:
-    """
-    校验 migration 执行成功后会记录历史。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 migration 执行成功后会记录历史。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("history")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -358,12 +262,7 @@ async def test_plugin_migration_runner_records_success_history(tmp_path: Path) -
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_commits_managed_execution_transaction(tmp_path: Path) -> None:
-    """
-    校验托管执行事务模式会在记录 success 前提交 migration 执行 session。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验托管执行事务模式会在记录 success 前提交 migration 执行 session。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("managed")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -385,12 +284,7 @@ async def test_plugin_migration_runner_commits_managed_execution_transaction(tmp
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_reports_recovery_when_success_history_write_fails(tmp_path: Path) -> None:
-    """
-    校验 migration 执行事务已提交但 success 历史写入失败时返回 running 恢复建议。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 migration 执行事务已提交但 success 历史写入失败时返回 running 恢复建议。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("managed")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -398,9 +292,7 @@ async def test_plugin_migration_runner_reports_recovery_when_success_history_wri
     query_db = FakeManagedMigrationSession()
 
     async def fail_record_success(*_args: object, **_kwargs: object) -> None:
-        """
-        模拟 success 历史写入失败。
-        """
+        """模拟 success 历史写入失败。"""
         raise RuntimeError('history down')
 
     history_store.record_success = fail_record_success  # type: ignore[method-assign]
@@ -424,12 +316,7 @@ async def test_plugin_migration_runner_reports_recovery_when_success_history_wri
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_skips_existing_history(tmp_path: Path) -> None:
-    """
-    校验已执行且校验值一致的 migration 会跳过。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验已执行且校验值一致的 migration 会跳过。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("should_not_run")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -451,12 +338,7 @@ async def test_plugin_migration_runner_skips_existing_history(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_records_failure_history(tmp_path: Path) -> None:
-    """
-    校验 migration 执行失败后会记录失败历史并继续抛出原错误。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 migration 执行失败后会记录失败历史并继续抛出原错误。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'def run(query_db):\n    raise RuntimeError("boom")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -480,12 +362,7 @@ async def test_plugin_migration_runner_records_failure_history(tmp_path: Path) -
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_rolls_back_managed_execution_transaction(tmp_path: Path) -> None:
-    """
-    校验托管执行事务模式会在 migration 失败时回滚执行 session。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验托管执行事务模式会在 migration 失败时回滚执行 session。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'def run(query_db):\n    raise RuntimeError("boom")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -506,12 +383,7 @@ async def test_plugin_migration_runner_rolls_back_managed_execution_transaction(
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_rejects_checksum_drift(tmp_path: Path) -> None:
-    """
-    校验已执行 migration 内容发生变化时会失败。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验已执行 migration 内容发生变化时会失败。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("changed")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -526,12 +398,7 @@ async def test_plugin_migration_runner_rejects_checksum_drift(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_rejects_running_history(tmp_path: Path) -> None:
-    """
-    校验 running 状态的 migration 不会被自动重跑。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 running 状态的 migration 不会被自动重跑。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("should_not_run")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
@@ -559,12 +426,7 @@ async def test_plugin_migration_runner_rejects_running_history(tmp_path: Path) -
 
 @pytest.mark.asyncio
 async def test_plugin_migration_runner_retries_failed_history(tmp_path: Path) -> None:
-    """
-    校验 failed 状态的 migration 允许修复后重试。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 failed 状态的 migration 允许修复后重试。"""
     plugin_root = tmp_path / 'plugins' / 'demo_migration'
     write_plugin_with_migration(plugin_root, 'async def run(query_db):\n    query_db.append("retry")\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')

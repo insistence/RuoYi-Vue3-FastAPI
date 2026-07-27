@@ -3,7 +3,11 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from plugins.core.discovery.registry import PluginRegistry
-from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
+from plugins.core.discovery.scanner import (
+    DiscoveredPlugin,
+    PluginDiscoveryError,
+    PluginScanner,
+)
 from plugins.core.environment import PluginRuntimeEnvironmentService
 from plugins.core.runtime.entities import EntityModuleImporter
 from plugins.core.types import PluginStateRecord
@@ -49,22 +53,37 @@ class PluginRuntimeBuilder:
         )
         self.entity_importer = EntityModuleImporter(self.backend_root)
         self._discovered_plugins: list[DiscoveredPlugin] | None = None
+        self._discovery_errors: list[PluginDiscoveryError] | None = None
 
     def discover_plugins(self) -> list[DiscoveredPlugin]:
         """
         发现后端插件。
 
+        单个损坏插件不会影响其他正常插件，失败明细记录在 :attr:`discovery_errors` 中，
+        便于上层日志和监控。根目录配置类错误（目录不存在、文件名非法等）仍以异常形式抛出。
+
         :return: 已发现插件列表
         """
         if self._discovered_plugins is not None:
             return self._discovered_plugins
-        try:
-            self._discovered_plugins = PluginScanner(self.plugins_root).discover()
-        except Exception as exc:
-            logger.exception(f'插件发现失败：{exc}')
-            self._discovered_plugins = []
+        discovery_result = PluginScanner(self.plugins_root).discover_with_errors()
+        self._discovered_plugins = discovery_result.plugins
+        self._discovery_errors = discovery_result.errors
+        for error in discovery_result.errors:
+            logger.error(f'插件扫描失败，已隔离损坏插件：目录={error.plugin_dir}，错误：{error.error_message}')
 
         return self._discovered_plugins
+
+    @property
+    def discovery_errors(self) -> list[PluginDiscoveryError]:
+        """
+        获取插件扫描错误明细。
+
+        :return: 插件扫描错误明细列表
+        """
+        if self._discovery_errors is None:
+            self.discover_plugins()
+        return self._discovery_errors or []
 
     def build_registry(self, database_plugins: list[PluginStateRecord] | None = None) -> PluginRegistry:
         """

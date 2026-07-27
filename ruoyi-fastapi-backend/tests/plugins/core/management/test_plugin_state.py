@@ -1,4 +1,3 @@
-import sys
 from datetime import datetime, timedelta
 from io import BytesIO
 from pathlib import Path
@@ -9,27 +8,24 @@ from openpyxl import load_workbook
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from config.database import Base  # noqa: E402
-from module_admin.dao.job_dao import JobDao  # noqa: E402
-from module_admin.entity.do.job_do import SysJob  # noqa: E402
-from module_admin.entity.do.menu_do import SysMenu  # noqa: E402
-from module_admin.entity.do.role_do import SysRoleMenu  # noqa: E402
-from plugins.core.discovery.registry import PluginRegistry  # noqa: E402
-from plugins.core.discovery.scanner import DiscoveredPlugin  # noqa: E402
-from plugins.core.environment import PluginRuntimeEnvironmentService  # noqa: E402
-from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobModelBuilder, PluginJobRepository  # noqa: E402
-from plugins.core.management.dao.dao import PluginDao  # noqa: E402
-from plugins.core.management.entity.do.models import (  # noqa: E402
+from config.database import Base
+from module_admin.dao.job_dao import JobDao
+from module_admin.entity.do.job_do import SysJob
+from module_admin.entity.do.menu_do import SysMenu
+from module_admin.entity.do.role_do import SysRoleMenu
+from plugins.core.discovery.registry import PluginRegistry
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.environment import PluginRuntimeEnvironmentService
+from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobModelBuilder, PluginJobRepository
+from plugins.core.management.dao.dao import PluginDao
+from plugins.core.management.entity.do.models import (
     SysPlugin,
     SysPluginConfig,
     SysPluginMenu,
     SysPluginMigration,
     SysPluginOperationLog,
 )
-from plugins.core.management.entity.vo.schemas import (  # noqa: E402
+from plugins.core.management.entity.vo.schemas import (
     PluginConfigUpdateModel,
     PluginMigrationModel,
     PluginModel,
@@ -38,10 +34,10 @@ from plugins.core.management.entity.vo.schemas import (  # noqa: E402
     PluginOperationLogRetentionModel,
     PluginPageQueryModel,
 )
-from plugins.core.management.service.config import PluginConfigManager  # noqa: E402
-from plugins.core.management.service.logs import PluginOperationLogBuilder  # noqa: E402
-from plugins.core.management.service.service import PluginService  # noqa: E402
-from plugins.core.manifest.schema import PluginManifest  # noqa: E402
+from plugins.core.management.service.config import PluginConfigManager
+from plugins.core.management.service.logs import PluginOperationLogBuilder
+from plugins.core.management.service.service import PluginService
+from plugins.core.manifest.schema import PluginManifest
 
 INITIAL_MENU_ID = 100
 UPDATED_MENU_ID = 101
@@ -54,12 +50,7 @@ EXPECTED_PERMISSION_BUTTON_MENU_COUNT = 5
 
 
 async def create_sqlite_sys_job_table(connection: object) -> None:
-    """
-    创建适配 SQLite 的测试用 sys_job 表。
-
-    :param connection: SQLAlchemy 异步连接对象
-    :return: None
-    """
+    """创建适配 SQLite 的测试用 sys_job 表。"""
     await connection.execute(
         text(
             """
@@ -87,14 +78,7 @@ async def create_sqlite_sys_job_table(connection: object) -> None:
 
 
 async def create_sqlite_sys_menu_table(connection: object) -> None:
-    """
-    创建适配 SQLite 的测试用 sys_menu 表。
-
-    SQLite 不会对 BigInteger 主键执行自增，这里使用 integer primary key autoincrement 保持菜单安装测试稳定。
-
-    :param connection: SQLAlchemy 异步连接对象
-    :return: None
-    """
+    """创建适配 SQLite 的测试用 sys_menu 表。"""
     await connection.execute(
         text(
             """
@@ -126,14 +110,7 @@ async def create_sqlite_sys_menu_table(connection: object) -> None:
 
 
 def build_discovered_plugin(tmp_path: Path, enabled: bool = True, version: str = '1.0.0') -> DiscoveredPlugin:
-    """
-    构造测试用已发现插件对象。
-
-    :param tmp_path: pytest 临时目录
-    :param enabled: 兼容旧测试签名，插件启停状态不再来自 manifest
-    :param version: 插件版本
-    :return: 已发现插件对象
-    """
+    """构造测试用已发现插件对象。"""
     backend_path = tmp_path / 'plugins' / 'demo'
     manifest_path = backend_path / 'plugin.yaml'
     backend_path.mkdir(parents=True)
@@ -162,13 +139,7 @@ backend:
 
 
 def build_discovered_plugin_with_menu(tmp_path: Path, perms: str) -> DiscoveredPlugin:
-    """
-    构造带菜单权限声明的测试插件。
-
-    :param tmp_path: pytest 临时目录
-    :param perms: 权限标识
-    :return: 已发现插件对象
-    """
+    """构造带菜单权限声明的测试插件。"""
     backend_path = tmp_path / 'plugins' / 'demo'
     manifest_path = backend_path / 'plugin.yaml'
     backend_path.mkdir(parents=True, exist_ok=True)
@@ -197,12 +168,7 @@ def build_discovered_plugin_with_menu(tmp_path: Path, perms: str) -> DiscoveredP
 
 
 def build_discovered_plugin_with_permission_buttons(tmp_path: Path) -> DiscoveredPlugin:
-    """
-    构造带页面菜单和顶层按钮权限声明的测试插件。
-
-    :param tmp_path: pytest 临时目录
-    :return: 已发现插件对象
-    """
+    """构造带页面菜单和顶层按钮权限声明的测试插件。"""
     backend_path = tmp_path / 'plugins' / 'demo'
     manifest_path = backend_path / 'plugin.yaml'
     backend_path.mkdir(parents=True, exist_ok=True)
@@ -239,12 +205,7 @@ def build_discovered_plugin_with_permission_buttons(tmp_path: Path) -> Discovere
 
 
 def build_discovered_plugin_with_config(tmp_path: Path) -> DiscoveredPlugin:
-    """
-    构造带配置声明的测试插件。
-
-    :param tmp_path: pytest 临时目录
-    :return: 已发现插件对象
-    """
+    """构造带配置声明的测试插件。"""
     backend_path = tmp_path / 'plugins' / 'demo'
     manifest_path = backend_path / 'plugin.yaml'
     backend_path.mkdir(parents=True, exist_ok=True)
@@ -296,12 +257,7 @@ def build_discovered_plugin_with_config(tmp_path: Path) -> DiscoveredPlugin:
 
 
 def build_discovered_plugin_with_job(tmp_path: Path) -> DiscoveredPlugin:
-    """
-    构造带定时任务声明的测试插件。
-
-    :param tmp_path: pytest 临时目录
-    :return: 已发现插件对象
-    """
+    """构造带定时任务声明的测试插件。"""
     backend_path = tmp_path / 'plugins' / 'demo'
     manifest_path = backend_path / 'plugin.yaml'
     backend_path.mkdir(parents=True, exist_ok=True)
@@ -311,7 +267,6 @@ def build_discovered_plugin_with_job(tmp_path: Path) -> DiscoveredPlugin:
             'id': 'demo',
             'name': '演示插件',
             'version': '1.0.0',
-            'enabled': True,
             'backend': {
                 'module': 'plugins.demo',
                 'jobs': [
@@ -332,6 +287,7 @@ def build_discovered_plugin_with_job(tmp_path: Path) -> DiscoveredPlugin:
 
 
 def test_plugin_tables_are_registered_with_expected_names() -> None:
+    """校验插件管理表使用预期表名注册。"""
     assert SysPlugin.__tablename__ == 'sys_plugin'
     assert SysPluginMenu.__tablename__ == 'sys_plugin_menu'
     assert SysPluginMigration.__tablename__ == 'sys_plugin_migration'
@@ -352,12 +308,7 @@ def test_plugin_tables_are_registered_with_expected_names() -> None:
 
 
 def test_plugin_job_model_builder_maps_manifest_to_job_model(tmp_path: Path) -> None:
-    """
-    校验插件任务模型构建器能映射 manifest 任务声明。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件任务模型构建器能映射 manifest 任务声明。"""
     discovered_plugin = build_discovered_plugin_with_job(tmp_path)
     job_model = PluginJobModelBuilder.build('demo', discovered_plugin.manifest.backend.jobs[0])
 
@@ -371,6 +322,7 @@ def test_plugin_job_model_builder_maps_manifest_to_job_model(tmp_path: Path) -> 
 
 
 def test_build_plugin_model_uses_discovered_state_for_new_plugin(tmp_path: Path) -> None:
+    """校验新插件模型采用发现阶段状态。"""
     discovered_plugin = build_discovered_plugin(tmp_path, enabled=True)
     backend_root = tmp_path / 'plugins'
     frontend_root = tmp_path / 'frontend_plugins'
@@ -387,18 +339,14 @@ def test_build_plugin_model_uses_discovered_state_for_new_plugin(tmp_path: Path)
 
 
 def test_plugin_runtime_environment_uses_explicit_backend_root(tmp_path: Path) -> None:
-    """
-    校验插件运行环境服务使用明确后端目录。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行环境服务使用明确后端目录。"""
     environment = PluginRuntimeEnvironmentService(tmp_path)
 
     assert environment.get_backend_dir() == str(tmp_path)
 
 
 def test_build_plugin_model_keeps_database_enabled_value(tmp_path: Path) -> None:
+    """校验插件模型保留数据库中的启用值。"""
     discovered_plugin = build_discovered_plugin(tmp_path, enabled=True)
     existing_plugin = SimpleNamespace(enabled='1', installed_version='1.0.0')
 
@@ -409,6 +357,7 @@ def test_build_plugin_model_keeps_database_enabled_value(tmp_path: Path) -> None
 
 
 def test_build_plugin_model_marks_pending_upgrade(tmp_path: Path) -> None:
+    """校验插件模型在版本变化时标记待升级。"""
     discovered_plugin = build_discovered_plugin(tmp_path, enabled=True)
     existing_plugin = SimpleNamespace(enabled='0', installed_version='0.9.0')
 
@@ -418,12 +367,7 @@ def test_build_plugin_model_marks_pending_upgrade(tmp_path: Path) -> None:
 
 
 def test_build_plugin_model_keeps_installed_when_source_version_is_older(tmp_path: Path) -> None:
-    """
-    校验源码版本低于已安装版本时插件管理状态不会误标记待升级。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验源码版本低于已安装版本时插件管理状态不会误标记待升级。"""
     discovered_plugin = build_discovered_plugin(tmp_path, enabled=True, version='1.2.0')
     existing_plugin = SimpleNamespace(enabled='0', installed_version='1.10.0')
 
@@ -433,12 +377,7 @@ def test_build_plugin_model_keeps_installed_when_source_version_is_older(tmp_pat
 
 
 def test_build_plugin_model_keeps_error_status_and_last_error(tmp_path: Path) -> None:
-    """
-    校验插件扫描合并时会保留数据库中的异常状态和最近错误。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件扫描合并时会保留数据库中的异常状态和最近错误。"""
     discovered_plugin = build_discovered_plugin(tmp_path, enabled=True)
     existing_plugin = SimpleNamespace(
         enabled='0',
@@ -455,6 +394,7 @@ def test_build_plugin_model_keeps_error_status_and_last_error(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_upsert_discovered_plugin_persists_plugin(tmp_path: Path) -> None:
+    """校验发现插件的写入流程可以持久化插件状态。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -484,12 +424,7 @@ async def test_upsert_discovered_plugin_persists_plugin(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_mark_plugin_installed_updates_installed_version(tmp_path: Path) -> None:
-    """
-    校验插件安装完成后会写入 installed_version 和最终状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安装完成后会写入 installed_version 和最终状态。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -520,12 +455,7 @@ async def test_mark_plugin_installed_updates_installed_version(tmp_path: Path) -
 
 @pytest.mark.asyncio
 async def test_install_plugin_with_disabled_menus_can_be_enabled_later(tmp_path: Path) -> None:
-    """
-    校验默认停用插件安装时会写入停用菜单，后续启用插件可恢复菜单状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验默认停用插件安装时会写入停用菜单，后续启用插件可恢复菜单状态。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -575,12 +505,7 @@ async def test_install_plugin_with_disabled_menus_can_be_enabled_later(tmp_path:
 
 @pytest.mark.asyncio
 async def test_install_plugin_menu_services_generates_permission_buttons(tmp_path: Path) -> None:
-    """
-    校验插件安装菜单时会为顶层权限声明生成按钮菜单。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安装菜单时会为顶层权限声明生成按钮菜单。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -633,12 +558,7 @@ async def test_install_plugin_menu_services_generates_permission_buttons(tmp_pat
 
 @pytest.mark.asyncio
 async def test_mark_plugin_uninstalled_clears_installed_version(tmp_path: Path) -> None:
-    """
-    校验插件卸载会清空 installed_version 并回到可安装状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件卸载会清空 installed_version 并回到可安装状态。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -656,7 +576,6 @@ async def test_mark_plugin_uninstalled_clears_installed_version(tmp_path: Path) 
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
   jobs:
@@ -735,12 +654,7 @@ backend:
 
 @pytest.mark.asyncio
 async def test_mark_plugin_error_disables_plugin_and_menus(tmp_path: Path) -> None:
-    """
-    校验标记插件异常时会停用插件并停用插件菜单。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验标记插件异常时会停用插件并停用插件菜单。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -758,7 +672,6 @@ async def test_mark_plugin_error_disables_plugin_and_menus(tmp_path: Path) -> No
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 description: 用于测试
 backend:
   module: plugins.demo
@@ -805,12 +718,7 @@ backend:
 
 @pytest.mark.asyncio
 async def test_enable_plugin_clears_last_error_and_reenables_menus(tmp_path: Path) -> None:
-    """
-    校验重新启用插件时会清理最近错误并恢复插件菜单状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验重新启用插件时会清理最近错误并恢复插件菜单状态。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -863,12 +771,7 @@ async def test_enable_plugin_clears_last_error_and_reenables_menus(tmp_path: Pat
 
 @pytest.mark.asyncio
 async def test_install_enabled_plugin_jobs_upserts_sys_job(tmp_path: Path) -> None:
-    """
-    校验启用插件任务会幂等写入系统任务表。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验启用插件任务会幂等写入系统任务表。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -907,12 +810,7 @@ async def test_install_enabled_plugin_jobs_upserts_sys_job(tmp_path: Path) -> No
 
 @pytest.mark.asyncio
 async def test_disable_plugin_pauses_plugin_jobs(tmp_path: Path) -> None:
-    """
-    校验停用插件时会暂停对应插件任务。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验停用插件时会暂停对应插件任务。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -944,12 +842,7 @@ async def test_disable_plugin_pauses_plugin_jobs(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_enable_plugin_restores_plugin_jobs(tmp_path: Path) -> None:
-    """
-    校验启用插件时会恢复声明的插件任务。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验启用插件时会恢复声明的插件任务。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -988,12 +881,7 @@ async def test_enable_plugin_restores_plugin_jobs(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_get_plugin_page_list_filters_by_status(tmp_path: Path) -> None:
-    """
-    校验插件分页列表支持按状态筛选。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件分页列表支持按状态筛选。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1026,12 +914,7 @@ async def test_get_plugin_page_list_filters_by_status(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_get_plugin_page_list_includes_discovered_plugins_without_database_state(tmp_path: Path) -> None:
-    """
-    校验插件分页列表会返回本地已发现但尚未写入数据库的插件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件分页列表会返回本地已发现但尚未写入数据库的插件。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1045,7 +928,6 @@ async def test_get_plugin_page_list_includes_discovered_plugins_without_database
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 description: 用于测试
 backend:
   module: plugins.demo
@@ -1071,12 +953,7 @@ backend:
 
 @pytest.mark.asyncio
 async def test_plugin_detail_returns_discovered_plugin_without_database_state(tmp_path: Path) -> None:
-    """
-    校验插件详情会返回本地已发现但尚未写入数据库的插件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件详情会返回本地已发现但尚未写入数据库的插件。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1090,7 +967,6 @@ async def test_plugin_detail_returns_discovered_plugin_without_database_state(tm
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: false
 description: 用于测试
 backend:
   module: plugins.demo
@@ -1116,6 +992,7 @@ backend:
 
 @pytest.mark.asyncio
 async def test_upsert_plugin_menu_updates_existing_menu_key(tmp_path: Path) -> None:
+    """校验写入插件菜单时更新已有菜单自然键。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1138,12 +1015,7 @@ async def test_upsert_plugin_menu_updates_existing_menu_key(tmp_path: Path) -> N
 
 @pytest.mark.asyncio
 async def test_plugin_migration_history_can_be_persisted_and_read(tmp_path: Path) -> None:
-    """
-    校验插件 migration 执行历史可以写入和读取。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件 migration 执行历史可以写入和读取。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1181,11 +1053,7 @@ async def test_plugin_migration_history_can_be_persisted_and_read(tmp_path: Path
 
 @pytest.mark.asyncio
 async def test_plugin_migration_history_upserts_failed_record_to_success() -> None:
-    """
-    校验失败 migration 历史可被后续成功执行覆盖。
-
-    :return: None
-    """
+    """校验失败 migration 历史可被后续成功执行覆盖。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     failed_statement_count = 1
@@ -1237,11 +1105,7 @@ async def test_plugin_migration_history_upserts_failed_record_to_success() -> No
 
 @pytest.mark.asyncio
 async def test_plugin_migration_history_can_be_listed_and_marked() -> None:
-    """
-    校验插件 migration 历史可以列表查询并人工标记状态。
-
-    :return: None
-    """
+    """校验插件 migration 历史可以列表查询并人工标记状态。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1297,12 +1161,7 @@ async def test_plugin_migration_history_can_be_listed_and_marked() -> None:
 
 @pytest.mark.asyncio
 async def test_check_installed_menu_conflict_reports_core_permission(tmp_path: Path) -> None:
-    """
-    校验插件权限与核心菜单权限重复时会报告冲突。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件权限与核心菜单权限重复时会报告冲突。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1340,12 +1199,7 @@ async def test_check_installed_menu_conflict_reports_core_permission(tmp_path: P
 
 @pytest.mark.asyncio
 async def test_plugin_default_config_can_be_installed_and_masked(tmp_path: Path) -> None:
-    """
-    校验插件默认配置可以落库并对敏感值脱敏。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件默认配置可以落库并对敏感值脱敏。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1374,12 +1228,7 @@ async def test_plugin_default_config_can_be_installed_and_masked(tmp_path: Path)
 
 @pytest.mark.asyncio
 async def test_secret_plugin_config_is_encrypted_at_rest(tmp_path: Path) -> None:
-    """
-    校验敏感插件配置加密落库且读取时可按需解密或脱敏。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验敏感插件配置加密落库且读取时可按需解密或脱敏。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1416,11 +1265,7 @@ async def test_secret_plugin_config_is_encrypted_at_rest(tmp_path: Path) -> None
 
 
 def test_secret_plugin_config_rejects_plaintext_storage() -> None:
-    """
-    校验敏感插件配置读取时拒绝未加密存储值。
-
-    :return: None
-    """
+    """校验敏感插件配置读取时拒绝未加密存储值。"""
     config = SimpleNamespace(
         config_key='api_key',
         config_label='API Key',
@@ -1436,11 +1281,7 @@ def test_secret_plugin_config_rejects_plaintext_storage() -> None:
 
 
 def test_secret_plugin_config_encrypts_user_value_with_encrypted_prefix() -> None:
-    """
-    校验用户输入类似密文前缀的敏感值也会重新加密存储。
-
-    :return: None
-    """
+    """校验用户输入类似密文前缀的敏感值也会重新加密存储。"""
     user_value = f'{PluginConfigManager.ENCRYPTED_PREFIX}not-a-token'
 
     stored_value = PluginConfigManager.serialize_config_value(user_value, secret=True)
@@ -1453,11 +1294,7 @@ def test_secret_plugin_config_encrypts_user_value_with_encrypted_prefix() -> Non
 
 
 def test_plugin_config_options_exposes_parse_error() -> None:
-    """
-    校验插件配置选项 JSON 损坏时返回可见解析错误。
-
-    :return: None
-    """
+    """校验插件配置选项 JSON 损坏时返回可见解析错误。"""
     options = PluginConfigManager.deserialize_options('{broken')
 
     assert options == [{'parseError': '配置选项 JSON 解析失败'}]
@@ -1468,19 +1305,14 @@ async def test_get_plugin_config_services_reuses_bulk_config_lookup(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """
-    校验读取插件配置时不会逐项查询默认配置。
-
-    :param tmp_path: pytest 临时目录
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验读取插件配置时不会逐项查询默认配置。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all, tables=[SysPluginConfig.__table__])
 
     async def fail_get_config_by_key(*_args: object, **_kwargs: object) -> None:
+        """模拟读取插件配置失败。"""
         raise AssertionError('get_plugin_config_by_key should not be used for default config diff')
 
     try:
@@ -1497,12 +1329,7 @@ async def test_get_plugin_config_services_reuses_bulk_config_lookup(
 
 @pytest.mark.asyncio
 async def test_plugin_config_can_be_updated(tmp_path: Path) -> None:
-    """
-    校验插件配置可以更新。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件配置可以更新。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1525,12 +1352,7 @@ async def test_plugin_config_can_be_updated(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_plugin_config_update_validates_enhanced_constraints(tmp_path: Path) -> None:
-    """
-    校验插件配置更新会应用范围和正则约束。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件配置更新会应用范围和正则约束。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1557,12 +1379,7 @@ async def test_plugin_config_update_validates_enhanced_constraints(tmp_path: Pat
 
 @pytest.mark.asyncio
 async def test_build_plugin_purge_plan_counts_platform_metadata(tmp_path: Path) -> None:
-    """
-    校验插件物理清理计划会统计平台拥有的插件元数据。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件物理清理计划会统计平台拥有的插件元数据。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1630,12 +1447,7 @@ async def test_build_plugin_purge_plan_counts_platform_metadata(tmp_path: Path) 
 
 @pytest.mark.asyncio
 async def test_purge_plugin_services_deletes_platform_metadata(tmp_path: Path) -> None:
-    """
-    校验插件物理清理服务只删除平台拥有的插件元数据。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件物理清理服务只删除平台拥有的插件元数据。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1710,11 +1522,7 @@ async def test_purge_plugin_services_deletes_platform_metadata(tmp_path: Path) -
 
 @pytest.mark.asyncio
 async def test_plugin_job_prefix_queries_treat_like_wildcards_as_literals() -> None:
-    """
-    校验插件任务前缀查询会把插件 ID 中的 LIKE 通配符当作普通字符。
-
-    :return: None
-    """
+    """校验插件任务前缀查询会把插件 ID 中的 LIKE 通配符当作普通字符。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1761,11 +1569,7 @@ async def test_plugin_job_prefix_queries_treat_like_wildcards_as_literals() -> N
 
 @pytest.mark.asyncio
 async def test_add_plugin_operation_log_services_persists_batch_report() -> None:
-    """
-    校验插件批量操作审计日志可以落库。
-
-    :return: None
-    """
+    """校验插件批量操作审计日志可以落库。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1805,11 +1609,7 @@ async def test_add_plugin_operation_log_services_persists_batch_report() -> None
 
 @pytest.mark.asyncio
 async def test_plugin_operation_log_services_returns_page_and_detail() -> None:
-    """
-    校验插件批量操作审计日志分页和详情会解析 JSON 字段。
-
-    :return: None
-    """
+    """校验插件批量操作审计日志分页和详情会解析 JSON 字段。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1856,11 +1656,7 @@ async def test_plugin_operation_log_services_returns_page_and_detail() -> None:
 
 
 def test_build_plugin_operation_log_model_supports_single_plugin_payload() -> None:
-    """
-    校验插件操作审计日志构建器支持单插件操作负载。
-
-    :return: None
-    """
+    """校验插件操作审计日志构建器支持单插件操作负载。"""
     operation_log = PluginOperationLogBuilder.build_model(
         {
             'ok': True,
@@ -1879,11 +1675,7 @@ def test_build_plugin_operation_log_model_supports_single_plugin_payload() -> No
 
 
 def test_plugin_operation_log_detail_exposes_invalid_json_parse_error() -> None:
-    """
-    校验插件操作日志详情 JSON 损坏时返回可见解析错误。
-
-    :return: None
-    """
+    """校验插件操作日志详情 JSON 损坏时返回可见解析错误。"""
     detail = PluginOperationLogBuilder.build_detail(
         {
             'operationId': 1,
@@ -1903,11 +1695,7 @@ def test_plugin_operation_log_detail_exposes_invalid_json_parse_error() -> None:
 
 @pytest.mark.asyncio
 async def test_plugin_operation_log_plugin_id_filter_matches_json_array_element() -> None:
-    """
-    校验操作日志按插件 ID 查询时不会命中 JSON 数组里的相似插件 ID。
-
-    :return: None
-    """
+    """校验操作日志按插件 ID 查询时不会命中 JSON 数组里的相似插件 ID。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1949,11 +1737,7 @@ async def test_plugin_operation_log_plugin_id_filter_matches_json_array_element(
 
 @pytest.mark.asyncio
 async def test_plugin_operation_log_plugin_id_filter_treats_like_wildcards_as_literals() -> None:
-    """
-    校验操作日志插件 ID 过滤不会把 _ 和 % 当成 SQL LIKE 通配符。
-
-    :return: None
-    """
+    """校验操作日志插件 ID 过滤不会把 _ 和 % 当成 SQL LIKE 通配符。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -2002,11 +1786,7 @@ async def test_plugin_operation_log_plugin_id_filter_treats_like_wildcards_as_li
 
 @pytest.mark.asyncio
 async def test_plugin_operation_log_export_services_returns_filtered_rows() -> None:
-    """
-    校验插件操作审计日志导出服务会按查询条件返回可导出数据。
-
-    :return: None
-    """
+    """校验插件操作审计日志导出服务会按查询条件返回可导出数据。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -2079,11 +1859,7 @@ async def test_plugin_operation_log_export_services_returns_filtered_rows() -> N
 
 @pytest.mark.asyncio
 async def test_retain_plugin_operation_log_services_supports_dry_run_and_delete() -> None:
-    """
-    校验插件操作审计日志保留策略支持预览和删除。
-
-    :return: None
-    """
+    """校验插件操作审计日志保留策略支持预览和删除。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -2138,11 +1914,7 @@ async def test_retain_plugin_operation_log_services_supports_dry_run_and_delete(
 
 @pytest.mark.asyncio
 async def test_retain_plugin_operation_log_services_accepts_zero_days() -> None:
-    """
-    校验插件操作审计日志保留策略支持 0 天，便于清理当前时间之前的全部日志。
-
-    :return: None
-    """
+    """校验插件操作审计日志保留策略支持 0 天，便于清理当前时间之前的全部日志。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:

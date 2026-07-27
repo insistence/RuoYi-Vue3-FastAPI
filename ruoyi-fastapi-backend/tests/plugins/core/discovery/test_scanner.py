@@ -1,25 +1,15 @@
-import sys
 from pathlib import Path
 
 import pytest
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.discovery.scanner import PluginScanner, discover_plugins  # noqa: E402
-from plugins.core.manifest.schema import PluginManifest, PluginManifestError  # noqa: E402
+from plugins.core.discovery.scanner import PluginScanner, discover_plugins
+from plugins.core.manifest.schema import PluginManifest, PluginManifestError
 
 EXPECTED_CONFIG_ORDER = 10
 
 
 def write_manifest(plugin_dir: Path, content: str) -> Path:
-    """
-    写入测试插件清单。
-
-    :param plugin_dir: 插件目录
-    :param content: 清单内容
-    :return: 清单文件路径
-    """
+    """写入测试插件清单。"""
     plugin_dir.mkdir(parents=True)
     manifest_path = plugin_dir / 'plugin.yaml'
     manifest_path.write_text(content, encoding='utf-8')
@@ -27,6 +17,7 @@ def write_manifest(plugin_dir: Path, content: str) -> Path:
 
 
 def test_manifest_fills_frontend_defaults() -> None:
+    """校验插件清单会补齐前端配置默认值。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -43,11 +34,7 @@ def test_manifest_fills_frontend_defaults() -> None:
 
 
 def test_manifest_accepts_version_metadata_databases_and_menu_system_fields() -> None:
-    """
-    校验插件清单支持版本、展示元数据、数据库兼容性和系统菜单字段。
-
-    :return: None
-    """
+    """校验插件清单支持版本、展示元数据、数据库兼容性和系统菜单字段。"""
     manifest = PluginManifest.model_validate(
         {
             'manifestVersion': 1,
@@ -93,6 +80,7 @@ def test_manifest_accepts_version_metadata_databases_and_menu_system_fields() ->
 
 
 def test_manifest_accepts_camel_case_fields() -> None:
+    """校验插件清单接受约定的驼峰字段。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -116,11 +104,7 @@ def test_manifest_accepts_camel_case_fields() -> None:
 
 
 def test_manifest_rejects_unsupported_manifest_version() -> None:
-    """
-    校验插件清单版本只接受当前支持版本。
-
-    :return: None
-    """
+    """校验插件清单版本只接受当前支持版本。"""
     with pytest.raises(ValueError):
         PluginManifest.model_validate(
             {
@@ -134,11 +118,7 @@ def test_manifest_rejects_unsupported_manifest_version() -> None:
 
 
 def test_manifest_rejects_duplicate_metadata_tags_and_databases() -> None:
-    """
-    校验插件展示标签和数据库兼容性声明不能重复。
-
-    :return: None
-    """
+    """校验插件展示标签和数据库兼容性声明不能重复。"""
     with pytest.raises(ValueError, match=r'metadata\.tags 不能重复'):
         PluginManifest.model_validate(
             {
@@ -162,11 +142,7 @@ def test_manifest_rejects_duplicate_metadata_tags_and_databases() -> None:
 
 
 def test_manifest_rejects_invalid_metadata_url() -> None:
-    """
-    校验插件展示元数据地址必须是 http/https 地址。
-
-    :return: None
-    """
+    """校验插件展示元数据地址必须是 http/https 地址。"""
     with pytest.raises(ValueError, match=r'metadata\.homepage 必须是 http/https 地址'):
         PluginManifest.model_validate(
             {
@@ -179,12 +155,22 @@ def test_manifest_rejects_invalid_metadata_url() -> None:
         )
 
 
-def test_manifest_accepts_external_frame_menu() -> None:
-    """
-    校验外链菜单允许 http/https 路由地址。
+def test_manifest_rejects_invalid_python_requirement() -> None:
+    """校验插件清单拒绝无效的 Python 依赖声明。"""
+    with pytest.raises(ValueError, match='Python 依赖声明无效'):
+        PluginManifest.model_validate(
+            {
+                'id': 'demo',
+                'name': '演示插件',
+                'version': '1.0.0',
+                'backend': {'module': 'plugins.demo'},
+                'dependencies': {'python': ['openai=>999']},
+            }
+        )
 
-    :return: None
-    """
+
+def test_manifest_accepts_external_frame_menu() -> None:
+    """校验外链菜单允许 http/https 路由地址。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -209,11 +195,7 @@ def test_manifest_accepts_external_frame_menu() -> None:
 
 
 def test_manifest_rejects_mismatched_frame_menu_path() -> None:
-    """
-    校验外链标记和菜单路径类型必须匹配。
-
-    :return: None
-    """
+    """校验外链标记和菜单路径类型必须匹配。"""
     with pytest.raises(ValueError, match='外链菜单 path 必须是 http/https 地址'):
         PluginManifest.model_validate(
             {
@@ -241,11 +223,7 @@ def test_manifest_rejects_mismatched_frame_menu_path() -> None:
 
 
 def test_manifest_normalizes_config_type_aliases() -> None:
-    """
-    校验插件配置类型别名会规范化为运行时支持的类型。
-
-    :return: None
-    """
+    """校验插件配置类型别名会规范化为运行时支持的类型。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -266,11 +244,7 @@ def test_manifest_normalizes_config_type_aliases() -> None:
 
 
 def test_manifest_accepts_resource_declarations() -> None:
-    """
-    校验插件 manifest 支持声明资源清单。
-
-    :return: None
-    """
+    """校验插件 manifest 支持声明资源清单。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -291,11 +265,7 @@ def test_manifest_accepts_resource_declarations() -> None:
 
 
 def test_manifest_rejects_unsafe_resource_paths() -> None:
-    """
-    校验插件资源路径必须是安全相对路径。
-
-    :return: None
-    """
+    """校验插件资源路径必须是安全相对路径。"""
     with pytest.raises(ValueError, match='插件资源路径必须是安全相对路径'):
         PluginManifest.model_validate(
             {
@@ -309,11 +279,7 @@ def test_manifest_rejects_unsafe_resource_paths() -> None:
 
 
 def test_manifest_rejects_invalid_config_defaults() -> None:
-    """
-    校验插件配置默认值必须与配置类型匹配。
-
-    :return: None
-    """
+    """校验插件配置默认值必须与配置类型匹配。"""
     with pytest.raises(ValueError, match='default 必须是布尔值'):
         PluginManifest.model_validate(
             {
@@ -327,11 +293,7 @@ def test_manifest_rejects_invalid_config_defaults() -> None:
 
 
 def test_manifest_rejects_invalid_select_config() -> None:
-    """
-    校验 select 配置必须声明选项且默认值必须位于选项中。
-
-    :return: None
-    """
+    """校验 select 配置必须声明选项且默认值必须位于选项中。"""
     with pytest.raises(ValueError, match='必须声明 options'):
         PluginManifest.model_validate(
             {
@@ -364,11 +326,7 @@ def test_manifest_rejects_invalid_select_config() -> None:
 
 
 def test_manifest_accepts_config_enhanced_metadata() -> None:
-    """
-    校验配置项支持分组、排序、占位提示、范围和正则元数据。
-
-    :return: None
-    """
+    """校验配置项支持分组、排序、占位提示、范围和正则元数据。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -409,11 +367,7 @@ def test_manifest_accepts_config_enhanced_metadata() -> None:
 
 
 def test_manifest_rejects_config_default_outside_enhanced_constraints() -> None:
-    """
-    校验配置项默认值必须满足范围和正则约束。
-
-    :return: None
-    """
+    """校验配置项默认值必须满足范围和正则约束。"""
     with pytest.raises(ValueError, match='default 不能大于 max'):
         PluginManifest.model_validate(
             {
@@ -438,11 +392,7 @@ def test_manifest_rejects_config_default_outside_enhanced_constraints() -> None:
 
 
 def test_manifest_rejects_invalid_permissions() -> None:
-    """
-    校验插件权限必须使用小写冒号分隔格式。
-
-    :return: None
-    """
+    """校验插件权限必须使用小写冒号分隔格式。"""
     with pytest.raises(ValueError, match='插件权限格式无效'):
         PluginManifest.model_validate(
             {
@@ -456,11 +406,7 @@ def test_manifest_rejects_invalid_permissions() -> None:
 
 
 def test_manifest_accepts_permission_objects_and_aliases() -> None:
-    """
-    校验插件权限支持对象写法、展示名和兼容字段名。
-
-    :return: None
-    """
+    """校验插件权限支持对象写法、展示名和兼容字段名。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -482,11 +428,7 @@ def test_manifest_accepts_permission_objects_and_aliases() -> None:
 
 
 def test_manifest_rejects_duplicate_permission_objects() -> None:
-    """
-    校验对象权限按权限标识去重。
-
-    :return: None
-    """
+    """校验对象权限按权限标识去重。"""
     with pytest.raises(ValueError, match='插件权限不能重复'):
         PluginManifest.model_validate(
             {
@@ -500,11 +442,7 @@ def test_manifest_rejects_duplicate_permission_objects() -> None:
 
 
 def test_manifest_rejects_undeclared_menu_permission() -> None:
-    """
-    校验菜单权限必须在顶层 permissions 中声明。
-
-    :return: None
-    """
+    """校验菜单权限必须在顶层 permissions 中声明。"""
     with pytest.raises(ValueError, match='菜单权限必须在 permissions 中声明'):
         PluginManifest.model_validate(
             {
@@ -528,11 +466,7 @@ def test_manifest_rejects_undeclared_menu_permission() -> None:
 
 
 def test_manifest_rejects_backend_module_mismatch() -> None:
-    """
-    校验 backend.module 必须与插件 ID 对齐。
-
-    :return: None
-    """
+    """校验 backend.module 必须与插件 ID 对齐。"""
     with pytest.raises(ValueError, match=r'backend\.module 必须为 plugins\.demo'):
         PluginManifest.model_validate(
             {
@@ -545,11 +479,7 @@ def test_manifest_rejects_backend_module_mismatch() -> None:
 
 
 def test_manifest_rejects_frontend_plugin_id_mismatch() -> None:
-    """
-    校验 frontend.pluginId 必须与插件 ID 对齐。
-
-    :return: None
-    """
+    """校验 frontend.pluginId 必须与插件 ID 对齐。"""
     with pytest.raises(ValueError, match=r'frontend\.pluginId 必须与插件 id 一致'):
         PluginManifest.model_validate(
             {
@@ -563,11 +493,7 @@ def test_manifest_rejects_frontend_plugin_id_mismatch() -> None:
 
 
 def test_manifest_rejects_cross_plugin_component() -> None:
-    """
-    校验菜单组件不能引用其他插件的前端目录。
-
-    :return: None
-    """
+    """校验菜单组件不能引用其他插件的前端目录。"""
     with pytest.raises(ValueError, match='插件组件路径必须引用当前插件目录'):
         PluginManifest.model_validate(
             {
@@ -589,11 +515,7 @@ def test_manifest_rejects_cross_plugin_component() -> None:
 
 
 def test_manifest_rejects_duplicate_menu_paths() -> None:
-    """
-    校验同一插件内菜单完整路径不能重复。
-
-    :return: None
-    """
+    """校验同一插件内菜单完整路径不能重复。"""
     with pytest.raises(ValueError, match='菜单 path 不能重复'):
         PluginManifest.model_validate(
             {
@@ -612,11 +534,7 @@ def test_manifest_rejects_duplicate_menu_paths() -> None:
 
 
 def test_manifest_rejects_invalid_menu_component() -> None:
-    """
-    校验菜单组件必须使用核心布局组件或插件视图路径。
-
-    :return: None
-    """
+    """校验菜单组件必须使用核心布局组件或插件视图路径。"""
     with pytest.raises(ValueError, match='菜单 component 只允许核心布局组件或插件视图路径'):
         PluginManifest.model_validate(
             {
@@ -631,6 +549,7 @@ def test_manifest_rejects_invalid_menu_component() -> None:
 
 @pytest.mark.parametrize('plugin_id', ['Demo', '1demo', 'a', 'system', 'demo plugin'])
 def test_manifest_rejects_invalid_plugin_id(plugin_id: str) -> None:
+    """校验插件清单拒绝不符合规范的插件 ID。"""
     with pytest.raises(ValueError):
         PluginManifest.model_validate(
             {
@@ -643,6 +562,7 @@ def test_manifest_rejects_invalid_plugin_id(plugin_id: str) -> None:
 
 
 def test_discover_plugins_loads_valid_manifests(tmp_path: Path) -> None:
+    """校验插件发现流程可以加载有效清单。"""
     write_manifest(
         tmp_path / 'demo',
         """
@@ -669,17 +589,43 @@ permissions:
     assert plugins[0].backend_path == tmp_path / 'demo'
 
 
+def test_discover_with_errors_isolates_broken_plugin(tmp_path: Path) -> None:
+    """校验插件发现流程会隔离单个损坏插件。"""
+    write_manifest(
+        tmp_path / 'good',
+        """
+id: good
+name: 正常插件
+version: 1.0.0
+backend:
+  module: plugins.good
+""",
+    )
+    write_manifest(
+        tmp_path / 'bad',
+        """
+id: bad
+name: 损坏插件
+""",
+    )
+
+    result = PluginScanner(tmp_path).discover_with_errors()
+
+    assert len(result.plugins) == 1
+    assert result.plugins[0].manifest.id == 'good'
+    assert result.has_errors
+    assert len(result.errors) == 1
+    assert result.errors[0].plugin_dir == tmp_path / 'bad'
+    assert '插件清单校验失败' in result.errors[0].error_message
+
+
 def test_discover_plugins_returns_empty_for_missing_root(tmp_path: Path) -> None:
+    """校验插件根目录不存在时返回空结果。"""
     assert discover_plugins(tmp_path / 'missing') == []
 
 
 def test_discover_plugins_rejects_plugin_yml_manifest_name(tmp_path: Path) -> None:
-    """
-    校验插件清单必须使用 plugin.yaml 文件名，避免 plugin.yml 被静默漏扫。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件清单必须使用 plugin.yaml 文件名，避免 plugin.yml 被静默漏扫。"""
     plugin_dir = tmp_path / 'demo'
     plugin_dir.mkdir()
     (plugin_dir / 'plugin.yml').write_text(
@@ -697,7 +643,63 @@ backend:
         discover_plugins(tmp_path)
 
 
+def test_discover_with_errors_isolates_plugin_yml_filename(tmp_path: Path) -> None:
+    """校验发现流程会隔离使用错误清单文件名的插件。"""
+    write_manifest(
+        tmp_path / 'good',
+        """
+id: good
+name: 正常插件
+version: 1.0.0
+backend:
+  module: plugins.good
+""",
+    )
+    bad_dir = tmp_path / 'bad'
+    bad_dir.mkdir()
+    (bad_dir / 'plugin.yml').write_text(
+        """
+id: bad
+name: 损坏插件
+version: 1.0.0
+backend:
+  module: plugins.bad
+""",
+        encoding='utf-8',
+    )
+
+    result = PluginScanner(tmp_path).discover_with_errors()
+
+    assert len(result.plugins) == 1
+    assert result.plugins[0].manifest.id == 'good'
+    assert result.has_errors
+    assert len(result.errors) == 1
+    assert result.errors[0].plugin_dir == bad_dir
+    assert '插件清单文件名必须为 plugin.yaml' in result.errors[0].error_message
+
+
+def test_discover_with_errors_isolates_directory_with_both_manifest_names(tmp_path: Path) -> None:
+    """校验发现流程会隔离同时包含两种清单文件名的目录。"""
+    plugin_dir = tmp_path / 'demo'
+    manifest_content = """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+"""
+    write_manifest(plugin_dir, manifest_content)
+    (plugin_dir / 'plugin.yml').write_text(manifest_content, encoding='utf-8')
+
+    result = PluginScanner(tmp_path).discover_with_errors()
+
+    assert result.plugins == []
+    assert len(result.errors) == 1
+    assert result.errors[0].plugin_dir == plugin_dir
+
+
 def test_discover_plugins_rejects_directory_name_mismatch(tmp_path: Path) -> None:
+    """校验插件目录名必须与清单中的插件 ID 一致。"""
     manifest_path = write_manifest(
         tmp_path / 'demo_dir',
         """
@@ -714,6 +716,7 @@ backend:
 
 
 def test_discover_plugins_rejects_invalid_yaml_shape(tmp_path: Path) -> None:
+    """校验插件发现流程拒绝非法 YAML 数据结构。"""
     write_manifest(
         tmp_path / 'demo',
         """
@@ -722,11 +725,15 @@ def test_discover_plugins_rejects_invalid_yaml_shape(tmp_path: Path) -> None:
 """,
     )
 
-    with pytest.raises(PluginManifestError, match='插件清单必须是 YAML 对象'):
-        discover_plugins(tmp_path)
+    result = PluginScanner(tmp_path).discover_with_errors()
+
+    assert result.plugins == []
+    assert result.has_errors
+    assert '插件清单必须是 YAML 对象' in result.errors[0].error_message
 
 
 def test_discover_plugins_rejects_invalid_manifest(tmp_path: Path) -> None:
+    """校验插件发现流程拒绝未通过模型校验的清单。"""
     write_manifest(
         tmp_path / 'demo',
         """
@@ -735,17 +742,15 @@ name: 演示插件
 """,
     )
 
-    with pytest.raises(PluginManifestError, match='插件清单校验失败'):
-        discover_plugins(tmp_path)
+    result = PluginScanner(tmp_path).discover_with_errors()
+
+    assert result.plugins == []
+    assert result.has_errors
+    assert '插件清单校验失败' in result.errors[0].error_message
 
 
 def test_scanner_includes_pydantic_error_detail(tmp_path: Path) -> None:
-    """
-    校验扫描器抛出的清单校验异常包含字段级错误摘要。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验扫描器抛出的清单校验异常包含字段级错误摘要。"""
     manifest_path = write_manifest(
         tmp_path / 'demo',
         """

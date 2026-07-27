@@ -1,16 +1,11 @@
-import sys
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from plugins.core.runtime.application import (  # noqa: E402
+from plugins.core.runtime.application import (
     get_plugin_application_runtime as get_runtime_plugin_application_runtime,
 )
-from server import (  # noqa: E402
+from server import (
     _initialize_application_runtime,
     create_app,
     get_plugin_application_runtime,
@@ -18,20 +13,12 @@ from server import (  # noqa: E402
 
 
 def test_server_reuses_plugin_application_runtime_getter() -> None:
-    """
-    校验 server 入口不直接装配插件管理适配器。
-
-    :return: None
-    """
+    """校验 server 入口不直接装配插件管理适配器。"""
     assert get_plugin_application_runtime is get_runtime_plugin_application_runtime
 
 
 def test_create_app_registers_builtin_routes_and_binds_plugin_runtime() -> None:
-    """
-    校验 create_app 保持内置路由注册，并绑定插件应用运行时。
-
-    :return: None
-    """
+    """校验 create_app 保持内置路由注册，并绑定插件应用运行时。"""
     fake_plugin_runtime = MagicMock()
 
     with (
@@ -51,11 +38,7 @@ def test_create_app_registers_builtin_routes_and_binds_plugin_runtime() -> None:
 
 @pytest.mark.asyncio
 async def test_initialize_application_runtime_delegates_plugin_steps() -> None:
-    """
-    校验应用启动流程保留原系统初始化，并只委托插件专属步骤。
-
-    :return: None
-    """
+    """校验应用启动流程保留原系统初始化，并只委托插件专属步骤。"""
     fake_app = MagicMock()
     fake_plugin_runtime = MagicMock()
     fake_plugin_runtime.startup = AsyncMock()

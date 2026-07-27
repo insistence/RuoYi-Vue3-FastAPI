@@ -28,15 +28,6 @@ STATE_CHANGE_OPERATIONS: set[str] = {
     'batch_enable',
     'batch_upgrade',
 }
-RUNTIME_ACTIVATION_OPERATIONS: set[str] = {
-    'install',
-    'enable',
-    'upgrade',
-    'dependency_install',
-    'batch_install',
-    'batch_enable',
-    'batch_upgrade',
-}
 
 SERVICE_MODE_REASON = (
     '当前为服务运行模式，插件路由、任务和生命周期资源需要重启后激活。请在开发模式或维护窗口中执行插件变更。'
@@ -139,7 +130,9 @@ class PluginRuntimeCapabilityResolver:
         if not frontend_runtime_manageable:
             warnings.append(BUILT_FRONTEND_REASON)
 
-        blocked_operations = sorted(RUNTIME_ACTIVATION_OPERATIONS) if not runtime_manageable else []
+        blocked_operations: list[str] = []
+        if not runtime_manageable:
+            blocked_operations = sorted(STATE_CHANGE_OPERATIONS)
 
         return PluginRuntimeCapability(
             plugin_id=manifest.id,

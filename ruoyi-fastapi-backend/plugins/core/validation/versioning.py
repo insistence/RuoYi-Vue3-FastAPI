@@ -228,7 +228,7 @@ class PluginVersionConstraintMatcher:
             '!=': comparison != 0,
         }
 
-        return operator_matchers.get(operator, True)
+        return operator_matchers.get(operator, False)
 
     @classmethod
     def match_compatible(cls, version: str, required_version: str, operator: str) -> bool:

@@ -199,7 +199,7 @@ class PluginConfigManager:
             raise ValueError(f'配置 {item.key} 不能为空')
         if item.type == 'boolean' and not isinstance(value, bool):
             raise ValueError(f'配置 {item.key} 必须是布尔值')
-        if item.type == 'number' and not isinstance(value, int | float):
+        if item.type == 'number' and (not isinstance(value, int | float) or isinstance(value, bool)):
             raise ValueError(f'配置 {item.key} 必须是数字')
         if item.type == 'select' and item.options:
             allowed_values = [option.value for option in item.options]

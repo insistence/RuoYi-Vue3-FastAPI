@@ -1,17 +1,12 @@
-# ruff: noqa: F403, F405
+from pathlib import Path
 
 import yaml
 
-from .conftest import *
+from .conftest import build_runtime
 
 
 def test_plugin_runtime_allowlist_example_dry_run_returns_yaml_without_writing(tmp_path: Path) -> None:
-    """
-    校验允许列表示例 dry-run 只返回 YAML，不写入默认文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验允许列表示例 dry-run 只返回 YAML，不写入默认文件。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
 
@@ -30,12 +25,7 @@ def test_plugin_runtime_allowlist_example_dry_run_returns_yaml_without_writing(t
 
 
 def test_plugin_runtime_allowlist_example_writes_relative_output_path(tmp_path: Path) -> None:
-    """
-    校验允许列表示例命令可以写入后端根目录相对路径。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验允许列表示例命令可以写入后端根目录相对路径。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
 
@@ -52,12 +42,7 @@ def test_plugin_runtime_allowlist_example_writes_relative_output_path(tmp_path: 
 
 
 def test_plugin_runtime_allowlist_example_rejects_output_path_escape(tmp_path: Path) -> None:
-    """
-    校验允许列表示例输出路径不能逃逸后端项目根目录。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验允许列表示例输出路径不能逃逸后端项目根目录。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     escaped_allowlist = tmp_path / 'escaped_allowlist.yaml'
@@ -70,12 +55,7 @@ def test_plugin_runtime_allowlist_example_rejects_output_path_escape(tmp_path: P
 
 
 def test_plugin_runtime_allowlist_example_rejects_existing_file_without_overwrite(tmp_path: Path) -> None:
-    """
-    校验允许列表示例文件已存在时必须显式 overwrite。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验允许列表示例文件已存在时必须显式 overwrite。"""
     backend_root = tmp_path / 'backend'
     runtime = build_runtime(backend_root)
     output_path = backend_root / 'config' / 'team_allowlist.yaml'

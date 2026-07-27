@@ -1,15 +1,11 @@
 import asyncio
 import inspect
 import sys
-from pathlib import Path
 from typing import Any
 
-BACKEND_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, RUNTIME_ERROR  # noqa: E402
-from cli.groups.plugin.controller import PluginCommandController  # noqa: E402
-from cli.groups.plugin.options import (  # noqa: E402
+from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, RUNTIME_ERROR
+from cli.groups.plugin.controller import PluginCommandController
+from cli.groups.plugin.options import (
     PluginDependencyAllowlistExampleCommandOptions,
     PluginDependencyInstallCommandOptions,
     PluginDependencyLockCommandOptions,
@@ -31,11 +27,7 @@ class FakeContextFactory:
         *,
         command_name: str,
     ) -> Any:
-        """
-        构造危险命令上下文。
-
-        :return: CLI上下文
-        """
+        """构造危险命令上下文。"""
         return type('FakeContext', (), {'env': env, 'output': output})()
 
     def build_regular(
@@ -46,11 +38,7 @@ class FakeContextFactory:
         yes: bool,
         dry_run: bool,
     ) -> Any:
-        """
-        构造普通命令上下文。
-
-        :return: CLI上下文
-        """
+        """构造普通命令上下文。"""
         return type(
             'FakeContext',
             (),
@@ -58,13 +46,7 @@ class FakeContextFactory:
         )()
 
     def build_readonly(self, env: str, output: str) -> Any:
-        """
-        构造只读命令上下文。
-
-        :param env: 环境
-        :param output: 输出格式
-        :return: CLI上下文
-        """
+        """构造只读命令上下文。"""
         return type('FakeContext', (), {'env': env, 'output': output})()
 
 
@@ -74,21 +56,12 @@ class FakeExecutionService:
     """
 
     def __init__(self) -> None:
-        """
-        初始化测试执行服务。
-
-        :return: None
-        """
+        """初始化测试执行服务。"""
         self.completed_payload: dict[str, Any] | None = None
         self.default_exit_code: int | None = None
 
     def run_async(self, value: Any) -> Any:
-        """
-        直接返回测试中的 awaitable 结果。
-
-        :param value: 执行结果
-        :return: 执行结果
-        """
+        """直接返回测试中的 awaitable 结果。"""
         if inspect.isawaitable(value):
             return asyncio.run(value)
         return value
@@ -101,15 +74,7 @@ class FakeExecutionService:
         text_builder: Any,
         default_exit_code: int,
     ) -> None:
-        """
-        记录完成参数。
-
-        :param ctx: CLI上下文
-        :param payload: payload
-        :param text_builder: 文本构造器
-        :param default_exit_code: 默认退出码
-        :return: None
-        """
+        """记录完成参数。"""
         self.completed_payload = payload
         self.default_exit_code = default_exit_code
 
@@ -121,62 +86,32 @@ class FakePresenter:
 
     @staticmethod
     def build_install_text(payload: dict[str, Any]) -> str:
-        """
-        构造安装文本。
-
-        :param payload: payload
-        :return: 文本
-        """
+        """构造安装文本。"""
         return str(payload)
 
     @staticmethod
     def build_check_text(payload: dict[str, Any]) -> str:
-        """
-        构造检查文本。
-
-        :param payload: payload
-        :return: 文本
-        """
+        """构造检查文本。"""
         return str(payload)
 
     @staticmethod
     def build_config_text(payload: dict[str, Any]) -> str:
-        """
-        构造配置文本。
-
-        :param payload: payload
-        :return: 文本
-        """
+        """构造配置文本。"""
         return str(payload)
 
     @staticmethod
     def build_dependency_install_text(payload: dict[str, Any]) -> str:
-        """
-        构造依赖安装文本。
-
-        :param payload: payload
-        :return: 文本
-        """
+        """构造依赖安装文本。"""
         return str(payload)
 
     @staticmethod
     def build_dependency_lock_text(payload: dict[str, Any]) -> str:
-        """
-        构造依赖锁文件文本。
-
-        :param payload: payload
-        :return: 文本
-        """
+        """构造依赖锁文件文本。"""
         return str(payload)
 
     @staticmethod
     def build_dependency_allowlist_example_text(payload: dict[str, Any]) -> str:
-        """
-        构造允许列表示例文本。
-
-        :param payload: payload
-        :return: 文本
-        """
+        """构造允许列表示例文本。"""
         return str(payload)
 
 
@@ -186,42 +121,21 @@ class FakeCoreRuntime:
     """
 
     def __init__(self) -> None:
-        """
-        初始化测试用核心插件运行时。
-
-        :return: None
-        """
+        """初始化测试用核心插件运行时。"""
         self.dependency_install_calls: list[dict[str, Any]] = []
         self.config_set_calls: list[dict[str, Any]] = []
 
     async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
-        """
-        返回失败安装结果。
-
-        :param plugin_id: 插件ID
-        :param dry_run: 是否仅预演
-        :return: 安装结果
-        """
+        """返回失败安装结果。"""
         return {'ok': False, 'message': '插件安装失败', 'pluginId': plugin_id}
 
     @staticmethod
     def check_plugin(plugin_id: str | None = None) -> dict[str, Any]:
-        """
-        返回缺失 ok 字段的检查结果。
-
-        :param plugin_id: 插件ID
-        :return: 检查结果
-        """
+        """返回缺失 ok 字段的检查结果。"""
         return {'message': '插件检查结果缺失 ok', 'pluginId': plugin_id}
 
     async def set_plugin_config(self, plugin_id: str, values: dict[str, Any]) -> dict[str, Any]:
-        """
-        返回失败配置更新结果。
-
-        :param plugin_id: 插件ID
-        :param values: 配置键值
-        :return: 配置更新结果
-        """
+        """返回失败配置更新结果。"""
         self.config_set_calls.append({'plugin_id': plugin_id, 'values': values})
         return {'ok': False, 'message': '插件配置更新失败', 'pluginId': plugin_id, 'values': values}
 
@@ -233,15 +147,7 @@ class FakeCoreRuntime:
         policy_config: object | None = None,
         confirmed: bool = False,
     ) -> dict[str, Any]:
-        """
-        返回依赖安装测试结果。
-
-        :param plugin_id: 插件ID
-        :param dry_run: 是否仅预演
-        :param policy_config: 策略配置
-        :param confirmed: 是否已确认
-        :return: 依赖安装结果
-        """
+        """返回依赖安装测试结果。"""
         self.dependency_install_calls.append(
             {
                 'plugin_id': plugin_id,
@@ -266,11 +172,7 @@ class FakePluginRuntime:
     """
 
     def __init__(self) -> None:
-        """
-        初始化测试用插件 CLI 运行时。
-
-        :return: None
-        """
+        """初始化测试用插件 CLI 运行时。"""
         self.core_runtime = FakeCoreRuntime()
         self.dependency_lock_calls: list[dict[str, Any]] = []
         self.dependency_allowlist_example_calls: list[dict[str, Any]] = []
@@ -284,16 +186,7 @@ class FakePluginRuntime:
         dry_run: bool = False,
         overwrite: bool = False,
     ) -> dict[str, Any]:
-        """
-        返回依赖锁文件测试结果。
-
-        :param plugin_id: 插件ID
-        :param output_path: 输出路径
-        :param offline_dir: 离线制品目录
-        :param dry_run: 是否仅预演
-        :param overwrite: 是否覆盖已有文件
-        :return: 依赖锁文件结果
-        """
+        """返回依赖锁文件测试结果。"""
         self.dependency_lock_calls.append(
             {
                 'plugin_id': plugin_id,
@@ -320,14 +213,7 @@ class FakePluginRuntime:
         dry_run: bool = False,
         overwrite: bool = False,
     ) -> dict[str, Any]:
-        """
-        返回允许列表示例测试结果。
-
-        :param output_path: 输出路径
-        :param dry_run: 是否仅预演
-        :param overwrite: 是否覆盖已有文件
-        :return: 允许列表示例结果
-        """
+        """返回允许列表示例测试结果。"""
         self.dependency_allowlist_example_calls.append(
             {
                 'output_path': output_path,
@@ -345,11 +231,7 @@ class FakePluginRuntime:
 
 
 def test_install_plugin_uses_failure_exit_code_when_payload_is_not_ok() -> None:
-    """
-    校验插件安装失败时 CLI 使用失败退出码。
-
-    :return: None
-    """
+    """校验插件安装失败时 CLI 使用失败退出码。"""
     execution_service = FakeExecutionService()
     controller = PluginCommandController(
         context_factory=FakeContextFactory(),
@@ -366,11 +248,7 @@ def test_install_plugin_uses_failure_exit_code_when_payload_is_not_ok() -> None:
 
 
 def test_check_plugin_uses_failure_exit_code_when_payload_has_no_ok() -> None:
-    """
-    校验插件检查结果缺失 ok 时 CLI 使用失败退出码。
-
-    :return: None
-    """
+    """校验插件检查结果缺失 ok 时 CLI 使用失败退出码。"""
     execution_service = FakeExecutionService()
     controller = PluginCommandController(
         context_factory=FakeContextFactory(),
@@ -387,11 +265,7 @@ def test_check_plugin_uses_failure_exit_code_when_payload_has_no_ok() -> None:
 
 
 def test_plugin_config_set_uses_failure_exit_code_when_payload_is_not_ok() -> None:
-    """
-    校验插件配置更新失败时 CLI 使用失败退出码。
-
-    :return: None
-    """
+    """校验插件配置更新失败时 CLI 使用失败退出码。"""
     execution_service = FakeExecutionService()
     controller = PluginCommandController(
         context_factory=FakeContextFactory(),
@@ -417,11 +291,7 @@ def test_plugin_config_set_uses_failure_exit_code_when_payload_is_not_ok() -> No
 
 
 def test_plugin_config_set_argument_error_uses_structured_payload() -> None:
-    """
-    校验插件配置参数格式错误时 CLI 走统一 payload 输出。
-
-    :return: None
-    """
+    """校验插件配置参数格式错误时 CLI 走统一 payload 输出。"""
     execution_service = FakeExecutionService()
     plugin_runtime = FakePluginRuntime()
     controller = PluginCommandController(
@@ -449,11 +319,7 @@ def test_plugin_config_set_argument_error_uses_structured_payload() -> None:
 
 
 def test_plugin_payload_with_error_uses_runtime_error_exit_code() -> None:
-    """
-    校验带 error 的插件运行时异常负载由 CLI 映射为运行时错误退出码。
-
-    :return: None
-    """
+    """校验带 error 的插件运行时异常负载由 CLI 映射为运行时错误退出码。"""
     payload = {'ok': False, 'message': '插件配置导入失败', 'error': 'database unavailable'}
 
     exit_code = PluginCommandController._resolve_plugin_exit_code(
@@ -466,11 +332,7 @@ def test_plugin_payload_with_error_uses_runtime_error_exit_code() -> None:
 
 
 def test_install_plugin_dependencies_passes_policy_config_to_runtime() -> None:
-    """
-    校验 CLI install-deps 将策略参数收口后传给运行时。
-
-    :return: None
-    """
+    """校验 CLI install-deps 将策略参数收口后传给运行时。"""
     execution_service = FakeExecutionService()
     plugin_runtime = FakePluginRuntime()
     controller = PluginCommandController(
@@ -512,12 +374,7 @@ def test_install_plugin_dependencies_passes_policy_config_to_runtime() -> None:
 def test_install_plugin_dependencies_tty_confirm_previews_then_executes(
     monkeypatch: Any,
 ) -> None:
-    """
-    校验 TTY 交互安装会先生成预览，确认后再执行真实安装。
-
-    :param monkeypatch: pytest monkeypatch fixture
-    :return: None
-    """
+    """校验 TTY 交互安装会先生成预览，确认后再执行真实安装。"""
     execution_service = FakeExecutionService()
     plugin_runtime = FakePluginRuntime()
     controller = PluginCommandController(
@@ -549,12 +406,7 @@ def test_install_plugin_dependencies_tty_confirm_previews_then_executes(
 def test_install_plugin_dependencies_tty_decline_does_not_execute_real_install(
     monkeypatch: Any,
 ) -> None:
-    """
-    校验 TTY 交互拒绝后不会执行真实依赖安装。
-
-    :param monkeypatch: pytest monkeypatch fixture
-    :return: None
-    """
+    """校验 TTY 交互拒绝后不会执行真实依赖安装。"""
     execution_service = FakeExecutionService()
     plugin_runtime = FakePluginRuntime()
     controller = PluginCommandController(
@@ -583,12 +435,7 @@ def test_install_plugin_dependencies_tty_decline_does_not_execute_real_install(
 def test_install_plugin_dependencies_non_tty_without_yes_does_not_preview(
     monkeypatch: Any,
 ) -> None:
-    """
-    校验非 TTY 未传 --yes 时不进入交互预览，交给策略返回确认阻断。
-
-    :param monkeypatch: pytest monkeypatch fixture
-    :return: None
-    """
+    """校验非 TTY 未传 --yes 时不进入交互预览，交给策略返回确认阻断。"""
     execution_service = FakeExecutionService()
     plugin_runtime = FakePluginRuntime()
     controller = PluginCommandController(
@@ -611,11 +458,7 @@ def test_install_plugin_dependencies_non_tty_without_yes_does_not_preview(
 
 
 def test_lock_plugin_dependencies_passes_options_to_runtime() -> None:
-    """
-    校验 CLI lock-deps 将锁文件参数收口后传给运行时。
-
-    :return: None
-    """
+    """校验 CLI lock-deps 将锁文件参数收口后传给运行时。"""
     execution_service = FakeExecutionService()
     plugin_runtime = FakePluginRuntime()
     controller = PluginCommandController(
@@ -652,11 +495,7 @@ def test_lock_plugin_dependencies_passes_options_to_runtime() -> None:
 
 
 def test_generate_plugin_dependency_allowlist_example_passes_options_to_runtime() -> None:
-    """
-    校验 CLI allowlist-example 将参数收口后传给运行时。
-
-    :return: None
-    """
+    """校验 CLI allowlist-example 将参数收口后传给运行时。"""
     execution_service = FakeExecutionService()
     plugin_runtime = FakePluginRuntime()
     controller = PluginCommandController(

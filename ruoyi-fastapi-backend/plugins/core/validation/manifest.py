@@ -11,6 +11,7 @@ from plugins.core.environment import PluginRuntimeEnvironmentService
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.manifest.schema import PluginManifest
 from plugins.core.validation.dependencies import DependencyRequirementParser
+from plugins.core.validation.python_requirements import PythonRequirementParser
 from plugins.core.validation.result import PluginValidationIssue
 from plugins.core.validation.versioning import PluginVersionConstraintMatcher
 
@@ -193,8 +194,15 @@ class PluginManifestChecker:
             ('npmDev', manifest.dependencies.npm_dev),
         ):
             for index, requirement in enumerate(requirements):
-                parsed_requirement = DependencyRequirementParser.parse(requirement)
-                if parsed_requirement.required_version:
+                if dependency_kind == 'python':
+                    parsed_python = PythonRequirementParser.parse(requirement)
+                    name = parsed_python.name
+                    has_version_constraint = bool(parsed_python.required_version)
+                else:
+                    parsed_requirement = DependencyRequirementParser.parse(requirement)
+                    name = parsed_requirement.name
+                    has_version_constraint = bool(parsed_requirement.required_version)
+                if has_version_constraint:
                     continue
                 issues.append(
                     PluginValidationIssue(
@@ -202,7 +210,7 @@ class PluginManifestChecker:
                         category='manifest',
                         kind='dependency_unpinned',
                         path=f'dependencies.{dependency_kind}.{index}',
-                        message=f'{dependency_kind} 依赖 {parsed_requirement.name} 未声明版本约束',
+                        message=f'{dependency_kind} 依赖 {name} 未声明版本约束',
                         suggestion='建议为插件依赖声明最小版本或兼容版本范围，降低环境漂移风险',
                         ok=True,
                     )

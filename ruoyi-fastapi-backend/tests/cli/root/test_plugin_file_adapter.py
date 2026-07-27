@@ -1,20 +1,11 @@
 import json
-import sys
 from pathlib import Path
 
-BACKEND_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from cli.groups.plugin.exporter import PluginCommandFileAdapter  # noqa: E402
+from cli.groups.plugin.exporter import PluginCommandFileAdapter
 
 
 def test_plugin_command_file_adapter_writes_markdown_file(tmp_path: Path) -> None:
-    """
-    校验插件命令文件适配器写入 Markdown 文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件命令文件适配器写入 Markdown 文件。"""
     output_file = tmp_path / 'docs' / 'plugin.md'
 
     payload = PluginCommandFileAdapter.write_markdown_file(
@@ -31,12 +22,7 @@ def test_plugin_command_file_adapter_writes_markdown_file(tmp_path: Path) -> Non
 
 
 def test_plugin_command_file_adapter_writes_json_file(tmp_path: Path) -> None:
-    """
-    校验插件命令文件适配器写入 JSON 文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件命令文件适配器写入 JSON 文件。"""
     output_file = tmp_path / 'diagnose.json'
 
     payload = PluginCommandFileAdapter.write_json_file(
@@ -50,12 +36,7 @@ def test_plugin_command_file_adapter_writes_json_file(tmp_path: Path) -> None:
 
 
 def test_plugin_command_file_adapter_reads_config_import_values(tmp_path: Path) -> None:
-    """
-    校验插件命令文件适配器读取配置导入文件。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件命令文件适配器读取配置导入文件。"""
     input_file = tmp_path / 'config.json'
     input_file.write_text('{"values": {"enabled": true}}\n', encoding='utf-8')
 
@@ -65,11 +46,7 @@ def test_plugin_command_file_adapter_reads_config_import_values(tmp_path: Path) 
 
 
 def test_plugin_command_file_adapter_reports_missing_config_import_file() -> None:
-    """
-    校验插件命令文件适配器报告缺少配置导入文件。
-
-    :return: None
-    """
+    """校验插件命令文件适配器报告缺少配置导入文件。"""
     payload = PluginCommandFileAdapter.read_config_import_file('')
 
     assert payload == {'ok': False, 'message': '导入配置必须指定 --input-file', 'values': {}}

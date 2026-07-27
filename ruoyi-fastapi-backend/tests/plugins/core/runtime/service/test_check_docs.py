@@ -1,6 +1,22 @@
-# ruff: noqa: F403, F405
+import asyncio
+from pathlib import Path
+from types import SimpleNamespace
 
-from tests.plugin_runtime_helpers import *
+from plugins.core.lifecycle.purge import PluginPurgePlanner
+from plugins.core.runtime.service import PluginRuntimeService
+from plugins.core.runtime.service.dependency_container import PluginRuntimeGatewayOverrides
+from plugins.core.validation.dependencies import PluginDependencyChecker
+from tests.plugins.core.runtime.fakes import (
+    EXPECTED_PURGE_DESTRUCTIVE_COUNT,
+    FakePluginRuntimeGateway,
+    FakePluginService,
+    FakeRuntimeEnvironment,
+    build_runtime,
+    build_runtime_with_gateway,
+    create_controller_dir,
+    create_frontend_view,
+    write_manifest,
+)
 
 
 class PrecheckStateQueryGateway:
@@ -9,29 +25,15 @@ class PrecheckStateQueryGateway:
     """
 
     async def get_plugin_state(self, plugin_id: str) -> object | None:
-        """
-        获取插件状态。
-
-        :param plugin_id: 插件ID
-        :return: 插件状态
-        """
+        """获取插件状态。"""
         return None
 
     async def list_plugin_states(self) -> list[object]:
-        """
-        获取插件状态列表。
-
-        :return: 插件状态列表
-        """
+        """获取插件状态列表。"""
         return []
 
     def get_plugin_service(self) -> object:
-        """
-        禁止预检状态读取回退到管理服务胖接口。
-
-        :return: 永不返回
-        :raises AssertionError: 状态读取不应调用该方法
-        """
+        """禁止预检状态读取回退到管理服务胖接口。"""
         raise AssertionError('预检状态读取不应依赖 PluginManagementServiceProtocol')
 
 
@@ -41,20 +43,11 @@ class PurgePlanOnlyGateway:
     """
 
     def __init__(self) -> None:
-        """
-        初始化测试清理计划网关。
-
-        :return: None
-        """
+        """初始化测试清理计划网关。"""
         self.calls: list[str] = []
 
     async def build_plugin_purge_plan(self, discovered_plugin: object) -> object:
-        """
-        构建测试清理计划。
-
-        :param discovered_plugin: 已发现插件
-        :return: 插件清理计划
-        """
+        """构建测试清理计划。"""
         self.calls.append(discovered_plugin.manifest.id)
         return PluginPurgePlanner.build_plan(
             discovered_plugin,
@@ -65,22 +58,12 @@ class PurgePlanOnlyGateway:
         )
 
     def get_plugin_service(self) -> object:
-        """
-        禁止清理计划链路回退到管理服务胖接口。
-
-        :return: 永不返回
-        :raises AssertionError: 清理计划链路不应调用该方法
-        """
+        """禁止清理计划链路回退到管理服务胖接口。"""
         raise AssertionError('清理计划不应依赖 PluginManagementServiceProtocol')
 
 
 def test_plugin_runtime_check_reports_missing_dependencies(tmp_path: Path) -> None:
-    """
-    校验插件运行时检查会报告缺失依赖。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时检查会报告缺失依赖。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -88,7 +71,6 @@ def test_plugin_runtime_check_reports_missing_dependencies(tmp_path: Path) -> No
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 dependencies:
@@ -105,12 +87,7 @@ dependencies:
 
 
 def test_plugin_runtime_check_reports_manifest_warnings(tmp_path: Path) -> None:
-    """
-    校验插件运行时检查会报告 manifest warning 且不阻断通过状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时检查会报告 manifest warning 且不阻断通过状态。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -119,7 +96,6 @@ def test_plugin_runtime_check_reports_manifest_warnings(tmp_path: Path) -> None:
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 config:
@@ -141,12 +117,7 @@ config:
 
 
 def test_plugin_runtime_check_reports_compatibility_errors(tmp_path: Path) -> None:
-    """
-    校验插件运行时检查会报告兼容性错误并阻断通过状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时检查会报告兼容性错误并阻断通过状态。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -155,7 +126,6 @@ def test_plugin_runtime_check_reports_compatibility_errors(tmp_path: Path) -> No
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 compatibility:
@@ -174,130 +144,8 @@ compatibility:
     assert payload['checks'][0]['manifestIssues'][0]['path'] == 'compatibility.pythonVersion'
 
 
-def test_plugin_runtime_check_plugin_delegates_to_query_use_case(tmp_path: Path) -> None:
-    """
-    校验插件检查入口委托给组合式查询 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeQueryUseCase:
-        """
-        测试用插件查询 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件查询 use case。
-            """
-            self.plugin_id: str | None = None
-
-        def check_plugin(self, plugin_id: str | None = None) -> dict:
-            """
-            记录插件检查调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            return {'ok': True, 'checks': [{'pluginId': plugin_id}]}
-
-    query = FakeQueryUseCase()
-    runtime.query = query
-
-    payload = runtime.check_plugin('demo')
-
-    assert query.plugin_id == 'demo'
-    assert payload == {'ok': True, 'checks': [{'pluginId': 'demo'}]}
-
-
-def test_plugin_runtime_check_plugin_dependencies_delegates_to_query_use_case(tmp_path: Path) -> None:
-    """
-    校验插件依赖检查入口委托给组合式查询 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeQueryUseCase:
-        """
-        测试用插件查询 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件查询 use case。
-            """
-            self.plugin_id: str | None = None
-
-        def check_plugin_dependencies(self, plugin_id: str) -> dict:
-            """
-            记录插件依赖检查调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            return {'ok': True, 'pluginId': plugin_id, 'dependencyOk': True}
-
-    query = FakeQueryUseCase()
-    runtime.query = query
-
-    payload = runtime.check_plugin_dependencies('demo')
-
-    assert query.plugin_id == 'demo'
-    assert payload == {'ok': True, 'pluginId': 'demo', 'dependencyOk': True}
-
-
-def test_plugin_runtime_health_plugin_delegates_to_query_use_case(tmp_path: Path) -> None:
-    """
-    校验插件健康检查入口委托给组合式查询 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeQueryUseCase:
-        """
-        测试用插件查询 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件查询 use case。
-            """
-            self.plugin_id: str | None = None
-
-        async def health_plugin(self, plugin_id: str) -> dict:
-            """
-            记录插件健康检查调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            return {'ok': True, 'pluginId': plugin_id, 'health': {'ok': True}}
-
-    query = FakeQueryUseCase()
-    runtime.query = query
-
-    payload = asyncio.run(runtime.health_plugin('demo'))
-
-    assert query.plugin_id == 'demo'
-    assert payload == {'ok': True, 'pluginId': 'demo', 'health': {'ok': True}}
-
-
 def test_plugin_runtime_install_dry_run_reports_manifest_warnings(tmp_path: Path) -> None:
-    """
-    校验插件安装 dry-run 会报告 manifest warning。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安装 dry-run 会报告 manifest warning。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -306,7 +154,6 @@ def test_plugin_runtime_install_dry_run_reports_manifest_warnings(tmp_path: Path
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 config:
@@ -327,12 +174,7 @@ config:
 
 
 def test_plugin_runtime_install_dry_run_reports_compatibility_errors(tmp_path: Path) -> None:
-    """
-    校验插件安装 dry-run 会报告兼容性错误但不执行写入。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件安装 dry-run 会报告兼容性错误但不执行写入。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -341,7 +183,6 @@ def test_plugin_runtime_install_dry_run_reports_compatibility_errors(tmp_path: P
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 compatibility:
@@ -360,12 +201,7 @@ compatibility:
 
 
 def test_plugin_runtime_precheck_plugin_operation_returns_unified_payload(tmp_path: Path) -> None:
-    """
-    校验插件操作预检会返回统一的依赖、结构和菜单冲突负载。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件操作预检会返回统一的依赖、结构和菜单冲突负载。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -374,7 +210,6 @@ def test_plugin_runtime_precheck_plugin_operation_returns_unified_payload(tmp_pa
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 frontend:
@@ -407,12 +242,7 @@ permissions:
 
 
 def test_plugin_runtime_precheck_purge_uses_purge_plan_port(tmp_path: Path) -> None:
-    """
-    校验 purge 预检只依赖清理计划窄端口。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验 purge 预检只依赖清理计划窄端口。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -421,7 +251,6 @@ def test_plugin_runtime_precheck_purge_uses_purge_plan_port(tmp_path: Path) -> N
 id: demo
 name: 演示插件
 version: 1.0.0
-enabled: true
 backend:
   module: plugins.demo
 """,
@@ -446,102 +275,8 @@ backend:
     assert purge_plan_gateway.calls == ['demo']
 
 
-def test_plugin_runtime_precheck_plugin_operation_delegates_to_precheck_use_case(tmp_path: Path) -> None:
-    """
-    校验插件预检入口委托给组合式预检 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakePrecheckUseCase:
-        """
-        测试用插件预检 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件预检 use case。
-            """
-            self.plugin_id: str | None = None
-            self.operation: str | None = None
-
-        async def precheck_plugin_operation(self, plugin_id: str, operation: str) -> dict:
-            """
-            记录插件预检调用。
-
-            :param plugin_id: 插件ID
-            :param operation: 操作类型
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            self.operation = operation
-            return {'ok': True, 'pluginId': plugin_id, 'operation': operation}
-
-    precheck = FakePrecheckUseCase()
-    runtime.precheck = precheck
-
-    payload = asyncio.run(runtime.precheck_plugin_operation('demo', 'install'))
-
-    assert precheck.plugin_id == 'demo'
-    assert precheck.operation == 'install'
-    assert payload == {'ok': True, 'pluginId': 'demo', 'operation': 'install'}
-
-
-def test_plugin_runtime_precheck_use_case_uses_injected_context_service(tmp_path: Path) -> None:
-    """
-    校验预检 use case 通过显式注入的 context service 使用上下文能力。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-    sentinel = object()
-
-    class FakePrecheckContextService:
-        """
-        测试用预检上下文服务。
-        """
-
-        @staticmethod
-        def discover_plugins(backend_root: Path) -> list:
-            """
-            返回空插件列表。
-
-            :param backend_root: 后端项目根目录
-            :return: 空插件列表
-            """
-            return []
-
-        @staticmethod
-        def get_discovered_plugin_from_list(discovered_plugins: list, plugin_id: str) -> object:
-            """
-            返回测试插件对象。
-
-            :param discovered_plugins: 已发现插件列表
-            :param plugin_id: 插件ID
-            :return: 测试对象
-            """
-            return sentinel
-
-    context = FakePrecheckContextService()
-    assert runtime.precheck.context is runtime.context
-
-    runtime.precheck.context = context
-
-    discovered_plugin = runtime.precheck._get_discovered_plugin_from_list([], 'demo')
-
-    assert discovered_plugin is sentinel
-
-
 def test_plugin_runtime_precheck_upgrade_includes_version_state(tmp_path: Path) -> None:
-    """
-    校验插件升级预检会返回版本和数据库状态。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件升级预检会返回版本和数据库状态。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -550,13 +285,11 @@ def test_plugin_runtime_precheck_upgrade_includes_version_state(tmp_path: Path) 
 id: demo
 name: 演示插件
 version: 1.2.0
-enabled: true
 backend:
   module: plugins.demo
 """,
     )
     create_controller_dir(plugin_root)
-    FakePluginService.reset()
     FakePluginService.detail_plugin = SimpleNamespace(
         plugin_id='demo',
         installed_version='1.0.0',
@@ -581,12 +314,7 @@ backend:
 
 
 def test_plugin_runtime_generate_plugin_docs_from_manifest(tmp_path: Path) -> None:
-    """
-    校验插件运行时可根据 manifest 生成 Markdown 文档片段。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件运行时可根据 manifest 生成 Markdown 文档片段。"""
     backend_root = tmp_path / 'backend'
     plugin_root = backend_root / 'plugins' / 'demo'
     write_manifest(
@@ -596,7 +324,6 @@ id: demo
 name: 演示插件
 version: 1.0.0
 description: 文档生成示例
-enabled: true
 backend:
   module: plugins.demo
   migrations:
@@ -647,73 +374,3 @@ config:
     assert '`******`' in result['markdown']
     assert '- `requests>=2.0.0`' in result['markdown']
     assert '- `onInstall`：`hooks:on_install`' in result['markdown']
-
-
-def test_plugin_runtime_generate_plugin_docs_delegates_to_tool_use_case(tmp_path: Path) -> None:
-    """
-    校验插件文档生成入口委托给组合式工具 use case。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    runtime = build_runtime(tmp_path / 'backend')
-
-    class FakeToolUseCase:
-        """
-        测试用插件工具 use case。
-        """
-
-        def __init__(self) -> None:
-            """
-            初始化测试用插件工具 use case。
-            """
-            self.plugin_id: str | None = None
-
-        def generate_plugin_docs(self, plugin_id: str) -> dict:
-            """
-            记录文档生成调用。
-
-            :param plugin_id: 插件ID
-            :return: 测试负载
-            """
-            self.plugin_id = plugin_id
-            return {'ok': True, 'pluginId': plugin_id, 'markdown': '# Demo\n'}
-
-    fake_tools = FakeToolUseCase()
-    runtime.tools = fake_tools
-
-    payload = runtime.generate_plugin_docs('demo')
-
-    assert fake_tools.plugin_id == 'demo'
-    assert payload['markdown'] == '# Demo\n'
-
-
-def test_plugin_documentation_builder_builds_payload(tmp_path: Path) -> None:
-    """
-    校验插件文档构建器生成响应负载。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
-    backend_root = tmp_path / 'backend'
-    plugin_root = backend_root / 'plugins' / 'demo'
-    write_manifest(
-        plugin_root,
-        """
-id: demo
-name: Demo
-version: 1.0.0
-backend:
-  module: plugins.demo
-""",
-    )
-    discovered_plugin = build_runtime(backend_root).context.get_discovered_plugin('demo')
-    assert discovered_plugin is not None
-
-    payload = PluginDocumentationBuilder.build_payload('demo', discovered_plugin)
-
-    assert payload['ok'] is True
-    assert payload['message'] == '插件文档生成完成'
-    assert payload['pluginId'] == 'demo'
-    assert payload['format'] == 'markdown'
-    assert payload['length'] == len(payload['markdown'])

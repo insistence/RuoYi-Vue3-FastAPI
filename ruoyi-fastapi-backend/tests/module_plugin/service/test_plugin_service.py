@@ -1,29 +1,21 @@
-import sys
 from pathlib import Path
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-BACKEND_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-import module_plugin.service.plugin_service as plugin_service_module  # noqa: E402
-from config.database import Base  # noqa: E402
-from module_plugin.service.plugin_service import (  # noqa: E402
+import module_plugin.service.plugin_service as plugin_service_module
+from config.database import Base
+from module_plugin.service.plugin_service import (
     PluginOperationService,
     get_plugin_operation_service,
     get_plugin_runtime_service,
 )
-from plugins.core.management.entity.do.models import SysPluginOperationLog  # noqa: E402
-from plugins.core.management.service.service import PluginService  # noqa: E402
+from plugins.core.management.entity.do.models import SysPluginOperationLog
+from plugins.core.management.service.service import PluginService
 
 
 def test_get_plugin_operation_service_reuses_singleton() -> None:
-    """
-    校验 Web 侧插件操作服务懒加载后复用同一实例。
-
-    :return: None
-    """
+    """校验 Web 侧插件操作服务懒加载后复用同一实例。"""
     plugin_service_module._PLUGIN_OPERATION_SERVICE_CACHE.clear()
     first_service = get_plugin_operation_service()
     second_service = get_plugin_operation_service()
@@ -32,11 +24,7 @@ def test_get_plugin_operation_service_reuses_singleton() -> None:
 
 
 def test_get_plugin_runtime_service_reuses_singleton() -> None:
-    """
-    校验 Web 侧插件运行时服务懒加载后复用同一实例。
-
-    :return: None
-    """
+    """校验 Web 侧插件运行时服务懒加载后复用同一实例。"""
     plugin_service_module._PLUGIN_RUNTIME_SERVICE_CACHE.clear()
     first_service = get_plugin_runtime_service()
     second_service = get_plugin_runtime_service()
@@ -46,12 +34,7 @@ def test_get_plugin_runtime_service_reuses_singleton() -> None:
 
 @pytest.mark.asyncio
 async def test_plugin_diagnose_with_audit_filters_recent_logs(tmp_path: Path) -> None:
-    """
-    校验插件诊断包会返回目标插件最近审计记录。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验插件诊断包会返回目标插件最近审计记录。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -91,12 +74,7 @@ async def test_plugin_diagnose_with_audit_filters_recent_logs(tmp_path: Path) ->
                 """
 
                 async def diagnose_plugin(self, plugin_id: str) -> dict[str, object]:
-                    """
-                    生成测试用插件诊断包。
-
-                    :param plugin_id: 插件ID
-                    :return: 插件诊断包
-                    """
+                    """返回测试用插件诊断结果。"""
                     return {
                         'ok': True,
                         'message': '插件诊断包生成完成',

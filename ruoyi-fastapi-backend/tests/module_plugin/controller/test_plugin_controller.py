@@ -1,21 +1,16 @@
 import json
-import sys
 from collections.abc import Generator
 from datetime import datetime
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-BACKEND_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-from common.annotation import log_annotation  # noqa: E402
-from common.context import RequestContext  # noqa: E402
-from common.vo import PageModel  # noqa: E402
-from module_admin.entity.vo.user_vo import CurrentUserModel, UserInfoModel  # noqa: E402
-from module_plugin.controller import plugin_controller  # noqa: E402
-from plugins.core.management.entity.vo.schemas import (  # noqa: E402
+from common.annotation import log_annotation
+from common.context import RequestContext
+from common.vo import PageModel
+from module_admin.entity.vo.user_vo import CurrentUserModel, UserInfoModel
+from module_plugin.controller import plugin_controller
+from plugins.core.management.entity.vo.schemas import (
     PluginBatchActionModel,
     PluginOperationLogDetailModel,
     PluginOperationLogExportQueryModel,
@@ -30,15 +25,10 @@ PLUGIN_OPERATION_FAILURE_EXIT_CODE = 10
 
 
 def build_request(path: str = '/system/plugin/batch', method: str = 'POST') -> object:
-    """
-    构造测试用请求对象。
-
-    :param path: 请求路径
-    :param method: 请求方法
-    :return: 请求对象
-    """
+    """构造测试用请求对象。"""
 
     async def empty_body() -> bytes:
+        """返回测试用空请求体。"""
         return b''
 
     return SimpleNamespace(
@@ -53,21 +43,12 @@ def build_request(path: str = '/system/plugin/batch', method: str = 'POST') -> o
 
 
 def load_response_body(response: object) -> dict:
-    """
-    解析测试响应体。
-
-    :param response: 响应对象
-    :return: 响应体字典
-    """
+    """解析测试响应体。"""
     return json.loads(response.body.decode())
 
 
 def test_plugin_operation_response_hides_exit_code_from_web_payload() -> None:
-    """
-    校验 Web 插件操作响应不会暴露 CLI 退出码。
-
-    :return: None
-    """
+    """校验 Web 插件操作响应不会暴露 CLI 退出码。"""
     payload = {
         'ok': True,
         'message': '插件操作完成',
@@ -90,30 +71,17 @@ class FakeAsyncSession:
     """
 
     def __init__(self) -> None:
-        """
-        初始化测试会话。
-
-        :return: None
-        """
+        """初始化测试会话。"""
         self.committed = False
 
     async def commit(self) -> None:
-        """
-        记录事务提交。
-
-        :return: None
-        """
+        """记录事务提交。"""
         self.committed = True
 
 
 @pytest.fixture(autouse=True)
-def fake_request_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
-    """
-    构造日志装饰器所需的最小请求上下文。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+def fake_request_context(monkeypatch: pytest.MonkeyPatch) -> Generator[CurrentUserModel, None, None]:
+    """构造日志装饰器所需的最小请求上下文。"""
     user = CurrentUserModel(
         permissions=['*:*:*'],
         roles=[],
@@ -123,11 +91,11 @@ def fake_request_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, Non
     pattern_token = RequestContext.set_current_exclude_patterns([])
 
     async def fake_enqueue_operation_log(*args: object, **kwargs: object) -> None:
-        return None
+        """记录测试中的操作日志入队请求。"""
 
     monkeypatch.setattr(log_annotation.LogQueueService, 'enqueue_operation_log', fake_enqueue_operation_log)
     try:
-        yield
+        yield user
     finally:
         RequestContext.reset_current_user(user_token)
         RequestContext.reset_current_exclude_patterns(pattern_token)
@@ -135,12 +103,7 @@ def fake_request_context(monkeypatch: pytest.MonkeyPatch) -> Generator[None, Non
 
 @pytest.mark.asyncio
 async def test_batch_system_plugins_accepts_json_body(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验批量操作接口使用 JSON 请求体。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验批量操作接口使用 JSON 请求体。"""
     recorded: dict[str, object] = {}
 
     class FakePluginRuntimeService:
@@ -156,15 +119,7 @@ async def test_batch_system_plugins_accepts_json_body(monkeypatch: pytest.Monkey
             dry_run: bool = True,
             continue_on_error: bool = False,
         ) -> dict[str, object]:
-            """
-            记录批量操作参数。
-
-            :param operation: 批量操作类型
-            :param plugin_ids: 插件ID列表
-            :param dry_run: 是否仅预演
-            :param continue_on_error: 失败后是否继续
-            :return: 批量操作结果
-            """
+            """记录批量操作参数。"""
             recorded.update(
                 {
                     'operation': operation,
@@ -197,13 +152,11 @@ async def test_batch_system_plugins_accepts_json_body(monkeypatch: pytest.Monkey
 
 
 @pytest.mark.asyncio
-async def test_install_system_plugin_accepts_dry_run_query_param(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验单插件安装接口使用展开后的 dryRun 查询参数。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+async def test_install_system_plugin_accepts_dry_run_query_param(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_request_context: CurrentUserModel,
+) -> None:
+    """校验单插件安装接口使用展开后的 dryRun 查询参数。"""
     recorded: dict[str, object] = {}
 
     class FakePluginRuntimeService:
@@ -211,14 +164,14 @@ async def test_install_system_plugin_accepts_dry_run_query_param(monkeypatch: py
         测试用插件运行时服务。
         """
 
-        async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
-            """
-            记录安装参数。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :return: 安装结果
-            """
+        async def install_plugin(
+            self,
+            plugin_id: str,
+            *,
+            dry_run: bool = False,
+            operated_by: str | None = None,
+        ) -> dict[str, object]:
+            """记录安装参数。"""
             recorded.update({'plugin_id': plugin_id, 'dry_run': dry_run})
             return {'ok': True, 'message': '安装完成'}
 
@@ -227,6 +180,7 @@ async def test_install_system_plugin_accepts_dry_run_query_param(monkeypatch: py
     response = await plugin_controller.install_system_plugin(
         request=build_request('/system/plugin/demo/install'),
         plugin_id='demo',
+        current_user=fake_request_context,
         dry_run=True,
     )
 
@@ -237,27 +191,23 @@ async def test_install_system_plugin_accepts_dry_run_query_param(monkeypatch: py
 @pytest.mark.asyncio
 async def test_install_system_plugin_returns_failure_when_runtime_payload_is_not_ok(
     monkeypatch: pytest.MonkeyPatch,
+    fake_request_context: CurrentUserModel,
 ) -> None:
-    """
-    校验安装运行时返回失败时接口返回失败响应。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验安装运行时返回失败时接口返回失败响应。"""
 
     class FakePluginRuntimeService:
         """
         测试用插件运行时服务。
         """
 
-        async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, object]:
-            """
-            返回失败安装结果。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :return: 安装结果
-            """
+        async def install_plugin(
+            self,
+            plugin_id: str,
+            *,
+            dry_run: bool = False,
+            operated_by: str | None = None,
+        ) -> dict[str, object]:
+            """返回失败安装结果。"""
             return {'ok': False, 'message': '插件安装失败', 'pluginId': plugin_id}
 
     monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
@@ -265,6 +215,7 @@ async def test_install_system_plugin_returns_failure_when_runtime_payload_is_not
     response = await plugin_controller.install_system_plugin(
         request=build_request('/system/plugin/demo/install'),
         plugin_id='demo',
+        current_user=fake_request_context,
         dry_run=False,
     )
     body = load_response_body(response)
@@ -277,12 +228,7 @@ async def test_install_system_plugin_returns_failure_when_runtime_payload_is_not
 
 @pytest.mark.asyncio
 async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验 Web 依赖安装接口始终只生成 dry-run 安装计划。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验 Web 依赖安装接口始终只生成 dry-run 安装计划。"""
     recorded: dict[str, object] = {}
 
     class FakePluginRuntimeService:
@@ -297,14 +243,7 @@ async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: py
             dry_run: bool = True,
             policy_config: object | None = None,
         ) -> dict[str, object]:
-            """
-            记录依赖安装参数。
-
-            :param plugin_id: 插件ID
-            :param dry_run: 是否仅预演
-            :param policy_config: 依赖安装策略配置
-            :return: 依赖安装计划
-            """
+            """记录依赖安装参数。"""
             recorded.update({'plugin_id': plugin_id, 'dry_run': dry_run, 'policy_mode': policy_config.mode})
             return {'ok': True, 'message': '插件依赖安装演练完成', 'pluginId': plugin_id}
 
@@ -324,12 +263,7 @@ async def test_install_system_plugin_dependencies_forces_dry_run(monkeypatch: py
 
 @pytest.mark.asyncio
 async def test_enable_system_plugin_returns_runtime_payload_when_not_ok(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验启用插件失败时接口透传运行时失败负载。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验启用插件失败时接口透传运行时失败负载。"""
 
     class FakePluginRuntimeService:
         """
@@ -337,14 +271,7 @@ async def test_enable_system_plugin_returns_runtime_payload_when_not_ok(monkeypa
         """
 
         async def set_plugin_enabled(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict:
-            """
-            返回失败启用结果。
-
-            :param plugin_id: 插件ID
-            :param enabled: 是否启用
-            :param dry_run: 是否仅预演
-            :return: 插件启用结果
-            """
+            """返回失败启用结果。"""
             return {'ok': False, 'message': '启用失败', 'pluginId': plugin_id, 'enabled': enabled}
 
     monkeypatch.setattr(plugin_controller, 'get_plugin_runtime_service', FakePluginRuntimeService)
@@ -365,12 +292,7 @@ async def test_enable_system_plugin_returns_runtime_payload_when_not_ok(monkeypa
 
 @pytest.mark.asyncio
 async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验停用插件接口走运行时服务，确保内部事务会被提交。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验停用插件接口走运行时服务，确保内部事务会被提交。"""
     recorded: dict[str, object] = {}
 
     class FakePluginRuntimeService:
@@ -379,14 +301,7 @@ async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pyte
         """
 
         async def set_plugin_enabled(self, plugin_id: str, *, enabled: bool, dry_run: bool = False) -> dict:
-            """
-            记录插件启停参数。
-
-            :param plugin_id: 插件ID
-            :param enabled: 是否启用
-            :param dry_run: 是否仅预演
-            :return: 插件停用结果
-            """
+            """记录插件启停参数。"""
             recorded.update({'plugin_id': plugin_id, 'enabled': enabled, 'dry_run': dry_run})
             return {'ok': True, 'message': '停用成功', 'pluginId': plugin_id, 'enabled': enabled}
 
@@ -408,12 +323,7 @@ async def test_disable_system_plugin_delegates_runtime_service(monkeypatch: pyte
 
 @pytest.mark.asyncio
 async def test_get_system_plugin_operation_log_list_returns_page_payload(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验审计列表接口会返回分页负载并透传查询条件。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验审计列表接口会返回分页负载并透传查询条件。"""
     recorded: dict[str, object] = {}
     operation_log = PluginOperationLogDetailModel(
         operationId=1,
@@ -446,14 +356,7 @@ async def test_get_system_plugin_operation_log_list_returns_page_payload(monkeyp
             query_object: PluginOperationLogPageQueryModel,
             is_page: bool = True,
         ) -> PageModel[PluginOperationLogDetailModel]:
-            """
-            记录审计列表查询参数。
-
-            :param query_db: orm对象
-            :param query_object: 审计分页查询对象
-            :param is_page: 是否分页
-            :return: 审计分页结果
-            """
+            """记录审计列表查询参数。"""
             recorded.update(
                 {
                     'query_db': query_db,
@@ -497,12 +400,7 @@ async def test_get_system_plugin_operation_log_list_returns_page_payload(monkeyp
 
 @pytest.mark.asyncio
 async def test_query_detail_system_plugin_operation_log_returns_payload(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验审计详情接口会返回插件操作审计详情。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验审计详情接口会返回插件操作审计详情。"""
     recorded: dict[str, object] = {}
     operation_log = PluginOperationLogDetailModel(
         operationId=1,
@@ -527,13 +425,7 @@ async def test_query_detail_system_plugin_operation_log_returns_payload(monkeypa
             query_db: object,
             operation_id: int,
         ) -> PluginOperationLogDetailModel:
-            """
-            记录审计详情查询参数。
-
-            :param query_db: orm对象
-            :param operation_id: 操作日志ID
-            :return: 审计详情
-            """
+            """记录审计详情查询参数。"""
             recorded.update({'query_db': query_db, 'operation_id': operation_id})
             return operation_log
 
@@ -558,12 +450,7 @@ async def test_query_detail_system_plugin_operation_log_returns_payload(monkeypa
 async def test_query_detail_system_plugin_operation_log_returns_failure_when_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """
-    校验审计详情不存在时返回失败响应。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验审计详情不存在时返回失败响应。"""
 
     class FakePluginService:
         """
@@ -572,13 +459,7 @@ async def test_query_detail_system_plugin_operation_log_returns_failure_when_mis
 
         @classmethod
         async def plugin_operation_log_detail_services(cls, query_db: object, operation_id: int) -> None:
-            """
-            返回空审计详情。
-
-            :param query_db: orm对象
-            :param operation_id: 操作日志ID
-            :return: None
-            """
+            """返回空审计详情。"""
             return
 
     monkeypatch.setattr(plugin_controller, 'PluginService', FakePluginService)
@@ -597,12 +478,7 @@ async def test_query_detail_system_plugin_operation_log_returns_failure_when_mis
 
 @pytest.mark.asyncio
 async def test_retain_system_plugin_operation_log_commits_session(monkeypatch: pytest.MonkeyPatch) -> None:
-    """
-    校验审计保留策略接口会调用管理服务并提交事务。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验审计保留策略接口会调用管理服务并提交事务。"""
     recorded: dict[str, object] = {}
     retention_result = PluginOperationLogRetentionResultModel(
         retentionDays=0,
@@ -623,13 +499,7 @@ async def test_retain_system_plugin_operation_log_commits_session(monkeypatch: p
             query_db: object,
             retention_model: PluginOperationLogRetentionModel,
         ) -> PluginOperationLogRetentionResultModel:
-            """
-            记录审计保留策略调用参数。
-
-            :param query_db: orm对象
-            :param retention_model: 保留策略模型
-            :return: 保留策略执行结果
-            """
+            """记录审计保留策略调用参数。"""
             recorded.update({'query_db': query_db, 'retention_days': retention_model.retention_days})
             return retention_result
 
@@ -655,12 +525,7 @@ async def test_retain_system_plugin_operation_log_commits_session(monkeypatch: p
 async def test_export_system_plugin_operation_log_uses_operation_dict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """
-    校验审计导出接口会使用操作类型字典映射。
-
-    :param monkeypatch: pytest monkeypatch对象
-    :return: None
-    """
+    """校验审计导出接口会使用操作类型字典映射。"""
     recorded: dict[str, object] = {}
     operation_log = PluginOperationLogDetailModel(
         operationId=1,
@@ -685,13 +550,7 @@ async def test_export_system_plugin_operation_log_uses_operation_dict(
             query_db: object,
             query_object: PluginOperationLogExportQueryModel,
         ) -> list[PluginOperationLogDetailModel]:
-            """
-            记录审计导出查询参数。
-
-            :param query_db: orm对象
-            :param query_object: 导出查询对象
-            :return: 审计导出列表
-            """
+            """记录审计导出查询参数。"""
             recorded.update({'query_db': query_db, 'export_limit': query_object.export_limit})
             return [operation_log]
 
@@ -701,13 +560,7 @@ async def test_export_system_plugin_operation_log_uses_operation_dict(
             operation_log_list: list[PluginOperationLogDetailModel],
             operation_dict: dict[str, str],
         ) -> bytes:
-            """
-            记录审计导出字典映射。
-
-            :param operation_log_list: 审计列表
-            :param operation_dict: 操作类型字典
-            :return: 导出文件字节
-            """
+            """记录审计导出字典映射。"""
             recorded.update(
                 {
                     'operation_count': len(operation_log_list),
@@ -723,12 +576,7 @@ async def test_export_system_plugin_operation_log_uses_operation_dict(
 
         @classmethod
         async def get_plugin_operation_dict_services(cls, query_db: object) -> dict[str, str]:
-            """
-            返回测试用操作类型字典。
-
-            :param query_db: orm对象
-            :return: 操作类型字典
-            """
+            """返回测试用操作类型字典。"""
             recorded['dict_query_db'] = query_db
             return {'config_set': '配置保存'}
 

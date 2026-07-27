@@ -1,25 +1,15 @@
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-BACKEND_ROOT = Path(__file__).resolve().parents[4]
-sys.path.insert(0, str(BACKEND_ROOT))
-
-import plugins.core.validation.manifest as manifest_module  # noqa: E402
-from plugins.core.manifest.schema import FrontendManifest, PluginDependencyManifest, PluginManifest  # noqa: E402
-from plugins.core.validation.manifest import PluginManifestChecker  # noqa: E402
+import plugins.core.validation.manifest as manifest_module
+from plugins.core.manifest.schema import FrontendManifest, PluginDependencyManifest, PluginManifest
+from plugins.core.validation.manifest import PluginManifestChecker
 
 
 def write_project_versions(backend_root: Path, frontend_root: Path) -> None:
-    """
-    写入测试项目版本文件。
-
-    :param backend_root: 后端项目根目录
-    :param frontend_root: 前端项目根目录
-    :return: None
-    """
+    """写入测试项目版本文件。"""
     backend_root.mkdir(parents=True)
     frontend_root.mkdir(parents=True)
     (backend_root / 'pyproject.toml').write_text('[project]\nversion = "1.9.0"\n', encoding='utf-8')
@@ -27,11 +17,7 @@ def write_project_versions(backend_root: Path, frontend_root: Path) -> None:
 
 
 def test_manifest_rejects_hyphenated_plugin_ids() -> None:
-    """
-    校验插件 manifest 短期全局拒绝带短横线的插件 ID。
-
-    :return: None
-    """
+    """校验插件 manifest 短期全局拒绝带短横线的插件 ID。"""
     with pytest.raises(ValueError, match='只能包含小写字母、数字和下划线'):
         PluginManifest.model_validate(
             {
@@ -48,11 +34,7 @@ def test_manifest_rejects_hyphenated_plugin_ids() -> None:
 
 
 def test_manifest_checker_warns_secret_config_default() -> None:
-    """
-    校验敏感配置非空默认值会产生 warning。
-
-    :return: None
-    """
+    """校验敏感配置非空默认值会产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -81,11 +63,7 @@ def test_manifest_checker_warns_secret_config_default() -> None:
 
 
 def test_manifest_checker_accepts_empty_secret_config_default() -> None:
-    """
-    校验敏感配置空默认值不会产生 warning。
-
-    :return: None
-    """
+    """校验敏感配置空默认值不会产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -112,11 +90,7 @@ def test_manifest_checker_accepts_empty_secret_config_default() -> None:
 
 
 def test_manifest_rejects_boolean_default_for_number_config() -> None:
-    """
-    校验 number 类型配置不会把 bool 默认值当作数字。
-
-    :return: None
-    """
+    """校验 number 类型配置不会把 bool 默认值当作数字。"""
     with pytest.raises(ValueError, match='必须是数字'):
         PluginManifest.model_validate(
             {
@@ -130,11 +104,7 @@ def test_manifest_rejects_boolean_default_for_number_config() -> None:
 
 
 def test_manifest_checker_warns_password_config_without_secret_flag() -> None:
-    """
-    校验 password 类型配置缺少 secret 标记时产生 warning。
-
-    :return: None
-    """
+    """校验 password 类型配置缺少 secret 标记时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -161,11 +131,7 @@ def test_manifest_checker_warns_password_config_without_secret_flag() -> None:
 
 
 def test_manifest_checker_warns_secret_config_with_non_password_type() -> None:
-    """
-    校验 secret 配置使用非 password 类型时产生 warning。
-
-    :return: None
-    """
+    """校验 secret 配置使用非 password 类型时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -193,11 +159,7 @@ def test_manifest_checker_warns_secret_config_with_non_password_type() -> None:
 
 
 def test_manifest_checker_accepts_secret_password_config() -> None:
-    """
-    校验 password 类型配置声明 secret 标记时不产生类型一致性 warning。
-
-    :return: None
-    """
+    """校验 password 类型配置声明 secret 标记时不产生类型一致性 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -223,12 +185,7 @@ def test_manifest_checker_accepts_secret_password_config() -> None:
 
 
 def test_manifest_checker_accepts_satisfied_compatibility(tmp_path: Path) -> None:
-    """
-    校验兼容性声明满足当前版本时不产生问题。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验兼容性声明满足当前版本时不产生问题。"""
     backend_root = tmp_path / 'backend'
     frontend_root = tmp_path / 'frontend'
     write_project_versions(backend_root, frontend_root)
@@ -259,12 +216,7 @@ def test_manifest_checker_accepts_satisfied_compatibility(tmp_path: Path) -> Non
 
 
 def test_manifest_checker_accepts_supported_database(monkeypatch: object) -> None:
-    """
-    校验当前数据库在插件支持列表内时不产生问题。
-
-    :param monkeypatch: pytest monkeypatch fixture
-    :return: None
-    """
+    """校验当前数据库在插件支持列表内时不产生问题。"""
     monkeypatch.setattr(manifest_module.DataBaseConfig, 'db_type', 'postgresql')
     manifest = PluginManifest.model_validate(
         {
@@ -283,13 +235,7 @@ def test_manifest_checker_accepts_supported_database(monkeypatch: object) -> Non
 
 
 def test_manifest_checker_caches_resolved_node_version(tmp_path: Path, monkeypatch: object) -> None:
-    """
-    校验 Node.js 版本解析会缓存 subprocess 结果。
-
-    :param tmp_path: pytest 临时目录
-    :param monkeypatch: pytest monkeypatch fixture
-    :return: None
-    """
+    """校验 Node.js 版本解析会缓存 subprocess 结果。"""
     backend_root = tmp_path / 'backend'
     frontend_root = tmp_path / 'frontend'
     write_project_versions(backend_root, frontend_root)
@@ -307,13 +253,7 @@ def test_manifest_checker_caches_resolved_node_version(tmp_path: Path, monkeypat
     calls = []
 
     def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
-        """
-        记录 node 版本命令调用。
-
-        :param args: 位置参数
-        :param kwargs: 关键字参数
-        :return: 模拟命令执行结果
-        """
+        """记录 node 版本命令调用。"""
         calls.append((args, kwargs))
         return SimpleNamespace(returncode=0, stdout='v20.0.0\n')
 
@@ -333,12 +273,7 @@ def test_manifest_checker_caches_resolved_node_version(tmp_path: Path, monkeypat
 
 
 def test_manifest_checker_reports_unsatisfied_compatibility(tmp_path: Path) -> None:
-    """
-    校验兼容性声明不满足当前版本时产生 error。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验兼容性声明不满足当前版本时产生 error。"""
     backend_root = tmp_path / 'backend'
     frontend_root = tmp_path / 'frontend'
     write_project_versions(backend_root, frontend_root)
@@ -366,12 +301,7 @@ def test_manifest_checker_reports_unsatisfied_compatibility(tmp_path: Path) -> N
 
 
 def test_manifest_checker_reports_unsupported_database(monkeypatch: object) -> None:
-    """
-    校验当前数据库不在插件支持列表内时产生 error。
-
-    :param monkeypatch: pytest monkeypatch fixture
-    :return: None
-    """
+    """校验当前数据库不在插件支持列表内时产生 error。"""
     monkeypatch.setattr(manifest_module.DataBaseConfig, 'db_type', 'postgresql')
     manifest = PluginManifest.model_validate(
         {
@@ -392,12 +322,7 @@ def test_manifest_checker_reports_unsupported_database(monkeypatch: object) -> N
 
 
 def test_manifest_checker_warns_unknown_compatibility_version(tmp_path: Path) -> None:
-    """
-    校验无法读取平台版本时产生 warning 且不阻断。
-
-    :param tmp_path: pytest 临时目录
-    :return: None
-    """
+    """校验无法读取平台版本时产生 warning 且不阻断。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -422,11 +347,7 @@ def test_manifest_checker_warns_unknown_compatibility_version(tmp_path: Path) ->
 
 
 def test_manifest_checker_warns_unpinned_dependencies() -> None:
-    """
-    校验未声明版本约束的依赖会产生 warning。
-
-    :return: None
-    """
+    """校验未声明版本约束的依赖会产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -458,11 +379,7 @@ def test_manifest_checker_warns_unpinned_dependencies() -> None:
 
 
 def test_manifest_checker_accepts_pinned_dependencies() -> None:
-    """
-    校验声明版本约束的依赖不会产生未锁定 warning。
-
-    :return: None
-    """
+    """校验声明版本约束的依赖不会产生未锁定 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -484,11 +401,7 @@ def test_manifest_checker_accepts_pinned_dependencies() -> None:
 
 
 def test_manifest_checker_warns_resources_without_purge_hook() -> None:
-    """
-    校验声明资源清单但未声明 onPurge 时会产生 warning。
-
-    :return: None
-    """
+    """校验声明资源清单但未声明 onPurge 时会产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -508,11 +421,7 @@ def test_manifest_checker_warns_resources_without_purge_hook() -> None:
 
 
 def test_manifest_checker_accepts_resources_with_purge_hook() -> None:
-    """
-    校验资源清单声明了 onPurge 时不会产生资源清理 warning。
-
-    :return: None
-    """
+    """校验资源清单声明了 onPurge 时不会产生资源清理 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -533,11 +442,7 @@ def test_manifest_checker_accepts_resources_with_purge_hook() -> None:
 
 
 def test_manifest_checker_warns_required_config_without_default() -> None:
-    """
-    校验必填配置缺少默认值时产生 warning。
-
-    :return: None
-    """
+    """校验必填配置缺少默认值时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -565,11 +470,7 @@ def test_manifest_checker_warns_required_config_without_default() -> None:
 
 
 def test_manifest_checker_accepts_required_config_with_default() -> None:
-    """
-    校验必填配置声明默认值时不产生 warning。
-
-    :return: None
-    """
+    """校验必填配置声明默认值时不产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -596,11 +497,7 @@ def test_manifest_checker_accepts_required_config_with_default() -> None:
 
 
 def test_manifest_checker_warns_ineffective_config_constraints() -> None:
-    """
-    校验配置项声明不会生效的增强约束时产生 warning。
-
-    :return: None
-    """
+    """校验配置项声明不会生效的增强约束时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -646,11 +543,7 @@ def test_manifest_checker_warns_ineffective_config_constraints() -> None:
 
 
 def test_manifest_checker_accepts_effective_config_constraints() -> None:
-    """
-    校验配置项增强约束用于正确类型时不产生 warning。
-
-    :return: None
-    """
+    """校验配置项增强约束用于正确类型时不产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -687,11 +580,7 @@ def test_manifest_checker_accepts_effective_config_constraints() -> None:
 
 
 def test_manifest_rejects_permission_without_plugin_prefix() -> None:
-    """
-    校验权限标识未使用插件 ID 前缀时阻断 manifest 加载。
-
-    :return: None
-    """
+    """校验权限标识未使用插件 ID 前缀时阻断 manifest 加载。"""
     with pytest.raises(ValueError, match='插件权限必须使用 demo: 前缀'):
         PluginManifest.model_validate(
             {
@@ -715,11 +604,7 @@ def test_manifest_rejects_permission_without_plugin_prefix() -> None:
 
 
 def test_manifest_checker_accepts_permissions_with_plugin_prefix() -> None:
-    """
-    校验权限标识使用插件 ID 前缀时不产生 warning。
-
-    :return: None
-    """
+    """校验权限标识使用插件 ID 前缀时不产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -747,11 +632,7 @@ def test_manifest_checker_accepts_permissions_with_plugin_prefix() -> None:
 
 
 def test_manifest_checker_warns_frontend_menus_without_permissions() -> None:
-    """
-    校验声明前端菜单但完全缺少权限标识时产生 warning。
-
-    :return: None
-    """
+    """校验声明前端菜单但完全缺少权限标识时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -779,11 +660,7 @@ def test_manifest_checker_warns_frontend_menus_without_permissions() -> None:
 
 
 def test_manifest_checker_accepts_frontend_menus_with_child_permissions() -> None:
-    """
-    校验子菜单存在权限标识时不产生前端菜单无权限 warning。
-
-    :return: None
-    """
+    """校验子菜单存在权限标识时不产生前端菜单无权限 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -819,11 +696,7 @@ def test_manifest_checker_accepts_frontend_menus_with_child_permissions() -> Non
 
 
 def test_manifest_checker_warns_button_menu_without_permission() -> None:
-    """
-    校验按钮菜单缺少权限标识时产生 warning。
-
-    :return: None
-    """
+    """校验按钮菜单缺少权限标识时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -852,11 +725,7 @@ def test_manifest_checker_warns_button_menu_without_permission() -> None:
 
 
 def test_manifest_checker_accepts_button_menu_with_permission() -> None:
-    """
-    校验按钮菜单声明权限标识时不产生 warning。
-
-    :return: None
-    """
+    """校验按钮菜单声明权限标识时不产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -885,11 +754,7 @@ def test_manifest_checker_accepts_button_menu_with_permission() -> None:
 
 
 def test_manifest_checker_warns_button_menu_with_component_and_children() -> None:
-    """
-    校验按钮菜单混入路由组件或子菜单时产生 warning。
-
-    :return: None
-    """
+    """校验按钮菜单混入路由组件或子菜单时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -934,11 +799,7 @@ def test_manifest_checker_warns_button_menu_with_component_and_children() -> Non
 
 
 def test_manifest_checker_warns_permission_without_menu_parent() -> None:
-    """
-    校验顶层权限缺少可挂载按钮的父级菜单时产生 warning。
-
-    :return: None
-    """
+    """校验顶层权限缺少可挂载按钮的父级菜单时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -958,11 +819,7 @@ def test_manifest_checker_warns_permission_without_menu_parent() -> None:
 
 
 def test_manifest_checker_accepts_auto_permission_buttons_with_parent_menu() -> None:
-    """
-    校验顶层权限存在页面父级菜单时不产生自动按钮挂载 warning。
-
-    :return: None
-    """
+    """校验顶层权限存在页面父级菜单时不产生自动按钮挂载 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -990,11 +847,7 @@ def test_manifest_checker_accepts_auto_permission_buttons_with_parent_menu() -> 
 
 
 def test_manifest_checker_warns_unsorted_lifecycle_scripts() -> None:
-    """
-    校验 migration 和 seed 未按文件名顺序声明时产生 warning。
-
-    :return: None
-    """
+    """校验 migration 和 seed 未按文件名顺序声明时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -1016,11 +869,7 @@ def test_manifest_checker_warns_unsorted_lifecycle_scripts() -> None:
 
 
 def test_manifest_checker_accepts_sorted_lifecycle_scripts() -> None:
-    """
-    校验 migration 和 seed 按文件名顺序声明时不产生 warning。
-
-    :return: None
-    """
+    """校验 migration 和 seed 按文件名顺序声明时不产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -1041,11 +890,7 @@ def test_manifest_checker_accepts_sorted_lifecycle_scripts() -> None:
 
 
 def test_manifest_checker_warns_enabled_jobs_without_health_checker() -> None:
-    """
-    校验默认启用任务缺少健康检查时产生 warning。
-
-    :return: None
-    """
+    """校验默认启用任务缺少健康检查时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -1074,11 +919,7 @@ def test_manifest_checker_warns_enabled_jobs_without_health_checker() -> None:
 
 
 def test_manifest_checker_accepts_enabled_jobs_with_health_checker() -> None:
-    """
-    校验默认启用任务声明健康检查时不产生 warning。
-
-    :return: None
-    """
+    """校验默认启用任务声明健康检查时不产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -1106,11 +947,7 @@ def test_manifest_checker_accepts_enabled_jobs_with_health_checker() -> None:
 
 
 def test_manifest_checker_warns_unpaired_runtime_hook() -> None:
-    """
-    校验启动和关闭钩子未成对声明时产生 warning。
-
-    :return: None
-    """
+    """校验启动和关闭钩子未成对声明时产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -1132,11 +969,7 @@ def test_manifest_checker_warns_unpaired_runtime_hook() -> None:
 
 
 def test_manifest_checker_accepts_paired_runtime_hooks() -> None:
-    """
-    校验启动和关闭钩子成对声明时不产生 warning。
-
-    :return: None
-    """
+    """校验启动和关闭钩子成对声明时不产生 warning。"""
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -1156,3 +989,23 @@ def test_manifest_checker_accepts_paired_runtime_hooks() -> None:
 
     assert result.ok is True
     assert result.issues == []
+
+
+def test_manifest_checker_does_not_warn_pep508_comma_range_as_unpinned() -> None:
+    """校验清单检查器不会将 PEP 508 逗号范围误判为未锁定。"""
+    manifest = PluginManifest.model_validate(
+        {
+            'id': 'demo',
+            'name': 'Demo',
+            'version': '1.0.0',
+            'backend': {'module': 'plugins.demo'},
+            'dependencies': {'python': ['openai>=2,<3', 'requests']},
+        }
+    )
+
+    result = PluginManifestChecker().check(manifest)
+    unpinned = [i for i in result.issues if i.kind == 'dependency_unpinned']
+
+    assert len(unpinned) == 1
+    assert 'openai' not in unpinned[0].message
+    assert 'requests' in unpinned[0].message
