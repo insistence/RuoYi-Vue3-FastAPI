@@ -98,7 +98,7 @@
                <span>{{ formatPluginTime(scope.row.updateTime) }}</span>
             </template>
          </el-table-column>
-         <el-table-column label="操作" align="center" width="230" class-name="small-padding fixed-width">
+         <el-table-column label="操作" align="center" width="230" fixed="right" class-name="small-padding fixed-width">
             <template #default="scope">
                <div class="plugin-action-buttons">
                   <el-tooltip content="详情" placement="top">

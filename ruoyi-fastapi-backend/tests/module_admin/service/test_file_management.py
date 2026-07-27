@@ -1,6 +1,4 @@
 import asyncio
-import os
-import sys
 from collections.abc import Generator
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,8 +6,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import false, true
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from common.aspect.data_scope import GetDataScope
 from config.env import UploadConfig

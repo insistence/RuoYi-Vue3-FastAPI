@@ -2,14 +2,14 @@ manifestVersion: 1
 id: ai
 name: AI 管理
 version: 0.1.0
-description: AI model management and chat plugin.
+description: AI 模型管理与智能对话插件。
 
 metadata:
   category: ai
   tags:
     - ai
     - chat
-  author: RuoYi
+  author: insistence
   license: MIT
 
 backend:

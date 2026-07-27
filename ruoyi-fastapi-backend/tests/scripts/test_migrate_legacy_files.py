@@ -1,13 +1,9 @@
 import asyncio
-import os
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from config.env import UploadConfig
 from module_admin.dao.file_info_dao import FileInfoDao

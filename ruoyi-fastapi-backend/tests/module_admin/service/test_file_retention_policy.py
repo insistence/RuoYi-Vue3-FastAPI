@@ -1,12 +1,8 @@
 import asyncio
-import os
-import sys
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from exceptions.exception import ServiceException
 from module_admin.dao.file_business_dao import FileRetentionPolicyDao

@@ -1,15 +1,12 @@
 import asyncio
 import hashlib
 import os
-import sys
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from common.vo import PageModel
 from module_admin.dao.file_info_dao import FileInfoDao

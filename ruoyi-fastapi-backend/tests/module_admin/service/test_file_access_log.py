@@ -1,14 +1,10 @@
 import asyncio
 import json
-import os
-import sys
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import Text
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from config.env import LogConfig
 from module_admin.dao.file_access_dao import FileAccessLogDao

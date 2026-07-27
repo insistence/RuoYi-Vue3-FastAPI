@@ -1,8 +1,6 @@
 import asyncio
 import io
-import os
 import re
-import sys
 from collections.abc import AsyncGenerator
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -13,8 +11,6 @@ import pytest
 from fastapi import BackgroundTasks, FastAPI, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import false
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from config.env import UploadConfig
 from exceptions.exception import FileRangeNotSatisfiableException, ServiceException
