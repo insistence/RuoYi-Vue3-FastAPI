@@ -162,6 +162,7 @@ create table sys_menu (
 insert into sys_menu values('1',  '系统管理', '0', '1',  'system',           null, '', '', 1, 0, 'M', '0', '0', '', 'system',   'admin', sysdate(), '', null, '系统管理目录');
 insert into sys_menu values('2',  '系统监控', '0', '2',  'monitor',          null, '', '', 1, 0, 'M', '0', '0', '', 'monitor',  'admin', sysdate(), '', null, '系统监控目录');
 insert into sys_menu values('3',  '系统工具', '0', '3',  'tool',             null, '', '', 1, 0, 'M', '0', '0', '', 'tool',     'admin', sysdate(), '', null, '系统工具目录');
+insert into sys_menu values('4',  'AI 管理', '0', '4',  'ai',               null, '', '', 1, 0, 'M', '0', '0', '', 'ai-manage', 'admin', sysdate(), '', null, 'AI 管理目录');
 insert into sys_menu values('99', '若依官网', '0', '99', 'http://ruoyi.vip', null, '', '', 0, 0, 'M', '0', '0', '', 'guide',    'admin', sysdate(), '', null, '若依官网地址');
 -- 二级菜单
 insert into sys_menu values('100',  '用户管理', '1',   '1', 'user',                'system/user/index',                 '', '', 1, 0, 'C', '0', '0', 'system:user:list',                 'user',          'admin', sysdate(), '', null, '用户管理菜单');
@@ -173,17 +174,20 @@ insert into sys_menu values('105',  '字典管理', '1',   '6', 'dict',         
 insert into sys_menu values('106',  '参数设置', '1',   '7', 'config',              'system/config/index',               '', '', 1, 0, 'C', '0', '0', 'system:config:list',               'edit',          'admin', sysdate(), '', null, '参数设置菜单');
 insert into sys_menu values('107',  '通知公告', '1',   '8', 'notice',              'system/notice/index',               '', '', 1, 0, 'C', '0', '0', 'system:notice:list',               'message',       'admin', sysdate(), '', null, '通知公告菜单');
 insert into sys_menu values('108',  '日志管理', '1',   '9', 'log',                 '',                                  '', '', 1, 0, 'M', '0', '0', '',                                 'log',           'admin', sysdate(), '', null, '日志管理菜单');
-insert into sys_menu values('119',  '插件管理', '1',  '10', 'plugin',              'system/plugin/index',               '', '', 1, 0, 'C', '0', '0', 'system:plugin:list',               'component',     'admin', sysdate(), '', null, '插件管理菜单');
+insert into sys_menu values('121',  '文件管理', '1',  '10', 'file',                'system/file/index',                 '', '', 1, 0, 'C', '0', '0', 'system:file:list',                 'documentation', 'admin', sysdate(), '', null, '文件管理菜单');
+insert into sys_menu values('122',  '插件管理', '1',  '11', 'plugin',              'system/plugin/index',               '', '', 1, 0, 'C', '0', '0', 'system:plugin:list',               'component',     'admin', sysdate(), '', null, '插件管理菜单');
 insert into sys_menu values('109',  '在线用户', '2',   '1', 'online',              'monitor/online/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:online:list',              'online',        'admin', sysdate(), '', null, '在线用户菜单');
 insert into sys_menu values('110',  '定时任务', '2',   '2', 'job',                 'monitor/job/index',                 '', '', 1, 0, 'C', '0', '0', 'monitor:job:list',                 'job',           'admin', sysdate(), '', null, '定时任务菜单');
 insert into sys_menu values('111',  '数据监控', '2',   '3', 'druid',               'monitor/druid/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list',               'druid',         'admin', sysdate(), '', null, '数据监控菜单');
 insert into sys_menu values('112',  '服务监控', '2',   '4', 'server',              'monitor/server/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:server:list',              'server',        'admin', sysdate(), '', null, '服务监控菜单');
 insert into sys_menu values('113',  '缓存监控', '2',   '5', 'cache',               'monitor/cache/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis',         'admin', sysdate(), '', null, '缓存监控菜单');
 insert into sys_menu values('114',  '缓存列表', '2',   '6', 'cacheList',           'monitor/cache/list',                '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis-list',    'admin', sysdate(), '', null, '缓存列表菜单');
-insert into sys_menu values('118',  '传输加密', '2',   '7', 'transportCrypto',     'monitor/transportCrypto/index',     '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list',     'chart',         'admin', sysdate(), '', null, '传输加密监控菜单');
+insert into sys_menu values('120',  '传输加密', '2',   '7', 'transportCrypto',     'monitor/transportCrypto/index',     '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list',     'chart',         'admin', sysdate(), '', null, '传输加密监控菜单');
 insert into sys_menu values('115',  '表单构建', '3',   '1', 'build',               'tool/build/index',                  '', '', 1, 0, 'C', '0', '0', 'tool:build:list',                  'build',         'admin', sysdate(), '', null, '表单构建菜单');
 insert into sys_menu values('116',  '代码生成', '3',   '2', 'gen',                 'tool/gen/index',                    '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                    'code',          'admin', sysdate(), '', null, '代码生成菜单');
 insert into sys_menu values('117',  '系统接口', '3',   '3', 'swagger',             'tool/swagger/index',                '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',                'swagger',       'admin', sysdate(), '', null, '系统接口菜单');
+insert into sys_menu values('118',  '模型管理', '4',   '1', 'model',               'ai/model/index',                    '', '', 1, 0, 'C', '0', '0', 'ai:model:list',                    'ai-model',      'admin', sysdate(), '', null, '模型管理菜单');
+insert into sys_menu values('119',  'AI 对话', '4',   '2', 'chat',                'ai/chat/index',                     '', '', 1, 0, 'C', '0', '0', 'ai:chat:list',                     'ai-chat',       'admin', sysdate(), '', null, 'AI 对话菜单');
 -- 三级菜单
 insert into sys_menu values('500',  '操作日志', '108', '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', sysdate(), '', null, '操作日志菜单');
 insert into sys_menu values('501',  '登录日志', '108', '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', sysdate(), '', null, '登录日志菜单');
@@ -234,6 +238,20 @@ insert into sys_menu values('1035', '公告查询', '107', '1', '#', '', '', '',
 insert into sys_menu values('1036', '公告新增', '107', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:add',          '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1037', '公告修改', '107', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:edit',         '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1038', '公告删除', '107', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:notice:remove',       '#', 'admin', sysdate(), '', null, '');
+-- 文件管理按钮
+insert into sys_menu values('1065', '文件查询', '121', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:query',          '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1066', '文件下载', '121', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:download',       '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1067', '文件删除', '121', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:remove',         '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1068', '文件授权', '121', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:edit',           '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1069', '文件转移', '121', '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:transfer',       '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1070', '文件恢复', '121', '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:restore',        '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1071', '文件清理', '121', '7', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:purge',          '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1072', '存储对账', '121', '8', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:file:reconcile',      '#', 'admin', sysdate(), '', null, '');
+-- 插件管理按钮
+insert into sys_menu values('1073', '插件查询', '122', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:query',        '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1074', '插件修改', '122', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:edit',         '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1075', '插件列表', '122', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:list',         '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1076', '插件导出', '122', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:export',       '#', 'admin', sysdate(), '', null, '');
 -- 操作日志按钮
 insert into sys_menu values('1039', '操作查询', '500', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:query',      '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1040', '操作删除', '500', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:operlog:remove',     '#', 'admin', sysdate(), '', null, '');
@@ -261,11 +279,11 @@ insert into sys_menu values('1057', '生成删除', '116', '3', '#', '', '', '',
 insert into sys_menu values('1058', '导入代码', '116', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:import',            '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1059', '预览代码', '116', '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:preview',           '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1060', '生成代码', '116', '6', '#', '', '', '', 1, 0, 'F', '0', '0', 'tool:gen:code',              '#', 'admin', sysdate(), '', null, '');
--- 插件管理按钮
-insert into sys_menu values('1061', '插件查询', '119', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:query',        '#', 'admin', sysdate(), '', null, '');
-insert into sys_menu values('1062', '插件修改', '119', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:edit',         '#', 'admin', sysdate(), '', null, '');
-insert into sys_menu values('1063', '插件列表', '119', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:list',         '#', 'admin', sysdate(), '', null, '');
-insert into sys_menu values('1064', '插件导出', '119', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:plugin:export',       '#', 'admin', sysdate(), '', null, '');
+-- 模型管理按钮
+insert into sys_menu values('1061', '模型查询', '118', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:query',             '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1062', '模型新增', '118', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:add',               '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1063', '模型修改', '118', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:edit',              '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1064', '模型删除', '118', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'ai:model:remove',            '#', 'admin', sysdate(), '', null, '');
 
 
 -- ----------------------------
@@ -301,6 +319,7 @@ create table sys_role_menu (
 insert into sys_role_menu values ('2', '1');
 insert into sys_role_menu values ('2', '2');
 insert into sys_role_menu values ('2', '3');
+insert into sys_role_menu values ('2', '4');
 insert into sys_role_menu values ('2', '100');
 insert into sys_role_menu values ('2', '101');
 insert into sys_role_menu values ('2', '102');
@@ -310,14 +329,14 @@ insert into sys_role_menu values ('2', '105');
 insert into sys_role_menu values ('2', '106');
 insert into sys_role_menu values ('2', '107');
 insert into sys_role_menu values ('2', '108');
-insert into sys_role_menu values ('2', '119');
 insert into sys_role_menu values ('2', '109');
 insert into sys_role_menu values ('2', '110');
 insert into sys_role_menu values ('2', '111');
 insert into sys_role_menu values ('2', '112');
 insert into sys_role_menu values ('2', '113');
 insert into sys_role_menu values ('2', '114');
-insert into sys_role_menu values ('2', '118');
+insert into sys_role_menu values ('2', '120');
+insert into sys_role_menu values ('2', '122');
 insert into sys_role_menu values ('2', '115');
 insert into sys_role_menu values ('2', '116');
 insert into sys_role_menu values ('2', '117');
@@ -384,10 +403,10 @@ insert into sys_role_menu values ('2', '1057');
 insert into sys_role_menu values ('2', '1058');
 insert into sys_role_menu values ('2', '1059');
 insert into sys_role_menu values ('2', '1060');
-insert into sys_role_menu values ('2', '1061');
-insert into sys_role_menu values ('2', '1062');
-insert into sys_role_menu values ('2', '1063');
-insert into sys_role_menu values ('2', '1064');
+insert into sys_role_menu values ('2', '1073');
+insert into sys_role_menu values ('2', '1074');
+insert into sys_role_menu values ('2', '1075');
+insert into sys_role_menu values ('2', '1076');
 
 -- ----------------------------
 -- 8、角色和部门关联表  角色1-N部门
@@ -484,7 +503,8 @@ insert into sys_dict_type values(8,  '通知类型',     'sys_notice_type',     
 insert into sys_dict_type values(9,  '通知状态', 	   'sys_notice_status',   '0', 'admin', sysdate(), '', null, '通知状态列表');
 insert into sys_dict_type values(10, '操作类型', 	   'sys_oper_type',       '0', 'admin', sysdate(), '', null, '操作类型列表');
 insert into sys_dict_type values(11, '系统状态',     'sys_common_status',   '0', 'admin', sysdate(), '', null, '登录状态列表');
-insert into sys_dict_type values(12, '插件操作类型', 'plugin_operation_type', '0', 'admin', sysdate(), '', null, '插件操作类型列表');
+insert into sys_dict_type values(12, 'AI模型提供商', 'ai_provider_type',    '0', 'admin', sysdate(), '', null, 'AI模型提供商列表');
+insert into sys_dict_type values(13, '插件操作类型', 'plugin_operation_type', '0', 'admin', sysdate(), '', null, '插件操作类型列表');
 
 
 -- ----------------------------
@@ -542,21 +562,58 @@ insert into sys_dict_data values(29, 8,  '生成代码',         '8',       		  
 insert into sys_dict_data values(30, 9,  '清空数据',         '9',       		     'sys_oper_type',       '',   'danger',  'N', '0', 'admin', sysdate(), '', null, '清空操作');
 insert into sys_dict_data values(31, 1,  '成功',            '0',       		       'sys_common_status',   '',   'primary', 'N', '0', 'admin', sysdate(), '', null, '正常状态');
 insert into sys_dict_data values(32, 2,  '失败',            '1',       		       'sys_common_status',   '',   'danger',  'N', '0', 'admin', sysdate(), '', null, '停用状态');
-insert into sys_dict_data values(33, 1,   '安装',            'install',          'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件安装');
-insert into sys_dict_data values(34, 2,   '启用',            'enable',           'plugin_operation_type', '',  'success', 'N', '0', 'admin', sysdate(), '', null, '插件启用');
-insert into sys_dict_data values(35, 3,   '停用',            'disable',          'plugin_operation_type', '',  'warning', 'N', '0', 'admin', sysdate(), '', null, '插件停用');
-insert into sys_dict_data values(36, 4,   '升级',            'upgrade',          'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件升级');
-insert into sys_dict_data values(37, 5,   '卸载',            'uninstall',        'plugin_operation_type', '',  'danger',  'N', '0', 'admin', sysdate(), '', null, '插件卸载');
-insert into sys_dict_data values(38, 6,   '清理',            'purge',            'plugin_operation_type', '',  'danger',  'N', '0', 'admin', sysdate(), '', null, '插件清理');
-insert into sys_dict_data values(39, 7,   '批量',            'batch',            'plugin_operation_type', '',  'info',    'N', '0', 'admin', sysdate(), '', null, '插件批量操作');
-insert into sys_dict_data values(40, 8,   '批量安装',         'batch_install',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件批量安装');
-insert into sys_dict_data values(41, 9,   '批量启用',         'batch_enable',     'plugin_operation_type', '',  'success', 'N', '0', 'admin', sysdate(), '', null, '插件批量启用');
-insert into sys_dict_data values(42, 10,  '批量升级',         'batch_upgrade',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件批量升级');
-insert into sys_dict_data values(43, 11,  '配置保存',         'config_set',       'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件配置保存');
-insert into sys_dict_data values(44, 12,  '配置更新',         'config_update',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件配置更新');
-insert into sys_dict_data values(45, 13,  '配置导入',         'config_import',    'plugin_operation_type', '',  'warning', 'N', '0', 'admin', sysdate(), '', null, '插件配置导入');
-insert into sys_dict_data values(46, 14,  '配置导出',         'config_export',    'plugin_operation_type', '',  'warning', 'N', '0', 'admin', sysdate(), '', null, '插件配置导出');
-insert into sys_dict_data values(47, 99,  '未知操作',         'unknown',          'plugin_operation_type', '',  'info',    'N', '0', 'admin', sysdate(), '', null, '插件未知操作');
+insert into sys_dict_data values(33, 1,  'AIMLAPI',         'AIMLAPI',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'AIMLAPI');
+insert into sys_dict_data values(34, 2,  'Anthropic',       'Anthropic',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Anthropic');
+insert into sys_dict_data values(35, 3,  'Cerebras',        'Cerebras',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Cerebras');
+insert into sys_dict_data values(36, 4,  'CerebrasOpenAI',  'CerebrasOpenAI',   'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'CerebrasOpenAI');
+insert into sys_dict_data values(37, 5,  'Cohere',          'Cohere',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Cohere');
+insert into sys_dict_data values(38, 6,  'CometAPI',        'CometAPI',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'CometAPI');
+insert into sys_dict_data values(39, 7,  'DashScope',       'DashScope',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'DashScope');
+insert into sys_dict_data values(40, 8,  'DeepInfra',       'DeepInfra',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'DeepInfra');
+insert into sys_dict_data values(41, 9,  'DeepSeek',        'DeepSeek',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'DeepSeek');
+insert into sys_dict_data values(42, 10,  'Fireworks',       'Fireworks',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Fireworks');
+insert into sys_dict_data values(43, 11,  'Google',          'Google',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Google');
+insert into sys_dict_data values(44, 12,  'Groq',            'Groq',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Groq');
+insert into sys_dict_data values(45, 13,  'HuggingFace',     'HuggingFace',      'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'HuggingFace');
+insert into sys_dict_data values(46, 14,  'LangDB',          'LangDB',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LangDB');
+insert into sys_dict_data values(47, 15,  'LiteLLM',         'LiteLLM',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LiteLLM');
+insert into sys_dict_data values(48, 16,  'LiteLLMOpenAI',   'LiteLLMOpenAI',    'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LiteLLMOpenAI');
+insert into sys_dict_data values(49, 17,  'LlamaCpp',        'LlamaCpp',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LlamaCpp');
+insert into sys_dict_data values(50, 18,  'LMStudio',        'LMStudio',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'LMStudio');
+insert into sys_dict_data values(51, 19,  'Meta',            'Meta',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Meta');
+insert into sys_dict_data values(52, 20,  'Mistral',         'Mistral',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Mistral');
+insert into sys_dict_data values(53, 21,  'N1N',             'N1N',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'N1N');
+insert into sys_dict_data values(54, 22,  'Nebius',          'Nebius',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Nebius');
+insert into sys_dict_data values(55, 23,  'Nexus',           'Nexus',            'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Nexus');
+insert into sys_dict_data values(56, 24,  'Nvidia',          'Nvidia',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Nvidia');
+insert into sys_dict_data values(57, 25,  'Ollama',          'Ollama',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Ollama');
+insert into sys_dict_data values(58, 26,  'OpenAI',          'OpenAI',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'OpenAI');
+insert into sys_dict_data values(59, 27,  'OpenAIResponses', 'OpenAIResponses',  'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'OpenAIResponses');
+insert into sys_dict_data values(60, 28,  'OpenRouter',      'OpenRouter',       'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'OpenRouter');
+insert into sys_dict_data values(61, 29,  'Perplexity',      'Perplexity',       'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Perplexity');
+insert into sys_dict_data values(62, 30,  'Portkey',         'Portkey',          'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Portkey');
+insert into sys_dict_data values(63, 31,  'Requesty',        'Requesty',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Requesty');
+insert into sys_dict_data values(64, 32,  'Sambanova',       'Sambanova',        'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Sambanova');
+insert into sys_dict_data values(65, 33,  'SiliconFlow',     'SiliconFlow',      'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'SiliconFlow');
+insert into sys_dict_data values(66, 34,  'Together',        'Together',         'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Together');
+insert into sys_dict_data values(67, 35,  'Vercel',          'Vercel',           'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'Vercel');
+insert into sys_dict_data values(68, 36,  'VLLM',            'VLLM',             'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'VLLM');
+insert into sys_dict_data values(69, 37,  'xAI',             'xAI',              'ai_provider_type',    '',   'info',    'N', '0', 'admin', sysdate(), '', null, 'xAI');
+insert into sys_dict_data values(70, 1,   '安装',            'install',          'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件安装');
+insert into sys_dict_data values(71, 2,   '启用',            'enable',           'plugin_operation_type', '',  'success', 'N', '0', 'admin', sysdate(), '', null, '插件启用');
+insert into sys_dict_data values(72, 3,   '停用',            'disable',          'plugin_operation_type', '',  'warning', 'N', '0', 'admin', sysdate(), '', null, '插件停用');
+insert into sys_dict_data values(73, 4,   '升级',            'upgrade',          'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件升级');
+insert into sys_dict_data values(74, 5,   '卸载',            'uninstall',        'plugin_operation_type', '',  'danger',  'N', '0', 'admin', sysdate(), '', null, '插件卸载');
+insert into sys_dict_data values(75, 6,   '清理',            'purge',            'plugin_operation_type', '',  'danger',  'N', '0', 'admin', sysdate(), '', null, '插件清理');
+insert into sys_dict_data values(76, 7,   '批量',            'batch',            'plugin_operation_type', '',  'info',    'N', '0', 'admin', sysdate(), '', null, '插件批量操作');
+insert into sys_dict_data values(77, 8,   '批量安装',         'batch_install',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件批量安装');
+insert into sys_dict_data values(78, 9,   '批量启用',         'batch_enable',     'plugin_operation_type', '',  'success', 'N', '0', 'admin', sysdate(), '', null, '插件批量启用');
+insert into sys_dict_data values(79, 10,  '批量升级',         'batch_upgrade',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件批量升级');
+insert into sys_dict_data values(80, 11,  '配置保存',         'config_set',       'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件配置保存');
+insert into sys_dict_data values(81, 12,  '配置更新',         'config_update',    'plugin_operation_type', '',  'primary', 'N', '0', 'admin', sysdate(), '', null, '插件配置更新');
+insert into sys_dict_data values(82, 13,  '配置导入',         'config_import',    'plugin_operation_type', '',  'warning', 'N', '0', 'admin', sysdate(), '', null, '插件配置导入');
+insert into sys_dict_data values(83, 14,  '配置导出',         'config_export',    'plugin_operation_type', '',  'warning', 'N', '0', 'admin', sysdate(), '', null, '插件配置导出');
+insert into sys_dict_data values(84, 99,  '未知操作',         'unknown',          'plugin_operation_type', '',  'info',    'N', '0', 'admin', sysdate(), '', null, '插件未知操作');
 
 
 -- ----------------------------
@@ -635,6 +692,9 @@ create table sys_job (
 insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', NULL,   NULL, '0/10 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
 insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', NULL, '0/15 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
 insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{\"test\": 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '');
+insert into sys_job values(4, '文件保留期限提醒', 'default', 'default', 'module_task.file_task.scan_retention_reminders', NULL, '{\"remind_days\": 7, \"batch_size\": 500}', '0 0 1 * * ?', '3', '1', '0', 'admin', sysdate(), '', null, '每天扫描即将到期和已到期的受保护文件');
+insert into sys_job values(5, '回收站永久清理', 'default', 'default', 'module_task.file_task.purge_recycle_bin', NULL, '{\"retention_days\": 30, \"batch_size\": 100}', '0 0 2 * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '永久清理超过保留期限的回收站文件，默认暂停');
+insert into sys_job values(6, '文件存储对账', 'default', 'default', 'module_task.file_task.reconcile_file_storage', NULL, '{\"check_hash\": false}', '0 0 3 * * ?', '3', '1', '1', 'admin', sysdate(), '', null, '校验文件信息表和本地存储一致性，默认暂停');
 
 
 -- ----------------------------
@@ -746,7 +806,263 @@ create table gen_table_column (
 
 
 -- ----------------------------
--- 20、插件信息表
+-- 20、AI模型表
+-- ----------------------------
+drop table if exists ai_models;
+create table ai_models (
+  model_id          bigint(20)      not null auto_increment    comment '模型主键',
+  model_code        varchar(100)    not null                   comment '模型编码',
+  model_name        varchar(100)    default null               comment '模型名称',
+  provider          varchar(50)     not null                   comment '提供商',
+  model_sort        int(4)          not null                   comment '显示顺序',
+  api_key           varchar(255)    default null               comment 'API Key',
+  base_url          varchar(255)    default null               comment 'Base URL',
+  model_type        varchar(50)     default null               comment '模型类型',
+  max_tokens        int(11)         default null               comment '最大输出token',
+  temperature       float           default null               comment '默认温度',
+  support_reasoning char(1)         default 'N'                comment '是否支持推理',
+  support_images    char(1)         default 'N'                comment '是否支持图片',
+  status            char(1)         default '0'                comment '模型状态',
+  user_id           bigint(20)                                 comment '用户ID',
+  dept_id           bigint(20)                                 comment '部门ID',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime                                   comment '创建时间',
+  update_by         varchar(64)     default ''                 comment '更新者',
+  update_time       datetime                                   comment '更新时间',
+  remark            varchar(500)    default null               comment '备注',
+  primary key (model_id)
+) engine=innodb auto_increment=1 comment = 'AI模型表';
+
+
+-- ----------------------------
+-- 21、AI对话配置表
+-- ----------------------------
+drop table if exists ai_chat_config;
+create table ai_chat_config (
+  chat_config_id          bigint(20)      not null auto_increment    comment '配置主键',
+  user_id                 bigint(20)      not null unique            comment '用户ID',
+  temperature             float           default null               comment '默认温度',
+  add_history_to_context  char(1)         default '0'                comment '是否添加历史记录(0是, 1否)',
+  num_history_runs        int(4)          default null               comment '历史记录条数',
+  system_prompt           text            default null               comment '系统提示词',
+  metrics_default_visible char(1)         default '0'                comment '默认显示指标(0是, 1否)',
+  vision_enabled          char(1)         default '1'                comment '是否开启视觉(0是, 1否)',
+  image_max_size_mb       int(4)          default null               comment '图片最大大小(MB)',
+  create_time             datetime                                   comment '创建时间',
+  update_time             datetime                                   comment '更新时间',
+  primary key (chat_config_id)
+) engine=innodb auto_increment=1 comment = 'AI对话配置表';
+
+
+-- ----------------------------
+-- 22、文件信息表
+-- ----------------------------
+drop table if exists sys_file_info;
+create table sys_file_info (
+  file_id          varchar(36)     not null                   comment '文件ID',
+  original_name    varchar(255)    not null                   comment '原始文件名',
+  stored_name      varchar(255)    not null                   comment '存储文件名',
+  storage_key      varchar(500)    not null                   comment '存储相对路径',
+  storage_type     varchar(20)     not null default 'local'   comment '存储类型',
+  access_type      varchar(20)     not null default 'public'  comment '访问类型',
+  upload_user_id   bigint(20)                                 comment '上传用户ID',
+  uploader_access_enabled char(1)  not null default '1'       comment '是否保留上传人访问权限',
+  owner_user_id    bigint(20)                                 comment '所有者用户ID',
+  dept_id          bigint(20)                                 comment '所属部门ID',
+  acl_version      int             not null default 0         comment '访问控制版本',
+  business_type    varchar(50)                                comment '业务类型',
+  business_id      varchar(64)                                comment '业务ID',
+  extension        varchar(20)     not null default ''        comment '文件扩展名',
+  content_type     varchar(255)                               comment '内容类型',
+  file_size        bigint(20)      not null default 0         comment '文件大小',
+  file_hash        varchar(64)     not null                   comment '文件SHA-256',
+  status           varchar(20)     not null default 'active'  comment '文件状态',
+  create_by        varchar(64)     default ''                 comment '创建者',
+  create_time      datetime        not null                   comment '创建时间',
+  update_by        varchar(64)     default ''                 comment '更新者',
+  update_time      datetime        not null                   comment '更新时间',
+  expire_time      datetime                                   comment '过期时间',
+  deleted_time     datetime                                   comment '移入回收站时间',
+  del_flag         char(1)         not null default '0'       comment '删除标志',
+  primary key (file_id),
+  unique key uk_sys_file_info_storage_location (storage_type, access_type, storage_key),
+  key idx_sys_file_info_access_status (access_type, status),
+  key idx_sys_file_info_owner_status (owner_user_id, status),
+  key idx_sys_file_info_dept_status (dept_id, status),
+  key idx_sys_file_info_status_deleted_time (status, deleted_time)
+) engine=innodb comment = '文件信息表';
+
+
+-- ----------------------------
+-- 23、文件业务引用表
+-- ----------------------------
+drop table if exists sys_file_reference;
+create table sys_file_reference (
+  reference_id    bigint(20)      not null auto_increment    comment '引用ID',
+  file_id         varchar(36)     not null                   comment '文件ID',
+  business_type   varchar(50)     not null                   comment '业务类型',
+  business_id     varchar(64)     not null                   comment '业务ID',
+  business_name   varchar(255)                               comment '业务名称',
+  retention_expire_time datetime                             comment '保留期限到期时间',
+  create_by       varchar(64)     default ''                 comment '创建者',
+  create_time     datetime        not null                   comment '创建时间',
+  primary key (reference_id),
+  unique key uk_sys_file_reference_business (file_id, business_type, business_id),
+  key idx_sys_file_reference_file (file_id),
+  key idx_sys_file_reference_business (business_type, business_id)
+) engine=innodb auto_increment=1 comment = '文件业务引用表';
+
+
+-- ----------------------------
+-- 24、文件业务保留策略表
+-- ----------------------------
+drop table if exists sys_file_retention_policy;
+create table sys_file_retention_policy (
+  business_type   varchar(50)     not null                   comment '业务类型',
+  retention_days  int             not null                   comment '保留天数',
+  status          char(1)         not null default '0'       comment '状态（0启用 1停用）',
+  remark          varchar(500)                               comment '备注',
+  create_by       varchar(64)     default ''                 comment '创建者',
+  create_time     datetime        not null                   comment '创建时间',
+  update_by       varchar(64)     default ''                 comment '更新者',
+  update_time     datetime        not null                   comment '更新时间',
+  primary key (business_type)
+) engine=innodb comment = '文件业务保留策略表';
+
+
+-- ----------------------------
+-- 25、文件保留期限提醒表
+-- ----------------------------
+drop table if exists sys_file_retention_notice;
+create table sys_file_retention_notice (
+  notice_id        bigint(20)      not null auto_increment    comment '提醒ID',
+  file_id          varchar(36)     not null                   comment '文件ID',
+  notice_type      varchar(20)     not null                   comment '提醒类型',
+  expire_time      datetime        not null                   comment '文件过期时间',
+  status           char(1)         not null default '0'       comment '状态（0未读 1已读 2已失效）',
+  create_time      datetime        not null                   comment '创建时间',
+  read_by          varchar(64)     default ''                 comment '读取者',
+  read_time        datetime                                   comment '读取时间',
+  primary key (notice_id),
+  unique key uk_sys_file_retention_notice_file_type_time (file_id, notice_type, expire_time),
+  key idx_sys_file_retention_notice_file (file_id),
+  key idx_sys_file_retention_notice_status_time (status, create_time)
+) engine=innodb auto_increment=1 comment = '文件保留期限提醒表';
+
+
+-- ----------------------------
+-- 26、文件访问控制表
+-- ----------------------------
+drop table if exists sys_file_acl;
+create table sys_file_acl (
+  acl_id            bigint(20)      not null auto_increment    comment '访问控制ID',
+  file_id           varchar(36)     not null                   comment '文件ID',
+  subject_type      varchar(20)     not null                   comment '主体类型',
+  subject_id        bigint(20)      not null                   comment '主体ID',
+  permission        varchar(20)     not null default 'download' comment '权限类型',
+  effect            varchar(10)     not null default 'allow'   comment '授权效果',
+  include_children  char(1)         not null default '0'       comment '部门是否包含下级',
+  expire_time       datetime                                   comment '授权过期时间',
+  create_by         varchar(64)     default ''                 comment '创建者',
+  create_time       datetime        not null                   comment '创建时间',
+  del_flag          char(1)         not null default '0'       comment '删除标志',
+  primary key (acl_id),
+  unique key uk_sys_file_acl_subject_permission (file_id, subject_type, subject_id, permission),
+  key idx_sys_file_acl_file_status (file_id, del_flag, expire_time),
+  key idx_sys_file_acl_subject (subject_type, subject_id)
+) engine=innodb auto_increment=1 comment = '文件访问控制表';
+
+
+-- ----------------------------
+-- 27、文件访问审计表
+-- ----------------------------
+drop table if exists sys_file_access_log;
+create table sys_file_access_log (
+  audit_id         bigint(20)      not null auto_increment    comment '审计ID',
+  file_id          varchar(36)     not null                   comment '文件ID',
+  action           varchar(20)     not null                   comment '操作类型',
+  actor_user_id    bigint(20)                                 comment '操作用户ID',
+  actor_name       varchar(64)     default ''                 comment '操作用户名称',
+  result           varchar(20)     not null                   comment '操作结果',
+  request_id       varchar(64)     default ''                 comment '请求ID',
+  trace_id         varchar(64)     default ''                 comment '链路ID',
+  ip_address       varchar(128)    default ''                 comment '客户端地址',
+  user_agent       varchar(500)    default ''                 comment '用户代理',
+  bytes_sent       bigint(20)      not null default 0         comment '发送字节数',
+  error_message    varchar(500)    default ''                 comment '失败原因',
+  operation_detail text                                       comment '操作详情',
+  access_time      datetime        not null                   comment '访问时间',
+  primary key (audit_id),
+  key idx_sys_file_access_log_file_time (file_id, access_time),
+  key idx_sys_file_access_log_actor_time (actor_user_id, access_time)
+) engine=innodb auto_increment=1 comment = '文件访问审计表';
+
+
+-- ----------------------------
+-- 28、文件存储对账任务表
+-- ----------------------------
+drop table if exists sys_file_reconcile_run;
+create table sys_file_reconcile_run (
+  run_id                   varchar(36)     not null                   comment '任务ID',
+  trigger_type             varchar(20)     not null                   comment '触发类型',
+  status                   varchar(20)     not null                   comment '任务状态',
+  check_hash               char(1)         not null default '0'       comment '是否校验文件摘要',
+  lock_name                varchar(32)                                comment '运行锁名称',
+  scanned_file_count       bigint(20)      not null default 0         comment '扫描文件记录数',
+  scanned_storage_count    bigint(20)      not null default 0         comment '扫描物理文件数',
+  issue_count              bigint(20)      not null default 0         comment '发现异常数',
+  new_issue_count          bigint(20)      not null default 0         comment '新增或重新出现异常数',
+  resolved_issue_count     bigint(20)      not null default 0         comment '自动恢复异常数',
+  started_by               varchar(64)     default ''                 comment '发起人',
+  started_time             datetime        not null                   comment '开始时间',
+  finished_time            datetime                                   comment '完成时间',
+  error_message            text                                       comment '失败原因',
+  primary key (run_id),
+  unique key uk_sys_file_reconcile_run_lock (lock_name),
+  key idx_sys_file_reconcile_run_status_time (status, started_time)
+) engine=innodb comment = '文件存储对账任务表';
+
+
+-- ----------------------------
+-- 29、文件存储对账异常表
+-- ----------------------------
+drop table if exists sys_file_reconcile_issue;
+create table sys_file_reconcile_issue (
+  issue_id          bigint(20)      not null auto_increment    comment '异常ID',
+  issue_key         varchar(64)     not null                   comment '异常唯一标识',
+  last_run_id       varchar(36)     not null                   comment '最近发现任务ID',
+  issue_type        varchar(32)     not null                   comment '异常类型',
+  severity          varchar(10)     not null                   comment '严重级别',
+  file_id           varchar(36)                                comment '文件ID',
+  storage_type      varchar(20)                                comment '存储类型',
+  access_type       varchar(20)                                comment '访问类型',
+  expected_root     varchar(20)                                comment '预期存储区域',
+  expected_key      varchar(500)                               comment '预期相对路径',
+  actual_root       varchar(20)                                comment '实际存储区域',
+  actual_key        varchar(500)                               comment '实际相对路径',
+  expected_size     bigint(20)                                 comment '预期文件大小',
+  actual_size       bigint(20)                                 comment '实际文件大小',
+  expected_hash     varchar(64)                                comment '预期SHA-256',
+  actual_hash       varchar(64)                                comment '实际SHA-256',
+  status            varchar(20)     not null default 'open'    comment '处理状态',
+  detail            text                                       comment '异常说明',
+  occurrence_count  int(11)         not null default 1         comment '发现次数',
+  first_seen_time   datetime        not null                   comment '首次发现时间',
+  last_seen_time    datetime        not null                   comment '最近发现时间',
+  handle_action     varchar(32)                                comment '处理动作',
+  handle_reason     varchar(500)                               comment '处理原因',
+  handled_by        varchar(64)                                comment '处理人',
+  handled_time      datetime                                   comment '处理时间',
+  quarantine_key    varchar(500)                               comment '隔离区相对路径',
+  primary key (issue_id),
+  unique key uk_sys_file_reconcile_issue_key (issue_key),
+  key idx_sys_file_reconcile_issue_status_severity (status, severity),
+  key idx_sys_file_reconcile_issue_file (file_id),
+  key idx_sys_file_reconcile_issue_run (last_run_id)
+) engine=innodb auto_increment=1 comment = '文件存储对账异常表';
+
+-- ----------------------------
+-- 30、插件信息表
 -- ----------------------------
 drop table if exists sys_plugin;
 create table sys_plugin (
@@ -770,7 +1086,7 @@ create table sys_plugin (
 ) engine=innodb comment = '插件信息表';
 
 -- ----------------------------
--- 21、插件和菜单关联表
+-- 31、插件和菜单关联表
 -- ----------------------------
 drop table if exists sys_plugin_menu;
 create table sys_plugin_menu (
@@ -783,7 +1099,7 @@ create table sys_plugin_menu (
 ) engine=innodb comment = '插件和菜单关联表';
 
 -- ----------------------------
--- 22、插件 migration 执行历史表
+-- 32、插件 migration 执行历史表
 -- ----------------------------
 drop table if exists sys_plugin_migration;
 create table sys_plugin_migration (
@@ -803,7 +1119,7 @@ create table sys_plugin_migration (
 ) engine=innodb comment = '插件 migration 执行历史表';
 
 -- ----------------------------
--- 23、插件配置表
+-- 33、插件配置表
 -- ----------------------------
 drop table if exists sys_plugin_config;
 create table sys_plugin_config (
@@ -823,7 +1139,7 @@ create table sys_plugin_config (
 ) engine=innodb comment = '插件配置表';
 
 -- ----------------------------
--- 24、插件批量操作审计日志表
+-- 34、插件批量操作审计日志表
 -- ----------------------------
 drop table if exists sys_plugin_operation_log;
 create table sys_plugin_operation_log (

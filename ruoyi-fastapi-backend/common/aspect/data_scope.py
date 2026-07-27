@@ -69,7 +69,7 @@ class GetDataScope:
             elif role.data_scope == self.DATA_SCOPE_DEPT:
                 param_sql_list.append(
                     getattr(self.query_alias, self.dept_alias) == dept_id
-                    if hasattr(self.query_alias, self.dept_alias)
+                    if dept_id is not None and hasattr(self.query_alias, self.dept_alias)
                     else False
                 )
             elif role.data_scope == self.DATA_SCOPE_DEPT_AND_CHILD:
@@ -79,7 +79,7 @@ class GetDataScope:
                             or_(SysDept.dept_id == dept_id, func.find_in_set(dept_id, SysDept.ancestors))
                         )
                     )
-                    if hasattr(self.query_alias, self.dept_alias)
+                    if dept_id is not None and hasattr(self.query_alias, self.dept_alias)
                     else False
                 )
             elif role.data_scope == self.DATA_SCOPE_SELF:

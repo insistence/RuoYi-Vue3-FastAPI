@@ -14,7 +14,9 @@ from config.database import AsyncSessionLocal
 from config.env import LogConfig
 from exceptions.exception import ServiceException
 from middlewares.trace_middleware.ctx import TraceCtx
+from module_admin.dao.file_access_dao import FileAccessLogDao
 from module_admin.dao.log_dao import LoginLogDao, OperationLogDao
+from module_admin.entity.vo.file_vo import FileAccessLogModel
 from module_admin.entity.vo.log_vo import (
     DeleteLoginLogModel,
     DeleteOperLogModel,
@@ -348,6 +350,19 @@ class LogQueueService:
         payload = LogSanitizer.sanitize_data(operation_log.model_dump(by_alias=True, exclude_none=True))
         await cls._xadd_event(request.app.state.redis, 'operation', payload, source)
 
+    @classmethod
+    async def enqueue_file_access_log(cls, request: Request, file_access_log: FileAccessLogModel, source: str) -> None:
+        """
+        文件访问审计日志入队
+
+        :param request: Request对象
+        :param file_access_log: 文件访问审计日志模型
+        :param source: 日志来源
+        :return: None
+        """
+        payload = LogSanitizer.sanitize_data(file_access_log.model_dump(by_alias=True, exclude_none=True))
+        await cls._xadd_event(request.app.state.redis, 'file_access', payload, source)
+
 
 class LogAggregatorService:
     """
@@ -484,7 +499,7 @@ class LogAggregatorService:
                     event_type = data.get('event_type')
                     event_id = data.get('event_id')
                     payload_raw = data.get('payload') or '{}'
-                    if event_type not in {'login', 'operation'}:
+                    if event_type not in {'login', 'operation', 'file_access'}:
                         ack_ids.append(message_id)
                         continue
                     acquired = await cls._acquire_dedup(redis, event_id)
@@ -497,6 +512,8 @@ class LogAggregatorService:
                         await LoginLogDao.add_login_log_dao(session, LogininforModel(**payload))
                     elif event_type == 'operation':
                         await OperationLogDao.add_operation_log_dao(session, OperLogModel(**payload))
+                    elif event_type == 'file_access':
+                        await FileAccessLogDao.add_file_access_log_dao(session, FileAccessLogModel(**payload))
                     ack_ids.append(message_id)
                 if ack_ids:
                     await session.commit()

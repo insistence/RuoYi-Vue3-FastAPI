@@ -14,7 +14,7 @@ def read_sql(sql_path: Path) -> str:
 
 def test_builtin_sql_contains_plugin_schema_and_management_permissions() -> None:
     """校验内置 SQL 包含插件表结构与管理权限。"""
-    expected_menu_ids = ('119', '1061', '1062', '1063', '1064')
+    expected_menu_ids = ('122', '1073', '1074', '1075', '1076')
 
     for sql_path, quote in SQL_FILES:
         sql_content = read_sql(sql_path)
@@ -39,25 +39,29 @@ def test_builtin_sql_contains_plugin_schema_and_management_permissions() -> None
             assert expected_insert in sql_content
 
 
-def test_builtin_sql_excludes_ai_plugin_content() -> None:
-    """校验 AI 插件内容已迁出系统初始化 SQL。"""
+def test_builtin_sql_preserves_upstream_ai_and_file_content() -> None:
+    """校验合并后仍保留上游 AI 与文件管理初始化内容。"""
     for sql_path, _quote in SQL_FILES:
         sql_content = read_sql(sql_path)
-        for excluded_text in (
+        for expected_text in (
             'AI 管理',
-            'plugin/ai/model/index',
-            'plugin/ai/chat/index',
+            'ai/model/index',
+            'ai/chat/index',
             'ai_provider_type',
             'create table ai_models',
             'create table ai_chat_config',
+            '文件管理',
+            'system/file/index',
+            'create table sys_file_info',
+            'create table sys_file_reconcile_issue',
         ):
-            assert excluded_text not in sql_content
+            assert expected_text in sql_content
 
 
 def test_builtin_sql_uses_ordered_plugin_operation_dict_ids() -> None:
     """校验内置 SQL 中插件操作类型字典 ID 已顺序整理。"""
     for sql_path, _quote in SQL_FILES:
         sql_content = read_sql(sql_path)
-        assert "insert into sys_dict_type values(12, '插件操作类型', 'plugin_operation_type'" in sql_content
-        for dict_code in range(33, 48):
+        assert "insert into sys_dict_type values(13, '插件操作类型', 'plugin_operation_type'" in sql_content
+        for dict_code in range(70, 85):
             assert f'insert into sys_dict_data values({dict_code},' in sql_content
