@@ -292,6 +292,43 @@ config:
     assert payload['plugins'][0]['pluginId'] == 'demo'
 
 
+def test_plugin_runtime_lists_plugins_with_database_state(tmp_path: Path) -> None:
+    """校验状态感知列表会合并数据库启停与安装状态。"""
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+""",
+    )
+    query_gateway = QueryOnlyStateGateway(
+        SimpleNamespace(
+            plugin_id='demo',
+            installed_version='1.0.0',
+            enabled='0',
+            status='installed',
+            source='local',
+            frontend_path='demo',
+            last_error=None,
+        )
+    )
+    runtime = build_runtime(backend_root)
+    runtime.dependencies.state_query_gateway = query_gateway
+
+    payload = asyncio.run(runtime.list_plugins_with_state())
+
+    assert query_gateway.list_called is True
+    assert payload['ok'] is True
+    assert payload['databaseAvailable'] is True
+    assert payload['databaseError'] is None
+    assert payload['plugins'][0]['enabled'] is True
+    assert payload['plugins'][0]['status'] == 'installed'
+
+
 @pytest.mark.parametrize(
     ('entrypoint', 'expected_payload'),
     [

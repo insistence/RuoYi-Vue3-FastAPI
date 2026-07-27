@@ -42,9 +42,9 @@ async def test_prepare_enabled_plugins_loads_registry_and_imports_entities() -> 
     """校验插件启动协调器准备启用插件实体。"""
     app = MagicMock()
     startup_manager = PluginRuntimeStartupManager(MagicMock())
-    startup_manager.sync_default_enabled_builtin_plugin_install_states = AsyncMock()
+    startup_manager.sync_default_enabled_builtin_plugin_install_states = AsyncMock(return_value={'builtin'})
     startup_manager.load_registry_from_database = AsyncMock()
-    startup_manager.check_enabled_plugin_python_dependencies = AsyncMock(return_value=set())
+    startup_manager.check_enabled_plugin_python_dependencies = AsyncMock(return_value={'enabled'})
     startup_manager.import_enabled_plugin_entities = AsyncMock(return_value=set())
 
     await startup_manager.prepare_enabled_plugins(app)
@@ -59,6 +59,7 @@ async def test_prepare_enabled_plugins_loads_registry_and_imports_entities() -> 
         app,
         startup_write_enabled=True,
     )
+    assert app.state.plugin_dependency_failed_plugin_ids == {'builtin', 'enabled'}
 
 
 @pytest.mark.asyncio
@@ -66,7 +67,7 @@ async def test_prepare_enabled_plugins_skips_builtin_state_sync_when_startup_wri
     """校验非启动写入 worker 不初始化内置默认启用插件状态。"""
     app = MagicMock()
     startup_manager = PluginRuntimeStartupManager(MagicMock())
-    startup_manager.sync_default_enabled_builtin_plugin_install_states = AsyncMock()
+    startup_manager.sync_default_enabled_builtin_plugin_install_states = AsyncMock(return_value=set())
     startup_manager.load_registry_from_database = AsyncMock()
     startup_manager.check_enabled_plugin_python_dependencies = AsyncMock(return_value=set())
     startup_manager.import_enabled_plugin_entities = AsyncMock(return_value=set())
@@ -270,10 +271,14 @@ async def test_sync_default_enabled_builtin_checks_dependencies_before_install_s
         await startup_manager.sync_default_enabled_builtin_plugin_install_states()
 
     python_dependency_inspector.check.assert_called_once_with(['missing-package>=1.0.0'])
+    python_dependency_inspector.refresh.assert_called_once_with()
     fake_gateway.mark_plugin_error.assert_awaited_once_with(
         fake_session,
         'ai',
-        '插件启动依赖检查失败：Python 依赖未安装：missing-package',
+        (
+            '插件启动依赖检查失败：Python 依赖未安装：missing-package；'
+            '安装依赖请执行：ruoyi plugin install-deps ai --env=dev --yes'
+        ),
     )
     run_install_scripts.assert_not_awaited()
     fake_gateway.mark_plugin_installed.assert_not_awaited()
@@ -407,10 +412,11 @@ async def test_check_enabled_plugin_python_dependencies_marks_missing_dependency
         await startup_manager.check_enabled_plugin_python_dependencies(app)
 
     python_dependency_inspector.check.assert_called_once_with(['agno==2.4.8'])
+    python_dependency_inspector.refresh.assert_called_once_with()
     mark_plugin_runtime_error.assert_awaited_once_with(
         app,
         'ai',
-        '插件启动依赖检查失败：Python 依赖未安装：agno',
+        ('插件启动依赖检查失败：Python 依赖未安装：agno；安装依赖请执行：ruoyi plugin install-deps ai --env=dev --yes'),
     )
 
 
@@ -469,6 +475,166 @@ async def test_check_enabled_plugin_python_dependencies_skips_satisfied_dependen
 
 
 @pytest.mark.asyncio
+async def test_check_enabled_plugin_python_dependencies_rechecks_dependency_error_plugin() -> None:
+    """校验插件因依赖错误被隔离后，下一次启动仍会重新检查其依赖。"""
+    app = FastAPI()
+    plugin = MagicMock(plugin_id='ai')
+    plugin.discovered_plugin.manifest.dependencies.python = ['agno==2.4.8']
+    plugin.database_plugin.status = 'error'
+    plugin.database_plugin.last_error = (
+        '插件启动依赖检查失败：Python 依赖未安装：agno；安装依赖请执行：ruoyi plugin install-deps ai --env=dev --yes'
+    )
+    app.state.plugin_registry = MagicMock()
+    app.state.plugin_registry.list_enabled_plugins.return_value = []
+    app.state.plugin_registry.list_plugins.return_value = [plugin]
+    dependency_item = MagicMock(ok=False, message='Python 依赖未安装：agno')
+    python_dependency_inspector = MagicMock()
+    python_dependency_inspector.check.return_value = [dependency_item]
+    startup_manager = PluginRuntimeStartupManager(
+        MagicMock(),
+        python_dependency_inspector=python_dependency_inspector,
+    )
+
+    with patch.object(
+        startup_manager, 'mark_plugin_runtime_error', new_callable=AsyncMock
+    ) as mark_plugin_runtime_error:
+        failed_plugin_ids = await startup_manager.check_enabled_plugin_python_dependencies(app)
+
+    assert failed_plugin_ids == {'ai'}
+    python_dependency_inspector.check.assert_called_once_with(['agno==2.4.8'])
+    mark_plugin_runtime_error.assert_awaited_once_with(
+        app,
+        'ai',
+        ('插件启动依赖检查失败：Python 依赖未安装：agno；安装依赖请执行：ruoyi plugin install-deps ai --env=dev --yes'),
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_enabled_plugin_python_dependencies_recovers_satisfied_dependency_error_plugin() -> None:
+    """校验启动依赖重新满足后会恢复此前被隔离的插件。"""
+    app = FastAPI()
+    plugin = MagicMock(plugin_id='ai')
+    plugin.discovered_plugin.manifest.dependencies.python = ['agno==2.4.8']
+    plugin.database_plugin.status = 'error'
+    plugin.database_plugin.last_error = (
+        '插件启动依赖检查失败：Python 依赖未安装：agno；安装依赖请执行：ruoyi plugin install-deps ai --env=dev --yes'
+    )
+    app.state.plugin_registry = MagicMock()
+    app.state.plugin_registry.list_enabled_plugins.return_value = []
+    app.state.plugin_registry.list_plugins.return_value = [plugin]
+    dependency_item = MagicMock(ok=True, message='Python 依赖已满足：agno')
+    python_dependency_inspector = MagicMock()
+    python_dependency_inspector.check.return_value = [dependency_item]
+    startup_manager = PluginRuntimeStartupManager(
+        MagicMock(),
+        python_dependency_inspector=python_dependency_inspector,
+    )
+
+    with (
+        patch.object(startup_manager, 'mark_plugin_runtime_error', new_callable=AsyncMock) as mark_runtime_error,
+        patch.object(
+            startup_manager,
+            'recover_plugin_dependency_errors',
+            new_callable=AsyncMock,
+        ) as recover_dependency_errors,
+    ):
+        failed_plugin_ids = await startup_manager.check_enabled_plugin_python_dependencies(app)
+
+    assert failed_plugin_ids == set()
+    python_dependency_inspector.check.assert_called_once_with(['agno==2.4.8'])
+    mark_runtime_error.assert_not_awaited()
+    recover_dependency_errors.assert_awaited_once_with(app, [plugin])
+
+
+@pytest.mark.asyncio
+async def test_check_enabled_plugin_python_dependencies_reader_does_not_write_recovered_state() -> None:
+    """校验非启动写入 worker 不重复写入已恢复依赖的插件状态。"""
+    app = FastAPI()
+    plugin = MagicMock(plugin_id='ai')
+    plugin.discovered_plugin.manifest.dependencies.python = ['agno==2.4.8']
+    plugin.database_plugin.status = 'error'
+    plugin.database_plugin.last_error = '插件启动依赖检查失败：Python 依赖未安装：agno'
+    app.state.plugin_registry = MagicMock()
+    app.state.plugin_registry.list_enabled_plugins.return_value = []
+    app.state.plugin_registry.list_plugins.return_value = [plugin]
+    python_dependency_inspector = MagicMock()
+    python_dependency_inspector.check.return_value = [MagicMock(ok=True)]
+    startup_manager = PluginRuntimeStartupManager(
+        MagicMock(),
+        python_dependency_inspector=python_dependency_inspector,
+    )
+
+    with patch.object(
+        startup_manager,
+        'recover_plugin_dependency_errors',
+        new_callable=AsyncMock,
+    ) as recover_dependency_errors:
+        failed_plugin_ids = await startup_manager.check_enabled_plugin_python_dependencies(
+            app,
+            startup_write_enabled=False,
+        )
+
+    assert failed_plugin_ids == set()
+    recover_dependency_errors.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_check_enabled_plugin_python_dependencies_skips_unrelated_disabled_error_plugin() -> None:
+    """校验普通错误或手动停用插件不会被启动依赖检查误选中。"""
+    app = FastAPI()
+    plugin = MagicMock(plugin_id='demo')
+    plugin.discovered_plugin.manifest.dependencies.python = ['requests>=2.0.0']
+    plugin.database_plugin.status = 'error'
+    plugin.database_plugin.last_error = '插件启动钩子执行失败：broken startup'
+    app.state.plugin_registry = MagicMock()
+    app.state.plugin_registry.list_enabled_plugins.return_value = []
+    app.state.plugin_registry.list_plugins.return_value = [plugin]
+    python_dependency_inspector = MagicMock()
+    startup_manager = PluginRuntimeStartupManager(
+        MagicMock(),
+        python_dependency_inspector=python_dependency_inspector,
+    )
+
+    failed_plugin_ids = await startup_manager.check_enabled_plugin_python_dependencies(app)
+
+    assert failed_plugin_ids == set()
+    python_dependency_inspector.refresh.assert_called_once_with()
+    python_dependency_inspector.check.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_recover_plugin_dependency_errors_commits_and_reloads_registry() -> None:
+    """校验启动依赖恢复状态统一提交后刷新运行时注册表。"""
+    fake_session = AsyncMock()
+
+    async def fake_get_db() -> object:
+        """生成测试数据库会话。"""
+        yield fake_session
+
+    app = FastAPI()
+    plugin = MagicMock(plugin_id='ai')
+    fake_gateway = MagicMock()
+    fake_gateway.recover_plugin_dependency_error = AsyncMock(
+        return_value=MagicMock(is_success=True, message='插件启动依赖已恢复')
+    )
+    startup_manager = PluginRuntimeStartupManager(MagicMock(), fake_gateway)
+
+    with (
+        patch_startup_get_db(fake_get_db),
+        patch.object(startup_manager, 'load_registry_from_database', new_callable=AsyncMock) as load_registry,
+    ):
+        await startup_manager.recover_plugin_dependency_errors(app, [plugin])
+
+    fake_gateway.recover_plugin_dependency_error.assert_awaited_once_with(
+        fake_session,
+        plugin.discovered_plugin,
+    )
+    fake_session.commit.assert_awaited_once()
+    fake_session.rollback.assert_not_awaited()
+    load_registry.assert_awaited_once_with(app)
+
+
+@pytest.mark.asyncio
 async def test_check_enabled_plugin_python_dependencies_never_installs_during_startup() -> None:
     """校验启动期只做依赖门禁，不再交互安装缺失 Python 依赖。"""
     app = FastAPI()
@@ -516,7 +682,24 @@ async def test_check_enabled_plugin_python_dependencies_never_installs_during_st
     mark_plugin_runtime_error.assert_awaited_once_with(
         app,
         'ai',
-        '插件启动依赖检查失败：Python 依赖未安装：agno',
+        ('插件启动依赖检查失败：Python 依赖未安装：agno；安装依赖请执行：ruoyi plugin install-deps ai --env=dev --yes'),
+    )
+
+
+def test_build_dependency_startup_error_message_uses_current_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """校验启动依赖失败提示使用当前应用环境构建可执行命令。"""
+    monkeypatch.setattr('plugins.core.runtime.startup.AppConfig.app_env', 'stage')
+
+    error_message = PluginRuntimeStartupManager._build_dependency_startup_error_message(
+        'demo',
+        ['Python 依赖未安装：example-package'],
+    )
+
+    assert error_message == (
+        '插件启动依赖检查失败：Python 依赖未安装：example-package；'
+        '安装依赖请执行：ruoyi plugin install-deps demo --env=stage --yes'
     )
 
 

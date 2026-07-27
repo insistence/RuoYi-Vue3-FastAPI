@@ -34,6 +34,7 @@ from plugins.core.management.service.logs import PluginOperationLogBuilder
 from plugins.core.management.service.menus import PluginMenuInstaller
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.state import PluginStateResolver, PluginStateSnapshot, PluginStateTransitionTable
+from plugins.core.validation.dependencies import PLUGIN_STARTUP_DEPENDENCY_ERROR_PREFIX
 from plugins.core.validation.menus import PluginMenuConflictItem
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
@@ -659,6 +660,58 @@ class PluginService:
         await PluginJobInstaller(query_db).pause_plugin_jobs(plugin_id)
 
         return CrudResponseModel(is_success=True, message='插件状态已标记为异常')
+
+    @classmethod
+    async def recover_plugin_dependency_error_services(
+        cls,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+    ) -> CrudResponseModel:
+        """
+        在启动依赖重新满足后恢复插件状态。
+
+        仅恢复由启动依赖检查写入的 error。恢复目标由已安装版本和当前源码版本
+        重新推导，未安装插件回到 discovered，已安装插件回到 installed 或
+        pending_upgrade；同时恢复启动前的启用意图并清除历史依赖错误。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
+        :return: 操作响应
+        """
+        plugin_id = discovered_plugin.manifest.id
+        plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        if not plugin:
+            return CrudResponseModel(is_success=False, message='插件不存在')
+
+        last_error = getattr(plugin, 'last_error', None)
+        if (
+            getattr(plugin, 'status', None) != 'error'
+            or not isinstance(last_error, str)
+            or not last_error.startswith(PLUGIN_STARTUP_DEPENDENCY_ERROR_PREFIX)
+        ):
+            return CrudResponseModel(is_success=False, message='插件不是启动依赖检查异常状态')
+
+        installed_version = getattr(plugin, 'installed_version', None)
+        target_status = PluginStateResolver.resolve(
+            PluginStateSnapshot(
+                source_version=discovered_plugin.manifest.version,
+                installed_version=installed_version,
+                enabled=True,
+                current_status=None,
+            )
+        )
+        await PluginDao.update_plugin(
+            query_db,
+            {
+                'plugin_id': plugin_id,
+                'enabled': PluginStateResolver.enabled_to_db_value(True),
+                'status': target_status,
+                'last_error': None,
+                'update_time': datetime.now(),
+            },
+        )
+
+        return CrudResponseModel(is_success=True, message=f'插件启动依赖已恢复，状态：{target_status}')
 
     @classmethod
     async def build_plugin_purge_plan_services(

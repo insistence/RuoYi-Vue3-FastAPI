@@ -319,10 +319,14 @@ def test_plugin_list_json_output_has_stable_contract(
     payload = parse_json_stdout(completed)
 
     assert completed.returncode == SUCCESS
-    assert set(payload) == {'ok', 'count', 'plugins'}
+    assert set(payload) == {'ok', 'count', 'plugins', 'databaseAvailable', 'databaseError'}
     assert payload['ok'] is True
     assert isinstance(payload['count'], int)
+    assert isinstance(payload['databaseAvailable'], bool)
     assert isinstance(payload['plugins'], list)
+    if payload['plugins']:
+        assert isinstance(payload['plugins'][0]['runtimeEnabled'], bool)
+        assert 'enabled' not in payload['plugins'][0]
 
 
 def test_plugin_check_json_output_has_stable_contract(

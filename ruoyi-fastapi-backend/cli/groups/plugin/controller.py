@@ -1,6 +1,7 @@
 import importlib
 import json
 import sys
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import click
@@ -17,11 +18,14 @@ from .options import (
     PluginDependencyInstallCommandOptions,
     PluginDependencyLockCommandOptions,
 )
+from .payload import PluginCommandPayloadAdapter
 from .presenter import PluginCommandPresenter
 
 if TYPE_CHECKING:
     from cli.runtime.plugin.service import CliPluginRuntimeService
     from plugins.core.runtime.service import PluginRuntimeService
+
+PluginDependencyOutputCallback = Callable[[str, str], None]
 
 
 class PluginCommandController:
@@ -80,12 +84,12 @@ class PluginCommandController:
         :return: None
         """
         ctx = self.context_factory.build_readonly(env, output)
-        payload = self.core_runtime.list_plugins()
-        self.execution_service.complete_payload_with_text(
+        payload = self.execution_service.run_async(self.core_runtime.list_plugins_with_state())
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_list_text,
-            default_exit_code=SUCCESS,
+            failure_exit_code=RUNTIME_ERROR,
         )
 
     def _complete_plugin_payload(
@@ -107,6 +111,7 @@ class PluginCommandController:
         :param failure_exit_code: 失败退出码
         :return: None
         """
+        payload = PluginCommandPayloadAdapter.adapt(payload)
         self.execution_service.complete_payload_with_text(
             ctx,
             payload,
@@ -151,11 +156,11 @@ class PluginCommandController:
         """
         ctx = self.context_factory.build_readonly(env, output)
         payload = self.execution_service.run_async(self.core_runtime.get_plugin_info_with_state(plugin_id))
-        self.execution_service.complete_payload_with_text(
+        self._complete_plugin_payload(
             ctx,
             payload,
             text_builder=self.presenter.build_info_text,
-            default_exit_code=SUCCESS,
+            failure_exit_code=RUNTIME_ERROR,
         )
 
     def check_plugin(self, plugin_id: str | None, env: str, output: str) -> None:
@@ -413,6 +418,7 @@ class PluginCommandController:
             require_lockfile=options.require_lockfile,
         )
         core_runtime = self.core_runtime
+        output_callback = self._build_dependency_install_output_callback(ctx)
         if self._should_interactive_confirm_dependency_install(ctx, options):
             preview_payload = core_runtime.install_plugin_dependencies(
                 plugin_id,
@@ -427,6 +433,7 @@ class PluginCommandController:
                     dry_run=False,
                     policy_config=policy_config,
                     confirmed=True,
+                    output_callback=output_callback,
                 )
                 payload['env'] = ctx.env
                 self._complete_plugin_payload(
@@ -453,6 +460,7 @@ class PluginCommandController:
             dry_run=options.dry_run,
             policy_config=policy_config,
             confirmed=confirmed,
+            output_callback=output_callback,
         )
         payload['env'] = ctx.env
         self._complete_plugin_payload(
@@ -460,6 +468,23 @@ class PluginCommandController:
             payload,
             text_builder=self.presenter.build_dependency_install_text,
         )
+
+    @staticmethod
+    def _build_dependency_install_output_callback(ctx: object) -> PluginDependencyOutputCallback | None:
+        """
+        为文本输出模式构建依赖安装实时输出回调。
+
+        :param ctx: CLI上下文
+        :return: 实时输出回调；非文本模式返回 None
+        """
+        if getattr(ctx, 'output', 'text') != 'text':
+            return None
+
+        def output_callback(kind: str, text: str) -> None:
+            if text:
+                typer.echo(text, nl=False, err=kind == 'stderr')
+
+        return output_callback
 
     def lock_plugin_dependencies(
         self,

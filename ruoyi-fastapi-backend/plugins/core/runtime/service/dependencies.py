@@ -20,6 +20,7 @@ from plugins.core.validation.dependency_policy import (
 
 from .context import PluginRuntimeContextService
 from .dependency_container import PluginRuntimeDependencies
+from .gateway import PluginCommandOutputCallback
 from .responses import PluginDependencyInstallResponse, PluginRuntimeBlockedPayloadDict
 
 PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS = 600
@@ -107,6 +108,7 @@ class PluginDependencyUseCase:
         dry_run: bool = False,
         policy_config: DependencyInstallPolicyConfig | None = None,
         confirmed: bool = False,
+        output_callback: PluginCommandOutputCallback | None = None,
     ) -> PluginDependencyInstallResponse:
         """
         安装插件依赖。
@@ -115,6 +117,7 @@ class PluginDependencyUseCase:
         :param dry_run: 是否仅预演
         :param policy_config: 依赖安装策略配置
         :param confirmed: 是否已显式确认
+        :param output_callback: 依赖安装实时输出回调
         :return: 插件依赖安装负载
         """
         try:
@@ -137,6 +140,7 @@ class PluginDependencyUseCase:
                 discovered_plugin=discovered_plugin,
                 policy_config=policy_config,
                 confirmed=confirmed,
+                output_callback=output_callback,
             )
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('安装插件依赖失败', exc)
@@ -150,6 +154,7 @@ class PluginDependencyUseCase:
         discovered_plugin: DiscoveredPlugin | None = None,
         policy_config: DependencyInstallPolicyConfig | None = None,
         confirmed: bool = False,
+        output_callback: PluginCommandOutputCallback | None = None,
     ) -> PluginDependencyInstallResponse:
         """
         根据既有依赖检查结果生成计划并执行依赖安装。
@@ -160,6 +165,7 @@ class PluginDependencyUseCase:
         :param discovered_plugin: 已发现插件，传入后避免重复扫描插件目录
         :param policy_config: 依赖安装策略配置
         :param confirmed: 是否已显式确认
+        :param output_callback: 依赖安装实时输出回调
         :return: 插件依赖安装负载
         """
         discovered_plugin = discovered_plugin or self._get_discovered_plugin(plugin_id)
@@ -212,17 +218,23 @@ class PluginDependencyUseCase:
                 self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
             )
 
-        install_results = [
-            PluginPayloadBuilder.build_dependency_install_result(
-                item,
-                self.dependencies.command_gateway.run_command(
+        install_results = []
+        total = len(install_plan_items)
+        for index, item in enumerate(install_plan_items, start=1):
+            self._emit_install_status(output_callback, index, total, item.requirement, '开始安装')
+            try:
+                completed = self.dependencies.command_gateway.run_command(
                     item.command,
                     item.workdir,
                     timeout=resolved_policy_config.install_timeout_seconds,
-                ),
-            )
-            for item in install_plan_items
-        ]
+                    output_callback=output_callback,
+                )
+            except Exception:
+                self._emit_install_status(output_callback, index, total, item.requirement, '安装中断')
+                raise
+            install_results.append(PluginPayloadBuilder.build_dependency_install_result(item, completed))
+            status = '安装完成' if completed.returncode == 0 else f'安装失败（退出码 {completed.returncode}）'
+            self._emit_install_status(output_callback, index, total, item.requirement, status)
         PluginNpmPackageJsonSynchronizer.sync_successful_items(install_plan_items, install_results)
         payload = PluginDependencyInstallPayloadBuilder.build_execution_payload(
             plugin_id,
@@ -246,6 +258,7 @@ class PluginDependencyUseCase:
         discovered_plugin: DiscoveredPlugin | None = None,
         policy_config: DependencyInstallPolicyConfig | None = None,
         confirmed: bool = False,
+        output_callback: PluginCommandOutputCallback | None = None,
     ) -> PluginDependencyInstallResponse:
         """
         根据既有依赖检查结果异步生成计划并执行依赖安装。
@@ -256,6 +269,7 @@ class PluginDependencyUseCase:
         :param discovered_plugin: 已发现插件，传入后避免重复扫描插件目录
         :param policy_config: 依赖安装策略配置
         :param confirmed: 是否已显式确认
+        :param output_callback: 依赖安装实时输出回调
         :return: 插件依赖安装负载
         """
         discovered_plugin = discovered_plugin or self._get_discovered_plugin(plugin_id)
@@ -308,18 +322,24 @@ class PluginDependencyUseCase:
                 self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
             )
 
-        install_results = [
-            PluginPayloadBuilder.build_dependency_install_result(
-                item,
-                await asyncio.to_thread(
+        install_results = []
+        total = len(install_plan_items)
+        for index, item in enumerate(install_plan_items, start=1):
+            self._emit_install_status(output_callback, index, total, item.requirement, '开始安装')
+            try:
+                completed = await asyncio.to_thread(
                     self.dependencies.command_gateway.run_command,
                     item.command,
                     item.workdir,
                     timeout=resolved_policy_config.install_timeout_seconds,
-                ),
-            )
-            for item in install_plan_items
-        ]
+                    output_callback=output_callback,
+                )
+            except Exception:
+                self._emit_install_status(output_callback, index, total, item.requirement, '安装中断')
+                raise
+            install_results.append(PluginPayloadBuilder.build_dependency_install_result(item, completed))
+            status = '安装完成' if completed.returncode == 0 else f'安装失败（退出码 {completed.returncode}）'
+            self._emit_install_status(output_callback, index, total, item.requirement, status)
         PluginNpmPackageJsonSynchronizer.sync_successful_items(install_plan_items, install_results)
         payload = PluginDependencyInstallPayloadBuilder.build_execution_payload(
             plugin_id,
@@ -333,3 +353,24 @@ class PluginDependencyUseCase:
             'PluginDependencyInstallResponse',
             self._with_plugin_capability(cast('dict[str, object]', payload), discovered_plugin),
         )
+
+    @staticmethod
+    def _emit_install_status(
+        output_callback: PluginCommandOutputCallback | None,
+        index: int,
+        total: int,
+        requirement: str,
+        status: str,
+    ) -> None:
+        """
+        输出单项依赖安装状态。
+
+        :param output_callback: 依赖安装实时输出回调
+        :param index: 当前安装项序号
+        :param total: 安装项总数
+        :param requirement: 依赖声明
+        :param status: 当前状态
+        :return: None
+        """
+        if output_callback is not None:
+            output_callback('status', f'[{index}/{total}] {status}：{requirement}\n')

@@ -122,6 +122,10 @@ class PluginApplicationRuntime:
         if not startup_owner:
             raise RuntimeError('插件启动 ready 标记失败：应用启动锁不存在')
         await app.state.redis.set(self.ready_key, startup_owner, ex=self.ready_expire_seconds)
+        failed_plugin_ids = getattr(app.state, 'plugin_dependency_failed_plugin_ids', set())
+        if failed_plugin_ids:
+            logger.warning(f'插件启动协调已完成，依赖检查失败插件已隔离：{"、".join(sorted(failed_plugin_ids))}')
+            return
         logger.info('插件启动资源已就绪')
 
     async def wait_startup_ready(self, app: FastAPI) -> None:

@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from plugins.core.manifest.schema import PluginManifest
 from plugins.core.validation.dependencies import (
     DependencyCheckItem,
@@ -102,6 +104,41 @@ def test_python_dependency_inspector_normalizes_distribution_names() -> None:
     assert items[0].installed_version == '1.67.0'
     assert items[1].ok is True
     assert items[1].installed_version == '1.0.0'
+
+
+def test_python_dependency_inspector_refresh_detects_uninstalled_package(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """校验运行环境依赖快照刷新后可以识别已卸载包。"""
+    installed_package_snapshots = iter(
+        [
+            {'demo-package': '1.0.0'},
+            {},
+        ]
+    )
+    monkeypatch.setattr(
+        PythonDependencyInspector,
+        '_load_installed_packages',
+        staticmethod(lambda: next(installed_package_snapshots)),
+    )
+    inspector = PythonDependencyInspector()
+
+    assert inspector.check(['demo-package==1.0.0'])[0].ok is True
+
+    inspector.refresh()
+
+    refreshed_item = inspector.check(['demo-package==1.0.0'])[0]
+    assert refreshed_item.installed is False
+    assert refreshed_item.ok is False
+
+
+def test_python_dependency_inspector_refresh_preserves_explicit_snapshot() -> None:
+    """校验显式传入的依赖快照不会被运行环境刷新覆盖。"""
+    inspector = PythonDependencyInspector(installed_packages={'demo-package': '1.0.0'})
+
+    inspector.refresh()
+
+    assert inspector.check(['demo-package==1.0.0'])[0].ok is True
 
 
 def test_python_dependency_inspector_fails_closed_for_invalid_requirement() -> None:

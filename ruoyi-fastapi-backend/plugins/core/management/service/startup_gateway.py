@@ -89,6 +89,20 @@ class PluginManagementStartupGateway:
         """
         return await PluginService.mark_plugin_error_services(query_db, plugin_id, error_message)
 
+    async def recover_plugin_dependency_error(
+        self,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+    ) -> CrudResponseModel:
+        """
+        恢复启动依赖检查异常的插件状态。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
+        :return: 操作响应
+        """
+        return await PluginService.recover_plugin_dependency_error_services(query_db, discovered_plugin)
+
     async def upsert_discovered_plugin(
         self,
         query_db: AsyncSession,

@@ -215,7 +215,7 @@ const policyNextStep = computed(() => {
 });
 
 const canInstall = computed(() => {
-  return !isCapabilityOperationBlocked(props.result.capability, "dependency_install")
+  return !props.isCapabilityOperationBlocked(props.result.capability, "dependency_install")
     && Array.isArray(props.result.plan)
     && props.result.plan.length > 0
     && policy.value?.allowed !== false;

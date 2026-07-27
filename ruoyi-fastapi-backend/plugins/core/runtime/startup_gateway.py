@@ -81,6 +81,19 @@ class PluginStartupManagementGateway(Protocol):
         :return: 操作响应
         """
 
+    async def recover_plugin_dependency_error(
+        self,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+    ) -> CrudResponseModel:
+        """
+        恢复启动依赖检查异常的插件状态。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
+        :return: 操作响应
+        """
+
     async def upsert_discovered_plugin(
         self,
         query_db: AsyncSession,
@@ -239,6 +252,20 @@ class UnavailablePluginStartupManagementGateway:
         :param query_db: orm对象
         :param plugin_id: 插件ID
         :param error_message: 错误信息
+        :return: 操作响应
+        """
+        self._raise_unavailable()
+
+    async def recover_plugin_dependency_error(
+        self,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+    ) -> CrudResponseModel:
+        """
+        恢复启动依赖检查异常的插件状态。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
         :return: 操作响应
         """
         self._raise_unavailable()

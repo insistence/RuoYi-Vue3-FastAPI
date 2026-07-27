@@ -162,6 +162,29 @@ class PluginQueryUseCase:
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('读取插件列表失败', exc)
 
+    async def list_plugins_with_state(self) -> PluginCatalogListResponse:
+        """
+        获取合并数据库状态的本地插件列表。
+
+        :return: 插件列表负载
+        """
+        try:
+            database_plugins, database_error = await self._load_database_plugin_states_with_error()
+            backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
+            registry = PluginRegistry.build(
+                self.context.discover_plugins(backend_root),
+                database_plugins,
+            )
+            payload = PluginPayloadBuilder.build_plugin_list_payload(registry.list_plugins())
+            payload['databaseAvailable'] = database_error is None
+            payload['databaseError'] = database_error
+            plugin_items = cast('list[dict[str, object]]', payload['plugins'])
+            for item, plugin in zip(plugin_items, registry.list_plugins(), strict=False):
+                self._with_plugin_capability(item, plugin.discovered_plugin)
+            return cast('PluginCatalogListResponse', payload)
+        except Exception as exc:
+            return PluginRuntimePayloadBuilder.build_exception_payload('读取插件列表失败', exc)
+
     def get_plugin_info(self, plugin_id: str) -> PluginCatalogInfoResponse:
         """
         获取插件详情。

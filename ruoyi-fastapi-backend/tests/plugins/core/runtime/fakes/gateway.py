@@ -4,6 +4,7 @@ from subprocess import CompletedProcess
 from types import SimpleNamespace
 
 from plugins.core.lifecycle.migration import PluginMigrationRunner
+from plugins.core.runtime.service.gateway import PluginCommandOutputCallback
 from plugins.core.runtime.service.migration_store import PluginDatabaseMigrationHistoryStore
 from plugins.core.runtime.support import PluginConfigPayloadBuilder
 
@@ -342,10 +343,16 @@ class FakePluginRuntimeGateway:
         workdir: str,
         *,
         timeout: int | None = None,
+        output_callback: PluginCommandOutputCallback | None = None,
     ) -> CompletedProcess[str]:
         """记录测试用系统命令。"""
         self.commands.append((command, workdir, timeout))
         self._simulate_npm_package_json_update(command, workdir)
+        if output_callback is not None:
+            if self.completed_process.stdout:
+                output_callback('stdout', self.completed_process.stdout)
+            if self.completed_process.stderr:
+                output_callback('stderr', self.completed_process.stderr)
         return self.completed_process
 
     def _simulate_npm_package_json_update(self, command: list[str], workdir: str) -> None:

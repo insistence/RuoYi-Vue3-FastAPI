@@ -16,6 +16,7 @@ from .dependencies import PluginDependencyUseCase
 from .dependency_container import PluginRuntimeDependencies, PluginRuntimeGatewayOverrides
 from .gateway import (
     DefaultPluginCommandRunnerGateway,
+    PluginCommandOutputCallback,
     PluginCommandRunnerGateway,
     PluginManagementModelGateway,
     UnavailablePluginAuditGateway,
@@ -169,6 +170,14 @@ class PluginRuntimeService:
         :return: 插件列表负载
         """
         return cast('PluginCatalogListResponse', self.query.list_plugins())
+
+    async def list_plugins_with_state(self) -> PluginCatalogListResponse:
+        """
+        获取合并数据库状态的本地插件列表。
+
+        :return: 插件列表负载
+        """
+        return cast('PluginCatalogListResponse', await self.query.list_plugins_with_state())
 
     def get_plugin_info(self, plugin_id: str) -> PluginCatalogInfoResponse:
         """
@@ -373,6 +382,7 @@ class PluginRuntimeService:
         policy_config: DependencyInstallPolicyConfig | None = None,
         confirmed: bool = False,
         record_operation_log: bool = True,
+        output_callback: PluginCommandOutputCallback | None = None,
     ) -> PluginDependencyInstallResponse:
         """
         安装插件依赖。
@@ -382,17 +392,25 @@ class PluginRuntimeService:
         :param policy_config: 依赖安装策略配置
         :param confirmed: 是否已显式确认
         :param record_operation_log: 是否记录插件操作审计日志
+        :param output_callback: 依赖安装实时输出回调
         :return: 插件依赖安装负载
         """
-        payload = cast(
-            'PluginDependencyInstallResponse',
-            self.dependency.install_plugin_dependencies(
+        if output_callback is None:
+            dependency_payload = self.dependency.install_plugin_dependencies(
                 plugin_id,
                 dry_run=dry_run,
                 policy_config=policy_config,
                 confirmed=confirmed,
-            ),
-        )
+            )
+        else:
+            dependency_payload = self.dependency.install_plugin_dependencies(
+                plugin_id,
+                dry_run=dry_run,
+                policy_config=policy_config,
+                confirmed=confirmed,
+                output_callback=output_callback,
+            )
+        payload = cast('PluginDependencyInstallResponse', dependency_payload)
         if record_operation_log and not dry_run:
             self._record_plugin_operation_log_sync(payload, dry_run=False, continue_on_error=False)
         return payload

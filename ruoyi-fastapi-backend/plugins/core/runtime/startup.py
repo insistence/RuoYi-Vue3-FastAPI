@@ -31,6 +31,7 @@ from plugins.core.runtime.startup_gateway import (
     UnavailablePluginStartupManagementGateway,
 )
 from plugins.core.validation.dependencies import (
+    PLUGIN_STARTUP_DEPENDENCY_ERROR_PREFIX,
     DependencyCheckResult,
     PluginDependencyInstallPlanner,
     PythonDependencyInspector,
@@ -275,12 +276,16 @@ class PluginRuntimeStartupManager:
         :param startup_write_enabled: 是否允许执行启动期写库操作
         :return: None
         """
+        default_dependency_failed_plugin_ids: set[str] = set()
         if startup_write_enabled:
-            await self.sync_default_enabled_builtin_plugin_install_states()
+            default_dependency_failed_plugin_ids = await self.sync_default_enabled_builtin_plugin_install_states()
         await self.load_registry_from_database(app)
         dependency_failed_plugin_ids = await self.check_enabled_plugin_python_dependencies(
             app,
             startup_write_enabled=startup_write_enabled,
+        )
+        app.state.plugin_dependency_failed_plugin_ids = (
+            default_dependency_failed_plugin_ids | dependency_failed_plugin_ids
         )
         self.disable_runtime_plugins(app, dependency_failed_plugin_ids)
         import_failed_plugin_ids = await self.import_enabled_plugin_entities(
@@ -306,22 +311,99 @@ class PluginRuntimeStartupManager:
         if plugin_registry is None:
             return set()
 
-        failed_plugin_ids = set()
-        for plugin in plugin_registry.list_enabled_plugins():
+        self.python_dependency_inspector.refresh()
+        failed_plugin_ids: set[str] = set()
+        recovered_plugins: list[RegisteredPlugin] = []
+        for plugin in self._list_dependency_check_plugins(plugin_registry):
             python_requirements = plugin.discovered_plugin.manifest.dependencies.python
-            if not python_requirements:
-                continue
-            dependency_result = self._check_plugin_python_dependencies(plugin.plugin_id, python_requirements)
-            failed_messages = self._build_dependency_failed_messages(dependency_result)
+            failed_messages = []
+            if python_requirements:
+                dependency_result = self._check_plugin_python_dependencies(plugin.plugin_id, python_requirements)
+                failed_messages = self._build_dependency_failed_messages(dependency_result)
             if not failed_messages:
+                if startup_write_enabled and self._has_startup_dependency_error(plugin):
+                    recovered_plugins.append(plugin)
                 continue
             failed_plugin_ids.add(plugin.plugin_id)
-            error_message = '插件启动依赖检查失败：' + '；'.join(failed_messages)
+            error_message = self._build_dependency_startup_error_message(plugin.plugin_id, failed_messages)
             if startup_write_enabled:
                 logger.error(f'{plugin.plugin_id} {error_message}')
                 await self.mark_plugin_runtime_error(app, plugin.plugin_id, error_message)
 
+        if recovered_plugins:
+            await self.recover_plugin_dependency_errors(app, recovered_plugins)
         return failed_plugin_ids
+
+    @classmethod
+    def _list_dependency_check_plugins(cls, plugin_registry: PluginRegistry) -> list[RegisteredPlugin]:
+        """
+        获取本次启动需要检查 Python 依赖的插件。
+
+        除当前启用插件外，还要重新检查上次因启动依赖失败而被隔离的插件，
+        避免其进入 error 状态后在后续启动中被启用态过滤器永久跳过。
+
+        :param plugin_registry: 插件运行时注册表
+        :return: 需要检查依赖的插件列表
+        """
+        plugins = list(plugin_registry.list_enabled_plugins())
+        checked_plugin_ids = {plugin.plugin_id for plugin in plugins}
+        for plugin in plugin_registry.list_plugins():
+            if plugin.plugin_id in checked_plugin_ids:
+                continue
+            if cls._has_startup_dependency_error(plugin):
+                plugins.append(plugin)
+                checked_plugin_ids.add(plugin.plugin_id)
+        return plugins
+
+    @staticmethod
+    def _has_startup_dependency_error(plugin: RegisteredPlugin) -> bool:
+        """
+        判断插件是否仅因启动依赖检查失败而处于异常状态。
+
+        :param plugin: 插件运行时快照
+        :return: 是否为启动依赖异常
+        """
+        database_plugin = plugin.database_plugin
+        last_error = getattr(database_plugin, 'last_error', None) if database_plugin else None
+        return (
+            getattr(database_plugin, 'status', None) == 'error'
+            and isinstance(last_error, str)
+            and last_error.startswith(PLUGIN_STARTUP_DEPENDENCY_ERROR_PREFIX)
+        )
+
+    async def recover_plugin_dependency_errors(
+        self,
+        app: FastAPI,
+        plugins: list[RegisteredPlugin],
+    ) -> None:
+        """
+        恢复启动依赖重新满足的插件状态，并刷新运行时注册表。
+
+        仅处理带启动依赖错误前缀的插件，其他 migration、实体导入或 hook
+        异常仍保持 error，避免启动时误清除真实故障。
+
+        :param app: FastAPI对象
+        :param plugins: 依赖已恢复的插件列表
+        :return: None
+        """
+        recovered = False
+        async for query_db in get_db():
+            for plugin in plugins:
+                result = await self.management_gateway.recover_plugin_dependency_error(
+                    query_db,
+                    plugin.discovered_plugin,
+                )
+                if result.is_success:
+                    recovered = True
+                    logger.info(f'插件启动依赖已恢复：{plugin.plugin_id}')
+                    continue
+                logger.warning(f'插件启动依赖恢复状态写入失败：{plugin.plugin_id}，原因：{result.message}')
+            if recovered:
+                await query_db.commit()
+            else:
+                await query_db.rollback()
+        if recovered:
+            await self.load_registry_from_database(app)
 
     def _check_plugin_python_dependencies(
         self,
@@ -348,6 +430,20 @@ class PluginRuntimeStartupManager:
         :return: 失败消息列表
         """
         return [item.message for item in dependency_result.items if not item.ok]
+
+    @staticmethod
+    def _build_dependency_startup_error_message(plugin_id: str, failed_messages: list[str]) -> str:
+        """
+        构建包含修复命令的启动依赖检查失败消息。
+
+        :param plugin_id: 插件ID
+        :param failed_messages: 依赖检查失败消息
+        :return: 启动依赖检查失败消息
+        """
+        install_command = f'ruoyi plugin install-deps {plugin_id} --env={AppConfig.app_env} --yes'
+        return (
+            f'{PLUGIN_STARTUP_DEPENDENCY_ERROR_PREFIX}{"；".join(failed_messages)}；安装依赖请执行：{install_command}'
+        )
 
     async def _prompt_and_install_plugin_python_dependencies(
         self,
@@ -462,7 +558,7 @@ class PluginRuntimeStartupManager:
             return set()
 
         import_result = self.builder.import_plugin_entities(plugin_registry)
-        failed_plugin_ids = set()
+        failed_plugin_ids: set[str] = set()
         for failure in import_result.failures:
             failed_plugin_ids.add(failure.plugin_id)
             if startup_write_enabled:
@@ -759,17 +855,17 @@ class PluginRuntimeStartupManager:
                 logger.warning(f'插件运行时异常状态写入失败：{plugin_id}，原因：{result.message}')
         await self.load_registry_from_database(app)
 
-    async def sync_default_enabled_builtin_plugin_install_states(self) -> None:
+    async def sync_default_enabled_builtin_plugin_install_states(self) -> set[str]:
         """
         首次启动时将内置默认启用插件写入数据库安装状态。
 
         安装脚本执行前先校验 Python 依赖，避免 migration/seed 导入缺失依赖导致启动
         提前失败。缺失依赖的插件被标记为 error 并隔离，不影响其他插件继续启动。
 
-        :return: None
+        :return: 依赖检查失败的默认启用插件 ID 集合
         """
         if not self.default_enabled_builtin_plugin_ids:
-            return
+            return set()
 
         discovered_plugins = [
             plugin
@@ -777,8 +873,9 @@ class PluginRuntimeStartupManager:
             if plugin.manifest.id in self.default_enabled_builtin_plugin_ids
         ]
         if not discovered_plugins:
-            return
+            return set()
 
+        failed_plugin_ids: set[str] = set()
         async for query_db in get_db():
             plugin_list = await self.management_gateway.list_plugins(query_db)
             database_plugin_map = {plugin.plugin_id: plugin for plugin in plugin_list}
@@ -788,7 +885,8 @@ class PluginRuntimeStartupManager:
                 if self._should_sync_default_enabled_builtin_plugin(database_plugin_map.get(plugin.manifest.id))
             ]
             if not plugins_to_sync:
-                return
+                return failed_plugin_ids
+            self.python_dependency_inspector.refresh()
             for plugin in plugins_to_sync:
                 await self.management_gateway.upsert_discovered_plugin(
                     query_db,
@@ -798,13 +896,18 @@ class PluginRuntimeStartupManager:
                 )
                 dependency_failed_messages = self._check_default_plugin_python_dependencies(plugin)
                 if dependency_failed_messages:
-                    error_message = '插件启动依赖检查失败：' + '；'.join(dependency_failed_messages)
+                    failed_plugin_ids.add(plugin.manifest.id)
+                    error_message = self._build_dependency_startup_error_message(
+                        plugin.manifest.id,
+                        dependency_failed_messages,
+                    )
                     logger.error(f'{plugin.manifest.id} {error_message}')
                     await self.management_gateway.mark_plugin_error(query_db, plugin.manifest.id, error_message)
                     continue
                 await self.run_plugin_install_scripts(query_db, plugin)
                 await self.management_gateway.mark_plugin_installed(query_db, plugin)
             await query_db.commit()
+        return failed_plugin_ids
 
     def _check_default_plugin_python_dependencies(self, discovered_plugin: Any) -> list[str]:
         """

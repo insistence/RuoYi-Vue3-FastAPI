@@ -43,6 +43,8 @@ class PluginCatalogListResponsePayload(PluginPayloadModel):
     ok: bool
     count: int
     plugins: list[dict[str, object]]
+    database_available: bool | None = Field(default=None, alias='databaseAvailable')
+    database_error: str | None = Field(default=None, alias='databaseError')
 
 
 class PluginCatalogInfoResponsePayload(PluginPayloadModel):

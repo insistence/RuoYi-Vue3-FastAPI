@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING
 from plugins.core.lifecycle.migration import PluginMigrationRunner
 from plugins.core.runtime.service.gateway import (
     AsyncSessionFactoryProtocol,
+    PluginCommandOutputCallback,
     PluginManagementServiceProtocol,
+    run_plugin_command,
 )
 from plugins.core.runtime.service.migration_store import PluginDatabaseMigrationHistoryStore
 from plugins.core.types import PluginConfigValue, PluginStateRecord
@@ -568,6 +570,7 @@ class PluginManagementRuntimeGateway:
         workdir: str,
         *,
         timeout: int | None = None,
+        output_callback: PluginCommandOutputCallback | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """
         执行系统命令。
@@ -575,13 +578,12 @@ class PluginManagementRuntimeGateway:
         :param command: 命令参数列表
         :param workdir: 命令工作目录
         :param timeout: 命令超时时间
+        :param output_callback: 实时输出回调
         :return: 命令执行结果
         """
-        return subprocess.run(
+        return run_plugin_command(
             command,
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            check=False,
+            workdir,
             timeout=timeout,
+            output_callback=output_callback,
         )

@@ -17,6 +17,12 @@ class PluginCommandPresenter:
             f'ok: {str(payload.get("ok", False)).lower()}',
             f'count: {payload.get("count", 0)}',
         ]
+        if 'databaseAvailable' in payload:
+            database_available = bool(payload.get('databaseAvailable', False))
+            lines.append(f'database_available: {str(database_available).lower()}')
+            if not database_available:
+                database_error = SHELL_TEXT_FORMATTER.truncate_text(payload.get('databaseError', '') or '', 120)
+                lines.append(f'database_error: {database_error or "-"}')
         plugins = payload.get('plugins')
         if not isinstance(plugins, list) or not plugins:
             lines.append('plugins: none')
@@ -48,7 +54,7 @@ class PluginCommandPresenter:
             f'name: {plugin.get("name", "-")}',
             f'version: {plugin.get("version", "-")}',
             f'installed_version: {plugin.get("installedVersion", "-") or "-"}',
-            f'enabled: {str(plugin.get("enabled", False)).lower()}',
+            f'runtime_enabled: {str(plugin.get("runtimeEnabled", False)).lower()}',
             f'status: {plugin.get("status", "-")}',
             f'source: {plugin.get("source", "-")}',
             f'last_error: {SHELL_TEXT_FORMATTER.truncate_text(plugin.get("lastError", "") or "", 100) or "-"}',
@@ -62,6 +68,8 @@ class PluginCommandPresenter:
         if isinstance(database, dict):
             lines.append(f'database_available: {str(database.get("available", False)).lower()}')
             lines.append(f'database_installed: {str(database.get("installed", False)).lower()}')
+            if 'configuredEnabled' in database:
+                lines.append(f'configured_enabled: {str(database.get("configuredEnabled", False)).lower()}')
         dependencies = plugin.get('dependencies')
         if isinstance(dependencies, list):
             lines.append(f'dependencies: {len(dependencies)}')
@@ -594,7 +602,7 @@ class PluginCommandPresenter:
             f'plugin_id: {payload.get("pluginId", "-")}',
             f'env: {payload.get("env", "-")}',
             f'operation: {payload.get("operation", "-")}',
-            f'enabled: {str(payload.get("enabled", False)).lower()}',
+            f'target_enabled: {str(payload.get("targetEnabled", False)).lower()}',
             f'dry_run: {str(payload.get("dryRun", False)).lower()}',
         ]
         actions = payload.get('actions')
@@ -734,7 +742,8 @@ class PluginCommandPresenter:
         """
         return (
             f'  - {plugin.get("pluginId", "-")} | {plugin.get("name", "-")} | '
-            f'version: {plugin.get("version", "-")} | enabled: {str(plugin.get("enabled", False)).lower()} | '
+            f'version: {plugin.get("version", "-")} | '
+            f'runtime_enabled: {str(plugin.get("runtimeEnabled", False)).lower()} | '
             f'status: {plugin.get("status", "-")}'
         )
 
@@ -819,8 +828,9 @@ class PluginCommandPresenter:
         :param item: 插件物理清理计划项
         :return: 文本行
         """
+        will_run = item.get('willRun', item.get('enabled', False))
         return (
-            f'  - {item.get("name", "-")} | enabled: {str(item.get("enabled", False)).lower()} | '
+            f'  - {item.get("name", "-")} | will_run: {str(will_run).lower()} | '
             f'destructive: {str(item.get("destructive", False)).lower()} | '
             f'count: {item.get("count", "-") if item.get("count") is not None else "-"} | '
             f'label: {item.get("label", "-")}'
@@ -909,7 +919,5 @@ class PluginCommandPresenter:
         :param action: 安装动作负载
         :return: 文本行
         """
-        return (
-            f'  - {action.get("name", "-")} | enabled: {str(action.get("enabled", False)).lower()} | '
-            f'label: {action.get("label", "-")}'
-        )
+        will_run = action.get('willRun', action.get('enabled', False))
+        return f'  - {action.get("name", "-")} | will_run: {str(will_run).lower()} | label: {action.get("label", "-")}'

@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -111,6 +111,22 @@ async def test_startup_writer_creates_plugin_tables_installs_resources_and_marks
     startup_manager.activate_enabled_plugins.assert_awaited_once_with(app, startup_write_enabled=True)
     assert redis.values[runtime.ready_key] == 'worker-1'
     assert redis.expires[runtime.ready_key] == LockConstant.PLUGIN_STARTUP_READY_EXPIRE_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_mark_startup_ready_warns_when_dependency_failed_plugins_were_isolated() -> None:
+    """校验存在依赖失败插件时 ready 日志明确说明隔离结果。"""
+    redis = FakeRedis({LockConstant.APP_STARTUP_LOCK_KEY: 'worker-1'})
+    app = build_app(redis)
+    app.state.plugin_dependency_failed_plugin_ids = {'demo', 'ai'}
+    runtime = PluginApplicationRuntime(startup_manager=MagicMock())
+
+    with patch('plugins.core.runtime.application.logger') as mocked_logger:
+        await runtime.mark_startup_ready(app)
+
+    assert redis.values[runtime.ready_key] == 'worker-1'
+    mocked_logger.warning.assert_called_once_with('插件启动协调已完成，依赖检查失败插件已隔离：ai、demo')
+    mocked_logger.info.assert_not_called()
 
 
 @pytest.mark.asyncio

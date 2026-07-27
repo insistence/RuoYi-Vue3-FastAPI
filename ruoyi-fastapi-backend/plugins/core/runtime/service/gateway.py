@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import subprocess
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+import threading
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, runtime_checkable
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -26,6 +28,98 @@ if TYPE_CHECKING:
     )
     from plugins.core.types import PluginConfigValue, PluginStateRecord
     from plugins.core.validation.menus import PluginMenuConflictItem
+
+PluginCommandOutputKind = Literal['status', 'stdout', 'stderr']
+PluginCommandOutputCallback: TypeAlias = Callable[[PluginCommandOutputKind, str], None]
+
+
+def run_plugin_command(
+    command: list[str],
+    workdir: str,
+    *,
+    timeout: int | None = None,
+    output_callback: PluginCommandOutputCallback | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """
+    执行插件系统命令，并可选实时转发标准输出和错误输出。
+
+    :param command: 命令参数列表
+    :param workdir: 命令工作目录
+    :param timeout: 命令超时时间
+    :param output_callback: 实时输出回调
+    :return: 命令执行结果
+    """
+    if output_callback is None:
+        return subprocess.run(
+            command,
+            cwd=workdir,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+
+    process = subprocess.Popen(
+        command,
+        cwd=workdir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+    stdout_parts: list[str] = []
+    stderr_parts: list[str] = []
+    callback_lock = threading.Lock()
+
+    def consume_stream(
+        stream: Any,
+        kind: Literal['stdout', 'stderr'],
+        output_parts: list[str],
+    ) -> None:
+        """持续读取并转发单个子进程输出流。"""
+        try:
+            for text in iter(stream.readline, ''):
+                output_parts.append(text)
+                with callback_lock:
+                    output_callback(kind, text)
+        finally:
+            stream.close()
+
+    stdout_thread = threading.Thread(
+        target=consume_stream,
+        args=(process.stdout, 'stdout', stdout_parts),
+        daemon=True,
+    )
+    stderr_thread = threading.Thread(
+        target=consume_stream,
+        args=(process.stderr, 'stderr', stderr_parts),
+        daemon=True,
+    )
+    stdout_thread.start()
+    stderr_thread.start()
+
+    try:
+        return_code = process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        process.kill()
+        process.wait()
+        stdout_thread.join()
+        stderr_thread.join()
+        raise subprocess.TimeoutExpired(
+            command,
+            timeout,
+            output=''.join(stdout_parts),
+            stderr=''.join(stderr_parts),
+        ) from exc
+
+    stdout_thread.join()
+    stderr_thread.join()
+    return subprocess.CompletedProcess(
+        args=command,
+        returncode=return_code,
+        stdout=''.join(stdout_parts),
+        stderr=''.join(stderr_parts),
+    )
 
 
 @runtime_checkable
@@ -738,6 +832,7 @@ class PluginCommandRunnerGateway(Protocol):
         workdir: str,
         *,
         timeout: int | None = None,
+        output_callback: PluginCommandOutputCallback | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """
         执行系统命令。
@@ -745,6 +840,7 @@ class PluginCommandRunnerGateway(Protocol):
         :param command: 命令参数列表
         :param workdir: 命令工作目录
         :param timeout: 命令超时时间
+        :param output_callback: 实时输出回调
         :return: 命令执行结果
         """
 
@@ -1077,6 +1173,7 @@ class DefaultPluginCommandRunnerGateway:
         workdir: str,
         *,
         timeout: int | None = None,
+        output_callback: PluginCommandOutputCallback | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """
         执行系统命令。
@@ -1084,13 +1181,12 @@ class DefaultPluginCommandRunnerGateway:
         :param command: 命令参数列表
         :param workdir: 命令工作目录
         :param timeout: 命令超时时间
+        :param output_callback: 实时输出回调
         :return: 命令执行结果
         """
-        return subprocess.run(
+        return run_plugin_command(
             command,
-            cwd=workdir,
-            capture_output=True,
-            text=True,
-            check=False,
+            workdir,
             timeout=timeout,
+            output_callback=output_callback,
         )

@@ -440,6 +440,41 @@ dependencies:
     assert gateway.commands[0][2] == PLUGIN_DEPENDENCY_INSTALL_TIMEOUT_SECONDS
 
 
+def test_plugin_runtime_dependency_install_reports_live_progress(tmp_path: Path) -> None:
+    """校验插件依赖安装会转发命令输出并报告单项开始、完成状态。"""
+    backend_root = tmp_path / 'backend'
+    write_manifest(
+        backend_root / 'plugins' / 'demo',
+        """
+id: demo
+name: Demo
+version: 1.0.0
+backend:
+  module: plugins.demo
+dependencies:
+  python:
+    - missing-python
+""",
+    )
+    gateway = FakePluginRuntimeGateway()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
+    progress: list[tuple[str, str]] = []
+
+    payload = runtime.install_plugin_dependencies(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig(mode='explicit', env='dev'),
+        confirmed=True,
+        output_callback=lambda kind, text: progress.append((kind, text)),
+    )
+
+    assert payload['ok'] is True
+    assert progress == [
+        ('status', '[1/1] 开始安装：missing-python\n'),
+        ('stdout', '1 passed\n'),
+        ('status', '[1/1] 安装完成：missing-python\n'),
+    ]
+
+
 def test_plugin_runtime_dependency_install_plan_only_policy_blocks_command_execution(tmp_path: Path) -> None:
     """校验 plan_only 策略会阻断真实依赖安装并返回策略 payload。"""
     backend_root = tmp_path / 'backend'

@@ -716,6 +716,101 @@ backend:
         await engine.dispose()
 
 
+@pytest.mark.parametrize(
+    ('installed', 'expected_status'),
+    [
+        (False, 'discovered'),
+        (True, 'installed'),
+    ],
+)
+@pytest.mark.asyncio
+async def test_recover_plugin_dependency_error_restores_lifecycle_state(
+    tmp_path: Path,
+    installed: bool,
+    expected_status: str,
+) -> None:
+    """校验依赖恢复仅清除启动依赖错误，并按安装版本恢复插件状态。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            Base.metadata.create_all,
+            tables=[SysMenu.__table__, SysPlugin.__table__, SysPluginMenu.__table__],
+        )
+        await create_sqlite_sys_job_table(connection)
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin(tmp_path)
+            await PluginService.upsert_discovered_plugin_services(
+                session,
+                discovered_plugin,
+                tmp_path / 'plugins',
+                tmp_path / 'frontend_plugins',
+            )
+            if installed:
+                await PluginService.mark_plugin_installed_services(session, discovered_plugin)
+            await PluginService.mark_plugin_error_services(
+                session,
+                'demo',
+                '插件启动依赖检查失败：Python 依赖未安装：agno',
+            )
+
+            result = await PluginService.recover_plugin_dependency_error_services(
+                session,
+                discovered_plugin,
+            )
+            await session.commit()
+            db_plugin = await PluginDao.get_plugin_by_id(session, 'demo')
+
+        assert result.is_success is True
+        assert db_plugin is not None
+        assert db_plugin.enabled == '0'
+        assert db_plugin.status == expected_status
+        assert db_plugin.installed_version == ('1.0.0' if installed else None)
+        assert db_plugin.last_error is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_recover_plugin_dependency_error_preserves_unrelated_error(tmp_path: Path) -> None:
+    """校验启动恢复不会误清除 hook、migration 等其他插件错误。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            Base.metadata.create_all,
+            tables=[SysMenu.__table__, SysPlugin.__table__, SysPluginMenu.__table__],
+        )
+        await create_sqlite_sys_job_table(connection)
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin(tmp_path)
+            await PluginService.upsert_discovered_plugin_services(
+                session,
+                discovered_plugin,
+                tmp_path / 'plugins',
+                tmp_path / 'frontend_plugins',
+            )
+            await PluginService.mark_plugin_error_services(session, 'demo', '插件启动钩子执行失败：broken')
+
+            result = await PluginService.recover_plugin_dependency_error_services(
+                session,
+                discovered_plugin,
+            )
+            db_plugin = await PluginDao.get_plugin_by_id(session, 'demo')
+
+        assert result.is_success is False
+        assert db_plugin is not None
+        assert db_plugin.enabled == '1'
+        assert db_plugin.status == 'error'
+        assert db_plugin.last_error == '插件启动钩子执行失败：broken'
+    finally:
+        await engine.dispose()
+
+
 @pytest.mark.asyncio
 async def test_enable_plugin_clears_last_error_and_reenables_menus(tmp_path: Path) -> None:
     """校验重新启用插件时会清理最近错误并恢复插件菜单状态。"""

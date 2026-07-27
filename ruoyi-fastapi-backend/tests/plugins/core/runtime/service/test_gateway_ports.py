@@ -108,3 +108,28 @@ def test_default_command_gateway_runs_command(tmp_path: Path) -> None:
     assert isinstance(completed, subprocess.CompletedProcess)
     assert completed.returncode == 0
     assert completed.stdout.strip() == 'ok'
+
+
+def test_default_command_gateway_streams_and_captures_output(tmp_path: Path) -> None:
+    """校验默认命令网关实时转发输出时仍保留完整执行结果。"""
+    streamed: list[tuple[str, str]] = []
+
+    completed = DefaultPluginCommandRunnerGateway.run_command(
+        [
+            'python',
+            '-c',
+            (
+                "import sys; print('downloading', flush=True); "
+                "print('warning', file=sys.stderr, flush=True); print('installed', flush=True)"
+            ),
+        ],
+        str(tmp_path),
+        output_callback=lambda kind, text: streamed.append((kind, text)),
+    )
+
+    assert completed.returncode == 0
+    assert completed.stdout == 'downloading\ninstalled\n'
+    assert completed.stderr == 'warning\n'
+    assert ('stdout', 'downloading\n') in streamed
+    assert ('stdout', 'installed\n') in streamed
+    assert ('stderr', 'warning\n') in streamed

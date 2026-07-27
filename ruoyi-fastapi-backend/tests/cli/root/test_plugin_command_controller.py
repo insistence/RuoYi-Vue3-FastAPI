@@ -85,6 +85,21 @@ class FakePresenter:
     """
 
     @staticmethod
+    def build_list_text(payload: dict[str, Any]) -> str:
+        """构造列表文本。"""
+        return str(payload)
+
+    @staticmethod
+    def build_info_text(payload: dict[str, Any]) -> str:
+        """构造详情文本。"""
+        return str(payload)
+
+    @staticmethod
+    def build_enabled_text(payload: dict[str, Any]) -> str:
+        """构造启停文本。"""
+        return str(payload)
+
+    @staticmethod
     def build_install_text(payload: dict[str, Any]) -> str:
         """构造安装文本。"""
         return str(payload)
@@ -124,6 +139,24 @@ class FakeCoreRuntime:
         """初始化测试用核心插件运行时。"""
         self.dependency_install_calls: list[dict[str, Any]] = []
         self.config_set_calls: list[dict[str, Any]] = []
+        self.list_with_state_called = False
+
+    async def list_plugins_with_state(self) -> dict[str, Any]:
+        """返回合并状态后的插件列表。"""
+        self.list_with_state_called = True
+        return {
+            'ok': True,
+            'count': 1,
+            'databaseAvailable': True,
+            'databaseError': None,
+            'plugins': [
+                {
+                    'pluginId': 'demo',
+                    'enabled': True,
+                    'status': 'installed',
+                }
+            ],
+        }
 
     async def install_plugin(self, plugin_id: str, *, dry_run: bool = False) -> dict[str, Any]:
         """返回失败安装结果。"""
@@ -146,6 +179,7 @@ class FakeCoreRuntime:
         dry_run: bool = False,
         policy_config: object | None = None,
         confirmed: bool = False,
+        output_callback: object | None = None,
     ) -> dict[str, Any]:
         """返回依赖安装测试结果。"""
         self.dependency_install_calls.append(
@@ -154,6 +188,7 @@ class FakeCoreRuntime:
                 'dry_run': dry_run,
                 'policy_config': policy_config,
                 'confirmed': confirmed,
+                'output_callback': output_callback,
             }
         )
         return {
@@ -228,6 +263,26 @@ class FakePluginRuntime:
             'dryRun': dry_run,
             'overwrite': overwrite,
         }
+
+
+def test_list_plugins_uses_database_state_aware_query() -> None:
+    """校验插件列表 CLI 使用合并数据库状态的查询入口。"""
+    execution_service = FakeExecutionService()
+    plugin_runtime = FakePluginRuntime()
+    controller = PluginCommandController(
+        context_factory=FakeContextFactory(),
+        execution_service=execution_service,
+        presenter=FakePresenter(),
+        plugin_runtime=plugin_runtime,
+    )
+
+    controller.list_plugins('dev', 'json')
+
+    assert plugin_runtime.core_runtime.list_with_state_called is True
+    assert execution_service.completed_payload is not None
+    assert execution_service.completed_payload['plugins'][0]['runtimeEnabled'] is True
+    assert 'enabled' not in execution_service.completed_payload['plugins'][0]
+    assert execution_service.completed_payload['plugins'][0]['status'] == 'installed'
 
 
 def test_install_plugin_uses_failure_exit_code_when_payload_is_not_ok() -> None:
@@ -369,6 +424,50 @@ def test_install_plugin_dependencies_passes_policy_config_to_runtime() -> None:
     assert str(policy_config.offline_dir) == 'artifacts/plugin-dependencies'
     assert policy_config.require_lockfile is True
     assert len(plugin_runtime.core_runtime.dependency_install_calls) == 1
+    assert callable(plugin_runtime.core_runtime.dependency_install_calls[0]['output_callback'])
+
+
+def test_install_plugin_dependencies_json_output_disables_live_progress() -> None:
+    """校验 JSON 输出不会注入依赖安装进度文本。"""
+    execution_service = FakeExecutionService()
+    plugin_runtime = FakePluginRuntime()
+    controller = PluginCommandController(
+        context_factory=FakeContextFactory(),
+        execution_service=execution_service,
+        presenter=FakePresenter(),
+        plugin_runtime=plugin_runtime,
+    )
+
+    controller.install_plugin_dependencies(
+        'demo',
+        'dev',
+        'json',
+        options=PluginDependencyInstallCommandOptions(yes=True),
+    )
+
+    assert plugin_runtime.core_runtime.dependency_install_calls[0]['output_callback'] is None
+
+
+def test_dependency_install_output_callback_routes_stderr_separately(monkeypatch: Any) -> None:
+    """校验依赖安装实时输出保留 stdout 和 stderr 通道。"""
+    emitted: list[tuple[str, bool]] = []
+    monkeypatch.setattr(
+        'typer.echo',
+        lambda text, *, nl, err: emitted.append((text, err)),
+    )
+    ctx = type('FakeContext', (), {'output': 'text'})()
+
+    output_callback = PluginCommandController._build_dependency_install_output_callback(ctx)
+
+    assert output_callback is not None
+    output_callback('status', '[1/1] 开始安装\n')
+    output_callback('stdout', 'downloading\n')
+    output_callback('stderr', 'warning\n')
+    assert emitted == [
+        ('[1/1] 开始安装\n', False),
+        ('downloading\n', False),
+        ('warning\n', True),
+    ]
 
 
 def test_install_plugin_dependencies_tty_confirm_previews_then_executes(

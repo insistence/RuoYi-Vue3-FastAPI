@@ -17,6 +17,7 @@ DependencyKind = Literal['python', 'npm', 'npmDev']
 DependencyStatus = Literal['checked', 'skipped']
 DEPENDENCY_PATTERN = re.compile(r'^\s*([A-Za-z0-9_.@/\-]+)\s*([<>=!~^]{1,2})?\s*([A-Za-z0-9_.+\-!*]+)?\s*$')
 PYTHON_PACKAGE_SEPARATOR_PATTERN = re.compile(r'[-_.]+')
+PLUGIN_STARTUP_DEPENDENCY_ERROR_PREFIX = '插件启动依赖检查失败：'
 
 
 @dataclass(frozen=True)
@@ -240,11 +241,25 @@ class PythonDependencyInspector:
 
         :param installed_packages: 已安装 Python 包版本映射
         """
+        self._installed_packages_overridden = installed_packages is not None
         self.installed_packages = (
             self._normalize_installed_packages(installed_packages)
             if installed_packages is not None
             else self._load_installed_packages()
         )
+
+    def refresh(self) -> None:
+        """
+        刷新当前 Python 环境的已安装包快照。
+
+        显式传入 ``installed_packages`` 的检查器保持固定快照，便于测试和离线检查；
+        从运行环境创建的检查器会重新读取 distribution 元数据。
+
+        :return: None
+        """
+        if self._installed_packages_overridden:
+            return
+        self.installed_packages = self._load_installed_packages()
 
     def check(self, requirements: list[str]) -> list[DependencyCheckItem]:
         """
