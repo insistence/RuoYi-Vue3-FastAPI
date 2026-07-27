@@ -14,7 +14,7 @@ def read_sql(sql_path: Path) -> str:
 
 def test_builtin_sql_contains_plugin_schema_and_management_permissions() -> None:
     """校验内置 SQL 包含插件表结构与管理权限。"""
-    expected_menu_ids = ('122', '1073', '1074', '1075', '1076')
+    expected_menu_ids = ('120', '1069', '1070', '1071', '1072')
 
     for sql_path, quote in SQL_FILES:
         sql_content = read_sql(sql_path)
@@ -39,29 +39,79 @@ def test_builtin_sql_contains_plugin_schema_and_management_permissions() -> None
             assert expected_insert in sql_content
 
 
-def test_builtin_sql_preserves_upstream_ai_and_file_content() -> None:
-    """校验合并后仍保留上游 AI 与文件管理初始化内容。"""
+def test_file_and_plugin_management_menu_ids_are_contiguous() -> None:
+    """校验文件管理及插件管理菜单编号连续且父子关系正确。"""
+    file_permissions = (
+        'system:file:query',
+        'system:file:download',
+        'system:file:remove',
+        'system:file:edit',
+        'system:file:transfer',
+        'system:file:restore',
+        'system:file:purge',
+        'system:file:reconcile',
+    )
+    plugin_permissions = (
+        'system:plugin:query',
+        'system:plugin:edit',
+        'system:plugin:list',
+        'system:plugin:export',
+    )
+
+    for sql_path, quote in SQL_FILES:
+        sql_lines = read_sql(sql_path).splitlines()
+        file_menu_line = next(line for line in sql_lines if "'文件管理'" in line)
+        plugin_menu_line = next(line for line in sql_lines if "'插件管理'" in line)
+        assert f'values({quote}119{quote},' in file_menu_line
+        assert f'values({quote}120{quote},' in plugin_menu_line
+
+        for menu_id, permission in enumerate(file_permissions, start=1061):
+            permission_line = next(line for line in sql_lines if f"'{permission}'" in line and "'F'" in line)
+            assert f'values({quote}{menu_id}{quote},' in permission_line
+            assert f', {quote}119{quote},' in permission_line
+        for menu_id in (119, *range(1061, 1069)):
+            expected_insert = f'insert into sys_role_menu values ({quote}2{quote}, {quote}{menu_id}{quote});'
+            assert expected_insert in sql_lines
+
+        for menu_id, permission in enumerate(plugin_permissions, start=1069):
+            permission_line = next(line for line in sql_lines if f"'{permission}'" in line and "'F'" in line)
+            assert f'values({quote}{menu_id}{quote},' in permission_line
+            assert f', {quote}120{quote},' in permission_line
+
+
+def test_builtin_sql_excludes_ai_plugin_content_and_preserves_file_management() -> None:
+    """校验 AI 内容由插件管理，同时保留上游文件管理初始化内容。"""
     for sql_path, _quote in SQL_FILES:
         sql_content = read_sql(sql_path)
-        for expected_text in (
+        for excluded_text in (
             'AI 管理',
             'ai/model/index',
             'ai/chat/index',
+            'plugin/ai/model/index',
+            'plugin/ai/chat/index',
             'ai_provider_type',
             'create table ai_models',
             'create table ai_chat_config',
+        ):
+            assert excluded_text not in sql_content
+        for expected_text in (
             '文件管理',
             'system/file/index',
             'create table sys_file_info',
             'create table sys_file_reconcile_issue',
         ):
             assert expected_text in sql_content
+        assert '-- 20、文件信息表' in sql_content
+        assert '-- 27、文件存储对账异常表' in sql_content
+        assert '-- 28、插件信息表' in sql_content
+        assert '-- 32、插件批量操作审计日志表' in sql_content
+        assert sql_content.index('create table sys_file_info') < sql_content.index('create table sys_plugin')
 
 
 def test_builtin_sql_uses_ordered_plugin_operation_dict_ids() -> None:
     """校验内置 SQL 中插件操作类型字典 ID 已顺序整理。"""
     for sql_path, _quote in SQL_FILES:
         sql_content = read_sql(sql_path)
-        assert "insert into sys_dict_type values(13, '插件操作类型', 'plugin_operation_type'" in sql_content
-        for dict_code in range(70, 85):
+        assert "insert into sys_dict_type values(12, '插件操作类型', 'plugin_operation_type'" in sql_content
+        for dict_code in range(33, 48):
             assert f'insert into sys_dict_data values({dict_code},' in sql_content
