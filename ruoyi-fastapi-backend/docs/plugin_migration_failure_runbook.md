@@ -9,7 +9,7 @@
 ## 状态说明
 
 | 状态 | 含义 | 处理方式 |
-|---|---|---|
+| --- | --- | --- |
 | `success` | migration 已成功执行 | checksum 一致时自动跳过；checksum 变化时必须新增 migration 文件 |
 | `failed` | migration 执行失败并记录错误 | 修复脚本幂等性或数据库结构后可重试 |
 | `running` | 已开始执行但未记录成功或失败 | 人工确认数据库结构后标记 success 或 failed |
