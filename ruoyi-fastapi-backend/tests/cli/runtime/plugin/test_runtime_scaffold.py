@@ -1,8 +1,18 @@
+import json
 from pathlib import Path
 
 from cli.runtime.plugin.service import CliPluginRuntimeService
 
 from .conftest import FakeRuntimeEnvironment, build_runtime
+
+
+def write_frontend_package(frontend_root: Path, dependencies: dict[str, str]) -> None:
+    """写入测试用前端 package.json。"""
+    frontend_root.mkdir(parents=True, exist_ok=True)
+    (frontend_root / 'package.json').write_text(
+        json.dumps({'dependencies': dependencies}),
+        encoding='utf-8',
+    )
 
 
 class LazyPluginGateway:
@@ -52,6 +62,7 @@ def test_plugin_runtime_create_plugin_dry_run_does_not_write_files(tmp_path: Pat
     assert payload['template'] == 'full-stack'
     assert payload['backend'] is True
     assert payload['frontend'] is True
+    assert payload['frontendVersion'] == 'vue3'
     assert payload['test'] is True
     assert payload['backendTest'] is True
     assert payload['frontendTest'] is True
@@ -89,6 +100,81 @@ def test_plugin_runtime_create_plugin_uses_runtime_frontend_dir(tmp_path: Path) 
     assert (backend_root / 'plugins' / 'demo' / 'plugin.yaml').is_file()
     assert (frontend_root / 'plugins' / 'demo' / 'views' / 'index.vue').is_file()
     assert (frontend_root / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').is_file()
+
+
+def test_plugin_runtime_create_plugin_auto_detects_vue2_frontend(tmp_path: Path) -> None:
+    """校验脚手架会从 package.json 自动识别 Vue 2 并生成对应语法。"""
+    project_root = tmp_path / 'project'
+    backend_root = project_root / 'api-server'
+    frontend_root = project_root / 'web-client'
+    backend_root.mkdir(parents=True)
+    write_frontend_package(frontend_root, {'vue': '^2.7.16', 'element-ui': '^2.15.14'})
+
+    payload = build_runtime(backend_root, frontend_root=frontend_root).create_plugin('demo', template='crud-page')
+
+    view_content = (frontend_root / 'plugins' / 'demo' / 'views' / 'index.vue').read_text(encoding='utf-8')
+    test_content = (frontend_root / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').read_text(encoding='utf-8')
+    assert payload['ok'] is True
+    assert payload['frontendVersion'] == 'vue2'
+    assert '<script>' in view_content
+    assert 'export default {' in view_content
+    assert 'slot-scope="scope"' in view_content
+    assert '<script setup' not in view_content
+    assert "require('../../../src/utils/pluginViewResolver')" in test_content
+    assert "'./demo/views/index.vue'" in test_content
+
+
+def test_plugin_runtime_create_plugin_auto_detects_vue3_frontend(tmp_path: Path) -> None:
+    """校验脚手架会从 package.json 自动识别 Vue 3 并生成对应语法。"""
+    project_root = tmp_path / 'project'
+    backend_root = project_root / 'api-server'
+    frontend_root = project_root / 'web-client'
+    backend_root.mkdir(parents=True)
+    write_frontend_package(frontend_root, {'vue': '~3.5.26', 'element-plus': '^2.11.5'})
+
+    payload = build_runtime(backend_root, frontend_root=frontend_root).create_plugin('demo', template='crud-page')
+
+    view_content = (frontend_root / 'plugins' / 'demo' / 'views' / 'index.vue').read_text(encoding='utf-8')
+    test_content = (frontend_root / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').read_text(encoding='utf-8')
+    assert payload['ok'] is True
+    assert payload['frontendVersion'] == 'vue3'
+    assert '<script setup' in view_content
+    assert '<template #default="scope">' in view_content
+    assert 'export default {' not in view_content
+    assert "from '../../../src/utils/pluginViewResolver.js'" in test_content
+    assert "'../../../plugins/demo/views/index.vue'" in test_content
+
+
+def test_plugin_runtime_create_plugin_supports_frontend_version_override(tmp_path: Path) -> None:
+    """校验显式 frontend_version 会覆盖 package.json 自动识别结果。"""
+    project_root = tmp_path / 'project'
+    backend_root = project_root / 'api-server'
+    frontend_root = project_root / 'web-client'
+    backend_root.mkdir(parents=True)
+    write_frontend_package(frontend_root, {'vue': '^3.5.26'})
+
+    payload = build_runtime(backend_root, frontend_root=frontend_root).create_plugin(
+        'demo',
+        template='crud-page',
+        frontend_version='vue2',
+        dry_run=True,
+    )
+
+    view_payload = next(file for file in payload['files'] if str(file['path']).endswith('/views/index.vue'))
+    assert payload['ok'] is True
+    assert payload['frontendVersion'] == 'vue2'
+    assert 'export default {' in view_payload['content']
+
+
+def test_plugin_runtime_create_plugin_rejects_unknown_frontend_version(tmp_path: Path) -> None:
+    """校验未知的 frontend_version 会返回清晰错误。"""
+    backend_root = tmp_path / 'project' / 'api-server'
+    backend_root.mkdir(parents=True)
+
+    payload = build_runtime(backend_root).create_plugin('demo', frontend_version='vue4', dry_run=True)
+
+    assert payload['ok'] is False
+    assert 'frontend_version 仅支持 auto、vue2、vue3' in str(payload['error'])
 
 
 def test_plugin_runtime_create_plugin_writes_backend_and_frontend_files(tmp_path: Path) -> None:
@@ -159,6 +245,7 @@ def test_plugin_runtime_create_plugin_supports_optional_scaffold_parts(tmp_path:
 
     assert create_payload['ok'] is True
     assert create_payload['frontend'] is False
+    assert create_payload['frontendVersion'] is None
     assert create_payload['migration'] is False
     assert create_payload['seed'] is False
     assert create_payload['job'] is False
@@ -188,6 +275,7 @@ def test_plugin_runtime_create_plugin_supports_minimal_template(tmp_path: Path) 
     assert create_payload['template'] == 'minimal'
     assert create_payload['backend'] is True
     assert create_payload['frontend'] is False
+    assert create_payload['frontendVersion'] is None
     assert create_payload['migration'] is False
     assert create_payload['seed'] is False
     assert create_payload['job'] is False
@@ -213,6 +301,7 @@ def test_plugin_runtime_create_plugin_supports_scheduled_job_template(tmp_path: 
     assert create_payload['template'] == 'scheduled-job'
     assert create_payload['backend'] is True
     assert create_payload['frontend'] is False
+    assert create_payload['frontendVersion'] is None
     assert create_payload['migration'] is False
     assert create_payload['seed'] is False
     assert create_payload['job'] is True

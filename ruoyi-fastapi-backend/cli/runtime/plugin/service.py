@@ -436,7 +436,7 @@ class CliPluginRuntimeService:
         except Exception as exc:
             return self._build_exception_payload('插件测试执行失败', exc)
 
-    def create_plugin(
+    def create_plugin(  # noqa: PLR0913
         self,
         plugin_id: str,
         *,
@@ -448,6 +448,7 @@ class CliPluginRuntimeService:
         job: bool = True,
         config: bool = True,
         test: bool = True,
+        frontend_version: str = 'auto',
         dry_run: bool = False,
     ) -> dict[str, object]:
         """
@@ -462,6 +463,7 @@ class CliPluginRuntimeService:
         :param job: 是否创建定时任务示例
         :param config: 是否创建配置项示例
         :param test: 是否创建测试样例
+        :param frontend_version: 前端 Vue 版本，支持 auto、vue2、vue3
         :param dry_run: 是否仅预演
         :return: 插件创建结果负载
         """
@@ -481,6 +483,7 @@ class CliPluginRuntimeService:
                 job=job,
                 config=config,
                 test=test,
+                frontend_version=frontend_version,
             )
             if scaffold_plan['conflicts']:
                 return PluginScaffoldBuilder.build_conflict_payload(

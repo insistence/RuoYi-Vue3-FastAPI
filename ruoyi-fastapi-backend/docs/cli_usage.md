@@ -240,6 +240,7 @@ ruoyi dev test tests --keyword sanitize --maxfail=1 -q
 
 ```bash
 ruoyi plugin create demo --env=dev --template=full-stack --dry-run
+ruoyi plugin create demo --env=dev --template=crud-page --frontend-version=vue2 --dry-run
 ruoyi plugin check demo --env=dev
 ruoyi plugin check-deps demo --env=dev
 ruoyi plugin allowlist-example --env=dev --dry-run
@@ -253,6 +254,8 @@ ruoyi plugin test demo --env=dev
 ```
 
 `allowlist-example` 会按需生成插件依赖允许列表示例，默认输出路径为 `config/plugin_dependency_allowlist.yaml`。仓库不再默认携带 `.example` 文件；需要模板时可先 `--dry-run` 查看，也可指定 `--output-path` 写入并按团队实际批准范围调整。
+
+`plugin create` 默认使用 `--frontend-version=auto`，从目标前端 `package.json` 的 `vue` 依赖自动识别 Vue 2/3；只有无法识别或需要覆盖时才显式传入 `vue2` 或 `vue3`。插件清单通常保持跨版本一致；确实存在 Vue 绑定库等版本专属依赖时，允许各项目的 `plugin.yaml` 分别声明，并使用按前端版本自动选择的测试覆盖两套清单。
 
 `lock-deps` 会根据 `plugin.yaml` 中声明的 Python/npm/npmDev 外部依赖生成 `plugin.lock.yaml` 模板。默认模式不联网解析版本，也不生成 hash/integrity；如传入 `--offline-dir`，命令会从已有本地 wheel/tgz 反填 `resolvedVersion`、Python `hashes` 和 npm/npmDev `integrity`。该命令仍不会下载、安装或访问 registry，无法反填的项需要由人工审核或 CI 发布流水线补齐后，才能用于 `locked` 或 `offline` 策略。
 

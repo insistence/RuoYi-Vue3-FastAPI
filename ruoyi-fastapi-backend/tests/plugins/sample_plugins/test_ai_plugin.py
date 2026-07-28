@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from cli.runtime.plugin.scaffold import PluginFrontendVersionResolver
 from exceptions.exception import ServiceException
 from plugins.ai.dao.ai_chat_dao import AiChatConfigDao
 from plugins.ai.dao.ai_model_dao import AiModelDao
@@ -16,6 +17,7 @@ from plugins.core.validation.structure import PluginStructureChecker
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 PROJECT_ROOT = BACKEND_ROOT.parent
 FRONTEND_ROOT = PROJECT_ROOT / 'ruoyi-fastapi-frontend'
+FRONTEND_VERSION = PluginFrontendVersionResolver.resolve(FRONTEND_ROOT)
 
 EXPECTED_AI_PERMISSIONS = {
     'ai:model:list',
@@ -39,7 +41,15 @@ EXPECTED_AI_PYTHON_DEPENDENCIES = [
     'openai==2.17.0',
     'portkey-ai==2.1.0',
 ]
-EXPECTED_AI_NPM_DEPENDENCIES = [
+EXPECTED_AI_VUE2_NPM_DEPENDENCIES = [
+    '@antv/infographic^0.2.13',
+    'katex>=0.16.27',
+    'markstream-vue2^0.0.18',
+    'mermaid>=11.12.2',
+    'shiki^3.21.0',
+    'stream-markdown>=0.0.14',
+]
+EXPECTED_AI_VUE3_NPM_DEPENDENCIES = [
     '@antv/infographic^0.2.13',
     'katex>=0.16.27',
     'markstream-vue>=0.0.7-beta.6',
@@ -48,7 +58,7 @@ EXPECTED_AI_NPM_DEPENDENCIES = [
     'stream-markdown>=0.0.14',
     'stream-monaco>=0.0.17',
 ]
-EXPECTED_AI_NPM_DEV_DEPENDENCIES = ['vite-plugin-monaco-editor-esm==2.0.2']
+EXPECTED_AI_VUE3_NPM_DEV_DEPENDENCIES = ['vite-plugin-monaco-editor-esm==2.0.2']
 EXPECTED_DEFAULT_NUM_HISTORY_RUNS = 3
 
 
@@ -71,9 +81,25 @@ def test_ai_plugin_template_can_be_discovered() -> None:
     assert set(plugin.manifest.permission_codes) == EXPECTED_AI_PERMISSIONS
     assert plugin.manifest.permission_name_map['ai:model:add'] == '新增模型'
     assert plugin.manifest.dependencies.python == EXPECTED_AI_PYTHON_DEPENDENCIES
-    assert plugin.manifest.dependencies.npm == EXPECTED_AI_NPM_DEPENDENCIES
-    assert plugin.manifest.dependencies.npm_dev == EXPECTED_AI_NPM_DEV_DEPENDENCIES
     assert plugin.manifest.config.items == []
+
+
+@pytest.mark.skipif(FRONTEND_VERSION != 'vue2', reason='当前项目不是 Vue 2 前端')
+def test_ai_plugin_vue2_frontend_dependencies() -> None:
+    """校验 Vue 2 项目的 AI 插件声明 Vue 2 专属前端依赖。"""
+    plugin = PluginScanner(BACKEND_ROOT / 'plugins').load_manifest(BACKEND_ROOT / 'plugins' / 'ai' / 'plugin.yaml')
+
+    assert plugin.manifest.dependencies.npm == EXPECTED_AI_VUE2_NPM_DEPENDENCIES
+    assert plugin.manifest.dependencies.npm_dev == []
+
+
+@pytest.mark.skipif(FRONTEND_VERSION != 'vue3', reason='当前项目不是 Vue 3 前端')
+def test_ai_plugin_vue3_frontend_dependencies() -> None:
+    """校验 Vue 3 项目的 AI 插件声明 Vue 3 专属前端依赖。"""
+    plugin = PluginScanner(BACKEND_ROOT / 'plugins').load_manifest(BACKEND_ROOT / 'plugins' / 'ai' / 'plugin.yaml')
+
+    assert plugin.manifest.dependencies.npm == EXPECTED_AI_VUE3_NPM_DEPENDENCIES
+    assert plugin.manifest.dependencies.npm_dev == EXPECTED_AI_VUE3_NPM_DEV_DEPENDENCIES
 
 
 def test_ai_plugin_runtime_paths_exist() -> None:

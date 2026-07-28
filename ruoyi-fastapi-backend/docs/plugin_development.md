@@ -34,6 +34,15 @@ cd ruoyi-fastapi-backend
 ruoyi plugin create demo --env=dev --template=full-stack
 ```
 
+脚手架默认使用 `--frontend-version=auto`，会读取目标前端 `package.json` 的 `vue` 依赖，并自动生成 Vue 2（Element UI、Options API、CommonJS 测试）或 Vue 3（Element Plus、Composition API、ESM 测试）模板。通常无需传参；识别失败或需要覆盖时可显式指定：
+
+```bash
+ruoyi plugin create demo --env=dev --template=crud-page --frontend-version=vue2
+ruoyi plugin create demo --env=dev --template=crud-page --frontend-version=vue3
+```
+
+后端实现应在 Vue 2/3 项目间保持一致。`plugin.yaml` 通常只声明两个前端都使用的业务依赖；如果插件确实依赖不同的 Vue 绑定库或构建插件，允许各项目保留不同清单，但应分别提供 Vue 2/3 测试，并根据目标前端 `package.json` 自动选择执行。
+
 常用模板：
 
 - `minimal`：最小插件。

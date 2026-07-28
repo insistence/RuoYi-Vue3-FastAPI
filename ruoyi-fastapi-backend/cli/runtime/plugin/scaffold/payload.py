@@ -22,6 +22,7 @@ class PluginScaffoldPlanPayload:
     test: bool
     backend_test: bool
     frontend_test: bool
+    frontend_version: str | None
     target_dirs: list[str]
     files: list[tuple[Path, str]]
     conflicts: list[str]
@@ -44,6 +45,7 @@ class PluginScaffoldPlanPayload:
             'test': self.test,
             'backendTest': self.backend_test,
             'frontendTest': self.frontend_test,
+            'frontendVersion': self.frontend_version,
             'targetDirs': self.target_dirs,
             'files': [{'path': str(path), 'content': content} for path, content in self.files],
             'conflicts': self.conflicts,

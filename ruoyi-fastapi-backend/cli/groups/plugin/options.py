@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -9,6 +10,7 @@ class PluginCreateCommandOptions:
     :param backend_only: 是否只创建后端插件模板
     :param frontend_only: 是否只创建前端插件模板
     :param template: 插件模板名称
+    :param frontend_version: 前端 Vue 版本，支持 auto、vue2、vue3
     :param no_migration: 是否不创建 migration 示例
     :param no_seed: 是否不创建 seed 示例
     :param no_job: 是否不创建定时任务示例
@@ -20,6 +22,7 @@ class PluginCreateCommandOptions:
     backend_only: bool = False
     frontend_only: bool = False
     template: str = 'full-stack'
+    frontend_version: Literal['auto', 'vue2', 'vue3'] = 'auto'
     no_migration: bool = False
     no_seed: bool = False
     no_job: bool = False

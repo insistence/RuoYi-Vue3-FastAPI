@@ -4,7 +4,7 @@ from typing import Any
 from plugins.core.utils import validate_plugin_id_value
 
 from .backend import PluginBackendScaffoldTemplateBuilder
-from .frontend import PluginFrontendScaffoldTemplateBuilder
+from .frontend import FrontendVersion, PluginFrontendScaffoldTemplateBuilder, PluginFrontendVersionResolver
 from .options import PluginScaffoldOptions, PluginScaffoldTemplateResolver
 from .payload import PluginScaffoldPayloadBuilder, PluginScaffoldPlanPayload
 
@@ -38,6 +38,7 @@ class PluginScaffoldBuilder:
         job: bool = True,
         config: bool = True,
         test: bool = True,
+        frontend_version: str = PluginFrontendVersionResolver.AUTO,
     ) -> dict[str, Any]:
         """
         构建插件模板写入计划。
@@ -51,6 +52,7 @@ class PluginScaffoldBuilder:
         :param job: 是否创建定时任务示例
         :param config: 是否创建配置项示例
         :param test: 是否创建测试样例
+        :param frontend_version: 前端 Vue 版本，支持 auto、vue2、vue3
         :return: 插件模板写入计划
         """
         self._validate_plugin_id(plugin_id)
@@ -71,6 +73,9 @@ class PluginScaffoldBuilder:
         target_dirs = []
         effective_backend_test = options.test and options.backend
         effective_frontend_test = options.test and options.frontend
+        resolved_frontend_version = (
+            PluginFrontendVersionResolver.resolve(self.frontend_root, frontend_version) if options.frontend else None
+        )
         if options.backend:
             backend_plugin_root = self.backend_root / 'plugins' / plugin_id
             target_dirs.append(str(backend_plugin_root))
@@ -78,11 +83,19 @@ class PluginScaffoldBuilder:
                 target_dirs.append(str(self.backend_root / 'tests' / 'plugins' / plugin_id))
             files.extend(self._build_backend_files(plugin_id, backend_plugin_root, options))
         if options.frontend:
+            assert resolved_frontend_version is not None
             frontend_plugin_root = self.frontend_root / 'plugins' / plugin_id
             target_dirs.append(str(frontend_plugin_root))
             if effective_frontend_test:
                 target_dirs.append(str(self.frontend_root / 'tests' / 'plugins' / plugin_id))
-            files.extend(self._build_frontend_files(plugin_id, frontend_plugin_root, options))
+            files.extend(
+                self._build_frontend_files(
+                    plugin_id,
+                    frontend_plugin_root,
+                    options,
+                    frontend_version=resolved_frontend_version,
+                )
+            )
 
         conflicts = [target_dir for target_dir in target_dirs if Path(target_dir).exists()]
 
@@ -98,6 +111,7 @@ class PluginScaffoldBuilder:
             test=effective_backend_test or effective_frontend_test,
             backend_test=effective_backend_test,
             frontend_test=effective_frontend_test,
+            frontend_version=resolved_frontend_version,
             target_dirs=target_dirs,
             files=files,
             conflicts=conflicts,
@@ -225,6 +239,8 @@ class PluginScaffoldBuilder:
         plugin_id: str,
         plugin_root: Path,
         options: PluginScaffoldOptions,
+        *,
+        frontend_version: FrontendVersion,
     ) -> list[tuple[Path, str]]:
         """
         构建前端插件模板文件。
@@ -232,6 +248,7 @@ class PluginScaffoldBuilder:
         :param plugin_id: 插件ID
         :param plugin_root: 前端插件根目录
         :param options: 插件模板生成选项
+        :param frontend_version: 已解析的前端 Vue 版本
         :return: 文件路径和内容列表
         """
         files = [
@@ -243,17 +260,20 @@ class PluginScaffoldBuilder:
             ),
             (
                 plugin_root / 'views' / 'index.vue',
-                PluginFrontendScaffoldTemplateBuilder.build_crud_view(plugin_id)
+                PluginFrontendScaffoldTemplateBuilder.build_crud_view(plugin_id, frontend_version)
                 if options.crud
-                else PluginFrontendScaffoldTemplateBuilder.build_view(plugin_id),
+                else PluginFrontendScaffoldTemplateBuilder.build_view(plugin_id, frontend_version),
             ),
-            (plugin_root / 'README.md', PluginFrontendScaffoldTemplateBuilder.build_readme(plugin_id)),
+            (
+                plugin_root / 'README.md',
+                PluginFrontendScaffoldTemplateBuilder.build_readme(plugin_id, frontend_version),
+            ),
         ]
         if options.test:
             files.append(
                 (
                     self.frontend_root / 'tests' / 'plugins' / plugin_id / 'pluginView.test.js',
-                    PluginFrontendScaffoldTemplateBuilder.build_test(plugin_id),
+                    PluginFrontendScaffoldTemplateBuilder.build_test(plugin_id, frontend_version),
                 )
             )
 
