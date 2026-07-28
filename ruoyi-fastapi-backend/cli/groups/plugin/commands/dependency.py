@@ -81,6 +81,7 @@ def register_dependency_commands(app: typer.Typer, get_controller: Callable[[], 
     @app.command('install-deps', help='安装插件依赖')
     def install_deps_command(  # noqa: PLR0913
         plugin_id: Annotated[str, typer.Argument(help='插件ID')],
+        *,
         env: EnvOption = 'dev',
         output: OutputOption = 'text',
         allow_prod: AllowProdOption = False,

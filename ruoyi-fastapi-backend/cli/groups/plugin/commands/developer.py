@@ -52,6 +52,7 @@ def register_developer_commands(app: typer.Typer, get_controller: Callable[[], A
     @app.command('create', help='创建插件开发模板')
     def create_command(  # noqa: PLR0913
         plugin_id: Annotated[str, typer.Argument(help='插件ID')],
+        *,
         env: EnvOption = 'dev',
         output: OutputOption = 'text',
         template: Annotated[
