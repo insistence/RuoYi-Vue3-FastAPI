@@ -1,14 +1,17 @@
 import os
+import subprocess
 
 from cli.runtime import RUNTIME_ENVIRONMENT, RuntimeEnvironmentService
+
+_IS_WINDOWS = os.name == 'nt'
 
 
 class AppBootstrapService:
     """
     应用引导服务。
 
-    该服务负责解析应用原始入口路径、构建启动命令，并以 `exec`
-    方式将当前 CLI 进程切换为 FastAPI 应用入口进程。
+    该服务负责解析应用原始入口路径、构建启动命令，并使用与当前平台兼容的方式
+    将 CLI 进程切换为或连接到 FastAPI 应用入口进程。
     """
 
     def __init__(self, *, runtime_environment: RuntimeEnvironmentService | None = None) -> None:
@@ -50,6 +53,12 @@ class AppBootstrapService:
         :return: None
         """
         command = self.build_app_run_command(env)
+        if _IS_WINDOWS:
+            try:
+                completed = subprocess.run(command, check=False)
+            except KeyboardInterrupt:
+                raise SystemExit(130) from None
+            raise SystemExit(completed.returncode)
         os.execvp(command[0], command)
 
 
