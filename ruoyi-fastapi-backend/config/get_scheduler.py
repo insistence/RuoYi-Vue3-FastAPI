@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import json
+import random
 from asyncio import iscoroutinefunction
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -17,6 +18,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.combining import OrTrigger
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from apscheduler.util import obj_to_ref
 from redis import asyncio as aioredis
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -115,8 +117,10 @@ class SchedulerUtil:
     # 分布式锁相关类变量
     _is_leader: bool = False
     _worker_id: str = WorkerIdUtil.get_worker_id(LogConfig.log_worker_id)
+    _application_lock_owner_token: str = StartupUtil.get_application_lock_owner_token(_worker_id)
+    _application_lock_renewal_task: asyncio.Task | None = None
     _redis: aioredis.Redis | None = None
-    _job_update_time_cache: dict[str, datetime] = {}
+    _job_update_time_cache: dict[str, datetime | None] = {}
     _sync_channel: str = 'scheduler:sync:request'
     _sync_listener_task: asyncio.Task | None = None
     _lock_lost_task: asyncio.Task | None = None
@@ -128,6 +132,8 @@ class SchedulerUtil:
     _sync_min_interval_seconds: float = 2.0
     _reacquire_task: asyncio.Task | None = None
     _reacquire_interval_seconds: float = 5.0
+    _reacquire_jitter_seconds: float = 1.0
+    _is_closing: bool = False
     _sync_async_engine: AsyncEngine | None = None
     _sync_async_sessionmaker: Any | None = None
     _disposed_sync_engines: bool = False
@@ -137,6 +143,37 @@ class SchedulerUtil:
     _listener_engine: Engine | None = None
     _session_local: Any | None = None
     _scheduler_configured: bool = False
+
+    @staticmethod
+    def _parse_job_args(job_args: str | None) -> list[Any] | None:
+        """
+        解析任务位置参数。
+
+        :param job_args: 数据库中的任务位置参数
+        :return: 位置参数列表
+        """
+        if not job_args:
+            return None
+
+        try:
+            parsed_args = json.loads(job_args)
+        except json.JSONDecodeError:
+            return job_args.split(',')
+
+        if isinstance(parsed_args, list):
+            return parsed_args
+
+        return [parsed_args]
+
+    @staticmethod
+    def _dump_job_args(args: tuple[Any, ...] | list[Any] | None) -> str:
+        """
+        序列化任务位置参数。
+
+        :param args: 调度器任务位置参数
+        :return: 数据库存储字符串
+        """
+        return json.dumps(list(args), ensure_ascii=False) if args else ''
 
     @classmethod
     def _get_jobstore_engine(cls) -> Engine:
@@ -207,20 +244,81 @@ class SchedulerUtil:
         :return:
         """
         cls._redis = redis
-        logger.info(f'🔎 Worker {cls._worker_id} 尝试获取 Application 锁...')
+        cls._is_closing = False
+        logger.debug(f'🔎 Worker {cls._worker_id} 尝试获取 Application 锁...')
 
-        acquired = await StartupUtil.acquire_startup_log_gate(
+        acquired = await StartupUtil.acquire_application_leader(
             redis=redis,
             lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
-            worker_id=cls._worker_id,
+            owner_token=cls.get_application_lock_owner_token(),
             lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
         )
 
         if acquired:
-            await cls._start_scheduler_as_leader(redis)
+            await cls._activate_scheduler_as_leader(redis)
         else:
             cls._is_leader = False
-            logger.info(f'⏸️ Worker {cls._worker_id} 未持有 Application 锁，跳过 Scheduler 启动')
+            logger.debug(f'⏸️ Worker {cls._worker_id} 未持有 Application 锁，跳过 Scheduler 启动')
+            cls._ensure_reacquire_task()
+
+    @classmethod
+    def get_application_lock_owner_token(cls) -> str:
+        """
+        获取当前进程的Application leader租约owner token。
+
+        :return: Application锁owner token
+        """
+        cls._application_lock_owner_token = StartupUtil.get_application_lock_owner_token(cls._worker_id)
+        return cls._application_lock_owner_token
+
+    @classmethod
+    def is_application_leader(cls) -> bool:
+        """
+        判断当前进程是否仍以Application leader身份运行。
+
+        :return: 是否为Application leader
+        """
+        return cls._is_leader
+
+    @classmethod
+    def start_application_lock_renewal(cls, redis: aioredis.Redis) -> asyncio.Task:
+        """
+        启动或复用当前进程的Application leader租约续期任务。
+
+        :param redis: Redis连接对象
+        :return: Application锁续期任务
+        """
+        # server可能在Scheduler正式初始化前就获得租约；提前保存Redis以便启动失败时释放。
+        cls._redis = redis
+        renewal_task = cls._application_lock_renewal_task
+        if renewal_task and not renewal_task.done():
+            return renewal_task
+        cls._application_lock_renewal_task = StartupUtil.start_application_leader_renewal(
+            redis=redis,
+            lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
+            owner_token=cls.get_application_lock_owner_token(),
+            lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
+            interval_seconds=LockConstant.LOCK_RENEWAL_INTERVAL,
+            on_lock_lost=cls.on_lock_lost,
+        )
+        return cls._application_lock_renewal_task
+
+    @classmethod
+    async def stop_application_lock_renewal(cls) -> None:
+        """
+        停止当前进程的Application leader租约续期任务。
+
+        :return: None
+        """
+        renewal_task = cls._application_lock_renewal_task
+        cls._application_lock_renewal_task = None
+        if not renewal_task or renewal_task.done():
+            return
+        renewal_task.cancel()
+        try:
+            await renewal_task
+        except asyncio.CancelledError:
+            pass
 
     @classmethod
     async def _start_scheduler_as_leader(cls, redis: aioredis.Redis) -> None:
@@ -242,6 +340,7 @@ class SchedulerUtil:
             job_list = await JobDao.get_job_list_for_scheduler(session)
             for item in job_list:
                 cls._add_job_to_scheduler(item)
+                cls._refresh_job_update_cache(str(item.job_id), item.update_time)
 
         # 添加事件监听器
         scheduler.add_listener(cls.scheduler_event_listener, EVENT_ALL)
@@ -259,6 +358,33 @@ class SchedulerUtil:
             cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
 
         logger.info('✅️ 系统初始定时任务加载成功')
+
+    @classmethod
+    async def _activate_scheduler_as_leader(cls, redis: aioredis.Redis) -> None:
+        """
+        启动租约续期并以Application leader身份激活Scheduler。
+
+        Scheduler启动失败时立即停止续期并原子释放租约，避免故障worker继续占用
+        Application leader身份。
+
+        :param redis: Redis连接对象
+        :return: None
+        """
+        cls.start_application_lock_renewal(redis)
+        try:
+            await cls._start_scheduler_as_leader(redis)
+        except Exception:
+            cls._is_leader = False
+            await cls.stop_application_lock_renewal()
+            try:
+                await StartupUtil.release_application_leader(
+                    redis,
+                    LockConstant.APP_STARTUP_LOCK_KEY,
+                    cls.get_application_lock_owner_token(),
+                )
+            except Exception:
+                logger.exception('❌ Scheduler启动失败后释放Application leader租约失败')
+            raise
 
     @classmethod
     def on_lock_lost(cls) -> None:
@@ -328,7 +454,7 @@ class SchedulerUtil:
                 for job_id in jobs_to_remove:
                     scheduler.remove_job(job_id=job_id)
                     logger.info(f'🗑️ 同步移除任务: {job_id}')
-                    cls._refresh_job_update_cache(job_id, None)
+                    cls._invalidate_job_update_cache(job_id)
 
                 jobs_to_add = db_enabled_ids - scheduler_job_ids
                 for job_id in jobs_to_add:
@@ -358,10 +484,11 @@ class SchedulerUtil:
         :return: 是否一致
         """
         job_state = scheduler_job.__getstate__()
-        job_kwargs = json.loads(job_info.job_kwargs) if job_info.job_kwargs else None
-        job_args = job_info.job_args.split(',') if job_info.job_args else None
+        job_kwargs = json.loads(job_info.job_kwargs) if job_info.job_kwargs else {}
+        job_args = cls._parse_job_args(job_info.job_args) or []
+        job_func = cls._import_function(job_info.invoke_target)
         job_executor = job_info.job_executor
-        if iscoroutinefunction(cls._import_function(job_info.invoke_target)):
+        if iscoroutinefunction(job_func):
             job_executor = 'default'
         expected = {
             'name': job_info.job_name,
@@ -371,9 +498,9 @@ class SchedulerUtil:
             'coalesce': job_info.misfire_policy == '2',
             'max_instances': 3 if job_info.concurrent == '0' else 1,
             'trigger': str(MyCronTrigger.from_crontab(job_info.cron_expression)),
-            'args': tuple(job_args) if job_args else None,
-            'kwargs': job_kwargs if job_kwargs else None,
-            'func': str(cls._import_function(job_info.invoke_target)),
+            'args': tuple(job_args),
+            'kwargs': job_kwargs,
+            'func': obj_to_ref(job_func),
         }
         current = {
             'name': job_state.get('name'),
@@ -383,9 +510,9 @@ class SchedulerUtil:
             'coalesce': job_state.get('coalesce'),
             'max_instances': job_state.get('max_instances'),
             'trigger': str(job_state.get('trigger')),
-            'args': job_state.get('args'),
-            'kwargs': job_state.get('kwargs'),
-            'func': str(job_state.get('func')),
+            'args': tuple(job_state.get('args') or ()),
+            'kwargs': dict(job_state.get('kwargs') or {}),
+            'func': job_state.get('func'),
         }
         return expected == current
 
@@ -421,9 +548,7 @@ class SchedulerUtil:
         :param job_update_time: 任务更新时间
         :return: 是否跳过
         """
-        if job_update_time is None:
-            return False
-        return cls._job_update_time_cache.get(job_id) == job_update_time
+        return job_id in cls._job_update_time_cache and cls._job_update_time_cache[job_id] == job_update_time
 
     @classmethod
     def _refresh_job_update_cache(cls, job_id: str, job_update_time: datetime | None) -> None:
@@ -434,10 +559,17 @@ class SchedulerUtil:
         :param job_update_time: 任务更新时间
         :return: None
         """
-        if job_update_time is not None:
-            cls._job_update_time_cache[job_id] = job_update_time
-        else:
-            cls._job_update_time_cache.pop(job_id, None)
+        cls._job_update_time_cache[job_id] = job_update_time
+
+    @classmethod
+    def _invalidate_job_update_cache(cls, job_id: str) -> None:
+        """
+        移除任务更新时间缓存
+
+        :param job_id: 任务ID
+        :return: None
+        """
+        cls._job_update_time_cache.pop(job_id, None)
 
     @classmethod
     async def request_scheduler_sync(cls) -> None:
@@ -513,11 +645,20 @@ class SchedulerUtil:
 
         :return: None
         """
-        if not cls._redis:
+        if cls._is_closing or not cls._redis:
             return
         if cls._reacquire_task and not cls._reacquire_task.done():
             return
         cls._reacquire_task = asyncio.create_task(cls._run_reacquire_loop())
+
+    @classmethod
+    def _get_reacquire_delay(cls) -> float:
+        """
+        获取带随机抖动的锁重新竞争间隔
+
+        :return: 重新竞争等待秒数
+        """
+        return cls._reacquire_interval_seconds + random.uniform(0, cls._reacquire_jitter_seconds)
 
     @classmethod
     async def _run_reacquire_loop(cls) -> None:
@@ -527,21 +668,29 @@ class SchedulerUtil:
         :return: None
         """
         try:
-            while not cls._is_leader:
+            while not cls._is_leader and not cls._is_closing:
+                await asyncio.sleep(cls._get_reacquire_delay())
+                if cls._is_closing:
+                    break
                 if not cls._redis:
-                    await asyncio.sleep(cls._reacquire_interval_seconds)
                     continue
-                acquired = await StartupUtil.acquire_startup_log_gate(
-                    redis=cls._redis,
-                    lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
-                    worker_id=cls._worker_id,
-                    lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
-                )
+                try:
+                    acquired = await StartupUtil.acquire_application_leader(
+                        redis=cls._redis,
+                        lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
+                        owner_token=cls.get_application_lock_owner_token(),
+                        lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
+                    )
+                except Exception as exc:
+                    logger.error(f'❌ Application leader租约重新竞争失败：{exc}')
+                    continue
                 if acquired:
-                    # 直接调用 _start_scheduler_as_leader，避免重复获取锁
-                    await cls._start_scheduler_as_leader(cls._redis)
+                    try:
+                        await cls._activate_scheduler_as_leader(cls._redis)
+                    except Exception:
+                        logger.exception('❌ 重新获得Application leader租约后恢复Scheduler失败')
+                        continue
                     return
-                await asyncio.sleep(cls._reacquire_interval_seconds)
         except asyncio.CancelledError:
             raise
         finally:
@@ -698,7 +847,7 @@ class SchedulerUtil:
         return {
             'func': job_func,
             'trigger': MyCronTrigger.from_crontab(job_info.cron_expression),
-            'args': job_info.job_args.split(',') if job_info.job_args else None,
+            'args': cls._parse_job_args(job_info.job_args),
             'kwargs': json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
             'id': str(job_info.job_id),
             'name': job_info.job_name,
@@ -732,6 +881,8 @@ class SchedulerUtil:
 
         :return:
         """
+        cls._is_closing = True
+        await cls.stop_application_lock_renewal()
         if cls._sync_listener_task:
             cls._sync_listener_task.cancel()
             try:
@@ -766,12 +917,20 @@ class SchedulerUtil:
         if getattr(scheduler, 'running', False):
             scheduler.shutdown()
             logger.info('✅️ 关闭定时任务成功')
-        # 释放锁
-        if cls._redis:
-            current_holder = await cls._redis.get(LockConstant.APP_STARTUP_LOCK_KEY)
-            if current_holder == cls._worker_id:
-                await cls._redis.delete(LockConstant.APP_STARTUP_LOCK_KEY)
-                logger.info(f'🔓 Worker {cls._worker_id} 释放 Application 锁')
+        # 必须在Redis连接池关闭前，原子释放当前进程持有的Application leader租约
+        redis = cls._redis
+        cls._redis = None
+        try:
+            if redis:
+                released = await StartupUtil.release_application_leader(
+                    redis,
+                    LockConstant.APP_STARTUP_LOCK_KEY,
+                    cls.get_application_lock_owner_token(),
+                )
+                if released:
+                    logger.info(f'🔓 Worker {cls._worker_id} 释放 Application 锁')
+        finally:
+            cls._is_leader = False
 
     @classmethod
     def _import_function(cls, func_path: str) -> Callable[..., Any]:
@@ -809,6 +968,7 @@ class SchedulerUtil:
         if not cls._is_leader:
             return
         scheduler.add_job(**cls._prepare_scheduler_job_add(job_info))
+        cls._refresh_job_update_cache(str(job_info.job_id), job_info.update_time)
 
     @classmethod
     def execute_scheduler_job_once(cls, job_info: JobModel) -> None:
@@ -826,7 +986,7 @@ class SchedulerUtil:
         # 非应用锁 worker：直接执行函数（不通过 scheduler）
         if not cls._is_leader:
             logger.info(f'📍 当前 Worker 未持有 Application 锁，直接执行任务 {job_info.job_name}')
-            args = job_info.job_args.split(',') if job_info.job_args else []
+            args = cls._parse_job_args(job_info.job_args) or []
             kwargs = json.loads(job_info.job_kwargs) if job_info.job_kwargs else {}
             status = '0'
             exception_info = ''
@@ -852,7 +1012,7 @@ class SchedulerUtil:
         scheduler.add_job(
             func=job_func,
             trigger=job_trigger,
-            args=job_info.job_args.split(',') if job_info.job_args else None,
+            args=cls._parse_job_args(job_info.job_args),
             kwargs=json.loads(job_info.job_kwargs) if job_info.job_kwargs else None,
             id=str(job_info.job_id),
             name=job_info.job_name,
@@ -874,9 +1034,11 @@ class SchedulerUtil:
         # 非应用锁 worker 跳过操作（数据库状态是持久化的，持有应用锁时会根据状态加载）
         if not cls._is_leader:
             return
+        job_id = str(job_id)
         query_job = cls.get_scheduler_job(job_id=job_id)
         if query_job:
-            scheduler.remove_job(job_id=str(job_id))
+            scheduler.remove_job(job_id=job_id)
+        cls._invalidate_job_update_cache(job_id)
 
     @classmethod
     def scheduler_event_listener(cls, event: SchedulerEvent) -> None:
@@ -910,7 +1072,7 @@ class SchedulerUtil:
                     invoke_target = query_job_info.get('func')
                     # 获取调用函数位置参数（安全处理）
                     args = query_job_info.get('args')
-                    job_args = ','.join(str(arg) for arg in args) if args else ''
+                    job_args = cls._dump_job_args(args)
                     # 获取调用函数关键字参数
                     kwargs = query_job_info.get('kwargs')
                     job_kwargs = json.dumps(kwargs) if kwargs else '{}'

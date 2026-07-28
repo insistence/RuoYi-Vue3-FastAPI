@@ -430,7 +430,11 @@ class LoggerInitializer:
 
     def _filter(self, record: dict) -> bool:
         """
-        注入 Trace 上下文并控制启动阶段日志输出
+        注入 Trace 上下文并执行日志扩展字段脱敏。
+
+        worker 角色和启动阶段仅作为可观测性标签，不能作为日志访问控制条件。
+        需要去重的应用横幅等展示日志由调用点显式判断 Application leader，
+        避免静默非 leader worker 的插件日志、错误日志和后台任务日志。
 
         :param record: Loguru 日志记录字典
         :return: 是否允许输出日志
@@ -443,11 +447,7 @@ class LoggerInitializer:
         record['extra']['worker_id'] = self.worker_id
         record['extra']['instance_id'] = self.instance_id
         record['extra']['service'] = self.service_name
-        startup_phase = record['extra'].get('startup_phase')
-        startup_log_enabled = record['extra'].get('startup_log_enabled')
         record['extra'] = LogSanitizer.sanitize_data(record['extra'])
-        if startup_phase:
-            return bool(startup_log_enabled)
         return True
 
     @staticmethod

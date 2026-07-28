@@ -13,6 +13,7 @@ from config.get_scheduler import SchedulerUtil
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
 from module_admin.service.log_service import LogAggregatorService
+from plugins.core.runtime.application import get_plugin_application_runtime
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
 from utils.log_util import logger
@@ -38,23 +39,41 @@ async def _stop_background_tasks(app: FastAPI) -> None:
     :param app: FastAPI对象
     :return: None
     """
-    log_task = getattr(app.state, 'log_aggregator_task', None)
-    if log_task:
-        log_task.cancel()
+    try:
+        log_task = getattr(app.state, 'log_aggregator_task', None)
+        if log_task:
+            log_task.cancel()
+            try:
+                await log_task
+            except asyncio.CancelledError:
+                pass
+    finally:
         try:
-            await log_task
-        except asyncio.CancelledError:
-            pass
-    lock_task = getattr(app.state, 'lock_renewal_task', None)
-    if lock_task:
-        lock_task.cancel()
+            # Scheduler负责停止续期并释放Application租约，必须先于Redis连接池关闭。
+            await SchedulerUtil.close_system_scheduler()
+        finally:
+            try:
+                await RedisUtil.close_redis_pool(app)
+            finally:
+                await close_async_engine()
+
+
+async def _shutdown_application_runtime(app: FastAPI) -> None:
+    """
+    关闭插件运行时并保证基础设施资源始终释放。
+
+    :param app: FastAPI对象
+    :return: None
+    """
+    try:
+        if getattr(app.state, 'plugin_application_runtime_started', False):
+            await get_plugin_application_runtime().shutdown(app)
+    finally:
         try:
-            await lock_task
-        except asyncio.CancelledError:
-            pass
-    await RedisUtil.close_redis_pool(app)
-    await SchedulerUtil.close_system_scheduler()
-    await close_async_engine()
+            await _stop_background_tasks(app)
+        finally:
+            # 所有sink均使用enqueue=True，进程退出前必须等待插件Hook等尾部日志落盘。
+            await logger.complete()
 
 
 # 生命周期事件
@@ -67,70 +86,108 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     :return: None
     """
     app.state.redis = await RedisUtil.create_redis_pool(log_enabled=False)
-    startup_log_enabled = await StartupUtil.acquire_startup_log_gate(
-        redis=app.state.redis,
-        lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
-        worker_id=SchedulerUtil._worker_id,
-        lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
-    )
-    app.state.startup_log_enabled = startup_log_enabled
-
-    # 获取锁成功后立即启动锁续期任务，避免初始化时间过长导致锁过期
-    if startup_log_enabled:
-        app.state.lock_renewal_task = StartupUtil.start_lock_renewal(
+    app.state.plugin_application_runtime_started = False
+    try:
+        application_lock_owner_token = SchedulerUtil.get_application_lock_owner_token()
+        application_leader = await StartupUtil.acquire_application_leader(
             redis=app.state.redis,
             lock_key=LockConstant.APP_STARTUP_LOCK_KEY,
-            worker_id=SchedulerUtil._worker_id,
+            owner_token=application_lock_owner_token,
             lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
-            interval_seconds=LockConstant.LOCK_RENEWAL_INTERVAL,
-            on_lock_lost=SchedulerUtil.on_lock_lost,
         )
+        app.state.application_leader = application_leader
+        app.state.application_lock_owner_token = application_lock_owner_token
 
-    with logger.contextualize(startup_phase=True, startup_log_enabled=startup_log_enabled):
-        logger.info(f'⏰️ {AppConfig.app_name}开始启动')
-        if startup_log_enabled:
+        # 获取锁成功后立即启动锁续期任务，避免初始化时间过长导致锁过期
+        if application_leader:
+            SchedulerUtil.start_application_lock_renewal(app.state.redis)
+
+        startup_logger = logger.bind(
+            startup_phase='application_startup',
+            startup_role='application_leader',
+        )
+        if application_leader:
+            startup_logger.info(f'⏰️ {AppConfig.app_name}开始启动')
             worship()
         TransportKeyProvider.validate_runtime_configuration()
-        await init_create_table()
-        await RedisUtil.check_redis_connection(app.state.redis, log_enabled=startup_log_enabled)
-        await RedisUtil.init_sys_dict(app.state.redis)
-        await RedisUtil.init_sys_config(app.state.redis)
-        await _start_background_tasks(app)
+        await _initialize_application_runtime(app, application_leader=application_leader)
 
-    if startup_log_enabled:
-        # 短暂等待确保下面的启动日志在最后打印
-        await asyncio.sleep(0.5)
-        logger.info(f'🚀 {AppConfig.app_name}启动成功')
-        host = AppConfig.app_host
-        port = AppConfig.app_port
-        if host == '0.0.0.0':
-            local_ip = IPUtil.get_local_ip()
-            network_ips = IPUtil.get_network_ips()
-        else:
-            local_ip = host
-            network_ips = [host]
+        # 初始化期间可能因续期失败失去租约；此时不得继续输出leader专属成功摘要。
+        application_leader = application_leader and SchedulerUtil.is_application_leader()
+        app.state.application_leader = application_leader
+        if application_leader:
+            # 短暂等待确保下面的启动日志在最后打印
+            await asyncio.sleep(1)
+            startup_logger.info(f'🚀 {AppConfig.app_name}启动成功')
+            host = AppConfig.app_host
+            port = AppConfig.app_port
+            if host == '0.0.0.0':
+                local_ip = IPUtil.get_local_ip()
+                network_ips = IPUtil.get_network_ips()
+            else:
+                local_ip = host
+                network_ips = [host]
 
-        app_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}</cyan>']
-        app_links.extend(f'📡 Network:  <cyan>http://{ip}:{port}</cyan>' for ip in network_ips)
-        logger.opt(colors=True).info('💻 应用地址:\n' + '\n'.join(app_links))
+            app_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}</cyan>']
+            app_links.extend(f'📡 Network:  <cyan>http://{ip}:{port}</cyan>' for ip in network_ips)
+            logger.opt(colors=True).info('💻 应用地址:\n' + '\n'.join(app_links))
 
-        if not AppConfig.app_disable_swagger:
-            swagger_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.docs_url()}</cyan>']
-            swagger_links.extend(
-                f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.docs_url()}</cyan>' for ip in network_ips
-            )
-            logger.opt(colors=True).info('📄 Swagger文档:\n' + '\n'.join(swagger_links))
+            if not AppConfig.app_disable_swagger:
+                swagger_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.docs_url()}</cyan>']
+                swagger_links.extend(
+                    f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.docs_url()}</cyan>' for ip in network_ips
+                )
+                logger.opt(colors=True).info('📄 Swagger文档:\n' + '\n'.join(swagger_links))
 
-        if not AppConfig.app_disable_redoc:
-            redoc_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.redoc_url()}</cyan>']
-            redoc_links.extend(
-                f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
-            )
-            logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
-    yield
-    shutdown_log_enabled = getattr(app.state, 'startup_log_enabled', False)
-    with logger.contextualize(startup_phase=True, startup_log_enabled=shutdown_log_enabled):
-        await _stop_background_tasks(app)
+            if not AppConfig.app_disable_redoc:
+                redoc_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.redoc_url()}</cyan>']
+                redoc_links.extend(
+                    f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
+                )
+                logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
+        # 确保启动阶段的插件摘要在ASGI lifespan启动完成前已写入stdout和日志文件。
+        await logger.complete()
+        yield
+    finally:
+        await _shutdown_application_runtime(app)
+
+
+async def _initialize_application_runtime(app: FastAPI, application_leader: bool) -> None:
+    """
+    初始化应用运行时资源。
+
+    :param app: FastAPI对象
+    :param application_leader: 当前worker是否为Application leader
+    :return: None
+    """
+    plugin_runtime = get_plugin_application_runtime()
+    plugin_runtime.prepare_metadata(app)
+
+    await init_create_table(
+        stage='platform',
+        log_success_enabled=application_leader,
+    )
+
+    async def create_plugin_entity_tables() -> None:
+        """在插件 writer 导入实体后同步插件表。"""
+        await init_create_table(
+            stage='plugin_entities',
+            log_success_enabled=True,
+        )
+
+    await plugin_runtime.startup(
+        app,
+        create_tables=create_plugin_entity_tables,
+    )
+    app.state.plugin_application_runtime_started = True
+    await RedisUtil.check_redis_connection(
+        app.state.redis,
+        log_enabled=application_leader,
+        log_error_enabled=True,
+    )
+    await RedisUtil.init_sys_dict(app.state.redis)
+    await RedisUtil.init_sys_config(app.state.redis)
+    await _start_background_tasks(app)
 
 
 def create_app() -> FastAPI:
@@ -162,7 +219,9 @@ def create_app() -> FastAPI:
     handle_middleware(app)
     # 加载全局异常处理方法
     handle_exception(app)
-    # 自动注册路由
+    # 自动注册内置路由
     auto_register_routers(app)
+    # 初始化插件应用运行时
+    get_plugin_application_runtime().bind_app(app)
 
     return app

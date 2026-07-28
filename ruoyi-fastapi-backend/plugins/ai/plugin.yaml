@@ -1,0 +1,104 @@
+manifestVersion: 1
+id: ai
+name: AI 管理
+version: 0.1.0
+description: AI 模型管理与智能对话插件。
+
+metadata:
+  category: ai
+  tags:
+    - ai
+    - chat
+  author: insistence
+  license: MIT
+
+backend:
+  module: plugins.ai
+  routers:
+    autoScan: true
+  migrations:
+    - migrations/mysql/001_init.sql
+    - migrations/postgresql/001_init.sql
+  seeds:
+    - seeds/mysql/ai_provider_type.sql
+    - seeds/postgresql/ai_provider_type.sql
+  jobs: []
+
+frontend:
+  basePath: ai
+  pluginId: ai
+  viewsPath: views
+  apiPath: api
+  delivery:
+    type: source
+    buildRequired: true
+  menus:
+    - name: AI 管理
+      path: ai
+      component: Layout
+      perms: ''
+      type: M
+      orderNum: 4
+      icon: ai-manage
+      children:
+        - name: 模型管理
+          path: model
+          component: plugin/ai/model/index
+          routeName: AiModel
+          perms: ai:model:list
+          type: C
+          orderNum: 1
+          icon: ai-model
+        - name: AI 对话
+          path: chat
+          component: plugin/ai/chat/index
+          routeName: AiChat
+          perms: ai:chat:list
+          type: C
+          orderNum: 2
+          icon: ai-chat
+
+permissions:
+  - code: ai:model:list
+    name: 模型列表
+  - code: ai:model:add
+    name: 新增模型
+  - code: ai:model:edit
+    name: 修改模型
+  - code: ai:model:remove
+    name: 删除模型
+  - code: ai:model:query
+    name: 查询模型
+  - code: ai:chat:list
+    name: AI 对话
+
+dependencies:
+  python:
+    - agno==2.4.8
+    - anthropic==0.78.0
+    - cerebras-cloud-sdk==1.67.0
+    - cohere==5.20.4
+    - google-genai==1.62.0
+    - groq==1.0.0
+    - litellm==1.81.8
+    - llama-api-client==0.6.0
+    - mistralai==1.12.0
+    - ollama==0.6.1
+    - openai==2.17.0
+    - portkey-ai==2.1.0
+  npm:
+    - '@antv/infographic^0.2.13'
+    - katex>=0.16.27
+    - markstream-vue>=0.0.7-beta.6
+    - mermaid>=11.12.2
+    - shiki^3.21.0
+    - stream-markdown>=0.0.14
+    - stream-monaco>=0.0.17
+  npmDev:
+    - vite-plugin-monaco-editor-esm==2.0.2
+  plugins: []
+
+compatibility:
+  databases:
+    - mysql
+    - postgresql

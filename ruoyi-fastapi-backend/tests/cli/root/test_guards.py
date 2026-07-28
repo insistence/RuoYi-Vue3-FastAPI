@@ -38,6 +38,19 @@ def test_dangerous_command_rules_cover_expected_commands() -> None:
         'gen create-table',
         'gen export',
         'gen sync-db',
+        'plugin install',
+        'plugin install-deps',
+        'plugin upgrade',
+        'plugin batch',
+        'plugin enable',
+        'plugin disable',
+        'plugin config set',
+        'plugin config import',
+        'plugin config export',
+        'plugin uninstall',
+        'plugin purge',
+        'plugin mark-success',
+        'plugin mark-failed',
     }
 
 

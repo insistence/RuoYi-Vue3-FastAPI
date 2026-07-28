@@ -141,6 +141,16 @@ def test_app_runtime_service_builds_app_instance() -> None:
             """
             return {'app': 'ok'}
 
+        @staticmethod
+        def _register_application_routers(app: dict[str, str]) -> None:
+            """
+            模拟不存在于当前 server 模块的旧私有扩展点。
+
+            :param app: 模拟应用实例
+            :return: None
+            """
+            raise AssertionError('不应调用私有路由注册扩展点')
+
     def _fake_get_server_module() -> FakeServerModule:
         return FakeServerModule()
 

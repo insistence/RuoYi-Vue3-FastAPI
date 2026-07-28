@@ -204,6 +204,45 @@ DEFAULT_DANGEROUS_COMMAND_RULES: dict[str, DangerousCommandRule] = {
     'gen create-table': DangerousCommandRule(command_name='gen create-table', risk_level='high', supports_dry_run=True),
     'gen export': DangerousCommandRule(command_name='gen export', risk_level='high', supports_dry_run=True),
     'gen sync-db': DangerousCommandRule(command_name='gen sync-db', risk_level='normal', supports_dry_run=False),
+    'plugin install': DangerousCommandRule(command_name='plugin install', risk_level='high', supports_dry_run=True),
+    'plugin install-deps': DangerousCommandRule(
+        command_name='plugin install-deps',
+        risk_level='high',
+        supports_dry_run=True,
+    ),
+    'plugin upgrade': DangerousCommandRule(command_name='plugin upgrade', risk_level='high', supports_dry_run=True),
+    'plugin batch': DangerousCommandRule(command_name='plugin batch', risk_level='high', supports_dry_run=True),
+    'plugin enable': DangerousCommandRule(command_name='plugin enable', risk_level='normal', supports_dry_run=True),
+    'plugin disable': DangerousCommandRule(command_name='plugin disable', risk_level='normal', supports_dry_run=True),
+    'plugin config set': DangerousCommandRule(
+        command_name='plugin config set',
+        risk_level='normal',
+        supports_dry_run=False,
+    ),
+    'plugin config import': DangerousCommandRule(
+        command_name='plugin config import',
+        risk_level='normal',
+        supports_dry_run=False,
+    ),
+    'plugin config export': DangerousCommandRule(
+        command_name='plugin config export',
+        risk_level='normal',
+        supports_dry_run=False,
+    ),
+    'plugin uninstall': DangerousCommandRule(
+        command_name='plugin uninstall', risk_level='normal', supports_dry_run=True
+    ),
+    'plugin purge': DangerousCommandRule(command_name='plugin purge', risk_level='high', supports_dry_run=True),
+    'plugin mark-success': DangerousCommandRule(
+        command_name='plugin mark-success',
+        risk_level='high',
+        supports_dry_run=False,
+    ),
+    'plugin mark-failed': DangerousCommandRule(
+        command_name='plugin mark-failed',
+        risk_level='high',
+        supports_dry_run=False,
+    ),
 }
 
 DEFAULT_DANGEROUS_COMMAND_RULE_REGISTRY = DangerousCommandRuleRegistry(rules=DEFAULT_DANGEROUS_COMMAND_RULES)

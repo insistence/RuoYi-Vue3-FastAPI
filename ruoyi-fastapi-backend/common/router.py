@@ -355,15 +355,20 @@ class RouterRegister:
 
         return sorted(routers, key=sort_key)
 
-    def _register_routers_to_app(self, routers: list[tuple[str, APIRouter]]) -> None:
+    def _register_routers_to_app(
+        self,
+        routers: list[tuple[str, APIRouter]],
+        dependencies: Sequence[params.Depends] | None = None,
+    ) -> None:
         """
         将路由注册到FastAPI应用
 
         :param routers: 排序后的路由实例列表
+        :param dependencies: 注册时附加到路由上的依赖项
         :return: None
         """
         for _attr_name, router in routers:
-            self.app.include_router(router=router)
+            self.app.include_router(router=router, dependencies=dependencies)
 
     def register_routers(self) -> None:
         """
@@ -373,12 +378,26 @@ class RouterRegister:
         """
         # 查找所有controller目录下的py文件
         controller_files = self._find_controller_files()
+        self._register_controller_files(controller_files)
+
+    def _register_controller_files(
+        self,
+        controller_files: list[str],
+        dependencies: Sequence[params.Depends] | None = None,
+    ) -> None:
+        """
+        注册指定 controller 文件中的路由。
+
+        :param controller_files: controller文件路径列表
+        :param dependencies: 注册时附加到路由上的依赖项
+        :return: None
+        """
         # 导入模块并获取路由实例
         routers = self._import_module_and_get_routers(controller_files)
         # 按规则排序路由
         sorted_routers = self._sort_routers(routers)
         # 注册路由到FastAPI应用
-        self._register_routers_to_app(sorted_routers)
+        self._register_routers_to_app(sorted_routers, dependencies)
 
 
 def auto_register_routers(app: FastAPI) -> None:
@@ -391,3 +410,20 @@ def auto_register_routers(app: FastAPI) -> None:
     # 使用路由注册器进行注册
     router_register = RouterRegister(app)
     router_register.register_routers()
+
+
+def auto_register_controller_files(
+    app: FastAPI,
+    controller_files: Sequence[str],
+    dependencies: Sequence[params.Depends] | None = None,
+) -> None:
+    """
+    自动注册指定 controller 文件中的路由。
+
+    :param app: FastAPI对象
+    :param controller_files: controller文件路径列表
+    :param dependencies: 注册时附加到路由上的依赖项
+    :return: None
+    """
+    router_register = RouterRegister(app)
+    router_register._register_controller_files(list(controller_files), dependencies)

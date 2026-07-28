@@ -351,6 +351,7 @@ DEFAULT_COMMAND_GROUP_REGISTRY = CliCommandGroupRegistry(
         'crypto': 'cli.groups.crypto',
         'gen': 'cli.groups.gen',
         'dev': 'cli.groups.dev',
+        'plugin': 'cli.groups.plugin',
     }
 )
 DEFAULT_CLI_EXTENSION_REGISTRY = CliExtensionRegistry(

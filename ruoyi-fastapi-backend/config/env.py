@@ -20,6 +20,7 @@ class AppSettings(BaseSettings):
     app_host: str = '0.0.0.0'
     app_port: int = 9099
     app_version: str = '1.0.0'
+    app_release_id: str = ''
     app_reload: bool = True
     app_workers: int = 1
     app_ip_location_query: bool = True
@@ -29,6 +30,7 @@ class AppSettings(BaseSettings):
     app_disable_redoc: bool = False
     app_trusted_proxy_ips: str = '127.0.0.1,::1'
     app_trusted_proxy_hops: int = 1
+    app_default_enabled_plugins: str = 'ai'
 
 
 class JwtSettings(BaseSettings):
@@ -143,6 +145,24 @@ class TransportCryptoSettings(BaseSettings):
         '/transport/crypto/frontend-config,/transport/crypto/public-key,/common/download,/common/download/resource,'
         '/common/files,/system/file/download'
     )
+
+
+class PluginDependencyPolicySettings(BaseSettings):
+    """
+    插件依赖安装策略配置
+    """
+
+    plugin_dependency_policy_mode: str = 'dev=explicit,test=plan_only,stage=locked,prod=plan_only'
+    plugin_dependency_allow_prod_install: bool = False
+    plugin_dependency_require_yes: bool = True
+    plugin_dependency_require_allowlist: bool | None = None
+    plugin_dependency_require_lockfile: bool | None = None
+    plugin_dependency_lockfile: str = ''
+    plugin_dependency_allowlist: str = ''
+    plugin_dependency_offline_dir: str = ''
+    plugin_dependency_pip_index_url: str = ''
+    plugin_dependency_npm_registry: str = ''
+    plugin_dependency_install_timeout: int = 600
 
 
 class GenSettings:
@@ -276,6 +296,12 @@ class GetConfig:
         """
         return TransportCryptoSettings()
 
+    def get_plugin_dependency_policy_config(self) -> PluginDependencyPolicySettings:
+        """
+        获取插件依赖安装策略配置
+        """
+        return PluginDependencyPolicySettings()
+
     def get_gen_config(self) -> GenSettings:
         """
         获取代码生成配置
@@ -339,6 +365,8 @@ RedisConfig = get_config.get_redis_config()
 LogConfig = get_config.get_log_config()
 # 传输层加解密配置
 TransportCryptoConfig = get_config.get_transport_crypto_config()
+# 插件依赖安装策略配置
+PluginDependencyPolicyConfig = get_config.get_plugin_dependency_policy_config()
 # 代码生成配置
 GenConfig = get_config.get_gen_config()
 # 上传配置

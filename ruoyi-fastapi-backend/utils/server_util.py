@@ -339,44 +339,128 @@ class APIDocsUtil:
 
 class StartupUtil:
     """
-    启动门禁工具类
+    Application leader 租约工具类。
+
+    worker_id 仅用于日志展示，租约所有权使用进程唯一 owner token，避免多个
+    worker 配置相同展示 ID 时同时误判为 leader。
     """
 
+    _RENEW_SCRIPT = """
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("expire", KEYS[1], ARGV[2])
+    end
+    return 0
+    """
+    _RELEASE_SCRIPT = """
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+    end
+    return 0
+    """
+    _application_lock_owner_token: str | None = None
+    _application_lock_owner_pid: int | None = None
+
     @classmethod
-    async def acquire_startup_log_gate(
-        cls, redis: aioredis.Redis, lock_key: str, worker_id: str, lock_expire_seconds: int
+    def get_application_lock_owner_token(cls, worker_id: str) -> str:
+        """
+        获取当前进程稳定且跨进程唯一的Application锁owner token。
+
+        :param worker_id: 日志展示用worker标识
+        :return: Application锁owner token
+        """
+        process_id = os.getpid()
+        if cls._application_lock_owner_token is None or cls._application_lock_owner_pid != process_id:
+            cls._application_lock_owner_token = f'{worker_id}:{process_id}:{uuid.uuid4().hex}'
+            cls._application_lock_owner_pid = process_id
+        return cls._application_lock_owner_token
+
+    @staticmethod
+    async def acquire_application_leader(
+        redis: aioredis.Redis,
+        lock_key: str,
+        owner_token: str,
+        lock_expire_seconds: int,
     ) -> bool:
         """
-        获取启动日志门禁
+        获取Application leader租约。
 
         :param redis: Redis连接对象
         :param lock_key: 分布式锁key
-        :param worker_id: 当前worker标识
+        :param owner_token: 当前进程唯一owner token
         :param lock_expire_seconds: 锁过期时间
-        :return: 是否获得启动日志输出权
+        :return: 是否持有Application leader租约
         """
-        acquired = await redis.set(lock_key, worker_id, nx=True, ex=lock_expire_seconds)
+        acquired = await redis.set(lock_key, owner_token, nx=True, ex=lock_expire_seconds)
         if acquired:
             return True
         current_holder = await redis.get(lock_key)
-        return current_holder == worker_id
+        return current_holder == owner_token
 
     @classmethod
-    def start_lock_renewal(
+    async def renew_application_leader(
         cls,
         redis: aioredis.Redis,
         lock_key: str,
-        worker_id: str,
+        owner_token: str,
+        lock_expire_seconds: int,
+    ) -> bool:
+        """
+        仅在owner token匹配时原子续期Application leader租约。
+
+        :param redis: Redis连接对象
+        :param lock_key: 分布式锁key
+        :param owner_token: 当前进程唯一owner token
+        :param lock_expire_seconds: 锁过期时间
+        :return: 是否续期成功
+        """
+        renewed = await redis.eval(
+            cls._RENEW_SCRIPT,
+            1,
+            lock_key,
+            owner_token,
+            lock_expire_seconds,
+        )
+        return bool(renewed)
+
+    @classmethod
+    async def release_application_leader(
+        cls,
+        redis: aioredis.Redis,
+        lock_key: str,
+        owner_token: str,
+    ) -> bool:
+        """
+        仅在owner token匹配时原子释放Application leader租约。
+
+        :param redis: Redis连接对象
+        :param lock_key: 分布式锁key
+        :param owner_token: 当前进程唯一owner token
+        :return: 是否释放成功
+        """
+        released = await redis.eval(
+            cls._RELEASE_SCRIPT,
+            1,
+            lock_key,
+            owner_token,
+        )
+        return bool(released)
+
+    @classmethod
+    def start_application_leader_renewal(
+        cls,
+        redis: aioredis.Redis,
+        lock_key: str,
+        owner_token: str,
         lock_expire_seconds: int,
         interval_seconds: int,
         on_lock_lost: Callable[[], None] | None = None,
     ) -> asyncio.Task:
         """
-        启动分布式锁续期任务
+        启动Application leader租约续期任务。
 
         :param redis: Redis连接对象
         :param lock_key: 分布式锁key
-        :param worker_id: 当前worker标识
+        :param owner_token: 当前进程唯一owner token
         :param lock_expire_seconds: 锁过期时间
         :param interval_seconds: 续期间隔时间
         :param on_lock_lost: 失去锁时的回调
@@ -386,16 +470,25 @@ class StartupUtil:
         async def _loop() -> None:
             while True:
                 try:
-                    current_holder = await redis.get(lock_key)
-                    if current_holder == worker_id:
-                        await redis.expire(lock_key, lock_expire_seconds)
+                    renewed = await cls.renew_application_leader(
+                        redis,
+                        lock_key,
+                        owner_token,
+                        lock_expire_seconds,
+                    )
+                    if renewed:
                         await asyncio.sleep(interval_seconds)
                         continue
                     if on_lock_lost:
                         on_lock_lost()
                     break
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
-                    await asyncio.sleep(interval_seconds)
+                    # 无法确认续期成功时按租约丢失处理，避免TTL到期后继续以leader运行。
+                    if on_lock_lost:
+                        on_lock_lost()
+                    break
 
         return asyncio.create_task(_loop())
 

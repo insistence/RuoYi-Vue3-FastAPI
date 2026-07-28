@@ -1,7 +1,11 @@
 import subprocess
 from collections.abc import Callable
+from pathlib import Path
 
 from cli.exit_codes import DEPENDENCY_ERROR, SUCCESS
+from cli.runtime.plugin.scaffold import PluginFrontendVersionResolver
+
+FRONTEND_ROOT = Path(__file__).resolve().parents[4] / 'ruoyi-fastapi-frontend'
 
 
 def test_app_config_json_output_is_pure_json(
@@ -309,3 +313,247 @@ def test_ops_server_info_json_output_has_stable_contract(
     first_disk = server['sysFiles'][0]
     assert set(first_disk) == {'dirName', 'sysTypeName', 'typeName', 'total', 'used', 'free', 'usage'}
     assert all(isinstance(value, str) for value in first_disk.values())
+
+
+def test_plugin_list_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command('plugin', 'list', '--env=dev', '--output=json')
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode == SUCCESS
+    assert set(payload) == {'ok', 'count', 'plugins', 'databaseAvailable', 'databaseError'}
+    assert payload['ok'] is True
+    assert isinstance(payload['count'], int)
+    assert isinstance(payload['databaseAvailable'], bool)
+    assert isinstance(payload['plugins'], list)
+    if payload['plugins']:
+        assert isinstance(payload['plugins'][0]['runtimeEnabled'], bool)
+        assert 'enabled' not in payload['plugins'][0]
+
+
+def test_plugin_check_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command('plugin', 'check', '--env=dev', '--output=json')
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode in {SUCCESS, DEPENDENCY_ERROR}
+    assert set(payload) == {'ok', 'message', 'count', 'databaseAvailable', 'databaseError', 'checks'}
+    assert isinstance(payload['ok'], bool)
+    assert isinstance(payload['message'], str)
+    assert isinstance(payload['count'], int)
+    assert isinstance(payload['databaseAvailable'], bool)
+    assert isinstance(payload['checks'], list)
+    if payload['checks']:
+        check_payload = payload['checks'][0]
+        assert {
+            'pluginId',
+            'ok',
+            'dependencies',
+            'structure',
+            'missingDependencies',
+            'unsatisfiedDependencies',
+            'structureErrors',
+            'menuConflicts',
+        }.issubset(check_payload)
+
+
+def test_plugin_check_deps_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command('plugin', 'check-deps', 'ai', '--env=dev', '--output=json')
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode in {SUCCESS, DEPENDENCY_ERROR}
+    assert {
+        'ok',
+        'message',
+        'pluginId',
+        'dependencyOk',
+        'dependencies',
+        'missingDependencies',
+        'unsatisfiedDependencies',
+    }.issubset(payload)
+    assert payload['pluginId'] == 'ai'
+    assert isinstance(payload['dependencies'], list)
+
+
+def test_plugin_install_deps_dry_run_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command('plugin', 'install-deps', 'ai', '--dry-run', '--yes', '--env=dev', '--output=json')
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode == SUCCESS
+    assert payload['ok'] is True
+    assert payload['pluginId'] == 'ai'
+    assert payload['dryRun'] is True
+    assert isinstance(payload['plan'], list)
+    assert isinstance(payload['planCount'], int)
+
+
+def test_plugin_plan_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command('plugin', 'plan', 'install', 'ai', '--env=dev', '--output=json')
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode in {SUCCESS, DEPENDENCY_ERROR}
+    assert payload['operation'] == 'install'
+    assert 'plan' in payload
+    assert isinstance(payload['plan']['orderedPluginIds'], list)
+    assert isinstance(payload['plan']['items'], list)
+    assert isinstance(payload['plan']['blockers'], list)
+    assert isinstance(payload['plan']['blockerCount'], int)
+
+
+def test_plugin_plan_rejects_invalid_operation_at_cli_boundary(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+) -> None:
+    completed = run_cli_command('plugin', 'plan', 'remove', 'ai', '--env=dev', '--output=json')
+
+    assert completed.returncode != SUCCESS
+    assert 'remove' in completed.stderr
+
+
+def test_plugin_batch_dry_run_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command('plugin', 'batch', 'install', 'ai', '--dry-run', '--yes', '--env=dev', '--output=json')
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode in {SUCCESS, DEPENDENCY_ERROR}
+    assert payload['operation'] == 'install'
+    assert payload['dryRun'] is True
+    assert payload['continueOnError'] is False
+    assert 'plan' in payload
+    assert isinstance(payload['executed'], list)
+    assert isinstance(payload['summary'], dict)
+    assert set(payload['summary']) == {'total', 'succeeded', 'failed', 'skipped'}
+    assert payload['failed'] is None
+
+
+def test_plugin_list_text_output_has_stable_structure(
+    run_text_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+) -> None:
+    completed = run_text_cli_command('plugin', 'list', '--env=dev', '--output=text')
+
+    assert completed.returncode == SUCCESS
+    assert completed.stdout.startswith('OK SUCCESS\n')
+    assert 'count:' in completed.stdout
+    assert 'plugins:' in completed.stdout
+
+
+def test_plugin_create_dry_run_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command('plugin', 'create', 'contract_demo', '--dry-run', '--env=dev', '--output=json')
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode == SUCCESS
+    assert payload['ok'] is True
+    assert payload['pluginId'] == 'contract_demo'
+    assert payload['dryRun'] is True
+    assert payload['backend'] is True
+    assert payload['frontend'] is True
+    assert payload['frontendVersion'] == PluginFrontendVersionResolver.resolve(FRONTEND_ROOT)
+    assert payload['migration'] is True
+    assert payload['seed'] is True
+    assert payload['job'] is True
+    assert payload['config'] is True
+    assert isinstance(payload['targetDirs'], list)
+    assert isinstance(payload['files'], list)
+    assert payload['conflicts'] == []
+
+
+def test_plugin_create_optional_parts_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command(
+        'plugin',
+        'create',
+        'contract_minimal',
+        '--dry-run',
+        '--backend-only',
+        '--no-migration',
+        '--no-seed',
+        '--no-job',
+        '--no-config',
+        '--env=dev',
+        '--output=json',
+    )
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode == SUCCESS
+    assert payload['ok'] is True
+    assert payload['pluginId'] == 'contract_minimal'
+    assert payload['frontend'] is False
+    assert payload['migration'] is False
+    assert payload['seed'] is False
+    assert payload['job'] is False
+    assert payload['config'] is False
+
+
+def test_plugin_create_frontend_version_override_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command(
+        'plugin',
+        'create',
+        'contract_vue2',
+        '--dry-run',
+        '--frontend-only',
+        '--frontend-version=vue2',
+        '--env=dev',
+        '--output=json',
+    )
+    payload = parse_json_stdout(completed)
+
+    view_payload = next(file for file in payload['files'] if str(file['path']).endswith('/views/index.vue'))
+    assert completed.returncode == SUCCESS
+    assert payload['ok'] is True
+    assert payload['frontendVersion'] == 'vue2'
+    assert 'slot="header"' in view_payload['content']
+
+
+def test_plugin_install_dry_run_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command(
+        'plugin', 'install', 'missing_plugin', '--dry-run', '--yes', '--env=dev', '--output=json'
+    )
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode != SUCCESS
+    assert payload['ok'] is False
+    assert payload['pluginId'] == 'missing_plugin'
+    assert isinstance(payload['message'], str)
+
+
+def test_plugin_upgrade_dry_run_json_output_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    completed = run_cli_command('plugin', 'upgrade', 'ai', '--dry-run', '--yes', '--env=dev', '--output=json')
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode == SUCCESS
+    assert payload['ok'] is True
+    assert payload['pluginId'] == 'ai'
+    assert payload['dryRun'] is True
+    assert 'installedVersion' in payload
+    assert 'currentVersion' in payload
+    assert 'needsUpgrade' in payload
+    assert 'databaseAvailable' in payload
+    assert isinstance(payload['actions'], list)
