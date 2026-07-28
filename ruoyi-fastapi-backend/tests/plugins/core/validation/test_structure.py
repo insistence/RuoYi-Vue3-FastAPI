@@ -481,6 +481,34 @@ frontend:
     ]
 
 
+def test_structure_checker_rejects_sync_plugin_hook(tmp_path: Path) -> None:
+    """校验结构预检拒绝无法安全终止的同步生命周期钩子。"""
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+  hooks:
+    onInstall: hooks:on_install
+frontend:
+  menus: []
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'hooks.py').write_text('def on_install(context):\n    return None\n', encoding='utf-8')
+
+    result = PluginStructureChecker(backend_root).check(load_discovered_plugin(backend_root, 'demo'))
+
+    assert result.ok is False
+    assert [item.kind for item in result.failed_items] == ['hook_callable']
+    assert 'async def' in result.failed_items[0].message
+
+
 def test_structure_checker_does_not_execute_hook_module_top_level_code(tmp_path: Path) -> None:
     """校验结构检查验证生命周期钩子时不会执行插件模块顶层代码。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'

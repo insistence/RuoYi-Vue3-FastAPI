@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,16 +17,26 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield current_db
 
 
-async def init_create_table() -> None:
+async def init_create_table(
+    *,
+    stage: Literal['platform', 'plugin_entities'] = 'platform',
+    log_success_enabled: bool = True,
+) -> None:
     """
-    应用启动时初始化数据库连接
+    应用启动时初始化数据库元数据。
 
-    :return:
+    :param stage: 建表阶段
+    :param log_success_enabled: 是否输出阶段成功摘要
+    :return: None
     """
-    logger.info('🔎 初始化数据库连接...')
+    if log_success_enabled:
+        message = '🔎 初始化平台数据库元数据...' if stage == 'platform' else '🔎 同步插件实体表...'
+        logger.bind(database_init_stage=stage).info(message)
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    logger.info('✅️ 数据库连接成功')
+    if log_success_enabled:
+        message = '✅️ 平台数据库元数据初始化完成' if stage == 'platform' else '✅️ 插件实体表同步完成'
+        logger.bind(database_init_stage=stage).info(message)
 
 
 async def close_async_engine() -> None:

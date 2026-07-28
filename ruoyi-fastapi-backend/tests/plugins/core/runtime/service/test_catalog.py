@@ -91,6 +91,7 @@ config:
     assert payload['ok'] is True
     assert payload['configs'][0]['key'] == 'provider'
     assert gateway.session_local.last_session is not None
+    assert gateway.session_local.last_session.committed is False
 
 
 def test_plugin_runtime_updates_dependency_checker_in_container(tmp_path: Path) -> None:

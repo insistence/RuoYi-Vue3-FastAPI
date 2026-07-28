@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CHAR, BigInteger, CheckConstraint, Column, DateTime, Integer, String, Text, UniqueConstraint
 
 from config.database import Base
 from config.env import DataBaseConfig
@@ -15,7 +15,14 @@ class SysPlugin(Base):
     """
 
     __tablename__ = 'sys_plugin'
-    __table_args__ = {'comment': '插件信息表'}
+    __table_args__ = (
+        CheckConstraint("enabled in ('0', '1')", name='ck_sys_plugin_enabled'),
+        CheckConstraint(
+            "status in ('discovered', 'installed', 'pending_upgrade', 'error')",
+            name='ck_sys_plugin_status',
+        ),
+        {'comment': '插件信息表'},
+    )
 
     plugin_id = Column(String(64), primary_key=True, nullable=False, comment='插件ID')
     plugin_name = Column(String(128), nullable=False, comment='插件名称')

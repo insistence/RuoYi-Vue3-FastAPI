@@ -175,6 +175,7 @@ class PluginInstallUseCase(PluginLifecycleUseCaseSupport):
             PluginLifecycleStep('upsert_plugin', self._install_step_upsert_plugin),
             PluginLifecycleStep('install_menus', self._install_step_install_menus),
             PluginLifecycleStep('install_configs', self._install_step_install_configs),
+            PluginLifecycleStep('install_jobs', self._install_step_install_jobs),
             PluginLifecycleStep('run_migrations', self._install_step_run_migrations),
             PluginLifecycleStep('run_seeds', self._install_step_run_seeds),
             PluginLifecycleStep('run_install_hook', self._install_step_run_install_hook),
@@ -373,6 +374,24 @@ class PluginInstallUseCase(PluginLifecycleUseCaseSupport):
         """
         context.installed_configs = await context.lifecycle_uow.install_plugin_default_config(
             context.discovered_plugin,
+        )
+
+        return None
+
+    async def _install_step_install_jobs(
+        self,
+        context: PluginInstallLifecycleContext,
+    ) -> PluginLifecycleResponse | None:
+        """
+        同步插件定时任务。
+
+        :param context: 插件安装上下文
+        :return: None
+        """
+        plugin_enabled = getattr(context.plugin, 'enabled', '0') == '0'
+        await context.lifecycle_uow.install_plugin_jobs(
+            context.discovered_plugin,
+            enabled=plugin_enabled,
         )
 
         return None

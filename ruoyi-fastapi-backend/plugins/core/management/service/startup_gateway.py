@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 from plugins.core.management.dao.dao import PluginDao
 from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
 from plugins.core.management.service.service import PluginService
+from plugins.core.state import PluginStateResolver
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -12,7 +13,6 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from common.vo import CrudResponseModel
-    from plugins.core.discovery.registry import PluginRegistry
     from plugins.core.discovery.scanner import DiscoveredPlugin
     from plugins.core.management.entity.vo.schemas import PluginMigrationModel, PluginModel
 
@@ -31,47 +31,24 @@ class PluginManagementStartupGateway:
         """
         return await PluginService.get_plugin_list_services(query_db)
 
-    async def install_enabled_plugin_menus(
+    async def install_plugin_resources(
         self,
         query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        enabled: bool,
     ) -> None:
         """
-        安装启用插件菜单。
+        在同一事务中同步单个插件菜单、配置和任务。
 
         :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
+        :param discovered_plugin: 已发现插件对象
+        :param enabled: 插件资源是否启用
         :return: None
         """
-        await PluginService.install_enabled_plugin_menu_services(query_db, plugin_registry)
-
-    async def install_enabled_plugin_configs(
-        self,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件配置。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
-        :return: None
-        """
-        await PluginService.install_enabled_plugin_config_services(query_db, plugin_registry)
-
-    async def install_enabled_plugin_jobs(
-        self,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件定时任务。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
-        :return: None
-        """
-        await PluginService.install_enabled_plugin_job_services(query_db, plugin_registry)
+        await PluginService.install_plugin_menu_services(query_db, discovered_plugin, enabled=enabled)
+        await PluginService.install_plugin_default_config_services(query_db, discovered_plugin)
+        await PluginService.install_plugin_job_services(query_db, discovered_plugin, enabled=enabled)
 
     async def mark_plugin_error(
         self,
@@ -216,4 +193,4 @@ class PluginManagementRouteStateGateway:
         :return: 插件是否启用
         """
         plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
-        return bool(plugin and getattr(plugin, 'enabled', None) == '0')
+        return PluginStateResolver.is_enabled(plugin)

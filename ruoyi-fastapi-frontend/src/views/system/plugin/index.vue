@@ -17,8 +17,8 @@
                @keyup.enter="handleQuery"
             />
          </el-form-item>
-         <el-form-item label="启用状态" prop="enabled">
-            <el-select v-model="queryParams.enabled" placeholder="启用状态" clearable>
+         <el-form-item label="启用设置" prop="enabled">
+            <el-select v-model="queryParams.enabled" placeholder="启用设置" clearable>
                <el-option label="启用" value="0" />
                <el-option label="停用" value="1" />
             </el-select>
@@ -62,7 +62,7 @@
       </el-row>
 
       <el-table ref="pluginTableRef" v-loading="loading" :data="pluginList" row-key="pluginId" @selection-change="handleSelectionChange">
-         <el-table-column type="selection" width="55" align="center" />
+         <el-table-column type="selection" width="55" align="center" :selectable="canSelectForBatch" />
          <el-table-column label="插件ID" align="center" prop="pluginId" width="120" :show-overflow-tooltip="true" />
          <el-table-column label="插件名称" align="center" prop="pluginName" min-width="140" :show-overflow-tooltip="true" />
          <el-table-column label="源码版本" align="center" prop="version" width="100" />
@@ -71,7 +71,7 @@
                <span>{{ scope.row.installedVersion || "-" }}</span>
             </template>
          </el-table-column>
-         <el-table-column label="启用状态" align="center" width="90">
+         <el-table-column label="启用设置" align="center" width="90">
             <template #default="scope">
                <el-tooltip :content="getEnabledSwitchTooltip(scope.row)" :disabled="!isEnabledSwitchBlocked(scope.row)" placement="top">
                   <span class="plugin-switch-tooltip-target">
@@ -98,25 +98,25 @@
                <span>{{ formatPluginTime(scope.row.updateTime) }}</span>
             </template>
          </el-table-column>
-         <el-table-column label="操作" align="center" width="230" fixed="right" class-name="small-padding fixed-width">
+         <el-table-column label="操作" align="center" width="260" fixed="right" class-name="small-padding fixed-width">
             <template #default="scope">
                <div class="plugin-action-buttons">
                   <el-tooltip content="详情" placement="top">
                      <el-button link type="primary" icon="View" @click="handleDetail(scope.row)" v-hasPermi="['system:plugin:query']" />
                   </el-tooltip>
-                  <el-tooltip content="配置" placement="top">
+                  <el-tooltip content="配置" placement="top" v-if="!isOrphanPlugin(scope.row)">
                      <el-button link type="primary" icon="Setting" @click="handleConfig(scope.row)" v-hasPermi="['system:plugin:query']" />
                   </el-tooltip>
-                  <el-tooltip content="依赖" placement="top">
+                  <el-tooltip content="依赖" placement="top" v-if="!isOrphanPlugin(scope.row)">
                      <el-button link type="primary" icon="Connection" @click="handleDependencies(scope.row)" v-hasPermi="['system:plugin:query']" />
                   </el-tooltip>
-                  <el-tooltip content="检查" placement="top">
+                  <el-tooltip content="检查" placement="top" v-if="!isOrphanPlugin(scope.row)">
                      <el-button link type="primary" icon="CircleCheck" @click="handleCheck(scope.row)" v-hasPermi="['system:plugin:query']" />
                   </el-tooltip>
-                  <el-tooltip content="健康检查" placement="top">
+                  <el-tooltip content="健康检查" placement="top" v-if="!isOrphanPlugin(scope.row)">
                      <el-button link type="primary" icon="FirstAidKit" @click="handleHealth(scope.row)" v-hasPermi="['system:plugin:query']" />
                   </el-tooltip>
-                  <el-tooltip content="诊断包" placement="top">
+                  <el-tooltip content="诊断包" placement="top" v-if="!isOrphanPlugin(scope.row)">
                      <el-button link type="primary" icon="DocumentChecked" @click="handleDiagnose(scope.row)" v-hasPermi="['system:plugin:query']" />
                   </el-tooltip>
                   <el-tooltip :content="getOperationTooltip(scope.row, 'install', '安装')" placement="top" v-if="canInstall(scope.row)">
@@ -127,6 +127,9 @@
                   </el-tooltip>
                   <el-tooltip :content="getOperationTooltip(scope.row, 'uninstall', '卸载')" placement="top" v-if="canUninstall(scope.row)">
                      <el-button link type="danger" icon="SwitchButton" :disabled="isOperationBlocked(scope.row, 'uninstall')" @click="handleUninstallDryRun(scope.row)" v-hasPermi="['system:plugin:edit']" />
+                  </el-tooltip>
+                  <el-tooltip content="清理孤儿元数据" placement="top" v-if="isOrphanPlugin(scope.row)">
+                     <el-button link type="danger" icon="Delete" @click="handlePurgeDryRun(scope.row)" v-hasPermi="['system:plugin:remove']" />
                   </el-tooltip>
                </div>
             </template>
@@ -150,7 +153,7 @@
          :format-config-constraint="formatConfigConstraint"
          :migration-history="migrationHistory"
          :migration-loading="migrationLoading"
-         @enable="handleEnableFromDetail"
+         @repair="handleRepairFromDetail"
          @mark-migration-success="handleMarkMigrationSuccess"
          @mark-migration-failed="handleMarkMigrationFailed"
       />
@@ -586,11 +589,18 @@
          <template #footer>
             <div class="dialog-footer">
                <el-button
-                  v-if="pendingAction.type"
+                  v-if="pendingAction.type && pendingAction.type !== 'purge'"
                   type="primary"
                   :loading="actionLoading"
                   @click="handleExecutePendingAction"
                   v-hasPermi="['system:plugin:edit']"
+               >执行{{ pendingAction.label }}</el-button>
+               <el-button
+                  v-if="pendingAction.type === 'purge'"
+                  type="danger"
+                  :loading="actionLoading"
+                  @click="handleExecutePendingAction"
+                  v-hasPermi="['system:plugin:remove']"
                >执行{{ pendingAction.label }}</el-button>
                <el-button @click="actionOpen = false">关 闭</el-button>
             </div>
@@ -619,6 +629,7 @@ import {
   markPluginMigrationFailed,
   markPluginMigrationSuccess,
   planPlugins,
+  purgePlugin,
   retainPluginOperationLog,
   uninstallPlugin,
   updatePluginConfig,
@@ -784,6 +795,10 @@ function handleSelectionChange(selection) {
   selectedPluginIds.value = selection.map(item => item.pluginId).filter(Boolean);
 }
 
+function canSelectForBatch(row) {
+  return !isOrphanPlugin(row);
+}
+
 /** 清空当前选择 */
 function clearSelectedPlugins() {
   selectedPluginIds.value = [];
@@ -835,12 +850,15 @@ function getEnabledSwitchOperation(row) {
 }
 
 function isEnabledSwitchBlocked(row) {
-  return row?.status === "error" || isOperationBlocked(row, getEnabledSwitchOperation(row));
+  const triesToEnableErrorPlugin = row?.status === "error" && row?.enabled !== "0";
+  return triesToEnableErrorPlugin || isOperationBlocked(row, getEnabledSwitchOperation(row));
 }
 
 function getEnabledSwitchTooltip(row) {
   if (row?.status === "error") {
-    return "插件处于异常状态，请在详情中重新启用";
+    return row?.enabled === "0"
+      ? "插件当前被异常状态隔离；关闭开关可取消自动恢复意图"
+      : "插件处于异常状态，请重新安装或升级修复，不能直接启用";
   }
   if (isOperationBlocked(row, getEnabledSwitchOperation(row))) {
     return getCapabilityReason(row.capability);
@@ -1323,6 +1341,26 @@ function handleUninstallDryRun(row) {
   });
 }
 
+/** 物理清理孤儿插件元数据预演 */
+function handlePurgeDryRun(row) {
+  actionLoading.value = true;
+  purgePlugin(row.pluginId, true).then(response => {
+    showActionResult("孤儿插件清理预演", response.data, {
+      type: "purge",
+      label: "清理孤儿元数据",
+      pluginId: row.pluginId,
+      pluginName: row.pluginName
+    });
+  }).catch(error => {
+    showActionResult("孤儿插件清理预演失败", buildErrorActionResult(error, {
+      pluginId: row.pluginId,
+      operation: "purge"
+    }), {});
+  }).finally(() => {
+    actionLoading.value = false;
+  });
+}
+
 /** 执行预演后的插件操作 */
 function handleExecutePendingAction() {
   if (!pendingAction.value.type) {
@@ -1334,7 +1372,8 @@ function handleExecutePendingAction() {
     const requestMap = {
       install: installPlugin,
       upgrade: upgradePlugin,
-      uninstall: uninstallPlugin
+      uninstall: uninstallPlugin,
+      purge: purgePlugin
     };
     const request = requestMap[action.type];
     return request(action.pluginId, false);
@@ -1363,20 +1402,11 @@ function showActionResult(title, result, nextAction) {
   actionOpen.value = true;
 }
 
-/** 从详情重新启用异常插件 */
-function handleEnableFromDetail() {
-  const pluginId = detail.value.pluginId;
-  proxy.$modal.confirm('确认要重新启用"' + detail.value.pluginName + '"插件吗? 最近错误将被清除。').then(function () {
-    return enablePlugin(pluginId);
-  }).then(() => {
-    proxy.$modal.msgSuccess("重新启用成功");
-    detailOpen.value = false;
-    getList();
-  }).catch(error => {
-    if (!isUserCancel(error)) {
-      proxy.$modal.msgError(getErrorMessage(error));
-    }
-  });
+/** 从详情进入异常插件的重新安装修复流程 */
+function handleRepairFromDetail() {
+  const plugin = { ...detail.value };
+  detailOpen.value = false;
+  handleInstallDryRun(plugin);
 }
 
 function getStatusLabel(status) {
@@ -1390,15 +1420,19 @@ function getStatusTagType(status) {
 }
 
 function canInstall(row) {
-  return !row.installedVersion || row.status === "discovered";
+  return !isOrphanPlugin(row) && (!row.installedVersion || row.status === "discovered" || row.status === "error");
 }
 
 function canUpgrade(row) {
-  return row.status === "pending_upgrade";
+  return !isOrphanPlugin(row) && row.status === "pending_upgrade";
 }
 
 function canUninstall(row) {
-  return row.installedVersion && row.enabled === "0";
+  return !isOrphanPlugin(row) && row.installedVersion && row.enabled === "0";
+}
+
+function isOrphanPlugin(row) {
+  return row?.source === "orphan";
 }
 
 function canExecuteActionResult(result) {

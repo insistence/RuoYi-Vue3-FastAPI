@@ -13,7 +13,6 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from common.vo import CrudResponseModel
-    from plugins.core.discovery.registry import PluginRegistry
     from plugins.core.discovery.scanner import DiscoveredPlugin
     from plugins.core.lifecycle.migration import PluginMigrationResult
     from plugins.core.lifecycle.purge import PluginPurgePlan
@@ -222,20 +221,6 @@ class PluginManagementServiceProtocol(Protocol):
         """
 
     @classmethod
-    async def install_enabled_plugin_menu_services(
-        cls,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件菜单。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件注册表
-        :return: None
-        """
-
-    @classmethod
     async def install_plugin_menu_services(
         cls,
         query_db: AsyncSession,
@@ -267,6 +252,23 @@ class PluginManagementServiceProtocol(Protocol):
         """
 
     @classmethod
+    async def install_plugin_job_services(
+        cls,
+        query_db: AsyncSession,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        enabled: bool,
+    ) -> None:
+        """
+        同步单个插件任务。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件
+        :param enabled: 插件任务是否启用
+        :return: None
+        """
+
+    @classmethod
     async def get_plugin_config_services(
         cls,
         query_db: AsyncSession,
@@ -281,6 +283,16 @@ class PluginManagementServiceProtocol(Protocol):
         :param discovered_plugin: 已发现插件对象
         :param reveal_secret: 是否展示敏感配置原值
         :return: 插件配置值列表
+        """
+
+    @classmethod
+    async def is_plugin_installed_services(cls, query_db: AsyncSession, plugin_id: str) -> bool:
+        """
+        判断插件是否已经完成安装。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :return: 是否已安装
         """
 
     @classmethod
@@ -384,6 +396,34 @@ class PluginManagementServiceProtocol(Protocol):
 
         :param query_db: orm对象
         :param discovered_plugin: 已发现插件对象
+        :return: 插件清理计划
+        """
+
+    @classmethod
+    async def build_plugin_purge_plan_by_id_services(
+        cls,
+        query_db: AsyncSession,
+        plugin_id: str,
+    ) -> PluginPurgePlan:
+        """
+        按插件 ID 构建孤儿元数据清理计划。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :return: 插件清理计划
+        """
+
+    @classmethod
+    async def purge_plugin_metadata_by_id_services(
+        cls,
+        query_db: AsyncSession,
+        plugin_id: str,
+    ) -> PluginPurgePlan:
+        """
+        按插件 ID 清理孤儿元数据。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
         :return: 插件清理计划
         """
 
@@ -699,20 +739,21 @@ class PluginLifecycleUnitOfWork(Protocol):
         :return: None
         """
 
-    async def install_enabled_plugin_menus(self, plugin_registry: PluginRegistry) -> None:
-        """
-        安装启用插件菜单。
-
-        :param plugin_registry: 插件注册表
-        :return: None
-        """
-
     async def install_plugin_default_config(self, discovered_plugin: DiscoveredPlugin) -> list[PluginConfigModel]:
         """
         安装插件默认配置。
 
         :param discovered_plugin: 已发现插件
         :return: 插件配置列表
+        """
+
+    async def install_plugin_jobs(self, discovered_plugin: DiscoveredPlugin, *, enabled: bool) -> None:
+        """
+        同步单个插件任务。
+
+        :param discovered_plugin: 已发现插件
+        :param enabled: 插件任务是否启用
+        :return: None
         """
 
     async def mark_plugin_installed(self, discovered_plugin: DiscoveredPlugin) -> PluginModel:
@@ -736,6 +777,22 @@ class PluginLifecycleUnitOfWork(Protocol):
         清理插件平台元数据。
 
         :param discovered_plugin: 已发现插件
+        :return: 插件物理清理计划
+        """
+
+    async def build_plugin_purge_plan_by_id(self, plugin_id: str) -> PluginPurgePlan:
+        """
+        按插件 ID 构建孤儿元数据清理计划。
+
+        :param plugin_id: 插件ID
+        :return: 插件物理清理计划
+        """
+
+    async def purge_plugin_metadata_by_id(self, plugin_id: str) -> PluginPurgePlan:
+        """
+        按插件 ID 清理孤儿元数据。
+
+        :param plugin_id: 插件ID
         :return: 插件物理清理计划
         """
 

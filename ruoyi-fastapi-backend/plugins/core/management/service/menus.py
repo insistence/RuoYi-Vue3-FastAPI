@@ -68,6 +68,7 @@ class PluginMenuInstaller:
                 seen_menu_keys,
             )
         )
+        await self._remove_stale_menus(manifest.id, seen_menu_keys)
 
         return installed_menus
 
@@ -252,7 +253,7 @@ class PluginMenuInstaller:
         if sys_menu:
             await PluginDao.update_sys_menu(self.query_db, menu_model.model_dump(exclude_unset=True))
             if not await PluginDao.get_plugin_menu_by_key(self.query_db, plugin_id, menu_key):
-                logger.warning(f'插件 {plugin_id} 复用已有菜单：{menu_key}')
+                logger.warning(f'⚠️ 插件 {plugin_id} 复用已有菜单：{menu_key}')
             await self._upsert_plugin_menu(plugin_id, sys_menu.menu_id, menu_key)
             return await PluginDao.get_sys_menu_by_id(self.query_db, sys_menu.menu_id) or sys_menu
 
@@ -292,7 +293,26 @@ class PluginMenuInstaller:
         if existing_plugin_menu and existing_plugin_menu.menu_id != menu_id:
             await PluginDao.update_plugin_menu_by_key(self.query_db, plugin_menu_model)
         elif not existing_plugin_menu:
-            await PluginDao.add_plugin_menu(self.query_db, plugin_menu_model)
+            existing_menu_owner = await PluginDao.get_plugin_menu_by_menu_id(self.query_db, menu_id)
+            if existing_menu_owner and existing_menu_owner.plugin_id == plugin_id:
+                await PluginDao.update_plugin_menu_key_by_menu_id(self.query_db, plugin_menu_model)
+            else:
+                await PluginDao.add_plugin_menu(self.query_db, plugin_menu_model)
+
+    async def _remove_stale_menus(self, plugin_id: str, desired_menu_keys: set[str]) -> None:
+        """
+        删除已不在当前 manifest 中的插件菜单及角色授权。
+
+        :param plugin_id: 插件ID
+        :param desired_menu_keys: manifest 当前菜单自然键集合
+        :return: None
+        """
+        plugin_menus = await PluginDao.get_plugin_menu_list(self.query_db, plugin_id)
+        stale_menu_ids = [
+            plugin_menu.menu_id for plugin_menu in plugin_menus if plugin_menu.menu_key not in desired_menu_keys
+        ]
+        await PluginDao.delete_plugin_menus_by_ids(self.query_db, plugin_id, stale_menu_ids)
+        await PluginDao.delete_sys_menus_by_ids(self.query_db, stale_menu_ids)
 
     @staticmethod
     def _build_menu_model(

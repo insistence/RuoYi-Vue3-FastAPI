@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 from packaging.requirements import Requirement
+from packaging.version import InvalidVersion
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,10 @@ class ParsedPythonRequirement:
             return False
         if not self.requirement.specifier:
             return True
-        return self.requirement.specifier.contains(installed_version)
+        try:
+            return self.requirement.specifier.contains(installed_version)
+        except InvalidVersion:
+            return False
 
 
 class PythonRequirementParser:

@@ -32,6 +32,8 @@ def test_builtin_sql_contains_plugin_schema_and_management_permissions() -> None
             'attempt_count',
             'started_time',
             'finished_time',
+            'ck_sys_plugin_enabled',
+            'ck_sys_plugin_status',
         ):
             assert expected_text in sql_content
         for menu_id in expected_menu_ids:

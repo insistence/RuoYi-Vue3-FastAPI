@@ -112,7 +112,7 @@ class EntityModuleImporter:
         try:
             return importlib.import_module(module_name)
         except Exception as exc:
-            logger.exception(f'实体模块导入失败：{module_name}，错误：{exc}')
+            logger.exception(f'❌ 实体模块导入失败：{module_name}，错误：{exc}')
             if strict:
                 raise
             return None

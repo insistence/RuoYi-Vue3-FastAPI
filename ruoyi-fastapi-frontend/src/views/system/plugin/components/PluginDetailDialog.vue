@@ -8,7 +8,7 @@
                <el-descriptions-item label="插件名称">{{ detail.pluginName }}</el-descriptions-item>
                <el-descriptions-item label="源码版本">{{ detail.version }}</el-descriptions-item>
                <el-descriptions-item label="已安装版本">{{ detail.installedVersion || "-" }}</el-descriptions-item>
-               <el-descriptions-item label="启用状态">{{ detail.enabled === "0" ? "启用" : "停用" }}</el-descriptions-item>
+               <el-descriptions-item label="启用设置">{{ detail.enabled === "0" ? "启用" : "停用" }}</el-descriptions-item>
                <el-descriptions-item label="插件状态">{{ getStatusLabel(detail.status) }}</el-descriptions-item>
                <el-descriptions-item label="来源">{{ detail.source || "-" }}</el-descriptions-item>
                <el-descriptions-item label="更新时间">{{ formatPluginTime(detail.updateTime) }}</el-descriptions-item>
@@ -216,9 +216,9 @@
             <el-button
                v-if="detail.status === 'error'"
                type="primary"
-               @click="emit('enable')"
+               @click="emit('repair')"
                v-hasPermi="['system:plugin:edit']"
-            >重新启用</el-button>
+            >重新安装修复</el-button>
             <el-button @click="emit('update:modelValue', false)">关 闭</el-button>
          </div>
       </template>
@@ -263,7 +263,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(["update:modelValue", "enable", "mark-migration-success", "mark-migration-failed"]);
+const emit = defineEmits(["update:modelValue", "repair", "mark-migration-success", "mark-migration-failed"]);
 
 const detailDependencyRows = computed(() => {
   const dependencies = props.detail.dependencies || {};

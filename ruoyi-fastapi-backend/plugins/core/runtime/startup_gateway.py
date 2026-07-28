@@ -8,7 +8,6 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from common.vo import CrudResponseModel
-    from plugins.core.discovery.registry import PluginRegistry
     from plugins.core.discovery.scanner import DiscoveredPlugin
     from plugins.core.management.entity.vo.schemas import PluginMigrationModel, PluginModel
 
@@ -27,42 +26,19 @@ class PluginStartupManagementGateway(Protocol):
         :return: 插件状态列表
         """
 
-    async def install_enabled_plugin_menus(
+    async def install_plugin_resources(
         self,
         query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        enabled: bool,
     ) -> None:
         """
-        安装启用插件菜单。
+        在同一事务中同步单个插件的菜单、配置和任务资源。
 
         :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
-        :return: None
-        """
-
-    async def install_enabled_plugin_configs(
-        self,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件配置。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
-        :return: None
-        """
-
-    async def install_enabled_plugin_jobs(
-        self,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件定时任务。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
+        :param discovered_plugin: 已发现插件对象
+        :param enabled: 插件资源是否启用
         :return: None
         """
 
@@ -198,44 +174,19 @@ class UnavailablePluginStartupManagementGateway:
         """
         self._raise_unavailable()
 
-    async def install_enabled_plugin_menus(
+    async def install_plugin_resources(
         self,
         query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        enabled: bool,
     ) -> None:
         """
-        安装启用插件菜单。
+        同步单个插件资源。
 
         :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
-        :return: None
-        """
-        self._raise_unavailable()
-
-    async def install_enabled_plugin_configs(
-        self,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件配置。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
-        :return: None
-        """
-        self._raise_unavailable()
-
-    async def install_enabled_plugin_jobs(
-        self,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件定时任务。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
+        :param discovered_plugin: 已发现插件对象
+        :param enabled: 插件资源是否启用
         :return: None
         """
         self._raise_unavailable()

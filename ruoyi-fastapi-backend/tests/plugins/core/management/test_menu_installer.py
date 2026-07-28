@@ -45,6 +45,14 @@ class FakePluginDao:
         return [plugin_menu for key, plugin_menu in cls.plugin_menus.items() if key[0] == plugin_id]
 
     @classmethod
+    async def get_plugin_menu_by_menu_id(cls, db: object, menu_id: int) -> SimpleNamespace | None:
+        """根据菜单 ID 查询插件 ownership。"""
+        return next(
+            (plugin_menu for plugin_menu in cls.plugin_menus.values() if plugin_menu.menu_id == menu_id),
+            None,
+        )
+
+    @classmethod
     async def get_sys_menu_by_id(cls, db: object, menu_id: int) -> SimpleNamespace | None:
         """根据菜单 ID 查询系统菜单。"""
         return cls.menus.get(menu_id)
@@ -126,6 +134,34 @@ class FakePluginDao:
         cls.plugin_menus[(plugin_menu_data['plugin_id'], plugin_menu_data['menu_key'])].menu_id = plugin_menu_data[
             'menu_id'
         ]
+
+    @classmethod
+    async def update_plugin_menu_key_by_menu_id(cls, db: object, plugin_menu: object) -> None:
+        """根据菜单 ID 更新插件菜单自然键。"""
+        plugin_menu_data = plugin_menu.model_dump(exclude_unset=True)
+        old_key = next(
+            key
+            for key, value in cls.plugin_menus.items()
+            if key[0] == plugin_menu_data['plugin_id'] and value.menu_id == plugin_menu_data['menu_id']
+        )
+        plugin_menu_model = cls.plugin_menus.pop(old_key)
+        plugin_menu_model.menu_key = plugin_menu_data['menu_key']
+        cls.plugin_menus[(plugin_menu_data['plugin_id'], plugin_menu_data['menu_key'])] = plugin_menu_model
+
+    @classmethod
+    async def delete_plugin_menus_by_ids(cls, db: object, plugin_id: str, menu_ids: list[int]) -> None:
+        """删除指定插件菜单 ownership。"""
+        cls.plugin_menus = {
+            key: plugin_menu
+            for key, plugin_menu in cls.plugin_menus.items()
+            if key[0] != plugin_id or plugin_menu.menu_id not in menu_ids
+        }
+
+    @classmethod
+    async def delete_sys_menus_by_ids(cls, db: object, menu_ids: list[int]) -> None:
+        """删除系统菜单。"""
+        for menu_id in menu_ids:
+            cls.menus.pop(menu_id, None)
 
 
 def build_manifest() -> PluginManifest:
@@ -291,3 +327,25 @@ async def test_plugin_menu_installer_updates_plugin_menu_status(monkeypatch: pyt
     await PluginMenuInstaller(object()).set_plugin_menu_status('demo', '1')
 
     assert FakePluginDao.menus[PARENT_MENU_ID].status == '1'
+
+
+@pytest.mark.asyncio
+async def test_plugin_menu_installer_removes_menus_deleted_from_manifest(monkeypatch: pytest.MonkeyPatch) -> None:
+    """校验升级时从 manifest 删除的菜单不会继续残留。"""
+    FakePluginDao.reset()
+    monkeypatch.setattr(menu_service, 'PluginDao', FakePluginDao)
+    installer = PluginMenuInstaller(object())
+    await installer.install_manifest_menus(build_manifest())
+    empty_manifest = PluginManifest.model_validate(
+        {
+            'id': 'demo',
+            'name': '演示插件',
+            'version': '1.1.0',
+            'backend': {'module': 'plugins.demo'},
+        }
+    )
+
+    await installer.install_manifest_menus(empty_manifest)
+
+    assert FakePluginDao.plugin_menus == {}
+    assert FakePluginDao.menus == {}

@@ -148,6 +148,7 @@ backend:
 
     assert result['ok'] is True
     assert FakePluginService.upsert_called is True
+    assert FakePluginService.install_plugin_job_called_with == ('demo', True)
     assert FakePluginService.mark_installed_called is True
     assert gateway.session_local.sessions[0].committed is True
 
@@ -224,6 +225,10 @@ backend:
         async def install_plugin_default_config(self, discovered_plugin: object) -> list[object]:
             """安装插件默认配置。"""
             return await FakePluginService.install_plugin_default_config_services(self.session, discovered_plugin)
+
+        async def install_plugin_jobs(self, discovered_plugin: object, *, enabled: bool) -> None:
+            """同步插件任务。"""
+            await FakePluginService.install_plugin_job_services(self.session, discovered_plugin, enabled=enabled)
 
         async def mark_plugin_installed(self, discovered_plugin: object) -> object:
             """标记插件已安装。"""

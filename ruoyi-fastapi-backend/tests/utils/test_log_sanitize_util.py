@@ -1,4 +1,3 @@
-# ruff: noqa: E402
 import asyncio
 import json
 from collections.abc import Iterator
@@ -9,8 +8,6 @@ from unittest.mock import patch
 import pytest
 from fastapi import Request
 from loguru import logger as _logger
-
-pytest.skip('当前分支暂不执行日志脱敏测试', allow_module_level=True)
 
 from common.annotation.log_annotation import Log, RequestLogFieldRoot, ResponseLogFieldRoot
 from common.enums import BusinessType

@@ -1,6 +1,6 @@
 import asyncio
 import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -294,6 +294,37 @@ class PluginRuntimeStartupManager:
         )
         self.disable_runtime_plugins(app, import_failed_plugin_ids)
 
+    async def requires_startup_write(self) -> bool:
+        """
+        判断当前数据库状态是否要求重新执行启动期全局写入。
+
+        Redis ready 标记用于协调同一代际的并发 worker，但它的生命周期可能长于
+        数据库本身。数据库被重建、清空或恢复旧快照后，默认启用插件可能重新缺少
+        安装状态，此时不能复用旧 ready 标记。
+
+        :return: 是否需要重新执行启动期写入
+        """
+        if not self.default_enabled_builtin_plugin_ids:
+            return False
+
+        discovered_plugin_ids = {
+            plugin.manifest.id
+            for plugin in self.builder.discover_plugins()
+            if plugin.manifest.id in self.default_enabled_builtin_plugin_ids
+        }
+        if not discovered_plugin_ids:
+            return False
+
+        async for query_db in get_db():
+            plugin_list = await self.management_gateway.list_plugins(query_db)
+            database_plugin_map = {plugin.plugin_id: plugin for plugin in plugin_list}
+            return any(
+                self._should_sync_default_enabled_builtin_plugin(database_plugin_map.get(plugin_id))
+                for plugin_id in discovered_plugin_ids
+            )
+
+        return True
+
     async def check_enabled_plugin_python_dependencies(
         self,
         app: FastAPI,
@@ -326,8 +357,13 @@ class PluginRuntimeStartupManager:
                 continue
             failed_plugin_ids.add(plugin.plugin_id)
             error_message = self._build_dependency_startup_error_message(plugin.plugin_id, failed_messages)
+            logger.bind(
+                plugin_id=plugin.plugin_id,
+                startup_generation=getattr(app.state, 'plugin_startup_generation', None),
+                plugin_startup_role_at_creation='writer' if startup_write_enabled else 'reader',
+                startup_write_enabled=startup_write_enabled,
+            ).error(f'❌ {error_message}')
             if startup_write_enabled:
-                logger.error(f'{plugin.plugin_id} {error_message}')
                 await self.mark_plugin_runtime_error(app, plugin.plugin_id, error_message)
 
         if recovered_plugins:
@@ -395,9 +431,9 @@ class PluginRuntimeStartupManager:
                 )
                 if result.is_success:
                     recovered = True
-                    logger.info(f'插件启动依赖已恢复：{plugin.plugin_id}')
+                    logger.info(f'✅ 插件启动依赖已恢复：{plugin.plugin_id}')
                     continue
-                logger.warning(f'插件启动依赖恢复状态写入失败：{plugin.plugin_id}，原因：{result.message}')
+                logger.warning(f'⚠️ 插件启动依赖恢复状态写入失败：{plugin.plugin_id}，原因：{result.message}')
             if recovered:
                 await query_db.commit()
             else:
@@ -498,10 +534,10 @@ class PluginRuntimeStartupManager:
                 item.workdir,
             )
             if completed.returncode == 0:
-                logger.info(f'插件 {dependency_result.plugin_id} Python 依赖安装完成：{item.requirement}')
+                logger.info(f'✅ 插件 {dependency_result.plugin_id} Python 依赖安装完成：{item.requirement}')
                 continue
             logger.error(
-                f'插件 {dependency_result.plugin_id} Python 依赖安装失败：{item.requirement}，'
+                f'❌ 插件 {dependency_result.plugin_id} Python 依赖安装失败：{item.requirement}，'
                 f'returncode={completed.returncode}，stderr={completed.stderr[-500:]}'
             )
 
@@ -514,10 +550,10 @@ class PluginRuntimeStartupManager:
         :return: None
         """
         if startup_write_enabled:
-            await self.install_enabled_plugin_resources(app)
             await self.sync_enabled_plugin_install_states(app)
-        self.register_enabled_plugin_routers(app)
+            await self.install_enabled_plugin_resources(app)
         await self.run_enabled_plugin_hooks(app, 'on_startup', startup_write_enabled=startup_write_enabled)
+        self.register_enabled_plugin_routers(app, startup_write_enabled=startup_write_enabled)
 
     async def shutdown(self, app: FastAPI, *, startup_write_enabled: bool = True) -> None:
         """
@@ -561,6 +597,12 @@ class PluginRuntimeStartupManager:
         failed_plugin_ids: set[str] = set()
         for failure in import_result.failures:
             failed_plugin_ids.add(failure.plugin_id)
+            logger.bind(
+                plugin_id=failure.plugin_id,
+                startup_generation=getattr(app.state, 'plugin_startup_generation', None),
+                plugin_startup_role_at_creation='writer' if startup_write_enabled else 'reader',
+                startup_write_enabled=startup_write_enabled,
+            ).error(f'❌ 插件实体导入失败：{failure.error_message}')
             if startup_write_enabled:
                 await self.mark_plugin_runtime_error(app, failure.plugin_id, failure.error_message)
 
@@ -568,14 +610,58 @@ class PluginRuntimeStartupManager:
 
     async def install_enabled_plugin_resources(self, app: FastAPI) -> None:
         """
-        安装启用插件启动期资源。
+        逐插件同步启用插件的启动期资源。
+
+        每个插件使用独立事务，单个插件资源声明或数据库写入失败时仅隔离该插件，
+        不再回滚其他插件或阻断宿主应用启动。
 
         :param app: FastAPI对象
         :return: None
         """
-        await self.install_enabled_plugin_menus(app)
-        await self.install_enabled_plugin_configs(app)
-        await self.install_enabled_plugin_jobs(app)
+        plugin_registry = getattr(app.state, 'plugin_registry', None)
+        if plugin_registry is None:
+            return
+
+        plugins = list(plugin_registry.list_enabled_plugins())
+        for plugin in plugins:
+            await self.install_plugin_resources_with_isolation(app, plugin)
+
+    async def install_plugin_resources_with_isolation(
+        self,
+        app: FastAPI,
+        plugin: RegisteredPlugin,
+    ) -> None:
+        """
+        在独立事务中同步单个插件资源，失败时隔离该插件。
+
+        :param app: FastAPI对象
+        :param plugin: 插件运行时快照
+        :return: None
+        """
+        with logger.contextualize(
+            plugin_id=plugin.plugin_id,
+            plugin_startup_role_at_creation='writer',
+            startup_write_enabled=True,
+        ):
+            logger.info('🔄 开始同步单插件启动资源')
+            try:
+                async for query_db in get_db():
+                    try:
+                        await self.management_gateway.install_plugin_resources(
+                            query_db,
+                            plugin.discovered_plugin,
+                            enabled=True,
+                        )
+                        await query_db.commit()
+                    except Exception:
+                        await query_db.rollback()
+                        raise
+            except Exception as exc:
+                error_message = f'插件启动资源同步失败：{exc}'
+                logger.exception(f'❌ {error_message}')
+                await self.mark_plugin_runtime_error(app, plugin.plugin_id, error_message)
+                return
+            logger.info('✅ 单插件启动资源同步完成')
 
     async def sync_enabled_plugin_install_states(self, app: FastAPI) -> None:
         """
@@ -596,19 +682,98 @@ class PluginRuntimeStartupManager:
         if not plugins_to_sync:
             return
 
-        async for query_db in get_db():
-            for plugin in plugins_to_sync:
-                await self.management_gateway.upsert_discovered_plugin(
-                    query_db,
-                    plugin.discovered_plugin,
-                    self.builder.plugins_root,
-                    self.builder.frontend_plugins_root,
-                )
-                await self.run_plugin_install_scripts(query_db, plugin.discovered_plugin)
-                await self.management_gateway.mark_plugin_installed(query_db, plugin.discovered_plugin)
-            await query_db.commit()
+        for plugin in plugins_to_sync:
+            await self.sync_plugin_install_with_isolation(app, plugin)
 
         await self.load_registry_from_database(app)
+
+    async def sync_plugin_install_with_isolation(
+        self,
+        app: FastAPI,
+        plugin: RegisteredPlugin,
+    ) -> None:
+        """
+        执行单插件启动安装，失败时记录错误并继续其他插件。
+
+        :param app: FastAPI对象
+        :param plugin: 插件运行时快照
+        :return: None
+        """
+        try:
+            await self.sync_plugin_install(plugin.discovered_plugin, enabled=True)
+        except Exception as exc:
+            error_message = f'插件启动安装失败：{exc}'
+            logger.exception(f'❌ {plugin.plugin_id} {error_message}')
+            await self.mark_plugin_runtime_error(app, plugin.plugin_id, error_message)
+
+    async def sync_plugin_install(self, discovered_plugin: Any, *, enabled: bool) -> None:
+        """
+        使用独立事务执行单个插件的启动期安装生命周期。
+
+        启动期首次安装与管理端安装保持相同的关键步骤：结构校验、发现状态写入、
+        资源同步、migration、seed、on_install 钩子和最终安装状态写入。
+
+        :param discovered_plugin: 已发现插件对象
+        :param enabled: 插件资源是否启用
+        :return: None
+        """
+        plugin_id = discovered_plugin.manifest.id
+        with logger.contextualize(
+            plugin_id=plugin_id,
+            plugin_startup_role_at_creation='writer',
+            startup_write_enabled=True,
+        ):
+            logger.info('🔄 开始执行插件启动安装生命周期')
+            self.validate_plugin_structure(discovered_plugin)
+            async for query_db in get_db():
+                try:
+                    await self.management_gateway.upsert_discovered_plugin(
+                        query_db,
+                        discovered_plugin,
+                        self.builder.plugins_root,
+                        self.builder.frontend_plugins_root,
+                    )
+                    await self.management_gateway.install_plugin_resources(
+                        query_db,
+                        discovered_plugin,
+                        enabled=enabled,
+                    )
+                    await self.run_plugin_install_scripts(query_db, discovered_plugin)
+                    await self.run_plugin_install_hook(query_db, discovered_plugin)
+                    await self.management_gateway.mark_plugin_installed(query_db, discovered_plugin)
+                    await query_db.commit()
+                except Exception:
+                    await query_db.rollback()
+                    raise
+            logger.info('✅ 插件启动安装生命周期执行完成')
+
+    @staticmethod
+    async def run_plugin_install_hook(query_db: Any, discovered_plugin: Any) -> None:
+        """
+        执行插件首次安装钩子。
+
+        :param query_db: orm对象
+        :param discovered_plugin: 已发现插件对象
+        :return: None
+        """
+        await PluginHookRunner(discovered_plugin).run('on_install', query_db=query_db)
+
+    def validate_plugin_structure(self, discovered_plugin: Any) -> None:
+        """
+        校验启动期首次安装插件的目录和声明引用。
+
+        :param discovered_plugin: 已发现插件对象
+        :return: None
+        :raises ValueError: 插件结构校验失败
+        """
+        result = PluginStructureChecker(
+            self.builder.backend_root,
+            self.builder.frontend_plugins_root,
+        ).check(discovered_plugin)
+        if result.ok:
+            return
+        messages = '；'.join(item.message for item in result.failed_items)
+        raise ValueError(f'插件结构校验失败：{messages}')
 
     @staticmethod
     def _should_sync_plugin_install_state(plugin: RegisteredPlugin) -> bool:
@@ -625,33 +790,6 @@ class PluginRuntimeStartupManager:
             not getattr(database_plugin, 'installed_version', None)
             and getattr(database_plugin, 'status', None) == 'discovered'
         )
-
-    async def install_enabled_plugin_menus(self, app: FastAPI) -> None:
-        """
-        安装启用插件菜单。
-
-        :param app: FastAPI对象
-        :return: None
-        """
-        await self.install_enabled_plugin_resource(app, self.management_gateway.install_enabled_plugin_menus)
-
-    async def install_enabled_plugin_configs(self, app: FastAPI) -> None:
-        """
-        安装启用插件默认配置。
-
-        :param app: FastAPI对象
-        :return: None
-        """
-        await self.install_enabled_plugin_resource(app, self.management_gateway.install_enabled_plugin_configs)
-
-    async def install_enabled_plugin_jobs(self, app: FastAPI) -> None:
-        """
-        安装启用插件声明的定时任务。
-
-        :param app: FastAPI对象
-        :return: None
-        """
-        await self.install_enabled_plugin_resource(app, self.management_gateway.install_enabled_plugin_jobs)
 
     async def run_plugin_install_scripts(self, query_db: Any, discovered_plugin: Any) -> None:
         """
@@ -680,30 +818,17 @@ class PluginRuntimeStartupManager:
         """
         await PluginSeedRunner(discovered_plugin).run(query_db)
 
-    async def install_enabled_plugin_resource(
+    def register_enabled_plugin_routers(
         self,
         app: FastAPI,
-        installer: Callable[[Any, Any], Awaitable[Any]],
+        *,
+        startup_write_enabled: bool = True,
     ) -> None:
-        """
-        安装启用插件启动期资源。
-
-        :param app: FastAPI对象
-        :param installer: 资源安装服务方法
-        :return: None
-        """
-        plugin_registry = getattr(app.state, 'plugin_registry', None)
-        if plugin_registry is None:
-            return
-        async for query_db in get_db():
-            await installer(query_db, plugin_registry)
-            await query_db.commit()
-
-    def register_enabled_plugin_routers(self, app: FastAPI) -> None:
         """
         注册启用插件 controller 路由。
 
         :param app: FastAPI对象
+        :param startup_write_enabled: 当前worker是否为插件启动writer
         :return: None
         """
         if getattr(app.state, 'plugin_routes_registered', False):
@@ -717,14 +842,20 @@ class PluginRuntimeStartupManager:
                 if plugin.discovered_plugin.manifest.backend.routers.auto_scan
             ]
         for plugin_id in plugin_ids:
-            controller_files = self._find_plugin_controller_files([plugin_id])
-            controller_files = self._filter_plugin_controller_files_by_route_prefix(plugin_id, controller_files)
-            if controller_files:
-                auto_register_controller_files(
-                    app,
-                    controller_files,
-                    dependencies=[PluginEnabledDependency(plugin_id, self.route_state_gateway)],
-                )
+            with logger.contextualize(
+                plugin_id=plugin_id,
+                startup_generation=getattr(app.state, 'plugin_startup_generation', None),
+                plugin_startup_role_at_creation='writer' if startup_write_enabled else 'reader',
+                startup_write_enabled=startup_write_enabled,
+            ):
+                controller_files = self._find_plugin_controller_files([plugin_id])
+                controller_files = self._filter_plugin_controller_files_by_route_prefix(plugin_id, controller_files)
+                if controller_files:
+                    auto_register_controller_files(
+                        app,
+                        controller_files,
+                        dependencies=[PluginEnabledDependency(plugin_id, self.route_state_gateway)],
+                    )
         app.state.plugin_routes_registered = True
 
     def _filter_plugin_controller_files_by_route_prefix(self, plugin_id: str, controller_files: list[str]) -> list[str]:
@@ -740,12 +871,12 @@ class PluginRuntimeStartupManager:
         for controller_file in controller_files:
             check_items = checker.check_controller_file_route_prefixes(plugin_id, Path(controller_file))
             if not check_items:
-                logger.error(f'插件 {plugin_id} controller 路由前缀无法静态确认，启动期跳过注册：{controller_file}')
+                logger.error(f'❌ 插件 {plugin_id} controller 路由前缀无法静态确认，启动期跳过注册：{controller_file}')
                 continue
             failed_items = [item for item in check_items if not item.ok]
             if failed_items:
                 logger.error(
-                    f'插件 {plugin_id} controller 路由前缀非法，启动期跳过注册：'
+                    f'❌ 插件 {plugin_id} controller 路由前缀非法，启动期跳过注册：'
                     f'{"、".join(item.message for item in failed_items)}'
                 )
                 continue
@@ -822,9 +953,18 @@ class PluginRuntimeStartupManager:
                 startup_write_enabled=startup_write_enabled,
             )
         except Exception as exc:
-            logger.exception(f'插件生命周期钩子执行失败：{plugin.plugin_id}.{hook_name}，错误：{exc}')
+            logger.bind(
+                plugin_id=plugin.plugin_id,
+                plugin_hook=hook_name,
+                startup_generation=getattr(app.state, 'plugin_startup_generation', None),
+                plugin_startup_role_at_creation='writer' if startup_write_enabled else 'reader',
+                startup_write_enabled=startup_write_enabled,
+                origin_hook=hook_name,
+            ).exception(f'❌ 插件生命周期钩子执行失败：{exc}')
             if startup_write_enabled:
                 await self.mark_plugin_runtime_error(app, plugin.plugin_id, str(exc))
+            elif hook_name == 'on_startup':
+                self.disable_runtime_plugins(app, {plugin.plugin_id})
 
     async def mark_plugin_runtime_error(self, app: FastAPI, plugin_id: str, error_message: str) -> None:
         """
@@ -852,7 +992,7 @@ class PluginRuntimeStartupManager:
                 await query_db.commit()
             else:
                 await query_db.rollback()
-                logger.warning(f'插件运行时异常状态写入失败：{plugin_id}，原因：{result.message}')
+                logger.warning(f'⚠️ 插件运行时异常状态写入失败：{plugin_id}，原因：{result.message}')
         await self.load_registry_from_database(app)
 
     async def sync_default_enabled_builtin_plugin_install_states(self) -> set[str]:
@@ -878,36 +1018,65 @@ class PluginRuntimeStartupManager:
         failed_plugin_ids: set[str] = set()
         async for query_db in get_db():
             plugin_list = await self.management_gateway.list_plugins(query_db)
-            database_plugin_map = {plugin.plugin_id: plugin for plugin in plugin_list}
-            plugins_to_sync = [
-                plugin
-                for plugin in discovered_plugins
-                if self._should_sync_default_enabled_builtin_plugin(database_plugin_map.get(plugin.manifest.id))
-            ]
-            if not plugins_to_sync:
-                return failed_plugin_ids
-            self.python_dependency_inspector.refresh()
-            for plugin in plugins_to_sync:
+        database_plugin_map = {plugin.plugin_id: plugin for plugin in plugin_list}
+        plugins_to_sync = [
+            plugin
+            for plugin in discovered_plugins
+            if self._should_sync_default_enabled_builtin_plugin(database_plugin_map.get(plugin.manifest.id))
+        ]
+        if not plugins_to_sync:
+            return failed_plugin_ids
+
+        self.python_dependency_inspector.refresh()
+        for plugin in plugins_to_sync:
+            plugin_id = plugin.manifest.id
+            dependency_failed_messages = self._check_default_plugin_python_dependencies(plugin)
+            if dependency_failed_messages:
+                failed_plugin_ids.add(plugin_id)
+                error_message = self._build_dependency_startup_error_message(
+                    plugin_id,
+                    dependency_failed_messages,
+                )
+                logger.error(f'❌ {plugin_id} {error_message}')
+                await self.mark_discovered_plugin_startup_error(plugin, error_message)
+                continue
+            try:
+                await self.sync_plugin_install(plugin, enabled=True)
+            except Exception as exc:
+                failed_plugin_ids.add(plugin_id)
+                error_message = f'插件启动安装失败：{exc}'
+                logger.exception(f'❌ {plugin_id} {error_message}')
+                await self.mark_discovered_plugin_startup_error(plugin, error_message)
+        return failed_plugin_ids
+
+    async def mark_discovered_plugin_startup_error(
+        self,
+        discovered_plugin: Any,
+        error_message: str,
+    ) -> None:
+        """
+        以独立事务持久化启动期插件错误，确保安装事务回滚后仍可观测。
+
+        :param discovered_plugin: 已发现插件对象
+        :param error_message: 错误信息
+        :return: None
+        """
+        plugin_id = discovered_plugin.manifest.id
+        async for query_db in get_db():
+            try:
                 await self.management_gateway.upsert_discovered_plugin(
                     query_db,
-                    plugin,
+                    discovered_plugin,
                     self.builder.plugins_root,
                     self.builder.frontend_plugins_root,
                 )
-                dependency_failed_messages = self._check_default_plugin_python_dependencies(plugin)
-                if dependency_failed_messages:
-                    failed_plugin_ids.add(plugin.manifest.id)
-                    error_message = self._build_dependency_startup_error_message(
-                        plugin.manifest.id,
-                        dependency_failed_messages,
-                    )
-                    logger.error(f'{plugin.manifest.id} {error_message}')
-                    await self.management_gateway.mark_plugin_error(query_db, plugin.manifest.id, error_message)
-                    continue
-                await self.run_plugin_install_scripts(query_db, plugin)
-                await self.management_gateway.mark_plugin_installed(query_db, plugin)
-            await query_db.commit()
-        return failed_plugin_ids
+                result = await self.management_gateway.mark_plugin_error(query_db, plugin_id, error_message)
+                if not result.is_success:
+                    raise RuntimeError(result.message)
+                await query_db.commit()
+            except Exception:
+                await query_db.rollback()
+                logger.exception(f'❌ 插件启动异常状态写入失败：{plugin_id}')
 
     def _check_default_plugin_python_dependencies(self, discovered_plugin: Any) -> list[str]:
         """

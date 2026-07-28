@@ -41,36 +41,42 @@ class RedisUtil:
 
     @classmethod
     async def check_redis_connection(
-        cls, redis: aioredis.Redis, log_enabled: bool = True, log_start_enabled: bool | None = None
+        cls,
+        redis: aioredis.Redis,
+        log_enabled: bool = True,
+        log_start_enabled: bool | None = None,
+        log_error_enabled: bool | None = None,
     ) -> None:
         """
         检查redis连接状态
 
         :param redis: redis对象
-        :param log_enabled: 是否输出日志
+        :param log_enabled: 是否输出成功日志
         :param log_start_enabled: 是否输出开始连接日志
+        :param log_error_enabled: 是否输出错误日志，未指定时沿用log_enabled
         :return: None
         """
         if log_start_enabled is None:
             log_start_enabled = log_enabled
+        if log_error_enabled is None:
+            log_error_enabled = log_enabled
         if log_start_enabled:
             logger.info('🔎 开始连接redis...')
         try:
             connection = await redis.ping()
-            if not log_enabled:
-                return
             if connection:
-                logger.info('✅️ redis连接成功')
-            else:
+                if log_enabled:
+                    logger.info('✅️ redis连接成功')
+            elif log_error_enabled:
                 logger.error('❌️ redis连接失败')
         except AuthenticationError as e:
-            if log_enabled:
+            if log_error_enabled:
                 logger.error(f'❌️ redis用户名或密码错误，详细错误信息：{e}')
         except RedisTimeoutError as e:
-            if log_enabled:
+            if log_error_enabled:
                 logger.error(f'❌️ redis连接超时，详细错误信息：{e}')
         except RedisError as e:
-            if log_enabled:
+            if log_error_enabled:
                 logger.error(f'❌️ redis连接错误，详细错误信息：{e}')
 
     @classmethod
@@ -82,7 +88,7 @@ class RedisUtil:
         :return:
         """
         await app.state.redis.close()
-        logger.info('✅️ 关闭redis连接成功')
+        logger.debug('✅️ 关闭redis连接成功')
 
     @classmethod
     async def init_sys_dict(cls, redis: FastAPI) -> None:

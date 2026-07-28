@@ -110,15 +110,6 @@ class PluginManagementLifecycleUnitOfWork:
         """
         await self.plugin_service.install_plugin_menu_services(self.session, discovered_plugin, enabled=enabled)
 
-    async def install_enabled_plugin_menus(self, plugin_registry: object) -> None:
-        """
-        安装启用插件菜单。
-
-        :param plugin_registry: 插件注册表
-        :return: None
-        """
-        await self.plugin_service.install_enabled_plugin_menu_services(self.session, plugin_registry)
-
     async def install_plugin_default_config(self, discovered_plugin: object) -> list[object]:
         """
         安装插件默认配置。
@@ -127,6 +118,20 @@ class PluginManagementLifecycleUnitOfWork:
         :return: 插件配置列表
         """
         return await self.plugin_service.install_plugin_default_config_services(self.session, discovered_plugin)
+
+    async def install_plugin_jobs(self, discovered_plugin: object, *, enabled: bool) -> None:
+        """
+        同步单个插件任务。
+
+        :param discovered_plugin: 已发现插件
+        :param enabled: 插件任务是否启用
+        :return: None
+        """
+        await self.plugin_service.install_plugin_job_services(
+            self.session,
+            discovered_plugin,
+            enabled=enabled,
+        )
 
     async def mark_plugin_installed(self, discovered_plugin: object) -> object:
         """
@@ -154,6 +159,24 @@ class PluginManagementLifecycleUnitOfWork:
         :return: 插件物理清理计划
         """
         return await self.plugin_service.purge_plugin_services(self.session, discovered_plugin)
+
+    async def build_plugin_purge_plan_by_id(self, plugin_id: str) -> object:
+        """
+        按插件 ID 构建孤儿元数据清理计划。
+
+        :param plugin_id: 插件ID
+        :return: 插件物理清理计划
+        """
+        return await self.plugin_service.build_plugin_purge_plan_by_id_services(self.session, plugin_id)
+
+    async def purge_plugin_metadata_by_id(self, plugin_id: str) -> object:
+        """
+        按插件 ID 清理孤儿元数据。
+
+        :param plugin_id: 插件ID
+        :return: 插件物理清理计划
+        """
+        return await self.plugin_service.purge_plugin_metadata_by_id_services(self.session, plugin_id)
 
     async def commit(self) -> None:
         """
@@ -264,7 +287,6 @@ class PluginManagementRuntimeGateway:
                 discovered_plugin,
                 reveal_secret=reveal_secret,
             )
-            await session.commit()
             return configs
 
     async def update_plugin_config(
@@ -282,6 +304,7 @@ class PluginManagementRuntimeGateway:
         async_session_local = self.get_async_session_local()
         plugin_service = self.get_plugin_service()
         async with async_session_local() as session:
+            await self._ensure_plugin_installed(session, plugin_service, discovered_plugin.manifest.id)
             configs = await plugin_service.update_plugin_config_services(
                 session,
                 discovered_plugin,
@@ -312,6 +335,7 @@ class PluginManagementRuntimeGateway:
         async_session_local = self.get_async_session_local()
         plugin_service = self.get_plugin_service()
         async with async_session_local() as session:
+            await self._ensure_plugin_installed(session, plugin_service, discovered_plugin.manifest.id)
             before_configs = await plugin_service.get_plugin_config_services(
                 session,
                 discovered_plugin,
@@ -338,6 +362,24 @@ class PluginManagementRuntimeGateway:
             )
             await session.commit()
             return configs
+
+    @staticmethod
+    async def _ensure_plugin_installed(
+        session: object,
+        plugin_service: type[PluginManagementServiceProtocol],
+        plugin_id: str,
+    ) -> None:
+        """
+        拒绝为尚未安装的插件创建或更新持久化配置。
+
+        :param session: 数据库会话
+        :param plugin_service: 插件管理服务类
+        :param plugin_id: 插件ID
+        :return: None
+        :raises ValueError: 插件尚未安装
+        """
+        if not await plugin_service.is_plugin_installed_services(session, plugin_id):
+            raise ValueError(f'插件尚未安装，不能修改配置：{plugin_id}')
 
     async def add_plugin_operation_log(
         self,

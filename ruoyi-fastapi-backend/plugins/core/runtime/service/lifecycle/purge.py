@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from plugins.core.runtime.hooks import PluginHookRunner
@@ -17,8 +18,6 @@ from .common import PluginLifecycleUseCaseSupport
 from .runner import PluginLifecycleStep, PluginLifecycleStepFailed, PluginLifecycleStepRunner
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from plugins.core.discovery.scanner import DiscoveredPlugin
@@ -132,6 +131,8 @@ class PluginPurgeUseCase(PluginLifecycleUseCaseSupport):
         """
         context = PluginPurgeLifecycleContext(plugin_id=plugin_id, dry_run=dry_run)
         try:
+            if not self._get_discovered_plugin(plugin_id):
+                return await self._purge_orphan_plugin_metadata(plugin_id, dry_run=dry_run)
             result = await PluginLifecycleStepRunner(self._build_purge_steps()).run(context)
             if result.stop:
                 await self._close_purge_session(result.context)
@@ -158,6 +159,69 @@ class PluginPurgeUseCase(PluginLifecycleUseCaseSupport):
                 plugin_id=plugin_id,
                 failed_step='prepare_purge',
             )
+
+    async def _purge_orphan_plugin_metadata(
+        self,
+        plugin_id: str,
+        *,
+        dry_run: bool,
+    ) -> PluginLifecycleResponse:
+        """
+        在插件源码缺失时按 ID 清理平台可确认归属的孤儿元数据。
+
+        源码缺失意味着无法执行 onPurge，也无法推断插件业务表和文件资源；
+        因此该路径只处理插件状态、菜单、配置、migration 历史和平台托管任务。
+
+        :param plugin_id: 插件ID
+        :param dry_run: 是否仅预演
+        :return: 插件物理清理结果负载
+        """
+        backend_root = Path(self.dependencies.runtime_environment.get_backend_dir())
+        discovered_plugins = self._discover_plugins(backend_root)
+        dependency_payload = await self._build_enabled_dependents_payload(plugin_id, discovered_plugins)
+        session_context = self.dependencies.lifecycle_uow_gateway.open_lifecycle_unit_of_work()
+        lifecycle_uow = await session_context.__aenter__()
+        try:
+            plan = await lifecycle_uow.build_plugin_purge_plan_by_id(plugin_id)
+            if not any(item.enabled for item in plan.items):
+                return PluginPayloadBuilder.build_plugin_not_found_payload(
+                    plugin_id,
+                    operation='purge',
+                    dry_run=dry_run,
+                )
+
+            if dry_run:
+                payload = PluginPurgePayloadBuilder.build_dry_run_payload(plugin_id, plan)
+                payload.update(
+                    {
+                        'metadataOnly': True,
+                        'warnings': ['插件源码不存在，无法执行 onPurge 或清理插件自有业务资源'],
+                        **dependency_payload,
+                    }
+                )
+                return cast('PluginLifecycleResponse', payload)
+
+            if not bool(dependency_payload.get('pluginDependencyOk', True)):
+                return PluginEnablePayloadBuilder.build_dependency_blocker_payload(
+                    plugin_id,
+                    operation='purge',
+                    enabled=False,
+                    dependency_payload=dependency_payload,
+                    message='插件仍被已启用插件依赖，孤儿元数据清理已中止',
+                )
+
+            await lifecycle_uow.purge_plugin_metadata_by_id(plugin_id)
+            await lifecycle_uow.commit()
+            payload = PluginPurgePayloadBuilder.build_success_payload(plugin_id, plan, None)
+            payload.update(
+                {
+                    'metadataOnly': True,
+                    'warnings': ['插件源码不存在，已跳过 onPurge；插件自有业务资源需人工确认'],
+                }
+            )
+            return cast('PluginLifecycleResponse', payload)
+        finally:
+            await session_context.__aexit__(None, None, None)
 
     def _build_purge_steps(self) -> list[PluginLifecycleStep[PluginPurgeLifecycleContext]]:
         """

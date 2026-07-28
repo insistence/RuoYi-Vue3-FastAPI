@@ -165,7 +165,6 @@ class PluginStateTransitionTable:
         PluginStateTransition('pending_upgrade', 'disable', 'pending_upgrade', '待升级插件被停用'),
         PluginStateTransition('pending_upgrade', 'enable', 'pending_upgrade', '待升级插件被启用'),
         PluginStateTransition('pending_upgrade', 'mark_error', 'error', '插件升级或运行失败'),
-        PluginStateTransition('error', 'enable', 'installed', '异常插件修复后重新启用'),
         PluginStateTransition('error', 'disable', 'error', '异常插件被显式停用'),
         PluginStateTransition('error', 'install', 'installed', '异常插件重新安装成功'),
         PluginStateTransition('error', 'upgrade', 'installed', '异常插件升级修复完成'),

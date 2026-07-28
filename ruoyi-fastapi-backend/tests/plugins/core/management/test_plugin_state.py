@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 from openpyxl import load_workbook
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from config.database import Base
@@ -13,7 +14,6 @@ from module_admin.dao.job_dao import JobDao
 from module_admin.entity.do.job_do import SysJob
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.role_do import SysRoleMenu
-from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.environment import PluginRuntimeEnvironmentService
 from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobModelBuilder, PluginJobRepository
@@ -28,13 +28,13 @@ from plugins.core.management.entity.do.models import (
 from plugins.core.management.entity.vo.schemas import (
     PluginConfigUpdateModel,
     PluginMigrationModel,
-    PluginModel,
     PluginOperationLogExportQueryModel,
     PluginOperationLogPageQueryModel,
     PluginOperationLogRetentionModel,
     PluginPageQueryModel,
 )
 from plugins.core.management.service.config import PluginConfigManager
+from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
 from plugins.core.management.service.logs import PluginOperationLogBuilder
 from plugins.core.management.service.service import PluginService
 from plugins.core.manifest.schema import PluginManifest
@@ -47,6 +47,44 @@ EXPECTED_PURGE_DESTRUCTIVE_COUNT = 5
 EXPECTED_BATCH_SUCCEEDED_COUNT = 2
 EXPECTED_PROVIDER_CONFIG_ORDER = 20
 EXPECTED_PERMISSION_BUTTON_MENU_COUNT = 5
+
+
+@pytest.mark.asyncio
+async def test_plugin_table_rejects_invalid_state_domains() -> None:
+    """校验数据库约束拒绝绕过服务层写入非法启停值和生命周期状态。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPlugin.__table__])
+
+    try:
+        async with session_maker() as session:
+            session.add(
+                SysPlugin(
+                    plugin_id='invalid-enabled',
+                    plugin_name='Invalid Enabled',
+                    version='1.0.0',
+                    enabled='2',
+                    status='discovered',
+                )
+            )
+            with pytest.raises(IntegrityError):
+                await session.flush()
+            await session.rollback()
+
+            session.add(
+                SysPlugin(
+                    plugin_id='invalid-status',
+                    plugin_name='Invalid Status',
+                    version='1.0.0',
+                    enabled='1',
+                    status='unknown',
+                )
+            )
+            with pytest.raises(IntegrityError):
+                await session.flush()
+    finally:
+        await engine.dispose()
 
 
 async def create_sqlite_sys_job_table(connection: object) -> None:
@@ -653,8 +691,8 @@ backend:
 
 
 @pytest.mark.asyncio
-async def test_mark_plugin_error_disables_plugin_and_menus(tmp_path: Path) -> None:
-    """校验标记插件异常时会停用插件并停用插件菜单。"""
+async def test_mark_plugin_error_preserves_desired_state_and_isolates_resources(tmp_path: Path) -> None:
+    """校验标记异常会保留启用意图，同时依靠 error 状态隔离菜单和运行时。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -707,7 +745,7 @@ backend:
 
         assert result.is_success is True
         assert db_plugin is not None
-        assert db_plugin.enabled == '1'
+        assert db_plugin.enabled == '0'
         assert db_plugin.status == 'error'
         assert db_plugin.last_error == 'broken startup'
         assert db_menu is not None
@@ -774,6 +812,50 @@ async def test_recover_plugin_dependency_error_restores_lifecycle_state(
 
 
 @pytest.mark.asyncio
+async def test_recover_plugin_dependency_error_preserves_explicit_disable_intent(tmp_path: Path) -> None:
+    """校验用户在依赖异常后显式停用插件时，恢复不会擅自重新启用。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            Base.metadata.create_all,
+            tables=[SysMenu.__table__, SysPlugin.__table__, SysPluginMenu.__table__],
+        )
+        await create_sqlite_sys_job_table(connection)
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin(tmp_path)
+            await PluginService.upsert_discovered_plugin_services(
+                session,
+                discovered_plugin,
+                tmp_path / 'plugins',
+                tmp_path / 'frontend_plugins',
+            )
+            await PluginService.mark_plugin_installed_services(session, discovered_plugin)
+            await PluginService.mark_plugin_error_services(
+                session,
+                'demo',
+                '插件启动依赖检查失败：Python 依赖未安装：agno',
+            )
+            await PluginService.update_plugin_enabled_services(session, 'demo', enabled=False)
+
+            result = await PluginService.recover_plugin_dependency_error_services(
+                session,
+                discovered_plugin,
+            )
+            db_plugin = await PluginDao.get_plugin_by_id(session, 'demo')
+
+        assert result.is_success is True
+        assert db_plugin is not None
+        assert db_plugin.enabled == '1'
+        assert db_plugin.status == 'installed'
+        assert db_plugin.last_error is None
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
 async def test_recover_plugin_dependency_error_preserves_unrelated_error(tmp_path: Path) -> None:
     """校验启动恢复不会误清除 hook、migration 等其他插件错误。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
@@ -804,7 +886,7 @@ async def test_recover_plugin_dependency_error_preserves_unrelated_error(tmp_pat
 
         assert result.is_success is False
         assert db_plugin is not None
-        assert db_plugin.enabled == '1'
+        assert db_plugin.enabled == '0'
         assert db_plugin.status == 'error'
         assert db_plugin.last_error == '插件启动钩子执行失败：broken'
     finally:
@@ -812,8 +894,8 @@ async def test_recover_plugin_dependency_error_preserves_unrelated_error(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_enable_plugin_clears_last_error_and_reenables_menus(tmp_path: Path) -> None:
-    """校验重新启用插件时会清理最近错误并恢复插件菜单状态。"""
+async def test_enable_plugin_rejects_uninstalled_error_state(tmp_path: Path) -> None:
+    """校验安装失败插件不能通过启用操作伪装为已安装。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -832,6 +914,44 @@ async def test_enable_plugin_clears_last_error_and_reenables_menus(tmp_path: Pat
                 tmp_path / 'plugins',
                 tmp_path / 'frontend_plugins',
             )
+            await PluginService.mark_plugin_error_services(session, 'demo', 'broken install')
+
+            result = await PluginService.update_plugin_enabled_services(session, 'demo', enabled=True)
+            db_plugin = await PluginDao.get_plugin_by_id(session, 'demo')
+
+        assert result.is_success is False
+        assert result.message == '插件尚未安装，不能启用'
+        assert db_plugin is not None
+        assert db_plugin.installed_version is None
+        assert db_plugin.enabled == '0'
+        assert db_plugin.status == 'error'
+        assert db_plugin.last_error == 'broken install'
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_enable_plugin_rejects_error_state_without_repair_lifecycle(tmp_path: Path) -> None:
+    """校验异常插件不能靠启用开关伪装修复，必须重新安装或升级。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            Base.metadata.create_all,
+            tables=[SysMenu.__table__, SysPlugin.__table__, SysPluginMenu.__table__],
+        )
+        await create_sqlite_sys_job_table(connection)
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin(tmp_path, enabled=True)
+            await PluginService.upsert_discovered_plugin_services(
+                session,
+                discovered_plugin,
+                tmp_path / 'plugins',
+                tmp_path / 'frontend_plugins',
+            )
+            await PluginService.mark_plugin_installed_services(session, discovered_plugin)
             session.add(
                 SysMenu(
                     menu_id=INITIAL_MENU_ID,
@@ -853,20 +973,21 @@ async def test_enable_plugin_clears_last_error_and_reenables_menus(tmp_path: Pat
             db_plugin = await PluginDao.get_plugin_by_id(session, 'demo')
             db_menu = await PluginDao.get_sys_menu_by_id(session, INITIAL_MENU_ID)
 
-        assert result.is_success is True
+        assert result.is_success is False
+        assert result.message == '插件状态不允许执行当前启停操作'
         assert db_plugin is not None
         assert db_plugin.enabled == '0'
-        assert db_plugin.status == 'installed'
-        assert db_plugin.last_error is None
+        assert db_plugin.status == 'error'
+        assert db_plugin.last_error == 'broken startup'
         assert db_menu is not None
-        assert db_menu.status == '0'
+        assert db_menu.status == '1'
     finally:
         await engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_install_enabled_plugin_jobs_upserts_sys_job(tmp_path: Path) -> None:
-    """校验启用插件任务会幂等写入系统任务表。"""
+async def test_install_plugin_jobs_upserts_sys_job_idempotently(tmp_path: Path) -> None:
+    """校验单插件任务同步会幂等写入系统任务表。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -875,22 +996,8 @@ async def test_install_enabled_plugin_jobs_upserts_sys_job(tmp_path: Path) -> No
     try:
         async with session_maker() as session:
             discovered_plugin = build_discovered_plugin_with_job(tmp_path)
-            registry = PluginRegistry.build(
-                [discovered_plugin],
-                [
-                    PluginModel(
-                        pluginId='demo',
-                        pluginName='演示插件',
-                        version='1.0.0',
-                        installedVersion='1.0.0',
-                        enabled='0',
-                        status='installed',
-                    )
-                ],
-            )
-
-            await PluginJobInstaller(session).install_enabled_plugin_jobs(registry)
-            await PluginJobInstaller(session).install_enabled_plugin_jobs(registry)
+            await PluginJobInstaller(session).install_plugin_jobs(discovered_plugin, enabled=True)
+            await PluginJobInstaller(session).install_plugin_jobs(discovered_plugin, enabled=True)
             await session.commit()
 
             job_list = await JobDao.get_job_list_for_scheduler(session)
@@ -899,6 +1006,66 @@ async def test_install_enabled_plugin_jobs_upserts_sys_job(tmp_path: Path) -> No
         assert job_list[0].job_name == 'demo:cleanup'
         assert job_list[0].status == '0'
         assert job_list[0].invoke_target == 'plugins.demo.jobs.cleanup'
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_plugin_job_sync_deletes_stale_owned_jobs_but_keeps_manual_jobs(tmp_path: Path) -> None:
+    """校验任务同步删除旧插件任务且不误删用户同名前缀任务。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await create_sqlite_sys_job_table(connection)
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin_with_job(tmp_path)
+            await PluginJobInstaller(session).install_plugin_jobs(discovered_plugin)
+            session.add(
+                SysJob(
+                    job_name='demo:manual',
+                    job_group='default',
+                    invoke_target='module_task.scheduler_test.job',
+                    status='0',
+                    remark='用户手工任务',
+                )
+            )
+            await session.flush()
+            discovered_plugin.manifest.backend.jobs = []
+
+            await PluginJobInstaller(session).install_plugin_jobs(discovered_plugin)
+            await session.commit()
+            job_list = await JobDao.get_all_job_list_for_scheduler(session)
+
+        assert [(job.job_name, job.remark) for job in job_list] == [('demo:manual', '用户手工任务')]
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_plugin_job_sync_rejects_exact_name_collision_with_manual_job(tmp_path: Path) -> None:
+    """校验插件任务不会接管同名的用户手工任务。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await create_sqlite_sys_job_table(connection)
+
+    try:
+        async with session_maker() as session:
+            session.add(
+                SysJob(
+                    job_name='demo:cleanup',
+                    job_group='default',
+                    invoke_target='module_task.scheduler_test.job',
+                    status='0',
+                    remark='用户手工任务',
+                )
+            )
+            await session.flush()
+
+            with pytest.raises(ValueError, match='拒绝覆盖'):
+                await PluginJobInstaller(session).install_plugin_jobs(build_discovered_plugin_with_job(tmp_path))
     finally:
         await engine.dispose()
 
@@ -1042,6 +1209,55 @@ backend:
         assert plugin_page_result.rows[0]['pluginName'] == '演示插件'
         assert plugin_page_result.rows[0]['enabled'] == '0'
         assert plugin_page_result.rows[0]['status'] == 'discovered'
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_get_plugin_page_list_includes_database_orphan_for_metadata_purge(tmp_path: Path) -> None:
+    """校验源码缺失的数据库孤儿记录仍可在管理列表中被发现和清理。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPlugin.__table__])
+
+    try:
+        async with session_maker() as session:
+            session.add(
+                SysPlugin(
+                    plugin_id='orphan',
+                    plugin_name='孤儿插件',
+                    version='1.0.0',
+                    installed_version='1.0.0',
+                    enabled='1',
+                    status='installed',
+                    source='local',
+                )
+            )
+            await session.commit()
+
+            plugin_page_result = await PluginService.get_plugin_page_list_services(
+                session,
+                PluginPageQueryModel(source='orphan'),
+                is_page=True,
+                backend_root=tmp_path / 'plugins',
+                frontend_root=tmp_path / 'frontend_plugins',
+            )
+            plugin_detail = await PluginService.plugin_detail_services(
+                session,
+                'orphan',
+                backend_root=tmp_path / 'plugins',
+                frontend_root=tmp_path / 'frontend_plugins',
+            )
+
+        assert plugin_page_result.total == 1
+        orphan_row = plugin_page_result.rows[0]
+        assert orphan_row['pluginId'] == 'orphan'
+        assert orphan_row['source'] == 'orphan'
+        assert 'install' in orphan_row['capability']['blockedOperations']
+        assert 'purge' not in orphan_row['capability']['blockedOperations']
+        assert plugin_detail is not None
+        assert plugin_detail.source == 'orphan'
     finally:
         await engine.dispose()
 
@@ -1359,6 +1575,67 @@ async def test_secret_plugin_config_is_encrypted_at_rest(tmp_path: Path) -> None
         await engine.dispose()
 
 
+@pytest.mark.asyncio
+async def test_plugin_config_sync_removes_items_deleted_from_manifest(tmp_path: Path) -> None:
+    """校验配置同步会删除 manifest 已移除的旧配置。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPluginConfig.__table__])
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin_with_config(tmp_path)
+            await PluginService.install_plugin_default_config_services(session, discovered_plugin)
+            discovered_plugin.manifest.config.items = [
+                item for item in discovered_plugin.manifest.config.items if item.key == 'provider'
+            ]
+
+            await PluginService.install_plugin_default_config_services(session, discovered_plugin)
+            configs = await PluginDao.get_plugin_config_list(session, 'demo')
+
+        assert [config.config_key for config in configs] == ['provider']
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_plugin_config_sync_reencrypts_value_when_secret_policy_changes(tmp_path: Path) -> None:
+    """校验配置项升级为敏感配置时会迁移已有明文值。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysPluginConfig.__table__])
+
+    try:
+        async with session_maker() as session:
+            discovered_plugin = build_discovered_plugin_with_config(tmp_path)
+            await PluginService.install_plugin_default_config_services(session, discovered_plugin)
+            await PluginService.update_plugin_config_services(
+                session,
+                discovered_plugin,
+                PluginConfigUpdateModel(values={'provider': 'mistral'}),
+            )
+            provider_item = next(item for item in discovered_plugin.manifest.config.items if item.key == 'provider')
+            provider_item.secret = True
+
+            await PluginService.install_plugin_default_config_services(session, discovered_plugin)
+            db_config = await PluginDao.get_plugin_config_by_key(session, 'demo', 'provider')
+            configs = await PluginService.get_plugin_config_services(
+                session,
+                discovered_plugin,
+                reveal_secret=True,
+            )
+
+        provider_config = next(config for config in configs if config.key == 'provider')
+        assert db_config is not None
+        assert db_config.secret == '0'
+        assert db_config.config_value.startswith(PluginConfigManager.ENCRYPTED_PREFIX)
+        assert provider_config.value == 'mistral'
+    finally:
+        await engine.dispose()
+
+
 def test_secret_plugin_config_rejects_plaintext_storage() -> None:
     """校验敏感插件配置读取时拒绝未加密存储值。"""
     config = SimpleNamespace(
@@ -1416,8 +1693,62 @@ async def test_get_plugin_config_services_reuses_bulk_config_lookup(
             monkeypatch.setattr(PluginDao, 'get_plugin_config_by_key', fail_get_config_by_key)
 
             configs = await PluginService.get_plugin_config_services(session, discovered_plugin)
+            persisted_count = (await session.execute(text('select count(*) from sys_plugin_config'))).scalar_one()
 
         assert {config.key for config in configs} == {'provider', 'api_key', 'temperature'}
+        assert persisted_count == 0
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_plugin_config_gateway_rejects_uninstalled_plugin_updates(tmp_path: Path) -> None:
+    """校验配置写入口不会为尚未安装的插件隐式创建持久化配置。"""
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(
+            Base.metadata.create_all,
+            tables=[SysPlugin.__table__, SysPluginConfig.__table__],
+        )
+
+    class TestPluginManagementRuntimeGateway(PluginManagementRuntimeGateway):
+        """注入测试数据库会话工厂。"""
+
+        @staticmethod
+        def get_async_session_local() -> object:
+            """获取测试数据库会话工厂。"""
+            return session_maker
+
+    try:
+        async with session_maker() as session:
+            session.add(
+                SysPlugin(
+                    plugin_id='demo',
+                    plugin_name='Demo',
+                    version='1.0.0',
+                    installed_version=None,
+                    enabled='1',
+                    status='discovered',
+                )
+            )
+            await session.commit()
+
+        discovered_plugin = build_discovered_plugin_with_config(tmp_path)
+        gateway = TestPluginManagementRuntimeGateway()
+        with pytest.raises(ValueError, match='插件尚未安装，不能修改配置：demo'):
+            await gateway.update_plugin_config(discovered_plugin, {'provider': 'mistral'})
+        with pytest.raises(ValueError, match='插件尚未安装，不能修改配置：demo'):
+            await gateway.set_plugin_config(
+                discovered_plugin,
+                {'provider': 'mistral'},
+                audit_operation='config_update',
+                success_message='配置更新成功',
+            )
+
+        async with session_maker() as session:
+            persisted_count = (await session.execute(text('select count(*) from sys_plugin_config'))).scalar_one()
+        assert persisted_count == 0
     finally:
         await engine.dispose()
 
@@ -1541,8 +1872,8 @@ async def test_build_plugin_purge_plan_counts_platform_metadata(tmp_path: Path) 
 
 
 @pytest.mark.asyncio
-async def test_purge_plugin_services_deletes_platform_metadata(tmp_path: Path) -> None:
-    """校验插件物理清理服务只删除平台拥有的插件元数据。"""
+async def test_purge_plugin_metadata_by_id_deletes_orphan_platform_metadata(tmp_path: Path) -> None:
+    """校验源码缺失时可按插件 ID 删除平台拥有的孤儿元数据。"""
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
     async with engine.begin() as connection:
@@ -1594,7 +1925,7 @@ async def test_purge_plugin_services_deletes_platform_metadata(tmp_path: Path) -
             )
             await PluginJobInstaller(session).install_plugin_jobs(build_discovered_plugin_with_job(tmp_path))
 
-            plan = await PluginService.purge_plugin_services(session, discovered_plugin)
+            plan = await PluginService.purge_plugin_metadata_by_id_services(session, 'demo')
             await session.commit()
 
             plugin = await PluginDao.get_plugin_by_id(session, 'demo')

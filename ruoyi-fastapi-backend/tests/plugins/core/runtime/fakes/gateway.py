@@ -61,13 +61,13 @@ class FakePluginLifecycleUnitOfWork:
         """安装插件菜单。"""
         await FakePluginService.install_plugin_menu_services(self.session, discovered_plugin, enabled=enabled)
 
-    async def install_enabled_plugin_menus(self, plugin_registry: object) -> None:
-        """安装启用插件菜单。"""
-        await FakePluginService.install_enabled_plugin_menu_services(self.session, plugin_registry)
-
     async def install_plugin_default_config(self, discovered_plugin: object) -> list[SimpleNamespace]:
         """安装插件默认配置。"""
         return await FakePluginService.install_plugin_default_config_services(self.session, discovered_plugin)
+
+    async def install_plugin_jobs(self, discovered_plugin: object, *, enabled: bool) -> None:
+        """同步插件任务。"""
+        await FakePluginService.install_plugin_job_services(self.session, discovered_plugin, enabled=enabled)
 
     async def mark_plugin_installed(self, discovered_plugin: object) -> SimpleNamespace:
         """标记插件已安装。"""
@@ -80,6 +80,14 @@ class FakePluginLifecycleUnitOfWork:
     async def purge_plugin_metadata(self, discovered_plugin: object) -> object:
         """清理插件平台元数据。"""
         return await FakePluginService.purge_plugin_services(self.session, discovered_plugin)
+
+    async def build_plugin_purge_plan_by_id(self, plugin_id: str) -> object:
+        """按插件 ID 构建孤儿元数据清理计划。"""
+        return await FakePluginService.build_plugin_purge_plan_by_id_services(self.session, plugin_id)
+
+    async def purge_plugin_metadata_by_id(self, plugin_id: str) -> object:
+        """按插件 ID 清理孤儿元数据。"""
+        return await FakePluginService.purge_plugin_metadata_by_id_services(self.session, plugin_id)
 
     async def commit(self) -> None:
         """提交测试生命周期主事务。"""
@@ -142,7 +150,6 @@ class FakePluginRuntimeGateway:
                 discovered_plugin,
                 reveal_secret=reveal_secret,
             )
-            await session.commit()
             return configs
 
     async def update_plugin_config(

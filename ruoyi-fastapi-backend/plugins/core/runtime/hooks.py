@@ -6,6 +6,7 @@ from typing import Any
 from common.constant import PluginRuntimeConstant
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.callable import LoadedPluginCallable, PluginCallableLoader
+from utils.log_util import logger
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,8 @@ class PluginHookContext:
     :param app: FastAPI 应用对象
     :param query_db: orm对象
     :param startup_write_enabled: 当前 worker 是否允许执行启动期全局写入
+    :param startup_generation: 插件启动代际
+    :param plugin_startup_role_at_creation: Hook 创建时的插件启动角色
     """
 
     plugin_id: str
@@ -27,6 +30,8 @@ class PluginHookContext:
     app: Any | None = None
     query_db: Any | None = None
     startup_write_enabled: bool = True
+    startup_generation: str | None = None
+    plugin_startup_role_at_creation: str = 'writer'
 
 
 @dataclass(frozen=True)
@@ -49,7 +54,10 @@ class PluginHookRunner:
     插件生命周期钩子运行器。
 
     使用 Command Runner 模式解析并执行 `plugin.yaml` 中声明的生命周期钩子。
-    钩子函数可以是同步或异步函数，签名支持 `hook()` 或 `hook(context)`。
+    钩子必须使用 async def 声明，签名支持 `hook()` 或 `hook(context)`。
+
+    同步函数在线程池超时后无法被 Python 安全终止，可能在生命周期事务已经回滚后
+    继续产生副作用，因此平台拒绝执行同步生命周期钩子。
     """
 
     def __init__(
@@ -62,7 +70,7 @@ class PluginHookRunner:
         初始化插件生命周期钩子运行器。
 
         :param discovered_plugin: 已发现插件对象
-        :param timeout_seconds: 异步钩子执行超时时间
+        :param timeout_seconds: 钩子执行超时时间
         """
         self.discovered_plugin = discovered_plugin
         self.timeout_seconds = timeout_seconds or PluginRuntimeConstant.PLUGIN_HOOK_TIMEOUT_SECONDS
@@ -89,6 +97,10 @@ class PluginHookRunner:
             return None
 
         hook_callable = self._load_hook_callable(hook_path)
+        startup_generation = None
+        if app is not None and getattr(app, 'state', None) is not None:
+            startup_generation = getattr(app.state, 'plugin_startup_generation', None)
+        plugin_startup_role = 'writer' if startup_write_enabled else 'reader'
         context = PluginHookContext(
             plugin_id=self.discovered_plugin.manifest.id,
             hook_name=hook_name,
@@ -96,11 +108,24 @@ class PluginHookRunner:
             app=app,
             query_db=query_db,
             startup_write_enabled=startup_write_enabled,
+            startup_generation=startup_generation,
+            plugin_startup_role_at_creation=plugin_startup_role,
         )
-        try:
-            await self._invoke_hook_with_timeout(hook_callable, context)
-        except asyncio.TimeoutError as exc:
-            raise TimeoutError(f'生命周期钩子执行超时：{hook_name}，超过 {self.timeout_seconds} 秒') from exc
+        with logger.contextualize(
+            plugin_id=context.plugin_id,
+            plugin_hook=hook_name,
+            startup_generation=startup_generation,
+            plugin_startup_role_at_creation=plugin_startup_role,
+            startup_write_enabled=startup_write_enabled,
+            origin_hook=hook_name,
+            created_during_startup=hook_name == 'on_startup',
+        ):
+            logger.debug('🔄 开始执行插件生命周期钩子')
+            try:
+                await self._invoke_hook_with_timeout(hook_callable, context)
+            except asyncio.TimeoutError as exc:
+                raise TimeoutError(f'生命周期钩子执行超时：{hook_name}，超过 {self.timeout_seconds} 秒') from exc
+            logger.debug('✅ 插件生命周期钩子执行完成')
 
         return PluginHookResult(hook_name=hook_name, hook_path=hook_path, module_name=hook_callable.module_name)
 
@@ -126,13 +151,9 @@ class PluginHookRunner:
         :return: None
         """
         callable_object = hook_callable.callable_object
-        if inspect.iscoroutinefunction(callable_object):
-            result = self._invoke_hook(hook_callable, context)
-        else:
-            result = await asyncio.wait_for(
-                asyncio.to_thread(self._invoke_hook, hook_callable, context),
-                timeout=self.timeout_seconds,
-            )
+        if not inspect.iscoroutinefunction(callable_object):
+            raise TypeError('生命周期钩子必须使用 async def 声明，平台不会在线程中执行不可终止的同步钩子')
+        result = self._invoke_hook(hook_callable, context)
         if inspect.isawaitable(result):
             await asyncio.wait_for(result, timeout=self.timeout_seconds)
 

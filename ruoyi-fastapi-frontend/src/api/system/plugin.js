@@ -84,6 +84,15 @@ export function uninstallPlugin(pluginId, dryRun = false) {
   })
 }
 
+// 物理清理插件平台元数据
+export function purgePlugin(pluginId, dryRun = false) {
+  return request({
+    url: '/system/plugin/' + pluginId + '/purge',
+    method: 'post',
+    params: { dryRun }
+  })
+}
+
 // 查询插件配置
 export function getPluginConfig(pluginId) {
   return request({

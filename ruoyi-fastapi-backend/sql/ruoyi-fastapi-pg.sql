@@ -1358,7 +1358,9 @@ create table sys_plugin (
   update_by          varchar(64)    default '',
   update_time        timestamp(0),
   remark             varchar(500)   default null,
-  primary key (plugin_id)
+  primary key (plugin_id),
+  constraint ck_sys_plugin_enabled check (enabled in ('0', '1')),
+  constraint ck_sys_plugin_status check (status in ('discovered', 'installed', 'pending_upgrade', 'error'))
 );
 comment on table sys_plugin is '插件信息表';
 comment on column sys_plugin.plugin_id is '插件ID';

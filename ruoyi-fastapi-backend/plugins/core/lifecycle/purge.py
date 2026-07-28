@@ -145,6 +145,89 @@ class PluginPurgePlanner:
             requires_hook=bool(manifest.backend.hooks.on_purge),
         )
 
+    @classmethod
+    def build_metadata_plan(
+        cls,
+        plugin_id: str,
+        *,
+        state_count: int = 0,
+        menu_count: int = 0,
+        config_count: int = 0,
+        migration_count: int = 0,
+        job_count: int = 0,
+    ) -> PluginPurgePlan:
+        """
+        为源码已经缺失的孤儿插件构建平台元数据清理计划。
+
+        metadata-only 清理无法推断业务表和文件资源，也不会伪装执行 onPurge；
+        计划只包含平台能够按插件 ID 明确归属的资源。
+
+        :param plugin_id: 插件ID
+        :param state_count: 插件状态记录数量
+        :param menu_count: 插件菜单数量
+        :param config_count: 插件配置数量
+        :param migration_count: 插件 migration 历史数量
+        :param job_count: 插件任务数量
+        :return: 插件物理清理计划
+        """
+        items = [
+            PluginPurgePlanItem(
+                name='disable_plugin',
+                label='停用插件和菜单',
+                enabled=state_count > 0,
+                destructive=False,
+                count=state_count,
+                target=plugin_id,
+            ),
+            PluginPurgePlanItem(
+                name='delete_plugin_menus',
+                label='删除插件菜单关联和插件菜单',
+                enabled=menu_count > 0,
+                destructive=True,
+                count=menu_count,
+            ),
+            PluginPurgePlanItem(
+                name='delete_plugin_configs',
+                label='删除插件配置',
+                enabled=config_count > 0,
+                destructive=True,
+                count=config_count,
+            ),
+            PluginPurgePlanItem(
+                name='delete_plugin_migrations',
+                label='删除插件 migration 历史',
+                enabled=migration_count > 0,
+                destructive=True,
+                count=migration_count,
+            ),
+            PluginPurgePlanItem(
+                name='delete_plugin_jobs',
+                label='删除插件定时任务',
+                enabled=job_count > 0,
+                destructive=True,
+                count=job_count,
+            ),
+            PluginPurgePlanItem(
+                name='delete_plugin_state',
+                label='删除插件状态记录',
+                enabled=state_count > 0,
+                destructive=True,
+                count=state_count,
+            ),
+            PluginPurgePlanItem(
+                name='remove_source',
+                label='删除插件源码目录',
+                enabled=False,
+                destructive=True,
+            ),
+        ]
+        return PluginPurgePlan(
+            plugin_id=plugin_id,
+            items=items,
+            removes_source=False,
+            requires_hook=False,
+        )
+
     @staticmethod
     def _build_resource_items(manifest: object) -> list[PluginPurgePlanItem]:
         """

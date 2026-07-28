@@ -90,17 +90,21 @@ async def test_prepare_enabled_plugins_skips_builtin_state_sync_when_startup_wri
 async def test_activate_enabled_plugins_installs_resources_and_runs_hooks() -> None:
     """校验插件启动协调器激活启用插件资源。"""
     app = MagicMock()
+    calls = []
     startup_manager = PluginRuntimeStartupManager(MagicMock())
-    startup_manager.sync_enabled_plugin_install_states = AsyncMock()
-    startup_manager.install_enabled_plugin_resources = AsyncMock()
-    startup_manager.register_enabled_plugin_routers = MagicMock()
-    startup_manager.run_enabled_plugin_hooks = AsyncMock()
+    startup_manager.sync_enabled_plugin_install_states = AsyncMock(side_effect=lambda *_args: calls.append('sync'))
+    startup_manager.install_enabled_plugin_resources = AsyncMock(side_effect=lambda *_args: calls.append('resources'))
+    startup_manager.register_enabled_plugin_routers = MagicMock(
+        side_effect=lambda *_args, **_kwargs: calls.append('routers')
+    )
+    startup_manager.run_enabled_plugin_hooks = AsyncMock(side_effect=lambda *_args, **_kwargs: calls.append('hooks'))
 
     await startup_manager.activate_enabled_plugins(app)
 
+    assert calls == ['sync', 'resources', 'hooks', 'routers']
     startup_manager.sync_enabled_plugin_install_states.assert_awaited_once_with(app)
     startup_manager.install_enabled_plugin_resources.assert_awaited_once_with(app)
-    startup_manager.register_enabled_plugin_routers.assert_called_once_with(app)
+    startup_manager.register_enabled_plugin_routers.assert_called_once_with(app, startup_write_enabled=True)
     startup_manager.run_enabled_plugin_hooks.assert_awaited_once_with(
         app,
         'on_startup',
@@ -112,17 +116,21 @@ async def test_activate_enabled_plugins_installs_resources_and_runs_hooks() -> N
 async def test_activate_enabled_plugins_skips_resource_install_when_startup_write_disabled() -> None:
     """校验非启动写入 worker 会跳过插件资源安装，但仍注册本 worker 路由和执行本地钩子。"""
     app = MagicMock()
+    calls = []
     startup_manager = PluginRuntimeStartupManager(MagicMock())
     startup_manager.sync_enabled_plugin_install_states = AsyncMock()
     startup_manager.install_enabled_plugin_resources = AsyncMock()
-    startup_manager.register_enabled_plugin_routers = MagicMock()
-    startup_manager.run_enabled_plugin_hooks = AsyncMock()
+    startup_manager.register_enabled_plugin_routers = MagicMock(
+        side_effect=lambda *_args, **_kwargs: calls.append('routers')
+    )
+    startup_manager.run_enabled_plugin_hooks = AsyncMock(side_effect=lambda *_args, **_kwargs: calls.append('hooks'))
 
     await startup_manager.activate_enabled_plugins(app, startup_write_enabled=False)
 
+    assert calls == ['hooks', 'routers']
     startup_manager.sync_enabled_plugin_install_states.assert_not_awaited()
     startup_manager.install_enabled_plugin_resources.assert_not_awaited()
-    startup_manager.register_enabled_plugin_routers.assert_called_once_with(app)
+    startup_manager.register_enabled_plugin_routers.assert_called_once_with(app, startup_write_enabled=False)
     startup_manager.run_enabled_plugin_hooks.assert_awaited_once_with(
         app,
         'on_startup',
@@ -150,13 +158,16 @@ async def test_sync_enabled_plugin_install_states_marks_missing_database_plugin_
     fake_builder.frontend_plugins_root = BACKEND_ROOT.parent / 'frontend' / 'plugins'
     fake_gateway = MagicMock()
     fake_gateway.upsert_discovered_plugin = AsyncMock()
+    fake_gateway.install_plugin_resources = AsyncMock()
     fake_gateway.mark_plugin_installed = AsyncMock()
     startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
 
     with (
         patch_startup_get_db(fake_get_db),
         patch.object(startup_manager, 'load_registry_from_database', new_callable=AsyncMock) as load_registry,
+        patch.object(startup_manager, 'validate_plugin_structure') as validate_structure,
         patch.object(startup_manager, 'run_plugin_install_scripts', new_callable=AsyncMock) as run_install_scripts,
+        patch.object(startup_manager, 'run_plugin_install_hook', new_callable=AsyncMock) as run_install_hook,
     ):
         await startup_manager.sync_enabled_plugin_install_states(app)
 
@@ -166,7 +177,14 @@ async def test_sync_enabled_plugin_install_states_marks_missing_database_plugin_
         fake_builder.plugins_root,
         fake_builder.frontend_plugins_root,
     )
+    validate_structure.assert_called_once_with(discovered_plugin)
+    fake_gateway.install_plugin_resources.assert_awaited_once_with(
+        fake_session,
+        discovered_plugin,
+        enabled=True,
+    )
     run_install_scripts.assert_awaited_once_with(fake_session, discovered_plugin)
+    run_install_hook.assert_awaited_once_with(fake_session, discovered_plugin)
     fake_gateway.mark_plugin_installed.assert_awaited_once_with(fake_session, discovered_plugin)
     fake_session.commit.assert_awaited_once()
     load_registry.assert_awaited_once_with(app)
@@ -212,12 +230,15 @@ async def test_sync_default_enabled_builtin_plugin_install_states_installs_missi
     fake_gateway = MagicMock()
     fake_gateway.list_plugins = AsyncMock(return_value=[])
     fake_gateway.upsert_discovered_plugin = AsyncMock()
+    fake_gateway.install_plugin_resources = AsyncMock()
     fake_gateway.mark_plugin_installed = AsyncMock()
     startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
 
     with (
         patch_startup_get_db(fake_get_db),
+        patch.object(startup_manager, 'validate_plugin_structure') as validate_structure,
         patch.object(startup_manager, 'run_plugin_install_scripts', new_callable=AsyncMock) as run_install_scripts,
+        patch.object(startup_manager, 'run_plugin_install_hook', new_callable=AsyncMock) as run_install_hook,
     ):
         await startup_manager.sync_default_enabled_builtin_plugin_install_states()
 
@@ -228,7 +249,14 @@ async def test_sync_default_enabled_builtin_plugin_install_states_installs_missi
         fake_builder.plugins_root,
         fake_builder.frontend_plugins_root,
     )
+    validate_structure.assert_called_once_with(discovered_plugin)
+    fake_gateway.install_plugin_resources.assert_awaited_once_with(
+        fake_session,
+        discovered_plugin,
+        enabled=True,
+    )
     run_install_scripts.assert_awaited_once_with(fake_session, discovered_plugin)
+    run_install_hook.assert_awaited_once_with(fake_session, discovered_plugin)
     fake_gateway.mark_plugin_installed.assert_awaited_once_with(fake_session, discovered_plugin)
     fake_session.commit.assert_awaited_once()
 
@@ -312,6 +340,63 @@ async def test_sync_default_enabled_builtin_plugin_install_states_respects_unins
     fake_gateway.upsert_discovered_plugin.assert_not_awaited()
     fake_gateway.mark_plugin_installed.assert_not_awaited()
     fake_session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_startup_write_is_required_when_default_builtin_state_is_missing() -> None:
+    """校验旧 ready 标记不能掩盖默认插件安装状态缺失。"""
+    fake_session = AsyncMock()
+
+    async def fake_get_db() -> object:
+        """生成测试数据库会话。"""
+        yield fake_session
+
+    discovered_plugin = MagicMock()
+    discovered_plugin.manifest.id = 'ai'
+    fake_builder = MagicMock()
+    fake_builder.discover_plugins.return_value = [discovered_plugin]
+    fake_gateway = MagicMock()
+    fake_gateway.list_plugins = AsyncMock(return_value=[])
+    startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
+
+    with patch_startup_get_db(fake_get_db):
+        requires_write = await startup_manager.requires_startup_write()
+
+    assert requires_write is True
+    fake_gateway.list_plugins.assert_awaited_once_with(fake_session)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('database_plugin', 'expected'),
+    [
+        (MagicMock(plugin_id='ai', installed_version='1.0.0', status='installed', enabled='0'), False),
+        (MagicMock(plugin_id='ai', installed_version=None, status='discovered', enabled='1'), False),
+    ],
+)
+async def test_startup_write_respects_installed_or_explicitly_uninstalled_builtin(
+    database_plugin: object,
+    expected: bool,
+) -> None:
+    """校验已安装插件和用户明确卸载的插件不会触发重复自动安装。"""
+    fake_session = AsyncMock()
+
+    async def fake_get_db() -> object:
+        """生成测试数据库会话。"""
+        yield fake_session
+
+    discovered_plugin = MagicMock()
+    discovered_plugin.manifest.id = 'ai'
+    fake_builder = MagicMock()
+    fake_builder.discover_plugins.return_value = [discovered_plugin]
+    fake_gateway = MagicMock()
+    fake_gateway.list_plugins = AsyncMock(return_value=[database_plugin])
+    startup_manager = PluginRuntimeStartupManager(fake_builder, fake_gateway)
+
+    with patch_startup_get_db(fake_get_db):
+        requires_write = await startup_manager.requires_startup_write()
+
+    assert requires_write is expected
 
 
 @pytest.mark.asyncio
@@ -435,10 +520,16 @@ async def test_check_enabled_plugin_python_dependencies_skips_database_write_whe
         MagicMock(),
         python_dependency_inspector=python_dependency_inspector,
     )
+    mocked_logger = MagicMock()
 
-    with patch.object(
-        startup_manager, 'mark_plugin_runtime_error', new_callable=AsyncMock
-    ) as mark_plugin_runtime_error:
+    with (
+        patch.object(
+            startup_manager,
+            'mark_plugin_runtime_error',
+            new_callable=AsyncMock,
+        ) as mark_plugin_runtime_error,
+        patch_startup_global('logger', mocked_logger),
+    ):
         failed_plugin_ids = await startup_manager.check_enabled_plugin_python_dependencies(
             app,
             startup_write_enabled=False,
@@ -447,6 +538,13 @@ async def test_check_enabled_plugin_python_dependencies_skips_database_write_whe
     assert failed_plugin_ids == {'ai'}
     python_dependency_inspector.check.assert_called_once_with(['agno==2.4.8'])
     mark_plugin_runtime_error.assert_not_awaited()
+    mocked_logger.bind.assert_called_once_with(
+        plugin_id='ai',
+        startup_generation=None,
+        plugin_startup_role_at_creation='reader',
+        startup_write_enabled=False,
+    )
+    assert '插件启动依赖检查失败' in mocked_logger.bind.return_value.error.call_args.args[0]
 
 
 @pytest.mark.asyncio
@@ -875,48 +973,87 @@ def test_find_plugin_controller_files_filters_private_and_missing_plugins(tmp_pa
     assert controller_files == [str(plugin_controller)]
 
 
-@pytest.mark.parametrize(
-    ('manager_method', 'gateway_method'),
-    (
-        ('install_enabled_plugin_menus', 'install_enabled_plugin_menus'),
-        ('install_enabled_plugin_configs', 'install_enabled_plugin_configs'),
-        ('install_enabled_plugin_jobs', 'install_enabled_plugin_jobs'),
-    ),
-)
 @pytest.mark.asyncio
-async def test_install_enabled_plugin_resources_commit_after_service_call(
-    manager_method: str,
-    gateway_method: str,
-) -> None:
-    """校验启用插件资源在服务调用完成后提交事务。"""
+async def test_install_enabled_plugin_resources_isolates_failed_plugin() -> None:
+    """校验单个插件资源同步失败不会阻断其他插件。"""
     fake_session = AsyncMock()
 
     async def fake_get_db() -> object:
-        """提供测试用数据库会话生成器。"""
+        """提供测试数据库会话生成器。"""
         yield fake_session
 
+    broken_plugin = MagicMock()
+    broken_plugin.manifest.id = 'broken'
+    healthy_plugin = MagicMock()
+    healthy_plugin.manifest.id = 'healthy'
     app = FastAPI()
-    app.state.plugin_registry = PluginRegistry.build([])
+    app.state.plugin_registry = PluginRegistry(
+        [
+            RegisteredPlugin(broken_plugin, MagicMock(), enabled=True, status='installed'),
+            RegisteredPlugin(healthy_plugin, MagicMock(), enabled=True, status='installed'),
+        ]
+    )
     fake_gateway = MagicMock()
-    setattr(fake_gateway, gateway_method, AsyncMock())
-    manager = PluginRuntimeStartupManager(MagicMock(), fake_gateway)
+    fake_gateway.install_plugin_resources = AsyncMock(side_effect=[RuntimeError('broken resource'), None])
+    startup_manager = PluginRuntimeStartupManager(MagicMock(), fake_gateway)
 
-    with patch_startup_get_db(fake_get_db):
-        await getattr(manager, manager_method)(app)
+    with (
+        patch_startup_get_db(fake_get_db),
+        patch.object(startup_manager, 'mark_plugin_runtime_error', new_callable=AsyncMock) as mark_error,
+    ):
+        await startup_manager.install_enabled_plugin_resources(app)
 
-    getattr(fake_gateway, gateway_method).assert_awaited_once_with(fake_session, app.state.plugin_registry)
+    assert [call.args[1] for call in fake_gateway.install_plugin_resources.await_args_list] == [
+        broken_plugin,
+        healthy_plugin,
+    ]
+    fake_session.rollback.assert_awaited_once()
     fake_session.commit.assert_awaited_once()
+    mark_error.assert_awaited_once_with(app, 'broken', '插件启动资源同步失败：broken resource')
 
 
 @pytest.mark.asyncio
-async def test_install_enabled_plugin_resource_skips_without_registry() -> None:
-    """校验启动资源安装在插件注册表缺失时跳过。"""
-    app = FastAPI()
-    installer = AsyncMock()
+async def test_sync_default_enabled_builtin_plugins_isolates_install_failure() -> None:
+    """校验默认内置插件首次安装失败不会阻断后续插件。"""
+    fake_session = AsyncMock()
 
-    await PluginRuntimeStartupManager(MagicMock()).install_enabled_plugin_resource(app, installer)
+    async def fake_get_db() -> object:
+        """提供测试数据库会话生成器。"""
+        yield fake_session
 
-    installer.assert_not_awaited()
+    broken_plugin = MagicMock()
+    broken_plugin.manifest.id = 'broken'
+    healthy_plugin = MagicMock()
+    healthy_plugin.manifest.id = 'healthy'
+    fake_builder = MagicMock()
+    fake_builder.discover_plugins.return_value = [broken_plugin, healthy_plugin]
+    fake_gateway = MagicMock()
+    fake_gateway.list_plugins = AsyncMock(return_value=[])
+    startup_manager = PluginRuntimeStartupManager(
+        fake_builder,
+        fake_gateway,
+        default_enabled_builtin_plugin_ids={'broken', 'healthy'},
+    )
+
+    with (
+        patch_startup_get_db(fake_get_db),
+        patch.object(
+            startup_manager,
+            'sync_plugin_install',
+            new_callable=AsyncMock,
+            side_effect=[RuntimeError('broken install'), None],
+        ) as sync_install,
+        patch.object(
+            startup_manager,
+            'mark_discovered_plugin_startup_error',
+            new_callable=AsyncMock,
+        ) as mark_error,
+    ):
+        failed_plugin_ids = await startup_manager.sync_default_enabled_builtin_plugin_install_states()
+
+    assert [call.args[0] for call in sync_install.await_args_list] == [broken_plugin, healthy_plugin]
+    assert failed_plugin_ids == {'broken'}
+    mark_error.assert_awaited_once_with(broken_plugin, '插件启动安装失败：broken install')
 
 
 def test_disable_runtime_plugins_marks_plugins_disabled_in_current_registry() -> None:
@@ -1041,10 +1178,16 @@ async def test_import_enabled_plugin_entities_skips_database_write_when_startup_
         MagicMock(plugin_id='demo', error_message='broken entity')
     ]
     startup_manager = PluginRuntimeStartupManager(fake_builder)
+    mocked_logger = MagicMock()
 
-    with patch.object(
-        startup_manager, 'mark_plugin_runtime_error', new_callable=AsyncMock
-    ) as mark_plugin_runtime_error:
+    with (
+        patch.object(
+            startup_manager,
+            'mark_plugin_runtime_error',
+            new_callable=AsyncMock,
+        ) as mark_plugin_runtime_error,
+        patch_startup_global('logger', mocked_logger),
+    ):
         failed_plugin_ids = await startup_manager.import_enabled_plugin_entities(
             app,
             startup_write_enabled=False,
@@ -1053,6 +1196,13 @@ async def test_import_enabled_plugin_entities_skips_database_write_when_startup_
     assert failed_plugin_ids == {'demo'}
     fake_builder.import_plugin_entities.assert_called_once_with(app.state.plugin_registry)
     mark_plugin_runtime_error.assert_not_awaited()
+    mocked_logger.bind.assert_called_once_with(
+        plugin_id='demo',
+        startup_generation=None,
+        plugin_startup_role_at_creation='reader',
+        startup_write_enabled=False,
+    )
+    mocked_logger.bind.return_value.error.assert_called_once_with('❌ 插件实体导入失败：broken entity')
 
 
 @pytest.mark.asyncio
@@ -1104,3 +1254,47 @@ async def test_run_enabled_plugin_hooks_marks_error_and_continues() -> None:
     broken_runner.run.assert_awaited_once_with('on_startup', app=app, startup_write_enabled=True)
     healthy_runner.run.assert_awaited_once_with('on_startup', app=app, startup_write_enabled=True)
     mark_plugin_runtime_error.assert_awaited_once_with(app, 'broken', 'broken hook')
+
+
+@pytest.mark.asyncio
+async def test_reader_worker_startup_hook_failure_is_locally_isolated() -> None:
+    """校验非写入 worker 的启动钩子失败后不会继续注册该插件路由。"""
+    broken_discovered_plugin = MagicMock()
+    broken_discovered_plugin.manifest.id = 'broken'
+    healthy_discovered_plugin = MagicMock()
+    healthy_discovered_plugin.manifest.id = 'healthy'
+    broken_plugin = RegisteredPlugin(
+        broken_discovered_plugin,
+        MagicMock(),
+        enabled=True,
+        status='installed',
+    )
+    healthy_plugin = RegisteredPlugin(
+        healthy_discovered_plugin,
+        MagicMock(),
+        enabled=True,
+        status='installed',
+    )
+    app = FastAPI()
+    app.state.plugin_registry = PluginRegistry([broken_plugin, healthy_plugin])
+    startup_manager = PluginRuntimeStartupManager(MagicMock())
+
+    broken_runner = MagicMock()
+    broken_runner.run = AsyncMock(side_effect=RuntimeError('broken local hook'))
+    healthy_runner = MagicMock()
+    healthy_runner.run = AsyncMock()
+
+    hook_runner = MagicMock(side_effect=[broken_runner, healthy_runner])
+    with (
+        patch_startup_global('PluginHookRunner', hook_runner),
+        patch.object(startup_manager, 'mark_plugin_runtime_error', new_callable=AsyncMock) as mark_plugin_runtime_error,
+    ):
+        await startup_manager.run_enabled_plugin_hooks(
+            app,
+            'on_startup',
+            startup_write_enabled=False,
+        )
+
+    assert [plugin.plugin_id for plugin in app.state.plugin_registry.list_enabled_plugins()] == ['healthy']
+    mark_plugin_runtime_error.assert_not_awaited()
+    healthy_runner.run.assert_awaited_once_with('on_startup', app=app, startup_write_enabled=False)

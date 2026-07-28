@@ -297,7 +297,7 @@ class PluginStructureChecker:
             module_path, callable_name = hook_path.split(':', maxsplit=1)
             module_name = self._resolve_hook_module_name(discovered_plugin.manifest.backend.module, module_path)
             module_file = self._resolve_plugin_module_file(discovered_plugin, module_name)
-            ok = self._module_file_declares_callable(module_file, callable_name)
+            ok = self._module_file_declares_async_callable(module_file, callable_name)
         except Exception as exc:
             return PluginStructureCheckItem(
                 kind='hook_callable',
@@ -310,7 +310,11 @@ class PluginStructureChecker:
             kind='hook_callable',
             path=f'{hook_name}:{hook_path}',
             ok=ok,
-            message=f'生命周期钩子可调用：{hook_path}' if ok else f'生命周期钩子不是可调用对象：{hook_path}',
+            message=(
+                f'生命周期钩子是异步函数：{hook_path}'
+                if ok
+                else f'生命周期钩子必须是使用 async def 声明的顶层函数：{hook_path}'
+            ),
         )
 
     @staticmethod
@@ -483,6 +487,18 @@ class PluginStructureChecker:
             isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and node.name == callable_name
             for node in module_ast.body
         )
+
+    @staticmethod
+    def _module_file_declares_async_callable(module_file: Path, callable_name: str) -> bool:
+        """
+        通过 AST 判断模块是否声明了顶层异步函数。
+
+        :param module_file: 模块文件路径
+        :param callable_name: callable 名称
+        :return: 是否声明了异步函数
+        """
+        module_ast = ast.parse(module_file.read_text(encoding='utf-8'), filename=str(module_file))
+        return any(isinstance(node, ast.AsyncFunctionDef) and node.name == callable_name for node in module_ast.body)
 
     @staticmethod
     def _check_job_cron_expression(job: PluginJobManifest) -> PluginStructureCheckItem:

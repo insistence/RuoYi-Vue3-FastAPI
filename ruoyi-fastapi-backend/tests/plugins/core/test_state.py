@@ -64,6 +64,7 @@ def test_state_transition_table_covers_supported_and_rejected_operations() -> No
         PluginStateTransitionTable.resolve_target(source, operation) for source, operation, _expected in supported_cases
     ] == [expected for _source, _operation, expected in supported_cases]
     assert PluginStateTransitionTable.can_transition('discovered', 'upgrade') is False
+    assert PluginStateTransitionTable.can_transition('error', 'enable') is False
 
 
 def test_state_resolver_and_transition_table_remain_consistent() -> None:

@@ -243,6 +243,24 @@ class PluginDao:
         )
 
     @classmethod
+    async def update_plugin_menu_key_by_menu_id(cls, db: AsyncSession, plugin_menu: PluginMenuModel) -> None:
+        """
+        根据菜单 ID 更新当前插件的菜单自然键。
+
+        :param db: orm对象
+        :param plugin_menu: 插件菜单关联对象
+        :return: None
+        """
+        await db.execute(
+            update(SysPluginMenu)
+            .where(
+                SysPluginMenu.plugin_id == plugin_menu.plugin_id,
+                SysPluginMenu.menu_id == plugin_menu.menu_id,
+            )
+            .values(menu_key=plugin_menu.menu_key)
+        )
+
+    @classmethod
     async def delete_plugin_menus(cls, db: AsyncSession, plugin_id: str) -> None:
         """
         删除插件菜单关联。
@@ -252,6 +270,24 @@ class PluginDao:
         :return: None
         """
         await db.execute(delete(SysPluginMenu).where(SysPluginMenu.plugin_id == plugin_id))
+
+    @classmethod
+    async def delete_plugin_menus_by_ids(cls, db: AsyncSession, plugin_id: str, menu_ids: list[int]) -> None:
+        """
+        根据菜单 ID 删除指定插件的菜单 ownership 关联。
+
+        :param db: orm对象
+        :param plugin_id: 插件ID
+        :param menu_ids: 菜单ID列表
+        :return: None
+        """
+        if menu_ids:
+            await db.execute(
+                delete(SysPluginMenu).where(
+                    SysPluginMenu.plugin_id == plugin_id,
+                    SysPluginMenu.menu_id.in_(menu_ids),
+                )
+            )
 
     @classmethod
     async def delete_sys_menus_by_ids(cls, db: AsyncSession, menu_ids: list[int]) -> None:
@@ -501,6 +537,21 @@ class PluginDao:
         :return: None
         """
         await db.execute(delete(SysPluginConfig).where(SysPluginConfig.plugin_id == plugin_id))
+
+    @classmethod
+    async def delete_plugin_configs_except(cls, db: AsyncSession, plugin_id: str, config_keys: set[str]) -> None:
+        """
+        删除不再由 manifest 声明的插件配置。
+
+        :param db: orm对象
+        :param plugin_id: 插件ID
+        :param config_keys: 当前 manifest 配置键集合
+        :return: None
+        """
+        query = delete(SysPluginConfig).where(SysPluginConfig.plugin_id == plugin_id)
+        if config_keys:
+            query = query.where(SysPluginConfig.config_key.not_in(sorted(config_keys)))
+        await db.execute(query)
 
     @classmethod
     async def get_plugin_config_by_key(

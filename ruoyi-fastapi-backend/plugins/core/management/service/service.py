@@ -6,8 +6,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
-from plugins.core.capability import PluginRuntimeCapabilityResolver
-from plugins.core.discovery.registry import PluginRegistry
+from plugins.core.capability import STATE_CHANGE_OPERATIONS, PluginRuntimeCapabilityResolver
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
 from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT
 from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobRepository
@@ -46,6 +45,8 @@ class PluginService:
     插件系统服务层。
     """
 
+    ORPHAN_PLUGIN_REASON = '插件源码不存在，仅允许物理清理平台元数据'
+
     @classmethod
     async def get_plugin_list_services(cls, query_db: AsyncSession) -> list[PluginModel]:
         """
@@ -83,6 +84,7 @@ class PluginService:
         discovered_plugins = PluginScanner(backend_root).discover()
         database_plugins = await PluginDao.get_plugin_list(query_db)
         database_plugin_map = {plugin.plugin_id: plugin for plugin in database_plugins}
+        discovered_plugin_ids = {plugin.manifest.id for plugin in discovered_plugins}
         plugin_items = [
             cls._build_plugin_model(
                 discovered_plugin,
@@ -92,6 +94,11 @@ class PluginService:
             ).model_dump(by_alias=True)
             for discovered_plugin in discovered_plugins
         ]
+        plugin_items.extend(
+            cls._build_orphan_plugin_model(plugin).model_dump(by_alias=True)
+            for plugin in database_plugins
+            if plugin.plugin_id not in discovered_plugin_ids
+        )
         plugin_items = cls._filter_plugin_page_items(plugin_items, query_object)
 
         if is_page:
@@ -124,7 +131,7 @@ class PluginService:
         if discovered_plugin:
             return cls._build_plugin_model(discovered_plugin, backend_root, frontend_root, plugin)
 
-        return PluginModel(**CamelCaseUtil.transform_result(plugin)) if plugin else None
+        return cls._build_orphan_plugin_model(plugin) if plugin else None
 
     @classmethod
     async def upsert_discovered_plugin_services(
@@ -174,6 +181,8 @@ class PluginService:
         plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
         if not plugin:
             return CrudResponseModel(is_success=False, message='插件不存在')
+        if enabled and not getattr(plugin, 'installed_version', None):
+            return CrudResponseModel(is_success=False, message='插件尚未安装，不能启用')
 
         operation = 'enable' if enabled else 'disable'
         status = PluginStateTransitionTable.resolve_target(getattr(plugin, 'status', None), operation)
@@ -271,23 +280,6 @@ class PluginService:
         return CrudResponseModel(is_success=True, message='卸载成功')
 
     @classmethod
-    async def install_enabled_plugin_menu_services(
-        cls,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件菜单。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
-        :return: None
-        """
-        menu_installer = PluginMenuInstaller(query_db)
-        for plugin in plugin_registry.list_enabled_plugins():
-            await menu_installer.install_manifest_menus(plugin.discovered_plugin.manifest)
-
-    @classmethod
     async def install_plugin_menu_services(
         cls,
         query_db: AsyncSession,
@@ -324,10 +316,12 @@ class PluginService:
         manifest = discovered_plugin.manifest
         existing_configs = await PluginDao.get_plugin_config_list(query_db, manifest.id)
         existing_config_map = {config.config_key: config for config in existing_configs}
+        desired_config_keys = {item.key for item in manifest.config.items}
         for item in manifest.config.items:
             existing_config = existing_config_map.get(item.key)
             config_model = PluginConfigManager.build_config_model(manifest.id, item)
             if existing_config:
+                migrated_config_value = PluginConfigManager.migrate_config_secret_storage(existing_config, item)
                 await PluginDao.update_plugin_config(
                     query_db,
                     {
@@ -335,6 +329,7 @@ class PluginService:
                         'config_key': item.key,
                         'config_label': config_model.config_label,
                         'config_type': config_model.config_type,
+                        'config_value': migrated_config_value,
                         'default_value': config_model.default_value,
                         'required': config_model.required,
                         'secret': config_model.secret,
@@ -347,38 +342,26 @@ class PluginService:
                 await PluginDao.add_plugin_config(query_db, config_model)
             installed_configs.append(config_model)
 
+        await PluginDao.delete_plugin_configs_except(query_db, manifest.id, desired_config_keys)
         return installed_configs
 
     @classmethod
-    async def install_enabled_plugin_config_services(
+    async def install_plugin_job_services(
         cls,
         query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        enabled: bool,
     ) -> None:
         """
-        安装启用插件默认配置。
+        将单个插件的任务资源同步到 manifest 期望状态。
 
         :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
+        :param discovered_plugin: 已发现插件对象
+        :param enabled: 插件任务是否允许启用
         :return: None
         """
-        for plugin in plugin_registry.list_enabled_plugins():
-            await cls.install_plugin_default_config_services(query_db, plugin.discovered_plugin)
-
-    @classmethod
-    async def install_enabled_plugin_job_services(
-        cls,
-        query_db: AsyncSession,
-        plugin_registry: PluginRegistry,
-    ) -> None:
-        """
-        安装启用插件声明的定时任务。
-
-        :param query_db: orm对象
-        :param plugin_registry: 插件运行时注册表
-        :return: None
-        """
-        await PluginJobInstaller(query_db).install_enabled_plugin_jobs(plugin_registry)
+        await PluginJobInstaller(query_db).install_plugin_jobs(discovered_plugin, enabled=enabled)
 
     @classmethod
     async def get_plugin_config_services(
@@ -396,18 +379,29 @@ class PluginService:
         :param reveal_secret: 是否展示敏感配置原值
         :return: 插件配置值列表
         """
-        await cls.install_plugin_default_config_services(query_db, discovered_plugin)
         config_list = await PluginDao.get_plugin_config_list(query_db, discovered_plugin.manifest.id)
-        manifest_items = {item.key: item for item in discovered_plugin.manifest.config.items}
+        config_map = {config.config_key: config for config in config_list}
 
         return [
             PluginConfigManager.build_config_value(
-                config,
-                manifest_items.get(config.config_key),
+                config_map.get(item.key) or PluginConfigManager.build_config_model(discovered_plugin.manifest.id, item),
+                item,
                 reveal_secret=reveal_secret,
             )
-            for config in config_list
+            for item in discovered_plugin.manifest.config.items
         ]
+
+    @classmethod
+    async def is_plugin_installed_services(cls, query_db: AsyncSession, plugin_id: str) -> bool:
+        """
+        判断插件是否已经完成安装。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :return: 是否已安装
+        """
+        plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        return bool(plugin and plugin.installed_version)
 
     @classmethod
     async def update_plugin_config_services(
@@ -649,7 +643,6 @@ class PluginService:
             query_db,
             {
                 'plugin_id': plugin_id,
-                'enabled': PluginStateResolver.enabled_to_db_value(False),
                 'status': PluginStateTransitionTable.resolve_target(getattr(plugin, 'status', None), 'mark_error')
                 or 'error',
                 'last_error': error_message[:1000],
@@ -692,11 +685,15 @@ class PluginService:
             return CrudResponseModel(is_success=False, message='插件不是启动依赖检查异常状态')
 
         installed_version = getattr(plugin, 'installed_version', None)
+        desired_enabled = PluginStateResolver.db_value_to_enabled(
+            getattr(plugin, 'enabled', None),
+            fallback=False,
+        )
         target_status = PluginStateResolver.resolve(
             PluginStateSnapshot(
                 source_version=discovered_plugin.manifest.version,
                 installed_version=installed_version,
-                enabled=True,
+                enabled=desired_enabled,
                 current_status=None,
             )
         )
@@ -704,7 +701,6 @@ class PluginService:
             query_db,
             {
                 'plugin_id': plugin_id,
-                'enabled': PluginStateResolver.enabled_to_db_value(True),
                 'status': target_status,
                 'last_error': None,
                 'update_time': datetime.now(),
@@ -758,18 +754,77 @@ class PluginService:
         """
         plugin_id = discovered_plugin.manifest.id
         plan = await cls.build_plugin_purge_plan_services(query_db, discovered_plugin)
+        await cls._purge_plugin_metadata_by_id(query_db, plugin_id)
+
+        return plan
+
+    @classmethod
+    async def build_plugin_purge_plan_by_id_services(
+        cls,
+        query_db: AsyncSession,
+        plugin_id: str,
+    ) -> PluginPurgePlan:
+        """
+        为源码已缺失的插件按 ID 构建平台元数据清理计划。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :return: 插件物理清理计划
+        """
+        plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        menu_count = await PluginDao.count_plugin_menus(query_db, plugin_id)
+        config_count = await PluginDao.count_plugin_configs(query_db, plugin_id)
+        migration_count = await PluginDao.count_plugin_migrations(query_db, plugin_id)
+        job_count = await PluginJobRepository(query_db).count_jobs_by_name_prefix(f'{plugin_id}:')
+
+        return PluginPurgePlanner.build_metadata_plan(
+            plugin_id,
+            state_count=1 if plugin else 0,
+            menu_count=menu_count,
+            config_count=config_count,
+            migration_count=migration_count,
+            job_count=job_count,
+        )
+
+    @classmethod
+    async def purge_plugin_metadata_by_id_services(
+        cls,
+        query_db: AsyncSession,
+        plugin_id: str,
+    ) -> PluginPurgePlan:
+        """
+        按插件 ID 清理平台拥有的孤儿元数据。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :return: 执行前构建的插件物理清理计划
+        """
+        plan = await cls.build_plugin_purge_plan_by_id_services(query_db, plugin_id)
+        await cls._purge_plugin_metadata_by_id(query_db, plugin_id)
+
+        return plan
+
+    @classmethod
+    async def _purge_plugin_metadata_by_id(cls, query_db: AsyncSession, plugin_id: str) -> None:
+        """
+        删除平台能够按插件 ID 确认归属的元数据。
+
+        :param query_db: orm对象
+        :param plugin_id: 插件ID
+        :return: None
+        """
         plugin_menus = await PluginDao.get_plugin_menu_list(query_db, plugin_id)
         menu_ids = [plugin_menu.menu_id for plugin_menu in plugin_menus]
 
-        await cls.update_plugin_enabled_services(query_db, plugin_id, enabled=False)
+        plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        if plugin:
+            await cls.update_plugin_enabled_services(query_db, plugin_id, enabled=False)
         await PluginDao.delete_plugin_menus(query_db, plugin_id)
         await PluginDao.delete_sys_menus_by_ids(query_db, menu_ids)
         await PluginDao.delete_plugin_configs(query_db, plugin_id)
         await PluginDao.delete_plugin_migrations(query_db, plugin_id)
         await PluginJobRepository(query_db).delete_jobs_by_name_prefix(f'{plugin_id}:')
         await PluginDao.delete_plugin(query_db, plugin_id)
-
-        return plan
 
     @classmethod
     async def upsert_plugin_menu_services(
@@ -952,6 +1007,38 @@ class PluginService:
             pluginDependencies=[dependency.model_dump(by_alias=True) for dependency in manifest.dependencies.plugins],
         )
 
+    @classmethod
+    def _build_orphan_plugin_model(cls, plugin: object) -> PluginModel:
+        """
+        构建源码缺失但平台元数据仍存在的孤儿插件视图。
+
+        孤儿记录只能执行平台元数据物理清理，其他生命周期操作均依赖缺失的
+        manifest 和源码，因此通过 capability 明确阻断。
+
+        :param plugin: 数据库插件状态对象
+        :return: 孤儿插件信息模型
+        """
+        model = PluginModel(**CamelCaseUtil.transform_result(plugin))
+        blocked_operations = sorted(STATE_CHANGE_OPERATIONS - {'purge'})
+        return model.model_copy(
+            update={
+                'source': 'orphan',
+                'capability': {
+                    'pluginId': model.plugin_id,
+                    'frontendMode': PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_mode(),
+                    'backendRuntimeMode': PLUGIN_RUNTIME_ENVIRONMENT.get_backend_runtime_mode(),
+                    'hasFrontendResources': False,
+                    'frontendBuildRequired': False,
+                    'frontendRuntimeManageable': False,
+                    'backendRuntimeManageable': False,
+                    'runtimeManageable': False,
+                    'blockedOperations': blocked_operations,
+                    'warnings': [cls.ORPHAN_PLUGIN_REASON],
+                    'primaryReason': cls.ORPHAN_PLUGIN_REASON,
+                },
+            }
+        )
+
     @staticmethod
     def _resolve_status(
         version: str,
@@ -983,7 +1070,7 @@ class PluginService:
         query_object: PluginPageQueryModel,
     ) -> list[dict[str, Any]]:
         """
-        根据插件管理页面查询条件过滤本地发现插件列表。
+        根据插件管理页面查询条件过滤插件列表。
 
         :param plugin_items: 插件列表项
         :param query_object: 插件分页查询对象

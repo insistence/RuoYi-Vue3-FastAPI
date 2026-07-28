@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.lifecycle.migration import PluginMigrationError
 from plugins.core.lifecycle.seed import PluginSeedRunner
 from plugins.core.runtime.hooks import PluginHookRunner
@@ -188,6 +187,7 @@ class PluginUpgradeUseCase(PluginLifecycleUseCaseSupport):
             PluginLifecycleStep('upsert_plugin', self._upgrade_step_upsert_plugin),
             PluginLifecycleStep('install_menus', self._upgrade_step_install_menus),
             PluginLifecycleStep('install_configs', self._upgrade_step_install_configs),
+            PluginLifecycleStep('install_jobs', self._upgrade_step_install_jobs),
             PluginLifecycleStep('run_migrations', self._upgrade_step_run_migrations),
             PluginLifecycleStep('run_seeds', self._upgrade_step_run_seeds),
             PluginLifecycleStep('run_upgrade_hook', self._upgrade_step_run_upgrade_hook),
@@ -368,8 +368,11 @@ class PluginUpgradeUseCase(PluginLifecycleUseCaseSupport):
         :param context: 插件升级上下文
         :return: None
         """
-        registry = PluginRegistry.build([context.discovered_plugin], [context.database_plugin])
-        await context.lifecycle_uow.install_enabled_plugin_menus(registry)
+        plugin_enabled = getattr(context.database_plugin, 'enabled', '1') == '0'
+        await context.lifecycle_uow.install_plugin_menu(
+            context.discovered_plugin,
+            enabled=plugin_enabled,
+        )
 
         return None
 
@@ -385,6 +388,24 @@ class PluginUpgradeUseCase(PluginLifecycleUseCaseSupport):
         """
         context.installed_configs = await context.lifecycle_uow.install_plugin_default_config(
             context.discovered_plugin,
+        )
+
+        return None
+
+    async def _upgrade_step_install_jobs(
+        self,
+        context: PluginUpgradeLifecycleContext,
+    ) -> PluginLifecycleResponse | None:
+        """
+        同步升级后插件定时任务。
+
+        :param context: 插件升级上下文
+        :return: None
+        """
+        plugin_enabled = getattr(context.database_plugin, 'enabled', '1') == '0'
+        await context.lifecycle_uow.install_plugin_jobs(
+            context.discovered_plugin,
+            enabled=plugin_enabled,
         )
 
         return None

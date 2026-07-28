@@ -48,7 +48,7 @@ async def test_plugin_health_checker_executes_async_checker_with_context(tmp_pat
 async def test_plugin_health_checker_normalizes_boolean_result(tmp_path: Path) -> None:
     """校验健康检查器支持布尔返回值。"""
     plugin_root = tmp_path / 'plugins' / 'demo_health'
-    write_plugin_with_health(plugin_root, 'def check():\n    return False\n')
+    write_plugin_with_health(plugin_root, 'async def check():\n    return False\n')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
 
     result = await PluginHealthChecker(discovered_plugin).check()
@@ -115,17 +115,19 @@ async def test_plugin_health_checker_reports_timeout(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_plugin_health_checker_reports_sync_timeout(tmp_path: Path) -> None:
-    """校验同步健康检查阻塞时也会返回 timeout。"""
+async def test_plugin_health_checker_rejects_sync_checker_without_executing_it(tmp_path: Path) -> None:
+    """校验同步健康检查会在执行前被拒绝，避免超时后继续运行。"""
     plugin_root = tmp_path / 'plugins' / 'demo_health'
     write_plugin_with_health(
         plugin_root,
-        'import time\ndef check(context):\n    time.sleep(1)\n    return True\n',
+        'def check(context):\n    context.app.append("executed")\n    return True\n',
     )
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
+    app: list[str] = []
 
-    result = await PluginHealthChecker(discovered_plugin, timeout_seconds=0.01).check()
+    result = await PluginHealthChecker(discovered_plugin, timeout_seconds=0.01).check(app=app)
 
     assert result.ok is False
-    assert result.status == 'timeout'
-    assert result.message == '插件健康检查执行超时'
+    assert result.status == 'error'
+    assert '必须使用 async def' in str(result.error)
+    assert app == []

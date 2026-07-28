@@ -70,7 +70,7 @@ class PluginRuntimeBuilder:
         self._discovered_plugins = discovery_result.plugins
         self._discovery_errors = discovery_result.errors
         for error in discovery_result.errors:
-            logger.error(f'插件扫描失败，已隔离损坏插件：目录={error.plugin_dir}，错误：{error.error_message}')
+            logger.error(f'❌ 插件扫描失败，已隔离损坏插件：目录={error.plugin_dir}，错误：{error.error_message}')
 
         return self._discovered_plugins
 
@@ -118,7 +118,7 @@ class PluginRuntimeBuilder:
                 imported_modules = self.entity_importer.import_entity_dirs([entity_do_dir], strict=True)
                 import_result.imported_count += len(imported_modules)
             except Exception as exc:
-                logger.exception(f'插件实体导入失败：{plugin.plugin_id}，错误：{exc}')
+                logger.exception(f'❌ 插件实体导入失败：{plugin.plugin_id}，错误：{exc}')
                 import_result.failures.append(
                     PluginEntityImportFailure(plugin_id=plugin.plugin_id, error_message=str(exc))
                 )

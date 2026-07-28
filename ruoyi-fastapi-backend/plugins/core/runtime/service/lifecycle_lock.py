@@ -201,13 +201,13 @@ class RedisPluginLifecycleLock:
                 renewed = await redis.eval(self._RENEW_SCRIPT, 1, lock_key, lock_value, self.expire_seconds)
                 if not renewed:
                     message = '插件生命周期操作锁已丢失，操作已中断'
-                    logger.error(message)
+                    logger.error(f'❌ {message}')
                     if owner_task is not None:
                         owner_task.cancel()
                     raise PluginLifecycleLockLost(data='', message=message)
             except RedisError as exc:
                 message = f'插件生命周期操作锁续期失败，操作已中断：{exc}'
-                logger.error(message)
+                logger.error(f'❌ {message}')
                 if owner_task is not None:
                     owner_task.cancel()
                 raise PluginLifecycleLockLost(data='', message=message) from exc

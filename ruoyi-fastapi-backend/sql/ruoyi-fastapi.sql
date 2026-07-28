@@ -994,7 +994,9 @@ create table sys_plugin (
   update_by          varchar(64)     default ''                 comment '更新者',
   update_time        datetime                                   comment '更新时间',
   remark             varchar(500)    default null               comment '备注',
-  primary key (plugin_id)
+  primary key (plugin_id),
+  constraint ck_sys_plugin_enabled check (enabled in ('0', '1')),
+  constraint ck_sys_plugin_status check (status in ('discovered', 'installed', 'pending_upgrade', 'error'))
 ) engine=innodb comment = '插件信息表';
 
 -- ----------------------------

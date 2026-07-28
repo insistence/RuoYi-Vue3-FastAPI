@@ -145,13 +145,9 @@ class PluginHealthChecker:
         :return: 健康检查原始返回值
         """
         callable_object = checker_callable.callable_object
-        if inspect.iscoroutinefunction(callable_object):
-            raw_result = self._invoke_checker(checker_callable, context)
-        else:
-            raw_result = await asyncio.wait_for(
-                asyncio.to_thread(self._invoke_checker, checker_callable, context),
-                timeout=self.timeout_seconds,
-            )
+        if not inspect.iscoroutinefunction(callable_object):
+            raise TypeError('插件健康检查必须使用 async def 声明，平台不会在线程中执行不可终止的同步检查')
+        raw_result = self._invoke_checker(checker_callable, context)
         if inspect.isawaitable(raw_result):
             return await asyncio.wait_for(raw_result, timeout=self.timeout_seconds)
 

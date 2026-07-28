@@ -544,7 +544,8 @@ backend:
     assert result['installedVersion'] == '1.0.0'
     assert result['currentVersion'] == '1.1.0'
     assert FakePluginService.upsert_called is True
-    assert FakePluginService.install_enabled_menu_called is True
+    assert FakePluginService.install_plugin_menu_called_with == ('demo', True)
+    assert FakePluginService.install_plugin_job_called_with == ('demo', True)
     assert FakePluginService.mark_installed_called is True
     assert any(getattr(session, 'upgrade_migration_ran', False) is True for session in gateway.session_local.sessions)
     assert any(getattr(session, 'upgrade_seed_ran', False) is True for session in gateway.session_local.sessions)
@@ -1442,6 +1443,78 @@ backend:
     assert gateway.session_local.sessions[0].committed is True
     assert len(FakePluginService.operation_logs) == 1
     assert FakePluginService.operation_logs[0].payload['operation'] == 'purge'
+
+
+def test_plugin_runtime_purge_orphan_metadata_without_source(tmp_path: Path) -> None:
+    """校验插件源码缺失后仍可按 ID 清理平台孤儿元数据。"""
+    backend_root = tmp_path / 'backend'
+    gateway = FakePluginRuntimeGateway()
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).purge_plugin('orphan', record_operation_log=False)
+    )
+
+    assert result['ok'] is True
+    assert result['metadataOnly'] is True
+    assert result['hooks'] == []
+    assert '已跳过 onPurge' in result['warnings'][0]
+    assert FakePluginService.purge_by_id_called_with == 'orphan'
+    assert FakePluginService.purge_called is False
+    assert gateway.session_local.sessions[0].committed is True
+
+
+def test_plugin_runtime_purge_orphan_metadata_dry_run(tmp_path: Path) -> None:
+    """校验孤儿元数据清理支持不写库的 dry-run。"""
+    backend_root = tmp_path / 'backend'
+    gateway = FakePluginRuntimeGateway()
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).purge_plugin(
+            'orphan',
+            dry_run=True,
+            record_operation_log=False,
+        )
+    )
+
+    assert result['ok'] is True
+    assert result['dryRun'] is True
+    assert result['metadataOnly'] is True
+    assert result['plan']['requiresHook'] is False
+    assert FakePluginService.purge_by_id_called_with is None
+    assert gateway.session_local.sessions[0].committed is False
+
+
+def test_plugin_runtime_purge_orphan_metadata_blocks_enabled_dependents(tmp_path: Path) -> None:
+    """校验孤儿元数据仍被已启用插件依赖时禁止清理。"""
+    backend_root = tmp_path / 'backend'
+    app_root = backend_root / 'plugins' / 'app'
+    write_manifest(
+        app_root,
+        """
+id: app
+name: App
+version: 1.0.0
+backend:
+  module: plugins.app
+dependencies:
+  plugins:
+    - orphan
+""",
+    )
+    create_controller_dir(app_root)
+    FakePluginService.plugin_list = [
+        SimpleNamespace(plugin_id='app', installed_version='1.0.0', enabled='0', status='installed')
+    ]
+    gateway = FakePluginRuntimeGateway()
+
+    result = asyncio.run(
+        build_runtime_with_gateway(backend_root, gateway).purge_plugin('orphan', record_operation_log=False)
+    )
+
+    assert result['ok'] is False
+    assert result['pluginDependencyErrors'][0]['pluginId'] == 'app'
+    assert FakePluginService.purge_by_id_called_with is None
+    assert gateway.session_local.sessions[0].committed is False
 
 
 def test_plugin_runtime_purge_plugin_uses_lifecycle_uow_without_fat_service(tmp_path: Path) -> None:

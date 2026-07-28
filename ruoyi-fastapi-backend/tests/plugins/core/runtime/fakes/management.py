@@ -12,12 +12,13 @@ class FakePluginService:
     upsert_called = False
     upsert_backend_root: Path | None = None
     upsert_frontend_root: Path | None = None
-    install_enabled_menu_called = False
     install_plugin_menu_called_with: tuple[str, bool] | None = None
+    install_plugin_job_called_with: tuple[str, bool] | None = None
     install_config_called = False
     mark_installed_called = False
     mark_uninstalled_called_with: str | None = None
     purge_called = False
+    purge_by_id_called_with: str | None = None
     update_enabled_called_with: tuple[str, bool, object | None] | None = None
     detail_plugin: SimpleNamespace | None = None
     upsert_plugin: SimpleNamespace | None = None
@@ -34,12 +35,13 @@ class FakePluginService:
         cls.upsert_called = False
         cls.upsert_backend_root = None
         cls.upsert_frontend_root = None
-        cls.install_enabled_menu_called = False
         cls.install_plugin_menu_called_with = None
+        cls.install_plugin_job_called_with = None
         cls.install_config_called = False
         cls.mark_installed_called = False
         cls.mark_uninstalled_called_with = None
         cls.purge_called = False
+        cls.purge_by_id_called_with = None
         cls.update_enabled_called_with = None
         cls.detail_plugin = None
         cls.upsert_plugin = None
@@ -200,11 +202,6 @@ class FakePluginService:
         ]
 
     @classmethod
-    async def install_enabled_plugin_menu_services(cls, query_db: object, plugin_registry: object) -> None:
-        """记录插件菜单安装调用。"""
-        cls.install_enabled_menu_called = True
-
-    @classmethod
     async def install_plugin_menu_services(
         cls,
         query_db: object,
@@ -232,6 +229,17 @@ class FakePluginService:
             configs.append(SimpleNamespace(model_dump=lambda by_alias=True, payload=payload: payload))
 
         return configs
+
+    @classmethod
+    async def install_plugin_job_services(
+        cls,
+        query_db: object,
+        discovered_plugin: object,
+        *,
+        enabled: bool,
+    ) -> None:
+        """记录插件任务同步调用。"""
+        cls.install_plugin_job_called_with = (discovered_plugin.manifest.id, enabled)
 
     @classmethod
     async def get_plugin_config_services(
@@ -354,3 +362,21 @@ class FakePluginService:
         """记录插件物理清理调用。"""
         cls.purge_called = True
         return await cls.build_plugin_purge_plan_services(query_db, discovered_plugin)
+
+    @classmethod
+    async def build_plugin_purge_plan_by_id_services(cls, query_db: object, plugin_id: str) -> object:
+        """构建测试用孤儿插件元数据清理计划。"""
+        return PluginPurgePlanner.build_metadata_plan(
+            plugin_id,
+            state_count=1,
+            menu_count=1,
+            config_count=2,
+            migration_count=3,
+            job_count=4,
+        )
+
+    @classmethod
+    async def purge_plugin_metadata_by_id_services(cls, query_db: object, plugin_id: str) -> object:
+        """记录按插件 ID 清理孤儿元数据调用。"""
+        cls.purge_by_id_called_with = plugin_id
+        return await cls.build_plugin_purge_plan_by_id_services(query_db, plugin_id)

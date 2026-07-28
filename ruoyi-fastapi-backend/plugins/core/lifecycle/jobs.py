@@ -7,7 +7,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from module_admin.dao.job_dao import JobDao
 from module_admin.entity.do.job_do import SysJob
 from module_admin.entity.vo.job_vo import JobModel
-from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.manifest.schema import PluginJobManifest
 from plugins.core.utils import escape_sql_like
@@ -138,8 +137,14 @@ class PluginJobRepository:
         :return: None
         """
         escaped_prefix = escape_sql_like(job_name_prefix)
+        escaped_remark_prefix = escape_sql_like(f'{PluginJobModelBuilder.REMARK_PREFIX} {job_name_prefix}')
         await self.query_db.execute(
-            update(SysJob).where(SysJob.job_name.like(f'{escaped_prefix}%', escape='\\')).values(status='1')
+            update(SysJob)
+            .where(
+                SysJob.job_name.like(f'{escaped_prefix}%', escape='\\'),
+                SysJob.remark.like(f'{escaped_remark_prefix}%', escape='\\'),
+            )
+            .values(status='1')
         )
 
     async def count_jobs_by_name_prefix(self, job_name_prefix: str) -> int:
@@ -150,9 +155,15 @@ class PluginJobRepository:
         :return: 定时任务数量
         """
         escaped_prefix = escape_sql_like(job_name_prefix)
+        escaped_remark_prefix = escape_sql_like(f'{PluginJobModelBuilder.REMARK_PREFIX} {job_name_prefix}')
         job_count = (
             await self.query_db.execute(
-                select(func.count()).select_from(SysJob).where(SysJob.job_name.like(f'{escaped_prefix}%', escape='\\'))
+                select(func.count())
+                .select_from(SysJob)
+                .where(
+                    SysJob.job_name.like(f'{escaped_prefix}%', escape='\\'),
+                    SysJob.remark.like(f'{escaped_remark_prefix}%', escape='\\'),
+                )
             )
         ).scalar_one()
 
@@ -166,21 +177,35 @@ class PluginJobRepository:
         :return: None
         """
         escaped_prefix = escape_sql_like(job_name_prefix)
-        await self.query_db.execute(delete(SysJob).where(SysJob.job_name.like(f'{escaped_prefix}%', escape='\\')))
+        escaped_remark_prefix = escape_sql_like(f'{PluginJobModelBuilder.REMARK_PREFIX} {job_name_prefix}')
+        await self.query_db.execute(
+            delete(SysJob).where(
+                SysJob.job_name.like(f'{escaped_prefix}%', escape='\\'),
+                SysJob.remark.like(f'{escaped_remark_prefix}%', escape='\\'),
+            )
+        )
 
-    async def pause_plugin_jobs_except(self, enabled_plugin_ids: set[str]) -> None:
+    async def delete_plugin_jobs_except(self, plugin_id: str, desired_job_names: set[str]) -> None:
         """
-        暂停不在启用集合内的插件任务。
+        删除不再由插件 manifest 声明的插件任务。
 
-        :param enabled_plugin_ids: 启用插件ID集合
+        仅删除同时满足插件任务名称空间和平台 ownership remark 的记录，避免误删用户手工
+        创建的同名前缀任务。
+
+        :param plugin_id: 插件ID
+        :param desired_job_names: manifest 当前声明的完整任务名称集合
         :return: None
         """
-        escaped_remark_prefix = escape_sql_like(PluginJobModelBuilder.REMARK_PREFIX)
-        query = update(SysJob).where(SysJob.remark.like(f'{escaped_remark_prefix}%', escape='\\'))
-        for plugin_id in enabled_plugin_ids:
-            escaped_plugin_prefix = escape_sql_like(f'{plugin_id}:')
-            query = query.where(SysJob.job_name.not_like(f'{escaped_plugin_prefix}%', escape='\\'))
-        await self.query_db.execute(query.values(status='1'))
+        job_name_prefix = f'{plugin_id}:'
+        escaped_prefix = escape_sql_like(job_name_prefix)
+        escaped_remark_prefix = escape_sql_like(f'{PluginJobModelBuilder.REMARK_PREFIX} {job_name_prefix}')
+        query = delete(SysJob).where(
+            SysJob.job_name.like(f'{escaped_prefix}%', escape='\\'),
+            SysJob.remark.like(f'{escaped_remark_prefix}%', escape='\\'),
+        )
+        if desired_job_names:
+            query = query.where(SysJob.job_name.not_in(sorted(desired_job_names)))
+        await self.query_db.execute(query)
 
 
 class PluginJobInstaller:
@@ -201,21 +226,6 @@ class PluginJobInstaller:
         self.query_db = query_db
         self.repository = PluginJobRepository(query_db)
 
-    async def install_enabled_plugin_jobs(self, plugin_registry: PluginRegistry) -> list[JobModel]:
-        """
-        安装启用插件声明的定时任务，并暂停未启用插件的任务。
-
-        :param plugin_registry: 插件运行时注册表
-        :return: 已写入的任务模型列表
-        """
-        installed_jobs = []
-        enabled_plugin_ids = {plugin.plugin_id for plugin in plugin_registry.list_enabled_plugins()}
-        await self.pause_plugin_jobs_except(enabled_plugin_ids)
-        for plugin in plugin_registry.list_enabled_plugins():
-            installed_jobs.extend(await self.install_plugin_jobs(plugin.discovered_plugin, enabled=True))
-
-        return installed_jobs
-
     async def install_plugin_jobs(self, discovered_plugin: DiscoveredPlugin, *, enabled: bool = True) -> list[JobModel]:
         """
         安装单个插件声明的定时任务。
@@ -226,6 +236,8 @@ class PluginJobInstaller:
         """
         installed_jobs = []
         manifest = discovered_plugin.manifest
+        desired_job_names = {PluginJobModelBuilder.build_job_name(manifest.id, job.id) for job in manifest.backend.jobs}
+        await self.repository.delete_plugin_jobs_except(manifest.id, desired_job_names)
         for job in manifest.backend.jobs:
             job_model = PluginJobModelBuilder.build(manifest.id, job, enabled=enabled)
             await self.upsert_plugin_job(job_model)
@@ -243,6 +255,9 @@ class PluginJobInstaller:
         existing_job = await self.repository.get_job_detail_by_name_group(job_model.job_name, job_model.job_group)
         now = datetime.now()
         if existing_job:
+            ownership_prefix = f'{PluginJobModelBuilder.REMARK_PREFIX} {job_model.job_name}'
+            if not str(existing_job.remark or '').startswith(ownership_prefix):
+                raise ValueError(f'插件任务与非插件任务重名，拒绝覆盖：{job_model.job_name}（{job_model.job_group}）')
             await self.query_db.execute(
                 update(SysJob)
                 .where(
@@ -278,12 +293,3 @@ class PluginJobInstaller:
         :return: None
         """
         await self.repository.pause_jobs_by_name_prefix(f'{plugin_id}:')
-
-    async def pause_plugin_jobs_except(self, enabled_plugin_ids: set[str]) -> None:
-        """
-        暂停不在启用集合内的插件任务。
-
-        :param enabled_plugin_ids: 启用插件ID集合
-        :return: None
-        """
-        await self.repository.pause_plugin_jobs_except(enabled_plugin_ids)

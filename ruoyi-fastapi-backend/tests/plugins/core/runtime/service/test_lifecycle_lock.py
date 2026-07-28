@@ -73,6 +73,7 @@ async def test_redis_lifecycle_lock_renews_until_lock_lost() -> None:
 
     with (
         patch('plugins.core.runtime.service.lifecycle_lock.asyncio.sleep', new_callable=AsyncMock) as sleep,
+        patch('plugins.core.runtime.service.lifecycle_lock.logger') as mocked_logger,
         pytest.raises(PluginLifecycleLockLost, match='生命周期操作锁已丢失'),
     ):
         await lifecycle_lock._renew_lock_loop(redis, 'plugin:lifecycle:lock:global', 'demo:install:value')
@@ -85,6 +86,7 @@ async def test_redis_lifecycle_lock_renews_until_lock_lost() -> None:
         'demo:install:value',
         3,
     )
+    mocked_logger.error.assert_called_once_with('❌ 插件生命周期操作锁已丢失，操作已中断')
 
 
 @pytest.mark.asyncio
@@ -96,9 +98,12 @@ async def test_redis_lifecycle_lock_raises_when_renew_fails() -> None:
 
     with (
         patch('plugins.core.runtime.service.lifecycle_lock.asyncio.sleep', new_callable=AsyncMock),
+        patch('plugins.core.runtime.service.lifecycle_lock.logger') as mocked_logger,
         pytest.raises(PluginLifecycleLockLost, match='续期失败'),
     ):
         await lifecycle_lock._renew_lock_loop(redis, 'plugin:lifecycle:lock:global', 'demo:install:value')
+
+    mocked_logger.error.assert_called_once_with('❌ 插件生命周期操作锁续期失败，操作已中断：renew failed')
 
 
 @pytest.mark.asyncio

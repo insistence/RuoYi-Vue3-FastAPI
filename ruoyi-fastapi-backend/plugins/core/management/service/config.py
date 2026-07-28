@@ -89,6 +89,30 @@ class PluginConfigManager:
         )
 
     @classmethod
+    def migrate_config_secret_storage(
+        cls,
+        config: object,
+        item: PluginConfigItemManifest,
+    ) -> str | None:
+        """
+        在 manifest 修改 secret 属性时迁移已有配置值的存储格式。
+
+        :param config: 已有数据库配置对象
+        :param item: 当前 manifest 配置声明
+        :return: 使用新 secret 策略序列化后的配置值
+        """
+        old_secret = getattr(config, 'secret', '1') == '0'
+        if old_secret == item.secret:
+            return getattr(config, 'config_value', None)
+
+        current_value = cls.deserialize_config_value(
+            getattr(config, 'config_value', None),
+            getattr(config, 'config_type', 'string'),
+            secret=old_secret,
+        )
+        return cls.serialize_config_value(current_value, secret=item.secret)
+
+    @classmethod
     def serialize_value(cls, value: PluginConfigValue) -> str | None:
         """
         序列化插件配置值。
@@ -179,10 +203,10 @@ class PluginConfigManager:
         try:
             options = json.loads(value)
         except json.JSONDecodeError as exc:
-            logger.warning(f'插件配置选项 JSON 解析失败：{exc}')
+            logger.warning(f'⚠️ 插件配置选项 JSON 解析失败：{exc}')
             return [{'parseError': '配置选项 JSON 解析失败'}]
         if not isinstance(options, list):
-            logger.warning('插件配置选项 JSON 内容不是数组')
+            logger.warning('⚠️ 插件配置选项 JSON 内容不是数组')
             return [{'parseError': '配置选项 JSON 内容不是数组'}]
         return cast('list[dict[str, PluginConfigValue]]', options)
 
