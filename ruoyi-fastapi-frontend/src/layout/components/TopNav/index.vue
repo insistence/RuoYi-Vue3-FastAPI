@@ -160,6 +160,7 @@ function activeRoutes(key) {
 onMounted(() => {
   window.addEventListener('resize', setVisibleNumber)
 })
+
 onBeforeUnmount(() => {
   window.removeEventListener('resize', setVisibleNumber)
 })
@@ -170,6 +171,11 @@ onMounted(() => {
 </script>
 
 <style lang="scss">
+.topmenu-container.el-menu--horizontal {
+  height: 50px !important;
+  border-bottom: none;
+}
+
 .topmenu-container.el-menu--horizontal > .el-menu-item {
   float: left;
   height: 50px !important;
