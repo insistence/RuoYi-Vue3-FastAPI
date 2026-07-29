@@ -1,11 +1,12 @@
 import argparse
 import configparser
 import os
+import secrets
 import sys
 from typing import Literal
 
 from dotenv import load_dotenv
-from pydantic import computed_field
+from pydantic import Field, computed_field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -38,10 +39,23 @@ class JwtSettings(BaseSettings):
     Jwt配置
     """
 
-    jwt_secret_key: str = 'b01c66dc2c58dc6a0aabfe2144256be36226de378bf87f72c0c795dda67f4d55'
+    jwt_secret_key: str = Field(default_factory=lambda: secrets.token_hex(32))
     jwt_algorithm: str = 'HS256'
     jwt_expire_minutes: int = 1440
     jwt_redis_expire_minutes: int = 30
+
+    @field_validator('jwt_secret_key', mode='before')
+    @classmethod
+    def generate_empty_secret_key(cls, value: object) -> object:
+        """
+        Jwt密钥未配置时生成随机值。
+
+        :param value: 环境变量中的Jwt密钥
+        :return: 已配置的Jwt密钥或随机生成的密钥
+        """
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return secrets.token_hex(32)
+        return value
 
 
 class DataBaseSettings(BaseSettings):
