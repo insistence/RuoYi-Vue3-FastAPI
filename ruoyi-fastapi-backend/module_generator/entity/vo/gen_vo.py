@@ -29,6 +29,7 @@ class GenTableBaseModel(BaseModel):
     business_name: str | None = Field(default=None, description='生成业务名')
     function_name: str | None = Field(default=None, description='生成功能名')
     function_author: str | None = Field(default=None, description='生成功能作者')
+    form_col_num: Literal[1, 2, 3] = Field(default=1, description='表单布局（单列 双列 三列）')
     gen_type: Literal['0', '1'] | None = Field(default=None, description='生成代码方式（0zip压缩包 1自定义路径）')
     gen_path: str | None = Field(default=None, description='生成路径（不填默认项目路径）')
     options: str | None = Field(default=None, description='其它生成选项')

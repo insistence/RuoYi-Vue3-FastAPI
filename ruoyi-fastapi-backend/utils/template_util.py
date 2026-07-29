@@ -54,6 +54,7 @@ class TemplateUtils:
     FRONTEND_PROJECT_PATH = 'frontend'
     BACKEND_PROJECT_PATH = 'backend'
     DEFAULT_PARENT_MENU_ID = '3'
+    FORM_COL_SPAN_MAP = {2: '12', 3: '8'}
 
     @classmethod
     def prepare_context(cls, gen_table: GenTableModel) -> dict[str, Any]:
@@ -85,6 +86,7 @@ class TemplateUtils:
             'basePackage': cls.get_package_prefix(package_name),
             'packageName': package_name,
             'author': gen_table.function_author,
+            'colSpan': cls.get_col_span(gen_table.form_col_num),
             'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'pkColumn': gen_table.pk_column,
             'doImportList': cls.get_do_import_list(gen_table),
@@ -364,6 +366,16 @@ class TemplateUtils:
         :return: 权限前缀
         """
         return f'{module_name}:{business_name}'
+
+    @classmethod
+    def get_col_span(cls, form_col_num: int | None) -> str:
+        """
+        根据表单列数获取栅格跨度
+
+        :param form_col_num: 表单列数
+        :return: 栅格跨度
+        """
+        return cls.FORM_COL_SPAN_MAP.get(form_col_num, '24')
 
     @classmethod
     def get_parent_menu_id(cls, params_obj: dict) -> str:

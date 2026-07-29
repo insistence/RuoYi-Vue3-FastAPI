@@ -43,6 +43,7 @@ class GenTable(Base):
     business_name = Column(String(30), nullable=True, comment='生成业务名')
     function_name = Column(String(50), nullable=True, comment='生成功能名')
     function_author = Column(String(50), nullable=True, comment='生成功能作者')
+    form_col_num = Column(Integer, nullable=True, server_default='1', comment='表单布局（单列 双列 三列）')
     gen_type = Column(CHAR(1), nullable=True, server_default='0', comment='生成代码方式（0zip压缩包 1自定义路径）')
     gen_path = Column(String(200), nullable=True, server_default='/', comment='生成路径（不填默认项目路径）')
     options = Column(String(1000), nullable=True, comment='其它生成选项')

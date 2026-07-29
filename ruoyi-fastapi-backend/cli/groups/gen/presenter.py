@@ -162,6 +162,7 @@ class GenCommandPresenter:
                 f'business_name: {info.get("businessName", "-")}',
                 f'function_name: {info.get("functionName", "-")}',
                 f'function_author: {info.get("functionAuthor", "-")}',
+                f'form_col_num: {info.get("formColNum", "-")}',
                 f'gen_type: {info.get("genType", "-")}',
                 f'gen_path: {SHELL_TEXT_FORMATTER.truncate_text(info.get("genPath", ""), 120) or "-"}',
                 f'remark: {SHELL_TEXT_FORMATTER.truncate_text(info.get("remark", ""), 160) or "-"}',
