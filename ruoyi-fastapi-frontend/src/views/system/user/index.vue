@@ -482,7 +482,7 @@
             <span>仅允许导入xls、xlsx格式文件。</span>
             <el-link
               type="primary"
-              :underline="false"
+              underline="never"
               style="font-size: 12px; vertical-align: baseline"
               @click="importTemplate"
               >下载模板</el-link
@@ -755,7 +755,7 @@ function handleResetPwd(row) {
       },
     })
     .then(({ value }) => {
-      resetUserPwd(row.userId, value).then((response) => {
+      resetUserPwd(row.userId, value).then(() => {
         proxy.$modal.msgSuccess("修改成功，新密码是：" + value);
       });
     })
@@ -875,13 +875,13 @@ function submitForm() {
   proxy.$refs["userRef"].validate((valid) => {
     if (valid) {
       if (form.value.userId != undefined) {
-        updateUser(form.value).then((response) => {
+        updateUser(form.value).then(() => {
           proxy.$modal.msgSuccess("修改成功");
           open.value = false;
           getList();
         });
       } else {
-        addUser(form.value).then((response) => {
+        addUser(form.value).then(() => {
           proxy.$modal.msgSuccess("新增成功");
           open.value = false;
           getList();

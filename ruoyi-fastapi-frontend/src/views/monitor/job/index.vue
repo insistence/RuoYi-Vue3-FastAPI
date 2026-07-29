@@ -449,8 +449,8 @@ function handleRun(row) {
   proxy.$modal.confirm('确认要立即执行一次"' + row.jobName + '"任务吗?').then(function () {
     return runJob(row.jobId, row.jobGroup);
   }).then(() => {
-    proxy.$modal.msgSuccess("执行成功");})
-  .catch(() => {});
+    proxy.$modal.msgSuccess("执行成功");
+  }).catch(() => {});
 }
 /** 任务详细信息 */
 function handleView(row) {
