@@ -169,6 +169,7 @@ class ApiNamespace:
     等接口注解使用，用同一套“模块:功能”命名规则收敛缓存和限流场景。
 
     LOGIN: 登录接口命名空间
+    LOGIN_UNLOCK_SCREEN: 锁屏解锁接口命名空间
     REGISTER: 注册接口命名空间
     LOGIN_USER_INFO: 登录用户信息接口命名空间
     LOGIN_USER_ROUTERS: 登录用户路由接口命名空间
@@ -264,6 +265,7 @@ class ApiNamespace:
     """
 
     LOGIN = 'login'
+    LOGIN_UNLOCK_SCREEN = 'login:unlock-screen'
     REGISTER = 'register'
     LOGIN_USER_INFO = 'login:user:info'
     LOGIN_USER_ROUTERS = 'login:user:routers'

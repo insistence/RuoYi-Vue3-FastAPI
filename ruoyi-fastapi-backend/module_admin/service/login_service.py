@@ -139,6 +139,28 @@ class LoginService:
         return user
 
     @classmethod
+    async def unlock_screen_services(
+        cls, query_db: AsyncSession, current_user: CurrentUserModel, password: str | None
+    ) -> bool:
+        """
+        校验当前登录用户的密码并解锁屏幕
+
+        :param query_db: orm对象
+        :param current_user: 当前登录用户
+        :param password: 用户密码
+        :return: 解锁结果
+        """
+        if not password:
+            raise ServiceException(message='密码不能为空')
+        user = await UserDao.get_user_by_name(query_db, current_user.user.user_name)
+        if not user:
+            raise ServiceException(message='服务器超时，请重新登录')
+        if not PwdUtil.verify_password(password, user.password):
+            raise ServiceException(message='密码错误，请重新输入')
+
+        return True
+
+    @classmethod
     async def __check_login_ip(cls, request: Request) -> bool:
         """
         校验用户登录ip是否在黑名单内
