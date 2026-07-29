@@ -27,6 +27,8 @@ class DemoModeMiddleware(BaseHTTPMiddleware):
             'system/dict',
             'system/config',
             'system/notice',
+            'system/file',
+            'system/plugin',
             'monitor/operlog',
             'monitor/logininfor',
             'monitor/online',
