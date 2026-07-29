@@ -454,7 +454,7 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
         async def _handle_result(result: TuiActionResult, feedback_lines: list[str]) -> None:
             self._last_action_result = result
             self._action_feedback_lines = feedback_lines
-            await self._render_record_detail(eager=False)
+            await self._render_record_detail()
 
         await TUI_SCREEN_INTERACTION_SERVICE.execute_action_with_feedback(
             self,
@@ -515,21 +515,15 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
         self._cancel_task(self._record_detail_task)
         self._cancel_task(self._action_task)
 
-    def _get_sections_for_record(self, index: int, *, eager: bool = False) -> list[DetailSectionSnapshot]:
+    def _get_sections_for_record(self, index: int) -> list[DetailSectionSnapshot]:
         """
         获取指定记录对应的详情分区列表。
 
         :param index: 记录索引
-        :param eager: 是否立即加载按需详情
         :return: 详情分区列表
         """
         record = self._get_record_or_fallback(index)
-        if eager:
-            try:
-                detail_sections = record.resolve_detail_sections()
-            except Exception as error:
-                detail_sections = self._build_detail_load_failure_sections(error)
-        elif record.detail_sections:
+        if record.detail_sections:
             detail_sections = record.detail_sections
         elif record._cached_detail_sections:
             detail_sections = list(record._cached_detail_sections)
@@ -552,15 +546,14 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
             return sections[section_index]
         return self.support.build_empty_section()
 
-    async def _render_record_detail(self, *, eager: bool = False) -> None:
+    async def _render_record_detail(self) -> None:
         """
         根据当前选中记录刷新右侧详情区域。
 
-        :param eager: 是否立即解析完整详情
         :return: None
         """
         record = self._get_record_or_fallback(self.selected_record_index)
-        sections = self._get_sections_for_record(self.selected_record_index, eager=eager)
+        sections = self._get_sections_for_record(self.selected_record_index)
         selected_section = self._get_section_or_fallback(self.selected_record_index, self.selected_section_index)
         self.query_one(RecordSummaryView).show_record(
             record,
@@ -596,7 +589,7 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
 
     async def _load_record_detail_async(self, index: int, request_id: int) -> None:
         """
-        在后台线程中加载指定记录的详情，并在仍为当前选中记录时回填界面。
+        异步加载指定记录的详情，并在仍为当前选中记录时回填界面。
 
         :param index: 记录索引
         :param request_id: 当前加载请求编号
@@ -604,7 +597,7 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
         """
         record = self._get_record_or_fallback(index)
         try:
-            await asyncio.to_thread(record.resolve_detail_sections)
+            await record.resolve_detail_sections()
         except Exception as error:
             failure_sections = self._build_detail_load_failure_sections(error)
             object.__setattr__(record, '_cached_detail_sections', tuple(failure_sections))
@@ -612,7 +605,7 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
             return
         if index != self.selected_record_index:
             return
-        await self._render_record_detail(eager=False)
+        await self._render_record_detail()
 
     def _schedule_record_detail_load(self, index: int) -> None:
         """
@@ -642,7 +635,7 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
         if not self.snapshot.records:
             self.selected_record_index = 0
             self.selected_section_index = 0
-            await self._render_record_detail(eager=False)
+            await self._render_record_detail()
             return
         if not 0 <= index < len(self.snapshot.records):
             return
@@ -650,7 +643,7 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
             return
         self.selected_record_index = index
         self.selected_section_index = 0
-        await self._render_record_detail(eager=False)
+        await self._render_record_detail()
         self._schedule_record_detail_load(index)
 
     def _update_selected_section(self, index: int) -> None:
@@ -752,7 +745,9 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
         item = getattr(event.item, 'item', None)
         if not isinstance(item, NavigationItem):
             return
-        if item.view_key == self.active_view:
+        if not event.control.navigation_ready:
+            return
+        if item.view_key == self.active_view and self.app.requested_view == self.active_view:
             return
         self.app.open_view(item.view_key)
 
@@ -806,7 +801,7 @@ class BrowserScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scre
                         yield RecordSummaryView(self._get_record_or_fallback(self.selected_record_index))
                         with Horizontal(id='browser-section-body'):
                             yield SectionNavigator(
-                                self._get_sections_for_record(self.selected_record_index, eager=False),
+                                self._get_sections_for_record(self.selected_record_index),
                                 initial_index=self.selected_section_index,
                                 query=self._current_search_query(),
                             )

@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 
@@ -115,7 +116,7 @@ def test_detail_screen_clear_search_remembers_empty_and_refreshes(
 
 
 @pytest.mark.asyncio
-async def test_detail_screen_execute_external_action_suspends_app(
+async def test_detail_screen_executes_database_preview_in_process(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
@@ -140,40 +141,24 @@ async def test_detail_screen_execute_external_action_suspends_app(
     )
     assert action is not None
 
-    recorded_suspend: list[str] = []
-
-    class DummySuspend:
-        def __enter__(self) -> None:
-            recorded_suspend.append('enter')
-
-        def __exit__(
-            self,
-            exc_type: type[BaseException] | None,
-            exc: BaseException | None,
-            tb: Any,
-        ) -> None:
-            del exc_type, exc, tb
-            recorded_suspend.append('exit')
-
-    def build_suspend() -> DummySuspend:
-        return DummySuspend()
-
     def refresh_current_view() -> None:
         pass
 
     fake_app = SimpleNamespace(
-        suspend=build_suspend,
         action_refresh_current_view=refresh_current_view,
+        remember_action_feedback=lambda view_key, lines: None,
     )
     monkeypatch.setattr(tui_modules.cli_tui_detail.DetailScreen, 'app', property(lambda self: fake_app))
     monkeypatch.setattr(
         tui_modules.cli_tui_interactions,
         'TUI_ACTION_EXECUTION_SERVICE',
         SimpleNamespace(
-            execute_external=lambda spec: tui_modules.cli_tui_detail.TuiActionResult(
-                spec=spec,
-                external_exit_code=0,
-                external_message='外部交互命令已执行完成',
+            execute=lambda spec, env: asyncio.sleep(
+                0,
+                result=tui_modules.cli_tui_detail.TuiActionResult(
+                    spec=spec,
+                    payload={'ok': True, 'message': '数据库升级预演完成'},
+                ),
             ),
             build_result_lines=lambda result: [],
         ),
@@ -182,11 +167,11 @@ async def test_detail_screen_execute_external_action_suspends_app(
 
     await screen._execute_action(action)
 
-    assert recorded_suspend == ['enter', 'exit']
+    assert action.action_id == 'db-upgrade-dry-run'
 
 
 @pytest.mark.asyncio
-async def test_detail_screen_execute_nested_json_action_without_suspend(
+async def test_detail_screen_executes_crypto_action_without_suspend(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
@@ -210,8 +195,6 @@ async def test_detail_screen_execute_nested_json_action_without_suspend(
         env='dev',
     )
     assert action is not None
-    assert action.execution_mode == 'nested_json'
-
     suspend_calls: list[str] = []
     execute_calls: list[tuple[object, str]] = []
 
@@ -237,18 +220,22 @@ async def test_detail_screen_execute_nested_json_action_without_suspend(
     fake_app = SimpleNamespace(
         suspend=build_suspend,
         action_refresh_current_view=refresh_current_view,
+        remember_action_feedback=lambda view_key, lines: None,
     )
     monkeypatch.setattr(tui_modules.cli_tui_detail.DetailScreen, 'app', property(lambda self: fake_app))
     monkeypatch.setattr(
         tui_modules.cli_tui_interactions,
         'TUI_ACTION_EXECUTION_SERVICE',
         SimpleNamespace(
-            execute=lambda spec, env: (
-                execute_calls.append((spec, env))
-                or tui_modules.cli_tui_detail.TuiActionResult(
-                    spec=spec,
-                    payload={'ok': True, 'message': '轮换预演完成'},
-                )
+            execute=lambda spec, env: asyncio.sleep(
+                0,
+                result=(
+                    execute_calls.append((spec, env))
+                    or tui_modules.cli_tui_detail.TuiActionResult(
+                        spec=spec,
+                        payload={'ok': True, 'message': '轮换预演完成'},
+                    )
+                ),
             ),
             build_result_lines=lambda result: [],
         ),
@@ -287,7 +274,8 @@ def test_detail_screen_support_builds_summary_actions_and_fallbacks(
     assert '2 个分区' in summary
     assert query == 'head'
     assert action is not None
-    assert action.command_args[:2] == ('wizard', 'db-upgrade')
+    assert action.action_id == 'db-upgrade-dry-run'
+    assert action.parameters == {'revision': 'head', 'dry_run': True}
     assert empty_section.title == tui_modules.cli_tui_copy.TUI_COPY.build_detail_empty_section_copy('title')
 
 
@@ -377,6 +365,7 @@ async def test_detail_screen_scrolls_in_small_viewport(tui_modules: SimpleNamesp
     )
 
     async with app.run_test(size=(80, 24)) as pilot:
+        await app._view_task
         app.screen_navigator.show(screen)
         await pilot.pause()
         await pilot.pause()

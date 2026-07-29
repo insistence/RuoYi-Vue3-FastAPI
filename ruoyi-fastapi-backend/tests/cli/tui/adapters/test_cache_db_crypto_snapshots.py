@@ -1,11 +1,15 @@
+from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
 
+import pytest
 from pytest import MonkeyPatch
 
 
-def test_collect_cache_page_snapshot_builds_cache_browser_records(
+@pytest.mark.asyncio
+async def test_collect_cache_page_snapshot_builds_cache_browser_records(
     monkeypatch: MonkeyPatch,
     cache_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     calls: list[tuple[str, ...]] = []
 
@@ -55,9 +59,10 @@ def test_collect_cache_page_snapshot_builds_cache_browser_records(
             }
         )
 
-    monkeypatch.setattr(cache_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(cache_adapter, fake_run_nested_cli_command)
 
-    snapshot = cache_adapter.CACHE_BROWSER_ADAPTER.collect_snapshot('dev')
+    snapshot = await cache_adapter.CACHE_BROWSER_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '缓存'
     assert (
@@ -66,7 +71,7 @@ def test_collect_cache_page_snapshot_builds_cache_browser_records(
     )
     assert len(snapshot.records) == 1
     assert snapshot.records[0].title == 'sys_config'
-    detail_sections = snapshot.records[0].resolve_detail_sections()
+    detail_sections = await snapshot.records[0].resolve_detail_sections()
     assert [section.title for section in detail_sections] == [
         '键摘要',
         '键列表',
@@ -88,9 +93,11 @@ def test_collect_cache_page_snapshot_builds_cache_browser_records(
     assert any(call[0:2] == ('cache', 'ttl') for call in calls)
 
 
-def test_cache_browser_adapter_collect_snapshot_exposes_search_context(
+@pytest.mark.asyncio
+async def test_cache_browser_adapter_collect_snapshot_exposes_search_context(
     monkeypatch: MonkeyPatch,
     cache_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -110,9 +117,10 @@ def test_cache_browser_adapter_collect_snapshot_exposes_search_context(
             )
         return SimpleNamespace(payload={'ok': False, 'message': 'unexpected'})
 
-    monkeypatch.setattr(cache_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(cache_adapter, fake_run_nested_cli_command)
 
-    snapshot = cache_adapter.CACHE_BROWSER_ADAPTER.collect_snapshot('dev', query='sys')
+    snapshot = await cache_adapter.CACHE_BROWSER_ADAPTER.collect_snapshot('dev', query='sys')
 
     assert snapshot.title == '缓存'
     assert snapshot.search is not None
@@ -121,9 +129,11 @@ def test_cache_browser_adapter_collect_snapshot_exposes_search_context(
     assert snapshot.records[0].title == 'sys_config'
 
 
-def test_collect_database_page_snapshot_builds_check_heads_and_history_sections(
+@pytest.mark.asyncio
+async def test_collect_database_page_snapshot_builds_check_heads_and_history_sections(
     monkeypatch: MonkeyPatch,
     database_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -189,9 +199,10 @@ def test_collect_database_page_snapshot_builds_check_heads_and_history_sections(
             }
         )
 
-    monkeypatch.setattr(database_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(database_adapter, fake_run_nested_cli_command)
 
-    snapshot = database_adapter.DATABASE_DETAIL_ADAPTER.collect_snapshot('dev')
+    snapshot = await database_adapter.DATABASE_DETAIL_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '数据库'
     assert (
@@ -222,9 +233,11 @@ def test_collect_database_page_snapshot_builds_check_heads_and_history_sections(
     assert snapshot.search.placeholder == '按 revision 搜索'
 
 
-def test_collect_database_page_snapshot_surfaces_failed_heads(
+@pytest.mark.asyncio
+async def test_collect_database_page_snapshot_surfaces_failed_heads(
     monkeypatch: MonkeyPatch,
     database_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -248,9 +261,10 @@ def test_collect_database_page_snapshot_surfaces_failed_heads(
             }
         )
 
-    monkeypatch.setattr(database_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(database_adapter, fake_run_nested_cli_command)
 
-    snapshot = database_adapter.DATABASE_DETAIL_ADAPTER.collect_snapshot('dev')
+    snapshot = await database_adapter.DATABASE_DETAIL_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.subtitle == '聚焦：迁移版本 / 连接状态 / Heads | 数据库存在迁移分叉风险，优先确认 heads 和历史版本'
     assert snapshot.sections[0].title == '总览判断'
@@ -260,9 +274,11 @@ def test_collect_database_page_snapshot_surfaces_failed_heads(
     assert any('读取 Alembic heads 失败' in line for line in snapshot.sections[4].lines)
 
 
-def test_collect_database_page_snapshot_applies_query_filter(
+@pytest.mark.asyncio
+async def test_collect_database_page_snapshot_applies_query_filter(
     monkeypatch: MonkeyPatch,
     database_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -281,18 +297,21 @@ def test_collect_database_page_snapshot_applies_query_filter(
             }
         )
 
-    monkeypatch.setattr(database_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(database_adapter, fake_run_nested_cli_command)
 
-    snapshot = database_adapter.DATABASE_DETAIL_ADAPTER.collect_snapshot('dev', query='历史')
+    snapshot = await database_adapter.DATABASE_DETAIL_ADAPTER.collect_snapshot('dev', query='历史')
 
     assert [section.title for section in snapshot.sections] == ['历史版本']
     assert snapshot.search is not None
     assert snapshot.search.query == '历史'
 
 
-def test_collect_crypto_page_snapshot_builds_validate_and_public_key_sections(
+@pytest.mark.asyncio
+async def test_collect_crypto_page_snapshot_builds_validate_and_public_key_sections(
     monkeypatch: MonkeyPatch,
     crypto_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -317,9 +336,10 @@ def test_collect_crypto_page_snapshot_builds_validate_and_public_key_sections(
             }
         )
 
-    monkeypatch.setattr(crypto_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(crypto_adapter, fake_run_nested_cli_command)
 
-    snapshot = crypto_adapter.CRYPTO_DETAIL_ADAPTER.collect_snapshot('dev')
+    snapshot = await crypto_adapter.CRYPTO_DETAIL_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '传输加密'
     assert (

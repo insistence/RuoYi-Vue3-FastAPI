@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,7 +10,8 @@ from cli.tui.adapters.models import (
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
+from cli.utils import SHELL_TEXT_FORMATTER
 
 
 @dataclass(frozen=True)
@@ -39,49 +41,34 @@ class OpsDetailSnapshotCollector:
     让 `OpsDetailAdapter` 保持详情页编排职责。
     """
 
-    def collect(self, env: str) -> OpsDetailSourcePayloads:
+    def __init__(self, query_service: TuiRuntimeQueryService | None = None) -> None:
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
+
+    async def collect(self, env: str) -> OpsDetailSourcePayloads:
         """
         采集运维详情页所需原始结果。
 
         :param env: 当前运行环境
         :return: 运维详情页原始数据源快照
         """
+        ping_db_payload, ping_redis_payload, deps_payload, server_payload = await asyncio.gather(
+            self.query_service.get_database_ping(),
+            self.query_service.get_redis_ping(),
+            self.query_service.get_dependencies(),
+            self.query_service.get_server_info(),
+        )
+        health_payload = {
+            'env': env,
+            'database': ping_db_payload,
+            'redis': ping_redis_payload,
+            'ok': ping_db_payload.get('ok', False) and ping_redis_payload.get('ok', False),
+        }
         return OpsDetailSourcePayloads(
-            health_payload=NESTED_CLI_SUPPORT.run(
-                'ops',
-                'health',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            ping_db_payload=NESTED_CLI_SUPPORT.run(
-                'ops',
-                'ping-db',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            ping_redis_payload=NESTED_CLI_SUPPORT.run(
-                'ops',
-                'ping-redis',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            deps_payload=NESTED_CLI_SUPPORT.run(
-                'ops',
-                'deps',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            server_payload=NESTED_CLI_SUPPORT.run(
-                'ops',
-                'server-info',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
+            health_payload=health_payload,
+            ping_db_payload=ping_db_payload,
+            ping_redis_payload=ping_redis_payload,
+            deps_payload=deps_payload,
+            server_payload=server_payload,
         )
 
 
@@ -451,7 +438,7 @@ class OpsDetailAdapter(BaseDetailAdapter):
         self.section_builder = section_builder or OpsSectionBuilder()
         self.snapshot_collector = snapshot_collector or OpsDetailSnapshotCollector()
 
-    def collect_snapshot(self, env: str, query: str = '') -> DetailPageSnapshot:
+    async def collect_snapshot(self, env: str, query: str = '') -> DetailPageSnapshot:
         """
         采集运维状态页只读快照。
 
@@ -459,7 +446,7 @@ class OpsDetailAdapter(BaseDetailAdapter):
         :param query: 当前搜索词
         :return: 页面快照
         """
-        source_payloads = self.snapshot_collector.collect(env)
+        source_payloads = await self.snapshot_collector.collect(env)
         sections = self.section_builder.build_sections(
             health_payload=source_payloads.health_payload,
             ping_db_payload=source_payloads.ping_db_payload,

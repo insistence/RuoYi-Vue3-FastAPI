@@ -18,7 +18,7 @@ class JobActionTemplateFactory:
 
     support: TuiActionTemplateSupport
 
-    def build_run_once_command(self, record: BrowserRecordSnapshot | None, env: str) -> tuple[str, ...] | None:
+    def build_run_once_parameters(self, record: BrowserRecordSnapshot | None, env: str) -> dict[str, object] | None:
         """
         构建任务执行一次命令参数。
 
@@ -30,7 +30,7 @@ class JobActionTemplateFactory:
         job_id = self.support.extract_job_id(record)
         if job_id is None:
             return None
-        return ('job', 'run-once', job_id)
+        return {'job_id': int(job_id)}
 
     def build_run_once_summary(self, record: BrowserRecordSnapshot | None, env: str) -> list[str]:
         """
@@ -53,7 +53,7 @@ class JobActionTemplateFactory:
             ),
         ]
 
-    def build_toggle_command(self, record: BrowserRecordSnapshot | None, env: str) -> tuple[str, ...] | None:
+    def build_toggle_parameters(self, record: BrowserRecordSnapshot | None, env: str) -> dict[str, object] | None:
         """
         构建任务暂停或恢复命令参数。
 
@@ -67,9 +67,7 @@ class JobActionTemplateFactory:
         job_id = self.support.extract_job_id(record)
         if job_id is None:
             return None
-        if record.status == 'warn':
-            return ('job', 'resume', job_id)
-        return ('job', 'pause', job_id)
+        return {'job_id': int(job_id)}
 
     def build_toggle_summary(self, record: BrowserRecordSnapshot | None, env: str) -> list[str]:
         """
@@ -135,7 +133,7 @@ class JobActionTemplateFactory:
         return TuiActionTemplate(
             action_id='job-run-once',
             label=TUI_COPY.build_action_label('job_run_once'),
-            command_builder=self.build_run_once_command,
+            parameter_builder=self.build_run_once_parameters,
             summary_builder=self.build_run_once_summary,
         )
 
@@ -148,7 +146,7 @@ class JobActionTemplateFactory:
         return TuiActionTemplate(
             action_id='job-toggle',
             label=TUI_COPY.build_action_label('job_pause'),
-            command_builder=self.build_toggle_command,
+            parameter_builder=self.build_toggle_parameters,
             summary_builder=self.build_toggle_summary,
             action_id_builder=self.build_toggle_action_id,
             label_builder=self.build_toggle_label,
@@ -163,7 +161,7 @@ class JobActionTemplateFactory:
         return TuiActionTemplate(
             action_id='job-sync',
             label=TUI_COPY.build_action_label('job_sync'),
-            command_builder=lambda record, env: ('job', 'sync'),
+            parameter_builder=lambda record, env: {},
             summary_builder=lambda record, env: self.support.build_scope_purpose_summary(
                 TUI_COPY.build_action_scope_label('job_sync'),
                 TUI_COPY.build_action_purpose_label('job_sync'),

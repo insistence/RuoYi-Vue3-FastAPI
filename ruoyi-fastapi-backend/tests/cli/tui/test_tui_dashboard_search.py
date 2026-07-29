@@ -172,8 +172,14 @@ async def test_dashboard_grid_expands_to_fit_status_panels(
         ],
     )
 
+    async def collect_dashboard(env: str) -> object:
+        del env
+        return snapshot
+
     monkeypatch.setitem(
-        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors, 'dashboard', lambda env: snapshot
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'dashboard',
+        collect_dashboard,
     )
 
     app = tui_modules.cli_tui_app.RuoyiTuiApp('dev')

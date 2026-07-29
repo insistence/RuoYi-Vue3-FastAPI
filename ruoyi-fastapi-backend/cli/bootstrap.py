@@ -1,3 +1,4 @@
+import ntpath
 import os
 import subprocess
 
@@ -29,7 +30,10 @@ class AppBootstrapService:
 
         :return: 应用启动入口绝对路径
         """
-        return os.path.join(self.runtime_environment.get_backend_dir(), 'app.py')
+        backend_dir = self.runtime_environment.get_backend_dir()
+        if ntpath.splitdrive(backend_dir)[0] or backend_dir.startswith('\\\\'):
+            return ntpath.join(backend_dir, 'app.py')
+        return os.path.join(backend_dir, 'app.py')
 
     def build_app_run_command(self, env: str) -> list[str]:
         """

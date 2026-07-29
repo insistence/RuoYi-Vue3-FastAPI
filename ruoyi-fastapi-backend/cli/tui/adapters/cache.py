@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from cli.tui.adapters.base import BaseBrowserAdapter
@@ -9,7 +10,8 @@ from cli.tui.adapters.models import (
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
+from cli.utils import SHELL_TEXT_FORMATTER
 
 
 class CacheRowExtractor:
@@ -58,6 +60,7 @@ class CacheSectionBuilder:
         self,
         page_adapter: BaseBrowserAdapter,
         row_extractor: CacheRowExtractor | None = None,
+        query_service: TuiRuntimeQueryService | None = None,
     ) -> None:
         """
         初始化缓存浏览页分区构建器。
@@ -68,6 +71,7 @@ class CacheSectionBuilder:
         """
         self.page_adapter = page_adapter
         self.row_extractor = row_extractor or CacheRowExtractor()
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
 
     def build_overview_section(self, payload: dict[str, Any] | None) -> DetailSectionSnapshot:
         """
@@ -266,7 +270,7 @@ class CacheSectionBuilder:
             return f'{ttl_seconds} 秒'
         return str(ttl_seconds)
 
-    def build_key_detail_sections(
+    async def build_key_detail_sections(
         self,
         cache_name: str,
         key_items: list[str],
@@ -285,24 +289,10 @@ class CacheSectionBuilder:
 
         sections: list[DetailSectionSnapshot] = []
         for cache_key in key_items[:5]:
-            value_payload = NESTED_CLI_SUPPORT.run(
-                'cache',
-                'get',
-                cache_name,
-                cache_key,
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload
-            ttl_payload = NESTED_CLI_SUPPORT.run(
-                'cache',
-                'ttl',
-                cache_name,
-                cache_key,
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload
+            value_payload, ttl_payload = await asyncio.gather(
+                self.query_service.get_cache_value(cache_name, cache_key),
+                self.query_service.get_cache_ttl(cache_name, cache_key),
+            )
 
             value_ok = isinstance(value_payload, dict) and value_payload.get('ok', False)
             ttl_ok = isinstance(ttl_payload, dict) and ttl_payload.get('ok', False)
@@ -353,7 +343,7 @@ class CacheSectionBuilder:
             )
         return sections
 
-    def load_cache_detail_sections(
+    async def load_cache_detail_sections(
         self,
         cache_row: dict[str, Any],
         env: str,
@@ -366,14 +356,7 @@ class CacheSectionBuilder:
         :return: 详情分区列表
         """
         cache_name = str(cache_row.get('cacheName', '-') or '-')
-        keys_payload = NESTED_CLI_SUPPORT.run(
-            'cache',
-            'keys',
-            cache_name,
-            f'--env={env}',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        keys_payload = await self.query_service.get_cache_keys(cache_name)
         key_items: list[str] = []
         if isinstance(keys_payload, dict) and keys_payload.get('ok', False):
             raw_keys = keys_payload.get('keys') if isinstance(keys_payload.get('keys'), list) else []
@@ -381,7 +364,7 @@ class CacheSectionBuilder:
         return [
             self.build_keys_summary_section(keys_payload),
             self.build_keys_section(keys_payload),
-            *self.build_key_detail_sections(cache_name, key_items, env),
+            *(await self.build_key_detail_sections(cache_name, key_items, env)),
         ]
 
     def build_shared_sections(
@@ -483,6 +466,7 @@ class CacheBrowserAdapter(BaseBrowserAdapter):
         row_extractor: CacheRowExtractor | None = None,
         section_builder: CacheSectionBuilder | None = None,
         record_builder: CacheRecordBuilder | None = None,
+        query_service: TuiRuntimeQueryService | None = None,
     ) -> None:
         """
         初始化缓存浏览页适配器。
@@ -498,7 +482,12 @@ class CacheBrowserAdapter(BaseBrowserAdapter):
             filter_options=(),
         )
         self.row_extractor = row_extractor or CacheRowExtractor()
-        self.section_builder = section_builder or CacheSectionBuilder(self, self.row_extractor)
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
+        self.section_builder = section_builder or CacheSectionBuilder(
+            self,
+            self.row_extractor,
+            self.query_service,
+        )
         self.record_builder = record_builder or CacheRecordBuilder(self, self.section_builder)
 
     @staticmethod
@@ -520,7 +509,7 @@ class CacheBrowserAdapter(BaseBrowserAdapter):
             or normalized_query in str(row.get('remark', '') or '').strip().lower()
         ]
 
-    def collect_snapshot(self, env: str, query: str = '') -> BrowserPageSnapshot:
+    async def collect_snapshot(self, env: str, query: str = '') -> BrowserPageSnapshot:
         """
         采集缓存浏览页只读快照。
 
@@ -529,13 +518,7 @@ class CacheBrowserAdapter(BaseBrowserAdapter):
         :return: 浏览页快照
         """
         search_context = self.resolve_search_context(query)
-        payload = NESTED_CLI_SUPPORT.run(
-            'cache',
-            'stats',
-            f'--env={env}',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        payload = await self.query_service.get_cache_stats()
         cache_rows = self.row_extractor.extract_cache_name_rows(payload)
         filtered_rows = self.apply_cache_query(cache_rows, query)
         shared_sections = self.section_builder.build_shared_sections(payload, filtered_rows)

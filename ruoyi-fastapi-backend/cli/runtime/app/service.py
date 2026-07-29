@@ -1,4 +1,7 @@
+from collections import defaultdict
 from typing import Any
+
+from fastapi.routing import APIRoute
 
 from cli.runtime.base import RUNTIME_ENVIRONMENT, RuntimeEnvironmentService
 
@@ -64,6 +67,71 @@ class AppRuntimeService:
         :return: 环境解析结果快照
         """
         return self.snapshot_support.build_app_env_snapshot()
+
+    def get_app_routes_snapshot(
+        self,
+        env: str,
+        *,
+        path_prefix: str = '',
+        method: str = '',
+        group_by: str = 'none',
+        include_hidden: bool = False,
+    ) -> dict[str, Any]:
+        """
+        读取当前应用的路由快照。
+
+        :param env: 当前运行环境
+        :param path_prefix: 路由路径前缀过滤条件
+        :param method: HTTP 方法过滤条件
+        :param group_by: 路由分组方式
+        :param include_hidden: 是否包含未进入 OpenAPI 的路由
+        :return: 标准路由快照
+        """
+        normalized_method = method.upper().strip()
+        routes: list[dict[str, Any]] = []
+        for route in self.build_app_instance().routes:
+            if not isinstance(route, APIRoute):
+                continue
+            if not include_hidden and not route.include_in_schema:
+                continue
+            if path_prefix and not route.path.startswith(path_prefix):
+                continue
+            route_methods = sorted(item for item in route.methods if item not in {'HEAD', 'OPTIONS'})
+            if normalized_method and normalized_method not in route_methods:
+                continue
+            routes.append(
+                {
+                    'path': route.path,
+                    'methods': route_methods,
+                    'name': route.name,
+                    'summary': route.summary or '',
+                    'operationId': route.operation_id or '',
+                    'tags': route.tags or [],
+                    'includeInSchema': route.include_in_schema,
+                }
+            )
+        routes.sort(key=lambda item: (item['path'], ','.join(item['methods'])))
+        grouped_routes: dict[str, list[dict[str, Any]]] | None = None
+        if group_by == 'tag':
+            grouped: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+            for route in routes:
+                tags = route.get('tags') or ['未分组']
+                for tag in tags:
+                    grouped[str(tag)].append(route)
+            grouped_routes = dict(sorted(grouped.items()))
+        return {
+            'ok': True,
+            'env': env,
+            'count': len(routes),
+            'filters': {
+                'pathPrefix': path_prefix,
+                'method': normalized_method,
+                'groupBy': group_by,
+                'includeHidden': include_hidden,
+            },
+            'routes': routes,
+            'groupedRoutes': grouped_routes,
+        }
 
 
 APP_RUNTIME = AppRuntimeService()

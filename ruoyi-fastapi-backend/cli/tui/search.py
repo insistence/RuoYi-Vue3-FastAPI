@@ -1,10 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from cli.completion.providers import COMPLETION_PROVIDER_GATEWAY, CompletionProviderGateway
-
-CompletionProviderCallable = Callable[[object, list[str] | None, str], list[str]]
-
 
 @dataclass(frozen=True)
 class PageFilterOption:
@@ -103,75 +99,19 @@ class TuiSearchSuggestionProviderRegistry:
         return self.providers.get(self.normalize_view_key(view_key))
 
 
-class CompletionSuggestionProviderFactory:
-    """
-    基于 completion 注册表构建 TUI 搜索建议提供函数。
-
-    :param completion_provider_gateway: completion 提供器对外网关
-    """
-
-    def __init__(self, completion_provider_gateway: CompletionProviderGateway) -> None:
-        """
-        初始化 completion 搜索建议工厂。
-
-        :param completion_provider_gateway: completion 提供器对外网关
-        :return: None
-        """
-        self.completion_provider_gateway = completion_provider_gateway
-
-    def build(self, provider: CompletionProviderCallable) -> Callable[[str], list[str]]:
-        """
-        根据显式 completion provider 构建建议提供函数。
-
-        :param provider: completion provider 可调用对象
-        :return: 搜索建议提供函数
-        """
-
-        def provide(query: str) -> list[str]:
-            """
-            调用 completion provider 生成候选建议。
-
-            :param query: 当前搜索词
-            :return: 候选建议列表
-            """
-            candidates = provider(None, [], str(query or '').strip())
-            return [str(candidate).strip() for candidate in candidates if str(candidate).strip()]
-
-        return provide
-
-
-def build_default_search_provider_registry(
-    completion_provider_gateway: CompletionProviderGateway,
-) -> TuiSearchSuggestionProviderRegistry:
+def build_default_search_provider_registry() -> TuiSearchSuggestionProviderRegistry:
     """
     构建默认 TUI 搜索建议提供者注册表。
 
-    :param completion_provider_gateway: completion 提供器对外网关
     :return: 搜索建议提供者注册表
     """
-    provider_factory = CompletionSuggestionProviderFactory(completion_provider_gateway)
     return TuiSearchSuggestionProviderRegistry(
         providers={
-            'jobs': SearchSuggestionProviderSpec(
-                '按任务名搜索',
-                provider_factory.build(completion_provider_gateway.complete_job_names),
-            ),
-            'configs': SearchSuggestionProviderSpec(
-                '按配置键搜索',
-                provider_factory.build(completion_provider_gateway.complete_config_keys),
-            ),
-            'cache': SearchSuggestionProviderSpec(
-                '按缓存名搜索',
-                provider_factory.build(completion_provider_gateway.complete_cache_names),
-            ),
-            'gen': SearchSuggestionProviderSpec(
-                '按业务表名搜索',
-                provider_factory.build(completion_provider_gateway.complete_gen_table_names),
-            ),
-            'database': SearchSuggestionProviderSpec(
-                '按 revision 搜索',
-                provider_factory.build(completion_provider_gateway.complete_alembic_revisions),
-            ),
+            'jobs': SearchSuggestionProviderSpec('按任务名搜索'),
+            'configs': SearchSuggestionProviderSpec('按配置键搜索'),
+            'cache': SearchSuggestionProviderSpec('按缓存名搜索'),
+            'gen': SearchSuggestionProviderSpec('按业务表名搜索'),
+            'database': SearchSuggestionProviderSpec('按 revision 搜索'),
             'app': SearchSuggestionProviderSpec('按分区或内容搜索'),
             'ops': SearchSuggestionProviderSpec('按分区或内容搜索'),
             'crypto': SearchSuggestionProviderSpec('按分区或内容搜索'),
@@ -371,5 +311,5 @@ class TuiSearchService:
 
 
 TUI_SEARCH_HIGHLIGHTER = TuiSearchHighlighter()
-TUI_SEARCH_PROVIDER_REGISTRY = build_default_search_provider_registry(COMPLETION_PROVIDER_GATEWAY)
+TUI_SEARCH_PROVIDER_REGISTRY = build_default_search_provider_registry()
 TUI_SEARCH_SERVICE = TuiSearchService(TUI_SEARCH_PROVIDER_REGISTRY)

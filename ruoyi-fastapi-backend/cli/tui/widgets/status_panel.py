@@ -1,6 +1,7 @@
 from textual.widgets import Static
 
 from cli.tui.copy import TUI_COPY
+from cli.tui.platform import TUI_PLATFORM_POLICY
 
 
 class StatusPanelRenderingSupport:
@@ -303,7 +304,8 @@ class SignalRail(Static):
 
         :return: None
         """
-        self.set_interval(0.8, self._advance_pulse, name='signal rail pulse')
+        if not TUI_PLATFORM_POLICY.reduced_motion:
+            self.set_interval(0.8, self._advance_pulse, name='signal rail pulse')
 
     def _advance_pulse(self) -> None:
         """

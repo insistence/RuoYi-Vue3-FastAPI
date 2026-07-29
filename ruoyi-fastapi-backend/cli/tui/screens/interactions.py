@@ -3,8 +3,6 @@ import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from textual.app import SuspendNotSupported
-
 from cli.tui.actions import (
     TUI_ACTION_EXECUTION_SERVICE,
     TUI_ACTION_PRESENTATION_SERVICE,
@@ -184,18 +182,7 @@ class TuiScreenInteractionService:
             TUI_COPY.build_action_running_message(action.label),
             title=TUI_COPY.build_action_notification_title(),
         )
-        if action.execution_mode == 'external':
-            try:
-                with screen.app.suspend():
-                    result = TUI_ACTION_EXECUTION_SERVICE.execute_external(action)
-            except SuspendNotSupported:
-                result = TuiActionResult(
-                    spec=action,
-                    external_exit_code=1,
-                    external_message='当前终端不支持挂起 TUI，无法打开外部交互向导',
-                )
-        else:
-            result = await asyncio.to_thread(TUI_ACTION_EXECUTION_SERVICE.execute, action, env)
+        result = await TUI_ACTION_EXECUTION_SERVICE.execute(action, env)
 
         feedback_lines = TUI_ACTION_EXECUTION_SERVICE.build_result_lines(result)
         remember_feedback = getattr(screen.app, 'remember_action_feedback', None)

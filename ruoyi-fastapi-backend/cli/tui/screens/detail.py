@@ -378,7 +378,9 @@ class DetailScreen(ScreenInteractionActionsMixin, ScreenFocusActionsMixin, Scree
         item = getattr(event.item, 'item', None)
         if not isinstance(item, NavigationItem):
             return
-        if item.view_key == self.active_view:
+        if not event.control.navigation_ready:
+            return
+        if item.view_key == self.active_view and self.app.requested_view == self.active_view:
             return
         self.app.open_view(item.view_key)
 

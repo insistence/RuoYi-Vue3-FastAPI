@@ -4,14 +4,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from cli.tui.actions.models import (
-    ActionCommandBuilder,
-    ActionExecutionMode,
+    ActionParameterBuilder,
     ActionSummaryBuilder,
     ActionTextBuilder,
     TuiActionSpec,
 )
 from cli.tui.copy import TUI_COPY
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
 
 if TYPE_CHECKING:
     from cli.tui.adapters.models import BrowserRecordSnapshot
@@ -41,13 +39,12 @@ class TuiActionSpecFactory:
             return ''
         return raw_key[len(token_prefix) :].strip()
 
-    def build_command_preview_lines(
+    def build_action_preview_lines(
         self,
         *,
+        action_id: str,
         env: str,
         summary_lines: list[str],
-        command_args: tuple[str, ...],
-        append_yes: bool = True,
         consequence_text: str = TUI_COPY.build_action_consequence_text('preview'),
     ) -> list[str]:
         """
@@ -55,20 +52,10 @@ class TuiActionSpecFactory:
 
         :param env: 当前运行环境
         :param summary_lines: 业务摘要文本
-        :param command_args: 对应 CLI 命令参数
+        :param action_id: 进程内动作标识
         :param consequence_text: 结果影响说明
         :return: 预览文本
         """
-        nested_cli_arguments = [
-            *command_args,
-            f'--env={env}',
-            '--output=json',
-        ]
-        if append_yes:
-            nested_cli_arguments.append('--yes')
-        command = SHELL_TEXT_FORMATTER.format_shell_command(
-            NESTED_CLI_SUPPORT.build_nested_cli_command(*nested_cli_arguments)
-        )
         return [
             TUI_COPY.build_action_preview_title('summary'),
             *summary_lines,
@@ -77,57 +64,30 @@ class TuiActionSpecFactory:
             TUI_COPY.build_labeled_value_line(TUI_COPY.build_action_preview_field_label('target_env'), env),
             '',
             TUI_COPY.build_action_preview_title('command'),
-            command,
+            f'进程内运行时动作 · {action_id}',
             '',
             TUI_COPY.build_action_preview_title('consequence'),
             consequence_text,
         ]
 
-    def build_external_command_preview_lines(
-        self,
-        *,
-        env: str,
-        summary_lines: list[str],
-        command_args: tuple[str, ...],
-        append_yes: bool = True,
-        consequence_text: str = TUI_COPY.build_action_consequence_text('wizard'),
-    ) -> list[str]:
-        """
-        构建外部交互命令的预览文本。
-
-        :param env: 当前运行环境
-        :param summary_lines: 业务摘要文本
-        :param command_args: 对应 CLI 命令参数
-        :param consequence_text: 结果影响说明
-        :return: 预览文本
-        """
-        return self.build_command_preview_lines(
-            env=env,
-            summary_lines=summary_lines,
-            command_args=command_args,
-            append_yes=append_yes,
-            consequence_text=consequence_text,
-        )
-
-    def build_nested_json_action(
+    def build_action(
         self,
         *,
         action_id: str,
         label: str,
-        command_args: tuple[str, ...],
+        parameters: dict[str, object],
         env: str,
         summary_lines: list[str],
         preview_title: str | None = None,
         consequence_text: str = TUI_COPY.build_action_consequence_text('preview'),
-        append_yes: bool = True,
         refresh_view: bool = True,
     ) -> TuiActionSpec:
         """
-        构建标准 nested JSON 动作。
+        构建标准进程内动作。
 
         :param action_id: 动作唯一标识
         :param label: 动作显示名称
-        :param command_args: 对应 CLI 命令参数
+        :param parameters: 进程内运行时调用参数
         :param env: 当前运行环境
         :param summary_lines: 业务摘要文本
         :param preview_title: 预览标题
@@ -138,59 +98,14 @@ class TuiActionSpecFactory:
         return TuiActionSpec(
             action_id=action_id,
             label=label,
-            command_args=command_args,
+            parameters=parameters,
             preview_title=preview_title or label,
-            preview_lines=self.build_command_preview_lines(
+            preview_lines=self.build_action_preview_lines(
+                action_id=action_id,
                 env=env,
                 summary_lines=summary_lines,
-                command_args=command_args,
-                append_yes=append_yes,
                 consequence_text=consequence_text,
             ),
-            append_yes=append_yes,
-            refresh_view=refresh_view,
-        )
-
-    def build_external_action(
-        self,
-        *,
-        action_id: str,
-        label: str,
-        command_args: tuple[str, ...],
-        env: str,
-        summary_lines: list[str],
-        preview_title: str | None = None,
-        consequence_text: str = TUI_COPY.build_action_consequence_text('wizard'),
-        append_yes: bool = True,
-        refresh_view: bool = True,
-    ) -> TuiActionSpec:
-        """
-        构建标准外部交互动作。
-
-        :param action_id: 动作唯一标识
-        :param label: 动作显示名称
-        :param command_args: 对应 CLI 命令参数
-        :param env: 当前运行环境
-        :param summary_lines: 业务摘要文本
-        :param preview_title: 预览标题
-        :param consequence_text: 结果影响说明
-        :param refresh_view: 执行后是否刷新视图
-        :return: 动作定义
-        """
-        return TuiActionSpec(
-            action_id=action_id,
-            label=label,
-            command_args=command_args,
-            preview_title=preview_title or label,
-            preview_lines=self.build_external_command_preview_lines(
-                env=env,
-                summary_lines=summary_lines,
-                command_args=command_args,
-                append_yes=append_yes,
-                consequence_text=consequence_text,
-            ),
-            execution_mode='external',
-            append_yes=append_yes,
             refresh_view=refresh_view,
         )
 
@@ -205,30 +120,24 @@ class TuiActionTemplate:
 
     :param action_id: 动作唯一标识
     :param label: 动作显示名称
-    :param command_builder: 命令参数构建器
+    :param parameter_builder: 进程内动作参数构建器
     :param summary_builder: 预览摘要构建器
     :param action_id_builder: 动态动作标识构建器
     :param label_builder: 动态动作标题构建器
     :param preview_title: 预览标题
     :param consequence_text: 结果影响说明
-    :param execution_mode: 执行模式
-    :param append_yes: 是否在命令执行与预览中自动追加 `--yes`
     :param refresh_view: 执行后是否刷新视图
-    :param preview_env_override: 预览中展示的环境名覆盖值
     """
 
     action_id: str
     label: str
-    command_builder: ActionCommandBuilder
+    parameter_builder: ActionParameterBuilder
     summary_builder: ActionSummaryBuilder
     action_id_builder: ActionTextBuilder | None = None
     label_builder: ActionTextBuilder | None = None
     preview_title: str | None = None
     consequence_text: str = TUI_COPY.build_action_consequence_text('preview')
-    execution_mode: ActionExecutionMode = 'nested_json'
-    append_yes: bool = True
     refresh_view: bool = True
-    preview_env_override: str | None = None
 
     def build(
         self,
@@ -245,34 +154,20 @@ class TuiActionTemplate:
         :param spec_factory: 动作规格构建器
         :return: 动作定义
         """
-        command_args = self.command_builder(record, env)
-        if command_args is None:
+        parameters = self.parameter_builder(record, env)
+        if parameters is None:
             return None
-        preview_env = self.preview_env_override or env
         summary_lines = self.summary_builder(record, env)
         action_id = self.action_id_builder(record, env) if self.action_id_builder is not None else self.action_id
         label = self.label_builder(record, env) if self.label_builder is not None else self.label
-        if self.execution_mode == 'external':
-            return spec_factory.build_external_action(
-                action_id=action_id,
-                label=label,
-                command_args=command_args,
-                env=preview_env,
-                summary_lines=summary_lines,
-                preview_title=self.preview_title,
-                consequence_text=self.consequence_text,
-                append_yes=self.append_yes,
-                refresh_view=self.refresh_view,
-            )
-        return spec_factory.build_nested_json_action(
+        return spec_factory.build_action(
             action_id=action_id,
             label=label,
-            command_args=command_args,
-            env=preview_env,
+            parameters=parameters,
+            env=env,
             summary_lines=summary_lines,
             preview_title=self.preview_title,
             consequence_text=self.consequence_text,
-            append_yes=self.append_yes,
             refresh_view=self.refresh_view,
         )
 

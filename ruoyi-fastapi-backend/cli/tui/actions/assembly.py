@@ -53,15 +53,13 @@ class TuiActionRegistryBuilder:
                 ),
                 'cache': TuiActionSlotResolver(
                     slot_templates={
-                        'global': self.cache.create_clear_wizard_template(),
+                        'global': self.cache.create_clear_dry_run_template(),
                         'utility': self.cache.create_warmup_template(),
                     },
                     spec_factory=self.spec_factory,
                 ),
                 'gen': TuiActionSlotResolver(
                     slot_templates={
-                        'primary': self.gen.create_export_wizard_template(),
-                        'secondary': self.gen.create_import_wizard_template(),
                         'global': self.gen.create_export_dry_run_template(),
                         'utility': self.gen.create_sync_db_template(),
                     },
@@ -71,15 +69,14 @@ class TuiActionRegistryBuilder:
             detail_resolvers={
                 'app': TuiActionSlotResolver(
                     slot_templates={
-                        'primary': self.static.create_app_run_template(),
-                        'global': self.static.create_app_run_wizard_template(),
+                        'primary': self.static.create_app_precheck_template(),
                         'utility': self.static.create_completion_install_template(),
                     },
                     spec_factory=self.spec_factory,
                 ),
                 'database': TuiActionSlotResolver(
                     slot_templates={
-                        'global': self.static.create_db_upgrade_wizard_template(),
+                        'global': self.static.create_db_upgrade_dry_run_template(),
                         'utility': self.static.create_db_init_dry_run_template(),
                     },
                     spec_factory=self.spec_factory,
@@ -88,7 +85,7 @@ class TuiActionRegistryBuilder:
                     slot_templates={
                         'primary': self.static.create_ops_ping_db_template(),
                         'secondary': self.static.create_ops_ping_redis_template(),
-                        'global': self.static.create_prod_check_wizard_template(),
+                        'global': self.static.create_prod_check_template(),
                     },
                     spec_factory=self.spec_factory,
                 ),

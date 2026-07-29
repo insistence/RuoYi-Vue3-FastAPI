@@ -14,7 +14,7 @@ from cli.tui.copy.fragments import (
     COMMAND_HINT_TITLES,
     GENERAL_COPY,
 )
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.utils import SHELL_TEXT_FORMATTER
 
 
 class TuiActionCopyMixin:
@@ -246,7 +246,7 @@ class TuiActionCopyMixin:
         :param command_args: CLI 命令参数
         :return: 可直接复制执行的命令文本
         """
-        return SHELL_TEXT_FORMATTER.format_shell_command(NESTED_CLI_SUPPORT.build_nested_cli_command(*command_args))
+        return SHELL_TEXT_FORMATTER.format_shell_command(('ruoyi', *command_args))
 
     @staticmethod
     def build_command_hint_lines(

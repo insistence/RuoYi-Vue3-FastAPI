@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,7 +10,8 @@ from cli.tui.adapters.models import (
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
+from cli.utils import SHELL_TEXT_FORMATTER
 
 
 @dataclass(frozen=True)
@@ -39,50 +41,35 @@ class DatabaseDetailSnapshotCollector:
     让 `DatabaseDetailAdapter` 保持详情页编排职责。
     """
 
-    def collect(self, env: str) -> DatabaseDetailSourcePayloads:
+    def __init__(self, query_service: TuiRuntimeQueryService | None = None) -> None:
+        """
+        初始化数据库详情页数据采集器。
+
+        :param query_service: TUI 进程内查询服务
+        :return: None
+        """
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
+
+    async def collect(self, env: str) -> DatabaseDetailSourcePayloads:
         """
         采集数据库详情页所需原始结果。
 
         :param env: 当前运行环境
         :return: 数据库详情页原始数据源快照
         """
+        revision_payload, check_payload, heads_payload, history_payload, config_payload = await asyncio.gather(
+            self.query_service.get_database_current(),
+            self.query_service.get_database_ping(),
+            self.query_service.get_database_heads(),
+            self.query_service.get_database_history(limit=8),
+            self.query_service.get_app_config(env),
+        )
         return DatabaseDetailSourcePayloads(
-            revision_payload=NESTED_CLI_SUPPORT.run(
-                'db',
-                'current',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            check_payload=NESTED_CLI_SUPPORT.run(
-                'db',
-                'check',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            heads_payload=NESTED_CLI_SUPPORT.run(
-                'db',
-                'heads',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            history_payload=NESTED_CLI_SUPPORT.run(
-                'db',
-                'history',
-                f'--env={env}',
-                '--limit=8',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            config_payload=NESTED_CLI_SUPPORT.run(
-                'app',
-                'config',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
+            revision_payload=revision_payload,
+            check_payload=check_payload,
+            heads_payload=heads_payload,
+            history_payload=history_payload,
+            config_payload=config_payload,
         )
 
 
@@ -443,7 +430,7 @@ class DatabaseDetailAdapter(BaseDetailAdapter):
         self.section_builder = section_builder or DatabaseSectionBuilder()
         self.snapshot_collector = snapshot_collector or DatabaseDetailSnapshotCollector()
 
-    def collect_snapshot(self, env: str, query: str = '') -> DetailPageSnapshot:
+    async def collect_snapshot(self, env: str, query: str = '') -> DetailPageSnapshot:
         """
         采集数据库状态页只读快照。
 
@@ -451,7 +438,7 @@ class DatabaseDetailAdapter(BaseDetailAdapter):
         :param query: 当前搜索词
         :return: 页面快照
         """
-        source_payloads = self.snapshot_collector.collect(env)
+        source_payloads = await self.snapshot_collector.collect(env)
         sections = self.section_builder.build_sections(
             revision_payload=source_payloads.revision_payload,
             check_payload=source_payloads.check_payload,

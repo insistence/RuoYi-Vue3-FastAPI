@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,7 +10,8 @@ from cli.tui.adapters.models import (
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
+from cli.utils import SHELL_TEXT_FORMATTER
 
 COMPLETION_PREVIEW_LINE_LIMIT = 12
 
@@ -47,7 +49,11 @@ class AppDetailSnapshotCollector:
     :param section_builder: 应用详情分区构建器
     """
 
-    def __init__(self, section_builder: 'AppSectionBuilder') -> None:
+    def __init__(
+        self,
+        section_builder: 'AppSectionBuilder',
+        query_service: TuiRuntimeQueryService | None = None,
+    ) -> None:
         """
         初始化应用详情页数据采集器。
 
@@ -55,51 +61,24 @@ class AppDetailSnapshotCollector:
         :return: None
         """
         self.section_builder = section_builder
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
 
-    def collect(self, env: str) -> AppDetailSourcePayloads:
+    async def collect(self, env: str) -> AppDetailSourcePayloads:
         """
         采集应用详情页所需原始结果。
 
         :param env: 当前运行环境
         :return: 应用详情页原始数据源快照
         """
-        env_payload = NESTED_CLI_SUPPORT.run(
-            'app',
-            'env',
-            f'--env={env}',
-            '--output=json',
-            parse_json=True,
-        ).payload
-        config_payload = NESTED_CLI_SUPPORT.run(
-            'app',
-            'config',
-            f'--env={env}',
-            '--output=json',
-            parse_json=True,
-        ).payload
-        doctor_payload = NESTED_CLI_SUPPORT.run(
-            'app',
-            'doctor',
-            f'--env={env}',
-            '--output=json',
-            parse_json=True,
-        ).payload
-        routes_payload = NESTED_CLI_SUPPORT.run(
-            'app',
-            'routes',
-            f'--env={env}',
-            '--group-by=tag',
-            '--output=json',
-            parse_json=True,
-        ).payload
-        completion_payload = NESTED_CLI_SUPPORT.run(
-            'completion',
-            'doctor',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        env_payload, config_payload, doctor_payload, routes_payload, completion_payload = await asyncio.gather(
+            self.query_service.get_app_env(env),
+            self.query_service.get_app_config(env),
+            self.query_service.get_doctor(env),
+            self.query_service.get_app_routes(env),
+            self.query_service.get_completion_doctor(),
+        )
         preview_shell = self.section_builder.resolve_completion_preview_shell(completion_payload)
-        completion_preview_result = NESTED_CLI_SUPPORT.run('completion', 'show', preview_shell)
+        completion_preview_result = await self.query_service.get_completion_preview(preview_shell)
         return AppDetailSourcePayloads(
             env_payload=env_payload,
             config_payload=config_payload,
@@ -645,7 +624,7 @@ class AppDetailAdapter(BaseDetailAdapter):
         self.section_builder = section_builder or AppSectionBuilder()
         self.snapshot_collector = snapshot_collector or AppDetailSnapshotCollector(self.section_builder)
 
-    def collect_snapshot(self, env: str, query: str = '') -> DetailPageSnapshot:
+    async def collect_snapshot(self, env: str, query: str = '') -> DetailPageSnapshot:
         """
         采集应用状态页只读快照。
 
@@ -653,7 +632,7 @@ class AppDetailAdapter(BaseDetailAdapter):
         :param query: 当前搜索词
         :return: 页面快照
         """
-        source_payloads = self.snapshot_collector.collect(env)
+        source_payloads = await self.snapshot_collector.collect(env)
         sections = self.section_builder.build_sections(
             env_payload=source_payloads.env_payload,
             config_payload=source_payloads.config_payload,

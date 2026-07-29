@@ -1,5 +1,5 @@
+import asyncio
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 from pytest import MonkeyPatch
@@ -71,11 +71,11 @@ def test_browser_screen_resolves_job_actions(tui_modules: SimpleNamespace) -> No
     global_action = screen._resolve_action('global')
 
     assert primary_action is not None
-    assert primary_action.command_args == ('job', 'run-once', '1')
+    assert primary_action.parameters == {'job_id': 1}
     assert secondary_action is not None
-    assert secondary_action.command_args == ('job', 'pause', '1')
+    assert secondary_action.parameters == {'job_id': 1}
     assert global_action is not None
-    assert global_action.command_args == ('job', 'sync')
+    assert global_action.parameters == {}
 
 
 def test_browser_screen_builds_action_panel_with_feedback(tui_modules: SimpleNamespace) -> None:
@@ -112,7 +112,7 @@ def test_browser_screen_builds_action_panel_with_feedback(tui_modules: SimpleNam
 
 
 @pytest.mark.asyncio
-async def test_browser_screen_execute_external_action_suspends_app(
+async def test_browser_screen_executes_action_without_suspending_app(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
@@ -140,60 +140,44 @@ async def test_browser_screen_execute_external_action_suspends_app(
     )
     action = tui_modules.cli_tui_browser.TUI_ACTION_REGISTRY.resolve_browser_action(
         view_key='gen',
-        slot='primary',
+        slot='global',
         record=snapshot.records[0],
         env='dev',
     )
     assert action is not None
 
-    recorded_suspend: list[str] = []
-
-    class DummySuspend:
-        def __enter__(self) -> None:
-            recorded_suspend.append('enter')
-
-        def __exit__(
-            self,
-            exc_type: type[BaseException] | None,
-            exc: BaseException | None,
-            tb: Any,
-        ) -> None:
-            del exc_type, exc, tb
-            recorded_suspend.append('exit')
-
-    def build_suspend() -> DummySuspend:
-        return DummySuspend()
-
     def refresh_current_view() -> None:
         pass
 
     fake_app = SimpleNamespace(
-        suspend=build_suspend,
         action_refresh_current_view=refresh_current_view,
+        remember_action_feedback=lambda view_key, lines: None,
     )
     monkeypatch.setattr(tui_modules.cli_tui_browser.BrowserScreen, 'app', property(lambda self: fake_app))
     monkeypatch.setattr(
         tui_modules.cli_tui_interactions,
         'TUI_ACTION_EXECUTION_SERVICE',
         SimpleNamespace(
-            execute_external=lambda spec: tui_modules.cli_tui_browser.TuiActionResult(
-                spec=spec,
-                external_exit_code=0,
-                external_message='外部交互命令已执行完成',
+            execute=lambda spec, env: asyncio.sleep(
+                0,
+                result=tui_modules.cli_tui_browser.TuiActionResult(
+                    spec=spec,
+                    payload={'ok': True, 'message': '代码导出演练完成'},
+                ),
             ),
             build_result_lines=lambda result: [],
         ),
     )
     monkeypatch.setattr(screen, 'notify', lambda *args, **kwargs: None)
 
-    async def fake_render_record_detail(*, eager: bool = False) -> None:
-        del eager
+    async def fake_render_record_detail() -> None:
+        return None
 
     monkeypatch.setattr(screen, '_render_record_detail', fake_render_record_detail)
 
     await screen._execute_action(action)
 
-    assert recorded_suspend == ['enter', 'exit']
+    assert action.action_id == 'gen-export-dry-run'
 
 
 def test_browser_screen_filter_shortcut_remembers_and_refreshes(
@@ -243,6 +227,9 @@ def test_browser_screen_filter_shortcut_remembers_and_refreshes(
 async def test_browser_screen_detail_loader_failure_falls_back_to_failure_section(
     tui_modules: SimpleNamespace,
 ) -> None:
+    async def failing_loader() -> list[object]:
+        raise RuntimeError('boom')
+
     snapshot = tui_modules.cli_tui_adapters.BrowserPageSnapshot(
         title='任务',
         subtitle='subtitle',
@@ -254,7 +241,7 @@ async def test_browser_screen_detail_loader_failure_falls_back_to_failure_sectio
                 summary='摘要',
                 metadata_lines=[],
                 detail_sections=[],
-                detail_loader=lambda: (_ for _ in ()).throw(RuntimeError('boom')),
+                detail_loader=failing_loader,
             )
         ],
         shared_sections=[],
@@ -269,8 +256,7 @@ async def test_browser_screen_detail_loader_failure_falls_back_to_failure_sectio
 
     rendered_calls: list[bool] = []
 
-    async def fake_render_record_detail(*, eager: bool = False) -> None:
-        del eager
+    async def fake_render_record_detail() -> None:
         rendered_calls.append(True)
 
     screen._render_record_detail = fake_render_record_detail  # type: ignore[method-assign]
@@ -371,7 +357,7 @@ def test_browser_screen_support_builds_summary_actions_and_fallbacks(
     assert '当前页共 1 条记录' in summary
     assert '当前搜索 · sync' in filter_bar
     assert action is not None
-    assert action.command_args == ('job', 'run-once', '1')
+    assert action.parameters == {'job_id': 1}
     assert any('结果: 成功' in line for line in action_lines)
     assert empty_record.title == tui_modules.cli_tui_copy.TUI_COPY.build_browser_empty_record_copy('title')
     assert loading_section.title == tui_modules.cli_tui_copy.TUI_COPY.build_browser_loading_copy('title')
@@ -547,6 +533,7 @@ async def test_browser_screen_scrolls_in_small_viewport(tui_modules: SimpleNames
     )
 
     async with app.run_test(size=(80, 24)) as pilot:
+        await app._view_task
         app.screen_navigator.show(screen)
         await pilot.pause()
         await pilot.pause()
