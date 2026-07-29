@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from cli.tui.adapters.base import BaseBrowserAdapter
@@ -9,8 +10,9 @@ from cli.tui.adapters.models import (
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
 from cli.tui.search import JOB_FILTER_OPTIONS
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.utils import SHELL_TEXT_FORMATTER
 
 
 class JobRenderingSupport:
@@ -198,6 +200,7 @@ class JobSectionBuilder:
         self,
         page_adapter: BaseBrowserAdapter,
         rendering: JobRenderingSupport,
+        query_service: TuiRuntimeQueryService | None = None,
     ) -> None:
         """
         初始化任务浏览页分区构建器。
@@ -208,6 +211,7 @@ class JobSectionBuilder:
         """
         self.page_adapter = page_adapter
         self.rendering = rendering
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
 
     def build_job_failure_aggregate_section(self, payload: dict[str, Any] | None) -> DetailSectionSnapshot:
         """
@@ -485,7 +489,7 @@ class JobSectionBuilder:
             ],
         )
 
-    def load_job_detail_sections(self, job_row: dict[str, Any], env: str) -> list[DetailSectionSnapshot]:
+    async def load_job_detail_sections(self, job_row: dict[str, Any], env: str) -> list[DetailSectionSnapshot]:
         """
         按需加载单条任务详情与日志分区。
 
@@ -493,23 +497,16 @@ class JobSectionBuilder:
         :param env: 当前运行环境
         :return: 详情分区列表
         """
-        job_id = job_row.get('jobId', '-')
+        del env
+        job_id = int(job_row.get('jobId') or 0)
         job_name = str(job_row.get('jobName', '-') or '-')
 
-        detail_payload = NESTED_CLI_SUPPORT.run(
-            'job',
-            'detail',
-            str(job_id),
-            f'--env={env}',
-            '--output=json',
-            parse_json=True,
-        ).payload
-
-        log_arguments = ['job', 'logs', f'--env={env}', '--paged', '--page-size=8', '--output=json']
-        if job_name.strip() and job_name != '-':
-            log_arguments.append(f'--job-name={job_name}')
-        recent_logs_payload = NESTED_CLI_SUPPORT.run(*log_arguments, parse_json=True).payload
-        failed_logs_payload = NESTED_CLI_SUPPORT.run(*[*log_arguments, '--status=1'], parse_json=True).payload
+        log_job_name = job_name if job_name.strip() and job_name != '-' else ''
+        detail_payload, recent_logs_payload, failed_logs_payload = await asyncio.gather(
+            self.query_service.get_job_detail(job_id),
+            self.query_service.get_job_logs(job_name=log_job_name, page_size=8),
+            self.query_service.get_job_logs(job_name=log_job_name, status='1', page_size=8),
+        )
 
         return [
             self.build_job_focus_section(detail_payload),
@@ -611,6 +608,7 @@ class JobsBrowserAdapter(BaseBrowserAdapter):
         row_filter: JobRowFilter | None = None,
         section_builder: JobSectionBuilder | None = None,
         record_builder: JobRecordBuilder | None = None,
+        query_service: TuiRuntimeQueryService | None = None,
     ) -> None:
         """
         初始化任务浏览页适配器。
@@ -628,10 +626,15 @@ class JobsBrowserAdapter(BaseBrowserAdapter):
         )
         self.rendering = rendering or JobRenderingSupport(self)
         self.row_filter = row_filter or JobRowFilter()
-        self.section_builder = section_builder or JobSectionBuilder(self, self.rendering)
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
+        self.section_builder = section_builder or JobSectionBuilder(
+            self,
+            self.rendering,
+            self.query_service,
+        )
         self.record_builder = record_builder or JobRecordBuilder(self, self.rendering, self.section_builder)
 
-    def collect_snapshot(self, env: str, filter_key: str = 'all', query: str = '') -> BrowserPageSnapshot:
+    async def collect_snapshot(self, env: str, filter_key: str = 'all', query: str = '') -> BrowserPageSnapshot:
         """
         采集定时任务浏览页只读快照。
 
@@ -644,25 +647,10 @@ class JobsBrowserAdapter(BaseBrowserAdapter):
         active_filter = active_filter_option.key
         active_filter_label = active_filter_option.label
         search_context = self.resolve_search_context(query)
-        jobs_payload = NESTED_CLI_SUPPORT.run(
-            'job',
-            'list',
-            f'--env={env}',
-            '--paged',
-            '--page-size=8',
-            '--output=json',
-            parse_json=True,
-        ).payload
-        failed_logs_payload = NESTED_CLI_SUPPORT.run(
-            'job',
-            'logs',
-            f'--env={env}',
-            '--paged',
-            '--page-size=20',
-            '--status=1',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        jobs_payload, failed_logs_payload = await asyncio.gather(
+            self.query_service.get_jobs(),
+            self.query_service.get_job_logs(status='1', page_size=20),
+        )
         failed_job_names = self.rendering.extract_failed_job_names(failed_logs_payload)
 
         if not isinstance(jobs_payload, dict) or not jobs_payload.get('ok', False):

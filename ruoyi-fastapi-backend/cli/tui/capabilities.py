@@ -3,7 +3,7 @@ from typing import Literal
 
 from cli.tui.copy import TUI_COPY
 
-CapabilityKind = Literal['read_only', 'preview', 'low_risk_action', 'wizard_entry', 'command_hint']
+CapabilityKind = Literal['read_only', 'preview', 'low_risk_action', 'command_hint']
 CapabilityScope = Literal['browser', 'detail']
 
 
@@ -53,12 +53,10 @@ _BROWSER_CAPABILITY_SPECS: dict[str, tuple[TuiCapabilitySpec, ...]] = {
     ),
     'configs': (TuiCapabilitySpec('config_sync', 'low_risk_action', 'global', 'Y'),),
     'cache': (
-        TuiCapabilitySpec('cache_clear_wizard', 'wizard_entry', 'global', 'Y'),
+        TuiCapabilitySpec('cache_clear_dry_run', 'preview', 'global', 'Y'),
         TuiCapabilitySpec('cache_warmup', 'low_risk_action', 'utility', 'W'),
     ),
     'gen': (
-        TuiCapabilitySpec('gen_export_wizard', 'wizard_entry', 'primary', 'X'),
-        TuiCapabilitySpec('gen_import_wizard', 'wizard_entry', 'secondary', 'Z'),
         TuiCapabilitySpec('gen_export_dry_run', 'preview', 'global', 'Y'),
         TuiCapabilitySpec('gen_sync_db', 'low_risk_action', 'utility', 'W'),
     ),
@@ -66,21 +64,20 @@ _BROWSER_CAPABILITY_SPECS: dict[str, tuple[TuiCapabilitySpec, ...]] = {
 
 _DETAIL_CAPABILITY_SPECS: dict[str, tuple[TuiCapabilitySpec, ...]] = {
     'app': (
-        TuiCapabilitySpec('app_run', 'wizard_entry', 'primary', 'X'),
-        TuiCapabilitySpec('app_run_wizard', 'wizard_entry', 'global', 'Y'),
+        TuiCapabilitySpec('app_precheck', 'preview', 'primary', 'X'),
         TuiCapabilitySpec('completion_install', 'command_hint', 'utility', 'W'),
     ),
     'database': (
-        TuiCapabilitySpec('db_upgrade_wizard', 'wizard_entry', 'global', 'Y'),
+        TuiCapabilitySpec('db_upgrade_dry_run', 'preview', 'global', 'Y'),
         TuiCapabilitySpec('db_init_dry_run', 'preview', 'utility', 'W'),
     ),
     'ops': (
         TuiCapabilitySpec('ops_ping_db', 'low_risk_action', 'primary', 'X'),
         TuiCapabilitySpec('ops_ping_redis', 'low_risk_action', 'secondary', 'Z'),
-        TuiCapabilitySpec('prod_check_wizard', 'wizard_entry', 'global', 'Y'),
+        TuiCapabilitySpec('prod_check', 'low_risk_action', 'global', 'Y'),
     ),
     'crypto': (
-        TuiCapabilitySpec('crypto_keygen', 'wizard_entry', 'primary', 'X'),
+        TuiCapabilitySpec('crypto_keygen', 'low_risk_action', 'primary', 'X'),
         TuiCapabilitySpec('crypto_rotate_dry_run', 'preview', 'global', 'Y'),
     ),
 }

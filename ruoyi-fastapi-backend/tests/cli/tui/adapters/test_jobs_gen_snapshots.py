@@ -1,11 +1,15 @@
+from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
 
+import pytest
 from pytest import MonkeyPatch
 
 
-def test_collect_jobs_page_snapshot_links_first_job_detail_and_logs(
+@pytest.mark.asyncio
+async def test_collect_jobs_page_snapshot_links_first_job_detail_and_logs(
     monkeypatch: MonkeyPatch,
     jobs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     calls: list[tuple[str, ...]] = []
 
@@ -77,9 +81,10 @@ def test_collect_jobs_page_snapshot_links_first_job_detail_and_logs(
             }
         )
 
-    monkeypatch.setattr(jobs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(jobs_adapter, fake_run_nested_cli_command)
 
-    snapshot = jobs_adapter.JOBS_BROWSER_ADAPTER.collect_snapshot('dev')
+    snapshot = await jobs_adapter.JOBS_BROWSER_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '任务'
     assert (
@@ -94,7 +99,7 @@ def test_collect_jobs_page_snapshot_links_first_job_detail_and_logs(
     assert snapshot.shared_sections[1].title == '失败聚合'
     assert any('失败日志: 1 条' in line for line in snapshot.shared_sections[1].lines)
     assert any('同步任务 · 1 次' in line for line in snapshot.shared_sections[1].lines)
-    detail_sections = snapshot.records[0].resolve_detail_sections()
+    detail_sections = await snapshot.records[0].resolve_detail_sections()
     assert [section.title for section in detail_sections] == [
         '任务摘要',
         '调度配置',
@@ -116,9 +121,11 @@ def test_collect_jobs_page_snapshot_links_first_job_detail_and_logs(
     assert any(call[0:2] == ('job', 'logs') and '--status=1' in call for call in calls)
 
 
-def test_collect_jobs_page_snapshot_applies_failed_filter(
+@pytest.mark.asyncio
+async def test_collect_jobs_page_snapshot_applies_failed_filter(
     monkeypatch: MonkeyPatch,
     jobs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -169,9 +176,10 @@ def test_collect_jobs_page_snapshot_applies_failed_filter(
             )
         return SimpleNamespace(payload={'ok': True, 'page': {'rows': []}})
 
-    monkeypatch.setattr(jobs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(jobs_adapter, fake_run_nested_cli_command)
 
-    snapshot = jobs_adapter.JOBS_BROWSER_ADAPTER.collect_snapshot('dev', filter_key='failed')
+    snapshot = await jobs_adapter.JOBS_BROWSER_ADAPTER.collect_snapshot('dev', filter_key='failed')
 
     assert snapshot.active_filter_key == 'failed'
     assert [option.key for option in snapshot.filters] == ['all', 'failed', 'paused', 'ok']
@@ -186,9 +194,11 @@ def test_collect_jobs_page_snapshot_applies_failed_filter(
     assert snapshot.search.placeholder == '按任务名搜索'
 
 
-def test_collect_jobs_page_snapshot_applies_query_filter(
+@pytest.mark.asyncio
+async def test_collect_jobs_page_snapshot_applies_query_filter(
     monkeypatch: MonkeyPatch,
     jobs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -218,18 +228,21 @@ def test_collect_jobs_page_snapshot_applies_query_filter(
             )
         return SimpleNamespace(payload={'ok': True, 'page': {'rows': []}})
 
-    monkeypatch.setattr(jobs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(jobs_adapter, fake_run_nested_cli_command)
 
-    snapshot = jobs_adapter.JOBS_BROWSER_ADAPTER.collect_snapshot('dev', query='sync')
+    snapshot = await jobs_adapter.JOBS_BROWSER_ADAPTER.collect_snapshot('dev', query='sync')
 
     assert [record.title for record in snapshot.records] == ['sync-user']
     assert snapshot.search is not None
     assert snapshot.search.query == 'sync'
 
 
-def test_collect_jobs_page_snapshot_surfaces_failure_message(
+@pytest.mark.asyncio
+async def test_collect_jobs_page_snapshot_surfaces_failure_message(
     monkeypatch: MonkeyPatch,
     jobs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del arguments, parse_json
@@ -241,18 +254,21 @@ def test_collect_jobs_page_snapshot_surfaces_failure_message(
             }
         )
 
-    monkeypatch.setattr(jobs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(jobs_adapter, fake_run_nested_cli_command)
 
-    snapshot = jobs_adapter.JOBS_BROWSER_ADAPTER.collect_snapshot('dev')
+    snapshot = await jobs_adapter.JOBS_BROWSER_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.subtitle.startswith('任务数据不可用：')
     assert snapshot.records[0].status == 'fail'
     assert any('读取定时任务列表失败' in line for line in snapshot.records[0].detail_sections[0].lines)
 
 
-def test_collect_gen_page_snapshot_links_first_table_detail(
+@pytest.mark.asyncio
+async def test_collect_gen_page_snapshot_links_first_table_detail(
     monkeypatch: MonkeyPatch,
     gen_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     calls: list[tuple[str, ...]] = []
 
@@ -359,9 +375,10 @@ def test_collect_gen_page_snapshot_links_first_table_detail(
             }
         )
 
-    monkeypatch.setattr(gen_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(gen_adapter, fake_run_nested_cli_command)
 
-    snapshot = gen_adapter.GEN_BROWSER_ADAPTER.collect_snapshot('dev')
+    snapshot = await gen_adapter.GEN_BROWSER_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '代码生成'
     assert (
@@ -370,7 +387,7 @@ def test_collect_gen_page_snapshot_links_first_table_detail(
     )
     assert len(snapshot.records) == 1
     assert snapshot.records[0].title == 'sys_user'
-    detail_sections = snapshot.records[0].resolve_detail_sections()
+    detail_sections = await snapshot.records[0].resolve_detail_sections()
     assert [section.title for section in detail_sections] == [
         '业务表摘要',
         '生成配置',
@@ -404,9 +421,11 @@ def test_collect_gen_page_snapshot_links_first_table_detail(
     assert any(call[0:2] == ('gen', 'db-list') and '--table-name=sys_user' in call for call in calls)
 
 
-def test_gen_browser_adapter_collect_snapshot_exposes_search_context(
+@pytest.mark.asyncio
+async def test_gen_browser_adapter_collect_snapshot_exposes_search_context(
     monkeypatch: MonkeyPatch,
     gen_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -428,9 +447,10 @@ def test_gen_browser_adapter_collect_snapshot_exposes_search_context(
             )
         return SimpleNamespace(payload={'ok': True, 'page': {'rows': []}})
 
-    monkeypatch.setattr(gen_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(gen_adapter, fake_run_nested_cli_command)
 
-    snapshot = gen_adapter.GEN_BROWSER_ADAPTER.collect_snapshot('dev', query='sys')
+    snapshot = await gen_adapter.GEN_BROWSER_ADAPTER.collect_snapshot('dev', query='sys')
 
     assert snapshot.title == '代码生成'
     assert snapshot.search is not None

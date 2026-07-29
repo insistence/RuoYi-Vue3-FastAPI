@@ -1,6 +1,9 @@
-from collections.abc import Callable
+import asyncio
+from collections import OrderedDict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
+from time import monotonic
 
 from textual.app import App
 from textual.css.query import NoMatches
@@ -10,13 +13,19 @@ from cli.tui.adapters import (
     BrowserPageSnapshot,
     DashboardSnapshot,
     DetailPageSnapshot,
+    DetailSectionSnapshot,
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.keymaps import TUI_KEYMAP_REGISTRY
+from cli.tui.queries import TUI_PAGE_TIMEOUT_SECONDS
 from cli.tui.screens import BrowserScreen, DashboardScreen, DetailScreen
 from cli.tui.widgets import NavigationItem, WorkspaceSidebar
 
-SnapshotCollector = Callable[['RuoyiTuiApp'], BrowserPageSnapshot | DashboardSnapshot | DetailPageSnapshot]
+PageSnapshot = BrowserPageSnapshot | DashboardSnapshot | DetailPageSnapshot
+SnapshotCollector = Callable[['RuoyiTuiApp'], Awaitable[PageSnapshot]]
+TUI_NAVIGATION_DEBOUNCE_SECONDS = 0.075
+TUI_SNAPSHOT_CACHE_TTL_SECONDS = 15.0
+TUI_SNAPSHOT_CACHE_MAX_ENTRIES = 18
 
 
 @dataclass(frozen=True)
@@ -84,9 +93,7 @@ class TuiViewRegistry:
             return normalized_view_key
         return 'dashboard'
 
-    def collect_snapshot(
-        self, app: 'RuoyiTuiApp', view_key: str
-    ) -> BrowserPageSnapshot | DashboardSnapshot | DetailPageSnapshot:
+    async def collect_snapshot(self, app: 'RuoyiTuiApp', view_key: str) -> PageSnapshot:
         """
         采集指定视图的页面快照。
 
@@ -95,7 +102,7 @@ class TuiViewRegistry:
         :return: 页面快照
         """
         resolved_view_key = self.resolve_view_key(view_key)
-        return self.definitions[resolved_view_key].collector(app)
+        return await self.definitions[resolved_view_key].collector(app)
 
     def get_navigation_index(self, view_key: str) -> int:
         """
@@ -388,13 +395,13 @@ class TuiViewRegistryBuilder:
         :return: 页面快照采集器
         """
 
-        def collect(app: 'RuoyiTuiApp') -> BrowserPageSnapshot | DashboardSnapshot | DetailPageSnapshot:
+        async def collect(app: 'RuoyiTuiApp') -> PageSnapshot:
             collect_kwargs: dict[str, str] = {}
             if spec.include_filter:
                 collect_kwargs['filter_key'] = app.get_browser_filter(spec.view_key)
             if spec.include_query:
                 collect_kwargs['query'] = app.get_browser_query(spec.view_key)
-            return TUI_SNAPSHOT_COLLECTOR_REGISTRY.collect(spec.view_key, app.env, **collect_kwargs)
+            return await TUI_SNAPSHOT_COLLECTOR_REGISTRY.collect(spec.view_key, app.env, **collect_kwargs)
 
         return collect
 
@@ -612,6 +619,62 @@ class TuiScreenNavigator:
         self.app.switch_screen(screen)
 
 
+@dataclass
+class TuiSnapshotCache:
+    """
+    TUI 页面快照短期缓存。
+
+    缓存按视图、筛选与搜索条件隔离，并通过容量和 TTL 双重限制避免
+    工作台长时间运行后无界增长。
+    """
+
+    ttl_seconds: float = TUI_SNAPSHOT_CACHE_TTL_SECONDS
+    max_entries: int = TUI_SNAPSHOT_CACHE_MAX_ENTRIES
+
+    def __post_init__(self) -> None:
+        """初始化有序缓存容器。"""
+        self._entries: OrderedDict[str, tuple[float, PageSnapshot]] = OrderedDict()
+
+    def get(self, key: str) -> PageSnapshot | None:
+        """
+        读取仍在有效期内的页面快照。
+
+        :param key: 缓存键
+        :return: 页面快照或 None
+        """
+        cached = self._entries.get(key)
+        if cached is None:
+            return None
+        created_at, snapshot = cached
+        if monotonic() - created_at > self.ttl_seconds:
+            self._entries.pop(key, None)
+            return None
+        self._entries.move_to_end(key)
+        return snapshot
+
+    def put(self, key: str, snapshot: PageSnapshot) -> None:
+        """
+        写入页面快照并执行容量淘汰。
+
+        :param key: 缓存键
+        :param snapshot: 页面快照
+        :return: None
+        """
+        self._entries[key] = (monotonic(), snapshot)
+        self._entries.move_to_end(key)
+        while len(self._entries) > self.max_entries:
+            self._entries.popitem(last=False)
+
+    def invalidate(self, key: str) -> None:
+        """
+        删除指定缓存项。
+
+        :param key: 缓存键
+        :return: None
+        """
+        self._entries.pop(key, None)
+
+
 @dataclass(frozen=True)
 class TuiViewOpeningCoordinator:
     """
@@ -628,8 +691,44 @@ class TuiViewOpeningCoordinator:
     view_registry: TuiViewRegistry
     screen_factory: TuiScreenFactory
     navigation_items: list[NavigationItem]
+    snapshot_cache: TuiSnapshotCache
 
-    def show(self, app: 'RuoyiTuiApp', view_key: str) -> None:
+    @staticmethod
+    def build_failure_snapshot(view_key: str, error: Exception) -> DetailPageSnapshot:
+        """
+        构建页面加载失败快照。
+
+        :param view_key: 视图标识
+        :param error: 页面加载异常
+        :return: 失败页面快照
+        """
+        view_label = TUI_COPY.render_view_label(view_key)
+        return DetailPageSnapshot(
+            title=view_label,
+            subtitle=f'{view_label}加载失败，工作台仍可继续切换或重试',
+            sections=[
+                DetailSectionSnapshot(
+                    title='加载失败',
+                    status='fail',
+                    lines=[
+                        '## 错误信息',
+                        str(error) or error.__class__.__name__,
+                        '',
+                        '## 建议操作',
+                        '按 R 重试，或切换到其他页面继续操作。',
+                    ],
+                )
+            ],
+        )
+
+    async def show(
+        self,
+        app: 'RuoyiTuiApp',
+        view_key: str,
+        *,
+        request_id: int,
+        force_refresh: bool = False,
+    ) -> None:
         """
         切换并展示指定视图。
 
@@ -638,8 +737,31 @@ class TuiViewOpeningCoordinator:
         :return: None
         """
         resolved_view_key = self.view_registry.resolve_view_key(view_key)
+        if app.screen_navigator.initialized:
+            await asyncio.sleep(TUI_NAVIGATION_DEBOUNCE_SECONDS)
+        if not app.is_current_view_request(request_id, resolved_view_key):
+            return
+
+        cache_key = app.build_snapshot_cache_key(resolved_view_key)
+        snapshot = None if force_refresh else self.snapshot_cache.get(cache_key)
+        if snapshot is None:
+            if force_refresh:
+                self.snapshot_cache.invalidate(cache_key)
+            try:
+                snapshot = await asyncio.wait_for(
+                    self.view_registry.collect_snapshot(app, resolved_view_key),
+                    timeout=TUI_PAGE_TIMEOUT_SECONDS,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                snapshot = self.build_failure_snapshot(resolved_view_key, error)
+            else:
+                self.snapshot_cache.put(cache_key, snapshot)
+
+        if not app.is_current_view_request(request_id, resolved_view_key):
+            return
         app.current_view = resolved_view_key
-        snapshot = self.view_registry.collect_snapshot(app, resolved_view_key)
         screen = self.screen_factory.build(
             snapshot=snapshot,
             env=app.env,
@@ -669,6 +791,9 @@ class RuoyiTuiApp(App[None]):
         """
         self.env = env
         self.current_view = 'dashboard'
+        self.requested_view = 'dashboard'
+        self._view_request_id = 0
+        self._view_task: asyncio.Task[None] | None = None
         self.view_state_store = TuiViewStateStore.create_default()
         self.screen_factory = TuiScreenFactory()
         self.screen_navigator = TuiScreenNavigator(self)
@@ -676,17 +801,55 @@ class RuoyiTuiApp(App[None]):
             view_registry=TUI_VIEW_REGISTRY,
             screen_factory=self.screen_factory,
             navigation_items=NAVIGATION_ITEMS,
+            snapshot_cache=TuiSnapshotCache(),
         )
         super().__init__()
 
-    def show_view(self, view_key: str) -> None:
+    def build_snapshot_cache_key(self, view_key: str) -> str:
+        """
+        构建包含筛选与搜索状态的页面缓存键。
+
+        :param view_key: 视图标识
+        :return: 页面缓存键
+        """
+        return '\x1f'.join(
+            (
+                view_key,
+                self.get_browser_filter(view_key, ''),
+                self.get_browser_query(view_key),
+            )
+        )
+
+    def is_current_view_request(self, request_id: int, view_key: str) -> bool:
+        """
+        判断异步页面加载是否仍为最新请求。
+
+        :param request_id: 请求编号
+        :param view_key: 视图标识
+        :return: 是否仍为最新请求
+        """
+        return request_id == self._view_request_id and view_key == self.requested_view
+
+    def show_view(self, view_key: str, *, force_refresh: bool = False) -> None:
         """
         切换并展示指定视图。
 
         :param view_key: 目标视图标识
         :return: None
         """
-        self.view_opening_coordinator.show(self, view_key)
+        resolved_view_key = TUI_VIEW_REGISTRY.resolve_view_key(view_key)
+        self.requested_view = resolved_view_key
+        self._view_request_id += 1
+        if self._view_task is not None and not self._view_task.done():
+            self._view_task.cancel()
+        self._view_task = asyncio.create_task(
+            self.view_opening_coordinator.show(
+                self,
+                resolved_view_key,
+                request_id=self._view_request_id,
+                force_refresh=force_refresh,
+            )
+        )
 
     def remember_action_feedback(self, view_key: str, lines: list[str]) -> None:
         """
@@ -755,6 +918,15 @@ class RuoyiTuiApp(App[None]):
         """
         self.show_view('dashboard')
 
+    def on_unmount(self) -> None:
+        """
+        应用卸载时取消页面加载任务。
+
+        :return: None
+        """
+        if self._view_task is not None and not self._view_task.done():
+            self._view_task.cancel()
+
     def open_view(self, view_key: str) -> None:
         """
         按视图标识打开对应页面。
@@ -781,7 +953,7 @@ class RuoyiTuiApp(App[None]):
 
         :return: None
         """
-        self.open_view(TUI_VIEW_REGISTRY.get_relative_view_key(self.current_view, -1))
+        self.open_view(TUI_VIEW_REGISTRY.get_relative_view_key(self.requested_view, -1))
 
     def action_show_next_view(self) -> None:
         """
@@ -789,7 +961,7 @@ class RuoyiTuiApp(App[None]):
 
         :return: None
         """
-        self.open_view(TUI_VIEW_REGISTRY.get_relative_view_key(self.current_view, 1))
+        self.open_view(TUI_VIEW_REGISTRY.get_relative_view_key(self.requested_view, 1))
 
     def action_refresh_current_view(self) -> None:
         """
@@ -797,7 +969,7 @@ class RuoyiTuiApp(App[None]):
 
         :return: None
         """
-        self.show_view(self.current_view)
+        self.show_view(self.current_view, force_refresh=True)
 
     def action_show_dashboard(self) -> None:
         """

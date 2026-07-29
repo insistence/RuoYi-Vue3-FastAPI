@@ -67,19 +67,16 @@ STATUS_PANEL_COPY = {
 }
 
 ACTION_LABELS = {
-    'app_run': '直接启动应用',
-    'app_run_wizard': '打开启动向导',
-    'cache_clear_wizard': '打开缓存清理向导',
+    'app_precheck': '执行启动前检查',
+    'cache_clear_dry_run': '执行缓存清理预演',
     'cache_warmup': '执行缓存预热',
     'completion_install': '安装当前 Shell 补全',
     'config_sync': '刷新参数缓存',
     'crypto_keygen': '打开密钥生成入口',
     'crypto_rotate_dry_run': '执行轮换预演',
     'db_init_dry_run': '执行初始化预演',
-    'db_upgrade_wizard': '打开升级向导',
+    'db_upgrade_dry_run': '执行升级预演',
     'gen_export_dry_run': '执行导出预演',
-    'gen_export_wizard': '打开导出向导',
-    'gen_import_wizard': '打开导入向导',
     'gen_sync_db': '同步数据库表结构',
     'job_pause': '暂停任务',
     'job_resume': '恢复任务',
@@ -87,7 +84,7 @@ ACTION_LABELS = {
     'job_sync': '同步调度配置',
     'ops_ping_db': '执行数据库探活',
     'ops_ping_redis': '执行 Redis 探活',
-    'prod_check_wizard': '打开生产巡检向导',
+    'prod_check': '执行综合运行巡检',
 }
 
 ACTION_SCOPE_LABELS = {
@@ -146,9 +143,7 @@ ACTION_RESULT_FIELD_LABELS = {
 }
 
 ACTION_CONSEQUENCE_TEXTS = {
-    'external': '确认后会暂时挂起 TUI，并在当前终端中执行对应命令；命令结束后自动返回工作台。',
-    'preview': '确认后会立即执行对应 CLI 低风险命令，并按结果刷新当前页面。',
-    'wizard': '确认后会暂时挂起 TUI，并在当前终端中打开对应向导；向导结束后自动返回工作台。',
+    'preview': '确认后会在当前进程内执行对应的低风险动作，并按结果刷新当前页面。',
 }
 
 APP_BINDING_LABELS = {
@@ -206,49 +201,43 @@ DETAIL_EMPTY_SECTION_COPY = {
 }
 
 CAPABILITY_LABELS = {
-    'app_run': ACTION_LABELS['app_run'],
-    'app_run_wizard': ACTION_LABELS['app_run_wizard'],
-    'cache_clear_wizard': ACTION_LABELS['cache_clear_wizard'],
+    'app_precheck': ACTION_LABELS['app_precheck'],
+    'cache_clear_dry_run': ACTION_LABELS['cache_clear_dry_run'],
     'cache_warmup': ACTION_LABELS['cache_warmup'],
     'completion_install': ACTION_LABELS['completion_install'],
     'config_sync': ACTION_LABELS['config_sync'],
     'crypto_keygen': ACTION_LABELS['crypto_keygen'],
     'crypto_rotate_dry_run': ACTION_LABELS['crypto_rotate_dry_run'],
     'db_init_dry_run': ACTION_LABELS['db_init_dry_run'],
-    'db_upgrade_wizard': ACTION_LABELS['db_upgrade_wizard'],
+    'db_upgrade_dry_run': ACTION_LABELS['db_upgrade_dry_run'],
     'gen_export_dry_run': ACTION_LABELS['gen_export_dry_run'],
-    'gen_export_wizard': ACTION_LABELS['gen_export_wizard'],
-    'gen_import_wizard': ACTION_LABELS['gen_import_wizard'],
     'gen_sync_db': ACTION_LABELS['gen_sync_db'],
     'job_run_once': ACTION_LABELS['job_run_once'],
     'job_toggle': '暂停/恢复任务',
     'job_sync': ACTION_LABELS['job_sync'],
     'ops_ping_db': ACTION_LABELS['ops_ping_db'],
     'ops_ping_redis': ACTION_LABELS['ops_ping_redis'],
-    'prod_check_wizard': ACTION_LABELS['prod_check_wizard'],
+    'prod_check': ACTION_LABELS['prod_check'],
 }
 
 CAPABILITY_HINT_LABELS = {
-    'app_run': '直接启动',
-    'app_run_wizard': '打开启动向导',
-    'cache_clear_wizard': '清理向导',
+    'app_precheck': '启动前检查',
+    'cache_clear_dry_run': '清理预演',
     'cache_warmup': '执行缓存预热',
     'completion_install': '安装补全',
     'config_sync': '刷新参数缓存',
     'crypto_keygen': '密钥生成',
     'crypto_rotate_dry_run': '执行轮换预演',
     'db_init_dry_run': '初始化预演',
-    'db_upgrade_wizard': '打开升级向导',
+    'db_upgrade_dry_run': '升级预演',
     'gen_export_dry_run': '导出预演',
-    'gen_export_wizard': '导出向导',
-    'gen_import_wizard': '导入向导',
     'gen_sync_db': '同步表结构',
     'job_run_once': '执行一次',
     'job_toggle': '暂停/恢复',
     'job_sync': '同步调度',
     'ops_ping_db': '数据库探活',
     'ops_ping_redis': 'Redis 探活',
-    'prod_check_wizard': '打开生产巡检向导',
+    'prod_check': '综合运行巡检',
 }
 
 WORKSPACE_LABELS = {
@@ -314,17 +303,17 @@ METRIC_COPY = {
 ACTION_HINT_COPY = {
     'browser_default': '当前页面以浏览为主。{interaction_hint}',
     'browser_templates': {
-        'cache': '建议先核对 Redis 概览与键值样本，再决定预热或进入清理向导。{interaction_hint}',
+        'cache': '建议先核对 Redis 概览与键值样本，再决定预热或执行清理预演。{interaction_hint}',
         'configs': '建议先看高风险配置，再决定是否刷新参数缓存。{interaction_hint}',
-        'gen': '建议先看生成前校验、同步预检查与代码预览，再决定是否进入导入向导、同步表结构或进入导出向导。{interaction_hint}',
+        'gen': '建议先看生成前校验、同步预检查与代码预览，再决定是否同步表结构或执行导出预演。{interaction_hint}',
         'jobs': '建议先看失败聚合，再决定执行一次、暂停恢复或同步调度。{interaction_hint}',
     },
     'detail_default': '当前页面以查看分区为主。{interaction_hint}',
     'detail_templates': {
-        'app': '建议先确认环境映射、应用配置、启动前检查、补全诊断和路由状态，再决定是安装补全、直接启动应用还是进入启动向导。{interaction_hint}',
+        'app': '建议先确认环境映射、应用配置、补全诊断和路由状态，再决定是否执行启动前检查或安装补全。{interaction_hint}',
         'crypto': '建议先确认运行校验、公钥身份和兼容版本，再决定是否生成新密钥或执行轮换预演。{interaction_hint}',
-        'database': '建议先确认 revision、Heads 和历史链路，再决定是否执行初始化预演或进入升级向导。{interaction_hint}',
-        'ops': '建议先确认数据库探活、Redis 探活、依赖版本和服务器资源，再决定是否进入生产巡检。{interaction_hint}',
+        'database': '建议先确认 revision、Heads 和历史链路，再决定是否执行初始化预演或升级预演。{interaction_hint}',
+        'ops': '建议先确认数据库探活、Redis 探活、依赖版本和服务器资源，再决定是否执行综合运行巡检。{interaction_hint}',
     },
     'operation_hint_lines': [
         '> [←/→] 切换焦点',

@@ -10,6 +10,7 @@ from textual.widgets import Label, ListItem, ListView, Static
 from cli.tui.adapters.models import BrowserRecordSnapshot, DetailSectionSnapshot
 from cli.tui.copy import TUI_COPY
 from cli.tui.keymaps import TUI_KEYMAP_REGISTRY
+from cli.tui.platform import TUI_PLATFORM_POLICY
 from cli.tui.search import TUI_SEARCH_HIGHLIGHTER
 
 
@@ -244,12 +245,26 @@ class WorkspaceSidebar(ListView):
         self.env = env
         self.items = items
         self.active_view = active_view
+        self.navigation_ready = False
         initial_index = self._resolve_initial_index()
         children = [
             NavigationListItem(item, index, active=item.view_key == self.active_view)
             for index, item in enumerate(self.items)
         ]
         super().__init__(*children, initial_index=initial_index, id='workspace-sidebar')
+
+    def on_mount(self) -> None:
+        """
+        首次布局完成后再接受高亮导航事件。
+
+        ListView 挂载时会发送一次初始 ``Highlighted``；该事件只用于建立
+        初始光标，不能覆盖正在进行的最新页面请求。
+        """
+        self.call_after_refresh(self._enable_navigation)
+
+    def _enable_navigation(self) -> None:
+        """允许用户高亮事件触发页面导航。"""
+        self.navigation_ready = True
 
     def _resolve_initial_index(self) -> int:
         """
@@ -321,7 +336,8 @@ class WorkspaceHero(Static):
 
         :return: None
         """
-        self.set_interval(0.9, self._pulse_border, name='pulse workspace hero border')
+        if not TUI_PLATFORM_POLICY.reduced_motion:
+            self.set_interval(0.9, self._pulse_border, name='pulse workspace hero border')
 
     def _pulse_border(self) -> None:
         """
@@ -445,7 +461,8 @@ class WorkspaceHeader(Static):
 
         :return: None
         """
-        self.set_interval(0.18, self.refresh, name='update workspace header')
+        if not TUI_PLATFORM_POLICY.reduced_motion:
+            self.set_interval(0.18, self.refresh, name='update workspace header')
 
     def build_scanline_text_label(self) -> Text:
         """

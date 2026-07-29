@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from cli.tui.adapters.app import APP_DETAIL_ADAPTER as _APP_DETAIL_ADAPTER
@@ -21,7 +21,7 @@ from cli.tui.adapters.models import (
 from cli.tui.adapters.ops import OPS_DETAIL_ADAPTER as _OPS_DETAIL_ADAPTER
 
 PageSnapshot = BrowserPageSnapshot | DashboardSnapshot | DetailPageSnapshot
-SnapshotCollector = Callable[..., PageSnapshot]
+SnapshotCollector = Callable[..., Awaitable[PageSnapshot]]
 
 
 @dataclass(frozen=True)
@@ -56,7 +56,7 @@ class TuiSnapshotCollectorRegistry:
         """
         return self.collectors.get(self.normalize_view_key(view_key))
 
-    def collect(self, view_key: str, *args, **kwargs) -> PageSnapshot:
+    async def collect(self, view_key: str, *args, **kwargs) -> PageSnapshot:
         """
         调用指定视图的快照采集器。
 
@@ -69,7 +69,7 @@ class TuiSnapshotCollectorRegistry:
         collector = self.get_collector(view_key)
         if collector is None:
             raise KeyError(self.normalize_view_key(view_key))
-        return collector(*args, **kwargs)
+        return await collector(*args, **kwargs)
 
 
 TUI_SNAPSHOT_COLLECTOR_REGISTRY = TuiSnapshotCollectorRegistry(

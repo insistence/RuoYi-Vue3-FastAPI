@@ -83,6 +83,29 @@ class DatabaseRuntimeService:
         finally:
             engine.dispose()
 
+    async def get_current_revision_async(self) -> dict[str, Any]:
+        """
+        异步获取数据库当前迁移版本。
+
+        :return: 当前迁移版本信息
+        """
+        create_async_db_engine = self.infrastructure_gateway.get_async_db_engine_factory()
+        text = self.infrastructure_gateway.get_sqlalchemy_text()
+        engine = create_async_db_engine(echo=False)
+        try:
+            async with engine.connect() as connection:
+                revision = (await connection.execute(text('SELECT version_num FROM alembic_version'))).scalar()
+            return {'ok': True, 'currentRevision': revision}
+        except Exception as exc:
+            return {
+                'ok': False,
+                'message': '读取数据库迁移版本失败',
+                'error': str(exc),
+                'exit_code': DATABASE_ERROR,
+            }
+        finally:
+            await engine.dispose()
+
     def upgrade_database(self, revision: str = 'head', *, dry_run: bool = False) -> dict[str, Any]:
         """
         执行数据库迁移升级。

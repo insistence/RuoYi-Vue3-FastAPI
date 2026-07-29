@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,7 +10,8 @@ from cli.tui.adapters.models import (
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
+from cli.utils import SHELL_TEXT_FORMATTER
 
 
 @dataclass(frozen=True)
@@ -33,28 +35,23 @@ class CryptoDetailSnapshotCollector:
     让 `CryptoDetailAdapter` 保持详情页编排职责。
     """
 
-    def collect(self, env: str) -> CryptoDetailSourcePayloads:
+    def __init__(self, query_service: TuiRuntimeQueryService | None = None) -> None:
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
+
+    async def collect(self, env: str) -> CryptoDetailSourcePayloads:
         """
         采集传输加密详情页所需原始结果。
 
         :param env: 当前运行环境
         :return: 传输加密详情页原始数据源快照
         """
+        validate_payload, public_payload = await asyncio.gather(
+            self.query_service.get_crypto_validation(),
+            self.query_service.get_crypto_public_key(),
+        )
         return CryptoDetailSourcePayloads(
-            validate_payload=NESTED_CLI_SUPPORT.run(
-                'crypto',
-                'validate',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            public_payload=NESTED_CLI_SUPPORT.run(
-                'crypto',
-                'export-public',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
+            validate_payload=validate_payload,
+            public_payload=public_payload,
         )
 
 
@@ -344,7 +341,7 @@ class CryptoDetailAdapter(BaseDetailAdapter):
         self.section_builder = section_builder or CryptoSectionBuilder()
         self.snapshot_collector = snapshot_collector or CryptoDetailSnapshotCollector()
 
-    def collect_snapshot(self, env: str, query: str = '') -> DetailPageSnapshot:
+    async def collect_snapshot(self, env: str, query: str = '') -> DetailPageSnapshot:
         """
         采集传输加密状态页只读快照。
 
@@ -352,7 +349,7 @@ class CryptoDetailAdapter(BaseDetailAdapter):
         :param query: 当前搜索词
         :return: 页面快照
         """
-        source_payloads = self.snapshot_collector.collect(env)
+        source_payloads = await self.snapshot_collector.collect(env)
         sections = self.section_builder.build_sections(
             validate_payload=source_payloads.validate_payload,
             public_payload=source_payloads.public_payload,

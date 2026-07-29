@@ -1,3 +1,4 @@
+import asyncio
 import importlib
 from types import SimpleNamespace
 from typing import Any
@@ -31,7 +32,8 @@ def test_tui_command_returns_dependency_error_when_textual_missing(
     assert 'pip install -r requirements.txt' in result.stdout
 
 
-def test_tui_app_mount_pushes_first_workspace_screen(
+@pytest.mark.asyncio
+async def test_tui_app_mount_pushes_first_workspace_screen(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
@@ -52,10 +54,13 @@ def test_tui_app_mount_pushes_first_workspace_screen(
             self.navigation_items = navigation_items
             self.refreshed_at = refreshed_at
 
+    async def collect_dashboard(env: str) -> object:
+        return tui_modules.cli_tui_app.DashboardSnapshot(env=env, panels=[])
+
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'dashboard',
-        lambda env: tui_modules.cli_tui_app.DashboardSnapshot(env=env, panels=[]),
+        collect_dashboard,
     )
     monkeypatch.setattr(tui_modules.cli_tui_app, 'DashboardScreen', FakeDashboardScreen)
 
@@ -64,6 +69,7 @@ def test_tui_app_mount_pushes_first_workspace_screen(
     monkeypatch.setattr(app, 'switch_screen', lambda screen: recorded_calls.append(('switch', screen)))
 
     app.on_mount()
+    await app._view_task
 
     assert recorded_calls
     assert recorded_calls[0][0] == 'push'
@@ -192,7 +198,8 @@ def test_tui_app_runner_runs_created_application(tui_modules: SimpleNamespace) -
     assert recorded_runs == ['run']
 
 
-def test_tui_app_show_jobs_uses_remembered_filter(
+@pytest.mark.asyncio
+async def test_tui_app_show_jobs_uses_remembered_filter(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
@@ -200,29 +207,34 @@ def test_tui_app_show_jobs_uses_remembered_filter(
     app = tui_modules.cli_tui_app.RuoyiTuiApp('dev')
     app.remember_browser_filter('jobs', 'failed')
     app.remember_browser_query('jobs', 'sync')
+
+    async def collect_jobs(env: str, filter_key: str = 'all', query: str = '') -> object:
+        del env
+        recorded_filter_keys.append((filter_key, query))
+        return tui_modules.cli_tui_app.BrowserPageSnapshot(
+            title='任务',
+            subtitle='subtitle',
+            records=[],
+            shared_sections=[],
+            filters=[],
+            active_filter_key=filter_key,
+            search=None,
+        )
+
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'jobs',
-        lambda env, filter_key='all', query='': (
-            recorded_filter_keys.append((filter_key, query))
-            or tui_modules.cli_tui_app.BrowserPageSnapshot(
-                title='任务',
-                subtitle='subtitle',
-                records=[],
-                shared_sections=[],
-                filters=[],
-                active_filter_key=filter_key,
-                search=None,
-            )
-        ),
+        collect_jobs,
     )
     monkeypatch.setattr(app.screen_navigator, 'show', lambda screen: None)
     app.action_show_jobs()
+    await app._view_task
 
     assert recorded_filter_keys == [('failed', 'sync')]
 
 
-def test_tui_app_show_configs_uses_remembered_filter(
+@pytest.mark.asyncio
+async def test_tui_app_show_configs_uses_remembered_filter(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
@@ -230,29 +242,34 @@ def test_tui_app_show_configs_uses_remembered_filter(
     app = tui_modules.cli_tui_app.RuoyiTuiApp('dev')
     app.remember_browser_filter('configs', 'cache-drift')
     app.remember_browser_query('configs', 'site')
+
+    async def collect_configs(env: str, filter_key: str = 'all', query: str = '') -> object:
+        del env
+        recorded_filter_keys.append((filter_key, query))
+        return tui_modules.cli_tui_app.BrowserPageSnapshot(
+            title='参数配置',
+            subtitle='subtitle',
+            records=[],
+            shared_sections=[],
+            filters=[],
+            active_filter_key=filter_key,
+            search=None,
+        )
+
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'configs',
-        lambda env, filter_key='all', query='': (
-            recorded_filter_keys.append((filter_key, query))
-            or tui_modules.cli_tui_app.BrowserPageSnapshot(
-                title='参数配置',
-                subtitle='subtitle',
-                records=[],
-                shared_sections=[],
-                filters=[],
-                active_filter_key=filter_key,
-                search=None,
-            )
-        ),
+        collect_configs,
     )
     monkeypatch.setattr(app.screen_navigator, 'show', lambda screen: None)
     app.action_show_configs()
+    await app._view_task
 
     assert recorded_filter_keys == [('cache-drift', 'site')]
 
 
-def test_tui_app_show_cache_and_gen_use_remembered_query(
+@pytest.mark.asyncio
+async def test_tui_app_show_cache_and_gen_use_remembered_query(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
@@ -261,47 +278,55 @@ def test_tui_app_show_cache_and_gen_use_remembered_query(
     app = tui_modules.cli_tui_app.RuoyiTuiApp('dev')
     app.remember_browser_query('cache', 'sys')
     app.remember_browser_query('gen', 'user')
+
+    async def collect_cache(env: str, query: str = '') -> object:
+        del env
+        cache_queries.append(query)
+        return tui_modules.cli_tui_app.BrowserPageSnapshot(
+            title='缓存',
+            subtitle='subtitle',
+            records=[],
+            shared_sections=[],
+            filters=[],
+            active_filter_key=None,
+            search=None,
+        )
+
+    async def collect_gen(env: str, query: str = '') -> object:
+        del env
+        gen_queries.append(query)
+        return tui_modules.cli_tui_app.BrowserPageSnapshot(
+            title='代码生成',
+            subtitle='subtitle',
+            records=[],
+            shared_sections=[],
+            filters=[],
+            active_filter_key=None,
+            search=None,
+        )
+
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'cache',
-        lambda env, query='': (
-            cache_queries.append(query)
-            or tui_modules.cli_tui_app.BrowserPageSnapshot(
-                title='缓存',
-                subtitle='subtitle',
-                records=[],
-                shared_sections=[],
-                filters=[],
-                active_filter_key=None,
-                search=None,
-            )
-        ),
+        collect_cache,
     )
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'gen',
-        lambda env, query='': (
-            gen_queries.append(query)
-            or tui_modules.cli_tui_app.BrowserPageSnapshot(
-                title='代码生成',
-                subtitle='subtitle',
-                records=[],
-                shared_sections=[],
-                filters=[],
-                active_filter_key=None,
-                search=None,
-            )
-        ),
+        collect_gen,
     )
     monkeypatch.setattr(app.screen_navigator, 'show', lambda screen: None)
     app.action_show_cache()
+    await app._view_task
     app.action_show_gen()
+    await app._view_task
 
     assert cache_queries == ['sys']
     assert gen_queries == ['user']
 
 
-def test_tui_app_detail_views_use_remembered_query(
+@pytest.mark.asyncio
+async def test_tui_app_detail_views_use_remembered_query(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
@@ -314,43 +339,56 @@ def test_tui_app_detail_views_use_remembered_query(
     app.remember_browser_query('app', 'route')
     app.remember_browser_query('ops', 'disk')
     app.remember_browser_query('crypto', 'kid')
+
+    async def collect_database(env: str, query: str = '') -> object:
+        del env
+        database_queries.append(query)
+        return tui_modules.cli_tui_app.DetailPageSnapshot(title='数据库', subtitle='subtitle', sections=[])
+
+    async def collect_app(env: str, query: str = '') -> object:
+        del env
+        app_queries.append(query)
+        return tui_modules.cli_tui_app.DetailPageSnapshot(title='应用', subtitle='subtitle', sections=[])
+
+    async def collect_ops(env: str, query: str = '') -> object:
+        del env
+        ops_queries.append(query)
+        return tui_modules.cli_tui_app.DetailPageSnapshot(title='运维', subtitle='subtitle', sections=[])
+
+    async def collect_crypto(env: str, query: str = '') -> object:
+        del env
+        crypto_queries.append(query)
+        return tui_modules.cli_tui_app.DetailPageSnapshot(title='传输加密', subtitle='subtitle', sections=[])
+
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'database',
-        lambda env, query='': (
-            database_queries.append(query)
-            or tui_modules.cli_tui_app.DetailPageSnapshot(title='数据库', subtitle='subtitle', sections=[])
-        ),
+        collect_database,
     )
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'app',
-        lambda env, query='': (
-            app_queries.append(query)
-            or tui_modules.cli_tui_app.DetailPageSnapshot(title='应用', subtitle='subtitle', sections=[])
-        ),
+        collect_app,
     )
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'ops',
-        lambda env, query='': (
-            ops_queries.append(query)
-            or tui_modules.cli_tui_app.DetailPageSnapshot(title='运维', subtitle='subtitle', sections=[])
-        ),
+        collect_ops,
     )
     monkeypatch.setitem(
         tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
         'crypto',
-        lambda env, query='': (
-            crypto_queries.append(query)
-            or tui_modules.cli_tui_app.DetailPageSnapshot(title='传输加密', subtitle='subtitle', sections=[])
-        ),
+        collect_crypto,
     )
     monkeypatch.setattr(app.screen_navigator, 'show', lambda screen: None)
     app.action_show_database()
+    await app._view_task
     app.action_show_app()
+    await app._view_task
     app.action_show_ops()
+    await app._view_task
     app.action_show_crypto()
+    await app._view_task
 
     assert database_queries == ['head']
     assert app_queries == ['route']
@@ -363,15 +401,12 @@ async def test_tui_app_open_view_updates_screen_across_multiple_switches(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
-    monkeypatch.setitem(
-        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
-        'dashboard',
-        lambda env: tui_modules.cli_tui_app.DashboardSnapshot(env=env, panels=[]),
-    )
-    monkeypatch.setitem(
-        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
-        'app',
-        lambda env, query='': tui_modules.cli_tui_app.DetailPageSnapshot(
+    async def collect_dashboard(env: str) -> object:
+        return tui_modules.cli_tui_app.DashboardSnapshot(env=env, panels=[])
+
+    async def collect_app(env: str, query: str = '') -> object:
+        del env
+        return tui_modules.cli_tui_app.DetailPageSnapshot(
             title='应用详情',
             subtitle=query or 'app-subtitle',
             sections=[
@@ -381,12 +416,11 @@ async def test_tui_app_open_view_updates_screen_across_multiple_switches(
                     lines=['app-line'],
                 )
             ],
-        ),
-    )
-    monkeypatch.setitem(
-        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
-        'ops',
-        lambda env, query='': tui_modules.cli_tui_app.DetailPageSnapshot(
+        )
+
+    async def collect_ops(env: str, query: str = '') -> object:
+        del env
+        return tui_modules.cli_tui_app.DetailPageSnapshot(
             title='运维详情',
             subtitle=query or 'ops-subtitle',
             sections=[
@@ -396,7 +430,22 @@ async def test_tui_app_open_view_updates_screen_across_multiple_switches(
                     lines=['ops-line'],
                 )
             ],
-        ),
+        )
+
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'dashboard',
+        collect_dashboard,
+    )
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'app',
+        collect_app,
+    )
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'ops',
+        collect_ops,
     )
 
     app = tui_modules.cli_tui_app.RuoyiTuiApp('dev')
@@ -408,7 +457,7 @@ async def test_tui_app_open_view_updates_screen_across_multiple_switches(
         assert app.current_view == 'dashboard'
 
         app.open_view('app')
-        await pilot.pause()
+        await app._view_task
         await pilot.pause()
 
         assert type(app.screen).__name__ == 'DetailScreen'
@@ -416,7 +465,7 @@ async def test_tui_app_open_view_updates_screen_across_multiple_switches(
         assert app.screen.snapshot.title == '应用详情'
 
         app.open_view('ops')
-        await pilot.pause()
+        await app._view_task
         await pilot.pause()
 
         assert type(app.screen).__name__ == 'DetailScreen'
@@ -429,15 +478,12 @@ async def test_tui_sidebar_highlight_updates_screen_across_multiple_switches(
     monkeypatch: MonkeyPatch,
     tui_modules: SimpleNamespace,
 ) -> None:
-    monkeypatch.setitem(
-        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
-        'dashboard',
-        lambda env: tui_modules.cli_tui_app.DashboardSnapshot(env=env, panels=[]),
-    )
-    monkeypatch.setitem(
-        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
-        'app',
-        lambda env, query='': tui_modules.cli_tui_app.DetailPageSnapshot(
+    async def collect_dashboard(env: str) -> object:
+        return tui_modules.cli_tui_app.DashboardSnapshot(env=env, panels=[])
+
+    async def collect_app(env: str, query: str = '') -> object:
+        del env, query
+        return tui_modules.cli_tui_app.DetailPageSnapshot(
             title='应用详情',
             subtitle='app-subtitle',
             sections=[
@@ -447,12 +493,11 @@ async def test_tui_sidebar_highlight_updates_screen_across_multiple_switches(
                     lines=['app-line'],
                 )
             ],
-        ),
-    )
-    monkeypatch.setitem(
-        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
-        'ops',
-        lambda env, query='': tui_modules.cli_tui_app.DetailPageSnapshot(
+        )
+
+    async def collect_ops(env: str, query: str = '') -> object:
+        del env, query
+        return tui_modules.cli_tui_app.DetailPageSnapshot(
             title='运维详情',
             subtitle='ops-subtitle',
             sections=[
@@ -462,7 +507,22 @@ async def test_tui_sidebar_highlight_updates_screen_across_multiple_switches(
                     lines=['ops-line'],
                 )
             ],
-        ),
+        )
+
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'dashboard',
+        collect_dashboard,
+    )
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'app',
+        collect_app,
+    )
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'ops',
+        collect_ops,
     )
 
     app = tui_modules.cli_tui_app.RuoyiTuiApp('dev')
@@ -474,7 +534,7 @@ async def test_tui_sidebar_highlight_updates_screen_across_multiple_switches(
         assert app.current_view == 'dashboard'
 
         await pilot.press('down')
-        await pilot.pause()
+        await app._view_task
         await pilot.pause()
 
         assert type(app.screen).__name__ == 'DetailScreen'
@@ -482,9 +542,107 @@ async def test_tui_sidebar_highlight_updates_screen_across_multiple_switches(
         assert app.screen.snapshot.title == '应用详情'
 
         await pilot.press('down')
-        await pilot.pause()
+        await app._view_task
         await pilot.pause()
 
         assert type(app.screen).__name__ == 'DetailScreen'
         assert app.current_view == 'ops'
         assert app.screen.snapshot.title == '运维详情'
+
+
+@pytest.mark.asyncio
+async def test_navigation_cancels_stale_load_and_only_renders_latest_view(
+    monkeypatch: MonkeyPatch,
+    tui_modules: SimpleNamespace,
+) -> None:
+    app_started = asyncio.Event()
+    app_cancelled = asyncio.Event()
+
+    async def collect_dashboard(env: str) -> object:
+        return tui_modules.cli_tui_app.DashboardSnapshot(env=env, panels=[])
+
+    async def collect_app(env: str, query: str = '') -> object:
+        del env, query
+        app_started.set()
+        try:
+            await asyncio.sleep(10)
+        finally:
+            app_cancelled.set()
+        return tui_modules.cli_tui_app.DetailPageSnapshot(title='过期应用页', subtitle='', sections=[])
+
+    async def collect_ops(env: str, query: str = '') -> object:
+        del env, query
+        return tui_modules.cli_tui_app.DetailPageSnapshot(title='最新运维页', subtitle='', sections=[])
+
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'dashboard',
+        collect_dashboard,
+    )
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'app',
+        collect_app,
+    )
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'ops',
+        collect_ops,
+    )
+
+    app = tui_modules.cli_tui_app.RuoyiTuiApp('dev')
+    async with app.run_test(size=(120, 40)) as pilot:
+        await app._view_task
+        app.open_view('app')
+        await asyncio.wait_for(app_started.wait(), timeout=1)
+        assert app.current_view == 'dashboard'
+
+        app.open_view('ops')
+        await app._view_task
+        await pilot.pause()
+
+        assert app_cancelled.is_set()
+        assert app.current_view == 'ops'
+        assert app.screen.snapshot.title == '最新运维页'
+
+
+@pytest.mark.asyncio
+async def test_navigation_reuses_fresh_snapshot_cache(
+    monkeypatch: MonkeyPatch,
+    tui_modules: SimpleNamespace,
+) -> None:
+    app_collect_count = 0
+
+    async def collect_dashboard(env: str) -> object:
+        return tui_modules.cli_tui_app.DashboardSnapshot(env=env, panels=[])
+
+    async def collect_app(env: str, query: str = '') -> object:
+        nonlocal app_collect_count
+        del env, query
+        app_collect_count += 1
+        return tui_modules.cli_tui_app.DetailPageSnapshot(title='应用详情', subtitle='', sections=[])
+
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'dashboard',
+        collect_dashboard,
+    )
+    monkeypatch.setitem(
+        tui_modules.cli_tui_app.TUI_SNAPSHOT_COLLECTOR_REGISTRY.collectors,
+        'app',
+        collect_app,
+    )
+
+    app = tui_modules.cli_tui_app.RuoyiTuiApp('dev')
+    async with app.run_test(size=(120, 40)) as pilot:
+        await app._view_task
+        app.open_view('app')
+        await app._view_task
+        app.open_view('dashboard')
+        await app._view_task
+        app.open_view('app')
+        await app._view_task
+        await pilot.pause()
+
+        assert app_collect_count == 1
+        assert app.current_view == 'app'

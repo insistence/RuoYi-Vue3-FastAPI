@@ -1,10 +1,12 @@
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
 from cli.tui.keymaps import TUI_KEYMAP_REGISTRY
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
+from cli.utils import SHELL_TEXT_FORMATTER
 
 DEPENDENCY_CHECK_TOTAL = 3
 DASHBOARD_PANEL_MAX_LINES = 8
@@ -89,64 +91,52 @@ class DashboardSnapshotCollector:
     让 `DashboardAdapter` 保持首页装配职责，而不继续承载所有采集细节。
     """
 
-    def collect(self, env: str) -> DashboardSourcePayloads:
+    def __init__(self, query_service: TuiRuntimeQueryService | None = None) -> None:
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
+
+    async def collect(self, env: str) -> DashboardSourcePayloads:
         """
         采集首页聚合所需的多路原始结果。
 
         :param env: 当前运行环境
         :return: 首页聚合数据源快照
         """
+        (
+            app_env_payload,
+            app_routes_payload,
+            database_payload,
+            cache_payload,
+            deps_payload,
+            server_payload,
+            database_ping,
+            redis_ping,
+            crypto_validation,
+        ) = await asyncio.gather(
+            self.query_service.get_app_env(env),
+            self.query_service.get_app_routes(env),
+            self.query_service.get_database_current(),
+            self.query_service.get_cache_stats(),
+            self.query_service.get_dependencies(),
+            self.query_service.get_server_info(),
+            self.query_service.get_database_ping(),
+            self.query_service.get_redis_ping(),
+            self.query_service.get_crypto_validation(),
+        )
+        doctor_payload = {
+            'env': env,
+            'database': database_ping,
+            'redis': redis_ping,
+            'crypto': crypto_validation,
+            'ok': all(payload.get('ok', False) for payload in (database_ping, redis_ping, crypto_validation)),
+        }
         return DashboardSourcePayloads(
-            app_env_payload=NESTED_CLI_SUPPORT.run(
-                'app',
-                'env',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            app_routes_payload=NESTED_CLI_SUPPORT.run(
-                'app',
-                'routes',
-                f'--env={env}',
-                '--group-by=tag',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            doctor_payload=NESTED_CLI_SUPPORT.run(
-                'app',
-                'doctor',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            database_payload=NESTED_CLI_SUPPORT.run(
-                'db',
-                'current',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            cache_payload=NESTED_CLI_SUPPORT.run(
-                'cache',
-                'stats',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            deps_payload=NESTED_CLI_SUPPORT.run(
-                'ops',
-                'deps',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
-            server_payload=NESTED_CLI_SUPPORT.run(
-                'ops',
-                'server-info',
-                f'--env={env}',
-                '--output=json',
-                parse_json=True,
-            ).payload,
+            app_env_payload=app_env_payload,
+            app_routes_payload=app_routes_payload,
+            doctor_payload=doctor_payload,
+            database_payload=database_payload,
+            cache_payload=cache_payload,
+            deps_payload=deps_payload,
+            server_payload=server_payload,
         )
 
 
@@ -956,14 +946,14 @@ class DashboardAdapter:
         self.panel_compressor = panel_compressor or DashboardPanelCompressor(self.formatting)
         self.snapshot_collector = snapshot_collector or DashboardSnapshotCollector()
 
-    def collect_snapshot(self, env: str) -> DashboardSnapshot:
+    async def collect_snapshot(self, env: str) -> DashboardSnapshot:
         """
         采集 TUI 首页只读巡检快照。
 
         :param env: 当前运行环境
         :return: 首页聚合快照
         """
-        source_payloads = self.snapshot_collector.collect(env)
+        source_payloads = await self.snapshot_collector.collect(env)
         panels = self.panel_builder.build_panels(
             env=env,
             app_env_payload=source_payloads.app_env_payload,

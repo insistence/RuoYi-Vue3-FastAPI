@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from cli.tui.adapters.base import BaseBrowserAdapter
@@ -9,7 +10,8 @@ from cli.tui.adapters.models import (
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
+from cli.utils import SHELL_TEXT_FORMATTER
 
 
 class GenRenderingSupport:
@@ -45,6 +47,7 @@ class GenSectionBuilder:
         self,
         page_adapter: BaseBrowserAdapter,
         rendering: GenRenderingSupport,
+        query_service: TuiRuntimeQueryService | None = None,
     ) -> None:
         """
         初始化代码生成浏览页分区构建器。
@@ -55,6 +58,7 @@ class GenSectionBuilder:
         """
         self.page_adapter = page_adapter
         self.rendering = rendering
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
 
     def build_gen_focus_section(self, payload: dict[str, Any] | None) -> DetailSectionSnapshot:
         """
@@ -486,7 +490,7 @@ class GenSectionBuilder:
             ),
         )
 
-    def load_gen_detail_sections(
+    async def load_gen_detail_sections(
         self,
         table_row: dict[str, Any],
         env: str,
@@ -498,45 +502,15 @@ class GenSectionBuilder:
         :param env: 当前运行环境
         :return: 详情分区列表
         """
-        table_id = table_row.get('tableId')
-        detail_payload = NESTED_CLI_SUPPORT.run(
-            'gen',
-            'detail',
-            str(table_id),
-            f'--env={env}',
-            '--output=json',
-            parse_json=True,
-        ).payload
-        preview_payload = NESTED_CLI_SUPPORT.run(
-            'gen',
-            'preview',
-            str(table_id),
-            f'--env={env}',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        del env
+        table_id = int(table_row.get('tableId') or 0)
         table_name = str(table_row.get('tableName', '-') or '-')
-        export_payload = NESTED_CLI_SUPPORT.run(
-            'gen',
-            'export',
-            table_name,
-            f'--env={env}',
-            '--dry-run',
-            '--mode=zip',
-            '--output=json',
-            '--yes',
-            parse_json=True,
-        ).payload
-        sync_check_payload = NESTED_CLI_SUPPORT.run(
-            'gen',
-            'db-list',
-            f'--env={env}',
-            f'--table-name={table_name}',
-            '--paged',
-            '--page-size=5',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        detail_payload, preview_payload, export_payload, sync_check_payload = await asyncio.gather(
+            self.query_service.get_gen_detail(table_id),
+            self.query_service.get_gen_preview(table_id),
+            self.query_service.get_gen_export_dry_run(table_name),
+            self.query_service.get_gen_db_tables(table_name=table_name, page_size=5),
+        )
         return [
             self.build_gen_focus_section(detail_payload),
             self.build_gen_generation_section(detail_payload),
@@ -684,6 +658,7 @@ class GenBrowserAdapter(BaseBrowserAdapter):
         rendering: GenRenderingSupport | None = None,
         section_builder: GenSectionBuilder | None = None,
         record_builder: GenRecordBuilder | None = None,
+        query_service: TuiRuntimeQueryService | None = None,
     ) -> None:
         """
         初始化代码生成浏览页适配器。
@@ -699,7 +674,12 @@ class GenBrowserAdapter(BaseBrowserAdapter):
             filter_options=(),
         )
         self.rendering = rendering or GenRenderingSupport()
-        self.section_builder = section_builder or GenSectionBuilder(self, self.rendering)
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
+        self.section_builder = section_builder or GenSectionBuilder(
+            self,
+            self.rendering,
+            self.query_service,
+        )
         self.record_builder = record_builder or GenRecordBuilder(self, self.section_builder)
 
     @staticmethod
@@ -722,7 +702,7 @@ class GenBrowserAdapter(BaseBrowserAdapter):
             or normalized_query in str(row.get('moduleName', '') or '').strip().lower()
         ]
 
-    def collect_snapshot(self, env: str, query: str = '') -> BrowserPageSnapshot:
+    async def collect_snapshot(self, env: str, query: str = '') -> BrowserPageSnapshot:
         """
         采集代码生成浏览页只读快照。
 
@@ -731,24 +711,10 @@ class GenBrowserAdapter(BaseBrowserAdapter):
         :return: 浏览页快照
         """
         search_context = self.resolve_search_context(query)
-        gen_tables_payload = NESTED_CLI_SUPPORT.run(
-            'gen',
-            'list',
-            f'--env={env}',
-            '--paged',
-            '--page-size=8',
-            '--output=json',
-            parse_json=True,
-        ).payload
-        db_tables_payload = NESTED_CLI_SUPPORT.run(
-            'gen',
-            'db-list',
-            f'--env={env}',
-            '--paged',
-            '--page-size=8',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        gen_tables_payload, db_tables_payload = await asyncio.gather(
+            self.query_service.get_gen_tables(),
+            self.query_service.get_gen_db_tables(page_size=8),
+        )
         importable_rows = self.extract_page_rows(db_tables_payload)
 
         if not isinstance(gen_tables_payload, dict) or not gen_tables_payload.get('ok', False):

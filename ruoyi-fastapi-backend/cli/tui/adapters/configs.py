@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 from cli.tui.adapters.base import BaseBrowserAdapter
@@ -9,8 +10,9 @@ from cli.tui.adapters.models import (
 )
 from cli.tui.copy import TUI_COPY
 from cli.tui.diagnostics import TUI_DIAGNOSTIC_SERVICE
+from cli.tui.queries import TUI_RUNTIME_QUERIES, TuiRuntimeQueryService
 from cli.tui.search import CONFIG_FILTER_OPTIONS
-from cli.utils import NESTED_CLI_SUPPORT, SHELL_TEXT_FORMATTER
+from cli.utils import SHELL_TEXT_FORMATTER
 
 CONFIG_RISK_PRIORITY = {
     'mismatch': 0,
@@ -196,6 +198,7 @@ class ConfigSectionBuilder:
         self,
         page_adapter: BaseBrowserAdapter,
         risk_support: ConfigRiskSupport,
+        query_service: TuiRuntimeQueryService | None = None,
     ) -> None:
         """
         初始化参数配置浏览页分区构建器。
@@ -206,6 +209,7 @@ class ConfigSectionBuilder:
         """
         self.page_adapter = page_adapter
         self.risk_support = risk_support
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
 
     def build_config_doctor_section(self, payload: dict[str, Any] | None) -> DetailSectionSnapshot:
         """
@@ -490,7 +494,7 @@ class ConfigSectionBuilder:
             ],
         )
 
-    def load_config_detail_sections(
+    async def load_config_detail_sections(
         self,
         config_row: dict[str, Any],
         env: str,
@@ -502,16 +506,9 @@ class ConfigSectionBuilder:
         :param env: 当前运行环境
         :return: 详情分区列表
         """
+        del env
         config_key = str(config_row.get('configKey', '-') or '-')
-        detail_payload = NESTED_CLI_SUPPORT.run(
-            'config',
-            'get',
-            config_key,
-            f'--env={env}',
-            '--source=both',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        detail_payload = await self.query_service.get_config_detail(config_key)
         database_payload = detail_payload.get('database') if isinstance(detail_payload, dict) else None
         cache_payload = detail_payload.get('cache') if isinstance(detail_payload, dict) else None
         return [
@@ -621,6 +618,7 @@ class ConfigsBrowserAdapter(BaseBrowserAdapter):
         risk_support: ConfigRiskSupport | None = None,
         section_builder: ConfigSectionBuilder | None = None,
         record_builder: ConfigRecordBuilder | None = None,
+        query_service: TuiRuntimeQueryService | None = None,
     ) -> None:
         """
         初始化参数配置浏览页适配器。
@@ -636,10 +634,15 @@ class ConfigsBrowserAdapter(BaseBrowserAdapter):
             filter_options=CONFIG_FILTER_OPTIONS,
         )
         self.risk_support = risk_support or ConfigRiskSupport()
-        self.section_builder = section_builder or ConfigSectionBuilder(self, self.risk_support)
+        self.query_service = query_service or TUI_RUNTIME_QUERIES
+        self.section_builder = section_builder or ConfigSectionBuilder(
+            self,
+            self.risk_support,
+            self.query_service,
+        )
         self.record_builder = record_builder or ConfigRecordBuilder(self, self.section_builder)
 
-    def collect_snapshot(self, env: str, filter_key: str = 'all', query: str = '') -> BrowserPageSnapshot:
+    async def collect_snapshot(self, env: str, filter_key: str = 'all', query: str = '') -> BrowserPageSnapshot:
         """
         采集参数配置浏览页只读快照。
 
@@ -652,23 +655,10 @@ class ConfigsBrowserAdapter(BaseBrowserAdapter):
         active_filter = active_filter_option.key
         active_filter_label = active_filter_option.label
         search_context = self.resolve_search_context(query)
-        doctor_payload = NESTED_CLI_SUPPORT.run(
-            'config',
-            'doctor',
-            f'--env={env}',
-            '--sample-limit=5',
-            '--output=json',
-            parse_json=True,
-        ).payload
-        list_payload = NESTED_CLI_SUPPORT.run(
-            'config',
-            'list',
-            f'--env={env}',
-            '--paged',
-            '--page-size=8',
-            '--output=json',
-            parse_json=True,
-        ).payload
+        doctor_payload, list_payload = await asyncio.gather(
+            self.query_service.get_config_diagnostics(),
+            self.query_service.get_configs(),
+        )
         risk_sets = self.risk_support.build_config_risk_sets(doctor_payload)
 
         if not isinstance(list_payload, dict) or not list_payload.get('ok', False):

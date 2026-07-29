@@ -1,11 +1,15 @@
+from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
 
+import pytest
 from pytest import MonkeyPatch
 
 
-def test_collect_dashboard_snapshot_adds_risk_heat_panel(
+@pytest.mark.asyncio
+async def test_collect_dashboard_snapshot_adds_risk_heat_panel(
     monkeypatch: MonkeyPatch,
     health_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -39,6 +43,12 @@ def test_collect_dashboard_snapshot_adds_risk_heat_panel(
                     'groupedRoutes': {'system': [{}, {}], 'monitor': [{}]},
                 }
             )
+        if arguments[0:2] == ('ops', 'ping-db'):
+            return SimpleNamespace(payload={'ok': False, 'message': '数据库连接失败'})
+        if arguments[0:2] == ('ops', 'ping-redis'):
+            return SimpleNamespace(payload={'ok': True, 'message': 'Redis 正常'})
+        if arguments[0:2] == ('crypto', 'validate'):
+            return SimpleNamespace(payload={'ok': True, 'message': '加密组件正常'})
         if arguments[0:2] == ('db', 'current'):
             return SimpleNamespace(
                 payload={
@@ -81,9 +91,10 @@ def test_collect_dashboard_snapshot_adds_risk_heat_panel(
             }
         )
 
-    monkeypatch.setattr(health_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(health_adapter, fake_run_nested_cli_command)
 
-    snapshot = health_adapter.DASHBOARD_ADAPTER.collect_snapshot('dev')
+    snapshot = await health_adapter.DASHBOARD_ADAPTER.collect_snapshot('dev')
 
     assert any(panel.title == '总览判断' for panel in snapshot.panels)
     assert any(panel.title == '建议摘要' for panel in snapshot.panels)
@@ -109,9 +120,11 @@ def test_collect_dashboard_snapshot_adds_risk_heat_panel(
     assert any(metric.title == '依赖通过率' and '[' in metric.value for metric in snapshot.metrics)
 
 
-def test_dashboard_adapter_collect_snapshot_exposes_metrics(
+@pytest.mark.asyncio
+async def test_dashboard_adapter_collect_snapshot_exposes_metrics(
     monkeypatch: MonkeyPatch,
     health_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -136,9 +149,10 @@ def test_dashboard_adapter_collect_snapshot_exposes_metrics(
             return SimpleNamespace(payload={'ok': True, 'server': {'sys': {}, 'cpu': {}, 'mem': {}}})
         return SimpleNamespace(payload={'ok': True, 'dbSize': 27, 'info': {}, 'cacheNames': []})
 
-    monkeypatch.setattr(health_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(health_adapter, fake_run_nested_cli_command)
 
-    snapshot = health_adapter.DASHBOARD_ADAPTER.collect_snapshot('dev')
+    snapshot = await health_adapter.DASHBOARD_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.env == 'dev'
     assert snapshot.metrics
@@ -146,9 +160,11 @@ def test_dashboard_adapter_collect_snapshot_exposes_metrics(
     assert any(panel.title == '总览判断' for panel in snapshot.panels)
 
 
-def test_collect_dashboard_snapshot_uses_focus_hints_for_healthy_business_entry(
+@pytest.mark.asyncio
+async def test_collect_dashboard_snapshot_uses_focus_hints_for_healthy_business_entry(
     monkeypatch: MonkeyPatch,
     health_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -182,9 +198,10 @@ def test_collect_dashboard_snapshot_uses_focus_hints_for_healthy_business_entry(
             }
         )
 
-    monkeypatch.setattr(health_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(health_adapter, fake_run_nested_cli_command)
 
-    snapshot = health_adapter.DASHBOARD_ADAPTER.collect_snapshot('dev')
+    snapshot = await health_adapter.DASHBOARD_ADAPTER.collect_snapshot('dev')
 
     entry_panel = next(panel for panel in snapshot.panels if panel.title == '建议摘要')
 
@@ -194,9 +211,11 @@ def test_collect_dashboard_snapshot_uses_focus_hints_for_healthy_business_entry(
     assert any('生成前校验' in line and '代码预览' in line for line in entry_panel.lines)
 
 
-def test_collect_configs_page_snapshot_surfaces_failure_message(
+@pytest.mark.asyncio
+async def test_collect_configs_page_snapshot_surfaces_failure_message(
     monkeypatch: MonkeyPatch,
     configs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del arguments, parse_json
@@ -208,9 +227,10 @@ def test_collect_configs_page_snapshot_surfaces_failure_message(
             }
         )
 
-    monkeypatch.setattr(configs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(configs_adapter, fake_run_nested_cli_command)
 
-    snapshot = configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev')
+    snapshot = await configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '参数配置'
     assert snapshot.records[0].status == 'fail'
@@ -220,9 +240,11 @@ def test_collect_configs_page_snapshot_surfaces_failure_message(
     assert any('database unavailable' in line for line in snapshot.shared_sections[1].lines)
 
 
-def test_configs_browser_adapter_collect_snapshot_exposes_search_context(
+@pytest.mark.asyncio
+async def test_configs_browser_adapter_collect_snapshot_exposes_search_context(
     monkeypatch: MonkeyPatch,
     configs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -259,9 +281,10 @@ def test_configs_browser_adapter_collect_snapshot_exposes_search_context(
             )
         return SimpleNamespace(payload={'ok': False, 'message': 'unexpected'})
 
-    monkeypatch.setattr(configs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(configs_adapter, fake_run_nested_cli_command)
 
-    snapshot = configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', query='site')
+    snapshot = await configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', query='site')
 
     assert snapshot.title == '参数配置'
     assert snapshot.search is not None
@@ -270,9 +293,11 @@ def test_configs_browser_adapter_collect_snapshot_exposes_search_context(
     assert snapshot.records[0].title == 'site_name'
 
 
-def test_collect_configs_page_snapshot_builds_browser_records(
+@pytest.mark.asyncio
+async def test_collect_configs_page_snapshot_builds_browser_records(
     monkeypatch: MonkeyPatch,
     configs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     calls: list[tuple[str, ...]] = []
 
@@ -333,9 +358,10 @@ def test_collect_configs_page_snapshot_builds_browser_records(
             }
         )
 
-    monkeypatch.setattr(configs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(configs_adapter, fake_run_nested_cli_command)
 
-    snapshot = configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev')
+    snapshot = await configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '参数配置'
     assert (
@@ -347,7 +373,7 @@ def test_collect_configs_page_snapshot_builds_browser_records(
     assert len(snapshot.records) == 1
     assert snapshot.records[0].title == 'site_name'
     assert snapshot.records[0].status == 'fail'
-    detail_sections = snapshot.records[0].resolve_detail_sections()
+    detail_sections = await snapshot.records[0].resolve_detail_sections()
     assert [section.title for section in detail_sections] == ['同步状态', '数据库配置', '缓存配置']
     assert any('数据库与缓存一致: 否' in line for line in detail_sections[0].lines)
     assert any('键值: RuoYi' in line for line in detail_sections[1].lines)
@@ -362,9 +388,11 @@ def test_collect_configs_page_snapshot_builds_browser_records(
     assert any(call[0:2] == ('config', 'get') for call in calls)
 
 
-def test_collect_configs_page_snapshot_sorts_and_filters_risky_records(
+@pytest.mark.asyncio
+async def test_collect_configs_page_snapshot_sorts_and_filters_risky_records(
     monkeypatch: MonkeyPatch,
     configs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -415,12 +443,15 @@ def test_collect_configs_page_snapshot_sorts_and_filters_risky_records(
             )
         return SimpleNamespace(payload={'ok': True, 'key': '-', 'source': 'both', 'inSync': True})
 
-    monkeypatch.setattr(configs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(configs_adapter, fake_run_nested_cli_command)
 
-    all_snapshot = configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev')
-    risky_snapshot = configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', filter_key='risky')
-    mismatch_snapshot = configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', filter_key='mismatch')
-    cache_drift_snapshot = configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', filter_key='cache-drift')
+    all_snapshot = await configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev')
+    risky_snapshot = await configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', filter_key='risky')
+    mismatch_snapshot = await configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', filter_key='mismatch')
+    cache_drift_snapshot = await configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot(
+        'dev', filter_key='cache-drift'
+    )
 
     assert [record.title for record in all_snapshot.records] == [
         'site_name',
@@ -439,9 +470,11 @@ def test_collect_configs_page_snapshot_sorts_and_filters_risky_records(
     assert [record.title for record in cache_drift_snapshot.records] == ['upload_mode', 'legacy_toggle']
 
 
-def test_collect_configs_page_snapshot_applies_query_filter(
+@pytest.mark.asyncio
+async def test_collect_configs_page_snapshot_applies_query_filter(
     monkeypatch: MonkeyPatch,
     configs_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -485,9 +518,10 @@ def test_collect_configs_page_snapshot_applies_query_filter(
             )
         return SimpleNamespace(payload={'ok': True, 'key': '-', 'source': 'both', 'inSync': True})
 
-    monkeypatch.setattr(configs_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(configs_adapter, fake_run_nested_cli_command)
 
-    snapshot = configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', query='site')
+    snapshot = await configs_adapter.CONFIGS_BROWSER_ADAPTER.collect_snapshot('dev', query='site')
 
     assert [record.title for record in snapshot.records] == ['site_name']
     assert snapshot.search is not None

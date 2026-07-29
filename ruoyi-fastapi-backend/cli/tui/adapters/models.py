@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from cli.tui.copy import TUI_COPY
@@ -57,7 +57,7 @@ class BrowserRecordSnapshot:
     summary: str
     metadata_lines: list[str]
     detail_sections: list[DetailSectionSnapshot]
-    detail_loader: Callable[[], list[DetailSectionSnapshot]] | None = None
+    detail_loader: Callable[[], Awaitable[list[DetailSectionSnapshot]]] | None = None
     _cached_detail_sections: tuple[DetailSectionSnapshot, ...] | None = field(
         default=None,
         init=False,
@@ -65,7 +65,7 @@ class BrowserRecordSnapshot:
         compare=False,
     )
 
-    def resolve_detail_sections(self) -> list[DetailSectionSnapshot]:
+    async def resolve_detail_sections(self) -> list[DetailSectionSnapshot]:
         """
         获取当前记录详情分区，必要时按需加载并缓存。
 
@@ -74,7 +74,7 @@ class BrowserRecordSnapshot:
         if self.detail_loader is None:
             return self.detail_sections
         if self._cached_detail_sections is None:
-            object.__setattr__(self, '_cached_detail_sections', tuple(self.detail_loader()))
+            object.__setattr__(self, '_cached_detail_sections', tuple(await self.detail_loader()))
         return list(self._cached_detail_sections)
 
 

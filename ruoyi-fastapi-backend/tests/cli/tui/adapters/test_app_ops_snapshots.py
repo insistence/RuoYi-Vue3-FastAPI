@@ -1,11 +1,15 @@
+from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
 
+import pytest
 from pytest import MonkeyPatch
 
 
-def test_collect_app_page_snapshot_builds_env_config_and_route_sections(
+@pytest.mark.asyncio
+async def test_collect_app_page_snapshot_builds_env_config_and_route_sections(
     monkeypatch: MonkeyPatch,
     app_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -126,9 +130,10 @@ def test_collect_app_page_snapshot_builds_env_config_and_route_sections(
             }
         )
 
-    monkeypatch.setattr(app_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(app_adapter, fake_run_nested_cli_command)
 
-    snapshot = app_adapter.APP_DETAIL_ADAPTER.collect_snapshot('dev')
+    snapshot = await app_adapter.APP_DETAIL_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '应用'
     assert (
@@ -163,9 +168,11 @@ def test_collect_app_page_snapshot_builds_env_config_and_route_sections(
     assert any('app run --env=dev' in line for line in snapshot.sections[9].lines)
 
 
-def test_collect_app_page_snapshot_applies_query_filter(
+@pytest.mark.asyncio
+async def test_collect_app_page_snapshot_applies_query_filter(
     monkeypatch: MonkeyPatch,
     app_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -211,18 +218,21 @@ def test_collect_app_page_snapshot_applies_query_filter(
             )
         return SimpleNamespace(payload={'ok': True, 'count': 1, 'routes': [], 'groupedRoutes': {}})
 
-    monkeypatch.setattr(app_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(app_adapter, fake_run_nested_cli_command)
 
-    snapshot = app_adapter.APP_DETAIL_ADAPTER.collect_snapshot('dev', query='路由')
+    snapshot = await app_adapter.APP_DETAIL_ADAPTER.collect_snapshot('dev', query='路由')
 
     assert [section.title for section in snapshot.sections] == ['总览判断', '路由摘要']
     assert snapshot.search is not None
     assert snapshot.search.query == '路由'
 
 
-def test_collect_ops_page_snapshot_builds_health_dependency_and_server_sections(
+@pytest.mark.asyncio
+async def test_collect_ops_page_snapshot_builds_health_dependency_and_server_sections(
     monkeypatch: MonkeyPatch,
     ops_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -281,9 +291,10 @@ def test_collect_ops_page_snapshot_builds_health_dependency_and_server_sections(
             }
         )
 
-    monkeypatch.setattr(ops_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(ops_adapter, fake_run_nested_cli_command)
 
-    snapshot = ops_adapter.OPS_DETAIL_ADAPTER.collect_snapshot('dev')
+    snapshot = await ops_adapter.OPS_DETAIL_ADAPTER.collect_snapshot('dev')
 
     assert snapshot.title == '运维'
     assert (
@@ -312,9 +323,11 @@ def test_collect_ops_page_snapshot_builds_health_dependency_and_server_sections(
     assert snapshot.search.placeholder == '按分区或内容搜索'
 
 
-def test_collect_ops_page_snapshot_surfaces_health_risk_subtitle(
+@pytest.mark.asyncio
+async def test_collect_ops_page_snapshot_surfaces_health_risk_subtitle(
     monkeypatch: MonkeyPatch,
     ops_adapter: ModuleType,
+    install_query_service: Callable[[ModuleType, Callable[..., object]], object],
 ) -> None:
     def fake_run_nested_cli_command(*arguments: str, parse_json: bool = False) -> SimpleNamespace:
         del parse_json
@@ -335,9 +348,10 @@ def test_collect_ops_page_snapshot_surfaces_health_risk_subtitle(
             return SimpleNamespace(payload={'ok': True, 'missingRequired': [], 'packages': {}, 'message': '依赖正常'})
         return SimpleNamespace(payload={'ok': True, 'server': {'sys': {}, 'cpu': {}, 'mem': {}, 'py': {}}})
 
-    monkeypatch.setattr(ops_adapter.NESTED_CLI_SUPPORT, 'run', fake_run_nested_cli_command)
+    del monkeypatch
+    install_query_service(ops_adapter, fake_run_nested_cli_command)
 
-    snapshot = ops_adapter.OPS_DETAIL_ADAPTER.collect_snapshot('dev')
+    snapshot = await ops_adapter.OPS_DETAIL_ADAPTER.collect_snapshot('dev')
 
     assert (
         snapshot.subtitle
