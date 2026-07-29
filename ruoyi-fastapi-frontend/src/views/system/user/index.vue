@@ -148,10 +148,18 @@
                 label="用户名称"
                 align="center"
                 key="userName"
-                prop="userName"
                 v-if="columns.userName.visible"
                 :show-overflow-tooltip="true"
-              />
+              >
+                <template #default="scope">
+                  <a
+                    class="link-type"
+                    style="cursor: pointer"
+                    @click="handleViewData(scope.row)"
+                    >{{ scope.row.userName }}</a
+                  >
+                </template>
+              </el-table-column>
               <el-table-column
                 label="用户昵称"
                 align="center"
@@ -425,6 +433,8 @@
       </template>
     </el-dialog>
 
+    <!-- 用户详情抽屉 -->
+    <user-view-drawer ref="userViewRef" />
     <!-- 用户导入对话框 -->
     <excel-import-dialog
       ref="importUserRef"
@@ -442,6 +452,7 @@
 import useAppStore from "@/store/modules/app";
 import TreePanel from "@/components/TreePanel";
 import ExcelImportDialog from "@/components/ExcelImportDialog";
+import UserViewDrawer from "./view";
 import {
   changeUserStatus,
   listUser,
@@ -678,6 +689,10 @@ function handleSelectionChange(selection) {
   ids.value = selection.map((item) => item.userId);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
+}
+/** 详情按钮操作 */
+function handleViewData(row) {
+  proxy.$refs["userViewRef"].open(row.userId);
 }
 /** 导入按钮操作 */
 function handleImport() {
