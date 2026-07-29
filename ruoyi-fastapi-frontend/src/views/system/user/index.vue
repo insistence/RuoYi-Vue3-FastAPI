@@ -1,40 +1,17 @@
 <template>
-  <div class="app-container">
-    <el-row :gutter="20">
-      <splitpanes
-        :horizontal="appStore.device === 'mobile'"
-        class="default-theme"
-      >
-        <!--部门数据-->
-        <pane size="16">
-          <el-col>
-            <div class="head-container">
-              <el-input
-                v-model="deptName"
-                placeholder="请输入部门名称"
-                clearable
-                prefix-icon="Search"
-                style="margin-bottom: 20px"
-              />
-            </div>
-            <div class="head-container">
-              <el-tree
-                :data="deptOptions"
-                :props="{ label: 'label', children: 'children' }"
-                :expand-on-click-node="false"
-                :filter-node-method="filterNode"
-                ref="deptTreeRef"
-                node-key="id"
-                highlight-current
-                default-expand-all
-                @node-click="handleNodeClick"
-              />
-            </div>
-          </el-col>
-        </pane>
-        <!--用户数据-->
-        <pane size="84">
-          <el-col>
+  <div class="app-container tree-sidebar-manage-wrap">
+    <tree-panel
+      title="组织机构"
+      :tree-data="deptOptions"
+      search-placeholder="请输入部门名称"
+      storage-key="dept-sidebar-width"
+      :defaultExpandAll="true"
+      @node-click="handleNodeClick"
+      @refresh="getDeptTree"
+      ref="deptTreeRef"
+    />
+    <div class="tree-sidebar-content">
+      <div class="content-inner">
             <el-form
               :model="queryParams"
               ref="queryRef"
@@ -150,6 +127,7 @@
                 v-model:showSearch="showSearch"
                 @queryTable="getList"
                 :columns="columns"
+                storageKey="xxxxxxxx"
               ></right-toolbar>
             </el-row>
 
@@ -293,10 +271,8 @@
               v-model:limit="queryParams.pageSize"
               @pagination="getList"
             />
-          </el-col>
-        </pane>
-      </splitpanes>
-    </el-row>
+      </div>
+    </div>
 
     <!-- 添加或修改用户配置对话框 -->
     <el-dialog :title="title" v-model="open" width="600px" append-to-body>
@@ -503,6 +479,7 @@
 <script setup name="User">
 import { getToken } from "@/utils/auth";
 import useAppStore from "@/store/modules/app";
+import TreePanel from "@/components/TreePanel";
 import {
   changeUserStatus,
   listUser,
@@ -513,8 +490,6 @@ import {
   addUser,
   deptTreeSelect,
 } from "@/api/system/user";
-import { Splitpanes, Pane } from "splitpanes";
-import "splitpanes/dist/splitpanes.css";
 
 const router = useRouter();
 const appStore = useAppStore();
@@ -534,7 +509,6 @@ const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
 const dateRange = ref([]);
-const deptName = ref("");
 const deptOptions = ref(undefined);
 const enabledDeptOptions = ref(undefined);
 const initPassword = ref(undefined);
@@ -623,15 +597,6 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data);
 
-/** 通过条件过滤节点  */
-const filterNode = (value, data) => {
-  if (!value) return true;
-  return data.label.indexOf(value) !== -1;
-};
-/** 根据名称筛选部门树 */
-watch(deptName, (val) => {
-  proxy.$refs["deptTreeRef"].filter(val);
-});
 /** 查询用户列表 */
 function getList() {
   loading.value = true;

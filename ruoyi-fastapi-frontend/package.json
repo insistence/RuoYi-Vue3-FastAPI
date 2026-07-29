@@ -40,7 +40,6 @@
     "nprogress": "0.2.0",
     "pinia": "3.0.4",
     "shiki": "^3.21.0",
-    "splitpanes": "4.0.4",
     "stream-markdown": ">=0.0.14",
     "stream-monaco": ">=0.0.17",
     "uuid": "13.0.0",
