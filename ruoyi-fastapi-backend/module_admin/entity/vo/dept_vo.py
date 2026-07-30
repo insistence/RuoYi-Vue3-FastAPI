@@ -85,3 +85,14 @@ class DeleteDeptModel(BaseModel):
     dept_ids: str = Field(default=None, description='需要删除的部门id')
     update_by: str | None = Field(default=None, description='更新者')
     update_time: str | None = Field(default=None, description='更新时间')
+
+
+class DeptSortModel(BaseModel):
+    """
+    部门排序批量保存模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    dept_ids: str = Field(description='需要更新排序的部门id')
+    order_nums: str = Field(description='部门显示顺序')
