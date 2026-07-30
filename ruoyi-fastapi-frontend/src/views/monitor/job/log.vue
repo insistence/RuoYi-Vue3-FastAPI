@@ -133,61 +133,17 @@
       />
 
       <!-- 调度日志详细 -->
-      <el-dialog title="调度日志详细" v-model="open" width="700px" append-to-body>
-         <el-form :model="form" label-width="100px">
-            <el-row>
-               <el-col :span="12">
-                  <el-form-item label="日志序号：">{{ form.jobLogId }}</el-form-item>
-                  <el-form-item label="任务名称：">{{ form.jobName }}</el-form-item>
-               </el-col>
-               <el-col :span="12">
-                  <el-form-item label="任务分组：">{{ jobGroupFormat(form) }}</el-form-item>
-                  <el-form-item label="执行时间：">{{ parseTime(form.createTime) }}</el-form-item>
-               </el-col>
-               <el-col :span="24">
-                  <el-form-item label="任务执行器：">{{ jobExecutorFormat(form) }}</el-form-item>
-               </el-col>
-               <el-col :span="24">
-                  <el-form-item label="任务触发器：">{{ form.jobTrigger }}</el-form-item>
-               </el-col>
-               <el-col :span="24">
-                  <el-form-item label="调用方法：">{{ form.invokeTarget }}</el-form-item>
-               </el-col>
-               <el-col :span="24">
-                  <el-form-item label="位置参数：">{{ form.jobArgs }}</el-form-item>
-               </el-col>
-               <el-col :span="24">
-                  <el-form-item label="关键字参数：">{{ form.jobKwargs }}</el-form-item>
-               </el-col>
-               <el-col :span="24">
-                  <el-form-item label="日志信息：">{{ form.jobMessage }}</el-form-item>
-               </el-col>
-               <el-col :span="24">
-                  <el-form-item label="执行状态：">
-                     <div v-if="form.status == 0">正常</div>
-                     <div v-else-if="form.status == 1">失败</div>
-                  </el-form-item>
-               </el-col>
-               <el-col :span="24">
-                  <el-form-item label="异常信息：" v-if="form.status == 1">{{ form.exceptionInfo }}</el-form-item>
-               </el-col>
-            </el-row>
-         </el-form>
-         <template #footer>
-            <div class="dialog-footer">
-               <el-button @click="open = false">关 闭</el-button>
-            </div>
-         </template>
-      </el-dialog>
+      <job-detail v-model:visible="open" :row="form" type="log" />
    </div>
 </template>
 
 <script setup name="JobLog">
+import JobDetail from './detail'
 import { getJob } from "@/api/monitor/job";
 import { listJobLog, delJobLog, cleanJobLog } from "@/api/monitor/jobLog";
 
 const { proxy } = getCurrentInstance();
-const { sys_common_status, sys_job_group, sys_job_executor } = proxy.useDict("sys_common_status", "sys_job_group", "sys_job_executor");
+const { sys_common_status, sys_job_group } = proxy.useDict("sys_common_status", "sys_job_group");
 
 const jobLogList = ref([]);
 const open = ref(false);
@@ -220,14 +176,6 @@ function getList() {
     total.value = response.total;
     loading.value = false;
   });
-}
-/** 任务组名字典翻译 */
-function jobGroupFormat(row, column) {
-   return proxy.selectDictLabel(sys_job_group.value, row.jobGroup);
-}
-/** 任务组名字典翻译 */
-function jobExecutorFormat(row, column) {
-   return proxy.selectDictLabel(sys_job_executor.value, row.jobExecutor);
 }
 // 返回按钮
 function handleClose() {

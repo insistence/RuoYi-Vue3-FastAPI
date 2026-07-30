@@ -1,8 +1,12 @@
 from datetime import datetime
 
 from sqlalchemy import CHAR, BigInteger, Column, DateTime, String
+from sqlalchemy.dialects.mysql import DATETIME
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 
 from config.database import Base
+
+JOB_LOG_TIME_TYPE = DateTime().with_variant(DATETIME(fsp=3), 'mysql').with_variant(TIMESTAMP(precision=3), 'postgresql')
 
 
 class SysJob(Base):
@@ -55,4 +59,6 @@ class SysJobLog(Base):
     job_message = Column(String(500), nullable=True, comment='日志信息')
     status = Column(CHAR(1), nullable=True, server_default='0', comment='执行状态（0正常 1失败）')
     exception_info = Column(String(2000), nullable=True, server_default="''", comment='异常信息')
+    start_time = Column(JOB_LOG_TIME_TYPE, nullable=True, comment='执行开始时间')
+    end_time = Column(JOB_LOG_TIME_TYPE, nullable=True, comment='执行结束时间')
     create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')

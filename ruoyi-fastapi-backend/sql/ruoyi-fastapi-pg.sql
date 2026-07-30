@@ -855,6 +855,8 @@ create table sys_job_log (
     job_message varchar(500),
     status char(1) default '0',
     exception_info varchar(2000) default '',
+    start_time timestamp(3),
+    end_time timestamp(3),
     create_time timestamp(0),
     primary key (job_log_id)
 );
@@ -869,6 +871,8 @@ comment on column sys_job_log.job_trigger is '任务触发器';
 comment on column sys_job_log.job_message is '日志信息';
 comment on column sys_job_log.status is '执行状态（0正常 1失败）';
 comment on column sys_job_log.exception_info is '异常信息';
+comment on column sys_job_log.start_time is '执行开始时间';
+comment on column sys_job_log.end_time is '执行结束时间';
 comment on column sys_job_log.create_time is '创建时间';
 comment on table sys_job_log is '定时任务调度日志表';
 

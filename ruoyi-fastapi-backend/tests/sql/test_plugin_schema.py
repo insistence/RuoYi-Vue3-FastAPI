@@ -119,6 +119,19 @@ def test_builtin_sql_contains_notice_read_schema() -> None:
         assert sql_content.index('create table sys_notice') < sql_content.index('create table sys_notice_read')
 
 
+def test_builtin_sql_contains_job_log_execution_time_columns() -> None:
+    """校验内置 SQL 的调度日志表使用毫秒精度记录执行时间。"""
+    for sql_path, _quote in SQL_FILES:
+        sql_content = read_sql(sql_path)
+        job_log_schema = sql_content.split('create table sys_job_log', maxsplit=1)[1].split(
+            'create table sys_notice',
+            maxsplit=1,
+        )[0]
+        time_type = 'datetime(3)' if sql_path.name == 'ruoyi-fastapi.sql' else 'timestamp(3)'
+        assert f'start_time          {time_type}' in job_log_schema or f'start_time {time_type}' in job_log_schema
+        assert f'end_time            {time_type}' in job_log_schema or f'end_time {time_type}' in job_log_schema
+
+
 def test_builtin_sql_uses_ordered_plugin_operation_dict_ids() -> None:
     """校验内置 SQL 中插件操作类型字典 ID 已顺序整理。"""
     for sql_path, _quote in SQL_FILES:
