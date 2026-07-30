@@ -52,6 +52,34 @@ class NoticePageQueryModel(NoticeQueryModel):
     page_size: int = Field(default=10, description='每页记录数')
 
 
+class NoticeReadUserModel(BaseModel):
+    """
+    公告已读用户模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    user_id: int = Field(description='用户ID')
+    user_name: str = Field(description='用户账号')
+    nick_name: str = Field(description='用户昵称')
+    dept_name: str | None = Field(default=None, description='部门名称')
+    phonenumber: str | None = Field(default=None, description='手机号码')
+    read_time: datetime = Field(description='阅读时间')
+
+
+class NoticeReadUserPageQueryModel(BaseModel):
+    """
+    公告已读用户分页查询模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    notice_id: int = Field(description='公告ID')
+    search_value: str | None = Field(default=None, description='登录名称或用户名称')
+    page_num: int = Field(default=1, description='当前页码')
+    page_size: int = Field(default=10, description='每页记录数')
+
+
 class DeleteNoticeModel(BaseModel):
     """
     删除通知公告模型

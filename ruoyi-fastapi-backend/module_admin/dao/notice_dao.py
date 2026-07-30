@@ -1,15 +1,17 @@
 from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import and_, case, delete, func, select, update
+from sqlalchemy import and_, case, delete, func, or_, select, update
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import PageModel
+from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.notice_do import SysNotice, SysNoticeRead
-from module_admin.entity.vo.notice_vo import NoticeModel, NoticePageQueryModel
+from module_admin.entity.do.user_do import SysUser
+from module_admin.entity.vo.notice_vo import NoticeModel, NoticePageQueryModel, NoticeReadUserPageQueryModel
 from utils.page_util import PageUtil
 
 
@@ -141,6 +143,44 @@ class NoticeDao:
         ).scalar_one()
 
         return unread_count
+
+    @classmethod
+    async def get_notice_read_user_list(
+        cls, db: AsyncSession, query_object: NoticeReadUserPageQueryModel, is_page: bool = False
+    ) -> PageModel | list[dict[str, Any]]:
+        """
+        查询已阅读指定公告的用户列表
+
+        :param db: orm对象
+        :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
+        :return: 已读用户列表
+        """
+        search_value = query_object.search_value
+        query = (
+            select(
+                SysUser.user_id.label('user_id'),
+                SysUser.user_name.label('user_name'),
+                SysUser.nick_name.label('nick_name'),
+                SysDept.dept_name.label('dept_name'),
+                SysUser.phonenumber.label('phonenumber'),
+                SysNoticeRead.read_time.label('read_time'),
+            )
+            .join(SysUser, and_(SysUser.user_id == SysNoticeRead.user_id, SysUser.del_flag == '0'))
+            .outerjoin(SysDept, SysDept.dept_id == SysUser.dept_id)
+            .where(
+                SysNoticeRead.notice_id == query_object.notice_id,
+                or_(
+                    SysUser.user_name.like(f'%{search_value}%'),
+                    SysUser.nick_name.like(f'%{search_value}%'),
+                )
+                if search_value
+                else True,
+            )
+            .order_by(SysNoticeRead.read_time.desc())
+        )
+
+        return await PageUtil.paginate(db, query, query_object.page_num, query_object.page_size, is_page)
 
     @classmethod
     async def add_notice_reads(cls, db: AsyncSession, user_id: int, notice_ids: list[int]) -> None:

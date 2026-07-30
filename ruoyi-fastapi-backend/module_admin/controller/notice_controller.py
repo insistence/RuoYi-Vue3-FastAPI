@@ -18,6 +18,8 @@ from module_admin.entity.vo.notice_vo import (
     DeleteNoticeModel,
     NoticeModel,
     NoticePageQueryModel,
+    NoticeReadUserModel,
+    NoticeReadUserPageQueryModel,
     NoticeTopResponseModel,
 )
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -83,6 +85,26 @@ async def mark_system_notice_read(
     logger.info(mark_read_result.message)
 
     return ResponseUtil.success(msg=mark_read_result.message)
+
+
+@notice_controller.get(
+    '/readUsers/list',
+    summary='获取公告已读用户分页列表接口',
+    description='用于获取已阅读指定公告的用户列表',
+    response_model=PageResponseModel[NoticeReadUserModel],
+    dependencies=[UserInterfaceAuthDependency('system:notice:list')],
+)
+async def get_system_notice_read_user_list(
+    request: Request,
+    read_user_page_query: Annotated[NoticeReadUserPageQueryModel, Query()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    read_user_page_query_result = await NoticeService.get_notice_read_user_list_services(
+        query_db, read_user_page_query, is_page=True
+    )
+    logger.info('公告已读用户获取成功')
+
+    return ResponseUtil.success(model_content=read_user_page_query_result)
 
 
 @notice_controller.post(
@@ -180,7 +202,6 @@ async def delete_system_notice(
     summary='获取通知公告详情接口',
     description='用于获取指定通知公告的详细信息',
     response_model=DataResponseModel[NoticeModel],
-    dependencies=[UserInterfaceAuthDependency('system:notice:query')],
 )
 @ApiCache(namespace=ApiNamespace.SYSTEM_NOTICE_DETAIL)
 async def query_detail_system_post(

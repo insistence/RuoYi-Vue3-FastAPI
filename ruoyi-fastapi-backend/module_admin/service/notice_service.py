@@ -10,6 +10,7 @@ from module_admin.entity.vo.notice_vo import (
     DeleteNoticeModel,
     NoticeModel,
     NoticePageQueryModel,
+    NoticeReadUserPageQueryModel,
     NoticeTopModel,
     NoticeTopResponseModel,
 )
@@ -53,6 +54,20 @@ class NoticeService:
         unread_count = sum(not notice.is_read for notice in notice_models)
 
         return NoticeTopResponseModel(data=notice_models, unreadCount=unread_count)
+
+    @classmethod
+    async def get_notice_read_user_list_services(
+        cls, query_db: AsyncSession, query_object: NoticeReadUserPageQueryModel, is_page: bool = True
+    ) -> PageModel | list[dict[str, Any]]:
+        """
+        获取公告已读用户列表
+
+        :param query_db: orm对象
+        :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
+        :return: 已读用户列表
+        """
+        return await NoticeDao.get_notice_read_user_list(query_db, query_object, is_page)
 
     @classmethod
     async def mark_notice_read_services(

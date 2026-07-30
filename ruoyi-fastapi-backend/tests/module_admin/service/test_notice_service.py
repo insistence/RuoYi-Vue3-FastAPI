@@ -7,14 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from config.database import Base
 from exceptions.exception import ServiceException
 from module_admin.dao.notice_dao import NoticeDao
+from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.notice_do import SysNotice, SysNoticeRead
-from module_admin.entity.vo.notice_vo import DeleteNoticeModel
+from module_admin.entity.do.user_do import SysUser
+from module_admin.entity.vo.notice_vo import DeleteNoticeModel, NoticeReadUserPageQueryModel
 from module_admin.service.notice_service import NoticeService
 
 CURRENT_USER_ID = 10
 CLOSED_NOTICE_ID = 6
 EXPECTED_UNREAD_COUNT = 3
 EXPECTED_READ_COUNT = 2
+EXPECTED_VISIBLE_READ_USER_COUNT = 2
 
 
 async def _create_notice_tables() -> tuple[AsyncEngine, async_sessionmaker[AsyncSession]]:
@@ -41,7 +44,7 @@ async def _create_notice_tables() -> tuple[AsyncEngine, async_sessionmaker[Async
         )
         await connection.run_sync(
             Base.metadata.create_all,
-            tables=[SysNoticeRead.__table__],
+            tables=[SysDept.__table__, SysUser.__table__, SysNoticeRead.__table__],
         )
     return engine, session_maker
 
@@ -92,6 +95,68 @@ async def test_mark_notice_read_is_idempotent_for_single_and_batch_requests() ->
             ).scalar_one()
 
         assert read_count == EXPECTED_READ_COUNT
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_get_notice_read_user_list_supports_search_and_pagination() -> None:
+    engine, session_maker = await _create_notice_tables()
+    try:
+        async with session_maker() as session:
+            session.add(SysDept(dept_id=100, dept_name='研发部'))
+            session.add_all(
+                [
+                    SysUser(
+                        user_id=1,
+                        dept_id=100,
+                        user_name='alice',
+                        nick_name='爱丽丝',
+                        phonenumber='13800000001',
+                        del_flag='0',
+                    ),
+                    SysUser(
+                        user_id=2,
+                        dept_id=100,
+                        user_name='bob',
+                        nick_name='鲍勃',
+                        phonenumber='13800000002',
+                        del_flag='0',
+                    ),
+                    SysUser(
+                        user_id=3,
+                        dept_id=100,
+                        user_name='deleted',
+                        nick_name='已删除',
+                        phonenumber='13800000003',
+                        del_flag='2',
+                    ),
+                ]
+            )
+            session.add_all(
+                [
+                    SysNoticeRead(notice_id=1, user_id=1, read_time=datetime(2026, 7, 30, 10, 0)),
+                    SysNoticeRead(notice_id=1, user_id=2, read_time=datetime(2026, 7, 30, 11, 0)),
+                    SysNoticeRead(notice_id=1, user_id=3, read_time=datetime(2026, 7, 30, 12, 0)),
+                    SysNoticeRead(notice_id=2, user_id=1, read_time=datetime(2026, 7, 30, 13, 0)),
+                ]
+            )
+            await session.commit()
+
+            page = await NoticeService.get_notice_read_user_list_services(
+                session,
+                NoticeReadUserPageQueryModel(noticeId=1, pageNum=1, pageSize=1),
+            )
+            search_page = await NoticeService.get_notice_read_user_list_services(
+                session,
+                NoticeReadUserPageQueryModel(noticeId=1, searchValue='ali'),
+            )
+
+        assert page.total == EXPECTED_VISIBLE_READ_USER_COUNT
+        assert page.rows[0]['userName'] == 'bob'
+        assert page.rows[0]['deptName'] == '研发部'
+        assert search_page.total == 1
+        assert search_page.rows[0]['userName'] == 'alice'
     finally:
         await engine.dispose()
 
