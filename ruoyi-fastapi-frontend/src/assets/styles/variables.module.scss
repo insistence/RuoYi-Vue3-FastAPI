@@ -348,5 +348,101 @@ html.dark {
     color: var(--el-text-color-regular) !important;
     border-top: 1px solid var(--el-bg-color) !important;
   }
+
+  /* 详情抽屉暗黑模式覆盖 */
+  .detail-drawer {
+    .el-drawer__header {
+      color: var(--el-text-color-primary);
+      background: var(--el-bg-color-overlay);
+      border-bottom: 1px solid var(--el-border-color);
+    }
+    .section-header {
+      color: var(--el-color-primary-light-3);
+      border-bottom-color: var(--el-border-color);
+    }
+    .drawer-content {
+      .info-label {
+        color: var(--el-text-color-secondary);
+      }
+      .info-value {
+        color: var(--el-text-color-primary);
+        &.plaintext {
+          border-bottom-color: var(--el-border-color);
+        }
+      }
+    }
+  }
+
+  /* 详情卡片暗黑模式覆盖 */
+  .detail-card {
+    border-color: var(--el-border-color);
+  }
+  .detail-card-title {
+    background: var(--el-bg-color-overlay);
+    color: var(--el-text-color-primary);
+    border-bottom-color: var(--el-border-color);
+  }
+  .detail-item {
+    border-bottom-color: var(--el-border-color-lighter, #2a2a2a);
+  }
+  .detail-label {
+    color: var(--el-text-color-secondary);
+  }
+  .detail-value {
+    color: var(--el-text-color-primary);
+  }
+  .code-wrap {
+    background: var(--el-bg-color-overlay);
+    border-color: var(--el-border-color);
+  }
+  .code-pre {
+    color: var(--el-text-color-regular);
+  }
+  .code-action .el-button {
+    background: rgba(30, 30, 30, 0.9);
+    border-color: var(--el-border-color);
+    color: var(--el-text-color-regular);
+    &:hover {
+      background: var(--el-bg-color-overlay);
+      border-color: var(--el-color-primary);
+    }
+  }
+
+  /* 字典详情抽屉暗黑模式变量 */
+  --dict-drawer-title-color: var(--el-text-color-primary);
+  --dict-drawer-subtext-color: var(--el-text-color-secondary);
+  --dict-drawer-card-bg: var(--el-bg-color-overlay);
+  --dict-drawer-border-color: var(--el-border-color);
+  --dict-drawer-cell-divider: var(--el-border-color-lighter, #2a2a2a);
+
+  /* 通知公告详情抽屉暗黑模式变量 */
+  --notice-title-color: var(--el-text-color-primary);
+  --notice-meta-color: var(--el-text-color-secondary);
+  --notice-meta-icon-color: var(--el-text-color-placeholder, #606266);
+  --notice-border-color: var(--el-border-color);
+  --notice-body-bg: var(--el-bg-color-overlay);
+  --notice-body-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --notice-content-color: var(--el-text-color-regular);
+  --notice-drawer-body-bg: var(--el-bg-color);
+  --notice-divider-gradient: linear-gradient(to right, transparent, var(--el-border-color), transparent);
+  --notice-divider-dot-color: var(--el-border-color-light, #434343);
+  --notice-blockquote-bg: var(--el-bg-color);
+  --notice-blockquote-border: var(--el-border-color);
+  --notice-table-border: var(--el-border-color);
+  --notice-table-header-bg: var(--el-bg-color);
+  --notice-tag-notify-bg: rgba(217, 119, 6, 0.15);
+  --notice-tag-notify-color: #f6ad55;
+  --notice-tag-announce-bg: rgba(56, 161, 105, 0.15);
+  --notice-tag-announce-color: #68d391;
+}
+
+.notice-detail-drawer {
+  .notice-content {
+    color: var(--el-text-color-regular) !important;
+    * { color: var(--el-text-color-regular) !important; }
+    h1~h6, strong, b { color: var(--el-text-color-primary) !important; }
+    a, a * { color: #5ba7f5 !important; }
+    blockquote, blockquote * { color: var(--el-text-color-secondary) !important; }
+  }
 }
 

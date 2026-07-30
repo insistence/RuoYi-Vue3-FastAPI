@@ -116,12 +116,12 @@ function loadData() {
 .drawer-head-name {
   font-size: 16px;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--dict-drawer-title-color, #2c3e50);
   margin-right: 8px;
 }
 .drawer-head-type {
   font-size: 14px;
-  color: #95a5a6;
+  color: var(--dict-drawer-subtext-color, #95a5a6);
   font-family: monospace;
 }
 .drawer-wrap {
@@ -132,13 +132,13 @@ function loadData() {
   align-items: center;
   justify-content: center;
   height: 120px;
-  color: #aaa;
+  color: var(--dict-drawer-subtext-color, #aaa);
   font-size: 13px;
   gap: 8px;
 }
 .drawer-empty {
   text-align: center;
-  color: #bbb;
+  color: var(--dict-drawer-subtext-color, #bbb);
   padding: 60px 0;
   font-size: 13px;
 }
@@ -150,8 +150,8 @@ function loadData() {
   margin-bottom: 16px;
 }
 .stat-card {
-  background: #f7f9fb;
-  border: 1px solid #e8ecf0;
+  background: var(--dict-drawer-card-bg, #f7f9fb);
+  border: 1px solid var(--dict-drawer-border-color, #e8ecf0);
   border-radius: 6px;
   padding: 10px 14px;
   text-align: center;
@@ -159,19 +159,19 @@ function loadData() {
 .stat-num {
   font-size: 22px;
   font-weight: 700;
-  color: #2c3e50;
+  color: var(--dict-drawer-title-color, #2c3e50);
 }
 .stat-num.success { color: #27ae60; }
 .stat-num.danger  { color: #e74c3c; }
 .stat-label {
   font-size: 11px;
-  color: #95a5a6;
+  color: var(--dict-drawer-subtext-color, #95a5a6);
   margin-top: 4px;
 }
 .dict-item {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
-  border: 1px solid #e8ecf0;
+  border: 1px solid var(--dict-drawer-border-color, #e8ecf0);
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 8px;
@@ -179,7 +179,7 @@ function loadData() {
 .dict-cell {
   display: grid;
   grid-template-columns: 70px 1fr;
-  border-right: 1px solid #f0f4f8;
+  border-right: 1px solid var(--dict-drawer-cell-divider, #f0f4f8);
 }
 .dict-cell:last-child {
   border-right: 0;
@@ -187,14 +187,14 @@ function loadData() {
 .dict-cell-key {
   padding: 9px 14px;
   font-size: 12px;
-  color: #888;
-  background: #f7f9fb;
-  border-right: 1px solid #f0f4f8;
+  color: var(--dict-drawer-subtext-color, #888);
+  background: var(--dict-drawer-card-bg, #f7f9fb);
+  border-right: 1px solid var(--dict-drawer-cell-divider, #f0f4f8);
 }
 .dict-cell-val {
   padding: 9px 14px;
   font-size: 13px;
-  color: #2c3e50;
+  color: var(--dict-drawer-title-color, #2c3e50);
   word-break: break-all;
   display: flex;
   align-items: center;
