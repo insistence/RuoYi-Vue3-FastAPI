@@ -13,6 +13,7 @@ from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQuery
 from module_admin.entity.vo.role_vo import RoleMenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from utils.common_util import CamelCaseUtil
+from utils.log_util import logger
 from utils.string_util import StringUtil
 
 
@@ -97,6 +98,43 @@ class MenuService:
         return CommonConstant.UNIQUE
 
     @classmethod
+    async def check_route_config_unique_services(cls, query_db: AsyncSession, page_object: MenuModel) -> bool:
+        """
+        校验路由名称和地址是否唯一service
+
+        :param query_db: orm对象
+        :param page_object: 菜单对象
+        :return: 校验结果
+        """
+        menu_id = -1 if page_object.menu_id is None else page_object.menu_id
+        parent_id = MenuConstant.ROOT_ID if page_object.parent_id is None else page_object.parent_id
+        path = page_object.path or ''
+        route_name = page_object.route_name or path
+        if not path and not route_name:
+            return CommonConstant.UNIQUE
+
+        menu_list = await MenuDao.get_menus_by_path_or_route_name(query_db, path, route_name)
+        normalized_path = path.lower()
+        normalized_route_name = route_name.lower()
+        for menu in menu_list:
+            if menu.menu_id == menu_id:
+                continue
+
+            db_path = menu.path or ''
+            db_route_name = menu.route_name or db_path
+            if normalized_path == db_path.lower() and parent_id == menu.parent_id:
+                logger.warning(f"[同级路由冲突] 同级下已存在相同路由路径 '{db_path}'，冲突菜单：{menu.menu_name}")
+                return CommonConstant.NOT_UNIQUE
+            if normalized_path == db_path.lower() and parent_id == MenuConstant.ROOT_ID:
+                logger.warning(f"[根目录路由冲突] 根目录下路由 '{path}' 必须唯一，已被菜单 '{menu.menu_name}' 占用")
+                return CommonConstant.NOT_UNIQUE
+            if normalized_route_name == db_route_name.lower():
+                logger.warning(f"[路由名称冲突] 路由名称 '{route_name}' 需全局唯一，已被菜单 '{menu.menu_name}' 使用")
+                return CommonConstant.NOT_UNIQUE
+
+        return CommonConstant.UNIQUE
+
+    @classmethod
     async def add_menu_services(cls, query_db: AsyncSession, page_object: MenuModel) -> CrudResponseModel:
         """
         新增菜单信息service
@@ -109,6 +147,8 @@ class MenuService:
             raise ServiceException(message=f'新增菜单{page_object.menu_name}失败，菜单名称已存在')
         if page_object.is_frame == MenuConstant.YES_FRAME and not StringUtil.is_http(page_object.path):
             raise ServiceException(message=f'新增菜单{page_object.menu_name}失败，地址必须以http(s)://开头')
+        if not await cls.check_route_config_unique_services(query_db, page_object):
+            raise ServiceException(message=f'新增菜单{page_object.menu_name}失败，路由名称或地址已存在')
         try:
             await MenuDao.add_menu_dao(query_db, page_object)
             await query_db.commit()
@@ -135,6 +175,8 @@ class MenuService:
                 raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，地址必须以http(s)://开头')
             if page_object.menu_id == page_object.parent_id:
                 raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，上级菜单不能选择自己')
+            if not await cls.check_route_config_unique_services(query_db, page_object):
+                raise ServiceException(message=f'修改菜单{page_object.menu_name}失败，路由名称或地址已存在')
             try:
                 await MenuDao.edit_menu_dao(query_db, edit_menu)
                 await query_db.commit()

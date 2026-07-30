@@ -542,6 +542,7 @@ class MenuConstant:
     """
     菜单常量
 
+    ROOT_ID: 根菜单ID
     TYPE_DIR: 菜单类型（目录）
     TYPE_MENU: 菜单类型（菜单）
     TYPE_BUTTON: 菜单类型（按钮）
@@ -552,6 +553,7 @@ class MenuConstant:
     INNER_LINK: InnerLink组件标识
     """
 
+    ROOT_ID = 0
     TYPE_DIR = 'M'
     TYPE_MENU = 'C'
     TYPE_BUTTON = 'F'

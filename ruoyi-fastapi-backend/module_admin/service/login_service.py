@@ -351,7 +351,7 @@ class LoginService:
             ],
             key=lambda x: x.order_num,
         )
-        menus = cls.__generate_menus(0, user_router_menu)
+        menus = cls.__generate_menus(MenuConstant.ROOT_ID, user_router_menu)
         user_router = cls.__generate_user_router_menu(menus)
         return [router.model_dump(exclude_unset=True, by_alias=True) for router in user_router]
 
@@ -420,7 +420,7 @@ class LoginService:
                 )
                 children_list.append(children)
                 router.children = children_list
-            elif permission.parent_id == 0 and RouterUtil.is_inner_link(permission):
+            elif permission.parent_id == MenuConstant.ROOT_ID and RouterUtil.is_inner_link(permission):
                 router.meta = MetaModel(title=permission.menu_name, icon=permission.icon)
                 router.path = '/'
                 children_list: list[RouterModel] = []
@@ -594,10 +594,14 @@ class RouterUtil:
         """
         # 内链打开外网方式
         router_path = menu.path
-        if menu.parent_id != 0 and cls.is_inner_link(menu):
+        if menu.parent_id != MenuConstant.ROOT_ID and cls.is_inner_link(menu):
             router_path = cls.inner_link_replace_each(router_path)
         # 非外链并且是一级目录（类型为目录）
-        if menu.parent_id == 0 and menu.menu_type == MenuConstant.TYPE_DIR and menu.is_frame == MenuConstant.NO_FRAME:
+        if (
+            menu.parent_id == MenuConstant.ROOT_ID
+            and menu.menu_type == MenuConstant.TYPE_DIR
+            and menu.is_frame == MenuConstant.NO_FRAME
+        ):
             router_path = f'/{menu.path}'
         # 非外链并且是一级目录（类型为菜单）
         elif cls.is_menu_frame(menu):
@@ -615,7 +619,11 @@ class RouterUtil:
         component = MenuConstant.LAYOUT
         if menu.component and not cls.is_menu_frame(menu):
             component = menu.component
-        elif (menu.component is None or menu.component == '') and menu.parent_id != 0 and cls.is_inner_link(menu):
+        elif (
+            (menu.component is None or menu.component == '')
+            and menu.parent_id != MenuConstant.ROOT_ID
+            and cls.is_inner_link(menu)
+        ):
             component = MenuConstant.INNER_LINK
         elif (menu.component is None or menu.component == '') and cls.is_parent_view(menu):
             component = MenuConstant.PARENT_VIEW
@@ -630,7 +638,9 @@ class RouterUtil:
         :return: 是否为菜单内部跳转
         """
         return (
-            menu.parent_id == 0 and menu.menu_type == MenuConstant.TYPE_MENU and menu.is_frame == MenuConstant.NO_FRAME
+            menu.parent_id == MenuConstant.ROOT_ID
+            and menu.menu_type == MenuConstant.TYPE_MENU
+            and menu.is_frame == MenuConstant.NO_FRAME
         )
 
     @classmethod
@@ -651,7 +661,7 @@ class RouterUtil:
         :param menu: 菜单数对象
         :return: 是否为parent_view组件
         """
-        return menu.parent_id != 0 and menu.menu_type == MenuConstant.TYPE_DIR
+        return menu.parent_id != MenuConstant.ROOT_ID and menu.menu_type == MenuConstant.TYPE_DIR
 
     @classmethod
     def is_http(cls, link: str) -> bool:
