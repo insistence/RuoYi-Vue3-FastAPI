@@ -13,8 +13,13 @@ from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
-from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
-from module_admin.entity.vo.notice_vo import DeleteNoticeModel, NoticeModel, NoticePageQueryModel
+from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
+from module_admin.entity.vo.notice_vo import (
+    DeleteNoticeModel,
+    NoticeModel,
+    NoticePageQueryModel,
+    NoticeTopResponseModel,
+)
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.notice_service import NoticeService
 from utils.log_util import logger
@@ -43,6 +48,60 @@ async def get_system_notice_list(
     logger.info('获取成功')
 
     return ResponseUtil.success(model_content=notice_page_query_result)
+
+
+@notice_controller.get(
+    '/listTop',
+    summary='获取首页顶部通知公告接口',
+    description='用于获取最新的正常通知公告及当前用户已读状态',
+    response_model=DynamicResponseModel[NoticeTopResponseModel],
+)
+async def get_system_notice_top(
+    request: Request,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    notice_top_result = await NoticeService.get_notice_top_services(query_db, current_user.user.user_id)
+    logger.info('获取成功')
+
+    return ResponseUtil.success(model_content=notice_top_result)
+
+
+@notice_controller.post(
+    '/markRead',
+    summary='标记通知公告已读接口',
+    description='用于将指定通知公告标记为当前用户已读',
+    response_model=ResponseBaseModel,
+)
+async def mark_system_notice_read(
+    request: Request,
+    notice_id: Annotated[int, Query(alias='noticeId', description='公告ID')],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    mark_read_result = await NoticeService.mark_notice_read_services(query_db, current_user.user.user_id, [notice_id])
+    logger.info(mark_read_result.message)
+
+    return ResponseUtil.success(msg=mark_read_result.message)
+
+
+@notice_controller.post(
+    '/markReadAll',
+    summary='批量标记通知公告已读接口',
+    description='用于将指定通知公告批量标记为当前用户已读',
+    response_model=ResponseBaseModel,
+)
+async def mark_all_system_notice_read(
+    request: Request,
+    ids: Annotated[str, Query(description='逗号分隔的公告ID')],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    notice_ids = NoticeService.parse_notice_ids(ids)
+    mark_read_result = await NoticeService.mark_notice_read_services(query_db, current_user.user.user_id, notice_ids)
+    logger.info(mark_read_result.message)
+
+    return ResponseUtil.success(msg=mark_read_result.message)
 
 
 @notice_controller.post(

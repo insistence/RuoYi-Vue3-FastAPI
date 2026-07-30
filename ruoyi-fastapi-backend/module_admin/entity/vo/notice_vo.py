@@ -60,3 +60,30 @@ class DeleteNoticeModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     notice_ids: str = Field(description='需要删除的公告ID')
+
+
+class NoticeTopModel(BaseModel):
+    """
+    首页顶部通知公告模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    notice_id: int = Field(description='公告ID')
+    notice_title: str = Field(description='公告标题')
+    notice_type: Literal['1', '2'] = Field(description='公告类型（1通知 2公告）')
+    status: Literal['0', '1'] = Field(description='公告状态（0正常 1关闭）')
+    create_by: str | None = Field(default=None, description='创建者')
+    create_time: datetime | None = Field(default=None, description='创建时间')
+    is_read: bool = Field(default=False, description='是否已读')
+
+
+class NoticeTopResponseModel(BaseModel):
+    """
+    首页顶部通知公告响应模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    data: list[NoticeTopModel] = Field(description='通知公告列表')
+    unread_count: int = Field(description='未读数量')

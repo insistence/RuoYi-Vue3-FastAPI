@@ -103,11 +103,20 @@ def test_builtin_sql_excludes_ai_plugin_content_and_preserves_file_management() 
             'create table sys_file_reconcile_issue',
         ):
             assert expected_text in sql_content
-        assert '-- 20、文件信息表' in sql_content
-        assert '-- 27、文件存储对账异常表' in sql_content
-        assert '-- 28、插件信息表' in sql_content
-        assert '-- 32、插件批量操作审计日志表' in sql_content
+        assert '-- 21、文件信息表' in sql_content
+        assert '-- 28、文件存储对账异常表' in sql_content
+        assert '-- 29、插件信息表' in sql_content
+        assert '-- 33、插件批量操作审计日志表' in sql_content
         assert sql_content.index('create table sys_file_info') < sql_content.index('create table sys_plugin')
+
+
+def test_builtin_sql_contains_notice_read_schema() -> None:
+    """校验内置 SQL 包含公告已读记录表及唯一约束。"""
+    for sql_path, _quote in SQL_FILES:
+        sql_content = read_sql(sql_path)
+        assert 'create table sys_notice_read' in sql_content
+        assert 'uk_user_notice' in sql_content
+        assert sql_content.index('create table sys_notice') < sql_content.index('create table sys_notice_read')
 
 
 def test_builtin_sql_uses_ordered_plugin_operation_dict_ids() -> None:

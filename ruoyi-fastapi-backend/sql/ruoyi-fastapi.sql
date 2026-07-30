@@ -706,7 +706,21 @@ insert into sys_notice values('2', '维护通知：2018-07-01 vfadmin系统凌�
 
 
 -- ----------------------------
--- 18、代码生成业务表
+-- 18、公告已读记录表
+-- ----------------------------
+drop table if exists sys_notice_read;
+create table sys_notice_read (
+  read_id          bigint(20)       not null auto_increment    comment '已读主键',
+  notice_id        int(4)           not null                   comment '公告ID',
+  user_id          bigint(20)       not null                   comment '用户ID',
+  read_time        datetime         not null                   comment '阅读时间',
+  primary key (read_id),
+  unique key uk_user_notice (user_id, notice_id)                comment '同一用户同一公告只记录一次'
+) engine=innodb auto_increment=1 comment='公告已读记录表';
+
+
+-- ----------------------------
+-- 19、代码生成业务表
 -- ----------------------------
 drop table if exists gen_table;
 create table gen_table (
@@ -737,7 +751,7 @@ create table gen_table (
 
 
 -- ----------------------------
--- 19、代码生成业务表字段
+-- 20、代码生成业务表字段
 -- ----------------------------
 drop table if exists gen_table_column;
 create table gen_table_column (
@@ -768,7 +782,7 @@ create table gen_table_column (
 ) engine=innodb auto_increment=1 comment = '代码生成业务表字段';
 
 -- ----------------------------
--- 20、文件信息表
+-- 21、文件信息表
 -- ----------------------------
 drop table if exists sys_file_info;
 create table sys_file_info (
@@ -807,7 +821,7 @@ create table sys_file_info (
 
 
 -- ----------------------------
--- 21、文件业务引用表
+-- 22、文件业务引用表
 -- ----------------------------
 drop table if exists sys_file_reference;
 create table sys_file_reference (
@@ -827,7 +841,7 @@ create table sys_file_reference (
 
 
 -- ----------------------------
--- 22、文件业务保留策略表
+-- 23、文件业务保留策略表
 -- ----------------------------
 drop table if exists sys_file_retention_policy;
 create table sys_file_retention_policy (
@@ -844,7 +858,7 @@ create table sys_file_retention_policy (
 
 
 -- ----------------------------
--- 23、文件保留期限提醒表
+-- 24、文件保留期限提醒表
 -- ----------------------------
 drop table if exists sys_file_retention_notice;
 create table sys_file_retention_notice (
@@ -864,7 +878,7 @@ create table sys_file_retention_notice (
 
 
 -- ----------------------------
--- 24、文件访问控制表
+-- 25、文件访问控制表
 -- ----------------------------
 drop table if exists sys_file_acl;
 create table sys_file_acl (
@@ -887,7 +901,7 @@ create table sys_file_acl (
 
 
 -- ----------------------------
--- 25、文件访问审计表
+-- 26、文件访问审计表
 -- ----------------------------
 drop table if exists sys_file_access_log;
 create table sys_file_access_log (
@@ -912,7 +926,7 @@ create table sys_file_access_log (
 
 
 -- ----------------------------
--- 26、文件存储对账任务表
+-- 27、文件存储对账任务表
 -- ----------------------------
 drop table if exists sys_file_reconcile_run;
 create table sys_file_reconcile_run (
@@ -937,7 +951,7 @@ create table sys_file_reconcile_run (
 
 
 -- ----------------------------
--- 27、文件存储对账异常表
+-- 28、文件存储对账异常表
 -- ----------------------------
 drop table if exists sys_file_reconcile_issue;
 create table sys_file_reconcile_issue (
@@ -975,7 +989,7 @@ create table sys_file_reconcile_issue (
 ) engine=innodb auto_increment=1 comment = '文件存储对账异常表';
 
 -- ----------------------------
--- 28、插件信息表
+-- 29、插件信息表
 -- ----------------------------
 drop table if exists sys_plugin;
 create table sys_plugin (
@@ -1001,7 +1015,7 @@ create table sys_plugin (
 ) engine=innodb comment = '插件信息表';
 
 -- ----------------------------
--- 29、插件和菜单关联表
+-- 30、插件和菜单关联表
 -- ----------------------------
 drop table if exists sys_plugin_menu;
 create table sys_plugin_menu (
@@ -1014,7 +1028,7 @@ create table sys_plugin_menu (
 ) engine=innodb comment = '插件和菜单关联表';
 
 -- ----------------------------
--- 30、插件 migration 执行历史表
+-- 31、插件 migration 执行历史表
 -- ----------------------------
 drop table if exists sys_plugin_migration;
 create table sys_plugin_migration (
@@ -1034,7 +1048,7 @@ create table sys_plugin_migration (
 ) engine=innodb comment = '插件 migration 执行历史表';
 
 -- ----------------------------
--- 31、插件配置表
+-- 32、插件配置表
 -- ----------------------------
 drop table if exists sys_plugin_config;
 create table sys_plugin_config (
@@ -1054,7 +1068,7 @@ create table sys_plugin_config (
 ) engine=innodb comment = '插件配置表';
 
 -- ----------------------------
--- 32、插件批量操作审计日志表
+-- 33、插件批量操作审计日志表
 -- ----------------------------
 drop table if exists sys_plugin_operation_log;
 create table sys_plugin_operation_log (
