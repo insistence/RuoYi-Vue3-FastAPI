@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import and_, bindparam, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import MenuConstant
@@ -215,6 +215,22 @@ class MenuDao:
         :return:
         """
         await db.execute(update(SysMenu), [menu])
+
+    @classmethod
+    async def update_menu_sort_dao(cls, db: AsyncSession, menu_sort_list: list[dict[str, int]]) -> None:
+        """
+        批量更新菜单显示顺序
+
+        :param db: orm对象
+        :param menu_sort_list: 菜单ID与显示顺序列表
+        :return:
+        """
+        await db.execute(
+            update(SysMenu.__table__)
+            .where(SysMenu.menu_id == bindparam('_menu_id'))
+            .values(order_num=bindparam('_order_num')),
+            [{'_menu_id': item['menu_id'], '_order_num': item['order_num']} for item in menu_sort_list],
+        )
 
     @classmethod
     async def delete_menu_dao(cls, db: AsyncSession, menu: MenuModel) -> None:

@@ -9,7 +9,7 @@ from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.menu_dao import MenuDao
 from module_admin.dao.role_dao import RoleDao
 from module_admin.entity.do.menu_do import SysMenu
-from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuTreeModel
+from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuSortModel, MenuTreeModel
 from module_admin.entity.vo.role_vo import RoleMenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from utils.common_util import CamelCaseUtil
@@ -186,6 +186,55 @@ class MenuService:
                 raise e
         else:
             raise ServiceException(message='菜单不存在')
+
+    @classmethod
+    async def update_menu_sort_services(
+        cls,
+        query_db: AsyncSession,
+        page_object: MenuSortModel,
+    ) -> CrudResponseModel:
+        """
+        批量保存菜单显示顺序
+
+        :param query_db: orm对象
+        :param page_object: 菜单排序参数
+        :return: 保存结果
+        """
+        menu_sort_list = cls.parse_menu_sort_items(page_object)
+        try:
+            await MenuDao.update_menu_sort_dao(query_db, menu_sort_list)
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='保存成功')
+        except Exception as exc:
+            await query_db.rollback()
+            raise ServiceException(message='保存排序异常，请联系管理员') from exc
+
+    @classmethod
+    def parse_menu_sort_items(cls, page_object: MenuSortModel) -> list[dict[str, int]]:
+        """
+        解析并校验菜单排序参数
+
+        :param page_object: 菜单排序参数
+        :return: 菜单ID与显示顺序列表
+        """
+        menu_id_values = [value.strip() for value in page_object.menu_ids.split(',') if value.strip()]
+        order_num_values = [value.strip() for value in page_object.order_nums.split(',') if value.strip()]
+        if not menu_id_values or len(menu_id_values) != len(order_num_values):
+            raise ServiceException(message='菜单排序参数不正确')
+        try:
+            menu_ids = [int(value) for value in menu_id_values]
+            order_nums = [int(value) for value in order_num_values]
+        except ValueError as exc:
+            raise ServiceException(message='菜单排序参数不正确') from exc
+        if any(menu_id <= 0 for menu_id in menu_ids) or any(order_num < 0 for order_num in order_nums):
+            raise ServiceException(message='菜单排序参数不正确')
+        if len(set(menu_ids)) != len(menu_ids):
+            raise ServiceException(message='菜单排序参数不正确')
+
+        return [
+            {'menu_id': menu_id, 'order_num': order_num}
+            for menu_id, order_num in zip(menu_ids, order_nums, strict=True)
+        ]
 
     @classmethod
     async def delete_menu_services(cls, query_db: AsyncSession, page_object: DeleteMenuModel) -> CrudResponseModel:

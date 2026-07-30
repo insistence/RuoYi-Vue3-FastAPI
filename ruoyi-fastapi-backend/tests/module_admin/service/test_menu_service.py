@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from common.constant import CommonConstant
@@ -9,7 +10,7 @@ from config.database import Base
 from exceptions.exception import ServiceException
 from module_admin.dao.menu_dao import MenuDao
 from module_admin.entity.do.menu_do import SysMenu
-from module_admin.entity.vo.menu_vo import MenuModel
+from module_admin.entity.vo.menu_vo import MenuModel, MenuSortModel
 from module_admin.service.menu_service import MenuService
 
 
@@ -148,3 +149,76 @@ async def test_get_menus_by_path_or_route_name_is_case_insensitive_and_excludes_
         assert {menu.menu_id for menu in result} == {1, 2}
     finally:
         await engine.dispose()
+
+
+def test_parse_menu_sort_items_preserves_corresponding_order_values() -> None:
+    result = MenuService.parse_menu_sort_items(MenuSortModel(menuIds='101, 102', orderNums='3, 1'))
+
+    assert result == [
+        {'menu_id': 101, 'order_num': 3},
+        {'menu_id': 102, 'order_num': 1},
+    ]
+
+
+@pytest.mark.parametrize(
+    ('menu_ids', 'order_nums'),
+    [
+        ('101,102', '1'),
+        ('101,101', '1,2'),
+        ('101,invalid', '1,2'),
+        ('101,102', '1,-1'),
+        ('', ''),
+    ],
+)
+def test_parse_menu_sort_items_rejects_invalid_parameters(menu_ids: str, order_nums: str) -> None:
+    with pytest.raises(ServiceException) as exc_info:
+        MenuService.parse_menu_sort_items(MenuSortModel(menuIds=menu_ids, orderNums=order_nums))
+
+    assert exc_info.value.message == '菜单排序参数不正确'
+
+
+@pytest.mark.asyncio
+async def test_update_menu_sort_updates_all_rows_in_one_transaction() -> None:
+    engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+    session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
+    async with engine.begin() as connection:
+        await connection.run_sync(Base.metadata.create_all, tables=[SysMenu.__table__])
+
+    try:
+        async with session_maker() as session:
+            session.add_all(
+                [
+                    SysMenu(menu_id=101, menu_name='用户管理', order_num=1),
+                    SysMenu(menu_id=102, menu_name='角色管理', order_num=2),
+                ]
+            )
+            await session.commit()
+
+            result = await MenuService.update_menu_sort_services(
+                session,
+                MenuSortModel(menuIds='101,102', orderNums='5,4'),
+            )
+            rows = (await session.execute(select(SysMenu.menu_id, SysMenu.order_num).order_by(SysMenu.menu_id))).all()
+
+        assert result.is_success is True
+        assert rows == [(101, 5), (102, 4)]
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_update_menu_sort_rolls_back_and_wraps_database_error() -> None:
+    query_db = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
+
+    with (
+        patch.object(MenuDao, 'update_menu_sort_dao', AsyncMock(side_effect=RuntimeError('database error'))),
+        pytest.raises(ServiceException) as exc_info,
+    ):
+        await MenuService.update_menu_sort_services(
+            query_db,
+            MenuSortModel(menuIds='101', orderNums='2'),
+        )
+
+    assert exc_info.value.message == '保存排序异常，请联系管理员'
+    query_db.commit.assert_not_awaited()
+    query_db.rollback.assert_awaited_once()
