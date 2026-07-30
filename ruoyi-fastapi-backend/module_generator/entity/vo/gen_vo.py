@@ -116,6 +116,7 @@ class GenTableModel(GenTableBaseModel):
     tree_name: str | None = Field(default=None, description='树名称字段')
     parent_menu_id: int | None = Field(default=None, description='上级菜单ID字段')
     parent_menu_name: str | None = Field(default=None, description='上级菜单名称字段')
+    view: bool = Field(default=False, description='是否生成详情页')
     sub: bool | None = Field(default=None, description='是否为子表')
     tree: bool | None = Field(default=None, description='是否为树表')
     crud: bool | None = Field(default=None, description='是否为单表')
@@ -147,6 +148,7 @@ class GenTableParamsModel(BaseModel):
     tree_parent_code: str | None = Field(default=None, description='树父编码字段')
     tree_name: str | None = Field(default=None, description='树名称字段')
     parent_menu_id: int | None = Field(default=None, description='上级菜单ID字段')
+    gen_view: bool = Field(default=False, description='是否生成详情页')
 
 
 class GenTableQueryModel(GenTableBaseModel):

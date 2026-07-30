@@ -141,6 +141,7 @@ class GenTableDao:
         :param is_page: 是否开启分页
         :return: 数据库列表信息对象
         """
+        query_params: dict[str, str] = {}
         if DataBaseConfig.db_type == 'postgresql':
             query_sql = """
                 table_name as table_name,
@@ -169,23 +170,25 @@ class GenTableDao:
                 and table_name not in (select table_name from gen_table)
             """
         if query_object.table_name:
-            query_sql += """and lower(table_name) like lower(concat('%', :table_name, '%'))"""
+            query_sql += """ and lower(table_name) like lower(concat('%', :table_name, '%'))"""
+            query_params['table_name'] = query_object.table_name
         if query_object.table_comment:
-            query_sql += """and lower(table_comment) like lower(concat('%', :table_comment, '%'))"""
+            query_sql += """ and lower(table_comment) like lower(concat('%', :table_comment, '%'))"""
+            query_params['table_comment'] = query_object.table_comment
         if query_object.begin_time:
             if DataBaseConfig.db_type == 'postgresql':
-                query_sql += """and create_time::date >= to_date(:begin_time, 'yyyy-MM-dd')"""
+                query_sql += """ and create_time::date >= to_date(:begin_time, 'yyyy-MM-dd')"""
             else:
-                query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')"""
+                query_sql += """ and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')"""
+            query_params['begin_time'] = query_object.begin_time
         if query_object.end_time:
             if DataBaseConfig.db_type == 'postgresql':
-                query_sql += """and create_time::date <= to_date(:end_time, 'yyyy-MM-dd')"""
+                query_sql += """ and create_time::date <= to_date(:end_time, 'yyyy-MM-dd')"""
             else:
-                query_sql += """and date_format(create_time, '%Y%m%d') >= date_format(:end_time, '%Y%m%d')"""
-        query_sql += """order by create_time desc"""
-        query = select(
-            text(query_sql).bindparams(**query_object.model_dump(exclude_none=True, exclude={'page_num', 'page_size'}))
-        )
+                query_sql += """ and date_format(create_time, '%Y%m%d') <= date_format(:end_time, '%Y%m%d')"""
+            query_params['end_time'] = query_object.end_time
+        query_sql += """ order by create_time desc"""
+        query = select(text(query_sql).bindparams(**query_params))
         gen_db_table_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )

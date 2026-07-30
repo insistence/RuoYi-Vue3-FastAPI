@@ -269,7 +269,7 @@ class GenTableService:
         await cls.set_pk_column(gen_table)
         env = TemplateInitializer.init_jinja2()
         context = TemplateUtils.prepare_context(gen_table)
-        template_list = TemplateUtils.get_template_list(gen_table.tpl_category, gen_table.tpl_web_type)
+        template_list = TemplateUtils.get_template_list(gen_table)
         preview_code_result = {}
         for template in template_list:
             render_content = env.get_template(template).render(**context)
@@ -336,7 +336,7 @@ class GenTableService:
         await cls.set_sub_table(query_db, gen_table)
         await cls.set_pk_column(gen_table)
         context = TemplateUtils.prepare_context(gen_table)
-        template_list = TemplateUtils.get_template_list(gen_table.tpl_category, gen_table.tpl_web_type)
+        template_list = TemplateUtils.get_template_list(gen_table)
         output_files = [TemplateUtils.get_file_name(template, gen_table) for template in template_list]
 
         return [template_list, output_files, context, gen_table]
@@ -456,6 +456,7 @@ class GenTableService:
             gen_table.tree_name = params_obj.get(GenConstant.TREE_NAME)
             gen_table.parent_menu_id = params_obj.get(GenConstant.PARENT_MENU_ID)
             gen_table.parent_menu_name = params_obj.get(GenConstant.PARENT_MENU_NAME)
+            gen_table.view = TemplateUtils.get_gen_view(params_obj)
 
         return gen_table
 

@@ -143,6 +143,15 @@
       {% endfor %}
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template slot-scope="scope">
+          {% if genView %}
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-view"
+            @click="handleViewData(scope.row)"
+            v-hasPermi="['{{ moduleName }}:{{ businessName }}:query']"
+          >详情</el-button>
+          {% endif %}
           <el-button
             size="mini"
             type="text"
@@ -169,6 +178,10 @@
       @pagination="getList"
     />
 
+    {% if genView %}
+    <!-- {{ functionName }}详情抽屉 -->
+    <{{ businessName }}-view-drawer ref="{{ businessName }}ViewRef" />
+    {% endif %}
     <!-- 添加或修改{{ functionName }}对话框 -->
     {% if table.form_col_num == 2 %}
     {% set dialogWidth = "800px" %}
@@ -378,9 +391,15 @@
 
 <script>
 import { list{{ BusinessName }}, get{{ BusinessName }}, del{{ BusinessName }}, add{{ BusinessName }}, update{{ BusinessName }} } from "@/api/{{ moduleName }}/{{ businessName }}";
+{% if genView %}
+import {{ BusinessName }}ViewDrawer from "./view";
+{% endif %}
 
 export default {
   name: "{{ BusinessName }}",
+  {% if genView %}
+  components: { {{ BusinessName }}ViewDrawer },
+  {% endif %}
   {% if dicts %}
   dicts: [{{ dicts }}],
   {% endif %}
@@ -607,6 +626,12 @@ export default {
     /** 复选框选中数据 */
     handle{{ subClassName }}SelectionChange(selection) {
       this.checked{{ subClassName }} = selection.map(item => item.index)
+    },
+    {% endif %}
+    {% if genView %}
+    /** 详情按钮操作 */
+    handleViewData(row) {
+      this.$refs["{{ businessName }}ViewRef"].open(row.{{ pkColumn.python_field }});
     },
     {% endif %}
     /** 导出按钮操作 */

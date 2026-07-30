@@ -576,6 +576,7 @@ class GenConstant:
     TREE_NAME: 树名称字段
     PARENT_MENU_ID: 上级菜单ID字段
     PARENT_MENU_NAME: 上级菜单名称字段
+    GEN_VIEW: 生成详情页开关
     COLUMNTYPE_STR: 数据库字符串类型
     COLUMNTYPE_TEXT: 数据库文本类型
     COLUMNTYPE_TIME: 数据库时间类型
@@ -612,6 +613,7 @@ class GenConstant:
     TREE_NAME = 'treeName'
     PARENT_MENU_ID = 'parentMenuId'
     PARENT_MENU_NAME = 'parentMenuName'
+    GEN_VIEW = 'genView'
     COLUMNTYPE_STR = (
         ['character varying', 'varchar', 'character', 'char']
         if DataBaseConfig.db_type == 'postgresql'

@@ -128,6 +128,9 @@
       {% endfor %}
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
+          {% if genView %}
+          <el-button link type="primary" icon="View" @click="handleViewData(scope.row)" v-hasPermi="['{{ moduleName }}:{{ businessName }}:query']">详情</el-button>
+          {% endif %}
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['{{ moduleName }}:{{ businessName }}:edit']">修改</el-button>
           <el-button link type="primary" icon="Plus" @click="handleAdd(scope.row)" v-hasPermi="['${moduleName}:${businessName}:add']">新增</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['{{ moduleName }}:{{ businessName }}:remove']">删除</el-button>
@@ -135,6 +138,10 @@
       </el-table-column>
     </el-table>
 
+    {% if genView %}
+    <!-- {{ functionName }}详情抽屉 -->
+    <{{ businessName }}-view-drawer ref="{{ businessName }}ViewRef" />
+    {% endif %}
     <!-- 添加或修改{{ functionName }}对话框 -->
     {% if table.form_col_num == 2 %}
     {% set dialogWidth = "800px" %}
@@ -296,6 +303,9 @@
 
 <script setup name="{{ BusinessName }}">
 import { list{{ BusinessName }}, get{{ BusinessName }}, del{{ BusinessName }}, add{{ BusinessName }}, update{{ BusinessName }} } from "@/api/{{ moduleName }}/{{ businessName }}";
+{% if genView %}
+import {{ BusinessName }}ViewDrawer from "./view";
+{% endif %}
 
 const { proxy } = getCurrentInstance();
 {% if dicts %}
@@ -323,7 +333,7 @@ const data = reactive({
   queryParams: {
     {% for column in columns %}
     {% if column.query %}
-    {{ column.python_field }}: null,
+    {{ column.python_field }}: undefined,
     {% endif %}
     {% endfor %}
   },
@@ -433,6 +443,13 @@ function toggleExpandAll() {
     refreshTable.value = true;
   });
 }
+{% if genView %}
+
+/** 详情按钮操作 */
+function handleViewData(row) {
+  proxy.$refs["{{ businessName }}ViewRef"].open(row.{{ pkColumn.python_field }});
+}
+{% endif %}
 
 /** 修改按钮操作 */
 function handleUpdate(row) {
