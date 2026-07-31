@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from cli.exit_codes import RUNTIME_ERROR
+from cli.utils import format_cli_path
 
 
 @dataclass(frozen=True)
@@ -46,8 +47,8 @@ class PluginScaffoldPlanPayload:
             'backendTest': self.backend_test,
             'frontendTest': self.frontend_test,
             'frontendVersion': self.frontend_version,
-            'targetDirs': self.target_dirs,
-            'files': [{'path': str(path), 'content': content} for path, content in self.files],
+            'targetDirs': [format_cli_path(path) for path in self.target_dirs],
+            'files': [{'path': path.as_posix(), 'content': content} for path, content in self.files],
             'conflicts': self.conflicts,
         }
 

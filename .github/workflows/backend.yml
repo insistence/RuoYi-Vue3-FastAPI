@@ -1,0 +1,58 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    env:
+      # Typer otherwise forces ANSI help output when GITHUB_ACTIONS is set.
+      _TYPER_FORCE_DISABLE_TERMINAL: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    defaults:
+      run:
+        working-directory: ruoyi-fastapi-backend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            ruoyi-fastapi-backend/requirements.txt
+            ruoyi-fastapi-backend/plugins/ai/plugin.yaml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest pytest-asyncio aiosqlite
+
+      - name: Install AI plugin dependencies
+        run: |
+          pip install \
+            agno==2.4.8 \
+            anthropic==0.78.0 \
+            cerebras-cloud-sdk==1.67.0 \
+            cohere==5.20.4 \
+            google-genai==1.62.0 \
+            groq==1.0.0 \
+            litellm==1.81.8 \
+            llama-api-client==0.6.0 \
+            mistralai==1.12.0 \
+            ollama==0.6.1 \
+            openai==2.17.0 \
+            portkey-ai==2.1.0
+
+      - name: Run backend tests
+        run: pytest -q

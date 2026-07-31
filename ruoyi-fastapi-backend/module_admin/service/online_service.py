@@ -1,14 +1,14 @@
 from typing import Any
 
-import jwt
 from fastapi import Request
 
 from common.enums import RedisInitKeyConfig
 from common.vo import CrudResponseModel
-from config.env import AppConfig, JwtConfig
-from exceptions.exception import ServiceException
+from config.env import AppConfig
+from exceptions.exception import AuthException, ServiceException
 from module_admin.entity.vo.online_vo import DeleteOnlineModel, OnlineQueryModel
 from utils.common_util import CamelCaseUtil
+from utils.jwt_util import JwtUtil
 
 
 class OnlineService:
@@ -31,7 +31,11 @@ class OnlineService:
         access_token_values_list = [await request.app.state.redis.get(key) for key in access_token_keys]
         online_info_list = []
         for item in access_token_values_list:
-            payload = jwt.decode(item, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
+            try:
+                payload = JwtUtil.decode(item)
+            except AuthException:
+                # 单个过期或损坏的会话不应影响在线用户列表中的其他会话
+                continue
             online_dict = {
                 'token_id': payload.get('session_id') if AppConfig.app_same_time_login else payload.get('user_id'),
                 'user_name': payload.get('user_name'),

@@ -56,12 +56,15 @@ class DependencyInstallPolicyConfig:
         """
         object.__setattr__(self, 'env', (self.env or 'dev').strip() or 'dev')
         object.__setattr__(self, 'mode', self.mode or self._default_mode(self.env))
-        if self.lockfile_path is not None:
-            object.__setattr__(self, 'lockfile_path', Path(self.lockfile_path))
-        if self.offline_dir is not None:
-            object.__setattr__(self, 'offline_dir', Path(self.offline_dir))
-        if self.allowlist_path is not None:
-            object.__setattr__(self, 'allowlist_path', Path(self.allowlist_path))
+        for field_name in ('lockfile_path', 'offline_dir', 'allowlist_path'):
+            value = getattr(self, field_name)
+            if isinstance(value, str):
+                path_value = Path(value)
+                object.__setattr__(
+                    self,
+                    field_name,
+                    path_value if path_value.is_absolute() else value.replace('\\', '/'),
+                )
 
     @classmethod
     def from_environment(

@@ -3,10 +3,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import jwt
 from fastapi import Depends, Form, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from jwt.exceptions import InvalidTokenError
 from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,6 +25,7 @@ from module_admin.entity.vo.user_vo import AddUserModel, CurrentUserModel, Reset
 from module_admin.service.user_service import UserService
 from utils.client_ip_util import ClientIPUtil
 from utils.common_util import CamelCaseUtil
+from utils.jwt_util import JwtUtil
 from utils.log_util import logger
 from utils.message_util import message_service
 from utils.pwd_util import PwdUtil
@@ -208,8 +207,7 @@ class LoginService:
         else:
             expire = datetime.now(timezone.utc) + timedelta(minutes=30)
         to_encode.update({'exp': expire})
-        encoded_jwt = jwt.encode(to_encode, JwtConfig.jwt_secret_key, algorithm=JwtConfig.jwt_algorithm)
-        return encoded_jwt
+        return JwtUtil.encode(to_encode)
 
     @classmethod
     async def get_current_user(
@@ -228,16 +226,16 @@ class LoginService:
         #     logger.warning("用户token不合法")
         #     raise AuthException(data="", message="用户token不合法")
         try:
-            if token.startswith('Bearer'):
-                token = token.split(' ')[1]
-            payload = jwt.decode(token, JwtConfig.jwt_secret_key, algorithms=[JwtConfig.jwt_algorithm])
+            if token.startswith('Bearer '):
+                token = token.removeprefix('Bearer ').strip()
+            payload = JwtUtil.decode(token)
             user_id: str = payload.get('user_id')
             session_id: str = payload.get('session_id')
             if not user_id:
                 logger.warning('用户token不合法')
                 raise AuthException(data='', message='用户token不合法')
             token_data = TokenData(user_id=int(user_id))
-        except InvalidTokenError as e:
+        except (TypeError, ValueError) as e:
             logger.warning('用户token已失效，请重新登录')
             raise AuthException(data='', message='用户token已失效，请重新登录') from e
         query_user = await UserDao.get_user_by_id(query_db, user_id=token_data.user_id)
