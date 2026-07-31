@@ -29,6 +29,7 @@ class GenTableBaseModel(BaseModel):
     business_name: str | None = Field(default=None, description='生成业务名')
     function_name: str | None = Field(default=None, description='生成功能名')
     function_author: str | None = Field(default=None, description='生成功能作者')
+    form_col_num: Literal[1, 2, 3] = Field(default=1, description='表单布局（单列 双列 三列）')
     gen_type: Literal['0', '1'] | None = Field(default=None, description='生成代码方式（0zip压缩包 1自定义路径）')
     gen_path: str | None = Field(default=None, description='生成路径（不填默认项目路径）')
     options: str | None = Field(default=None, description='其它生成选项')
@@ -115,6 +116,7 @@ class GenTableModel(GenTableBaseModel):
     tree_name: str | None = Field(default=None, description='树名称字段')
     parent_menu_id: int | None = Field(default=None, description='上级菜单ID字段')
     parent_menu_name: str | None = Field(default=None, description='上级菜单名称字段')
+    view: bool = Field(default=False, description='是否生成详情页')
     sub: bool | None = Field(default=None, description='是否为子表')
     tree: bool | None = Field(default=None, description='是否为树表')
     crud: bool | None = Field(default=None, description='是否为单表')
@@ -146,6 +148,7 @@ class GenTableParamsModel(BaseModel):
     tree_parent_code: str | None = Field(default=None, description='树父编码字段')
     tree_name: str | None = Field(default=None, description='树名称字段')
     parent_menu_id: int | None = Field(default=None, description='上级菜单ID字段')
+    gen_view: bool = Field(default=False, description='是否生成详情页')
 
 
 class GenTableQueryModel(GenTableBaseModel):

@@ -114,7 +114,7 @@ const activeMenu = computed(() => {
 
 function setVisibleNumber() {
   const width = document.body.getBoundingClientRect().width / 3;
-  visibleNumber.value = parseInt(width / 85);
+  visibleNumber.value = Math.max(1, parseInt(width / 85));
 }
 
 function handleSelect(key, keyPath) {
@@ -160,6 +160,7 @@ function activeRoutes(key) {
 onMounted(() => {
   window.addEventListener('resize', setVisibleNumber)
 })
+
 onBeforeUnmount(() => {
   window.removeEventListener('resize', setVisibleNumber)
 })
@@ -170,6 +171,11 @@ onMounted(() => {
 </script>
 
 <style lang="scss">
+.topmenu-container.el-menu--horizontal {
+  height: 50px !important;
+  border-bottom: none;
+}
+
 .topmenu-container.el-menu--horizontal > .el-menu-item {
   float: left;
   height: 50px !important;

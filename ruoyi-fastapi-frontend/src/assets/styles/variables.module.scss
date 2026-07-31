@@ -11,7 +11,7 @@ $panGreen: #30B08F;
 // 默认主题变量
 $menuText: #bfcbd9;
 $menuActiveText: #409eff;
-$menuBg: #304156;
+$menuBg: #1a1f2e;
 $menuHover: #263445;
 
 // 浅色主题theme-light
@@ -25,11 +25,11 @@ $base-sidebar-width: 200px;
 $sideBarWidth: 200px;
 
 // 菜单暗色变量
-$base-menu-color: #bfcbd9;
-$base-menu-color-active: #f4f4f5;
-$base-menu-background: #304156;
-$base-sub-menu-background: #1f2d3d;
-$base-sub-menu-hover: #001528;
+$base-menu-color: rgba(255,255,255,.65);
+$base-menu-color-active: #ffffff;
+$base-menu-background: #1a1f2e;
+$base-sub-menu-background: #141824;
+$base-sub-menu-hover: rgba(255,255,255,.06);
 
 // 组件变量
 $--color-primary: #409EFF;
@@ -89,6 +89,8 @@ html.dark {
   --el-text-color-regular: #d0d0d0;
   --el-border-color: #434343;
   --el-border-color-light: #434343;
+  --el-menu-text-color: #d0d0d0;
+  --sidebar-logo-text: #d0d0d0;
 
   /* primary */
   --primary-bg: #18212b;
@@ -111,6 +113,10 @@ html.dark {
   --tags-item-text: #d0d0d0;
   --tags-item-hover: #2d2d2d;
   --tags-close-hover: #64666a;
+  /* 卡片模式激活页签 */
+  --tags-card-active-bg: var(--el-bg-color-overlay);
+  --tags-card-active-bg: color-mix(in srgb, var(--el-color-primary) 22%, var(--el-bg-color-overlay) 78%);
+  --tags-card-active-border: var(--tags-card-active-bg);
 
   /* splitpanes 组件暗黑模式变量 */
   --splitpanes-bg: #141414;
@@ -134,9 +140,36 @@ html.dark {
     .el-menu-item:not(.is-active), .menu-title {
       color: var(--el-text-color-regular);
     }
-    & .theme-dark .nest-menu .el-sub-menu>.el-sub-menu__title,
+    & .el-menu .theme-dark .nest-menu .el-sub-menu > .el-sub-menu__title,
+    & .el-menu .theme-dark .el-sub-menu .el-menu-item,
+    & .theme-dark .nest-menu .el-sub-menu > .el-sub-menu__title,
     & .theme-dark .el-sub-menu .el-menu-item {
       background-color: var(--el-bg-color) !important;
+
+      &:hover {
+        background-color: var(--menu-hover) !important;
+      }
+    }
+    &.theme-light {
+      border-right: none !important;
+      .el-menu-item,
+      .el-sub-menu__title {
+        color: var(--sidebar-text) !important;
+      }
+      .el-menu-item:not(.is-active):hover,
+      .submenu-title-noDropdown:hover,
+      .el-sub-menu__title:hover {
+        background-color: var(--menu-hover) !important;
+      }
+      .el-menu .nest-menu .el-sub-menu>.el-sub-menu__title,
+      .el-menu .el-sub-menu .el-menu-item,
+      .nest-menu .el-sub-menu>.el-sub-menu__title,
+      .el-sub-menu .el-menu-item {
+        background-color: var(--el-bg-color) !important;
+        &:hover {
+          background-color: var(--menu-hover) !important;
+        }
+      }
     }
   }
 
@@ -166,26 +199,74 @@ html.dark {
     }
   }
 
-  /* 分割窗格覆盖 */
-  .splitpanes {
-    background-color: var(--splitpanes-bg);
-
-    .splitpanes__pane {
-      background-color: var(--splitpanes-bg);
-      border-color: var(--splitpanes-border);
-    }
-
-    .splitpanes__splitter {
-      background-color: var(--splitpanes-splitter-bg);
-      border-color: var(--splitpanes-border);
-
-      &:hover {
-        background-color: var(--splitpanes-splitter-hover-bg);
+  /* 页签样式覆盖 */
+  .navbar {
+    box-shadow: 0 1px 4px rgba(255, 255, 255, 0.08);
+  }
+  .tags-view-container {
+    &.tags-view-container--chrome {
+      --chrome-strip-bg: var(--el-bg-color);
+      --chrome-strip-border: var(--el-border-color);
+      --chrome-tab-active-bg: var(--el-bg-color-overlay);
+      --chrome-tab-active-bg: color-mix(in srgb, var(--el-color-primary) 22%, var(--el-bg-color-overlay) 78%);
+      --chrome-tab-text: var(--el-text-color-secondary);
+      --chrome-tab-text-active: var(--el-color-primary);
+      .tags-view-wrapper .tags-view-item:not(.active) + .tags-view-item:not(.active) {
+        border-left-color: var(--el-border-color);
       }
+      .tags-view-wrapper .tags-view-item {
+        &:hover:not(.active) {
+          background: var(--el-fill-color, #303030) !important;
+          color: var(--el-text-color-primary);
+        }
+        &.active {
+          box-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
+        }
+      }
+    }
+    &:not(.tags-view-container--chrome) .tags-view-wrapper .tags-view-item.active {
+      background-color: var(--tags-card-active-bg) !important;
+      border-color: var(--tags-card-active-border) !important;
+      color: var(--current-color, #409eff) !important;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 
-      &:before,
-      &:after {
-        background-color: var(--splitpanes-border);
+      &::before {
+        background: var(--current-color, #409eff) !important;
+      }
+    }
+  }
+
+  /* 分割窗格覆盖 */
+  .tree-sidebar-manage-wrap {
+    .tree-sidebar-content {
+      background: var(--splitpanes-bg);
+    }
+    .tree-sidebar {
+      border-right: 1px solid var(--splitpanes-splitter-bg);
+      background: var(--splitpanes-bg);
+      .tree-header {
+        background: var(--splitpanes-bg);
+        border-color: var(--splitpanes-border);
+      }
+      .tree-title {
+        color: var(--el-color-primary-light-2);
+      }
+      .collapse-button-container {
+        background: var(--splitpanes-bg) !important;
+      }
+      .collapse-button {
+        &:hover {
+          color: var(--el-color-primary-light-2);
+          background: var(--splitpanes-bg);
+        }
+      }
+      .resize-handle {
+        &:hover {
+          background: var(--splitpanes-splitter-hover-bg);
+        }
+        &.active {
+          background: var(--splitpanes-splitter-hover-bg);
+        }
       }
     }
   }
@@ -266,6 +347,102 @@ html.dark {
     background-color: var(--el-bg-color) !important;
     color: var(--el-text-color-regular) !important;
     border-top: 1px solid var(--el-bg-color) !important;
+  }
+
+  /* 详情抽屉暗黑模式覆盖 */
+  .detail-drawer {
+    .el-drawer__header {
+      color: var(--el-text-color-primary);
+      background: var(--el-bg-color-overlay);
+      border-bottom: 1px solid var(--el-border-color);
+    }
+    .section-header {
+      color: var(--el-color-primary-light-3);
+      border-bottom-color: var(--el-border-color);
+    }
+    .drawer-content {
+      .info-label {
+        color: var(--el-text-color-secondary);
+      }
+      .info-value {
+        color: var(--el-text-color-primary);
+        &.plaintext {
+          border-bottom-color: var(--el-border-color);
+        }
+      }
+    }
+  }
+
+  /* 详情卡片暗黑模式覆盖 */
+  .detail-card {
+    border-color: var(--el-border-color);
+  }
+  .detail-card-title {
+    background: var(--el-bg-color-overlay);
+    color: var(--el-text-color-primary);
+    border-bottom-color: var(--el-border-color);
+  }
+  .detail-item {
+    border-bottom-color: var(--el-border-color-lighter, #2a2a2a);
+  }
+  .detail-label {
+    color: var(--el-text-color-secondary);
+  }
+  .detail-value {
+    color: var(--el-text-color-primary);
+  }
+  .code-wrap {
+    background: var(--el-bg-color-overlay);
+    border-color: var(--el-border-color);
+  }
+  .code-pre {
+    color: var(--el-text-color-regular);
+  }
+  .code-action .el-button {
+    background: rgba(30, 30, 30, 0.9);
+    border-color: var(--el-border-color);
+    color: var(--el-text-color-regular);
+    &:hover {
+      background: var(--el-bg-color-overlay);
+      border-color: var(--el-color-primary);
+    }
+  }
+
+  /* 字典详情抽屉暗黑模式变量 */
+  --dict-drawer-title-color: var(--el-text-color-primary);
+  --dict-drawer-subtext-color: var(--el-text-color-secondary);
+  --dict-drawer-card-bg: var(--el-bg-color-overlay);
+  --dict-drawer-border-color: var(--el-border-color);
+  --dict-drawer-cell-divider: var(--el-border-color-lighter, #2a2a2a);
+
+  /* 通知公告详情抽屉暗黑模式变量 */
+  --notice-title-color: var(--el-text-color-primary);
+  --notice-meta-color: var(--el-text-color-secondary);
+  --notice-meta-icon-color: var(--el-text-color-placeholder, #606266);
+  --notice-border-color: var(--el-border-color);
+  --notice-body-bg: var(--el-bg-color-overlay);
+  --notice-body-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --notice-content-color: var(--el-text-color-regular);
+  --notice-drawer-body-bg: var(--el-bg-color);
+  --notice-divider-gradient: linear-gradient(to right, transparent, var(--el-border-color), transparent);
+  --notice-divider-dot-color: var(--el-border-color-light, #434343);
+  --notice-blockquote-bg: var(--el-bg-color);
+  --notice-blockquote-border: var(--el-border-color);
+  --notice-table-border: var(--el-border-color);
+  --notice-table-header-bg: var(--el-bg-color);
+  --notice-tag-notify-bg: rgba(217, 119, 6, 0.15);
+  --notice-tag-notify-color: #f6ad55;
+  --notice-tag-announce-bg: rgba(56, 161, 105, 0.15);
+  --notice-tag-announce-color: #68d391;
+}
+
+.notice-detail-drawer {
+  .notice-content {
+    color: var(--el-text-color-regular) !important;
+    * { color: var(--el-text-color-regular) !important; }
+    h1~h6, strong, b { color: var(--el-text-color-primary) !important; }
+    a, a * { color: #5ba7f5 !important; }
+    blockquote, blockquote * { color: var(--el-text-color-secondary) !important; }
   }
 }
 

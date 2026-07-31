@@ -65,6 +65,8 @@ class JobLogModel(BaseModel):
     job_message: str | None = Field(default=None, description='日志信息')
     status: Literal['0', '1'] | None = Field(default=None, description='执行状态（0正常 1失败）')
     exception_info: str | None = Field(default=None, description='异常信息')
+    start_time: datetime | None = Field(default=None, description='执行开始时间')
+    end_time: datetime | None = Field(default=None, description='执行结束时间')
     create_time: datetime | None = Field(default=None, description='创建时间')
 
 

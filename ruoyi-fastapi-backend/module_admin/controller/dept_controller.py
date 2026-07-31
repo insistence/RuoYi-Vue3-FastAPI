@@ -17,7 +17,7 @@ from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, ResponseBaseModel
 from module_admin.entity.do.dept_do import SysDept
-from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptQueryModel
+from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptQueryModel, DeptSortModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.dept_service import DeptService
 from utils.log_util import logger
@@ -120,6 +120,32 @@ async def edit_system_dept(
     logger.info(edit_dept_result.message)
 
     return ResponseUtil.success(msg=edit_dept_result.message)
+
+
+@dept_controller.put(
+    '/updateSort',
+    summary='保存部门排序接口',
+    description='用于批量保存部门显示顺序',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('system:dept:edit')],
+)
+@ApiCacheEvict(namespaces=ApiGroup.DATA_SCOPE_MUTATION)
+@Log(title='保存部门排序', business_type=BusinessType.UPDATE)
+async def update_system_dept_sort(
+    request: Request,
+    dept_sort: DeptSortModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    data_scope_sql: Annotated[ColumnElement, DataScopeDependency(SysDept)],
+) -> Response:
+    update_sort_result = await DeptService.update_dept_sort_services(
+        query_db,
+        dept_sort,
+        None if current_user.user.admin else data_scope_sql,
+    )
+    logger.info(update_sort_result.message)
+
+    return ResponseUtil.success(msg=update_sort_result.message)
 
 
 @dept_controller.delete(

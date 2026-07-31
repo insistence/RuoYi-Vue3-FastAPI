@@ -169,6 +169,7 @@ class ApiNamespace:
     等接口注解使用，用同一套“模块:功能”命名规则收敛缓存和限流场景。
 
     LOGIN: 登录接口命名空间
+    LOGIN_UNLOCK_SCREEN: 锁屏解锁接口命名空间
     REGISTER: 注册接口命名空间
     LOGIN_USER_INFO: 登录用户信息接口命名空间
     LOGIN_USER_ROUTERS: 登录用户路由接口命名空间
@@ -264,6 +265,7 @@ class ApiNamespace:
     """
 
     LOGIN = 'login'
+    LOGIN_UNLOCK_SCREEN = 'login:unlock-screen'
     REGISTER = 'register'
     LOGIN_USER_INFO = 'login:user:info'
     LOGIN_USER_ROUTERS = 'login:user:routers'
@@ -540,6 +542,7 @@ class MenuConstant:
     """
     菜单常量
 
+    ROOT_ID: 根菜单ID
     TYPE_DIR: 菜单类型（目录）
     TYPE_MENU: 菜单类型（菜单）
     TYPE_BUTTON: 菜单类型（按钮）
@@ -550,6 +553,7 @@ class MenuConstant:
     INNER_LINK: InnerLink组件标识
     """
 
+    ROOT_ID = 0
     TYPE_DIR = 'M'
     TYPE_MENU = 'C'
     TYPE_BUTTON = 'F'
@@ -572,6 +576,7 @@ class GenConstant:
     TREE_NAME: 树名称字段
     PARENT_MENU_ID: 上级菜单ID字段
     PARENT_MENU_NAME: 上级菜单名称字段
+    GEN_VIEW: 生成详情页开关
     COLUMNTYPE_STR: 数据库字符串类型
     COLUMNTYPE_TEXT: 数据库文本类型
     COLUMNTYPE_TIME: 数据库时间类型
@@ -608,6 +613,7 @@ class GenConstant:
     TREE_NAME = 'treeName'
     PARENT_MENU_ID = 'parentMenuId'
     PARENT_MENU_NAME = 'parentMenuName'
+    GEN_VIEW = 'genView'
     COLUMNTYPE_STR = (
         ['character varying', 'varchar', 'character', 'char']
         if DataBaseConfig.db_type == 'postgresql'

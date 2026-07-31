@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant, MenuConstant
 from common.context import RequestContext
-from common.enums import RedisInitKeyConfig
+from common.enums import PasswordCharacterType, RedisInitKeyConfig
 from common.vo import CrudResponseModel
 from config.env import AppConfig, JwtConfig
 from config.get_db import get_db
@@ -139,6 +139,28 @@ class LoginService:
         return user
 
     @classmethod
+    async def unlock_screen_services(
+        cls, query_db: AsyncSession, current_user: CurrentUserModel, password: str | None
+    ) -> bool:
+        """
+        校验当前登录用户的密码并解锁屏幕
+
+        :param query_db: orm对象
+        :param current_user: 当前登录用户
+        :param password: 用户密码
+        :return: 解锁结果
+        """
+        if not password:
+            raise ServiceException(message='密码不能为空')
+        user = await UserDao.get_user_by_name(query_db, current_user.user.user_name)
+        if not user:
+            raise ServiceException(message='服务器超时，请重新登录')
+        if not PwdUtil.verify_password(password, user.password):
+            raise ServiceException(message='密码错误，请重新输入')
+
+        return True
+
+    @classmethod
     async def __check_login_ip(cls, request: Request) -> bool:
         """
         校验用户登录ip是否在黑名单内
@@ -257,6 +279,7 @@ class LoginService:
             is_password_expired = await cls.__password_is_expired(
                 request, query_user.get('user_basic_info').pwd_update_date
             )
+            pwd_chrtype = await cls.get_sys_account_chrtype(request)
 
             current_user = CurrentUserModel(
                 permissions=permissions,
@@ -268,6 +291,7 @@ class LoginService:
                     dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
                     role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
                 ),
+                pwdChrtype=pwd_chrtype,
                 isDefaultModifyPwd=is_default_modify_pwd,
                 isPasswordExpired=is_password_expired,
             )
@@ -276,6 +300,18 @@ class LoginService:
             return current_user
         logger.warning('用户token已失效，请重新登录')
         raise AuthException(data='', message='用户token已失效，请重新登录')
+
+    @classmethod
+    async def get_sys_account_chrtype(cls, request: Request) -> str:
+        """
+        获取用户密码字符范围配置
+
+        :param request: Request对象
+        :return: 密码字符范围配置
+        """
+        pwd_chrtype = await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.chrtype')
+
+        return pwd_chrtype or '0'
 
     @classmethod
     async def __init_password_is_modify(cls, request: Request, pwd_update_date: datetime) -> bool:
@@ -329,7 +365,7 @@ class LoginService:
             ],
             key=lambda x: x.order_num,
         )
-        menus = cls.__generate_menus(0, user_router_menu)
+        menus = cls.__generate_menus(MenuConstant.ROOT_ID, user_router_menu)
         user_router = cls.__generate_user_router_menu(menus)
         return [router.model_dump(exclude_unset=True, by_alias=True) for router in user_router]
 
@@ -398,7 +434,7 @@ class LoginService:
                 )
                 children_list.append(children)
                 router.children = children_list
-            elif permission.parent_id == 0 and RouterUtil.is_inner_link(permission):
+            elif permission.parent_id == MenuConstant.ROOT_ID and RouterUtil.is_inner_link(permission):
                 router.meta = MetaModel(title=permission.menu_name, icon=permission.icon)
                 router.path = '/'
                 children_list: list[RouterModel] = []
@@ -449,6 +485,9 @@ class LoginService:
                         raise ServiceException(message='验证码已失效')
                     if user_register.code != str(captcha_value):
                         raise ServiceException(message='验证码错误')
+                await UserService.validate_password_services(
+                    request.app.state.redis, user_register.password, PasswordCharacterType.DEFAULT
+                )
                 add_user = AddUserModel(
                     userName=user_register.username,
                     nickName=user_register.username,
@@ -503,6 +542,9 @@ class LoginService:
             f'{RedisInitKeyConfig.SMS_CODE.key}:{forget_user.session_id}'
         )
         if forget_user.sms_code == redis_sms_result:
+            await UserService.validate_password_services(
+                request.app.state.redis, forget_user.password, PasswordCharacterType.DEFAULT
+            )
             forget_user.password = PwdUtil.get_password_hash(forget_user.password)
             forget_user.user_id = (await UserDao.get_user_by_name(query_db, forget_user.user_name)).user_id
             edit_result = await UserService.reset_user_services(query_db, forget_user)
@@ -572,10 +614,14 @@ class RouterUtil:
         """
         # 内链打开外网方式
         router_path = menu.path
-        if menu.parent_id != 0 and cls.is_inner_link(menu):
+        if menu.parent_id != MenuConstant.ROOT_ID and cls.is_inner_link(menu):
             router_path = cls.inner_link_replace_each(router_path)
         # 非外链并且是一级目录（类型为目录）
-        if menu.parent_id == 0 and menu.menu_type == MenuConstant.TYPE_DIR and menu.is_frame == MenuConstant.NO_FRAME:
+        if (
+            menu.parent_id == MenuConstant.ROOT_ID
+            and menu.menu_type == MenuConstant.TYPE_DIR
+            and menu.is_frame == MenuConstant.NO_FRAME
+        ):
             router_path = f'/{menu.path}'
         # 非外链并且是一级目录（类型为菜单）
         elif cls.is_menu_frame(menu):
@@ -593,7 +639,11 @@ class RouterUtil:
         component = MenuConstant.LAYOUT
         if menu.component and not cls.is_menu_frame(menu):
             component = menu.component
-        elif (menu.component is None or menu.component == '') and menu.parent_id != 0 and cls.is_inner_link(menu):
+        elif (
+            (menu.component is None or menu.component == '')
+            and menu.parent_id != MenuConstant.ROOT_ID
+            and cls.is_inner_link(menu)
+        ):
             component = MenuConstant.INNER_LINK
         elif (menu.component is None or menu.component == '') and cls.is_parent_view(menu):
             component = MenuConstant.PARENT_VIEW
@@ -608,7 +658,9 @@ class RouterUtil:
         :return: 是否为菜单内部跳转
         """
         return (
-            menu.parent_id == 0 and menu.menu_type == MenuConstant.TYPE_MENU and menu.is_frame == MenuConstant.NO_FRAME
+            menu.parent_id == MenuConstant.ROOT_ID
+            and menu.menu_type == MenuConstant.TYPE_MENU
+            and menu.is_frame == MenuConstant.NO_FRAME
         )
 
     @classmethod
@@ -629,7 +681,7 @@ class RouterUtil:
         :param menu: 菜单数对象
         :return: 是否为parent_view组件
         """
-        return menu.parent_id != 0 and menu.menu_type == MenuConstant.TYPE_DIR
+        return menu.parent_id != MenuConstant.ROOT_ID and menu.menu_type == MenuConstant.TYPE_DIR
 
     @classmethod
     def is_http(cls, link: str) -> bool:

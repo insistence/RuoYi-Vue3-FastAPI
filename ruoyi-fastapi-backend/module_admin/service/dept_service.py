@@ -9,7 +9,7 @@ from common.vo import CrudResponseModel
 from exceptions.exception import ServiceException, ServiceWarning
 from module_admin.dao.dept_dao import DeptDao
 from module_admin.entity.do.dept_do import SysDept
-from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptTreeModel
+from module_admin.entity.vo.dept_vo import DeleteDeptModel, DeptModel, DeptSortModel, DeptTreeModel
 from utils.common_util import CamelCaseUtil
 
 
@@ -164,6 +164,63 @@ class DeptService:
         except Exception as e:
             await query_db.rollback()
             raise e
+
+    @classmethod
+    async def update_dept_sort_services(
+        cls,
+        query_db: AsyncSession,
+        page_object: DeptSortModel,
+        data_scope_sql: ColumnElement | None = None,
+    ) -> CrudResponseModel:
+        """
+        批量保存部门显示顺序
+
+        :param query_db: orm对象
+        :param page_object: 部门排序参数
+        :param data_scope_sql: 数据权限对应的查询sql语句
+        :return: 保存结果
+        """
+        dept_sort_list = cls.parse_dept_sort_items(page_object)
+        try:
+            if data_scope_sql is not None:
+                for item in dept_sort_list:
+                    await cls.check_dept_data_scope_services(query_db, item['dept_id'], data_scope_sql)
+            await DeptDao.update_dept_sort_dao(query_db, dept_sort_list)
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='保存成功')
+        except ServiceException:
+            await query_db.rollback()
+            raise
+        except Exception as exc:
+            await query_db.rollback()
+            raise ServiceException(message='保存排序异常，请联系管理员') from exc
+
+    @classmethod
+    def parse_dept_sort_items(cls, page_object: DeptSortModel) -> list[dict[str, int]]:
+        """
+        解析并校验部门排序参数
+
+        :param page_object: 部门排序参数
+        :return: 部门id与显示顺序列表
+        """
+        dept_id_values = [value.strip() for value in page_object.dept_ids.split(',') if value.strip()]
+        order_num_values = [value.strip() for value in page_object.order_nums.split(',') if value.strip()]
+        if not dept_id_values or len(dept_id_values) != len(order_num_values):
+            raise ServiceException(message='部门排序参数不正确')
+        try:
+            dept_ids = [int(value) for value in dept_id_values]
+            order_nums = [int(value) for value in order_num_values]
+        except ValueError as exc:
+            raise ServiceException(message='部门排序参数不正确') from exc
+        if any(dept_id <= 0 for dept_id in dept_ids) or any(order_num < 0 for order_num in order_nums):
+            raise ServiceException(message='部门排序参数不正确')
+        if len(set(dept_ids)) != len(dept_ids):
+            raise ServiceException(message='部门排序参数不正确')
+
+        return [
+            {'dept_id': dept_id, 'order_num': order_num}
+            for dept_id, order_num in zip(dept_ids, order_nums, strict=True)
+        ]
 
     @classmethod
     async def delete_dept_services(cls, query_db: AsyncSession, page_object: DeleteDeptModel) -> CrudResponseModel:

@@ -71,6 +71,29 @@
       </el-col>
 
       <el-col :span="12">
+        <el-form-item prop="formColNum">
+          <template #label>
+            表单布局
+            <el-tooltip content="选择表单的栅格布局方式" placement="top">
+              <el-icon><question-filled /></el-icon>
+            </el-tooltip>
+          </template>
+          <el-select v-model="info.formColNum">
+            <el-option label="单列" :value="1" />
+            <el-option label="双列" :value="2" />
+            <el-option label="三列" :value="3" />
+          </el-select>
+        </el-form-item>
+      </el-col>
+
+      <el-col :span="12">
+        <el-form-item prop="genView">
+          <template #label>扩展功能</template>
+          <el-checkbox v-model="info.view">生成详情页</el-checkbox>
+        </el-form-item>
+      </el-col>
+
+      <el-col :span="12">
         <el-form-item prop="genType">
           <template #label>
             生成代码方式
@@ -95,7 +118,6 @@
             v-model="info.parentMenuId"
             :data="menuOptions"
             :props="{ value: 'menuId', label: 'menuName', children: 'children' }"
-            value-key="menuId"
             placeholder="请选择系统菜单"
             check-strictly
           />

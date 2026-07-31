@@ -14,7 +14,7 @@ from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, ResponseBaseModel
-from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuTreeModel
+from module_admin.entity.vo.menu_vo import DeleteMenuModel, MenuModel, MenuQueryModel, MenuSortModel, MenuTreeModel
 from module_admin.entity.vo.role_vo import RoleMenuQueryModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.menu_service import MenuService
@@ -131,6 +131,26 @@ async def edit_system_menu(
     logger.info(edit_menu_result.message)
 
     return ResponseUtil.success(msg=edit_menu_result.message)
+
+
+@menu_controller.put(
+    '/updateSort',
+    summary='保存菜单排序接口',
+    description='用于批量保存菜单显示顺序',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('system:menu:edit')],
+)
+@ApiCacheEvict(namespaces=ApiGroup.MENU_MUTATION)
+@Log(title='保存菜单排序', business_type=BusinessType.UPDATE)
+async def update_system_menu_sort(
+    request: Request,
+    menu_sort: MenuSortModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    update_sort_result = await MenuService.update_menu_sort_services(query_db, menu_sort)
+    logger.info(update_sort_result.message)
+
+    return ResponseUtil.success(msg=update_sort_result.message)
 
 
 @menu_controller.delete(

@@ -18,6 +18,12 @@ class UserLogin(BaseModel):
     captcha_enabled: bool | None = Field(default=None, description='是否启用验证码，前端无需传递')
 
 
+class UnlockScreenModel(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    password: str | None = Field(default=None, description='用户密码')
+
+
 class UserRegister(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 

@@ -107,9 +107,7 @@
          <el-table-column label="字典名称" align="center" prop="dictName" :show-overflow-tooltip="true"/>
          <el-table-column label="字典类型" align="center" :show-overflow-tooltip="true">
             <template #default="scope">
-               <router-link :to="'/system/dict-data/index/' + scope.row.dictId" class="link-type">
-                  <span>{{ scope.row.dictType }}</span>
-               </router-link>
+               <a class="link-type" style="cursor:pointer" @click="handleViewData(scope.row)">{{ scope.row.dictType }}</a>
             </template>
          </el-table-column>
          <el-table-column label="状态" align="center" prop="status">
@@ -123,9 +121,10 @@
                <span>{{ parseTime(scope.row.createTime) }}</span>
             </template>
          </el-table-column>
-         <el-table-column label="操作" align="center" width="160" class-name="small-padding fixed-width">
+         <el-table-column label="操作" align="center" width="280" class-name="small-padding fixed-width">
             <template #default="scope">
                <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:dict:edit']">修改</el-button>
+               <el-button link type="primary" icon="Operation" @click="handleDataList(scope.row)" v-hasPermi="['system:dict:edit']">列表</el-button>
                <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:dict:remove']">删除</el-button>
             </template>
          </el-table-column>
@@ -141,12 +140,20 @@
 
       <!-- 添加或修改参数配置对话框 -->
       <el-dialog :title="title" v-model="open" width="500px" append-to-body>
-         <el-form ref="dictRef" :model="form" :rules="rules" label-width="80px">
+         <el-form ref="dictRef" :model="form" :rules="rules" label-width="100px">
             <el-form-item label="字典名称" prop="dictName">
                <el-input v-model="form.dictName" placeholder="请输入字典名称" />
             </el-form-item>
-            <el-form-item label="字典类型" prop="dictType">
+            <el-form-item prop="dictType">
                <el-input v-model="form.dictType" placeholder="请输入字典类型" />
+               <template #label>
+                 <span>
+                   <el-tooltip content='数据存储中的Key值，如：sys_user_sex' placement="top">
+                     <el-icon><question-filled /></el-icon>
+                   </el-tooltip>
+                   字典类型
+                 </span>
+               </template>
             </el-form-item>
             <el-form-item label="状态" prop="status">
                <el-radio-group v-model="form.status">
@@ -168,10 +175,13 @@
             </div>
          </template>
       </el-dialog>
+
+      <dict-data-drawer v-model:visible="drawerVisible" :row="drawerRow" />
    </div>
 </template>
 
 <script setup name="Dict">
+import DictDataDrawer from './detail'
 import useDictStore from '@/store/modules/dict'
 import { listType, getType, delType, addType, updateType, refreshCache } from "@/api/system/dict/type";
 
@@ -188,6 +198,8 @@ const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
 const dateRange = ref([]);
+const drawerVisible = ref(false);
+const drawerRow = ref({});
 
 const data = reactive({
   form: {},
@@ -253,6 +265,15 @@ function handleSelectionChange(selection) {
   ids.value = selection.map(item => item.dictId);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
+}
+/** 字典数据抽屉 */
+function handleViewData(row) {
+  drawerRow.value = row;
+  drawerVisible.value = true;
+}
+/** 字典数据列表页面 */
+function handleDataList(row) {
+  proxy.$tab.openPage("字典数据", '/system/dict-data/index/' + row.dictId);
 }
 /** 修改按钮操作 */
 function handleUpdate(row) {

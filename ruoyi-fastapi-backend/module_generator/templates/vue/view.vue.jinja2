@@ -1,0 +1,87 @@
+<template>
+  <el-drawer
+    title="{{ functionName }}详情"
+    :visible.sync="visible"
+    direction="rtl"
+    size="60%"
+    append-to-body
+    :before-close="handleClose"
+    custom-class="detail-drawer"
+  >
+    <div v-loading="loading" class="drawer-content">
+      <h4 class="section-header">基本信息</h4>
+      {% set detail = namespace(index=0) %}
+      {% for column in columns %}
+      {% if not column.pk and column.list %}
+      {% set dictType = column.dict_type %}
+      {% set pythonField = column.python_field %}
+      {% set parentheseIndex = column.column_comment.find("（") %}
+      {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
+      {% if detail.index % 2 == 0 %}
+      <el-row :gutter="20" class="mb8">
+      {% endif %}
+        <el-col :span="12">
+          <div class="info-item">
+            <label class="info-label">{{ comment }}：</label>
+            <span class="info-value plaintext">
+              {% if dictType %}
+              {% if column.html_type == "checkbox" %}
+              <dict-tag :options="dict.type.{{ dictType }}" :value="info.{{ pythonField }} ? info.{{ pythonField }}.split(',') : []" />
+              {% else %}
+              <dict-tag :options="dict.type.{{ dictType }}" :value="info.{{ pythonField }}" />
+              {% endif %}
+              {% elif column.html_type == "datetime" %}
+              {% raw %}{{{% endraw %} parseTime(info.{{ pythonField }}, '{y}-{m}-{d}') {% raw %}}}{% endraw %}
+              {% elif column.html_type == "imageUpload" %}
+              <image-preview :src="info.{{ pythonField }}" :width="60" :height="60" />
+              {% else %}
+              {% raw %}{{{% endraw %} info.{{ pythonField }} {% raw %}}}{% endraw %}
+              {% endif %}
+            </span>
+          </div>
+        </el-col>
+      {% set detail.index = detail.index + 1 %}
+      {% if detail.index % 2 == 0 %}
+      </el-row>
+      {% endif %}
+      {% endif %}
+      {% endfor %}
+      {% if detail.index % 2 != 0 %}
+      </el-row>
+      {% endif %}
+    </div>
+  </el-drawer>
+</template>
+
+<script>
+import { get{{ BusinessName }} } from "@/api/{{ moduleName }}/{{ businessName }}";
+
+export default {
+  name: "{{ BusinessName }}ViewDrawer",
+  {% if dicts %}
+  dicts: [{{ dicts }}],
+  {% endif %}
+  data() {
+    return {
+      visible: false,
+      loading: false,
+      info: {}
+    };
+  },
+  methods: {
+    open({{ pkColumn.python_field }}) {
+      this.visible = true;
+      this.loading = true;
+      get{{ BusinessName }}({{ pkColumn.python_field }}).then(response => {
+        this.info = response.data || {};
+      }).finally(() => {
+        this.loading = false;
+      });
+    },
+    handleClose(done) {
+      this.info = {};
+      done();
+    }
+  }
+};
+</script>

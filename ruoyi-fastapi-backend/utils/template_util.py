@@ -54,6 +54,7 @@ class TemplateUtils:
     FRONTEND_PROJECT_PATH = 'frontend'
     BACKEND_PROJECT_PATH = 'backend'
     DEFAULT_PARENT_MENU_ID = '3'
+    FORM_COL_SPAN_MAP = {2: '12', 3: '8'}
 
     @classmethod
     def prepare_context(cls, gen_table: GenTableModel) -> dict[str, Any]:
@@ -85,6 +86,7 @@ class TemplateUtils:
             'basePackage': cls.get_package_prefix(package_name),
             'packageName': package_name,
             'author': gen_table.function_author,
+            'colSpan': cls.get_col_span(gen_table.form_col_num),
             'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'pkColumn': gen_table.pk_column,
             'doImportList': cls.get_do_import_list(gen_table),
@@ -98,7 +100,8 @@ class TemplateUtils:
             'column_not_edit_show': GenConstant.COLUMNNAME_NOT_EDIT_SHOW,
         }
 
-        # 设置菜单、树形结构、子表的上下文
+        # 设置扩展功能、菜单、树形结构、子表的上下文
+        cls.set_extensions_context(context, gen_table)
         cls.set_menu_context(context, gen_table)
         if tpl_category == GenConstant.TPL_TREE:
             cls.set_tree_context(context, gen_table)
@@ -106,6 +109,17 @@ class TemplateUtils:
             cls.set_sub_context(context, gen_table)
 
         return context
+
+    @classmethod
+    def set_extensions_context(cls, context: dict, gen_table: GenTableModel) -> None:
+        """
+        设置扩展功能上下文
+
+        :param context: 模板上下文字典
+        :param gen_table: 生成表的配置信息
+        """
+        params_obj = json.loads(gen_table.options) if gen_table.options else None
+        context['genView'] = cls.get_gen_view(params_obj)
 
     @classmethod
     def set_menu_context(cls, context: dict, gen_table: GenTableModel) -> None:
@@ -159,14 +173,16 @@ class TemplateUtils:
         context['subclassName'] = sub_class_name.lower()
 
     @classmethod
-    def get_template_list(cls, tpl_category: str, tpl_web_type: str) -> list[str]:
+    def get_template_list(cls, gen_table: GenTableModel) -> list[str]:
         """
         获取模板列表
 
-        :param tpl_category: 生成模板类型
-        :param tpl_web_type: 前端类型
+        :param gen_table: 生成表的配置信息
         :return: 模板列表
         """
+        tpl_category = gen_table.tpl_category
+        tpl_web_type = gen_table.tpl_web_type
+        params_obj = json.loads(gen_table.options) if gen_table.options else None
         use_web_type = 'vue'
         if tpl_web_type == 'element-plus':
             use_web_type = 'vue/v3'
@@ -186,14 +202,16 @@ class TemplateUtils:
         elif tpl_category == GenConstant.TPL_SUB:
             templates.append(f'{use_web_type}/index.vue.jinja2')
             # templates.append('python/sub-domain.python.jinja2')
+        if cls.get_gen_view(params_obj):
+            templates.append(f'{use_web_type}/view.vue.jinja2')
         return templates
 
     @classmethod
-    def get_file_name(cls, template: list[str], gen_table: GenTableModel) -> str:
+    def get_file_name(cls, template: str, gen_table: GenTableModel) -> str:
         """
         根据模板生成文件名
 
-        :param template: 模板列表
+        :param template: 模板路径
         :param gen_table: 生成表的配置信息
         :return: 模板生成文件名
         """
@@ -220,6 +238,8 @@ class TemplateUtils:
             return f'{vue_path}/api/{module_name}/{business_name}.js'
         if 'index.vue.jinja2' in template or 'index-tree.vue.jinja2' in template:
             return f'{vue_path}/views/{module_name}/{business_name}/index.vue'
+        if 'view.vue.jinja2' in template:
+            return f'{vue_path}/views/{module_name}/{business_name}/view.vue'
         return ''
 
     @classmethod
@@ -366,6 +386,16 @@ class TemplateUtils:
         return f'{module_name}:{business_name}'
 
     @classmethod
+    def get_col_span(cls, form_col_num: int | None) -> str:
+        """
+        根据表单列数获取栅格跨度
+
+        :param form_col_num: 表单列数
+        :return: 栅格跨度
+        """
+        return cls.FORM_COL_SPAN_MAP.get(form_col_num, '24')
+
+    @classmethod
     def get_parent_menu_id(cls, params_obj: dict) -> str:
         """
         获取上级菜单ID
@@ -376,6 +406,23 @@ class TemplateUtils:
         if params_obj and params_obj.get(GenConstant.PARENT_MENU_ID):
             return params_obj.get(GenConstant.PARENT_MENU_ID)
         return cls.DEFAULT_PARENT_MENU_ID
+
+    @classmethod
+    def get_gen_view(cls, params_obj: dict | None) -> bool:
+        """
+        获取是否生成详情页
+
+        :param params_obj: 生成选项
+        :return: 是否生成详情页
+        """
+        if not params_obj or GenConstant.GEN_VIEW not in params_obj:
+            return False
+        value = params_obj[GenConstant.GEN_VIEW]
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value == 1
+        return str(value).lower() in {'1', 'true', 'yes', 'y'}
 
     @classmethod
     def get_tree_code(cls, params_obj: dict) -> str:

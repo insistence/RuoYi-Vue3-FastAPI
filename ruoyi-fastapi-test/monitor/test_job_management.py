@@ -114,7 +114,8 @@ class JobManagementTest(BasePageTest):
         await self.search_job(job_name)
         row = self.page.locator('tbody tr').first
 
-        log_btn = row.locator('button').nth(4)
+        # 操作列按钮顺序: 修改, 删除, 执行一次, 调度日志
+        log_btn = row.locator('button').nth(3)
         await log_btn.click()
 
         # 等待跳转到日志页面 (实际上是 router push 到 /monitor/job-log)

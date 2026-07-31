@@ -98,3 +98,14 @@ class DeleteMenuModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     menu_ids: str = Field(description='需要删除的菜单ID')
+
+
+class MenuSortModel(BaseModel):
+    """
+    菜单排序批量保存模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    menu_ids: str = Field(description='需要更新排序的菜单ID')
+    order_nums: str = Field(description='菜单显示顺序')

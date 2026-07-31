@@ -52,6 +52,34 @@ class NoticePageQueryModel(NoticeQueryModel):
     page_size: int = Field(default=10, description='每页记录数')
 
 
+class NoticeReadUserModel(BaseModel):
+    """
+    公告已读用户模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
+
+    user_id: int = Field(description='用户ID')
+    user_name: str = Field(description='用户账号')
+    nick_name: str = Field(description='用户昵称')
+    dept_name: str | None = Field(default=None, description='部门名称')
+    phonenumber: str | None = Field(default=None, description='手机号码')
+    read_time: datetime = Field(description='阅读时间')
+
+
+class NoticeReadUserPageQueryModel(BaseModel):
+    """
+    公告已读用户分页查询模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    notice_id: int = Field(description='公告ID')
+    search_value: str | None = Field(default=None, description='登录名称或用户名称')
+    page_num: int = Field(default=1, description='当前页码')
+    page_size: int = Field(default=10, description='每页记录数')
+
+
 class DeleteNoticeModel(BaseModel):
     """
     删除通知公告模型
@@ -60,3 +88,30 @@ class DeleteNoticeModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     notice_ids: str = Field(description='需要删除的公告ID')
+
+
+class NoticeTopModel(BaseModel):
+    """
+    首页顶部通知公告模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    notice_id: int = Field(description='公告ID')
+    notice_title: str = Field(description='公告标题')
+    notice_type: Literal['1', '2'] = Field(description='公告类型（1通知 2公告）')
+    status: Literal['0', '1'] = Field(description='公告状态（0正常 1关闭）')
+    create_by: str | None = Field(default=None, description='创建者')
+    create_time: datetime | None = Field(default=None, description='创建时间')
+    is_read: bool = Field(default=False, description='是否已读')
+
+
+class NoticeTopResponseModel(BaseModel):
+    """
+    首页顶部通知公告响应模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    data: list[NoticeTopModel] = Field(description='通知公告列表')
+    unread_count: int = Field(description='未读数量')

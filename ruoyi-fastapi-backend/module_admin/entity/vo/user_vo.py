@@ -134,6 +134,7 @@ class CurrentUserModel(BaseModel):
     permissions: list = Field(description='权限信息')
     roles: list = Field(description='角色信息')
     user: UserInfoModel | None = Field(description='用户信息')
+    pwd_chrtype: str = Field(default='0', description='密码字符范围')
     is_default_modify_pwd: bool = Field(default=False, description='是否初始密码修改提醒')
     is_password_expired: bool = Field(default=False, description='密码是否过期提醒')
 

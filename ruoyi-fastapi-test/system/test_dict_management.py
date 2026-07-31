@@ -67,18 +67,14 @@ class DictManagementTest(BasePageTest):
 
         await self.wait_for_selector("div:has-text('修改成功')", timeout=10000)
 
-    async def manage_dict_data(self, dict_type: str, data: dict) -> None:
+    async def manage_dict_data(self, data: dict) -> None:
         """管理字典数据"""
         # 1. 进入字典数据页面
-        # 点击字典类型链接
+        # 字典类型文本用于打开详情抽屉，管理数据需点击操作列的“列表”
         row = self.page.locator('tbody tr').first
-        await row.get_by_role('link', name=dict_type).click()
+        await row.get_by_role('button', name='列表').click()
 
-        # 等待页面切换（Playwright在SPA中通常不需要处理多标签页，除非新开tab）
-        # 这里是 router-link，应该是页内跳转
-        # 检查是否到了字典数据页面
-        # 或者等待URL变化，或者等待特定元素
-        # data.vue 有 "关闭" 按钮
+        # 等待字典数据页打开
         await self.wait_for_selector("button:has-text('关闭')", timeout=5000)
 
         # 2. 新增数据1 (正常)
@@ -183,7 +179,7 @@ class DictManagementTest(BasePageTest):
         await self.edit_dict_type(data['dict_name'], data['remark'])
 
         # 4. 管理字典数据
-        await self.manage_dict_data(data['dict_type'], data)
+        await self.manage_dict_data(data)
 
         # 5. 删除字典类型
         await self.delete_dict_type(data['dict_name'])

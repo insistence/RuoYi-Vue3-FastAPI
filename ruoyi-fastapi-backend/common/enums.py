@@ -55,6 +55,40 @@ class BusinessType(Enum):
     CLEAN = 9
 
 
+class PasswordCharacterType(Enum):
+    """
+    密码字符范围类型
+    """
+
+    def __init__(self, code: str, pattern: str, message: str) -> None:
+        self.code = code
+        self.pattern = pattern
+        self.message = message
+
+    @classmethod
+    def from_code(cls, code: str | bytes | None) -> 'PasswordCharacterType':
+        """
+        根据配置值获取密码字符范围类型
+
+        :param code: 密码字符范围配置值
+        :return: 密码字符范围类型
+        """
+        if isinstance(code, bytes):
+            code = code.decode()
+
+        return next((item for item in cls if item.code == code), cls.DEFAULT)
+
+    DEFAULT = ('0', r"""^[^<>"'|\\]+$""", '密码不能包含非法字符：< > " \' \\ |')
+    NUMBER = ('1', r'^[0-9]+$', '密码只能为数字（0-9）')
+    LETTER = ('2', r'^[a-zA-Z]+$', '密码只能为英文字母（a-z、A-Z）')
+    LETTER_NUMBER = ('3', r'^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]+$', '密码必须同时包含字母和数字')
+    LETTER_NUMBER_SPECIAL = (
+        '4',
+        r'^(?=.*[A-Za-z])(?=.*\d)(?=.*[~!@#$%^&*()\-=_+])[A-Za-z\d~!@#$%^&*()\-=_+]+$',
+        '密码必须同时包含字母、数字和特殊字符（~!@#$%^&*()-=_+）',
+    )
+
+
 class RedisInitKeyConfig(Enum):
     """
     系统内置Redis键名

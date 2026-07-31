@@ -175,18 +175,10 @@ getCookie();
   background-image: url("../assets/images/login-background.jpg");
   background-size: cover;
 }
-
-html.dark .login {
-  background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url("../assets/images/login-background.jpg");
-}
 .title {
   margin: 0px auto 30px auto;
   text-align: center;
   color: #707070;
-}
-
-html.dark .title {
-  color: var(--el-text-color-primary);
 }
 
 .login-form {
@@ -206,10 +198,6 @@ html.dark .title {
     width: 14px;
     margin-left: 0px;
   }
-}
-
-html.dark .login-form {
-  background: var(--el-bg-color);
 }
 .login-tip {
   font-size: 13px;
@@ -240,5 +228,16 @@ html.dark .login-form {
 .login-code-img {
   height: 40px;
   padding-left: 12px;
+}
+
+html.dark .login {
+  background-image: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)), url("../assets/images/login-background.jpg");
+  .login-form {
+    background: var(--el-bg-color-overlay) !important;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  }
+}
+html.dark .title {
+  color: var(--el-text-color-primary);
 }
 </style>

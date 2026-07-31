@@ -17,7 +17,7 @@ from common.aspect.db_seesion import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.constant import ApiGroup, ApiNamespace
-from common.enums import BusinessType
+from common.enums import BusinessType, PasswordCharacterType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, DynamicResponseModel, PageResponseModel, ResponseBaseModel
 from config.env import UploadConfig
@@ -121,6 +121,7 @@ async def add_system_user(
         await RoleService.check_role_data_scope_services(
             query_db, ','.join([str(item) for item in add_user.role_ids]), role_data_scope_sql
         )
+    await UserService.validate_password_services(request.app.state.redis, add_user.password)
     add_user.password = PwdUtil.get_password_hash(add_user.password)
     add_user.create_by = current_user.user.user_name
     add_user.create_time = datetime.now()
@@ -218,6 +219,9 @@ async def reset_system_user_pwd(
     await UserService.check_user_allowed_services(reset_user)
     if not current_user.user.admin:
         await UserService.check_user_data_scope_services(query_db, reset_user.user_id, data_scope_sql)
+    await UserService.validate_password_services(
+        request.app.state.redis, reset_user.password, PasswordCharacterType.DEFAULT
+    )
     edit_user = EditUserModel(
         userId=reset_user.user_id,
         password=PwdUtil.get_password_hash(reset_user.password),
@@ -406,6 +410,7 @@ async def reset_system_user_password(
         updateBy=current_user.user.user_name,
         updateTime=datetime.now(),
     )
+    await UserService.validate_password_services(request.app.state.redis, reset_user.password)
     reset_user_result = await UserService.reset_user_services(query_db, reset_user)
     logger.info(reset_user_result.message)
 

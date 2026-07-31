@@ -57,9 +57,16 @@
     <h3 class="drawer-title">系统布局配置</h3>
 
     <div class="drawer-item">
-      <span>开启 Tags-Views</span>
+      <span>开启页签</span>
       <span class="comp-style">
         <el-switch v-model="settingsStore.tagsView" class="drawer-switch" />
+      </span>
+    </div>
+
+    <div class="drawer-item">
+      <span>持久化标签页</span>
+      <span class="comp-style">
+        <el-switch v-model="settingsStore.tagsViewPersist" :disabled="!settingsStore.tagsView" @change="tagsViewPersistChange" class="drawer-switch" />
       </span>
     </div>
 
@@ -67,6 +74,16 @@
       <span>显示页签图标</span>
       <span class="comp-style">
         <el-switch v-model="settingsStore.tagsIcon" :disabled="!settingsStore.tagsView" class="drawer-switch" />
+      </span>
+    </div>
+
+    <div class="drawer-item">
+      <span>标签页样式</span>
+      <span class="comp-style">
+        <el-radio-group v-model="settingsStore.tagsViewStyle" :disabled="!settingsStore.tagsView" size="small">
+          <el-radio-button label="card">卡片</el-radio-button>
+          <el-radio-button label="chrome">谷歌</el-radio-button>
+        </el-radio-group>
       </span>
     </div>
 
@@ -120,12 +137,18 @@ const showSettings = ref(false);
 const navType = ref(settingsStore.navType)
 const theme = ref(settingsStore.theme);
 const sideTheme = ref(settingsStore.sideTheme);
+const tagsViewPersist = ref(settingsStore.tagsViewPersist)
 const storeSettings = computed(() => settingsStore);
 const predefineColors = ref(["#409EFF", "#ff4500", "#ff8c00", "#ffd700", "#90ee90", "#00ced1", "#1e90ff", "#c71585"]);
 
 /** 是否需要dynamicTitle */
 function dynamicTitleChange() {
   useSettingsStore().setTitle(useSettingsStore().title)
+}
+
+function tagsViewPersistChange(val) {
+  settingsStore.tagsViewPersist = val
+  tagsViewPersist.value = val
 }
 
 function themeChange(val) {
@@ -164,10 +187,15 @@ watch(() => navType, val => {
 
 function saveSetting() {
   proxy.$modal.loading("正在保存到本地，请稍候...");
+  if (!tagsViewPersist.value) {
+    proxy.$cache.local.remove('tags-view-visited')
+  }
   let layoutSetting = {
     "navType": storeSettings.value.navType,
     "tagsView": storeSettings.value.tagsView,
     "tagsIcon": storeSettings.value.tagsIcon,
+    "tagsViewStyle": storeSettings.value.tagsViewStyle,
+    "tagsViewPersist": storeSettings.value.tagsViewPersist,
     "fixedHeader": storeSettings.value.fixedHeader,
     "sidebarLogo": storeSettings.value.sidebarLogo,
     "dynamicTitle": storeSettings.value.dynamicTitle,
@@ -180,6 +208,7 @@ function saveSetting() {
 }
 
 function resetSetting() {
+  proxy.$cache.local.remove('tags-view-visited')
   proxy.$modal.loading("正在清除设置缓存并刷新，请稍候...");
   localStorage.removeItem("layout-setting")
   setTimeout("window.location.reload()", 1000)

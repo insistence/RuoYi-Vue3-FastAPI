@@ -132,6 +132,15 @@
       {% endfor %}
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template slot-scope="scope">
+          {% if genView %}
+          <el-button
+            size="mini"
+            type="text"
+            icon="el-icon-view"
+            @click="handleViewData(scope.row)"
+            v-hasPermi="['{{ moduleName }}:{{ businessName }}:query']"
+          >详情</el-button>
+          {% endif %}
           <el-button
             size="mini"
             type="text"
@@ -157,9 +166,21 @@
       </el-table-column>
     </el-table>
 
+    {% if genView %}
+    <!-- {{ functionName }}详情抽屉 -->
+    <{{ businessName }}-view-drawer ref="{{ businessName }}ViewRef" />
+    {% endif %}
     <!-- 添加或修改{{ functionName }}对话框 -->
-    <el-dialog :title="title" :visible.sync="open" width="500px" append-to-body>
-      <el-form ref="form" :model="form" :rules="rules" label-width="80px">
+    {% if table.form_col_num == 2 %}
+    {% set dialogWidth = "800px" %}
+    {% elif table.form_col_num == 3 %}
+    {% set dialogWidth = "1100px" %}
+    {% else %}
+    {% set dialogWidth = "500px" %}
+    {% endif %}
+    <el-dialog :title="title" :visible.sync="open" width="{{ dialogWidth }}" append-to-body>
+      <el-form ref="form" :model="form" :rules="rules" label-width="100px">
+        <el-row>
       {% for column in columns %}
       {% set field = column.python_field %}
       {% if (column.insert or column.edit) and not column.pk and column.column_name not in column_not_add_show + column_not_edit_show %}
@@ -168,101 +189,128 @@
       {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
       {% set dictType = column.dict_type %}
       {% if treeParentCode and column.python_field == treeParentCode %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ treeParentCode }}">
-        <treeselect v-model="form.{{ treeParentCode }}" :options="{{ businessName }}Options" :normalizer="normalizer" placeholder="请选择{{ comment }}" />
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ treeParentCode }}">
+              <treeselect v-model="form.{{ treeParentCode }}" :options="{{ businessName }}Options" :normalizer="normalizer" placeholder="请选择{{ comment }}" />
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "input" %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-input v-model="form.{{ field }}" placeholder="请输入{{ comment }}" />
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-input v-model="form.{{ field }}" placeholder="请输入{{ comment }}" />
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "imageUpload" %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <image-upload v-model="form.{{ field }}"/>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <image-upload v-model="form.{{ field }}"/>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "fileUpload" %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <file-upload v-model="form.{{ field }}"/>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <file-upload v-model="form.{{ field }}"/>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "editor" %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <editor v-model="form.{{ field }}" :min-height="192"/>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="24">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <editor v-model="form.{{ field }}" :min-height="192"/>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "select" and dictType %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-select v-model="form.{{ field }}" placeholder="请选择{{ comment }}">
-          <el-option
-            v-for="dict in dict.type.{{ dictType }}"
-            :key="dict.value"
-            :label="dict.label"
-            {% if column.python_type == 'int' %}
-            :value="parseInt(dict.value)"
-            {% else %}
-            :value="dict.value"
-            {% endif %}
-          ></el-option>
-        </el-select>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-select v-model="form.{{ field }}" placeholder="请选择{{ comment }}">
+                <el-option
+                  v-for="dict in dict.type.{{ dictType }}"
+                  :key="dict.value"
+                  :label="dict.label"
+                  {% if column.python_type == 'int' %}
+                  :value="parseInt(dict.value)"
+                  {% else %}
+                  :value="dict.value"
+                  {% endif %}
+                ></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "select" and not dictType %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-select v-model="form.{{ field }}" placeholder="请选择{{ comment }}">
-          <el-option label="请选择字典生成" value="" />
-        </el-select>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-select v-model="form.{{ field }}" placeholder="请选择{{ comment }}">
+                <el-option label="请选择字典生成" value="" />
+              </el-select>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "checkbox" and dictType %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-checkbox-group v-model="form.{{ field }}">
-          <el-checkbox
-            v-for="dict in dict.type.{{ dictType }}"
-            :key="dict.value"
-            :label="dict.value">
-            {% raw %}{{{% endraw %} dict.label {% raw %}}}{% endraw %}
-          </el-checkbox>
-        </el-checkbox-group>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-checkbox-group v-model="form.{{ field }}">
+                <el-checkbox
+                  v-for="dict in dict.type.{{ dictType }}"
+                  :key="dict.value"
+                  :label="dict.value">
+                  {% raw %}{{{% endraw %} dict.label {% raw %}}}{% endraw %}
+                </el-checkbox>
+              </el-checkbox-group>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "checkbox" and not dictType %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-checkbox-group v-model="form.{{ field }}">
-          <el-checkbox>请选择字典生成</el-checkbox>
-        </el-checkbox-group>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-checkbox-group v-model="form.{{ field }}">
+                <el-checkbox>请选择字典生成</el-checkbox>
+              </el-checkbox-group>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "radio" and dictType %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-radio-group v-model="form.{{ field }}">
-          <el-radio
-            v-for="dict in dict.type.{{ dictType }}"
-            :key="dict.value"
-            {% if column.python_type == 'int' %}
-            :label="parseInt(dict.value)"
-            {% else %}
-            :label="dict.value"
-            {% endif %}>
-            {% raw %}{{{% endraw %} dict.label {% raw %}}}{% endraw %}
-          </el-radio>
-        </el-radio-group>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-radio-group v-model="form.{{ field }}">
+                <el-radio
+                  v-for="dict in dict.type.{{ dictType }}"
+                  :key="dict.value"
+                  {% if column.python_type == 'int' %}
+                  :label="parseInt(dict.value)"
+                  {% else %}
+                  :label="dict.value"
+                  {% endif %}>
+                  {% raw %}{{{% endraw %} dict.label {% raw %}}}{% endraw %}
+                </el-radio>
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "radio" and not dictType %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-radio-group v-model="form.{{ field }}">
-          <el-radio label="请选择字典生成" value="" />
-        </el-radio-group>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-radio-group v-model="form.{{ field }}">
+                <el-radio label="请选择字典生成" value="" />
+              </el-radio-group>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "datetime" %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-date-picker clearable
-          v-model="form.{{ field }}"
-          type="date"
-          value-format="yyyy-MM-d"
-          placeholder="请选择{{ comment }}">
-        </el-date-picker>
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-date-picker clearable
+                v-model="form.{{ field }}"
+                type="date"
+                value-format="yyyy-MM-d"
+                placeholder="请选择{{ comment }}">
+              </el-date-picker>
+            </el-form-item>
+          </el-col>
       {% elif column.html_type == "textarea" %}
-      <el-form-item v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" label="{{ comment }}" prop="{{ field }}">
-        <el-input v-model="form.{{ field }}" type="textarea" placeholder="请输入内容" />
-      </el-form-item>
+          <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="24">
+            <el-form-item label="{{ comment }}" prop="{{ field }}">
+              <el-input v-model="form.{{ field }}" type="textarea" placeholder="请输入内容" />
+            </el-form-item>
+          </el-col>
       {% endif %}
       {% endif %}
       {% endif %}
       {% endfor %}
+        </el-row>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -276,6 +324,9 @@
 
 <script>
 import { list{{ BusinessName }}, get{{ BusinessName }}, del{{ BusinessName }}, add{{ BusinessName }}, update{{ BusinessName }} } from "@/api/{{ moduleName }}/{{ businessName }}";
+{% if genView %}
+import {{ BusinessName }}ViewDrawer from "./view";
+{% endif %}
 import Treeselect from "@riophae/vue-treeselect";
 import "@riophae/vue-treeselect/dist/vue-treeselect.css";
 
@@ -285,6 +336,9 @@ export default {
   dicts: [{{ dicts }}],
   {% endif %}
   components: {
+    {% if genView %}
+    {{ BusinessName }}ViewDrawer,
+    {% endif %}
     Treeselect
   },
   data() {
@@ -435,6 +489,12 @@ export default {
         this.refreshTable = true;
       });
     },
+    {% if genView %}
+    /** 详情按钮操作 */
+    handleViewData(row) {
+      this.$refs["{{ businessName }}ViewRef"].open(row.{{ pkColumn.python_field }});
+    },
+    {% endif %}
     /** 修改按钮操作 */
     handleUpdate(row) {
       this.reset();

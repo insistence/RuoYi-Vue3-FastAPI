@@ -6,7 +6,14 @@ from common.constant import CommonConstant
 from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.notice_dao import NoticeDao
-from module_admin.entity.vo.notice_vo import DeleteNoticeModel, NoticeModel, NoticePageQueryModel
+from module_admin.entity.vo.notice_vo import (
+    DeleteNoticeModel,
+    NoticeModel,
+    NoticePageQueryModel,
+    NoticeReadUserPageQueryModel,
+    NoticeTopModel,
+    NoticeTopResponseModel,
+)
 from utils.common_util import CamelCaseUtil
 
 
@@ -14,6 +21,8 @@ class NoticeService:
     """
     通知公告管理模块服务层
     """
+
+    TOP_NOTICE_LIMIT = 5
 
     @classmethod
     async def get_notice_list_services(
@@ -30,6 +39,70 @@ class NoticeService:
         notice_list_result = await NoticeDao.get_notice_list(query_db, query_object, is_page)
 
         return notice_list_result
+
+    @classmethod
+    async def get_notice_top_services(cls, query_db: AsyncSession, user_id: int) -> NoticeTopResponseModel:
+        """
+        获取首页顶部通知公告及当前用户已读状态
+
+        :param query_db: orm对象
+        :param user_id: 用户ID
+        :return: 首页顶部通知公告响应对象
+        """
+        notice_list = await NoticeDao.get_notice_list_with_read_status(query_db, user_id, cls.TOP_NOTICE_LIMIT)
+        notice_models = [NoticeTopModel(**CamelCaseUtil.transform_result(notice)) for notice in notice_list]
+        unread_count = sum(not notice.is_read for notice in notice_models)
+
+        return NoticeTopResponseModel(data=notice_models, unreadCount=unread_count)
+
+    @classmethod
+    async def get_notice_read_user_list_services(
+        cls, query_db: AsyncSession, query_object: NoticeReadUserPageQueryModel, is_page: bool = True
+    ) -> PageModel | list[dict[str, Any]]:
+        """
+        获取公告已读用户列表
+
+        :param query_db: orm对象
+        :param query_object: 查询参数对象
+        :param is_page: 是否开启分页
+        :return: 已读用户列表
+        """
+        return await NoticeDao.get_notice_read_user_list(query_db, query_object, is_page)
+
+    @classmethod
+    async def mark_notice_read_services(
+        cls, query_db: AsyncSession, user_id: int, notice_ids: list[int]
+    ) -> CrudResponseModel:
+        """
+        标记通知公告已读
+
+        :param query_db: orm对象
+        :param user_id: 用户ID
+        :param notice_ids: 公告ID列表
+        :return: 操作结果
+        """
+        try:
+            await NoticeDao.add_notice_reads(query_db, user_id, notice_ids)
+            await query_db.commit()
+            return CrudResponseModel(is_success=True, message='标记成功')
+        except Exception as e:
+            await query_db.rollback()
+            raise e
+
+    @classmethod
+    def parse_notice_ids(cls, notice_ids: str) -> list[int]:
+        """
+        解析逗号分隔的公告ID
+
+        :param notice_ids: 逗号分隔的公告ID
+        :return: 去重后的公告ID列表
+        """
+        try:
+            return list(
+                dict.fromkeys(int(notice_id.strip()) for notice_id in notice_ids.split(',') if notice_id.strip())
+            )
+        except ValueError as exc:
+            raise ServiceException(message='公告ID格式不正确') from exc
 
     @classmethod
     async def check_notice_unique_services(cls, query_db: AsyncSession, page_object: NoticeModel) -> bool:
@@ -99,8 +172,9 @@ class NoticeService:
         :return: 删除通知公告校验结果
         """
         if page_object.notice_ids:
-            notice_id_list = page_object.notice_ids.split(',')
+            notice_id_list = cls.parse_notice_ids(page_object.notice_ids)
             try:
+                await NoticeDao.delete_notice_reads(query_db, notice_id_list)
                 for notice_id in notice_id_list:
                     await NoticeDao.delete_notice_dao(query_db, NoticeModel(noticeId=notice_id))
                 await query_db.commit()

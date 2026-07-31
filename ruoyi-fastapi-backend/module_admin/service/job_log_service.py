@@ -114,6 +114,8 @@ class JobLogService:
             'jobMessage': '日志信息',
             'status': '执行状态',
             'exceptionInfo': '异常信息',
+            'startTime': '执行开始时间',
+            'endTime': '执行结束时间',
             'createTime': '创建时间',
         }
 

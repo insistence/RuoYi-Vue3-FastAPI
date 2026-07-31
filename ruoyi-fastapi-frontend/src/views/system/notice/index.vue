@@ -71,12 +71,11 @@
       <el-table v-loading="loading" :data="noticeList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="序号" align="center" prop="noticeId" width="100" />
-         <el-table-column
-            label="公告标题"
-            align="center"
-            prop="noticeTitle"
-            :show-overflow-tooltip="true"
-         />
+         <el-table-column label="公告标题" align="center" :show-overflow-tooltip="true">
+            <template #default="scope">
+               <a class="link-type" style="cursor:pointer" @click="handleViewData(scope.row)">{{ scope.row.noticeTitle }}</a>
+            </template>
+         </el-table-column>
          <el-table-column label="公告类型" align="center" prop="noticeType" width="100">
             <template #default="scope">
                <dict-tag :options="sys_notice_type" :value="scope.row.noticeType" />
@@ -95,6 +94,7 @@
          </el-table-column>
          <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
             <template #default="scope">
+               <el-button link type="primary" icon="User" @click="handleReadUsers(scope.row)" v-hasPermi="['system:notice:list']">阅读用户</el-button>
                <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:notice:edit']">修改</el-button>
                <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:notice:remove']" >删除</el-button>
             </template>
@@ -155,10 +155,14 @@
             </div>
          </template>
       </el-dialog>
+      <notice-detail-view ref="noticeViewRef" />
+      <read-users-dialog ref="readUsersRef" />
    </div>
 </template>
 
 <script setup name="Notice">
+import NoticeDetailView from "@/layout/components/HeaderNotice/DetailView";
+import ReadUsersDialog from "./ReadUsers";
 import { listNotice, getNotice, delNotice, addNotice, updateNotice } from "@/api/system/notice";
 
 const { proxy } = getCurrentInstance();
@@ -268,6 +272,17 @@ function submitForm() {
     }
   });
 }
+
+/** 查看公告详情 */
+function handleViewData(row) {
+  proxy.$refs["noticeViewRef"].open(row);
+}
+
+/** 查看已读用户 */
+function handleReadUsers(row) {
+   proxy.$refs["readUsersRef"].open(row);
+}
+
 /** 删除按钮操作 */
 function handleDelete(row) {
   const noticeIds = row.noticeId || ids.value

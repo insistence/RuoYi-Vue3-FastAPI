@@ -16,7 +16,14 @@ from common.enums import BusinessType, RedisInitKeyConfig
 from common.router import APIRouterPro
 from common.vo import CrudResponseModel, DataResponseModel, DynamicResponseModel, ResponseBaseModel
 from config.env import AppConfig, JwtConfig
-from module_admin.entity.vo.login_vo import LoginToken, RouterModel, Token, UserLogin, UserRegister
+from module_admin.entity.vo.login_vo import (
+    LoginToken,
+    RouterModel,
+    Token,
+    UnlockScreenModel,
+    UserLogin,
+    UserRegister,
+)
 from module_admin.entity.vo.user_vo import CurrentUserModel, EditUserModel
 from module_admin.service.login_service import CustomOAuth2PasswordRequestForm, LoginService, oauth2_scheme
 from module_admin.service.user_service import UserService
@@ -120,6 +127,25 @@ async def get_login_user_routers(
     user_routers = await LoginService.get_current_user_routers(current_user.user.user_id, query_db)
 
     return ResponseUtil.success(data=user_routers)
+
+
+@login_controller.post(
+    '/unlockscreen',
+    summary='解锁屏幕接口',
+    description='用于校验当前登录用户密码并解锁屏幕',
+    response_model=ResponseBaseModel,
+)
+@ApiRateLimit(namespace=ApiNamespace.LOGIN_UNLOCK_SCREEN, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
+async def unlock_screen(
+    request: Request,
+    unlock_screen_data: UnlockScreenModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    await LoginService.unlock_screen_services(query_db, current_user, unlock_screen_data.password)
+    logger.info('解锁成功')
+
+    return ResponseUtil.success(msg='解锁成功')
 
 
 @login_controller.post(

@@ -1,8 +1,9 @@
 from collections.abc import Sequence
 
-from sqlalchemy import and_, delete, func, select, update
+from sqlalchemy import and_, bindparam, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.constant import MenuConstant
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.role_do import SysRole, SysRoleMenu
 from module_admin.entity.do.user_do import SysUser, SysUserRole
@@ -51,6 +52,35 @@ class MenuDao:
         )
 
         return menu_info
+
+    @classmethod
+    async def get_menus_by_path_or_route_name(cls, db: AsyncSession, path: str, route_name: str) -> Sequence[SysMenu]:
+        """
+        根据路由地址或路由名称获取目录和菜单列表
+
+        :param db: orm对象
+        :param path: 路由地址
+        :param route_name: 路由名称
+        :return: 匹配的目录和菜单列表
+        """
+        route_values = {path.lower(), route_name.lower()}
+        menu_list = (
+            (
+                await db.execute(
+                    select(SysMenu).where(
+                        SysMenu.menu_type.in_([MenuConstant.TYPE_DIR, MenuConstant.TYPE_MENU]),
+                        or_(
+                            func.lower(SysMenu.path).in_(route_values),
+                            func.lower(SysMenu.route_name).in_(route_values),
+                        ),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        return menu_list
 
     @classmethod
     async def get_menu_list_for_tree(cls, db: AsyncSession, user_id: int, role: list) -> Sequence[SysMenu]:
@@ -185,6 +215,22 @@ class MenuDao:
         :return:
         """
         await db.execute(update(SysMenu), [menu])
+
+    @classmethod
+    async def update_menu_sort_dao(cls, db: AsyncSession, menu_sort_list: list[dict[str, int]]) -> None:
+        """
+        批量更新菜单显示顺序
+
+        :param db: orm对象
+        :param menu_sort_list: 菜单ID与显示顺序列表
+        :return:
+        """
+        await db.execute(
+            update(SysMenu.__table__)
+            .where(SysMenu.menu_id == bindparam('_menu_id'))
+            .values(order_num=bindparam('_order_num')),
+            [{'_menu_id': item['menu_id'], '_order_num': item['order_num']} for item in menu_sort_list],
+        )
 
     @classmethod
     async def delete_menu_dao(cls, db: AsyncSession, menu: MenuModel) -> None:

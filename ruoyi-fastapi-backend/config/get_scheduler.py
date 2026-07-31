@@ -780,6 +780,7 @@ class SchedulerUtil:
         """
         status = '0'
         exception_info = ''
+        start_time = datetime.now()
         job_executor = job_info.job_executor
         if iscoroutinefunction(job_func):
             job_executor = 'default'
@@ -790,10 +791,25 @@ class SchedulerUtil:
             exception_info = str(e)
             logger.error(f'❌ 异步执行任务 {job_info.job_name} 失败: {e}')
         finally:
-            cls._record_job_execution_log(job_info, job_executor, status, exception_info)
+            cls._record_job_execution_log(
+                job_info,
+                job_executor,
+                status,
+                exception_info,
+                start_time,
+                datetime.now(),
+            )
 
     @classmethod
-    def _record_job_execution_log(cls, job_info: JobModel, job_executor: str, status: str, exception_info: str) -> None:
+    def _record_job_execution_log(
+        cls,
+        job_info: JobModel,
+        job_executor: str,
+        status: str,
+        exception_info: str,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> None:
         """
         记录任务执行日志（用于非 Leader Worker 直接执行任务时）
 
@@ -801,15 +817,19 @@ class SchedulerUtil:
         :param job_executor: 任务执行器
         :param status: 执行状态 0-成功 1-失败
         :param exception_info: 异常信息
+        :param start_time: 执行开始时间
+        :param end_time: 执行结束时间
         :return: None
         """
         try:
             job_args = job_info.job_args if job_info.job_args else ''
             job_kwargs = job_info.job_kwargs if job_info.job_kwargs else '{}'
             job_trigger = str(MyCronTrigger.from_crontab(job_info.cron_expression)) if job_info.cron_expression else ''
+            run_ms = int((end_time - start_time).total_seconds() * 1000)
             job_message = (
                 f'事件类型: DirectExecution(非Leader), 任务ID: {job_info.job_id}, '
-                f'任务名称: {job_info.job_name}, 执行于{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                f'任务名称: {job_info.job_name}, 执行于{end_time.strftime("%Y-%m-%d %H:%M:%S")}, '
+                f'总共耗时：{run_ms}毫秒'
             )
             job_log = JobLogModel(
                 jobName=job_info.job_name,
@@ -822,7 +842,9 @@ class SchedulerUtil:
                 jobMessage=job_message,
                 status=status,
                 exceptionInfo=exception_info,
-                createTime=datetime.now(),
+                startTime=start_time,
+                endTime=end_time,
+                createTime=end_time,
             )
             session = cls._get_session_local()()
             try:
@@ -990,6 +1012,7 @@ class SchedulerUtil:
             kwargs = json.loads(job_info.job_kwargs) if job_info.job_kwargs else {}
             status = '0'
             exception_info = ''
+            start_time = datetime.now()
             try:
                 if iscoroutinefunction(job_func):
                     asyncio.create_task(cls._execute_async_job_with_log(job_func, job_info, args, kwargs))  # noqa: RUF006
@@ -1002,7 +1025,14 @@ class SchedulerUtil:
             finally:
                 # 同步任务记录日志（异步任务在 _execute_async_job_with_log 中记录）
                 if not iscoroutinefunction(job_func):
-                    cls._record_job_execution_log(job_info, job_executor, status, exception_info)
+                    cls._record_job_execution_log(
+                        job_info,
+                        job_executor,
+                        status,
+                        exception_info,
+                        start_time,
+                        datetime.now(),
+                    )
             return
 
         # 应用锁 worker：通过 scheduler 执行
@@ -1078,8 +1108,20 @@ class SchedulerUtil:
                     job_kwargs = json.dumps(kwargs) if kwargs else '{}'
                     # 获取任务触发器
                     job_trigger = str(query_job_info.get('trigger'))
+                    start_time = None
+                    end_time = None
+                    run_ms = None
+                    if event_type == 'JobExecutionEvent':
+                        scheduled_run_time = getattr(event, 'scheduled_run_time', None)
+                        if scheduled_run_time:
+                            start_time = scheduled_run_time.astimezone().replace(tzinfo=None)
+                        end_time = datetime.now()
+                        if start_time:
+                            run_ms = int((end_time - start_time).total_seconds() * 1000)
                     # 构造日志消息
                     job_message = f'事件类型: {event_type}, 任务ID: {job_id}, 任务名称: {job_name}, 执行于{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}'
+                    if run_ms is not None:
+                        job_message += f', 总共耗时：{run_ms}毫秒'
                     job_log = JobLogModel(
                         jobName=job_name,
                         jobGroup=job_group,
@@ -1091,6 +1133,8 @@ class SchedulerUtil:
                         jobMessage=job_message,
                         status=status,
                         exceptionInfo=exception_info,
+                        startTime=start_time,
+                        endTime=end_time,
                         createTime=datetime.now(),
                     )
                     session = cls._get_session_local()()

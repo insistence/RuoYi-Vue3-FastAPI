@@ -72,7 +72,7 @@ export function selectDictLabel(datas, value) {
   if (value === undefined) {
     return "";
   }
-  var actions = [];
+  const actions = [];
   Object.keys(datas).some((key) => {
     if (datas[key].value == ('' + value)) {
       actions.push(datas[key].label);
@@ -93,11 +93,11 @@ export function selectDictLabels(datas, value, separator) {
   if (Array.isArray(value)) {
     value = value.join(",");
   }
-  var actions = [];
-  var currentSeparator = undefined === separator ? "," : separator;
-  var temp = value.split(currentSeparator);
+  const actions = [];
+  const currentSeparator = undefined === separator ? "," : separator;
+  const temp = value.split(currentSeparator);
   Object.keys(value.split(currentSeparator)).some((val) => {
-    var match = false;
+    let match = false;
     Object.keys(datas).some((key) => {
       if (datas[key].value == ('' + temp[val])) {
         actions.push(datas[key].label + currentSeparator);
@@ -113,9 +113,10 @@ export function selectDictLabels(datas, value, separator) {
 
 // 字符串格式化(%s )
 export function sprintf(str) {
-  var args = arguments, flag = true, i = 1;
+  const args = arguments;
+  let flag = true, i = 1;
   str = str.replace(/%s/g, function () {
-    var arg = args[i++];
+    const arg = args[i++];
     if (typeof arg === 'undefined') {
       flag = false;
       return '';
@@ -135,7 +136,7 @@ export function parseStrEmpty(str) {
 
 // 数据合并
 export function mergeRecursive(source, target) {
-  for (var p in target) {
+  for (const p in target) {
     try {
       if (target[p].constructor == Object) {
         source[p] = mergeRecursive(source[p], target[p]);
@@ -208,7 +209,7 @@ export function tansParams(params) {
   let result = ''
   for (const propName of Object.keys(params)) {
     const value = params[propName];
-    var part = encodeURIComponent(propName) + "=";
+    const part = encodeURIComponent(propName) + "=";
     if (value !== null && value !== "" && typeof (value) !== "undefined") {
       if (Array.isArray(value)) {
         for (const item of value) {
@@ -219,8 +220,8 @@ export function tansParams(params) {
       } else if (typeof value === 'object') {
         for (const key of Object.keys(value)) {
           if (value[key] !== null && value[key] !== "" && typeof (value[key]) !== 'undefined') {
-            let params = propName + '[' + key + ']';
-            var subPart = encodeURIComponent(params) + "=";
+            const params = propName + '[' + key + ']';
+            const subPart = encodeURIComponent(params) + "=";
             result += subPart + encodeURIComponent(value[key]) + "&";
           }
         }

@@ -233,6 +233,22 @@ class DeptDao:
         )
 
     @classmethod
+    async def update_dept_sort_dao(cls, db: AsyncSession, dept_sort_list: list[dict[str, int]]) -> None:
+        """
+        批量更新部门显示顺序
+
+        :param db: orm对象
+        :param dept_sort_list: 部门id与显示顺序列表
+        :return:
+        """
+        await db.execute(
+            update(SysDept.__table__)
+            .where(SysDept.dept_id == bindparam('_dept_id'))
+            .values(order_num=bindparam('_order_num')),
+            [{'_dept_id': item['dept_id'], '_order_num': item['order_num']} for item in dept_sort_list],
+        )
+
+    @classmethod
     async def update_dept_status_normal_dao(cls, db: AsyncSession, dept_id_list: list) -> None:
         """
         批量更新部门状态为正常
