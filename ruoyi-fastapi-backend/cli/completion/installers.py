@@ -14,6 +14,7 @@ from cli.completion.providers import COMPLETION_PROVIDER_GATEWAY, CompletionProv
 from cli.completion.shells import PowerShellComplete, ensure_custom_completion_classes_registered
 from cli.exit_codes import ARGUMENT_ERROR, RUNTIME_ERROR
 from cli.metadata import COMPLETION_SHELL_SPEC_REGISTRY, CompletionShellSpec, CompletionShellSpecRegistry
+from cli.utils import format_cli_path
 
 CLICK_COMPLETE_ENV_VAR = '_RUOYI_COMPLETE'
 
@@ -321,7 +322,7 @@ class CompletionInstallerService:
         :return: 激活命令文本
         """
         runtime_policy = self.resolve_shell_runtime_policy(shell)
-        return runtime_policy.source_command_builder(target_file)
+        return runtime_policy.source_command_builder(format_cli_path(target_file))
 
     @staticmethod
     def detect_active_shell() -> str:

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from cli.runtime.base import RuntimeEnvironmentService
+from cli.utils import format_cli_path
 
 from .gateway import AppInfrastructureGateway
 
@@ -83,8 +84,8 @@ class AppSnapshotSupport:
             'configEnv': app_config.app_env,
             'appEnv': os.environ.get('APP_ENV', ''),
             'envFile': env_file_name,
-            'envFilePath': str(env_file_path),
+            'envFilePath': format_cli_path(env_file_path),
             'envFileExists': env_file_path.exists(),
-            'backendDir': str(backend_dir),
+            'backendDir': format_cli_path(backend_dir),
             'pythonExecutable': self.runtime_environment.get_python_executable(),
         }

@@ -114,7 +114,7 @@ class DangerousCommandConfirmationService:
         if ctx.yes:
             return None
 
-        if not sys.stdin.isatty():
+        if not sys.stdin.isatty() or not sys.stdout.isatty():
             return self.result_builder.build_guard_reject_result(
                 f'已取消危险命令执行：{command_name}',
                 '当前命令需要交互确认；如需非交互执行，请传入 --yes',

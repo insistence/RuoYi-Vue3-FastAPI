@@ -15,6 +15,17 @@ _SNAKE_CASE_BOUNDARY_PATTERN = re.compile(r'(?<!^)(?=[A-Z])')
 _ANSI_ESCAPE_PATTERN = re.compile(r'\x1b\[[0-9;?]*[ -/]*[@-~]')
 
 
+def format_cli_path(path: Path | str) -> str:
+    """
+    格式化 CLI 对外展示路径。
+
+    Windows 绝对路径保留盘符和原生格式；无盘符路径使用 POSIX 分隔符，
+    以保证虚拟 Unix 路径和跨平台 payload 的稳定性。
+    """
+    path_object = Path(path)
+    return str(path_object) if path_object.drive else path_object.as_posix()
+
+
 @dataclass(frozen=True)
 class NestedCliResult:
     """

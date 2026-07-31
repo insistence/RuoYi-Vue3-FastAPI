@@ -13,6 +13,7 @@ from cli.metadata import (
     CompletionShellSpecRegistry,
     EnvironmentOptionService,
 )
+from cli.utils import format_cli_path
 
 DEFAULT_ALEMBIC_REVISION_CHOICES = ('head', 'base', 'current', '-1')
 DYNAMIC_COMPLETION_TIMEOUT_SECONDS = 0.8
@@ -118,9 +119,9 @@ class CompletionContextResolver:
         """
         try:
             relative_path = path.relative_to(project_dir)
-            return str(relative_path) or '.'
+            return format_cli_path(relative_path) or '.'
         except ValueError:
-            return str(path)
+            return format_cli_path(path)
 
 
 @dataclass

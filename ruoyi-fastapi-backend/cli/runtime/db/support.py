@@ -1,9 +1,11 @@
 import os
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from cli.exit_codes import DATABASE_ERROR
 from cli.runtime.base import RuntimeEnvironmentService
+from cli.utils import format_cli_path
 
 from .gateway import DatabaseInfrastructureGateway
 
@@ -72,7 +74,7 @@ class DatabaseRevisionSupport:
             'branchLabels': sorted(str(item) for item in script_revision.branch_labels or []),
             'dependsOn': self.normalize_revision_value(script_revision.dependencies),
             'doc': (script_revision.doc or '').strip(),
-            'path': str(script_revision.path),
+            'path': format_cli_path(script_revision.path),
         }
 
 
@@ -103,7 +105,7 @@ class DatabaseAlembicCommandSupport:
         :param arguments: Alembic 子命令参数列表
         :return: Alembic 命令参数列表
         """
-        alembic_ini_path = os.path.join(self.runtime_environment.get_backend_dir(), 'alembic.ini')
+        alembic_ini_path = format_cli_path(Path(self.runtime_environment.get_backend_dir()) / 'alembic.ini')
         return ['alembic', '-c', alembic_ini_path, command, *arguments]
 
     def run_alembic_command(
