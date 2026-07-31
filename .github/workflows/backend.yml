@@ -9,6 +9,9 @@ on:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    env:
+      # Typer otherwise forces ANSI help output when GITHUB_ACTIONS is set.
+      _TYPER_FORCE_DISABLE_TERMINAL: "1"
     strategy:
       fail-fast: false
       matrix:
