@@ -1,13 +1,16 @@
 import io
+import re
 from datetime import datetime
 from typing import Any
 
 import pandas as pd
 from fastapi import Request, UploadFile
+from redis import asyncio as aioredis
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant
+from common.enums import PasswordCharacterType
 from common.vo import CrudResponseModel, PageModel
 from exceptions.exception import ServiceException
 from module_admin.dao.user_dao import UserDao
@@ -45,6 +48,40 @@ class UserService:
     """
     用户管理模块服务层
     """
+
+    PASSWORD_MIN_LENGTH = 6
+    PASSWORD_MAX_LENGTH = 20
+
+    @classmethod
+    async def validate_password_services(
+        cls,
+        redis: aioredis.Redis,
+        password: str | None,
+        pwd_chrtype: PasswordCharacterType | str | None = None,
+    ) -> None:
+        """
+        校验密码是否符合系统密码策略。
+
+        :param redis: redis对象
+        :param password: 明文密码
+        :param pwd_chrtype: 指定密码字符范围，未指定时读取系统配置
+        :return: None
+        """
+        if pwd_chrtype is None:
+            pwd_chrtype = await ConfigService.query_config_list_from_cache_services(redis, 'sys.account.chrtype')
+        password_character_type = (
+            pwd_chrtype
+            if isinstance(pwd_chrtype, PasswordCharacterType)
+            else PasswordCharacterType.from_code(pwd_chrtype)
+        )
+
+        if not password:
+            raise ServiceException(message='密码不能为空')
+        if len(password) < cls.PASSWORD_MIN_LENGTH or len(password) > cls.PASSWORD_MAX_LENGTH:
+            raise ServiceException(message='密码长度必须介于 6 和 20 之间')
+
+        if not re.fullmatch(password_character_type.pattern, password):
+            raise ServiceException(message=password_character_type.message)
 
     @classmethod
     async def get_user_list_services(
@@ -427,6 +464,10 @@ class UserService:
         df.rename(columns=header_dict, inplace=True)
         add_error_result = []
         count = 0
+        init_password = await ConfigService.query_config_list_from_cache_services(
+            request.app.state.redis, 'sys.user.initPassword'
+        )
+        await cls.validate_password_services(request.app.state.redis, init_password)
         try:
             for _index, row in df.iterrows():
                 count = count + 1
@@ -435,11 +476,7 @@ class UserService:
                 add_user = UserModel(
                     deptId=row['dept_id'],
                     userName=row['user_name'],
-                    password=PwdUtil.get_password_hash(
-                        await ConfigService.query_config_list_from_cache_services(
-                            request.app.state.redis, 'sys.user.initPassword'
-                        )
-                    ),
+                    password=PwdUtil.get_password_hash(init_password),
                     nickName=row['nick_name'],
                     email=row['email'],
                     phonenumber=str(row['phonenumber']),

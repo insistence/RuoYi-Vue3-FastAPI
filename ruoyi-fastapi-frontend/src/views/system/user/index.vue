@@ -348,6 +348,7 @@
               v-if="form.userId == undefined"
               label="用户密码"
               prop="password"
+              :rules="pwdValidator"
             >
               <el-input
                 v-model="form.password"
@@ -452,6 +453,7 @@
 import TreePanel from "@/components/TreePanel";
 import ExcelImportDialog from "@/components/ExcelImportDialog";
 import UserViewDrawer from "./view";
+import { usePasswordRule } from "@/utils/passwordRule";
 import {
   changeUserStatus,
   listUser,
@@ -465,6 +467,7 @@ import {
 
 const router = useRouter();
 const { proxy } = getCurrentInstance();
+const { pwdValidator, pwdPromptValidator } = usePasswordRule();
 const { sys_normal_disable, sys_user_sex } = proxy.useDict(
   "sys_normal_disable",
   "sys_user_sex"
@@ -519,20 +522,6 @@ const data = reactive({
     ],
     nickName: [
       { required: true, message: "用户昵称不能为空", trigger: "blur" },
-    ],
-    password: [
-      { required: true, message: "用户密码不能为空", trigger: "blur" },
-      {
-        min: 5,
-        max: 20,
-        message: "用户密码长度必须介于 5 和 20 之间",
-        trigger: "blur",
-      },
-      {
-        pattern: /^[^<>"'|\\]+$/,
-        message: "不能包含非法字符：< > \" ' \\\ |",
-        trigger: "blur",
-      },
     ],
     email: [
       {
@@ -663,17 +652,11 @@ function handleAuthRole(row) {
 /** 重置密码按钮操作 */
 function handleResetPwd(row) {
   proxy
-    .$prompt('请输入"' + row.userName + '"的新密码', "提示", {
+    .$prompt(`请输入「${row.userName}」的新密码`, "重置密码", {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
       closeOnClickModal: false,
-      inputPattern: /^.{5,20}$/,
-      inputErrorMessage: "用户密码长度必须介于 5 和 20 之间",
-      inputValidator: (value) => {
-        if (/<|>|"|'|\||\\/.test(value)) {
-          return "不能包含非法字符：< > \" ' \\\ |";
-        }
-      },
+      inputValidator: pwdPromptValidator,
     })
     .then(({ value }) => {
       resetUserPwd(row.userId, value).then(() => {

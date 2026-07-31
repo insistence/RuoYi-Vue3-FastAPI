@@ -119,6 +119,16 @@ def test_builtin_sql_contains_notice_read_schema() -> None:
         assert sql_content.index('create table sys_notice') < sql_content.index('create table sys_notice_read')
 
 
+def test_builtin_sql_contains_password_character_type_config() -> None:
+    """校验内置 SQL 包含密码字符范围参数，且不与已有配置 ID 冲突。"""
+    for sql_path, _quote in SQL_FILES:
+        sql_content = read_sql(sql_path)
+        config_line = next(line for line in sql_content.splitlines() if "'sys.account.chrtype'" in line)
+        assert 'values(10,' in config_line
+        assert "'0'" in config_line
+        assert sql_content.count("'sys.account.chrtype'") == 1
+
+
 def test_builtin_sql_contains_job_log_execution_time_columns() -> None:
     """校验内置 SQL 的调度日志表使用毫秒精度记录执行时间。"""
     for sql_path, _quote in SQL_FILES:

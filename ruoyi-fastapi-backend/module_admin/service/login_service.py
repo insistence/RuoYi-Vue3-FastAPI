@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant, MenuConstant
 from common.context import RequestContext
-from common.enums import RedisInitKeyConfig
+from common.enums import PasswordCharacterType, RedisInitKeyConfig
 from common.vo import CrudResponseModel
 from config.env import AppConfig, JwtConfig
 from config.get_db import get_db
@@ -279,6 +279,7 @@ class LoginService:
             is_password_expired = await cls.__password_is_expired(
                 request, query_user.get('user_basic_info').pwd_update_date
             )
+            pwd_chrtype = await cls.get_sys_account_chrtype(request)
 
             current_user = CurrentUserModel(
                 permissions=permissions,
@@ -290,6 +291,7 @@ class LoginService:
                     dept=CamelCaseUtil.transform_result(query_user.get('user_dept_info')),
                     role=CamelCaseUtil.transform_result(query_user.get('user_role_info')),
                 ),
+                pwdChrtype=pwd_chrtype,
                 isDefaultModifyPwd=is_default_modify_pwd,
                 isPasswordExpired=is_password_expired,
             )
@@ -298,6 +300,18 @@ class LoginService:
             return current_user
         logger.warning('用户token已失效，请重新登录')
         raise AuthException(data='', message='用户token已失效，请重新登录')
+
+    @classmethod
+    async def get_sys_account_chrtype(cls, request: Request) -> str:
+        """
+        获取用户密码字符范围配置
+
+        :param request: Request对象
+        :return: 密码字符范围配置
+        """
+        pwd_chrtype = await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.chrtype')
+
+        return pwd_chrtype or '0'
 
     @classmethod
     async def __init_password_is_modify(cls, request: Request, pwd_update_date: datetime) -> bool:
@@ -471,6 +485,9 @@ class LoginService:
                         raise ServiceException(message='验证码已失效')
                     if user_register.code != str(captcha_value):
                         raise ServiceException(message='验证码错误')
+                await UserService.validate_password_services(
+                    request.app.state.redis, user_register.password, PasswordCharacterType.DEFAULT
+                )
                 add_user = AddUserModel(
                     userName=user_register.username,
                     nickName=user_register.username,
@@ -525,6 +542,9 @@ class LoginService:
             f'{RedisInitKeyConfig.SMS_CODE.key}:{forget_user.session_id}'
         )
         if forget_user.sms_code == redis_sms_result:
+            await UserService.validate_password_services(
+                request.app.state.redis, forget_user.password, PasswordCharacterType.DEFAULT
+            )
             forget_user.password = PwdUtil.get_password_hash(forget_user.password)
             forget_user.user_id = (await UserDao.get_user_by_name(query_db, forget_user.user_name)).user_id
             edit_result = await UserService.reset_user_services(query_db, forget_user)
