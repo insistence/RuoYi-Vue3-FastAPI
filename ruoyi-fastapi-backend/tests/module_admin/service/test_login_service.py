@@ -1,10 +1,12 @@
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+import jwt
 import pytest
 
 from common.enums import PasswordCharacterType
-from exceptions.exception import ServiceException
+from config.env import JwtConfig
+from exceptions.exception import AuthException, ServiceException
 from module_admin.dao.user_dao import UserDao
 from module_admin.entity.vo.login_vo import UserRegister
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -33,6 +35,24 @@ def test_current_user_model_exposes_password_character_type_alias() -> None:
     current_user = CurrentUserModel(permissions=[], roles=[], user=None, pwdChrtype='3')
 
     assert current_user.model_dump(by_alias=True)['pwdChrtype'] == '3'
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_rejects_malformed_user_id_claim() -> None:
+    token = jwt.encode(
+        {'user_id': 'invalid', 'session_id': 'session-id'},
+        JwtConfig.jwt_secret_key,
+        algorithm=JwtConfig.jwt_algorithm,
+    )
+
+    with (
+        patch.object(UserDao, 'get_user_by_id', new_callable=AsyncMock) as get_user,
+        pytest.raises(AuthException) as exc_info,
+    ):
+        await LoginService.get_current_user(SimpleNamespace(), token, object())
+
+    assert exc_info.value.message == '用户token已失效，请重新登录'
+    get_user.assert_not_awaited()
 
 
 @pytest.mark.asyncio
