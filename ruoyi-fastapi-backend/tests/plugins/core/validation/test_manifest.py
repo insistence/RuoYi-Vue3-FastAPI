@@ -12,8 +12,8 @@ def write_project_versions(backend_root: Path, frontend_root: Path) -> None:
     """写入测试项目版本文件。"""
     backend_root.mkdir(parents=True)
     frontend_root.mkdir(parents=True)
-    (backend_root / 'pyproject.toml').write_text('[project]\nversion = "1.9.0"\n', encoding='utf-8')
-    (frontend_root / 'package.json').write_text('{"version": "1.9.0"}\n', encoding='utf-8')
+    (backend_root / 'pyproject.toml').write_text('[project]\nversion = "1.10.0"\n', encoding='utf-8')
+    (frontend_root / 'package.json').write_text('{"version": "1.10.0"}\n', encoding='utf-8')
 
 
 def test_manifest_rejects_hyphenated_plugin_ids() -> None:
