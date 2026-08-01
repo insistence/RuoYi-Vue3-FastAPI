@@ -54,12 +54,14 @@ plugins/ai/
 涉及的主要依赖：
 
 - `markstream-vue`
+- `stream-diffs`
 - `stream-markdown`
 - `stream-monaco`
 - `shiki`
 - `mermaid`
 - `katex`
 - `@antv/infographic`
+- `@terrastruct/d2`
 - `vite-plugin-monaco-editor-esm`
 
 ## 开发约定

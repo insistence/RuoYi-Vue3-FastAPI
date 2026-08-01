@@ -41,18 +41,18 @@ jobs:
       - name: Install AI plugin dependencies
         run: |
           pip install \
-            agno==2.4.8 \
-            anthropic==0.78.0 \
-            cerebras-cloud-sdk==1.67.0 \
-            cohere==5.20.4 \
-            google-genai==1.62.0 \
-            groq==1.0.0 \
-            litellm==1.81.8 \
+            agno==2.8.6 \
+            anthropic==0.120.2 \
+            cerebras-cloud-sdk==1.91.0 \
+            cohere==7.0.8 \
+            google-genai==2.16.0 \
+            groq==1.6.0 \
+            litellm==1.94.0 \
             llama-api-client==0.6.0 \
-            mistralai==1.12.0 \
-            ollama==0.6.1 \
-            openai==2.17.0 \
-            portkey-ai==2.1.0
+            mistralai==2.8.0 \
+            ollama==0.6.2 \
+            openai==2.52.0 \
+            portkey-ai==2.3.4
 
       - name: Run backend tests
         run: pytest -q

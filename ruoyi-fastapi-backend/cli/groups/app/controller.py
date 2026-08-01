@@ -1,7 +1,7 @@
 from collections import defaultdict
 from typing import Any
 
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 
 from cli.bootstrap import APP_BOOTSTRAP, AppBootstrapService
 from cli.core import (
@@ -197,25 +197,26 @@ class AppCommandController:
         """
         normalized_method = method.upper().strip()
         routes = []
-        for route in app_instance.routes:
-            if not isinstance(route, APIRoute):
+        for route_context in iter_route_contexts(app_instance.routes):
+            if not isinstance(route_context.original_route, APIRoute):
                 continue
-            if not include_hidden and not route.include_in_schema:
+            if not include_hidden and not route_context.include_in_schema:
                 continue
-            if path_prefix and not route.path.startswith(path_prefix):
+            route_path = route_context.path or ''
+            if path_prefix and not route_path.startswith(path_prefix):
                 continue
-            route_methods = sorted(item for item in route.methods if item not in {'HEAD', 'OPTIONS'})
+            route_methods = sorted(item for item in (route_context.methods or set()) if item not in {'HEAD', 'OPTIONS'})
             if normalized_method and normalized_method not in route_methods:
                 continue
             routes.append(
                 {
-                    'path': route.path,
+                    'path': route_path,
                     'methods': route_methods,
-                    'name': route.name,
-                    'summary': route.summary or '',
-                    'operationId': route.operation_id or '',
-                    'tags': route.tags or [],
-                    'includeInSchema': route.include_in_schema,
+                    'name': route_context.name,
+                    'summary': route_context.summary or '',
+                    'operationId': route_context.operation_id or '',
+                    'tags': route_context.tags or [],
+                    'includeInSchema': route_context.include_in_schema,
                 }
             )
         return sorted(routes, key=lambda item: (item['path'], ','.join(item['methods'])))
