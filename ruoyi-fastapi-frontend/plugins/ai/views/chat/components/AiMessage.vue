@@ -11,11 +11,23 @@
         >
       </div>
       <div v-show="isReasoningExpanded" class="reasoning-content">
-        <MarkdownRender :content="reasoningContent" :is-dark="isDark" />
+        <MarkdownRender
+          :content="reasoningContent"
+          :is-dark="isDark"
+          :final="!loading"
+          mode="chat"
+          code-renderer="shiki"
+        />
       </div>
     </div>
     <div class="ai-message-content">
-      <MarkdownRender :content="content" :is-dark="isDark" />
+      <MarkdownRender
+        :content="content"
+        :is-dark="isDark"
+        :final="!loading"
+        mode="chat"
+        code-renderer="shiki"
+      />
     </div>
     <div
       v-if="loading && !content && !reasoningContent"
