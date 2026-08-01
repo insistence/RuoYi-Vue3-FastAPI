@@ -1,13 +1,49 @@
 from types import SimpleNamespace
 
+from fastapi import APIRouter, FastAPI
 from pytest import MonkeyPatch
 
+from cli.groups.app.controller import AppCommandController
 from cli.runtime.app import AppRuntimeService
 from cli.runtime.app.gateway import AppInfrastructureGateway
 from cli.runtime.app.support import AppSnapshotSupport
 from cli.runtime.base import RuntimeEnvironmentService
 
 REDIS_PORT = 6379
+
+
+def _build_app_with_included_router() -> FastAPI:
+    app = FastAPI()
+    router = APIRouter()
+
+    @router.get(
+        '/visible',
+        name='visible_route',
+        summary='Visible route',
+        operation_id='visibleRoute',
+        tags=['route'],
+    )
+    async def visible_route() -> dict[str, bool]:
+        return {'ok': True}
+
+    @router.get('/hidden', include_in_schema=False)
+    async def hidden_route() -> dict[str, bool]:
+        return {'ok': True}
+
+    app.include_router(router, prefix='/api', tags=['included'])
+    return app
+
+
+def _expected_visible_route() -> dict[str, object]:
+    return {
+        'path': '/api/visible',
+        'methods': ['GET'],
+        'name': 'visible_route',
+        'summary': 'Visible route',
+        'operationId': 'visibleRoute',
+        'tags': ['included', 'route'],
+        'includeInSchema': True,
+    }
 
 
 class FakeRuntimeEnvironment(RuntimeEnvironmentService):
@@ -159,3 +195,37 @@ def test_app_runtime_service_builds_app_instance() -> None:
     payload = service.build_app_instance()
 
     assert payload == {'app': 'ok'}
+
+
+def test_app_runtime_service_expands_included_router_routes() -> None:
+    app = _build_app_with_included_router()
+    gateway = AppInfrastructureGateway()
+    service = AppRuntimeService(
+        runtime_environment=FakeRuntimeEnvironment(),
+        infrastructure_gateway=gateway,
+    )
+    fake_server_module = SimpleNamespace(create_app=lambda: app)
+
+    def _fake_get_server_module() -> SimpleNamespace:
+        return fake_server_module
+
+    object.__setattr__(gateway, 'get_server_module', _fake_get_server_module)
+
+    payload = service.get_app_routes_snapshot('dev')
+    hidden_payload = service.get_app_routes_snapshot('dev', include_hidden=True)
+
+    assert payload['routes'] == [_expected_visible_route()]
+    assert payload['count'] == 1
+    assert [route['path'] for route in hidden_payload['routes']] == ['/api/hidden', '/api/visible']
+    assert [route['includeInSchema'] for route in hidden_payload['routes']] == [False, True]
+
+
+def test_app_command_controller_serializes_included_router_routes() -> None:
+    app = _build_app_with_included_router()
+
+    routes = AppCommandController._serialize_routes(app)
+    hidden_routes = AppCommandController._serialize_routes(app, include_hidden=True)
+
+    assert routes == [_expected_visible_route()]
+    assert [route['path'] for route in hidden_routes] == ['/api/hidden', '/api/visible']
+    assert [route['includeInSchema'] for route in hidden_routes] == [False, True]
