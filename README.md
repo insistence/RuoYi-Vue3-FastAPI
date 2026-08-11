@@ -1,5 +1,5 @@
 <h1 align="center">
-    <img alt="logo" src="https://oscimg.oschina.net/oscnet/up-d3d0a9303e11d522a06cd263f3079027715.png">
+    <img alt="logo" src="./ruoyi-fastapi-frontend/src/assets/logo/logo.png">
 </h1>
 <h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">RuoYi-Vue3-FastAPI</h1>
 <h4 align="center">基于RuoYi-Vue3+FastAPI前后端分离的快速开发框架</h4>
