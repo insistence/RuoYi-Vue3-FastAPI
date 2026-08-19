@@ -818,6 +818,7 @@ def test_build_dependency_startup_error_message_uses_current_environment(
 ) -> None:
     """校验启动依赖失败提示使用当前应用环境构建可执行命令。"""
     monkeypatch.setattr('plugins.core.runtime.startup.AppConfig.app_env', 'stage')
+    monkeypatch.setattr('plugins.core.runtime.startup.get_config.run_env', 'stage')
 
     error_message = PluginRuntimeStartupManager._build_dependency_startup_error_message(
         'demo',
@@ -830,13 +831,14 @@ def test_build_dependency_startup_error_message_uses_current_environment(
     )
 
 
-@pytest.mark.parametrize('app_env', ['prod', 'dockermy', 'dockerpg'])
+@pytest.mark.parametrize('run_env', ['prod', 'dockermy', 'dockerpg'])
 def test_build_dependency_startup_error_message_builds_executable_prod_command(
     monkeypatch: pytest.MonkeyPatch,
-    app_env: str,
+    run_env: str,
 ) -> None:
     """校验生产及 Docker 启动依赖失败提示包含 CLI 安装所需的显式授权参数。"""
-    monkeypatch.setattr('plugins.core.runtime.startup.AppConfig.app_env', app_env)
+    monkeypatch.setattr('plugins.core.runtime.startup.AppConfig.app_env', 'prod')
+    monkeypatch.setattr('plugins.core.runtime.startup.get_config.run_env', run_env)
 
     error_message = PluginRuntimeStartupManager._build_dependency_startup_error_message(
         'demo',
@@ -845,7 +847,7 @@ def test_build_dependency_startup_error_message_builds_executable_prod_command(
 
     assert error_message == (
         '插件启动依赖检查失败：Python 依赖未安装：example-package；'
-        f'安装依赖请执行：ruoyi plugin install-deps demo --env={app_env} --yes '
+        f'安装依赖请执行：ruoyi plugin install-deps demo --env={run_env} --yes '
         '--allow-prod --allow-unlisted --no-require-lockfile'
     )
 

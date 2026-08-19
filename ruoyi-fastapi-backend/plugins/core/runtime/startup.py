@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from common.router import auto_register_controller_files
 from config.database import AsyncSessionLocal
-from config.env import AppConfig
+from config.env import AppConfig, get_config
 from config.get_db import get_db
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
 from plugins.core.lifecycle.migration import (
@@ -38,8 +38,6 @@ from plugins.core.validation.dependencies import (
 )
 from plugins.core.validation.structure import PluginStructureChecker
 from utils.log_util import logger
-
-PRODUCTION_DEPLOYMENT_ENVIRONMENTS = frozenset({'prod', 'dockermy', 'dockerpg'})
 
 
 class PluginStartupMigrationHistoryStore(PluginMigrationHistoryStore):
@@ -478,15 +476,16 @@ class PluginRuntimeStartupManager:
         :param failed_messages: 依赖检查失败消息
         :return: 启动依赖检查失败消息
         """
+        run_env = get_config.run_env
         install_command_parts = [
             'ruoyi',
             'plugin',
             'install-deps',
             plugin_id,
-            f'--env={AppConfig.app_env}',
+            f'--env={run_env}',
             '--yes',
         ]
-        if AppConfig.app_env in PRODUCTION_DEPLOYMENT_ENVIRONMENTS:
+        if AppConfig.app_env == 'prod':
             install_command_parts.extend(
                 [
                     '--allow-prod',
