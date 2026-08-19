@@ -172,7 +172,7 @@ class FakeCoreRuntime:
         self.config_set_calls.append({'plugin_id': plugin_id, 'values': values})
         return {'ok': False, 'message': '插件配置更新失败', 'pluginId': plugin_id, 'values': values}
 
-    def install_plugin_dependencies(
+    def install_plugin_dependencies_from_cli(
         self,
         plugin_id: str,
         *,
@@ -181,7 +181,7 @@ class FakeCoreRuntime:
         confirmed: bool = False,
         output_callback: object | None = None,
     ) -> dict[str, Any]:
-        """返回依赖安装测试结果。"""
+        """返回 CLI 依赖安装测试结果。"""
         self.dependency_install_calls.append(
             {
                 'plugin_id': plugin_id,
@@ -408,6 +408,7 @@ def test_install_plugin_dependencies_passes_policy_config_to_runtime() -> None:
             policy_mode='locked',
             allow_unlisted=True,
             lockfile='plugins/demo/plugin.lock.yaml',
+            allowlist='config/plugin_dependency_allowlist.yaml',
             offline_dir='artifacts/plugin-dependencies',
             require_lockfile=True,
         ),
@@ -419,8 +420,12 @@ def test_install_plugin_dependencies_passes_policy_config_to_runtime() -> None:
     assert policy_config.mode == 'locked'
     assert policy_config.env == 'stage'
     assert policy_config.allow_prod is True
+    assert policy_config.allow_prod_install is True
+    assert policy_config.require_yes is True
     assert policy_config.allow_unlisted is True
+    assert policy_config.require_allowlist is False
     assert str(policy_config.lockfile_path) == 'plugins/demo/plugin.lock.yaml'
+    assert str(policy_config.allowlist_path) == 'config/plugin_dependency_allowlist.yaml'
     assert str(policy_config.offline_dir) == 'artifacts/plugin-dependencies'
     assert policy_config.require_lockfile is True
     assert len(plugin_runtime.core_runtime.dependency_install_calls) == 1

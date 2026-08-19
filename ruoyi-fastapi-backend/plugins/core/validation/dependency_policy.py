@@ -75,6 +75,7 @@ class DependencyInstallPolicyConfig:
         allow_prod: bool = False,
         allow_unlisted: bool = False,
         lockfile_path: Path | str | None = None,
+        allowlist_path: Path | str | None = None,
         offline_dir: Path | str | None = None,
         require_lockfile: bool | None = None,
     ) -> 'DependencyInstallPolicyConfig':
@@ -86,6 +87,7 @@ class DependencyInstallPolicyConfig:
         :param allow_prod: 是否允许生产环境危险安装
         :param allow_unlisted: 是否允许 dev 环境未命中 allowlist 的依赖仅告警
         :param lockfile_path: 锁文件路径
+        :param allowlist_path: 依赖允许列表路径
         :param offline_dir: 离线制品目录
         :param require_lockfile: 是否要求锁文件
         :return: 策略配置
@@ -129,7 +131,8 @@ class DependencyInstallPolicyConfig:
             offline_dir=offline_dir
             or cls._read_value(settings, 'plugin_dependency_offline_dir', 'PLUGIN_DEPENDENCY_OFFLINE_DIR')
             or None,
-            allowlist_path=cls._read_value(settings, 'plugin_dependency_allowlist', 'PLUGIN_DEPENDENCY_ALLOWLIST')
+            allowlist_path=allowlist_path
+            or cls._read_value(settings, 'plugin_dependency_allowlist', 'PLUGIN_DEPENDENCY_ALLOWLIST')
             or None,
             pip_index_url=cls._read_value(
                 settings, 'plugin_dependency_pip_index_url', 'PLUGIN_DEPENDENCY_PIP_INDEX_URL'
@@ -143,6 +146,53 @@ class DependencyInstallPolicyConfig:
                 settings=settings,
                 default=600,
             ),
+        )
+
+    @classmethod
+    def from_cli_environment(
+        cls,
+        *,
+        env: str,
+        mode: DependencyInstallPolicyMode | None = None,
+        allow_prod: bool = False,
+        allow_unlisted: bool = False,
+        lockfile_path: Path | str | None = None,
+        allowlist_path: Path | str | None = None,
+        offline_dir: Path | str | None = None,
+        require_lockfile: bool | None = None,
+    ) -> 'DependencyInstallPolicyConfig':
+        """
+        为 CLI 依赖安装入口构建策略配置。
+
+        CLI 通道授权由专用运行时入口、``--allow-prod`` 和显式确认负责，
+        不继承全局环境中的 plan_only、生产安装开关和确认开关。允许列表、
+        锁文件、离线制品、registry 和超时等供应链配置仍从环境读取。
+
+        :param env: 当前命令运行环境
+        :param mode: CLI 显式策略模式，默认使用 explicit
+        :param allow_prod: 是否显式允许生产环境安装
+        :param allow_unlisted: 是否允许未命中 allowlist 的依赖仅告警
+        :param lockfile_path: 锁文件路径
+        :param allowlist_path: 依赖允许列表路径
+        :param offline_dir: 离线制品目录
+        :param require_lockfile: 是否要求锁文件
+        :return: CLI 依赖安装策略配置
+        """
+        config = cls.from_environment(
+            env=env,
+            mode=mode or 'explicit',
+            allow_prod=allow_prod,
+            allow_unlisted=allow_unlisted,
+            lockfile_path=lockfile_path,
+            allowlist_path=allowlist_path,
+            offline_dir=offline_dir,
+            require_lockfile=require_lockfile,
+        )
+        return replace(
+            config,
+            allow_prod_install=True,
+            require_yes=True,
+            require_allowlist=False if allow_unlisted else config.require_allowlist,
         )
 
     @staticmethod

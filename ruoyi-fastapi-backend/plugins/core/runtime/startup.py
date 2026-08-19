@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from common.router import auto_register_controller_files
 from config.database import AsyncSessionLocal
-from config.env import AppConfig
+from config.env import AppConfig, get_config
 from config.get_db import get_db
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
 from plugins.core.lifecycle.migration import (
@@ -476,7 +476,24 @@ class PluginRuntimeStartupManager:
         :param failed_messages: 依赖检查失败消息
         :return: 启动依赖检查失败消息
         """
-        install_command = f'ruoyi plugin install-deps {plugin_id} --env={AppConfig.app_env} --yes'
+        run_env = get_config.run_env
+        install_command_parts = [
+            'ruoyi',
+            'plugin',
+            'install-deps',
+            plugin_id,
+            f'--env={run_env}',
+            '--yes',
+        ]
+        if AppConfig.app_env == 'prod':
+            install_command_parts.extend(
+                [
+                    '--allow-prod',
+                    '--allow-unlisted',
+                    '--no-require-lockfile',
+                ]
+            )
+        install_command = ' '.join(install_command_parts)
         return (
             f'{PLUGIN_STARTUP_DEPENDENCY_ERROR_PREFIX}{"；".join(failed_messages)}；安装依赖请执行：{install_command}'
         )
@@ -711,7 +728,8 @@ class PluginRuntimeStartupManager:
         使用独立事务执行单个插件的启动期安装生命周期。
 
         启动期首次安装与管理端安装保持相同的关键步骤：结构校验、发现状态写入、
-        资源同步、migration、seed、on_install 钩子和最终安装状态写入。
+        资源同步、migration、seed、on_install 钩子和最终安装状态写入。非开发环境
+        部署的是已构建前端，启动期仅校验后端结构，不依赖前端源码目录。
 
         :param discovered_plugin: 已发现插件对象
         :param enabled: 插件资源是否启用
@@ -769,7 +787,10 @@ class PluginRuntimeStartupManager:
         result = PluginStructureChecker(
             self.builder.backend_root,
             self.builder.frontend_plugins_root,
-        ).check(discovered_plugin)
+        ).check(
+            discovered_plugin,
+            include_frontend=AppConfig.app_env == 'dev',
+        )
         if result.ok:
             return
         messages = '；'.join(item.message for item in result.failed_items)

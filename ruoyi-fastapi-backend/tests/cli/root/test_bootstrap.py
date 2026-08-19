@@ -1,9 +1,45 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
+
+
+def test_config_env_loads_app_env_from_selected_run_env() -> None:
+    """校验 run_env 只负责选文件，APP_ENV 使用文件内声明值。"""
+    script = """
+import json
+import os
+import sys
+
+sys.path.insert(0, '.')
+from config.env import AppConfig, get_config
+
+print(json.dumps({
+    'runEnv': get_config.run_env,
+    'appEnv': AppConfig.app_env,
+    'processAppEnv': os.environ.get('APP_ENV'),
+}, ensure_ascii=False))
+"""
+    process_env = dict(os.environ)
+    process_env.pop('APP_ENV', None)
+    completed = subprocess.run(
+        [sys.executable, '-c', script, '--env', 'dockermy'],
+        cwd=BACKEND_DIR,
+        env=process_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == {
+        'runEnv': 'dockermy',
+        'appEnv': 'prod',
+        'processAppEnv': 'prod',
+    }
 
 
 def test_bootstrap_import_does_not_eagerly_load_heavy_runtime_modules() -> None:

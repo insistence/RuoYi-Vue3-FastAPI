@@ -268,7 +268,7 @@ class GetConfig:
     """
 
     def __init__(self) -> None:
-        self.parse_cli_args()
+        self.run_env = self.parse_cli_args()
 
     def get_app_config(self) -> AppSettings:
         """
@@ -331,18 +331,23 @@ class GetConfig:
         return UploadSettings()
 
     @staticmethod
-    def parse_cli_args() -> None:
+    def parse_cli_args() -> str:
         """
-        解析命令行参数
+        解析命令行参数并加载对应环境配置。
+
+        ``run_env`` 用于选择 ``.env.*`` 配置文件，实际应用环境以配置
+        文件中的 ``APP_ENV`` 为准。
+
+        :return: 当前加载的运行环境配置名称
         """
+        run_env = os.environ.get('APP_ENV', '')
         # 检查是否在alembic环境中运行，如果是则跳过参数解析
         if 'alembic' in sys.argv[0] or any('alembic' in arg for arg in sys.argv):
             ini_config = configparser.ConfigParser()
             ini_config.read('alembic.ini', encoding='utf-8')
             if 'settings' in ini_config:
                 # 获取env选项
-                env_value = ini_config['settings'].get('env')
-                os.environ['APP_ENV'] = env_value if env_value else 'dev'
+                run_env = ini_config['settings'].get('env') or run_env
         elif 'uvicorn' in sys.argv[0]:
             # 使用uvicorn启动时，命令行参数需要按照uvicorn的文档进行配置，无法自定义参数
             pass
@@ -352,17 +357,13 @@ class GetConfig:
             parser.add_argument('--env', type=str, default='', help='运行环境')
             # 解析命令行参数
             args, _ = parser.parse_known_args()
-            # 设置环境变量，如果未设置命令行参数，默认APP_ENV为dev
-            os.environ['APP_ENV'] = args.env if args.env else 'dev'
-        # 读取运行环境
-        run_env = os.environ.get('APP_ENV', '')
+            run_env = args.env or run_env
         # 运行环境未指定时默认加载.env.dev
-        env_file = '.env.dev'
-        # 运行环境不为空时按命令行参数加载对应.env文件
-        if run_env != '':
-            env_file = f'.env.{run_env}'
-        # 加载配置
+        run_env = run_env.strip() or 'dev'
+        env_file = f'.env.{run_env}'
+        # 加载配置，已通过外部命令设置的环境变量保持优先
         load_dotenv(env_file)
+        return run_env
 
 
 # 实例化获取配置类

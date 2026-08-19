@@ -408,19 +408,20 @@ class PluginCommandController:
             options.yes,
             options.dry_run,
         )
-        policy_config = DependencyInstallPolicyConfig.from_environment(
+        policy_config = DependencyInstallPolicyConfig.from_cli_environment(
             env=env,
             mode=options.policy_mode,
             allow_prod=options.allow_prod,
             allow_unlisted=options.allow_unlisted,
             lockfile_path=options.lockfile or None,
+            allowlist_path=options.allowlist or None,
             offline_dir=options.offline_dir or None,
             require_lockfile=options.require_lockfile,
         )
         core_runtime = self.core_runtime
         output_callback = self._build_dependency_install_output_callback(ctx)
         if self._should_interactive_confirm_dependency_install(ctx, options):
-            preview_payload = core_runtime.install_plugin_dependencies(
+            preview_payload = core_runtime.install_plugin_dependencies_from_cli(
                 plugin_id,
                 dry_run=True,
                 policy_config=policy_config,
@@ -428,7 +429,7 @@ class PluginCommandController:
             )
             preview_payload['env'] = ctx.env
             if self._dependency_install_policy_blocked(preview_payload):
-                payload = core_runtime.install_plugin_dependencies(
+                payload = core_runtime.install_plugin_dependencies_from_cli(
                     plugin_id,
                     dry_run=False,
                     policy_config=policy_config,
@@ -455,7 +456,7 @@ class PluginCommandController:
         else:
             confirmed = options.yes
 
-        payload = core_runtime.install_plugin_dependencies(
+        payload = core_runtime.install_plugin_dependencies_from_cli(
             plugin_id,
             dry_run=options.dry_run,
             policy_config=policy_config,

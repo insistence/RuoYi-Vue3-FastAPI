@@ -76,7 +76,8 @@ class AppSnapshotSupport:
         env_module = self.infrastructure_gateway.get_env_module()
         app_config = env_module.AppConfig
         backend_dir = Path(self.runtime_environment.get_backend_dir())
-        resolved_env = os.environ.get('APP_ENV', '') or 'dev'
+        run_env = getattr(getattr(env_module, 'get_config', None), 'run_env', None)
+        resolved_env = run_env or os.environ.get('APP_ENV', '') or 'dev'
         env_file_name = f'.env.{resolved_env}'
         env_file_path = backend_dir / env_file_name
         return {

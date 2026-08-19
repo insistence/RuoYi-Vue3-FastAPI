@@ -40,8 +40,9 @@ class PluginDependencyInstallCommandOptions:
     :param yes: 是否跳过确认
     :param dry_run: 是否仅预演
     :param policy_mode: 临时覆盖策略模式
-    :param allow_unlisted: dev 环境是否允许未命中 allowlist 的依赖仅告警
+    :param allow_unlisted: 是否允许未命中 allowlist 的依赖仅告警
     :param lockfile: 锁文件路径
+    :param allowlist: 依赖允许列表路径
     :param offline_dir: 离线制品目录
     :param require_lockfile: 是否要求锁文件
     """
@@ -52,6 +53,7 @@ class PluginDependencyInstallCommandOptions:
     policy_mode: str | None = None
     allow_unlisted: bool = False
     lockfile: str = ''
+    allowlist: str = ''
     offline_dir: str = ''
     require_lockfile: bool | None = None
 
