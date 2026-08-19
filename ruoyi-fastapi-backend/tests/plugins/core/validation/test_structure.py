@@ -90,6 +90,36 @@ frontend:
     ]
 
 
+def test_structure_checker_can_skip_frontend_source_checks_for_built_deployments(tmp_path: Path) -> None:
+    """校验已构建前端部署可以只检查插件后端结构。"""
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+frontend:
+  menus:
+    - name: 演示菜单
+      path: demo
+      component: plugin/demo/index
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+
+    result = PluginStructureChecker(backend_root, tmp_path / 'missing-frontend' / 'plugins').check(
+        load_discovered_plugin(backend_root, 'demo'),
+        include_frontend=False,
+    )
+
+    assert result.ok is True
+    assert not any(item.kind.startswith('frontend_') for item in result.items)
+
+
 def test_structure_checker_accepts_plugin_controller_route_prefix(tmp_path: Path) -> None:
     """校验结构检查器接受当前插件命名空间内的 controller 路由前缀。"""
     backend_root = tmp_path / 'ruoyi-fastapi-backend'

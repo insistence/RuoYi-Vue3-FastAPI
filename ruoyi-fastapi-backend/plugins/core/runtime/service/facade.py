@@ -395,15 +395,82 @@ class PluginRuntimeService:
         :param output_callback: 依赖安装实时输出回调
         :return: 插件依赖安装负载
         """
+        return self._execute_plugin_dependency_install(
+            self.dependency.install_plugin_dependencies,
+            plugin_id,
+            dry_run=dry_run,
+            policy_config=policy_config,
+            confirmed=confirmed,
+            record_operation_log=record_operation_log,
+            output_callback=output_callback,
+        )
+
+    def install_plugin_dependencies_from_cli(
+        self,
+        plugin_id: str,
+        *,
+        dry_run: bool = False,
+        policy_config: DependencyInstallPolicyConfig | None = None,
+        confirmed: bool = False,
+        record_operation_log: bool = True,
+        output_callback: PluginCommandOutputCallback | None = None,
+    ) -> PluginDependencyInstallResponse:
+        """
+        从 CLI 受控入口安装插件依赖。
+
+        该入口可在非开发模式越过运行时能力拦截，但仍必须通过依赖安装
+        策略、生产确认及允许列表/锁文件等校验。
+
+        :param plugin_id: 插件ID
+        :param dry_run: 是否仅预演
+        :param policy_config: 依赖安装策略配置
+        :param confirmed: 是否已显式确认
+        :param record_operation_log: 是否记录插件操作审计日志
+        :param output_callback: 依赖安装实时输出回调
+        :return: 插件依赖安装负载
+        """
+        return self._execute_plugin_dependency_install(
+            self.dependency.install_plugin_dependencies_from_cli,
+            plugin_id,
+            dry_run=dry_run,
+            policy_config=policy_config,
+            confirmed=confirmed,
+            record_operation_log=record_operation_log,
+            output_callback=output_callback,
+        )
+
+    def _execute_plugin_dependency_install(
+        self,
+        installer: Callable[..., PluginDependencyInstallResponse],
+        plugin_id: str,
+        *,
+        dry_run: bool,
+        policy_config: DependencyInstallPolicyConfig | None,
+        confirmed: bool,
+        record_operation_log: bool,
+        output_callback: PluginCommandOutputCallback | None,
+    ) -> PluginDependencyInstallResponse:
+        """
+        调用指定依赖安装入口并统一处理审计日志。
+
+        :param installer: Web/运行时或 CLI 依赖安装入口
+        :param plugin_id: 插件ID
+        :param dry_run: 是否仅预演
+        :param policy_config: 依赖安装策略配置
+        :param confirmed: 是否已显式确认
+        :param record_operation_log: 是否记录插件操作审计日志
+        :param output_callback: 依赖安装实时输出回调
+        :return: 插件依赖安装负载
+        """
         if output_callback is None:
-            dependency_payload = self.dependency.install_plugin_dependencies(
+            dependency_payload = installer(
                 plugin_id,
                 dry_run=dry_run,
                 policy_config=policy_config,
                 confirmed=confirmed,
             )
         else:
-            dependency_payload = self.dependency.install_plugin_dependencies(
+            dependency_payload = installer(
                 plugin_id,
                 dry_run=dry_run,
                 policy_config=policy_config,

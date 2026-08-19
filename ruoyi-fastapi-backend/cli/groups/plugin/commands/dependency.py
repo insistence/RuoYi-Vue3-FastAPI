@@ -93,9 +93,10 @@ def register_dependency_commands(app: typer.Typer, get_controller: Callable[[], 
         ] = None,
         allow_unlisted: Annotated[
             bool,
-            typer.Option('--allow-unlisted', help='dev 环境允许未命中 allowlist 的依赖仅告警'),
+            typer.Option('--allow-unlisted', help='允许未命中 allowlist 的依赖仅告警'),
         ] = False,
         lockfile: Annotated[str, typer.Option('--lockfile', help='指定插件依赖锁文件路径')] = '',
+        allowlist: Annotated[str, typer.Option('--allowlist', help='指定插件依赖允许列表路径')] = '',
         offline_dir: Annotated[str, typer.Option('--offline-dir', help='指定插件离线依赖制品目录')] = '',
         require_lockfile: Annotated[
             bool | None,
@@ -112,8 +113,9 @@ def register_dependency_commands(app: typer.Typer, get_controller: Callable[[], 
         :param yes: 是否跳过确认
         :param dry_run: 是否仅预演
         :param policy_mode: 临时覆盖策略模式
-        :param allow_unlisted: dev 环境是否允许未命中 allowlist 的依赖仅告警
+        :param allow_unlisted: 是否允许未命中 allowlist 的依赖仅告警
         :param lockfile: 锁文件路径
+        :param allowlist: 依赖允许列表路径
         :param offline_dir: 离线制品目录
         :param require_lockfile: 是否要求锁文件
         :return: None
@@ -129,6 +131,7 @@ def register_dependency_commands(app: typer.Typer, get_controller: Callable[[], 
                 policy_mode=policy_mode,
                 allow_unlisted=allow_unlisted,
                 lockfile=lockfile,
+                allowlist=allowlist,
                 offline_dir=offline_dir,
                 require_lockfile=require_lockfile,
             ),

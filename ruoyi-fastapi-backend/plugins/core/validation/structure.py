@@ -111,11 +111,17 @@ class PluginStructureChecker:
             else Path(PluginRuntimeEnvironmentService(backend_root=self.backend_root).get_frontend_plugins_dir())
         )
 
-    def check(self, discovered_plugin: DiscoveredPlugin) -> PluginStructureCheckResult:
+    def check(
+        self,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        include_frontend: bool = True,
+    ) -> PluginStructureCheckResult:
         """
         检查插件结构。
 
         :param discovered_plugin: 已发现插件对象
+        :param include_frontend: 是否检查前端源码目录和菜单组件
         :return: 插件结构检查结果
         """
         manifest = discovered_plugin.manifest
@@ -136,7 +142,8 @@ class PluginStructureChecker:
         items.extend(self._check_seed_files(discovered_plugin))
         items.extend(self._check_hooks(discovered_plugin))
         items.extend(self._check_jobs(discovered_plugin))
-        items.extend(self._check_frontend(discovered_plugin))
+        if include_frontend:
+            items.extend(self._check_frontend(discovered_plugin))
 
         return PluginStructureCheckResult(plugin_id=manifest.id, items=items)
 

@@ -91,6 +91,62 @@ def test_dependency_policy_reads_unified_config_entry(monkeypatch: pytest.Monkey
     assert policy_config.install_timeout_seconds == CONFIGURED_INSTALL_TIMEOUT_SECONDS
 
 
+def test_cli_dependency_policy_separates_channel_authorization_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """校验 CLI 授权不受生产环境 Web 限制配置影响。"""
+    lockfile_path = tmp_path / 'plugin.lock.yaml'
+    allowlist_path = tmp_path / 'allowlist.yaml'
+    config = SimpleNamespace(
+        plugin_dependency_policy_mode='prod=plan_only,dev=explicit',
+        plugin_dependency_allow_prod_install=False,
+        plugin_dependency_require_yes=False,
+        plugin_dependency_require_lockfile=True,
+        plugin_dependency_require_allowlist=True,
+        plugin_dependency_lockfile=str(lockfile_path),
+        plugin_dependency_allowlist=str(allowlist_path),
+        plugin_dependency_offline_dir='',
+        plugin_dependency_pip_index_url='https://pypi.example/simple',
+        plugin_dependency_npm_registry='',
+        plugin_dependency_install_timeout=CONFIGURED_INSTALL_TIMEOUT_SECONDS,
+    )
+    monkeypatch.setattr(env_config.get_config, 'get_plugin_dependency_policy_config', lambda: config, raising=False)
+
+    policy_config = DependencyInstallPolicyConfig.from_cli_environment(
+        env='prod',
+        allow_prod=True,
+        allow_unlisted=True,
+        require_lockfile=False,
+    )
+    decision = DependencyInstallPolicyEvaluator(policy_config).evaluate(build_plan(build_python_item()), confirmed=True)
+
+    assert policy_config.mode == 'explicit'
+    assert policy_config.allow_prod is True
+    assert policy_config.allow_prod_install is True
+    assert policy_config.require_yes is True
+    assert policy_config.require_lockfile is False
+    assert policy_config.require_allowlist is False
+    assert policy_config.allowlist_path == allowlist_path
+    assert policy_config.pip_index_url == 'https://pypi.example/simple'
+    assert policy_config.install_timeout_seconds == CONFIGURED_INSTALL_TIMEOUT_SECONDS
+    assert decision.allowed is True
+
+
+def test_cli_dependency_policy_still_requires_explicit_prod_authorization() -> None:
+    """校验 CLI 生产安装仍必须显式传入 allow-prod。"""
+    policy_config = DependencyInstallPolicyConfig.from_cli_environment(
+        env='prod',
+        allow_unlisted=True,
+        require_lockfile=False,
+    )
+
+    decision = DependencyInstallPolicyEvaluator(policy_config).evaluate(build_plan(build_python_item()), confirmed=True)
+
+    assert decision.allowed is False
+    assert '需要 --allow-prod 确认生产环境安装' in decision.requirements
+
+
 def test_dependency_policy_reads_require_lockfile_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     """校验策略配置会读取锁文件要求环境变量。"""
     monkeypatch.setenv('PLUGIN_DEPENDENCY_REQUIRE_LOCKFILE', 'true')

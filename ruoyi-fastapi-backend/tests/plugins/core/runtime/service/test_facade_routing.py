@@ -124,6 +124,15 @@ async def test_facade_routes_batch_dependency_and_audit_operations(tmp_path: Pat
         ),
         (
             'dependency',
+            'install_plugin_dependencies_from_cli',
+            False,
+            ('demo',),
+            {'dry_run': True, 'confirmed': True, 'record_operation_log': False},
+            ('demo',),
+            {'dry_run': True, 'policy_config': None, 'confirmed': True},
+        ),
+        (
+            'dependency',
             'install_plugin_dependencies_from_result',
             False,
             ('demo', dependency_result),

@@ -111,7 +111,7 @@ class PluginDependencyUseCase:
         output_callback: PluginCommandOutputCallback | None = None,
     ) -> PluginDependencyInstallResponse:
         """
-        安装插件依赖。
+        从 Web/应用运行时入口安装插件依赖。
 
         :param plugin_id: 插件ID
         :param dry_run: 是否仅预演
@@ -131,19 +131,87 @@ class PluginDependencyUseCase:
             )
             if blocked_payload:
                 return blocked_payload
-
-            dependency_result = self.dependencies.dependency_checker.check_manifest(discovered_plugin.manifest)
-            return self.install_plugin_dependencies_from_result(
+            return self._install_discovered_plugin_dependencies(
                 plugin_id,
-                dependency_result,
+                discovered_plugin,
                 dry_run=dry_run,
-                discovered_plugin=discovered_plugin,
                 policy_config=policy_config,
                 confirmed=confirmed,
                 output_callback=output_callback,
             )
         except Exception as exc:
             return PluginRuntimePayloadBuilder.build_exception_payload('安装插件依赖失败', exc)
+
+    def install_plugin_dependencies_from_cli(
+        self,
+        plugin_id: str,
+        *,
+        dry_run: bool = False,
+        policy_config: DependencyInstallPolicyConfig | None = None,
+        confirmed: bool = False,
+        output_callback: PluginCommandOutputCallback | None = None,
+    ) -> PluginDependencyInstallResponse:
+        """
+        从 CLI 入口安装插件依赖。
+
+        CLI 不受 Web 运行时能力限制，但仍与 Web 共用同一套依赖检查、
+        安装计划和策略判定。
+
+        :param plugin_id: 插件ID
+        :param dry_run: 是否仅预演
+        :param policy_config: 依赖安装策略配置
+        :param confirmed: 是否已显式确认
+        :param output_callback: 依赖安装实时输出回调
+        :return: 插件依赖安装负载
+        """
+        try:
+            discovered_plugin = self._get_discovered_plugin(plugin_id)
+            if not discovered_plugin:
+                return PluginPayloadBuilder.build_plugin_not_found_payload(plugin_id, dry_run=dry_run)
+            payload = self._install_discovered_plugin_dependencies(
+                plugin_id,
+                discovered_plugin,
+                dry_run=dry_run,
+                policy_config=policy_config,
+                confirmed=confirmed,
+                output_callback=output_callback,
+            )
+            cast('dict[str, object]', payload).pop('capability', None)
+            return payload
+        except Exception as exc:
+            return PluginRuntimePayloadBuilder.build_exception_payload('安装插件依赖失败', exc)
+
+    def _install_discovered_plugin_dependencies(
+        self,
+        plugin_id: str,
+        discovered_plugin: DiscoveredPlugin,
+        *,
+        dry_run: bool,
+        policy_config: DependencyInstallPolicyConfig | None,
+        confirmed: bool,
+        output_callback: PluginCommandOutputCallback | None,
+    ) -> PluginDependencyInstallResponse:
+        """
+        对已发现插件执行共用的依赖检查、计划、策略判定和安装流程。
+
+        :param plugin_id: 插件ID
+        :param discovered_plugin: 已发现插件
+        :param dry_run: 是否仅预演
+        :param policy_config: 依赖安装策略配置
+        :param confirmed: 是否已显式确认
+        :param output_callback: 依赖安装实时输出回调
+        :return: 插件依赖安装负载
+        """
+        dependency_result = self.dependencies.dependency_checker.check_manifest(discovered_plugin.manifest)
+        return self.install_plugin_dependencies_from_result(
+            plugin_id,
+            dependency_result,
+            dry_run=dry_run,
+            discovered_plugin=discovered_plugin,
+            policy_config=policy_config,
+            confirmed=confirmed,
+            output_callback=output_callback,
+        )
 
     def install_plugin_dependencies_from_result(
         self,

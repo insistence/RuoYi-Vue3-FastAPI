@@ -672,8 +672,8 @@ backend:
     assert 'install' in payload['capability']['blockedOperations']
 
 
-def test_plugin_runtime_blocks_frontend_plugin_dependency_install_in_built_mode(tmp_path: Path) -> None:
-    """校验已构建前端模式下阻断前端源码插件依赖安装。"""
+def test_plugin_runtime_allows_only_cli_dependency_install_in_built_service_mode(tmp_path: Path) -> None:
+    """校验生产服务模式拦截 Web 入口，仅 CLI 可安装后端依赖。"""
     backend_root = tmp_path / 'backend'
     write_manifest(
         backend_root / 'plugins' / 'demo',
@@ -692,17 +692,58 @@ frontend:
 permissions:
   - demo:list
 dependencies:
+  python:
+    - missing-python
   npm:
     - missing-npm
 """,
     )
     create_frontend_view(backend_root, 'demo')
-    runtime = build_runtime(backend_root)
+    gateway = FakePluginRuntimeGateway()
+    runtime = build_runtime_with_gateway(backend_root, gateway)
     runtime.dependencies.runtime_environment.frontend_mode = 'built'
+    runtime.dependencies.runtime_environment.backend_runtime_mode = 'service'
+    runtime.refresh_dependency_checker()
 
-    payload = runtime.install_plugin_dependencies('demo', dry_run=True)
+    web_payload = runtime.install_plugin_dependencies(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig(
+            mode='explicit',
+            env='prod',
+            allow_prod=True,
+            allow_prod_install=True,
+            require_lockfile=False,
+            require_allowlist=False,
+        ),
+        confirmed=True,
+    )
+    cli_policy_blocked_payload = runtime.install_plugin_dependencies_from_cli(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig(mode='plan_only', env='prod'),
+        confirmed=True,
+    )
+    assert gateway.commands == []
 
-    assert payload['ok'] is False
-    assert payload['status'] == 'blocked'
-    assert payload['capability']['frontendRuntimeManageable'] is False
-    assert 'dependency_install' in payload['capability']['blockedOperations']
+    cli_payload = runtime.install_plugin_dependencies_from_cli(
+        'demo',
+        policy_config=DependencyInstallPolicyConfig.from_cli_environment(
+            env='prod',
+            allow_prod=True,
+            allow_unlisted=True,
+            require_lockfile=False,
+        ),
+        confirmed=True,
+    )
+
+    assert web_payload['ok'] is False
+    assert web_payload['status'] == 'blocked'
+    assert 'dependency_install' in web_payload['capability']['blockedOperations']
+    assert cli_policy_blocked_payload['ok'] is False
+    assert cli_policy_blocked_payload['policy']['allowed'] is False
+    assert 'capability' not in cli_policy_blocked_payload
+    assert cli_payload['ok'] is True
+    assert 'capability' not in cli_payload
+    assert [item['kind'] for item in cli_payload['dependencies']] == ['python', 'npm']
+    assert cli_payload['dependencies'][1]['status'] == 'skipped'
+    assert len(gateway.commands) == 1
+    assert gateway.commands[0][0][1:4] == ['-m', 'pip', 'install']
