@@ -119,6 +119,57 @@ class _Engine:
 
 
 @pytest.mark.asyncio
+async def test_initialize_can_suppress_worker_startup_logs(monkeypatch: pytest.MonkeyPatch) -> None:
+    primary_engine = _Engine()
+    primary_engine.should_fail = False
+    optional_engine = _Engine()
+    monkeypatch.setattr(
+        database,
+        'create_async_db_engine',
+        lambda config: primary_engine if config.db_required else optional_engine,
+    )
+    registry = database._DataSourceRegistry(
+        SimpleNamespace(
+            db_default_source='primary',
+            db_sources={'primary': _source(), 'reporting': _source(required=False)},
+        )
+    )
+    source_logger = MagicMock()
+    monkeypatch.setattr(database, 'logger', source_logger)
+
+    await registry.initialize(log_enabled=False)
+
+    source_logger.bind.assert_not_called()
+    assert registry._runtimes['primary'].available
+    assert not registry._runtimes['reporting'].available
+
+    optional_engine.should_fail = False
+    registry._runtimes['reporting'].next_retry_at = None
+    async with registry.connection('reporting'):
+        pass
+    source_logger.bind.assert_not_called()
+    await registry.dispose_all()
+
+
+@pytest.mark.asyncio
+async def test_initialize_logs_source_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = _Engine()
+    engine.should_fail = False
+    monkeypatch.setattr(database, 'create_async_db_engine', lambda config: engine)
+    registry = database._DataSourceRegistry(
+        SimpleNamespace(db_default_source='primary', db_sources={'primary': _source()})
+    )
+    source_logger = MagicMock()
+    monkeypatch.setattr(database, 'logger', source_logger)
+
+    await registry.initialize()
+
+    source_logger.bind.assert_called_once_with(data_source='primary', database_type='mysql', required=True)
+    source_logger.bind.return_value.info.assert_called_once_with('✅ 数据源 primary 初始化成功')
+    await registry.dispose_all()
+
+
+@pytest.mark.asyncio
 async def test_optional_source_recovers_after_cooldown(monkeypatch: pytest.MonkeyPatch) -> None:
     primary_engine = _Engine()
     primary_engine.should_fail = False

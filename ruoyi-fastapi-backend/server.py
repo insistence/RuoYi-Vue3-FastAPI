@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if application_leader:
             SchedulerUtil.start_application_lock_renewal(app.state.redis)
 
-        await DataSourceRegistry.initialize()
+        await DataSourceRegistry.initialize(log_enabled=application_leader)
 
         startup_logger = logger.bind(
             startup_phase='application_startup',

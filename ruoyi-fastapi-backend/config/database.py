@@ -263,6 +263,7 @@ class _DataSourceRegistry:
         self.settings = settings or DataBaseConfig
         self._runtimes: dict[str, DataSourceRuntime] = {}
         self._initialized = False
+        self._log_enabled = True
         self._configs = dict(self.settings.db_sources)
 
     def _resolve_name(self, name: str | None = None) -> str:
@@ -327,33 +328,40 @@ class _DataSourceRegistry:
         runtime.async_engine = engine
         runtime.async_session_factory = session_factory
 
-    async def initialize(self) -> None:
+    async def initialize(self, log_enabled: bool = True) -> None:
         """
         初始化并检查所有数据源的连接状态
 
+        :param log_enabled: 是否输出数据源启动日志
         :return: None
         """
+        self._log_enabled = log_enabled
         if self._initialized:
             return
         names = tuple(self._configs)
         results = await asyncio.gather(*(self._check_health(name) for name in names), return_exceptions=True)
         default_name = self._resolve_name()
         for name, result in zip(names, results, strict=True):
-            source_logger = logger.bind(
-                data_source=name,
-                database_type=self._configs[name].db_type,
-                required=self._configs[name].db_required or name == default_name,
-            )
-            if not isinstance(result, BaseException):
-                source_logger.info('✅ 数据源初始化成功')
-                continue
             config = self._configs[name]
             required = config.db_required or name == default_name
+            healthy = not isinstance(result, BaseException)
+            if log_enabled:
+                source_logger = logger.bind(
+                    data_source=name,
+                    database_type=config.db_type,
+                    required=required,
+                )
+                if healthy:
+                    source_logger.info(f'✅ 数据源 {name} 初始化成功')
+                elif required:
+                    source_logger.error(f'❌ 必需数据源 {name} 连接检查失败')
+                else:
+                    source_logger.warning(f'⚠️ 非必需数据源 {name} 连接检查失败，应用将降级启动')
+            if healthy:
+                continue
             if required:
-                source_logger.error('❌ 必需数据源连接检查失败')
                 await self.dispose_all()
                 raise DataSourceInitializationException(name) from None
-            source_logger.warning('⚠️ 非必需数据源连接检查失败，应用将降级启动')
         self._initialized = True
 
     def get_async_engine(self, name: str | None = None) -> AsyncEngine:
@@ -431,7 +439,8 @@ class _DataSourceRegistry:
             if runtime.next_retry_at is not None and now < runtime.next_retry_at:
                 raise DataSourceUnavailableException(runtime.name)
             await self._check_health_locked(runtime)
-            logger.bind(data_source=runtime.name).info('✅ 数据源连接已恢复')
+            if self._log_enabled:
+                logger.bind(data_source=runtime.name).info(f'✅ 数据源 {runtime.name} 连接已恢复')
 
     @asynccontextmanager
     async def connection(self, name: str | None = None) -> AsyncGenerator[AsyncConnection, None]:

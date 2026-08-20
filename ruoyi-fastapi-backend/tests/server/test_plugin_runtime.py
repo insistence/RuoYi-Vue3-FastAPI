@@ -151,7 +151,7 @@ async def test_lifespan_only_application_leader_outputs_banner_and_addresses() -
             pass
 
     start_renewal.assert_called_once_with(redis)
-    database_registry.initialize.assert_awaited_once_with()
+    database_registry.initialize.assert_awaited_once_with(log_enabled=True)
     initialize_runtime.assert_awaited_once_with(app, application_leader=True)
     worship.assert_called_once_with()
     fake_logger.bind.return_value.info.assert_has_calls(
@@ -195,7 +195,7 @@ async def test_lifespan_non_leader_runs_local_initialization_without_display_log
             pass
 
     start_renewal.assert_not_called()
-    database_registry.initialize.assert_awaited_once_with()
+    database_registry.initialize.assert_awaited_once_with(log_enabled=False)
     is_application_leader.assert_not_called()
     initialize_runtime.assert_awaited_once_with(app, application_leader=False)
     worship.assert_not_called()
@@ -232,7 +232,7 @@ async def test_lifespan_non_leader_initialization_error_propagates_and_still_cle
             pass
 
     initialize_runtime.assert_awaited_once_with(app, application_leader=False)
-    database_registry.initialize.assert_awaited_once_with()
+    database_registry.initialize.assert_awaited_once_with(log_enabled=False)
     fake_logger.bind.return_value.info.assert_not_called()
     fake_logger.complete.assert_not_awaited()
     shutdown_runtime.assert_awaited_once_with(app)
@@ -284,7 +284,7 @@ async def test_lifespan_database_initialization_failure_releases_redis_and_datab
         async with lifespan(app):
             pass
 
-    database_registry.initialize.assert_awaited_once_with()
+    database_registry.initialize.assert_awaited_once_with(log_enabled=False)
     shutdown_runtime.assert_awaited_once_with(app)
 
 
