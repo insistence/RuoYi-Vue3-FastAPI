@@ -202,7 +202,7 @@ class PluginManagementRuntimeGateway:
 
         :return: 异步数据库会话工厂
         """
-        return import_module('config.database').AsyncSessionLocal
+        return import_module('config.database').DataSourceRegistry.session
 
     @staticmethod
     def get_plugin_service() -> type[PluginManagementServiceProtocol]:

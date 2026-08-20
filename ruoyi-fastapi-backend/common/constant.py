@@ -1,6 +1,3 @@
-from config.env import DataBaseConfig
-
-
 class CommonConstant:
     """
     常用常量
@@ -614,16 +611,17 @@ class GenConstant:
     PARENT_MENU_ID = 'parentMenuId'
     PARENT_MENU_NAME = 'parentMenuName'
     GEN_VIEW = 'genView'
-    COLUMNTYPE_STR = (
-        ['character varying', 'varchar', 'character', 'char']
-        if DataBaseConfig.db_type == 'postgresql'
-        else ['char', 'varchar', 'nvarchar', 'varchar2']
-    )
-    COLUMNTYPE_TEXT = (
-        ['text', 'citext'] if DataBaseConfig.db_type == 'postgresql' else ['tinytext', 'text', 'mediumtext', 'longtext']
-    )
-    COLUMNTYPE_TIME = (
-        [
+    COLUMNTYPE_STR = {
+        'mysql': ['char', 'varchar', 'nvarchar', 'varchar2'],
+        'postgresql': ['character varying', 'varchar', 'character', 'char'],
+    }
+    COLUMNTYPE_TEXT = {
+        'mysql': ['tinytext', 'text', 'mediumtext', 'longtext'],
+        'postgresql': ['text', 'citext'],
+    }
+    COLUMNTYPE_TIME = {
+        'mysql': ['datetime', 'time', 'date', 'timestamp'],
+        'postgresql': [
             'date',
             'time',
             'time with time zone',
@@ -632,14 +630,10 @@ class GenConstant:
             'timestamp with time zone',
             'timestamp without time zone',
             'interval',
-        ]
-        if DataBaseConfig.db_type == 'postgresql'
-        else ['datetime', 'time', 'date', 'timestamp']
-    )
-    COLUMNTYPE_GEOMETRY = (
-        ['point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle']
-        if DataBaseConfig.db_type == 'postgresql'
-        else [
+        ],
+    }
+    COLUMNTYPE_GEOMETRY = {
+        'mysql': [
             'geometry',
             'point',
             'linestring',
@@ -648,21 +642,35 @@ class GenConstant:
             'multilinestring',
             'multipolygon',
             'geometrycollection',
-        ]
-    )
-    COLUMNTYPE_NUMBER = [
-        'tinyint',
-        'smallint',
-        'mediumint',
-        'int',
-        'number',
-        'integer',
-        'bit',
-        'bigint',
-        'float',
-        'double',
-        'decimal',
-    ]
+        ],
+        'postgresql': ['point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle'],
+    }
+    COLUMNTYPE_NUMBER = {
+        'mysql': [
+            'tinyint',
+            'smallint',
+            'mediumint',
+            'int',
+            'number',
+            'integer',
+            'bit',
+            'bigint',
+            'float',
+            'double',
+            'decimal',
+        ],
+        'postgresql': [
+            'smallint',
+            'integer',
+            'bigint',
+            'real',
+            'double precision',
+            'numeric',
+            'decimal',
+            'boolean',
+            'bit',
+        ],
+    }
     COLUMNNAME_NOT_ADD_SHOW = ['create_by', 'create_time']
     COLUMNNAME_NOT_EDIT_SHOW = ['update_by', 'update_time']
     COLUMNNAME_NOT_EDIT = ['id', 'create_by', 'create_time', 'del_flag']
@@ -684,8 +692,8 @@ class GenConstant:
     QUERY_LIKE = 'LIKE'
     QUERY_EQ = 'EQ'
     REQUIRE = '1'
-    DB_TO_SQLALCHEMY_TYPE_MAPPING = (
-        {
+    DB_TO_SQLALCHEMY_TYPE_MAPPING = {
+        'postgresql': {
             'boolean': 'Boolean',
             'smallint': 'SmallInteger',
             'integer': 'Integer',
@@ -739,9 +747,8 @@ class GenConstant:
             'int2vector': 'ARRAY',
             'oidvector': 'ARRAY',
             'pg_node_tree': 'Text',
-        }
-        if DataBaseConfig.db_type == 'postgresql'
-        else {
+        },
+        'mysql': {
             # 数值类型
             'TINYINT': 'SmallInteger',
             'SMALLINT': 'SmallInteger',
@@ -786,10 +793,10 @@ class GenConstant:
             'MULTILINESTRING': 'Geometry',
             'MULTIPOLYGON': 'Geometry',
             'GEOMETRYCOLLECTION': 'Geometry',
-        }
-    )
-    DB_TO_PYTHON_TYPE_MAPPING = (
-        {
+        },
+    }
+    DB_TO_PYTHON_TYPE_MAPPING = {
+        'postgresql': {
             'boolean': 'bool',
             'smallint': 'int',
             'integer': 'int',
@@ -843,9 +850,8 @@ class GenConstant:
             'int2vector': 'list',
             'oidvector': 'list',
             'pg_node_tree': 'str',
-        }
-        if DataBaseConfig.db_type == 'postgresql'
-        else {
+        },
+        'mysql': {
             # 数值类型
             'TINYINT': 'int',
             'SMALLINT': 'int',
@@ -890,5 +896,5 @@ class GenConstant:
             'MULTILINESTRING': 'bytes',
             'MULTIPOLYGON': 'bytes',
             'GEOMETRYCOLLECTION': 'bytes',
-        }
-    )
+        },
+    }

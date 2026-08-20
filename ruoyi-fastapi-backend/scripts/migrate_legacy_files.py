@@ -11,7 +11,7 @@ from pathlib import Path
 import aiofiles
 from pydantic import ValidationError
 
-from config.database import AsyncSessionLocal
+from config.database import DataSourceRegistry
 from config.env import UploadConfig
 from module_admin.dao.file_info_dao import FileInfoDao
 from module_admin.entity.vo.file_vo import FileInfoModel
@@ -222,7 +222,7 @@ async def migrate_legacy_files(
     legacy_files, skipped_count = await asyncio.to_thread(collect_legacy_files)
     added_count = 0
     pending_count = 0
-    async with AsyncSessionLocal() as session:
+    async with DataSourceRegistry.session() as session:
         for legacy_file in legacy_files:
             if await FileInfoDao.get_file_info_by_storage_key(session, legacy_file.storage_key):
                 skipped_count += 1

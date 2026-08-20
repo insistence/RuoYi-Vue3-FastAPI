@@ -126,11 +126,14 @@ async def test_lifespan_only_application_leader_outputs_banner_and_addresses() -
     """校验仅Application leader输出横幅、成功摘要和访问地址。"""
     app = SimpleNamespace(state=SimpleNamespace())
     redis = MagicMock()
+    database_registry = MagicMock()
+    database_registry.initialize = AsyncMock()
     fake_logger = MagicMock()
     fake_logger.complete = AsyncMock()
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=redis)),
+        patch('server.DataSourceRegistry', database_registry),
         patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-1'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=True)),
         patch('server.SchedulerUtil.start_application_lock_renewal') as start_renewal,
@@ -148,6 +151,7 @@ async def test_lifespan_only_application_leader_outputs_banner_and_addresses() -
             pass
 
     start_renewal.assert_called_once_with(redis)
+    database_registry.initialize.assert_awaited_once_with()
     initialize_runtime.assert_awaited_once_with(app, application_leader=True)
     worship.assert_called_once_with()
     fake_logger.bind.return_value.info.assert_has_calls(
@@ -169,11 +173,14 @@ async def test_lifespan_non_leader_runs_local_initialization_without_display_log
     """校验非leader执行本地初始化，但不输出leader专属展示日志。"""
     app = SimpleNamespace(state=SimpleNamespace())
     redis = MagicMock()
+    database_registry = MagicMock()
+    database_registry.initialize = AsyncMock()
     fake_logger = MagicMock()
     fake_logger.complete = AsyncMock()
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=redis)),
+        patch('server.DataSourceRegistry', database_registry),
         patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-2'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=False)),
         patch('server.SchedulerUtil.start_application_lock_renewal') as start_renewal,
@@ -188,6 +195,7 @@ async def test_lifespan_non_leader_runs_local_initialization_without_display_log
             pass
 
     start_renewal.assert_not_called()
+    database_registry.initialize.assert_awaited_once_with()
     is_application_leader.assert_not_called()
     initialize_runtime.assert_awaited_once_with(app, application_leader=False)
     worship.assert_not_called()
@@ -201,11 +209,14 @@ async def test_lifespan_non_leader_runs_local_initialization_without_display_log
 async def test_lifespan_non_leader_initialization_error_propagates_and_still_cleans_up() -> None:
     """校验非leader初始化异常不被门禁吞掉，并继续执行finally清理。"""
     app = SimpleNamespace(state=SimpleNamespace())
+    database_registry = MagicMock()
+    database_registry.initialize = AsyncMock()
     fake_logger = MagicMock()
     fake_logger.complete = AsyncMock()
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=MagicMock())),
+        patch('server.DataSourceRegistry', database_registry),
         patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-3'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=False)),
         patch('server.TransportKeyProvider.validate_runtime_configuration'),
@@ -221,8 +232,59 @@ async def test_lifespan_non_leader_initialization_error_propagates_and_still_cle
             pass
 
     initialize_runtime.assert_awaited_once_with(app, application_leader=False)
+    database_registry.initialize.assert_awaited_once_with()
     fake_logger.bind.return_value.info.assert_not_called()
     fake_logger.complete.assert_not_awaited()
+    shutdown_runtime.assert_awaited_once_with(app)
+
+
+@pytest.mark.asyncio
+async def test_lifespan_skips_database_initialization_when_redis_creation_fails() -> None:
+    """校验Redis前置初始化失败时不创建数据库资源，并执行幂等清理。"""
+    app = SimpleNamespace(state=SimpleNamespace())
+    database_registry = MagicMock()
+    database_registry.initialize = AsyncMock()
+    database_registry.dispose_all = AsyncMock()
+    fake_logger = MagicMock()
+    fake_logger.complete = AsyncMock()
+
+    with (
+        patch('server.DataSourceRegistry', database_registry),
+        patch(
+            'server.RedisUtil.create_redis_pool',
+            new=AsyncMock(side_effect=RuntimeError('redis unavailable')),
+        ),
+        patch('server.logger', fake_logger),
+        pytest.raises(RuntimeError, match='redis unavailable'),
+    ):
+        async with lifespan(app):
+            pass
+
+    database_registry.initialize.assert_not_awaited()
+    database_registry.dispose_all.assert_awaited_once_with()
+    fake_logger.complete.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_lifespan_database_initialization_failure_releases_redis_and_database_resources() -> None:
+    """校验Redis和租约创建后数据库初始化失败仍走统一关闭流程。"""
+    app = SimpleNamespace(state=SimpleNamespace())
+    redis = MagicMock()
+    database_registry = MagicMock()
+    database_registry.initialize = AsyncMock(side_effect=RuntimeError('database unavailable'))
+
+    with (
+        patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=redis)),
+        patch('server.DataSourceRegistry', database_registry),
+        patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-db-failure'),
+        patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=False)),
+        patch('server._shutdown_application_runtime', new_callable=AsyncMock) as shutdown_runtime,
+        pytest.raises(RuntimeError, match='database unavailable'),
+    ):
+        async with lifespan(app):
+            pass
+
+    database_registry.initialize.assert_awaited_once_with()
     shutdown_runtime.assert_awaited_once_with(app)
 
 
@@ -264,7 +326,7 @@ async def test_shutdown_application_runtime_preserves_cleanup_order() -> None:
             'server.RedisUtil.close_redis_pool',
             new=AsyncMock(side_effect=record_redis_shutdown),
         ),
-        patch('server.close_async_engine', new=AsyncMock(side_effect=record_database_shutdown)),
+        patch('server.DataSourceRegistry.dispose_all', new=AsyncMock(side_effect=record_database_shutdown)),
         patch('server.logger.complete', new=AsyncMock(side_effect=record_log_complete)),
     ):
         await _shutdown_application_runtime(app)
@@ -302,10 +364,10 @@ async def test_stop_background_tasks_closes_redis_and_database_when_scheduler_cl
             new=AsyncMock(side_effect=RuntimeError('scheduler close failed')),
         ),
         patch('server.RedisUtil.close_redis_pool', new_callable=AsyncMock) as close_redis_pool,
-        patch('server.close_async_engine', new_callable=AsyncMock) as close_async_engine,
+        patch('server.DataSourceRegistry.dispose_all', new_callable=AsyncMock) as dispose_all,
         pytest.raises(RuntimeError, match='scheduler close failed'),
     ):
         await _stop_background_tasks(app)
 
     close_redis_pool.assert_awaited_once_with(app)
-    close_async_engine.assert_awaited_once_with()
+    dispose_all.assert_awaited_once_with()

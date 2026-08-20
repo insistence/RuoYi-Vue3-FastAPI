@@ -65,3 +65,42 @@ class ModelValidatorException(Exception):
     def __init__(self, data: str | None = None, message: str | None = None) -> None:
         self.data = data
         self.message = message
+
+
+class DataSourceException(ServiceException):
+    """
+    自定义数据源异常DataSourceException
+
+    异常信息仅包含数据源名称，不暴露驱动异常或可能包含密码的连接URL。
+    """
+
+    def __init__(self, source_name: str, message: str | None = None) -> None:
+        self.source_name = source_name
+        super().__init__(message=message or f'数据源异常：{source_name}')
+
+
+class DataSourceNotFoundException(DataSourceException):
+    """
+    自定义数据源未配置异常DataSourceNotFoundException
+    """
+
+    def __init__(self, source_name: str) -> None:
+        super().__init__(source_name, message=f'数据源未配置：{source_name}')
+
+
+class DataSourceUnavailableException(DataSourceException):
+    """
+    自定义数据源不可用异常DataSourceUnavailableException
+    """
+
+    def __init__(self, source_name: str) -> None:
+        super().__init__(source_name, message=f'数据源暂不可用：{source_name}')
+
+
+class DataSourceInitializationException(DataSourceException):
+    """
+    自定义数据源初始化异常DataSourceInitializationException
+    """
+
+    def __init__(self, source_name: str) -> None:
+        super().__init__(source_name, message=f'数据源初始化失败：{source_name}')

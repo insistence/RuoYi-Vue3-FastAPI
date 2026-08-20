@@ -26,7 +26,7 @@ class SysDictType(Base):
     remark = Column(
         String(500),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='备注',
     )
 
@@ -47,13 +47,13 @@ class SysDictData(Base):
     css_class = Column(
         String(100),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='样式属性（其他样式扩展）',
     )
     list_class = Column(
         String(100),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='表格回显样式',
     )
     is_default = Column(CHAR(1), nullable=True, server_default='N', comment='是否默认（Y是 N否）')
@@ -65,6 +65,6 @@ class SysDictData(Base):
     remark = Column(
         String(500),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='备注',
     )

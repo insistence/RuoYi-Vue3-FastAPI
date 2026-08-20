@@ -12,6 +12,7 @@ from sqlglot.expressions import Add, Alter, Create, Delete, Drop, Expression, In
 
 from common.constant import GenConstant
 from common.vo import CrudResponseModel, PageModel
+from config.database import DataSourceRegistry
 from config.env import DataBaseConfig, GenConfig
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.user_vo import CurrentUserModel
@@ -19,6 +20,7 @@ from module_generator.dao.gen_dao import GenTableColumnDao, GenTableDao
 from module_generator.entity.vo.gen_vo import (
     DeleteGenTableModel,
     EditGenTableModel,
+    GenDataSourceModel,
     GenTableColumnModel,
     GenTableModel,
     GenTablePageQueryModel,
@@ -32,6 +34,29 @@ class GenTableService:
     """
     代码生成业务表服务层
     """
+
+    @classmethod
+    def get_data_source_list_services(cls) -> list[GenDataSourceModel]:
+        """
+        获取代码生成可用的数据源列表
+
+        :return: 数据源选项列表
+        """
+        default_name = DataBaseConfig.db_default_source
+        return [
+            GenDataSourceModel(name=name, dbType=config.db_type, isDefault=name == default_name)
+            for name, config in DataBaseConfig.db_sources.items()
+        ]
+
+    @staticmethod
+    def _source_name(source_name: str | None) -> str:
+        """
+        获取代码生成操作使用的数据源名称
+
+        :param source_name: 数据源名称
+        :return: 指定的数据源名称或默认数据源名称
+        """
+        return source_name or DataBaseConfig.db_default_source
 
     @classmethod
     async def get_gen_table_list_services(
@@ -51,7 +76,10 @@ class GenTableService:
 
     @classmethod
     async def get_gen_db_table_list_services(
-        cls, query_db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
+        cls,
+        query_db: AsyncSession,
+        query_object: GenTablePageQueryModel,
+        is_page: bool = False,
     ) -> PageModel | list[dict[str, Any]]:
         """
         获取数据库列表信息service
@@ -61,28 +89,47 @@ class GenTableService:
         :param is_page: 是否开启分页
         :return: 数据库列表信息对象
         """
-        gen_db_table_list_result = await GenTableDao.get_gen_db_table_list(query_db, query_object, is_page)
-
-        return gen_db_table_list_result
+        source_name = cls._source_name(query_object.data_source_name)
+        source_config = DataBaseConfig.get_source(source_name)
+        excluded = await GenTableDao.get_gen_table_names(query_db, source_name)
+        async with DataSourceRegistry.session(source_name) as target_db:
+            gen_db_table_list_result = await GenTableDao.get_gen_db_table_list(
+                target_db,
+                query_object,
+                is_page,
+                excluded_table_names=excluded,
+                source_config=source_config,
+            )
+            return gen_db_table_list_result
 
     @classmethod
     async def get_gen_db_table_list_by_name_services(
-        cls, query_db: AsyncSession, table_names: list[str]
+        cls, query_db: AsyncSession, table_names: list[str], source_name: str | None = None
     ) -> list[GenTableModel]:
         """
         根据表名称组获取数据库列表信息service
 
         :param query_db: orm对象
         :param table_names: 表名称组
+        :param source_name: 数据源名称
         :return: 数据库列表信息对象
         """
-        gen_db_table_list_result = await GenTableDao.get_gen_db_table_list_by_names(query_db, table_names)
-
-        return [GenTableModel(**gen_table) for gen_table in CamelCaseUtil.transform_result(gen_db_table_list_result)]
+        source_name = cls._source_name(source_name)
+        source_config = DataBaseConfig.get_source(source_name)
+        async with DataSourceRegistry.session(source_name) as target_db:
+            rows = await GenTableDao.get_gen_db_table_list_by_names(target_db, table_names, source_config)
+            result = [
+                GenTableModel(**gen_table, dataSourceName=source_name)
+                for gen_table in CamelCaseUtil.transform_result(rows)
+            ]
+            return result
 
     @classmethod
     async def import_gen_table_services(
-        cls, query_db: AsyncSession, gen_table_list: list[GenTableModel], current_user: CurrentUserModel
+        cls,
+        query_db: AsyncSession,
+        gen_table_list: list[GenTableModel],
+        current_user: CurrentUserModel,
     ) -> CrudResponseModel:
         """
         导入表结构service
@@ -92,20 +139,26 @@ class GenTableService:
         :param current_user: 当前用户信息对象
         :return: 导入结果
         """
+        source_name = cls._source_name(gen_table_list[0].data_source_name if gen_table_list else None)
+        source_config = DataBaseConfig.get_source(source_name)
         try:
-            for table in gen_table_list:
-                table_name = table.table_name
-                GenUtils.init_table(table, current_user.user.user_name)
-                add_gen_table = await GenTableDao.add_gen_table_dao(query_db, table)
-                if add_gen_table:
-                    table.table_id = add_gen_table.table_id
-                    gen_table_columns = await GenTableColumnDao.get_gen_db_table_columns_by_name(query_db, table_name)
-                    for column in [
-                        GenTableColumnModel(**gen_table_column)
-                        for gen_table_column in CamelCaseUtil.transform_result(gen_table_columns)
-                    ]:
-                        GenUtils.init_column_field(column, table)
-                        await GenTableColumnDao.add_gen_table_column_dao(query_db, column)
+            async with DataSourceRegistry.session(source_name) as target_db:
+                for table in gen_table_list:
+                    table_name = table.table_name
+                    table.data_source_name = source_name
+                    GenUtils.init_table(table, current_user.user.user_name)
+                    add_gen_table = await GenTableDao.add_gen_table_dao(query_db, table)
+                    if add_gen_table:
+                        table.table_id = add_gen_table.table_id
+                        gen_table_columns = await GenTableColumnDao.get_gen_db_table_columns_by_name(
+                            target_db, table_name, source_config
+                        )
+                        for column in [
+                            GenTableColumnModel(**gen_table_column)
+                            for gen_table_column in CamelCaseUtil.transform_result(gen_table_columns)
+                        ]:
+                            GenUtils.init_column_field(column, table)
+                            await GenTableColumnDao.add_gen_table_column_dao(query_db, column)
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='导入成功')
         except Exception as e:
@@ -125,6 +178,8 @@ class GenTableService:
         gen_table_info = await cls.get_gen_table_by_id_services(query_db, page_object.table_id)
         if gen_table_info.table_id:
             try:
+                # 数据源归属在导入时确定，编辑生成配置时不得隐式迁移到其他数据库。
+                edit_gen_table['data_source_name'] = gen_table_info.data_source_name
                 edit_gen_table['options'] = json.dumps(edit_gen_table.get('params'))
                 await GenTableDao.edit_gen_table_dao(query_db, edit_gen_table)
                 for gen_table_column in page_object.columns:
@@ -183,21 +238,24 @@ class GenTableService:
         return result
 
     @classmethod
-    async def get_gen_table_all_services(cls, query_db: AsyncSession) -> list[GenTableModel]:
+    async def get_gen_table_all_services(
+        cls, query_db: AsyncSession, source_name: str | None = None
+    ) -> list[GenTableModel]:
         """
         获取所有业务表信息service
 
         :param query_db: orm对象
+        :param source_name: 数据源名称
         :return: 所有业务表信息
         """
-        gen_table_all = await GenTableDao.get_gen_table_all(query_db)
+        gen_table_all = await GenTableDao.get_gen_table_all(query_db, source_name)
         result = [GenTableModel(**gen_table) for gen_table in CamelCaseUtil.transform_result(gen_table_all)]
 
         return result
 
     @classmethod
     async def create_table_services(
-        cls, query_db: AsyncSession, sql: str, current_user: CurrentUserModel
+        cls, query_db: AsyncSession, sql: str, current_user: CurrentUserModel, source_name: str | None = None
     ) -> CrudResponseModel:
         """
         创建表结构service
@@ -205,14 +263,19 @@ class GenTableService:
         :param query_db: orm对象
         :param sql: 建表语句
         :param current_user: 当前用户信息对象
+        :param source_name: 数据源名称
         :return: 创建表结构结果
         """
-        sql_statements = sqlglot_parse(sql, dialect=DataBaseConfig.sqlglot_parse_dialect)
+        source_name = cls._source_name(source_name)
+        target_config = DataBaseConfig.get_source(source_name)
+        sql_statements = sqlglot_parse(sql, dialect=target_config.sqlglot_parse_dialect)
         if cls.__is_valid_create_table(sql_statements):
             try:
                 table_names = cls.__get_table_names(sql_statements)
-                await GenTableDao.create_table_by_sql_dao(query_db, sql_statements)
-                gen_table_list = await cls.get_gen_db_table_list_by_name_services(query_db, table_names)
+                async with DataSourceRegistry.session(source_name) as target_db:
+                    await GenTableDao.create_table_by_sql_dao(target_db, sql_statements, source_config=target_config)
+                    await target_db.commit()
+                gen_table_list = await cls.get_gen_db_table_list_by_name_services(query_db, table_names, source_name)
                 await cls.import_gen_table_services(query_db, gen_table_list, current_user)
 
                 return CrudResponseModel(is_success=True, message='创建表结构成功')
@@ -277,16 +340,20 @@ class GenTableService:
         return preview_code_result
 
     @classmethod
-    async def generate_code_services(cls, query_db: AsyncSession, table_name: str) -> CrudResponseModel:
+    async def generate_code_services(
+        cls, query_db: AsyncSession, table_name: str, source_name: str | None = None
+    ) -> CrudResponseModel:
         """
         生成代码至指定路径service
 
         :param query_db: orm对象
         :param table_name: 业务表名称
+        :param source_name: 数据源名称
         :return: 生成代码结果
         """
+        source_name = cls._source_name(source_name)
         env = TemplateInitializer.init_jinja2()
-        render_info = await cls.__get_gen_render_info(query_db, table_name)
+        render_info = await cls.__get_gen_render_info(query_db, table_name, source_name)
         try:
             for template in render_info[0]:
                 render_content = env.get_template(template).render(**render_info[2])
@@ -300,19 +367,23 @@ class GenTableService:
         return CrudResponseModel(is_success=True, message='生成代码成功')
 
     @classmethod
-    async def batch_gen_code_services(cls, query_db: AsyncSession, table_names: list[str]) -> bytes:
+    async def batch_gen_code_services(
+        cls, query_db: AsyncSession, table_names: list[str], source_name: str | None = None
+    ) -> bytes:
         """
         批量生成代码service
 
         :param query_db: orm对象
         :param table_names: 业务表名称组
+        :param source_name: 数据源名称
         :return: 下载代码结果
         """
+        source_name = cls._source_name(source_name)
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for table_name in table_names:
                 env = TemplateInitializer.init_jinja2()
-                render_info = await cls.__get_gen_render_info(query_db, table_name)
+                render_info = await cls.__get_gen_render_info(query_db, table_name, source_name)
                 for template_file, output_file in zip(render_info[0], render_info[1], strict=False):
                     render_content = env.get_template(template_file).render(**render_info[2])
                     zip_file.writestr(output_file, render_content)
@@ -322,16 +393,19 @@ class GenTableService:
         return zip_data
 
     @classmethod
-    async def __get_gen_render_info(cls, query_db: AsyncSession, table_name: str) -> list:
+    async def __get_gen_render_info(
+        cls, query_db: AsyncSession, table_name: str, source_name: str | None = None
+    ) -> list:
         """
         获取生成代码渲染模板相关信息
 
         :param query_db: orm对象
         :param table_name: 业务表名称
+        :param source_name: 数据源名称
         :return: 生成代码渲染模板相关信息
         """
         gen_table = GenTableModel(
-            **CamelCaseUtil.transform_result(await GenTableDao.get_gen_table_by_name(query_db, table_name))
+            **CamelCaseUtil.transform_result(await GenTableDao.get_gen_table_by_name(query_db, table_name, source_name))
         )
         await cls.set_sub_table(query_db, gen_table)
         await cls.set_pk_column(gen_table)
@@ -357,22 +431,30 @@ class GenTableService:
         return os.path.join(gen_path, TemplateUtils.get_file_name(template, gen_table))
 
     @classmethod
-    async def sync_db_services(cls, query_db: AsyncSession, table_name: str) -> CrudResponseModel:
+    async def sync_db_services(
+        cls, query_db: AsyncSession, table_name: str, source_name: str | None = None
+    ) -> CrudResponseModel:
         """
         同步数据库service
 
         :param query_db: orm对象
         :param table_name: 业务表名称
+        :param source_name: 数据源名称
         :return: 同步数据库结果
         """
-        gen_table = await GenTableDao.get_gen_table_by_name(query_db, table_name)
+        source_name = cls._source_name(source_name)
+        gen_table = await GenTableDao.get_gen_table_by_name(query_db, table_name, source_name)
         table = GenTableModel(**CamelCaseUtil.transform_result(gen_table))
         table_columns = table.columns
         table_column_map = {column.column_name: column for column in table_columns}
-        query_db_table_columns = await GenTableColumnDao.get_gen_db_table_columns_by_name(query_db, table_name)
-        db_table_columns = [
-            GenTableColumnModel(**column) for column in CamelCaseUtil.transform_result(query_db_table_columns)
-        ]
+        source_config = DataBaseConfig.get_source(source_name)
+        async with DataSourceRegistry.session(source_name) as target_db:
+            query_db_table_columns = await GenTableColumnDao.get_gen_db_table_columns_by_name(
+                target_db, table_name, source_config
+            )
+            db_table_columns = [
+                GenTableColumnModel(**column) for column in CamelCaseUtil.transform_result(query_db_table_columns)
+            ]
         if not db_table_columns:
             raise ServiceException('同步数据失败，原表结构不存在')
         db_table_column_names = [column.column_name for column in db_table_columns]
@@ -416,7 +498,11 @@ class GenTableService:
         :return:
         """
         if gen_table.sub_table_name:
-            sub_table = await GenTableDao.get_gen_table_by_name(query_db, gen_table.sub_table_name)
+            sub_table = await GenTableDao.get_gen_table_by_name(
+                query_db,
+                gen_table.sub_table_name,
+                cls._source_name(gen_table.data_source_name),
+            )
             gen_table.sub_table = GenTableModel(**CamelCaseUtil.transform_result(sub_table))
 
     @classmethod

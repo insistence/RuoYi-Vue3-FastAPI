@@ -35,7 +35,7 @@ class GenInfrastructureGateway:
 
         :return: 异步数据库会话工厂
         """
-        return import_module('config.database').AsyncSessionLocal
+        return import_module('config.database').DataSourceRegistry.session
 
     @staticmethod
     def get_page_model() -> Any:
@@ -53,7 +53,7 @@ class GenInfrastructureGateway:
 
         :return: 数据库配置对象
         """
-        return import_module('config.env').DataBaseConfig
+        return import_module('config.env').DataBaseConfig.default_source
 
     @staticmethod
     def get_gen_config() -> Any:

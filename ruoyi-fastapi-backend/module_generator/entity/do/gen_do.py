@@ -19,16 +19,17 @@ class GenTable(Base):
     table_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='编号')
     table_name = Column(String(200), nullable=True, server_default="''", comment='表名称')
     table_comment = Column(String(500), nullable=True, server_default="''", comment='表描述')
+    data_source_name = Column(String(64), nullable=False, server_default='primary', comment='目标数据源名称')
     sub_table_name = Column(
         String(64),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='关联子表的表名',
     )
     sub_table_fk_name = Column(
         String(64),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='子表关联的外键名',
     )
     class_name = Column(String(100), nullable=True, server_default="''", comment='实体类名称')
@@ -54,7 +55,7 @@ class GenTable(Base):
     remark = Column(
         String(500),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='备注',
     )
 

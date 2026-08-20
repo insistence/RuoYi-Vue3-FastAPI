@@ -3,7 +3,7 @@ from redis import asyncio as aioredis
 from redis.exceptions import AuthenticationError, RedisError
 from redis.exceptions import TimeoutError as RedisTimeoutError
 
-from config.database import AsyncSessionLocal
+from config.database import DataSourceRegistry
 from config.env import RedisConfig
 from module_admin.service.config_service import ConfigService
 from module_admin.service.dict_service import DictDataService
@@ -98,7 +98,7 @@ class RedisUtil:
         :param redis: redis对象
         :return:
         """
-        async with AsyncSessionLocal() as session:
+        async with DataSourceRegistry.session() as session:
             await DictDataService.init_cache_sys_dict_services(session, redis)
 
     @classmethod
@@ -109,5 +109,5 @@ class RedisUtil:
         :param redis: redis对象
         :return:
         """
-        async with AsyncSessionLocal() as session:
+        async with DataSourceRegistry.session() as session:
             await ConfigService.init_cache_sys_config_services(session, redis)

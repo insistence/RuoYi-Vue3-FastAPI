@@ -3,7 +3,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
-from config.database import async_engine
+from config.database import DataSourceRegistry
 from config.env import DataBaseConfig
 
 if TYPE_CHECKING:
@@ -111,11 +111,13 @@ class AiUtil:
 
         :return: 存储引擎实例
         """
-        storage_engine_class = cls._resolve_storage_class(DataBaseConfig.db_type)
+        default_source = DataBaseConfig.db_default_source
+        source_config = DataBaseConfig.default_source
+        storage_engine_class = cls._resolve_storage_class(source_config.db_type)
 
         return storage_engine_class(
-            db_engine=async_engine,
-            db_schema=DataBaseConfig.db_database if DataBaseConfig.db_type == 'mysql' else 'public',
+            db_engine=DataSourceRegistry.get_async_engine(default_source),
+            db_schema=source_config.db_database if source_config.db_type == 'mysql' else 'public',
             session_table='ai_sessions',
             memory_table='ai_memories',
             metrics_table='ai_metrics',

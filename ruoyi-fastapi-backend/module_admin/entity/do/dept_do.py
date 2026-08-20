@@ -23,19 +23,19 @@ class SysDept(Base):
     leader = Column(
         String(20),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='负责人',
     )
     phone = Column(
         String(11),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='联系电话',
     )
     email = Column(
         String(50),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='邮箱',
     )
     status = Column(CHAR(1), nullable=True, server_default='0', comment='部门状态（0正常 1停用）')

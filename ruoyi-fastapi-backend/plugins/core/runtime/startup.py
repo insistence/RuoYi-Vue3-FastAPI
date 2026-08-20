@@ -8,9 +8,8 @@ from typing import Any
 from fastapi import FastAPI
 
 from common.router import auto_register_controller_files
-from config.database import AsyncSessionLocal
+from config.database import DataSourceRegistry
 from config.env import AppConfig, get_config
-from config.get_db import get_db
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
 from plugins.core.lifecycle.migration import (
     PluginMigrationHistoryRecord,
@@ -315,7 +314,7 @@ class PluginRuntimeStartupManager:
         if not discovered_plugin_ids:
             return False
 
-        async for query_db in get_db():
+        async with DataSourceRegistry.session() as query_db:
             plugin_list = await self.management_gateway.list_plugins(query_db)
             database_plugin_map = {plugin.plugin_id: plugin for plugin in plugin_list}
             return any(
@@ -423,7 +422,7 @@ class PluginRuntimeStartupManager:
         :return: None
         """
         recovered = False
-        async for query_db in get_db():
+        async with DataSourceRegistry.session() as query_db:
             for plugin in plugins:
                 result = await self.management_gateway.recover_plugin_dependency_error(
                     query_db,
@@ -589,7 +588,7 @@ class PluginRuntimeStartupManager:
         :param app: FastAPI对象
         :return: None
         """
-        async for query_db in get_db():
+        async with DataSourceRegistry.session() as query_db:
             plugin_list = await self.management_gateway.list_plugins(query_db)
             app.state.plugin_registry = self.builder.build_registry(plugin_list)
 
@@ -662,7 +661,7 @@ class PluginRuntimeStartupManager:
         ):
             logger.info('🔄 开始同步单插件启动资源')
             try:
-                async for query_db in get_db():
+                async with DataSourceRegistry.session() as query_db:
                     try:
                         await self.management_gateway.install_plugin_resources(
                             query_db,
@@ -743,7 +742,7 @@ class PluginRuntimeStartupManager:
         ):
             logger.info('🔄 开始执行插件启动安装生命周期')
             self.validate_plugin_structure(discovered_plugin)
-            async for query_db in get_db():
+            async with DataSourceRegistry.session() as query_db:
                 try:
                     await self.management_gateway.upsert_discovered_plugin(
                         query_db,
@@ -820,10 +819,10 @@ class PluginRuntimeStartupManager:
         :param discovered_plugin: 已发现插件对象
         :return: None
         """
-        async with AsyncSessionLocal() as migration_session:
+        async with DataSourceRegistry.session() as migration_session:
             await PluginMigrationRunner(
                 discovered_plugin,
-                PluginStartupMigrationHistoryStore(self.management_gateway, AsyncSessionLocal),
+                PluginStartupMigrationHistoryStore(self.management_gateway, DataSourceRegistry.session),
                 manage_execution_transaction=True,
             ).run(migration_session)
         await self.run_plugin_seed_scripts(query_db, discovered_plugin)
@@ -996,7 +995,7 @@ class PluginRuntimeStartupManager:
         :param error_message: 错误信息
         :return: None
         """
-        async for query_db in get_db():
+        async with DataSourceRegistry.session() as query_db:
             result = await self.management_gateway.mark_plugin_error(query_db, plugin_id, error_message)
             if not result.is_success:
                 await query_db.rollback()
@@ -1037,7 +1036,7 @@ class PluginRuntimeStartupManager:
             return set()
 
         failed_plugin_ids: set[str] = set()
-        async for query_db in get_db():
+        async with DataSourceRegistry.session() as query_db:
             plugin_list = await self.management_gateway.list_plugins(query_db)
         database_plugin_map = {plugin.plugin_id: plugin for plugin in plugin_list}
         plugins_to_sync = [
@@ -1083,7 +1082,7 @@ class PluginRuntimeStartupManager:
         :return: None
         """
         plugin_id = discovered_plugin.manifest.id
-        async for query_db in get_db():
+        async with DataSourceRegistry.session() as query_db:
             try:
                 await self.management_gateway.upsert_discovered_plugin(
                     query_db,

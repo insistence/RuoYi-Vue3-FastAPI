@@ -19,6 +19,7 @@ class GenTableBaseModel(BaseModel):
     table_id: int | None = Field(default=None, description='编号')
     table_name: str | None = Field(default=None, description='表名称')
     table_comment: str | None = Field(default=None, description='表描述')
+    data_source_name: str | None = Field(default=None, description='目标数据源名称')
     sub_table_name: str | None = Field(default=None, description='关联子表的表名')
     sub_table_fk_name: str | None = Field(default=None, description='子表关联的外键名')
     class_name: str | None = Field(default=None, description='实体类名称')
@@ -101,6 +102,18 @@ class GenTableDbRowModel(BaseModel):
     table_comment: str | None = Field(default=None, description='表描述')
     create_time: datetime | None = Field(default=None, description='创建时间')
     update_time: datetime | None = Field(default=None, description='更新时间')
+
+
+class GenDataSourceModel(BaseModel):
+    """
+    代码生成数据源选项模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel)
+
+    name: str
+    db_type: str = Field(description='数据库类型')
+    is_default: bool = False
 
 
 class GenTableModel(GenTableBaseModel):

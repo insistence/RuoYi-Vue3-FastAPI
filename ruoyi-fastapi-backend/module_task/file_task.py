@@ -1,4 +1,4 @@
-from config.database import AsyncSessionLocal
+from config.database import DataSourceRegistry
 from module_admin.service.file_business_service import FileRetentionNoticeService
 from module_admin.service.file_service import FileLifecycleService, FileReconcileService
 from utils.log_util import logger
@@ -16,7 +16,7 @@ async def scan_retention_reminders(remind_days: int = 7, batch_size: int = 500) 
     """
     expiring_count = 0
     expired_count = 0
-    async with AsyncSessionLocal() as query_db:
+    async with DataSourceRegistry.session() as query_db:
         for _ in range(MAX_TASK_BATCHES):
             scan_result = await FileRetentionNoticeService.scan_file_retention_notices_services(
                 query_db,
@@ -41,7 +41,7 @@ async def purge_recycle_bin(retention_days: int = 30, batch_size: int = 100) -> 
     :return: None
     """
     purge_count = 0
-    async with AsyncSessionLocal() as query_db:
+    async with DataSourceRegistry.session() as query_db:
         for _ in range(MAX_TASK_BATCHES):
             current_count = await FileLifecycleService.purge_recycle_bin_services(
                 query_db,

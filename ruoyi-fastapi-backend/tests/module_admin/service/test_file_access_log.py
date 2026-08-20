@@ -31,6 +31,11 @@ class AsyncSessionContext:
         return None
 
 
+def make_database_registry(session: SimpleNamespace) -> SimpleNamespace:
+    """构造使用测试会话的数据库注册表。"""
+    return SimpleNamespace(session=lambda: AsyncSessionContext(session))
+
+
 def make_file_access_log() -> FileAccessLogModel:
     return FileAccessLogModel(
         fileId='file-id',
@@ -94,8 +99,8 @@ def test_file_access_log_event_is_persisted_and_acknowledged() -> None:
 
     with (
         patch(
-            'module_admin.service.log_service.AsyncSessionLocal',
-            return_value=AsyncSessionContext(session),
+            'module_admin.service.log_service.DataSourceRegistry',
+            make_database_registry(session),
         ),
         patch.object(FileAccessLogDao, 'add_file_access_log_dao', new_callable=AsyncMock) as add_file_access_log,
     ):

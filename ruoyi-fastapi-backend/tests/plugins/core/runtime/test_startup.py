@@ -1,5 +1,8 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 from subprocess import CompletedProcess
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,9 +15,13 @@ from plugins.core.runtime.startup import PluginRuntimeStartupManager, PluginStar
 BACKEND_ROOT = Path(__file__).resolve().parents[4]
 
 
-def patch_startup_get_db(fake_get_db: object) -> object:
-    """patch 启动管理器方法实际使用的 get_db 全局引用。"""
-    return patch.dict(PluginRuntimeStartupManager.load_registry_from_database.__globals__, {'get_db': fake_get_db})
+def patch_startup_get_db(fake_get_db: Any) -> object:
+    """patch 启动管理器方法实际使用的默认数据源Session。"""
+    registry = SimpleNamespace(session=asynccontextmanager(fake_get_db))
+    return patch.dict(
+        PluginRuntimeStartupManager.load_registry_from_database.__globals__,
+        {'DataSourceRegistry': registry},
+    )
 
 
 def patch_startup_global(name: str, value: object) -> object:
@@ -445,10 +452,11 @@ async def test_run_plugin_install_scripts_runs_migrations_and_seeds() -> None:
     migration_session_context = MagicMock()
     migration_session_context.__aenter__ = AsyncMock(return_value=fake_migration_session)
     migration_session_context.__aexit__ = AsyncMock(return_value=None)
-    async_session_local = MagicMock(return_value=migration_session_context)
+    database_registry = MagicMock()
+    database_registry.session.return_value = migration_session_context
 
     with (
-        patch_startup_global('AsyncSessionLocal', async_session_local),
+        patch_startup_global('DataSourceRegistry', database_registry),
         patch_startup_global('PluginMigrationRunner', runner_class),
         patch_startup_global('PluginSeedRunner', seed_runner_class),
     ):
@@ -457,7 +465,7 @@ async def test_run_plugin_install_scripts_runs_migrations_and_seeds() -> None:
     runner_class.assert_called_once()
     assert runner_class.call_args.args[0] is discovered_plugin
     assert isinstance(runner_class.call_args.args[1], PluginStartupMigrationHistoryStore)
-    assert runner_class.call_args.args[1].async_session_local is async_session_local
+    assert runner_class.call_args.args[1].async_session_local is database_registry.session
     assert runner_class.call_args.kwargs['manage_execution_transaction'] is True
     migration_runner.run.assert_awaited_once_with(fake_migration_session)
     seed_runner_class.assert_called_once_with(discovered_plugin)

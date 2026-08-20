@@ -1,13 +1,17 @@
 import argparse
 import configparser
+import json
 import os
+import re
 import secrets
 import sys
-from typing import Literal
+from typing import Annotated, Any, Literal
 
 from dotenv import load_dotenv
-from pydantic import Field, computed_field, field_validator
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, computed_field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+from exceptions.exception import DataSourceNotFoundException
 
 
 class AppSettings(BaseSettings):
@@ -58,29 +62,123 @@ class JwtSettings(BaseSettings):
         return value
 
 
-class DataBaseSettings(BaseSettings):
+class DataSourceSettings(BaseModel):
     """
-    数据库配置
+    单个数据源配置
     """
 
-    db_type: Literal['mysql', 'postgresql'] = 'mysql'
-    db_host: str = '127.0.0.1'
-    db_port: int = 3306
-    db_username: str = 'root'
-    db_password: str = 'mysqlroot'
-    db_database: str = 'ruoyi-fastapi'
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    db_type: Literal['mysql', 'postgresql']
+    db_host: str = Field(min_length=1)
+    db_port: int = Field(ge=1, le=65535)
+    db_username: str = Field(min_length=1)
+    db_password: SecretStr
+    db_database: str = Field(min_length=1)
+
     db_echo: bool = True
-    db_max_overflow: int = 10
-    db_pool_size: int = 50
-    db_pool_recycle: int = 3600
-    db_pool_timeout: int = 30
+    db_connect_timeout: int = Field(default=10, gt=0)
+    db_max_overflow: int = Field(default=10, ge=0)
+    db_pool_size: int = Field(default=20, ge=1)
+    db_pool_recycle: int = Field(default=3600, ge=-1)
+    db_pool_timeout: int = Field(default=30, gt=0)
+    db_required: bool = True
 
     @computed_field
     @property
     def sqlglot_parse_dialect(self) -> str:
+        """
+        获取SQLGlot解析方言
+
+        :return: SQLGlot解析方言
+        """
         if self.db_type == 'postgresql':
             return 'postgres'
         return self.db_type
+
+
+DATA_SOURCE_NAME_PATTERN = re.compile(r'^[a-z][a-z0-9_-]{0,63}$')
+
+
+class DataBaseSettings(BaseSettings):
+    """
+    数据库集合配置
+    """
+
+    model_config = SettingsConfigDict(hide_input_in_errors=True)
+
+    db_default_source: str = 'primary'
+    db_sources: Annotated[dict[str, DataSourceSettings], NoDecode] = Field(default_factory=dict)
+
+    def __init__(self, **values: Any) -> None:
+        """
+        预解析数据源JSON配置，避免校验异常泄露密码
+
+        :param values: 数据库配置项
+        """
+        raw_sources = values.get('db_sources')
+        if raw_sources is None:
+            raw_sources = os.environ.get('DB_SOURCES')
+        if isinstance(raw_sources, str):
+            try:
+                values['db_sources'] = json.loads(raw_sources)
+            except (json.JSONDecodeError, TypeError):
+                raise ValueError('DB_SOURCES JSON 格式错误') from None
+        super().__init__(**values)
+
+    @field_validator('db_sources', mode='before')
+    @classmethod
+    def parse_sources_json(cls, value: object) -> object:
+        """
+        解析显式传入的数据源JSON字符串
+
+        :param value: 数据源配置原始值
+        :return: 解析后的数据源配置
+        """
+        if not isinstance(value, str):
+            return value
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            raise ValueError('DB_SOURCES JSON 格式错误') from None
+
+    @model_validator(mode='after')
+    def validate_sources(self) -> 'DataBaseSettings':
+        """
+        校验数据源集合和默认数据源配置
+
+        :return: 数据库集合配置
+        """
+        if not self.db_sources:
+            raise ValueError('DB_SOURCES 不能为空')
+        if self.db_default_source not in self.db_sources:
+            raise ValueError(f'默认数据源不存在：{self.db_default_source}')
+        for name in self.db_sources:
+            if not DATA_SOURCE_NAME_PATTERN.fullmatch(name):
+                raise ValueError(f'数据源名称不合法：{name}')
+        return self
+
+    def get_source(self, name: str | None = None) -> DataSourceSettings:
+        """
+        获取指定数据源配置
+
+        :param name: 数据源名称
+        :return: 数据源配置
+        """
+        source_name = name or self.db_default_source
+        try:
+            return self.db_sources[source_name]
+        except KeyError as exc:
+            raise DataSourceNotFoundException(source_name) from exc
+
+    @property
+    def default_source(self) -> DataSourceSettings:
+        """
+        获取默认数据源配置
+
+        :return: 默认数据源配置
+        """
+        return self.get_source()
 
 
 class RedisSettings(BaseSettings):

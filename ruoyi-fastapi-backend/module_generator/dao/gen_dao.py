@@ -2,13 +2,13 @@ from collections.abc import Sequence
 from datetime import datetime, time
 from typing import Any
 
-from sqlalchemy import Row, delete, func, select, text, update
+from sqlalchemy import Row, bindparam, delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlglot.expressions import Expression
 
 from common.vo import PageModel
-from config.env import DataBaseConfig
+from config.env import DataBaseConfig, DataSourceSettings
 from module_generator.entity.do.gen_do import GenTable, GenTableColumn
 from module_generator.entity.vo.gen_vo import (
     GenTableBaseModel,
@@ -47,18 +47,24 @@ class GenTableDao:
         return gen_table_info
 
     @classmethod
-    async def get_gen_table_by_name(cls, db: AsyncSession, table_name: str) -> GenTable | None:
+    async def get_gen_table_by_name(cls, db: AsyncSession, table_name: str, source_name: str) -> GenTable | None:
         """
         根据业务表名称获取需要生成的业务表信息
 
         :param db: orm对象
         :param table_name: 业务表名称
+        :param source_name: 数据源名称
         :return: 需要生成的业务表信息对象
         """
         gen_table_info = (
             (
                 await db.execute(
-                    select(GenTable).options(selectinload(GenTable.columns)).where(GenTable.table_name == table_name)
+                    select(GenTable)
+                    .options(selectinload(GenTable.columns))
+                    .where(
+                        GenTable.table_name == table_name,
+                        GenTable.data_source_name == source_name,
+                    )
                 )
             )
             .scalars()
@@ -68,28 +74,35 @@ class GenTableDao:
         return gen_table_info
 
     @classmethod
-    async def get_gen_table_all(cls, db: AsyncSession) -> Sequence[GenTable]:
+    async def get_gen_table_all(cls, db: AsyncSession, source_name: str | None = None) -> Sequence[GenTable]:
         """
         获取所有业务表信息
 
         :param db: orm对象
+        :param source_name: 数据源名称
         :return: 所有业务表信息
         """
-        gen_table_all = (await db.execute(select(GenTable).options(selectinload(GenTable.columns)))).scalars().all()
+        query = select(GenTable).options(selectinload(GenTable.columns))
+        if source_name:
+            query = query.where(GenTable.data_source_name == source_name)
+        gen_table_all = (await db.execute(query)).scalars().all()
 
         return gen_table_all
 
     @classmethod
-    async def create_table_by_sql_dao(cls, db: AsyncSession, sql_statements: list[Expression]) -> None:
+    async def create_table_by_sql_dao(
+        cls, db: AsyncSession, sql_statements: list[Expression], *, source_config: DataSourceSettings
+    ) -> None:
         """
         根据sql语句创建表结构
 
         :param db: orm对象
         :param sql_statements: sql语句的ast列表
+        :param source_config: 目标数据源配置
         :return:
         """
         for sql_statement in sql_statements:
-            sql = sql_statement.sql(dialect=DataBaseConfig.sqlglot_parse_dialect)
+            sql = sql_statement.sql(dialect=source_config.sqlglot_parse_dialect)
             await db.execute(text(sql))
 
     @classmethod
@@ -120,6 +133,7 @@ class GenTableDao:
                 )
                 if query_object.begin_time and query_object.end_time
                 else True,
+                GenTable.data_source_name == query_object.data_source_name if query_object.data_source_name else True,
             )
             .distinct()
         )
@@ -130,8 +144,28 @@ class GenTableDao:
         return gen_table_list
 
     @classmethod
+    async def get_gen_table_names(cls, db: AsyncSession, source_name: str | None = None) -> set[str]:
+        """
+        获取控制库中指定数据源已导入的业务表名称
+
+        :param db: orm对象
+        :param source_name: 数据源名称
+        :return: 已导入的业务表名称集合
+        """
+        query = select(GenTable.table_name)
+        if source_name:
+            query = query.where(GenTable.data_source_name == source_name)
+        return {name for name in (await db.execute(query)).scalars().all() if name}
+
+    @classmethod
     async def get_gen_db_table_list(
-        cls, db: AsyncSession, query_object: GenTablePageQueryModel, is_page: bool = False
+        cls,
+        db: AsyncSession,
+        query_object: GenTablePageQueryModel,
+        is_page: bool = False,
+        *,
+        excluded_table_names: set[str] | None = None,
+        source_config: DataSourceSettings | None = None,
     ) -> PageModel | list[dict[str, Any]]:
         """
         根据查询参数获取数据库列表信息
@@ -139,10 +173,13 @@ class GenTableDao:
         :param db: orm对象
         :param query_object: 查询参数对象
         :param is_page: 是否开启分页
+        :param excluded_table_names: 需要排除的已导入表名称集合
+        :param source_config: 目标数据源配置
         :return: 数据库列表信息对象
         """
-        query_params: dict[str, str] = {}
-        if DataBaseConfig.db_type == 'postgresql':
+        source_config = source_config or DataBaseConfig.default_source
+        query_params: dict[str, Any] = {}
+        if source_config.db_type == 'postgresql':
             query_sql = """
                 table_name as table_name,
                 table_comment as table_comment,
@@ -153,7 +190,6 @@ class GenTableDao:
             where
                 table_name not like 'apscheduler_%'
                 and table_name not like 'gen_%'
-                and table_name not in (select table_name from gen_table)
             """
         else:
             query_sql = r"""
@@ -167,28 +203,33 @@ class GenTableDao:
                 table_schema = (select database())
                 and table_name not like 'apscheduler\_%'
                 and table_name not like 'gen\_%'
-                and table_name not in (select table_name from gen_table)
             """
+        if excluded_table_names:
+            query_sql += ' and table_name not in :excluded_table_names'
+            query_params['excluded_table_names'] = tuple(excluded_table_names)
         if query_object.table_name:
-            query_sql += """ and lower(table_name) like lower(concat('%', :table_name, '%'))"""
+            query_sql += " and lower(table_name) like lower(concat('%', :table_name, '%'))"
             query_params['table_name'] = query_object.table_name
         if query_object.table_comment:
-            query_sql += """ and lower(table_comment) like lower(concat('%', :table_comment, '%'))"""
+            query_sql += " and lower(table_comment) like lower(concat('%', :table_comment, '%'))"
             query_params['table_comment'] = query_object.table_comment
         if query_object.begin_time:
-            if DataBaseConfig.db_type == 'postgresql':
-                query_sql += """ and create_time::date >= to_date(:begin_time, 'yyyy-MM-dd')"""
+            if source_config.db_type == 'postgresql':
+                query_sql += " and create_time::date >= to_date(:begin_time, 'yyyy-MM-dd')"
             else:
-                query_sql += """ and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')"""
+                query_sql += " and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')"
             query_params['begin_time'] = query_object.begin_time
         if query_object.end_time:
-            if DataBaseConfig.db_type == 'postgresql':
-                query_sql += """ and create_time::date <= to_date(:end_time, 'yyyy-MM-dd')"""
+            if source_config.db_type == 'postgresql':
+                query_sql += " and create_time::date <= to_date(:end_time, 'yyyy-MM-dd')"
             else:
-                query_sql += """ and date_format(create_time, '%Y%m%d') <= date_format(:end_time, '%Y%m%d')"""
+                query_sql += " and date_format(create_time, '%Y%m%d') <= date_format(:end_time, '%Y%m%d')"
             query_params['end_time'] = query_object.end_time
-        query_sql += """ order by create_time desc"""
-        query = select(text(query_sql).bindparams(**query_params))
+        query_sql += ' order by create_time desc'
+        statement = text(query_sql)
+        if excluded_table_names:
+            statement = statement.bindparams(bindparam('excluded_table_names', expanding=True))
+        query = select(statement.bindparams(**query_params))
         gen_db_table_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
         )
@@ -196,15 +237,19 @@ class GenTableDao:
         return gen_db_table_list
 
     @classmethod
-    async def get_gen_db_table_list_by_names(cls, db: AsyncSession, table_names: list[str]) -> Sequence[Row]:
+    async def get_gen_db_table_list_by_names(
+        cls, db: AsyncSession, table_names: list[str], source_config: DataSourceSettings | None = None
+    ) -> Sequence[Row]:
         """
         根据业务表名称组获取数据库列表信息
 
         :param db: orm对象
         :param table_names: 业务表名称组
+        :param source_config: 目标数据源配置
         :return: 数据库列表信息对象
         """
-        if DataBaseConfig.db_type == 'postgresql':
+        source_config = source_config or DataBaseConfig.default_source
+        if source_config.db_type == 'postgresql':
             query_sql = """
             select
                 table_name as table_name,
@@ -216,7 +261,7 @@ class GenTableDao:
             where
                 table_name not like 'qrtz_%'
                 and table_name not like 'gen_%'
-                and table_name = any(:table_names)
+                and table_name in :table_names
             """
         else:
             query_sql = r"""
@@ -233,7 +278,7 @@ class GenTableDao:
                 and table_schema = (select database())
                 and table_name in :table_names
             """
-        query = text(query_sql).bindparams(table_names=tuple(table_names))
+        query = text(query_sql).bindparams(bindparam('table_names', value=table_names, expanding=True))
         gen_db_table_list = (await db.execute(query)).fetchall()
 
         return gen_db_table_list
@@ -303,15 +348,19 @@ class GenTableColumnDao:
         return gen_table_column_list
 
     @classmethod
-    async def get_gen_db_table_columns_by_name(cls, db: AsyncSession, table_name: str) -> Sequence[Row]:
+    async def get_gen_db_table_columns_by_name(
+        cls, db: AsyncSession, table_name: str, source_config: DataSourceSettings | None = None
+    ) -> Sequence[Row]:
         """
         根据业务表名称获取业务表字段列表信息
 
         :param db: orm对象
         :param table_name: 业务表名称
+        :param source_config: 目标数据源配置
         :return: 业务表字段列表信息对象
         """
-        if DataBaseConfig.db_type == 'postgresql':
+        source_config = source_config or DataBaseConfig.default_source
+        if source_config.db_type == 'postgresql':
             query_sql = """
             select
                 column_name, is_required, is_pk, sort, column_comment, is_increment, column_type

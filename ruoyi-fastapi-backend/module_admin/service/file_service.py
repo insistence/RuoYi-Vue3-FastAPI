@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
-from config.database import AsyncSessionLocal
+from config.database import DataSourceRegistry
 from config.env import UploadConfig
 from exceptions.exception import ServiceException
 from module_admin.dao.file_access_dao import FileAccessLogDao
@@ -1158,7 +1158,7 @@ class FileReconcileService:
         :return: None
         """
         try:
-            async with AsyncSessionLocal() as query_db:
+            async with DataSourceRegistry.session() as query_db:
                 reconcile_run = await FileInfoDao.get_reconcile_run_by_id(query_db, run_id)
                 if reconcile_run is None or reconcile_run.status != 'running':
                     return
@@ -1199,7 +1199,7 @@ class FileReconcileService:
                 )
         except Exception as exc:
             logger.exception(f'文件存储对账任务{run_id}执行失败')
-            async with AsyncSessionLocal() as query_db:
+            async with DataSourceRegistry.session() as query_db:
                 try:
                     await FileInfoDao.finish_reconcile_run(
                         query_db,
@@ -1221,7 +1221,7 @@ class FileReconcileService:
         :param check_hash: 是否校验文件摘要
         :return: None
         """
-        async with AsyncSessionLocal() as query_db:
+        async with DataSourceRegistry.session() as query_db:
             try:
                 reconcile_run = await cls.start_reconcile_run_services(
                     query_db,

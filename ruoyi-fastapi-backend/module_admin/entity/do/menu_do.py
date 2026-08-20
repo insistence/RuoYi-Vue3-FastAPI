@@ -23,13 +23,13 @@ class SysMenu(Base):
     component = Column(
         String(255),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='组件路径',
     )
     query = Column(
         String(255),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='路由参数',
     )
     route_name = Column(String(50), nullable=True, server_default="''", comment='路由名称')
@@ -41,7 +41,7 @@ class SysMenu(Base):
     perms = Column(
         String(100),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='权限标识',
     )
     icon = Column(String(100), nullable=True, server_default='#', comment='菜单图标')

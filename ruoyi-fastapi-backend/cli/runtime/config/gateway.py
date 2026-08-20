@@ -53,7 +53,7 @@ class ConfigInfrastructureGateway:
 
         :return: 异步数据库会话工厂
         """
-        return import_module('config.database').AsyncSessionLocal
+        return import_module('config.database').DataSourceRegistry.session
 
     @staticmethod
     def get_redis_util() -> Any:

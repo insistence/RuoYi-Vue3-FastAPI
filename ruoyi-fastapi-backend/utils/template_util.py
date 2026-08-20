@@ -73,6 +73,9 @@ class TemplateUtils:
         tpl_category = gen_table.tpl_category
         function_name = gen_table.function_name
 
+        source_name = gen_table.data_source_name or DataBaseConfig.db_default_source
+        source_config = DataBaseConfig.get_source(source_name)
+        default_source_name = DataBaseConfig.db_default_source
         context = {
             'tplCategory': tpl_category,
             'tableName': gen_table.table_name,
@@ -95,7 +98,14 @@ class TemplateUtils:
             'columns': gen_table.columns,
             'table': gen_table,
             'dicts': cls.get_dicts(gen_table),
-            'dbType': DataBaseConfig.db_type,
+            'dbType': source_config.db_type,
+            'dataSourceName': source_name,
+            'defaultDataSourceName': default_source_name,
+            'dbSessionDependency': (
+                f"DBSessionDependency('{source_name}')"
+                if source_name != default_source_name
+                else 'DBSessionDependency()'
+            ),
             'column_not_add_show': GenConstant.COLUMNNAME_NOT_ADD_SHOW,
             'column_not_edit_show': GenConstant.COLUMNNAME_NOT_EDIT_SHOW,
         }
@@ -288,20 +298,20 @@ class TemplateUtils:
         import_list = set()
         import_list.add('from sqlalchemy import Column')
         for column in columns:
-            data_type = cls.get_db_type(column.column_type)
-            if data_type in GenConstant.COLUMNTYPE_GEOMETRY:
+            sqlalchemy_type = cls.get_sqlalchemy_type(column.column_type, gen_table.data_source_name)
+            if sqlalchemy_type == 'Geometry':
                 import_list.add('from geoalchemy2 import Geometry')
-            import_list.add(
-                f'from sqlalchemy import {StringUtil.get_mapping_value_by_key_ignore_case(GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, data_type)}'
-            )
+            else:
+                import_list.add(f'from sqlalchemy import {sqlalchemy_type.split("(", 1)[0]}')
         if gen_table.sub:
             import_list.add('from sqlalchemy import ForeignKey')
             sub_columns = gen_table.sub_table.columns or []
             for sub_column in sub_columns:
-                data_type = cls.get_db_type(sub_column.column_type)
-                import_list.add(
-                    f'from sqlalchemy import {StringUtil.get_mapping_value_by_key_ignore_case(GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, data_type)}'
-                )
+                sqlalchemy_type = cls.get_sqlalchemy_type(sub_column.column_type, gen_table.data_source_name)
+                if sqlalchemy_type == 'Geometry':
+                    import_list.add('from geoalchemy2 import Geometry')
+                else:
+                    import_list.add(f'from sqlalchemy import {sqlalchemy_type.split("(", 1)[0]}')
         return cls.merge_same_imports(list(import_list), 'from sqlalchemy import')
 
     @classmethod
@@ -491,30 +501,19 @@ class TemplateUtils:
         return parts[0] + ''.join(word.capitalize() for word in parts[1:])
 
     @classmethod
-    def get_sqlalchemy_type(cls, column_type: str) -> str:
+    def get_sqlalchemy_type(cls, column_type: str, source_name: str | None = None) -> str:
         """
         获取SQLAlchemy类型
 
         :param column_type: 列类型
+        :param source_name: 数据源名称
         :return: SQLAlchemy类型
         """
-        if '(' in column_type:
-            column_type_list = column_type.split('(')
-            if column_type_list[0] in GenConstant.COLUMNTYPE_STR:
-                sqlalchemy_type = (
-                    StringUtil.get_mapping_value_by_key_ignore_case(
-                        GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, column_type_list[0]
-                    )
-                    + '('
-                    + column_type_list[1]
-                )
-            else:
-                sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(
-                    GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, column_type_list[0]
-                )
-        else:
-            sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(
-                GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING, column_type
-            )
-
+        source_config = DataBaseConfig.get_source(source_name)
+        normalized = column_type.lower().strip()
+        base = normalized.split('(', 1)[0].removesuffix(' unsigned').strip()
+        type_mapping = GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING[source_config.db_type]
+        sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(type_mapping, base) or 'String'
+        if '(' in normalized and sqlalchemy_type in {'String', 'CHAR', 'Numeric', 'DECIMAL'}:
+            return f'{sqlalchemy_type}({normalized.split("(", 1)[1]}'
         return sqlalchemy_type

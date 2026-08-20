@@ -6,10 +6,11 @@ from fastapi import FastAPI
 
 from common.constant import LockConstant
 from common.router import auto_register_routers
+from config.database import DataSourceRegistry
 from config.env import AppConfig
-from config.get_db import close_async_engine, init_create_table
 from config.get_redis import RedisUtil
 from config.get_scheduler import SchedulerUtil
+from config.lifecycle import init_create_table
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
 from module_admin.service.log_service import LogAggregatorService
@@ -55,7 +56,7 @@ async def _stop_background_tasks(app: FastAPI) -> None:
             try:
                 await RedisUtil.close_redis_pool(app)
             finally:
-                await close_async_engine()
+                await DataSourceRegistry.dispose_all()
 
 
 async def _shutdown_application_runtime(app: FastAPI) -> None:
@@ -76,6 +77,40 @@ async def _shutdown_application_runtime(app: FastAPI) -> None:
             await logger.complete()
 
 
+def _show_startup_addresses() -> None:
+    """
+    显示应用及接口文档访问地址
+
+    :return: None
+    """
+    host = AppConfig.app_host
+    port = AppConfig.app_port
+    if host == '0.0.0.0':
+        local_ip = IPUtil.get_local_ip()
+        network_ips = IPUtil.get_network_ips()
+    else:
+        local_ip = host
+        network_ips = [host]
+
+    app_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}</cyan>']
+    app_links.extend(f'📡 Network:  <cyan>http://{ip}:{port}</cyan>' for ip in network_ips)
+    logger.opt(colors=True).info('💻 应用地址:\n' + '\n'.join(app_links))
+
+    if not AppConfig.app_disable_swagger:
+        swagger_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.docs_url()}</cyan>']
+        swagger_links.extend(
+            f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.docs_url()}</cyan>' for ip in network_ips
+        )
+        logger.opt(colors=True).info('📄 Swagger文档:\n' + '\n'.join(swagger_links))
+
+    if not AppConfig.app_disable_redoc:
+        redoc_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.redoc_url()}</cyan>']
+        redoc_links.extend(
+            f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
+        )
+        logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
+
+
 # 生命周期事件
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -85,9 +120,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     :param app: FastAPI对象
     :return: None
     """
-    app.state.redis = await RedisUtil.create_redis_pool(log_enabled=False)
+    app.state.redis = None
     app.state.plugin_application_runtime_started = False
     try:
+        app.state.redis = await RedisUtil.create_redis_pool(log_enabled=False)
         application_lock_owner_token = SchedulerUtil.get_application_lock_owner_token()
         application_leader = await StartupUtil.acquire_application_leader(
             redis=app.state.redis,
@@ -101,6 +137,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 获取锁成功后立即启动锁续期任务，避免初始化时间过长导致锁过期
         if application_leader:
             SchedulerUtil.start_application_lock_renewal(app.state.redis)
+
+        await DataSourceRegistry.initialize()
 
         startup_logger = logger.bind(
             startup_phase='application_startup',
@@ -119,37 +157,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # 短暂等待确保下面的启动日志在最后打印
             await asyncio.sleep(1)
             startup_logger.info(f'🚀 {AppConfig.app_name}启动成功')
-            host = AppConfig.app_host
-            port = AppConfig.app_port
-            if host == '0.0.0.0':
-                local_ip = IPUtil.get_local_ip()
-                network_ips = IPUtil.get_network_ips()
-            else:
-                local_ip = host
-                network_ips = [host]
-
-            app_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}</cyan>']
-            app_links.extend(f'📡 Network:  <cyan>http://{ip}:{port}</cyan>' for ip in network_ips)
-            logger.opt(colors=True).info('💻 应用地址:\n' + '\n'.join(app_links))
-
-            if not AppConfig.app_disable_swagger:
-                swagger_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.docs_url()}</cyan>']
-                swagger_links.extend(
-                    f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.docs_url()}</cyan>' for ip in network_ips
-                )
-                logger.opt(colors=True).info('📄 Swagger文档:\n' + '\n'.join(swagger_links))
-
-            if not AppConfig.app_disable_redoc:
-                redoc_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.redoc_url()}</cyan>']
-                redoc_links.extend(
-                    f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
-                )
-                logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
+            _show_startup_addresses()
         # 确保启动阶段的插件摘要在ASGI lifespan启动完成前已写入stdout和日志文件。
         await logger.complete()
         yield
     finally:
-        await _shutdown_application_runtime(app)
+        if app.state.redis is None:
+            await DataSourceRegistry.dispose_all()
+            await logger.complete()
+        else:
+            await _shutdown_application_runtime(app)
 
 
 async def _initialize_application_runtime(app: FastAPI, application_leader: bool) -> None:

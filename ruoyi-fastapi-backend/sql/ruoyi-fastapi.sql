@@ -730,6 +730,7 @@ create table gen_table (
   table_id          bigint(20)      not null auto_increment    comment '编号',
   table_name        varchar(200)    default ''                 comment '表名称',
   table_comment     varchar(500)    default ''                 comment '表描述',
+  data_source_name  varchar(64)     not null default 'primary' comment '目标数据源名称',
   sub_table_name    varchar(64)     default null               comment '关联子表的表名',
   sub_table_fk_name varchar(64)     default null               comment '子表关联的外键名',
   class_name        varchar(100)    default ''                 comment '实体类名称',

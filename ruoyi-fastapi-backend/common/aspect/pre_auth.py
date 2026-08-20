@@ -5,9 +5,9 @@ from fastapi import Depends, Request, params
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.aspect.db_seesion import DBSessionDependency
 from common.context import RequestContext
 from config.env import AppConfig
-from config.get_db import get_db
 from exceptions.exception import AuthException
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.login_service import LoginService
@@ -80,7 +80,7 @@ class PreAuth:
         # 添加开始和结束锚点，确保精确匹配
         return re.compile(f'^{pattern_str}$')
 
-    async def __call__(self, request: Request, db: AsyncSession = Depends(get_db)) -> CurrentUserModel | None:
+    async def __call__(self, request: Request, db: AsyncSession = DBSessionDependency()) -> CurrentUserModel | None:
         """
         执行登录认证校验
 
