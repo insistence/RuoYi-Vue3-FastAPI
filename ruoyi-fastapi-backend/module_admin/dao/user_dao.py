@@ -371,9 +371,7 @@ class UserDao:
         :return:
         """
         await db.execute(
-            update(SysUser)
-            .where(SysUser.user_id == user.user_id)
-            .values(del_flag='2', update_by=user.update_by)
+            update(SysUser).where(SysUser.user_id == user.user_id).values(del_flag='2', update_by=user.update_by)
         )
 
     @classmethod

@@ -209,9 +209,7 @@ class RoleDao:
         :return:
         """
         await db.execute(
-            update(SysRole)
-            .where(SysRole.role_id == role.role_id)
-            .values(del_flag='2', update_by=role.update_by)
+            update(SysRole).where(SysRole.role_id == role.role_id).values(del_flag='2', update_by=role.update_by)
         )
 
     @classmethod

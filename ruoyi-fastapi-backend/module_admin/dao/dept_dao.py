@@ -272,9 +272,7 @@ class DeptDao:
         :return:
         """
         await db.execute(
-            update(SysDept)
-            .where(SysDept.dept_id == dept.dept_id)
-            .values(del_flag='2', update_by=dept.update_by)
+            update(SysDept).where(SysDept.dept_id == dept.dept_id).values(del_flag='2', update_by=dept.update_by)
         )
 
     @classmethod

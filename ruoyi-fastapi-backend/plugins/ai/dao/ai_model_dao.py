@@ -67,9 +67,7 @@ class AiModelDao:
         :param ai_model: AI模型对象
         :return: AI模型信息对象
         """
-        db_model = AiModels(
-            **ai_model.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
-        )
+        db_model = AiModels(**ai_model.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'}))
         db.add(db_model)
         await db.flush()
 

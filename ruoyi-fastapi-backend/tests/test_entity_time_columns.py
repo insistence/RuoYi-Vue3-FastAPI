@@ -212,9 +212,7 @@ async def test_core_model_time_defaults_are_evaluated_per_insert_and_core_update
 
             await asyncio.sleep(0.001)
             await session.execute(
-                update(SysPlugin)
-                .where(SysPlugin.plugin_id == first.plugin_id)
-                .values(version='1.1.0')
+                update(SysPlugin).where(SysPlugin.plugin_id == first.plugin_id).values(version='1.1.0')
             )
             await session.refresh(first)
             assert first.update_time > first_update_time
