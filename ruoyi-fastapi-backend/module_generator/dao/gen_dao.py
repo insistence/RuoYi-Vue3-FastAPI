@@ -347,7 +347,11 @@ class GenTableDao:
         :param gen_table: 业务表对象
         :return:
         """
-        db_gen_table = GenTable(**GenTableBaseModel(**gen_table.model_dump(by_alias=True)).model_dump())
+        db_gen_table = GenTable(
+            **GenTableBaseModel(
+                **gen_table.model_dump(by_alias=True, exclude={'create_time', 'update_time'})
+            ).model_dump(exclude={'create_time', 'update_time'})
+        )
         db.add(db_gen_table)
         await db.flush()
 
@@ -362,7 +366,10 @@ class GenTableDao:
         :param gen_table: 需要更新的业务表字典
         :return:
         """
-        await db.execute(update(GenTable), [GenTableBaseModel(**gen_table).model_dump()])
+        await db.execute(
+            update(GenTable),
+            [GenTableBaseModel(**gen_table).model_dump(exclude={'create_time', 'update_time'})],
+        )
 
     @classmethod
     async def delete_gen_table_dao(cls, db: AsyncSession, gen_table: GenTableModel) -> None:
@@ -431,7 +438,9 @@ class GenTableColumnDao:
         :return:
         """
         db_gen_table_column = GenTableColumn(
-            **GenTableColumnBaseModel(**gen_table_column.model_dump(by_alias=True)).model_dump()
+            **GenTableColumnBaseModel(
+                **gen_table_column.model_dump(by_alias=True, exclude={'create_time', 'update_time'})
+            ).model_dump(exclude={'create_time', 'update_time'})
         )
         db.add(db_gen_table_column)
         await db.flush()
@@ -447,7 +456,10 @@ class GenTableColumnDao:
         :param gen_table_column: 需要更新的业务表字段字典
         :return:
         """
-        await db.execute(update(GenTableColumn), [GenTableColumnBaseModel(**gen_table_column).model_dump()])
+        await db.execute(
+            update(GenTableColumn),
+            [GenTableColumnBaseModel(**gen_table_column).model_dump(exclude={'create_time', 'update_time'})],
+        )
 
     @classmethod
     async def delete_gen_table_column_by_table_id_dao(

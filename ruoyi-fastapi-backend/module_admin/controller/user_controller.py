@@ -124,9 +124,7 @@ async def add_system_user(
     await UserService.validate_password_services(request.app.state.redis, add_user.password)
     add_user.password = PwdUtil.get_password_hash(add_user.password)
     add_user.create_by = current_user.user.user_name
-    add_user.create_time = datetime.now()
     add_user.update_by = current_user.user.user_name
-    add_user.update_time = datetime.now()
     add_user_result = await UserService.add_user_services(query_db, add_user)
     logger.info(add_user_result.message)
 
@@ -160,7 +158,6 @@ async def edit_system_user(
             query_db, ','.join([str(item) for item in edit_user.role_ids]), role_data_scope_sql
         )
     edit_user.update_by = current_user.user.user_name
-    edit_user.update_time = datetime.now()
     edit_user_result = await UserService.edit_user_services(query_db, edit_user)
     logger.info(edit_user_result.message)
 
@@ -193,7 +190,7 @@ async def delete_system_user(
             await UserService.check_user_allowed_services(UserModel(userId=int(user_id)))
             if not current_user.user.admin:
                 await UserService.check_user_data_scope_services(query_db, int(user_id), data_scope_sql)
-    delete_user = DeleteUserModel(userIds=user_ids, updateBy=current_user.user.user_name, updateTime=datetime.now())
+    delete_user = DeleteUserModel(userIds=user_ids, updateBy=current_user.user.user_name)
     delete_user_result = await UserService.delete_user_services(query_db, delete_user)
     logger.info(delete_user_result.message)
 
@@ -227,7 +224,6 @@ async def reset_system_user_pwd(
         password=PwdUtil.get_password_hash(reset_user.password),
         pwdUpdateDate=datetime.now(),
         updateBy=current_user.user.user_name,
-        updateTime=datetime.now(),
         type='pwd',
     )
     edit_user_result = await UserService.edit_user_services(query_db, edit_user)
@@ -259,7 +255,6 @@ async def change_system_user_status(
         userId=change_user.user_id,
         status=change_user.status,
         updateBy=current_user.user.user_name,
-        updateTime=datetime.now(),
         type='status',
     )
     edit_user_result = await UserService.edit_user_services(query_db, edit_user)
@@ -348,7 +343,6 @@ async def change_system_user_profile_avatar(
             userId=current_user.user.user_id,
             avatar=f'{UploadConfig.UPLOAD_PREFIX}/{relative_path}/{avatar_name}',
             updateBy=current_user.user.user_name,
-            updateTime=datetime.now(),
             type='avatar',
         )
         edit_user_result = await UserService.edit_user_services(query_db, edit_user)
@@ -381,7 +375,6 @@ async def change_system_user_profile_info(
         userId=current_user.user.user_id,
         userName=current_user.user.user_name,
         updateBy=current_user.user.user_name,
-        updateTime=datetime.now(),
         roleIds=current_user.user.role_ids.split(',') if current_user.user.role_ids else [],
         postIds=current_user.user.post_ids.split(',') if current_user.user.post_ids else [],
         role=current_user.user.role,
@@ -412,7 +405,6 @@ async def reset_system_user_password(
         password=reset_password.new_password,
         pwdUpdateDate=datetime.now(),
         updateBy=current_user.user.user_name,
-        updateTime=datetime.now(),
     )
     await UserService.validate_password_services(request.app.state.redis, reset_user.password)
     reset_user_result = await UserService.reset_user_services(query_db, reset_user)

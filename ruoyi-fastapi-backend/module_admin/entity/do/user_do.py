@@ -36,9 +36,9 @@ class SysUser(Base):
     login_date = Column(DateTime, nullable=True, comment='最后登录时间')
     pwd_update_date = Column(DateTime, nullable=True, comment='密码最后更新时间')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, comment='创建时间', default=datetime.now())
+    create_time = Column(DateTime, nullable=True, comment='创建时间', default=datetime.now)
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, comment='更新时间', default=datetime.now())
+    update_time = Column(DateTime, nullable=True, comment='更新时间', default=datetime.now, onupdate=datetime.now)
     remark = Column(
         String(500),
         nullable=True,

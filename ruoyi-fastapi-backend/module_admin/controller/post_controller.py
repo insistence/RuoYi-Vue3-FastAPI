@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Form, Path, Query, Request, Response
@@ -65,9 +64,7 @@ async def add_system_post(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_post.create_by = current_user.user.user_name
-    add_post.create_time = datetime.now()
     add_post.update_by = current_user.user.user_name
-    add_post.update_time = datetime.now()
     add_post_result = await PostService.add_post_services(query_db, add_post)
     logger.info(add_post_result.message)
 
@@ -91,7 +88,6 @@ async def edit_system_post(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_post.update_by = current_user.user.user_name
-    edit_post.update_time = datetime.now()
     edit_post_result = await PostService.edit_post_services(query_db, edit_post)
     logger.info(edit_post_result.message)
 

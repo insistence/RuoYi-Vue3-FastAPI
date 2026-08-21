@@ -67,7 +67,9 @@ class AiModelDao:
         :param ai_model: AI模型对象
         :return: AI模型信息对象
         """
-        db_model = AiModels(**ai_model.model_dump(exclude_unset=True))
+        db_model = AiModels(
+            **ai_model.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
+        )
         db.add(db_model)
         await db.flush()
 
@@ -82,7 +84,10 @@ class AiModelDao:
         :param ai_model: 需要更新的AI模型字典
         :return:
         """
-        await db.execute(update(AiModels), [ai_model])
+        await db.execute(
+            update(AiModels),
+            [{key: value for key, value in ai_model.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_ai_model_dao(cls, db: AsyncSession, ai_model: AiModelModel) -> None:

@@ -147,7 +147,7 @@ class NoticeService:
         :param page_object: 编辑通知公告对象
         :return: 编辑通知公告校验结果
         """
-        edit_notice = page_object.model_dump(exclude_unset=True)
+        edit_notice = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
         notice_info = await cls.notice_detail_services(query_db, page_object.notice_id)
         if notice_info.notice_id:
             if not await cls.check_notice_unique_services(query_db, page_object):

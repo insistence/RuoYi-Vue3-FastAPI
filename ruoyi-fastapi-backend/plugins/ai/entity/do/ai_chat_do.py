@@ -23,4 +23,4 @@ class AiChatConfig(Base):
     vision_enabled = Column(CHAR(1), server_default='1', comment='是否开启视觉(0是, 1否)')
     image_max_size_mb = Column(Integer, nullable=True, comment='图片最大大小(MB)')
     create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
-    update_time = Column(DateTime, nullable=True, default=datetime.now, comment='更新时间')
+    update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now, comment='更新时间')

@@ -484,9 +484,11 @@ async def test_mark_plugin_installed_updates_installed_version(tmp_path: Path) -
 
         assert plugin.installed_version == '1.0.0'
         assert plugin.status == 'installed'
+        assert plugin.update_time is not None
         assert db_plugin is not None
         assert db_plugin.installed_version == '1.0.0'
         assert db_plugin.status == 'installed'
+        assert plugin.update_time == db_plugin.update_time
     finally:
         await engine.dispose()
 

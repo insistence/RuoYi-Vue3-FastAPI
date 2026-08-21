@@ -8,6 +8,8 @@ from module_generator.entity.vo.gen_vo import GenTableColumnModel, GenTableModel
 from module_generator.service.gen_service import GenTableService
 from utils.template_util import TemplateInitializer, TemplateUtils
 
+MAX_GENERATED_LINE_LENGTH = 120
+
 
 def _gen_table(
     *,
@@ -176,7 +178,129 @@ def test_secondary_source_templates_use_named_dependency_and_isolated_metadata(
     assert "DataSourceBase = get_data_source_base('reporting')" in entity
     assert 'class GenItem(DataSourceBase):' in entity
     assert 'from config.database import Base' not in entity
+    assert 'from datetime import datetime' not in entity
     compile(entity, '<generated-entity>', 'exec')
+    dao = env.get_template('python/dao.py.jinja2').render(**context)
+    assert 'if key not in set()' in dao
+    compile(dao, '<generated-dao>', 'exec')
+    compile(controller, '<generated-controller>', 'exec')
+
+
+def test_python_templates_handle_audit_timestamps_by_exact_column_name() -> None:
+    columns = [
+        GenTableColumnModel(
+            columnName='item_id',
+            columnComment='编号',
+            columnType='bigint',
+            pythonType='int',
+            pythonField='itemId',
+            isPk='1',
+            isInsert='1',
+        ),
+        GenTableColumnModel(
+            columnName='create_by',
+            columnComment='创建者',
+            columnType='varchar(64)',
+            pythonType='str',
+            pythonField='createBy',
+            isInsert='1',
+            isEdit='0',
+        ),
+        GenTableColumnModel(
+            columnName='update_by',
+            columnComment='更新者',
+            columnType='varchar(64)',
+            pythonType='str',
+            pythonField='updateBy',
+            isInsert='1',
+            isEdit='1',
+        ),
+        GenTableColumnModel(
+            columnName='create_time',
+            columnComment='创建时间',
+            columnType='datetime',
+            pythonType='datetime',
+            pythonField='createTime',
+            isInsert='1',
+            isEdit='0',
+        ),
+        GenTableColumnModel(
+            columnName='update_time',
+            columnComment='更新时间',
+            columnType='datetime',
+            pythonType='datetime',
+            pythonField='updateTime',
+            isInsert='1',
+            isEdit='1',
+        ),
+        GenTableColumnModel(
+            columnName='created_time',
+            columnComment='其他时间',
+            columnType='datetime',
+            pythonType='datetime',
+            pythonField='createdTime',
+            isInsert='1',
+            isEdit='1',
+        ),
+    ]
+    gen_table = _gen_table(gen_view=False)
+    gen_table.columns = columns
+    gen_table.pk_column = columns[0]
+
+    context = TemplateUtils.prepare_context(gen_table)
+    env = TemplateInitializer.init_jinja2()
+    entity = env.get_template('python/do.py.jinja2').render(**context)
+    dao = env.get_template('python/dao.py.jinja2').render(**context)
+    controller = env.get_template('python/controller.py.jinja2').render(**context)
+
+    assert 'from datetime import datetime' in entity
+    assert 'create_time = Column(DateTime, nullable=True, default=datetime.now,' in entity
+    assert 'update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now,' in entity
+    assert 'created_time = Column(DateTime, nullable=True, comment=' in entity
+    assert "model_dump(exclude={'create_time', 'update_time'})" in dao
+    assert "if key not in {'create_time', 'update_time'}" in dao
+    assert 'create_time = datetime.now()' not in controller
+    assert 'update_time = datetime.now()' not in controller
+    assert 'create_by = current_user.user.user_name' in controller
+    assert 'update_by = current_user.user.user_name' in controller
+    compile(entity, '<generated-audit-entity>', 'exec')
+    compile(dao, '<generated-audit-dao>', 'exec')
+    compile(controller, '<generated-audit-controller>', 'exec')
+    assert entity.index('from datetime import datetime') < entity.index('from sqlalchemy import')
+    assert all(len(line) <= MAX_GENERATED_LINE_LENGTH for line in entity.splitlines())
+    assert all(len(line) <= MAX_GENERATED_LINE_LENGTH for line in dao.splitlines())
+    assert all(len(line) <= MAX_GENERATED_LINE_LENGTH for line in controller.splitlines())
+
+
+def test_dao_audit_filter_uses_a_set_for_a_single_timestamp() -> None:
+    columns = [
+        GenTableColumnModel(
+            columnName='item_id',
+            columnComment='编号',
+            columnType='bigint',
+            pythonType='int',
+            pythonField='itemId',
+            isPk='1',
+            isInsert='1',
+        ),
+        GenTableColumnModel(
+            columnName='create_time',
+            columnComment='创建时间',
+            columnType='datetime',
+            pythonType='datetime',
+            pythonField='createTime',
+            isInsert='1',
+        ),
+    ]
+    gen_table = _gen_table(gen_view=False)
+    gen_table.columns = columns
+    gen_table.pk_column = columns[0]
+
+    context = TemplateUtils.prepare_context(gen_table)
+    dao = TemplateInitializer.init_jinja2().get_template('python/dao.py.jinja2').render(**context)
+
+    assert "if key not in {'create_time'}" in dao
+    compile(dao, '<generated-single-audit-dao>', 'exec')
 
 
 def test_sub_table_entity_template_uses_required_nullable_semantics() -> None:
@@ -204,14 +328,39 @@ def test_sub_table_entity_template_uses_required_nullable_semantics() -> None:
                 pythonField='optionalValue',
                 isRequired='0',
             ),
+            GenTableColumnModel(
+                columnName='create_time',
+                columnComment='创建时间',
+                columnType='datetime',
+                pythonType='datetime',
+                pythonField='createTime',
+            ),
+            GenTableColumnModel(
+                columnName='update_time',
+                columnComment='更新时间',
+                columnType='datetime',
+                pythonType='datetime',
+                pythonField='updateTime',
+            ),
         ],
+        businessName='itemDetail',
+        functionName='生成测试明细',
     )
+    gen_table.sub_table.pk_column = gen_table.sub_table.columns[0]
 
     context = TemplateUtils.prepare_context(gen_table)
-    entity = TemplateInitializer.init_jinja2().get_template('python/do.py.jinja2').render(**context)
+    env = TemplateInitializer.init_jinja2()
+    entity = env.get_template('python/do.py.jinja2').render(**context)
+    dao = env.get_template('python/dao.py.jinja2').render(**context)
 
     assert "required_value = Column(String(100), nullable=False, comment='必填值')" in entity
     assert "optional_value = Column(String(100), nullable=True, comment='可选值')" in entity
+    assert 'create_time = Column(DateTime, nullable=True, default=datetime.now,' in entity
+    assert 'update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now,' in entity
+    assert "model_dump(exclude={'create_time', 'update_time'})" in dao
+    assert "if key not in {'create_time', 'update_time'}" in dao
+    compile(entity, '<generated-sub-entity>', 'exec')
+    compile(dao, '<generated-sub-dao>', 'exec')
 
 
 def test_named_data_source_bases_are_cached_and_isolated(monkeypatch: pytest.MonkeyPatch) -> None:

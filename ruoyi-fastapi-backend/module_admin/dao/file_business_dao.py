@@ -309,7 +309,9 @@ class FileRetentionPolicyDao:
         :return: None
         """
         await db.execute(
-            update(SysFileRetentionPolicy).where(SysFileRetentionPolicy.business_type == business_type).values(**policy)
+            update(SysFileRetentionPolicy)
+            .where(SysFileRetentionPolicy.business_type == business_type)
+            .values(**{key: value for key, value in policy.items() if key not in {'create_time', 'update_time'}})
         )
 
     @classmethod

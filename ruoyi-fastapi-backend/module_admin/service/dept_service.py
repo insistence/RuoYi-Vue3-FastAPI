@@ -151,7 +151,7 @@ class DeptService:
                 old_ancestors = old_dept.ancestors
                 page_object.ancestors = new_ancestors
                 await cls.update_dept_children(query_db, page_object.dept_id, new_ancestors, old_ancestors)
-            edit_dept = page_object.model_dump(exclude_unset=True)
+            edit_dept = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
             await DeptDao.edit_dept_dao(query_db, edit_dept)
             if (
                 page_object.status == CommonConstant.DEPT_NORMAL

@@ -1,11 +1,16 @@
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from module_generator.dao.gen_dao import GenTableDao
+from module_generator.dao.gen_dao import GenTableColumnDao, GenTableDao
 from module_generator.entity.vo.gen_vo import GenTablePageQueryModel
 from utils.page_util import PageUtil
+
+TABLE_ID = 7
+COLUMN_ID = 9
+CLIENT_AUDIT_TIME = datetime(2000, 1, 1)
 
 
 @pytest.mark.asyncio
@@ -85,3 +90,37 @@ async def test_get_gen_db_table_list_uses_target_source_config() -> None:
     query = paginate.await_args.args[1]
     assert 'list_table' in str(query.compile())
     assert query.compile().params['excluded_table_names'] == ('sys_user',)
+
+
+@pytest.mark.asyncio
+async def test_edit_gen_table_keeps_alias_fields_while_excluding_audit_times() -> None:
+    db = MagicMock()
+    db.execute = AsyncMock()
+
+    await GenTableDao.edit_gen_table_dao(
+        db,
+        {'tableId': TABLE_ID, 'tableName': 'orders', 'updateTime': CLIENT_AUDIT_TIME},
+    )
+
+    params = db.execute.await_args.args[1][0]
+    assert params['table_id'] == TABLE_ID
+    assert params['table_name'] == 'orders'
+    assert 'create_time' not in params
+    assert 'update_time' not in params
+
+
+@pytest.mark.asyncio
+async def test_edit_gen_table_column_keeps_alias_fields_while_excluding_audit_times() -> None:
+    db = MagicMock()
+    db.execute = AsyncMock()
+
+    await GenTableColumnDao.edit_gen_table_column_dao(
+        db,
+        {'columnId': COLUMN_ID, 'columnName': 'order_id', 'updateTime': CLIENT_AUDIT_TIME},
+    )
+
+    params = db.execute.await_args.args[1][0]
+    assert params['column_id'] == COLUMN_ID
+    assert params['column_name'] == 'order_id'
+    assert 'create_time' not in params
+    assert 'update_time' not in params

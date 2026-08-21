@@ -131,7 +131,10 @@ class PluginDao:
         :param plugin: 插件信息对象
         :return: 可写入 sys_plugin 的字段字典
         """
-        return plugin.model_dump(exclude_unset=True, exclude=PLUGIN_MODEL_RUNTIME_FIELDS)
+        return plugin.model_dump(
+            exclude_unset=True,
+            exclude=PLUGIN_MODEL_RUNTIME_FIELDS | {'create_time', 'update_time'},
+        )
 
     @classmethod
     async def update_plugin(cls, db: AsyncSession, plugin: dict) -> None:
@@ -142,7 +145,10 @@ class PluginDao:
         :param plugin: 插件更新字典
         :return: None
         """
-        await db.execute(update(SysPlugin), [plugin])
+        await db.execute(
+            update(SysPlugin),
+            [{key: value for key, value in plugin.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_plugin(cls, db: AsyncSession, plugin_id: str) -> None:
@@ -221,7 +227,7 @@ class PluginDao:
         :param plugin_menu: 插件菜单关联对象
         :return: 新增后的插件菜单关联对象
         """
-        db_plugin_menu = SysPluginMenu(**plugin_menu.model_dump(exclude_unset=True))
+        db_plugin_menu = SysPluginMenu(**plugin_menu.model_dump(exclude_unset=True, exclude={'create_time'}))
         db.add(db_plugin_menu)
         await db.flush()
 
@@ -422,7 +428,7 @@ class PluginDao:
                 SysPluginMigration.plugin_id == plugin_id,
                 SysPluginMigration.migration_path == migration_path,
             )
-            .values(status=status, error_message=error_message, finished_time=now, update_time=now)
+            .values(status=status, error_message=error_message, finished_time=now)
         )
         await db.flush()
 
@@ -485,7 +491,12 @@ class PluginDao:
         :return: None
         """
         status = payload.get('status', 'success')
-        payload.setdefault('update_time', now)
+        if existing_plugin_migration is None:
+            # migration records have no INSERT default; keep one snapshot on first write.
+            payload['update_time'] = now
+        else:
+            # UPDATE statements use the mapped onupdate callback.  Ignore client/audit input.
+            payload.pop('update_time', None)
         if status == 'running':
             payload.setdefault('started_time', now)
             payload.setdefault('finished_time', None)
@@ -592,7 +603,9 @@ class PluginDao:
         :param plugin_config: 插件配置对象
         :return: 新增后的插件配置对象
         """
-        db_plugin_config = SysPluginConfig(**plugin_config.model_dump(exclude_unset=True))
+        db_plugin_config = SysPluginConfig(
+            **plugin_config.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
+        )
         db.add(db_plugin_config)
         await db.flush()
 
@@ -607,7 +620,10 @@ class PluginDao:
         :param plugin_config: 插件配置更新字典
         :return: None
         """
-        await db.execute(update(SysPluginConfig), [plugin_config])
+        await db.execute(
+            update(SysPluginConfig),
+            [{key: value for key, value in plugin_config.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def add_plugin_operation_log(
@@ -622,7 +638,9 @@ class PluginDao:
         :param operation_log: 插件批量操作审计日志对象
         :return: 新增后的插件批量操作审计日志对象
         """
-        db_operation_log = SysPluginOperationLog(**operation_log.model_dump(exclude_unset=True))
+        db_operation_log = SysPluginOperationLog(
+            **operation_log.model_dump(exclude_unset=True, exclude={'create_time'})
+        )
         db.add(db_operation_log)
         await db.flush()
 
@@ -915,7 +933,7 @@ class PluginDao:
         :param menu: 菜单对象
         :return: 新增后的系统菜单对象
         """
-        db_menu = SysMenu(**menu.model_dump(exclude_unset=True))
+        db_menu = SysMenu(**menu.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'}))
         db.add(db_menu)
         await db.flush()
 
@@ -930,7 +948,10 @@ class PluginDao:
         :param menu: 菜单更新字典
         :return: None
         """
-        await db.execute(update(SysMenu), [menu])
+        await db.execute(
+            update(SysMenu),
+            [{key: value for key, value in menu.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def update_sys_menu_status_by_ids(cls, db: AsyncSession, menu_ids: list[int], status: str) -> None:

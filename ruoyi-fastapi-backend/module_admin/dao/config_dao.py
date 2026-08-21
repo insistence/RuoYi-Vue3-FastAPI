@@ -95,7 +95,7 @@ class ConfigDao:
         :param config: 参数配置对象
         :return:
         """
-        db_config = SysConfig(**config.model_dump())
+        db_config = SysConfig(**config.model_dump(exclude={'create_time', 'update_time'}))
         db.add(db_config)
         await db.flush()
 
@@ -110,7 +110,10 @@ class ConfigDao:
         :param config: 需要更新的参数配置字典
         :return:
         """
-        await db.execute(update(SysConfig), [config])
+        await db.execute(
+            update(SysConfig),
+            [{key: value for key, value in config.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_config_dao(cls, db: AsyncSession, config: ConfigModel) -> None:

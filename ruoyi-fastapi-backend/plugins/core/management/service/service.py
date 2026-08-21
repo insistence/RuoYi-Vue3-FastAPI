@@ -193,7 +193,6 @@ class PluginService:
             'plugin_id': plugin_id,
             'enabled': enabled_value,
             'status': status,
-            'update_time': datetime.now(),
         }
         if enabled:
             update_payload['last_error'] = None
@@ -230,9 +229,12 @@ class PluginService:
             'installed_version': manifest.version,
             'status': status,
             'last_error': None,
-            'update_time': datetime.now(),
         }
         await PluginDao.update_plugin(query_db, update_payload)
+        if plugin is not None:
+            await query_db.refresh(plugin)
+        else:
+            plugin = await PluginDao.get_plugin_by_id(query_db, manifest.id)
 
         return PluginModel(
             pluginId=manifest.id,
@@ -244,7 +246,7 @@ class PluginService:
             source='local',
             backendPath=str(discovered_plugin.backend_path),
             description=manifest.description,
-            updateTime=update_payload['update_time'],
+            updateTime=getattr(plugin, 'update_time', None),
         )
 
     @classmethod
@@ -270,7 +272,6 @@ class PluginService:
             'enabled': '1',
             'status': 'discovered',
             'last_error': None,
-            'update_time': datetime.now(),
         }
         await PluginDao.update_plugin(query_db, update_payload)
         await PluginDao.delete_plugin_menus(query_db, plugin_id)
@@ -335,7 +336,6 @@ class PluginService:
                         'secret': config_model.secret,
                         'options': config_model.options,
                         'description': config_model.description,
-                        'update_time': datetime.now(),
                     },
                 )
             else:
@@ -433,7 +433,6 @@ class PluginService:
                     'plugin_id': discovered_plugin.manifest.id,
                     'config_key': key,
                     'config_value': PluginConfigManager.serialize_config_value(value, secret=item.secret),
-                    'update_time': datetime.now(),
                 },
             )
 
@@ -646,7 +645,6 @@ class PluginService:
                 'status': PluginStateTransitionTable.resolve_target(getattr(plugin, 'status', None), 'mark_error')
                 or 'error',
                 'last_error': error_message[:1000],
-                'update_time': datetime.now(),
             },
         )
         await PluginMenuInstaller(query_db).set_plugin_menu_status(plugin_id, '1')
@@ -703,7 +701,6 @@ class PluginService:
                 'plugin_id': plugin_id,
                 'status': target_status,
                 'last_error': None,
-                'update_time': datetime.now(),
             },
         )
 

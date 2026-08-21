@@ -359,11 +359,12 @@ class AiChatService:
             if chat_config:
                 if chat_config.chat_config_id != page_object.chat_config_id:
                     raise ServiceException(message='只允许修改当前用户的配置')
-                page_object.update_time = datetime.now()
-                edit_ai_chat_config = page_object.model_dump(exclude_unset=True)
+                edit_ai_chat_config = page_object.model_dump(
+                    exclude_unset=True,
+                    exclude={'create_time', 'update_time'},
+                )
                 await AiChatConfigDao.edit_chat_config_dao(query_db, edit_ai_chat_config)
             else:
-                page_object.create_time = datetime.now()
                 await AiChatConfigDao.add_chat_config_dao(query_db, page_object)
 
             await query_db.commit()

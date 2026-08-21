@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Path, Query, Request, Response
@@ -100,9 +99,7 @@ async def add_ai_model(
     add_ai_model.user_id = current_user.user.user_id
     add_ai_model.dept_id = current_user.user.dept_id
     add_ai_model.create_by = current_user.user.user_name
-    add_ai_model.create_time = datetime.now()
     add_ai_model.update_by = current_user.user.user_name
-    add_ai_model.update_time = datetime.now()
     add_ai_model_result = await AiModelService.add_ai_model_services(query_db, add_ai_model)
     logger.info(add_ai_model_result.message)
 
@@ -134,7 +131,6 @@ async def edit_ai_model(
     if not current_user.user.admin:
         await AiModelService.check_ai_model_data_scope_services(query_db, edit_ai_model.model_id, data_scope_sql)
     edit_ai_model.update_by = current_user.user.user_name
-    edit_ai_model.update_time = datetime.now()
     edit_ai_model_result = await AiModelService.edit_ai_model_services(query_db, edit_ai_model)
     logger.info(edit_ai_model_result.message)
 

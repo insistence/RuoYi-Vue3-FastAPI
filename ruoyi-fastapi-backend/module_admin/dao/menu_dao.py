@@ -199,7 +199,7 @@ class MenuDao:
         :param menu: 菜单对象
         :return:
         """
-        db_menu = SysMenu(**menu.model_dump())
+        db_menu = SysMenu(**menu.model_dump(exclude={'create_time', 'update_time'}))
         db.add(db_menu)
         await db.flush()
 
@@ -214,7 +214,10 @@ class MenuDao:
         :param menu: 需要更新的菜单字典
         :return:
         """
-        await db.execute(update(SysMenu), [menu])
+        await db.execute(
+            update(SysMenu),
+            [{key: value for key, value in menu.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def update_menu_sort_dao(cls, db: AsyncSession, menu_sort_list: list[dict[str, int]]) -> None:

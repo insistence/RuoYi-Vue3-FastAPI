@@ -27,9 +27,9 @@ class SysNotice(Base):
     )
     status = Column(CHAR(1), nullable=True, server_default='0', comment='公告状态（0正常 1关闭）')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, comment='创建时间', default=datetime.now())
+    create_time = Column(DateTime, nullable=True, comment='创建时间', default=datetime.now)
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, comment='更新时间', default=datetime.now())
+    update_time = Column(DateTime, nullable=True, comment='更新时间', default=datetime.now, onupdate=datetime.now)
     remark = Column(
         String(255),
         nullable=True,

@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -253,7 +252,6 @@ class PluginJobInstaller:
         :return: 写入后的系统任务对象
         """
         existing_job = await self.repository.get_job_detail_by_name_group(job_model.job_name, job_model.job_group)
-        now = datetime.now()
         if existing_job:
             ownership_prefix = f'{PluginJobModelBuilder.REMARK_PREFIX} {job_model.job_name}'
             if not str(existing_job.remark or '').startswith(ownership_prefix):
@@ -275,14 +273,11 @@ class PluginJobInstaller:
                     concurrent=job_model.concurrent,
                     status=job_model.status,
                     update_by=job_model.update_by,
-                    update_time=now,
                     remark=job_model.remark,
                 )
             )
             return existing_job
 
-        job_model.create_time = now
-        job_model.update_time = now
         return await JobDao.add_job_dao(self.query_db, job_model)
 
     async def pause_plugin_jobs(self, plugin_id: str) -> None:

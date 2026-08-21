@@ -193,7 +193,7 @@ class DeptDao:
         :param dept: 部门对象
         :return: 新增校验结果
         """
-        db_dept = SysDept(**dept.model_dump())
+        db_dept = SysDept(**dept.model_dump(exclude={'create_time', 'update_time'}))
         db.add(db_dept)
         await db.flush()
 
@@ -208,7 +208,10 @@ class DeptDao:
         :param dept: 需要更新的部门字典
         :return: 编辑校验结果
         """
-        await db.execute(update(SysDept), [dept])
+        await db.execute(
+            update(SysDept),
+            [{key: value for key, value in dept.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def update_dept_children_dao(cls, db: AsyncSession, update_dept: list) -> None:
@@ -271,7 +274,7 @@ class DeptDao:
         await db.execute(
             update(SysDept)
             .where(SysDept.dept_id == dept.dept_id)
-            .values(del_flag='2', update_by=dept.update_by, update_time=dept.update_time)
+            .values(del_flag='2', update_by=dept.update_by)
         )
 
     @classmethod

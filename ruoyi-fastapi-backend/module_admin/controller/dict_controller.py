@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Form, Path, Query, Request, Response
@@ -74,9 +73,7 @@ async def add_system_dict_type(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_dict_type.create_by = current_user.user.user_name
-    add_dict_type.create_time = datetime.now()
     add_dict_type.update_by = current_user.user.user_name
-    add_dict_type.update_time = datetime.now()
     add_dict_type_result = await DictTypeService.add_dict_type_services(request, query_db, add_dict_type)
     logger.info(add_dict_type_result.message)
 
@@ -100,7 +97,6 @@ async def edit_system_dict_type(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_dict_type.update_by = current_user.user.user_name
-    edit_dict_type.update_time = datetime.now()
     edit_dict_type_result = await DictTypeService.edit_dict_type_services(request, query_db, edit_dict_type)
     logger.info(edit_dict_type_result.message)
 
@@ -272,9 +268,7 @@ async def add_system_dict_data(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_dict_data.create_by = current_user.user.user_name
-    add_dict_data.create_time = datetime.now()
     add_dict_data.update_by = current_user.user.user_name
-    add_dict_data.update_time = datetime.now()
     add_dict_data_result = await DictDataService.add_dict_data_services(request, query_db, add_dict_data)
     logger.info(add_dict_data_result.message)
 
@@ -298,7 +292,6 @@ async def edit_system_dict_data(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_dict_data.update_by = current_user.user.user_name
-    edit_dict_data.update_time = datetime.now()
     edit_dict_data_result = await DictDataService.edit_dict_data_services(request, query_db, edit_dict_data)
     logger.info(edit_dict_data_result.message)
 

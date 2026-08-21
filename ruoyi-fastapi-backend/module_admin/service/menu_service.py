@@ -166,7 +166,7 @@ class MenuService:
         :param page_object: 编辑部门对象
         :return: 编辑菜单校验结果
         """
-        edit_menu = page_object.model_dump(exclude_unset=True)
+        edit_menu = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
         menu_info = await cls.menu_detail_services(query_db, page_object.menu_id)
         if menu_info.menu_id:
             if not await cls.check_menu_name_unique_services(query_db, page_object):

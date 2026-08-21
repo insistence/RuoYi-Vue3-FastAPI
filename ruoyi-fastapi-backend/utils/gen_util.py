@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 
 from common.constant import GenConstant
 from config.env import DataBaseConfig, GenConfig
@@ -28,9 +27,7 @@ class GenUtils:
         gen_table.function_name = cls.replace_text(gen_table.table_comment)
         gen_table.function_author = GenConfig.author
         gen_table.create_by = oper_name
-        gen_table.create_time = datetime.now()
         gen_table.update_by = oper_name
-        gen_table.update_time = datetime.now()
 
     @classmethod
     def init_column_field(cls, column: GenTableColumnModel, table: GenTableModel) -> None:
@@ -105,9 +102,7 @@ class GenUtils:
             column.html_type = GenConstant.HTML_EDITOR
 
         column.create_by = table.create_by
-        column.create_time = datetime.now()
         column.update_by = table.update_by
-        column.update_time = datetime.now()
 
     @classmethod
     def arrays_contains(cls, arr: list[str], target_value: str) -> bool:

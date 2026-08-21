@@ -2,15 +2,6 @@
 {% set pk_field = pkColumn.python_field | camel_to_snake %}
 {% set pkParentheseIndex = pkColumn.column_comment.find("（") %}
 {% set pk_field_comment = pkColumn.column_comment[:pkParentheseIndex] if pkParentheseIndex != -1 else pkColumn.column_comment %}
-{% set need_import_datetime = namespace(has_datetime=False) %}
-{% for column in columns %}
-{% if column.python_field in ["createTime", "updateTime"] %}
-{% set need_import_datetime.has_datetime = True %}
-{% endif %}
-{% endfor %}
-{% if need_import_datetime.has_datetime %}
-from datetime import datetime
-{% endif %}
 from typing import Annotated
 
 from fastapi import Form, Path, Query, Request, Response
@@ -82,12 +73,8 @@ async def add_{{ moduleName }}_{{ businessName }}(
     {% for column in columns %}
     {% if column.python_field == "createBy" %}
     add_{{ businessName }}.create_by = current_user.user.user_name
-    {% elif column.python_field == "createTime" %}
-    add_{{ businessName }}.create_time = datetime.now()
     {% elif column.python_field == "updateBy" %}
     add_{{ businessName }}.update_by = current_user.user.user_name
-    {% elif column.python_field == "updateTime" %}
-    add_{{ businessName }}.update_time = datetime.now()
     {% endif %}
     {% endfor %}
     add_{{ businessName }}_result = await {{ BusinessName }}Service.add_{{ businessName }}_services(query_db, add_{{ businessName }})
@@ -114,8 +101,6 @@ async def edit_{{ moduleName }}_{{ businessName }}(
     {% for column in columns %}
     {% if column.python_field == "updateBy" %}
     edit_{{ businessName }}.update_by = current_user.user.user_name
-    {% elif column.python_field == "updateTime" %}
-    edit_{{ businessName }}.update_time = datetime.now()
     {% endif %}
     {% endfor %}
     edit_{{ businessName }}_result = await {{ BusinessName }}Service.edit_{{ businessName }}_services(query_db, edit_{{ businessName }})

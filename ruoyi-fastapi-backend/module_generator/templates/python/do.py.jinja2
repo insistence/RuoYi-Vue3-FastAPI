@@ -1,3 +1,19 @@
+{% set need_import_datetime = namespace(has_datetime=False) %}
+{% for column in columns %}
+{% if column.column_name in ["create_time", "update_time"] %}
+{% set need_import_datetime.has_datetime = True %}
+{% endif %}
+{% endfor %}
+{% if table.sub %}
+{% for column in subTable.columns %}
+{% if column.column_name in ["create_time", "update_time"] %}
+{% set need_import_datetime.has_datetime = True %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if need_import_datetime.has_datetime %}
+from datetime import datetime
+{% endif %}
 {% for do_import in doImportList %}
 {{ do_import }}
 {% endfor %}
@@ -24,7 +40,7 @@ class {{ ClassName }}({% if dataSourceName == defaultDataSourceName %}Base{% els
     __table_args__ = {'comment': '{{ tableComment }}'}
 
     {% for column in columns %}
-    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type(dataSourceName) }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
+    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type(dataSourceName) }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, {% if column.column_name == "create_time" %}default=datetime.now, {% elif column.column_name == "update_time" %}default=datetime.now, onupdate=datetime.now, {% endif %}comment='{{ column.column_comment }}')
     {% endfor %}
 
     {% if table.sub %}
@@ -41,7 +57,7 @@ class {{ subClassName }}({% if dataSourceName == defaultDataSourceName %}Base{% 
     __tablename__ = '{{ subTableName }}'
 
     {% for column in subTable.columns %}
-    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type(dataSourceName) }}, {% if column.column_name == subTableFkName %}ForeignKey('{{ tableName }}.{{ subTableFkName }}'), {% endif %}{% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
+    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type(dataSourceName) }}, {% if column.column_name == subTableFkName %}ForeignKey('{{ tableName }}.{{ subTableFkName }}'), {% endif %}{% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, {% if column.column_name == "create_time" %}default=datetime.now, {% elif column.column_name == "update_time" %}default=datetime.now, onupdate=datetime.now, {% endif %}comment='{{ column.column_comment }}')
     {% endfor %}
 
     {% if table.sub %}

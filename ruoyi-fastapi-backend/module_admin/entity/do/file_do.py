@@ -51,7 +51,7 @@ class SysFileInfo(Base):
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time = Column(DateTime, nullable=False, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=False, default=datetime.now, comment='更新时间')
+    update_time = Column(DateTime, nullable=False, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     expire_time = Column(DateTime, nullable=True, comment='过期时间')
     deleted_time = Column(DateTime, nullable=True, comment='移入回收站时间')
     del_flag = Column(CHAR(1), nullable=False, server_default='0', comment='删除标志')
@@ -100,7 +100,7 @@ class SysFileRetentionPolicy(Base):
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
     create_time = Column(DateTime, nullable=False, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=False, default=datetime.now, comment='更新时间')
+    update_time = Column(DateTime, nullable=False, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
 
 class SysFileRetentionNotice(Base):

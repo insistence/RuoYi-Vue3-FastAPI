@@ -149,7 +149,7 @@ class RoleService:
         :param page_object: 新增角色对象
         :return: 新增角色校验结果
         """
-        add_role = RoleModel(**page_object.model_dump(by_alias=True))
+        add_role = RoleModel(**page_object.model_dump(by_alias=True, exclude={'create_time', 'update_time'}))
         if not await cls.check_role_name_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增角色{page_object.role_name}失败，角色名称已存在')
         if not await cls.check_role_key_unique_services(query_db, page_object):
@@ -175,7 +175,10 @@ class RoleService:
         :param page_object: 编辑角色对象
         :return: 编辑角色校验结果
         """
-        edit_role = page_object.model_dump(exclude_unset=True, exclude={'admin'})
+        edit_role = page_object.model_dump(
+            exclude_unset=True,
+            exclude={'admin', 'create_time', 'update_time'},
+        )
         if page_object.type != 'status':
             del edit_role['menu_ids']
         if page_object.type == 'status':
@@ -213,7 +216,10 @@ class RoleService:
         :param page_object: 角色数据权限对象
         :return: 分配角色数据权限结果
         """
-        edit_role = page_object.model_dump(exclude_unset=True, exclude={'admin', 'dept_ids'})
+        edit_role = page_object.model_dump(
+            exclude_unset=True,
+            exclude={'admin', 'dept_ids', 'create_time', 'update_time'},
+        )
         role_info = await cls.role_detail_services(query_db, page_object.role_id)
         if role_info.role_id:
             try:

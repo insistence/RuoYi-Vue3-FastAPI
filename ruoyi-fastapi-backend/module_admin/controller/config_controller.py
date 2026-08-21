@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Form, Path, Query, Request, Response
@@ -65,9 +64,7 @@ async def add_system_config(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_config.create_by = current_user.user.user_name
-    add_config.create_time = datetime.now()
     add_config.update_by = current_user.user.user_name
-    add_config.update_time = datetime.now()
     add_config_result = await ConfigService.add_config_services(request, query_db, add_config)
     logger.info(add_config_result.message)
 
@@ -91,7 +88,6 @@ async def edit_system_config(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_config.update_by = current_user.user.user_name
-    edit_config.update_time = datetime.now()
     edit_config_result = await ConfigService.edit_config_services(request, query_db, edit_config)
     logger.info(edit_config_result.message)
 

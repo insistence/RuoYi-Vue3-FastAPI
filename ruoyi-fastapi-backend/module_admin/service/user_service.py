@@ -1,6 +1,5 @@
 import io
 import re
-from datetime import datetime
 from typing import Any
 
 import pandas as pd
@@ -198,7 +197,7 @@ class UserService:
         :param page_object: 新增用户对象
         :return: 新增用户校验结果
         """
-        add_user = UserModel(**page_object.model_dump(by_alias=True))
+        add_user = UserModel(**page_object.model_dump(by_alias=True, exclude={'create_time', 'update_time'}))
         if not await cls.check_user_name_unique_services(query_db, page_object):
             raise ServiceException(message=f'新增用户{page_object.user_name}失败，登录账号已存在')
         if page_object.phonenumber and not await cls.check_phonenumber_unique_services(query_db, page_object):
@@ -245,7 +244,10 @@ class UserService:
         :param page_object: 编辑用户对象
         :return: 编辑用户校验结果
         """
-        edit_user = page_object.model_dump(exclude_unset=True, exclude={'admin'})
+        edit_user = page_object.model_dump(
+            exclude_unset=True,
+            exclude={'admin', 'create_time', 'update_time'},
+        )
         cls._deal_edit_user(page_object, edit_user)
         user_info = await cls.user_detail_services(query_db, edit_user.get('user_id'))
         if user_info.data and user_info.data.user_id:
@@ -378,7 +380,10 @@ class UserService:
         :param page_object: 重置用户对象
         :return: 重置用户校验结果
         """
-        reset_user = page_object.model_dump(exclude_unset=True, exclude={'admin'})
+        reset_user = page_object.model_dump(
+            exclude_unset=True,
+            exclude={'admin', 'create_time', 'update_time'},
+        )
         if page_object.old_password:
             user = (await UserDao.get_user_detail_by_id(query_db, user_id=page_object.user_id)).get('user_basic_info')
             if not PwdUtil.verify_password(page_object.old_password, user.password):
@@ -483,9 +488,7 @@ class UserService:
                     sex=row['sex'],
                     status=row['status'],
                     createBy=current_user.user.user_name,
-                    createTime=datetime.now(),
                     updateBy=current_user.user.user_name,
-                    updateTime=datetime.now(),
                 )
                 user_info = await UserDao.get_user_by_info(query_db, UserModel(userName=row['user_name']))
                 if user_info:
@@ -500,7 +503,6 @@ class UserService:
                             sex=row['sex'],
                             status=row['status'],
                             updateBy=current_user.user.user_name,
-                            updateTime=datetime.now(),
                         )
                         edit_user_model.validate_fields()
                         await cls.check_user_allowed_services(edit_user_model)
@@ -511,7 +513,10 @@ class UserService:
                             await DeptService.check_dept_data_scope_services(
                                 query_db, edit_user_model.dept_id, dept_data_scope_sql
                             )
-                        edit_user = edit_user_model.model_dump(exclude_unset=True)
+                        edit_user = edit_user_model.model_dump(
+                            exclude_unset=True,
+                            exclude={'create_time', 'update_time'},
+                        )
                         await UserDao.edit_user_dao(query_db, edit_user)
                     else:
                         add_error_result.append(f'{count}.用户账号{row["user_name"]}已存在')
