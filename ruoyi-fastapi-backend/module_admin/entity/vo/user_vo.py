@@ -128,6 +128,19 @@ class UserInfoModel(UserModel):
     role: list[RoleModel | None] | None = Field(default=[], description='角色信息')
 
 
+class UpdateUserProfileModel(BaseModel):
+    """
+    修改用户个人资料模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, extra='forbid')
+
+    nick_name: str | None = Field(default=None, max_length=30, description='用户昵称')
+    email: str | None = Field(default=None, max_length=50, description='用户邮箱')
+    phonenumber: str | None = Field(default=None, max_length=11, description='手机号码')
+    sex: Literal['0', '1', '2'] | None = Field(default=None, description='用户性别（0男 1女 2未知）')
+
+
 class CurrentUserModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 

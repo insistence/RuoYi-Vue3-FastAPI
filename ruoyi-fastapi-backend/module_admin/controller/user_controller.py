@@ -33,8 +33,8 @@ from module_admin.entity.vo.user_vo import (
     EditUserModel,
     ResetPasswordModel,
     ResetUserModel,
+    UpdateUserProfileModel,
     UserDetailModel,
-    UserInfoModel,
     UserModel,
     UserPageQueryModel,
     UserProfileModel,
@@ -368,12 +368,16 @@ async def change_system_user_profile_avatar(
 @Log(title='个人信息', business_type=BusinessType.UPDATE)
 async def change_system_user_profile_info(
     request: Request,
-    user_info: UserInfoModel,
+    user_info: UpdateUserProfileModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_user = EditUserModel(
-        **user_info.model_dump(exclude_unset=True, by_alias=True, exclude={'role_ids', 'post_ids'}),
+        **user_info.model_dump(
+            exclude_unset=True,
+            by_alias=True,
+            include={'nick_name', 'email', 'phonenumber', 'sex'},
+        ),
         userId=current_user.user.user_id,
         userName=current_user.user.user_name,
         updateBy=current_user.user.user_name,
