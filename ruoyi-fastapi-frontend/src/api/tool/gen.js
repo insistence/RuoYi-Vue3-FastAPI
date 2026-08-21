@@ -1,5 +1,13 @@
 import request from '@/utils/request'
 
+// 查询代码生成数据源选项
+export function listDataSources() {
+  return request({
+    url: '/tool/gen/dataSources',
+    method: 'get'
+  })
+}
+
 // 查询生成表数据
 export function listTable(query) {
   return request({
@@ -69,17 +77,19 @@ export function delTable(tableId) {
 }
 
 // 生成代码（自定义路径）
-export function genCode(tableName) {
+export function genCode(tableName, dataSourceName) {
   return request({
     url: '/tool/gen/genCode/' + tableName,
-    method: 'get'
+    method: 'get',
+    params: { dataSourceName }
   })
 }
 
 // 同步数据库
-export function synchDb(tableName) {
+export function synchDb(tableName, dataSourceName) {
   return request({
     url: '/tool/gen/synchDb/' + tableName,
-    method: 'get'
+    method: 'get',
+    params: { dataSourceName }
   })
 }

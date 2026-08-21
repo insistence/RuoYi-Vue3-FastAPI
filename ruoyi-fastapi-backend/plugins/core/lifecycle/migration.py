@@ -564,7 +564,7 @@ class PluginMigrationRunner:
         return PluginLifecycleScriptHelper.filter_current_database_paths(
             migration_paths,
             root_dir='migrations',
-            database_type=DataBaseConfig.db_type,
+            database_type=DataBaseConfig.default_source.db_type,
         )
 
     def _load_migration_module(self, migration_file: Path) -> Any:

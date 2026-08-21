@@ -2,6 +2,22 @@
   <!-- 导入表 -->
   <el-dialog title="导入表" v-model="visible" width="800px" top="5vh" append-to-body>
     <el-form :model="queryParams" ref="queryRef" :inline="true">
+      <el-form-item label="数据源" prop="dataSourceName" required>
+        <el-select
+          v-model="queryParams.dataSourceName"
+          placeholder="请选择数据源"
+          filterable
+          style="width: 220px"
+          @change="handleSourceChange"
+        >
+          <el-option
+            v-for="source in props.dataSources"
+            :key="source.name"
+            :label="source.name + '（' + source.dbType + '）'"
+            :value="source.name"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="表名称" prop="tableName">
         <el-input
           v-model="queryParams.tableName"
@@ -58,20 +74,39 @@ const visible = ref(false);
 const tables = ref([]);
 const dbTableList = ref([]);
 const { proxy } = getCurrentInstance();
+const props = defineProps({
+  dataSources: {
+    type: Array,
+    default: () => []
+  }
+});
 
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 10,
   tableName: undefined,
-  tableComment: undefined
+  tableComment: undefined,
+  dataSourceName: undefined
 });
 
 const emit = defineEmits(["ok"]);
 
 /** 查询参数列表 */
 function show() {
-  getList();
   visible.value = true;
+  tables.value = [];
+  proxy.$refs.table?.clearSelection();
+  const defaultSource = props.dataSources.find(source => source.isDefault) || props.dataSources[0];
+  queryParams.dataSourceName = defaultSource?.name;
+  getList();
+}
+
+/** 切换数据源后重新查询可导入表 */
+function handleSourceChange() {
+  tables.value = [];
+  proxy.$refs.table?.clearSelection();
+  queryParams.pageNum = 1;
+  getList();
 }
 
 /** 单击选择行 */
@@ -86,6 +121,11 @@ function handleSelectionChange(selection) {
 
 /** 查询表数据 */
 function getList() {
+  if (!queryParams.dataSourceName) {
+    dbTableList.value = [];
+    total.value = 0;
+    return;
+  }
   listDbTable(queryParams).then(res => {
     dbTableList.value = res.rows;
     total.value = res.total;
@@ -101,6 +141,8 @@ function handleQuery() {
 /** 重置按钮操作 */
 function resetQuery() {
   proxy.resetForm("queryRef");
+  const defaultSource = props.dataSources.find(source => source.isDefault) || props.dataSources[0];
+  queryParams.dataSourceName = defaultSource?.name;
   handleQuery();
 }
 
@@ -111,7 +153,11 @@ function handleImportTable() {
     proxy.$modal.msgError("请选择要导入的表");
     return;
   }
-  importTable({ tables: tableNames }).then(res => {
+  if (!queryParams.dataSourceName) {
+    proxy.$modal.msgError("请选择数据源");
+    return;
+  }
+  importTable({ tables: tableNames, dataSourceName: queryParams.dataSourceName }).then(res => {
     proxy.$modal.msgSuccess(res.msg);
     if (res.code === 200) {
       visible.value = false;

@@ -31,6 +31,11 @@ class AsyncSessionContext:
         return None
 
 
+def make_database_registry(session: SimpleNamespace) -> SimpleNamespace:
+    """构造使用测试会话的数据库注册表。"""
+    return SimpleNamespace(session=lambda: AsyncSessionContext(session))
+
+
 def test_collect_legacy_files_filters_disallowed_extensions(tmp_path: Path) -> None:
     allowed_file = tmp_path / 'upload' / 'report.txt'
     allowed_file.parent.mkdir()
@@ -82,7 +87,7 @@ def test_migrate_legacy_files_dry_run_performs_full_validation_without_commit(tm
 
     with (
         patch.object(UploadConfig, 'UPLOAD_PATH', str(tmp_path)),
-        patch('scripts.migrate_legacy_files.AsyncSessionLocal', return_value=AsyncSessionContext(session)),
+        patch('scripts.migrate_legacy_files.DataSourceRegistry', make_database_registry(session)),
         patch.object(FileInfoDao, 'get_file_info_by_storage_key', new=AsyncMock(return_value=None)) as get_file_info,
         patch.object(FileInfoDao, 'add_file_info_dao', new_callable=AsyncMock) as add_file_info,
     ):
@@ -100,7 +105,7 @@ def test_migrate_legacy_files_writes_file_info_model_and_commits(tmp_path: Path)
 
     with (
         patch.object(UploadConfig, 'UPLOAD_PATH', str(tmp_path)),
-        patch('scripts.migrate_legacy_files.AsyncSessionLocal', return_value=AsyncSessionContext(session)),
+        patch('scripts.migrate_legacy_files.DataSourceRegistry', make_database_registry(session)),
         patch.object(FileInfoDao, 'get_file_info_by_storage_key', new=AsyncMock(return_value=None)),
         patch.object(FileInfoDao, 'add_file_info_dao', new_callable=AsyncMock) as add_file_info,
     ):
@@ -125,7 +130,7 @@ def test_migrate_legacy_files_skips_existing_storage_location(tmp_path: Path) ->
 
     with (
         patch.object(UploadConfig, 'UPLOAD_PATH', str(tmp_path)),
-        patch('scripts.migrate_legacy_files.AsyncSessionLocal', return_value=AsyncSessionContext(session)),
+        patch('scripts.migrate_legacy_files.DataSourceRegistry', make_database_registry(session)),
         patch.object(
             FileInfoDao,
             'get_file_info_by_storage_key',
@@ -147,7 +152,7 @@ def test_migrate_legacy_files_commits_by_batch(tmp_path: Path) -> None:
 
     with (
         patch.object(UploadConfig, 'UPLOAD_PATH', str(tmp_path)),
-        patch('scripts.migrate_legacy_files.AsyncSessionLocal', return_value=AsyncSessionContext(session)),
+        patch('scripts.migrate_legacy_files.DataSourceRegistry', make_database_registry(session)),
         patch.object(FileInfoDao, 'get_file_info_by_storage_key', new=AsyncMock(return_value=None)),
         patch.object(FileInfoDao, 'add_file_info_dao', new_callable=AsyncMock) as add_file_info,
     ):

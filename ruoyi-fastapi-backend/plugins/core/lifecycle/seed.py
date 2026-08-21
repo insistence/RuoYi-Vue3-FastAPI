@@ -138,7 +138,7 @@ class PluginSeedRunner:
         return PluginLifecycleScriptHelper.filter_current_database_paths(
             seed_paths,
             root_dir='seeds',
-            database_type=DataBaseConfig.db_type,
+            database_type=DataBaseConfig.default_source.db_type,
         )
 
     def _load_seed_module(self, seed_file: Path) -> Any:

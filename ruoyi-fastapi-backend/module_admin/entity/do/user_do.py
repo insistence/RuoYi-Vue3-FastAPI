@@ -19,7 +19,7 @@ class SysUser(Base):
     dept_id = Column(
         BigInteger,
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type, False),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type, False),
         comment='部门ID',
     )
     user_name = Column(String(30), nullable=False, comment='用户账号')
@@ -42,7 +42,7 @@ class SysUser(Base):
     remark = Column(
         String(500),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='备注',
     )
 

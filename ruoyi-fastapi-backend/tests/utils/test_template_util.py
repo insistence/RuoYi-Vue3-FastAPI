@@ -1,7 +1,9 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 
+from config import database
 from module_generator.entity.vo.gen_vo import GenTableColumnModel, GenTableModel, GenTableParamsModel
 from module_generator.service.gen_service import GenTableService
 from utils.template_util import TemplateInitializer, TemplateUtils
@@ -151,3 +153,97 @@ async def test_set_table_from_options_restores_view_flag() -> None:
     result = await GenTableService.set_table_from_options(gen_table)
 
     assert result.view is True
+
+
+def test_secondary_source_templates_use_named_dependency_and_isolated_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gen_table = _gen_table(gen_view=False)
+    gen_table.data_source_name = 'reporting'
+    monkeypatch.setattr(
+        type(database.DataBaseConfig),
+        'get_source',
+        lambda _self, _name=None: SimpleNamespace(db_type='postgresql'),
+    )
+
+    context = TemplateUtils.prepare_context(gen_table)
+    env = TemplateInitializer.init_jinja2()
+    controller = env.get_template('python/controller.py.jinja2').render(**context)
+    entity = env.get_template('python/do.py.jinja2').render(**context)
+
+    assert "DBSessionDependency('reporting')" in controller
+    assert 'from common.aspect.db_session import DBSessionDependency' in controller
+    assert "DataSourceBase = get_data_source_base('reporting')" in entity
+    assert 'class GenItem(DataSourceBase):' in entity
+    assert 'from config.database import Base' not in entity
+    compile(entity, '<generated-entity>', 'exec')
+
+
+def test_sub_table_entity_template_uses_required_nullable_semantics() -> None:
+    gen_table = _gen_table(gen_view=False, tpl_category='sub')
+    gen_table.sub_table_name = 'gen_item_detail'
+    gen_table.sub_table_fk_name = 'item_id'
+    gen_table.sub_table = GenTableModel(
+        tableName='gen_item_detail',
+        tableComment='生成测试明细',
+        className='GenItemDetail',
+        columns=[
+            GenTableColumnModel(
+                columnName='required_value',
+                columnComment='必填值',
+                columnType='varchar(100)',
+                pythonType='str',
+                pythonField='requiredValue',
+                isRequired='1',
+            ),
+            GenTableColumnModel(
+                columnName='optional_value',
+                columnComment='可选值',
+                columnType='varchar(100)',
+                pythonType='str',
+                pythonField='optionalValue',
+                isRequired='0',
+            ),
+        ],
+    )
+
+    context = TemplateUtils.prepare_context(gen_table)
+    entity = TemplateInitializer.init_jinja2().get_template('python/do.py.jinja2').render(**context)
+
+    assert "required_value = Column(String(100), nullable=False, comment='必填值')" in entity
+    assert "optional_value = Column(String(100), nullable=True, comment='可选值')" in entity
+
+
+def test_named_data_source_bases_are_cached_and_isolated(monkeypatch: pytest.MonkeyPatch) -> None:
+    database.get_data_source_base.cache_clear()
+    monkeypatch.setattr(type(database.DataBaseConfig), 'get_source', lambda _self, _name: object())
+
+    reporting_base = database.get_data_source_base('reporting')
+    archive_base = database.get_data_source_base('archive')
+
+    assert reporting_base is database.get_data_source_base('reporting')
+    assert reporting_base is not archive_base
+    assert reporting_base.metadata is not archive_base.metadata
+
+
+@pytest.mark.parametrize(
+    ('db_type', 'column_type', 'expected'),
+    [
+        ('postgresql', 'JSONB', 'JSONB'),
+        ('postgresql', 'INET', 'INET'),
+        ('postgresql', 'ARRAY', 'ARRAY'),
+        ('postgresql', 'VARCHAR(64)', 'String(64)'),
+        ('mysql', 'DECIMAL(10, 2)', 'DECIMAL(10, 2)'),
+        ('mysql', 'LONGBLOB', 'LargeBinary'),
+    ],
+)
+def test_sqlalchemy_type_mapping_uses_target_source(
+    monkeypatch: pytest.MonkeyPatch, db_type: str, column_type: str, expected: str
+) -> None:
+    monkeypatch.setattr(
+        type(database.DataBaseConfig),
+        'get_source',
+        lambda _self, _name=None: SimpleNamespace(db_type=db_type),
+    )
+
+    assert TemplateUtils.get_sqlalchemy_type(column_type) == expected

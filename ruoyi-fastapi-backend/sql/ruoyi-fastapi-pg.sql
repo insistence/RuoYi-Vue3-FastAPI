@@ -939,6 +939,7 @@ create table gen_table (
     table_id bigserial not null,
     table_name varchar(200) default '',
     table_comment varchar(500) default '',
+    data_source_name varchar(64) not null default 'primary',
     sub_table_name varchar(64) default null,
     sub_table_fk_name varchar(64) default null,
     class_name varchar(100) default '',
@@ -963,6 +964,7 @@ create table gen_table (
 comment on column gen_table.table_id is '编号';
 comment on column gen_table.table_name is '表名称';
 comment on column gen_table.table_comment is '表描述';
+comment on column gen_table.data_source_name is '目标数据源名称';
 comment on column gen_table.sub_table_name is '关联子表的表名';
 comment on column gen_table.sub_table_fk_name is '子表关联的外键名';
 comment on column gen_table.class_name is '实体类名称';

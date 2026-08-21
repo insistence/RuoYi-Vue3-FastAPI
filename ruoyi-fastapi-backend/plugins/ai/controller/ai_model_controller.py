@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log, RequestLogFieldRoot
 from common.aspect.data_scope import DataScopeDependency
-from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.db_session import DBSessionDependency
 from common.aspect.interface_auth import UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.constant import ApiGroup, ApiNamespace

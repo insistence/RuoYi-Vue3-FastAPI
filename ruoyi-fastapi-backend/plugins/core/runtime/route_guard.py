@@ -3,7 +3,7 @@ from typing import Protocol, runtime_checkable
 from fastapi import Depends, params
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config.get_db import get_db
+from common.aspect.db_session import DBSessionDependency
 from exceptions.exception import PermissionException
 
 
@@ -56,7 +56,7 @@ class CheckPluginEnabled:
         self.plugin_id = plugin_id
         self.state_gateway = state_gateway or UnavailablePluginRouteStateGateway()
 
-    async def __call__(self, db: AsyncSession = Depends(get_db)) -> bool:
+    async def __call__(self, db: AsyncSession = DBSessionDependency()) -> bool:
         """
         执行插件启用状态校验。
 

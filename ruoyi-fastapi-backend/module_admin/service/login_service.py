@@ -8,12 +8,12 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.aspect.db_session import DBSessionDependency
 from common.constant import CommonConstant, MenuConstant
 from common.context import RequestContext
 from common.enums import PasswordCharacterType, RedisInitKeyConfig
 from common.vo import CrudResponseModel
 from config.env import AppConfig, JwtConfig
-from config.get_db import get_db
 from exceptions.exception import AuthException, LoginException, ServiceException
 from module_admin.dao.login_dao import login_by_account
 from module_admin.dao.user_dao import UserDao
@@ -211,7 +211,10 @@ class LoginService:
 
     @classmethod
     async def get_current_user(
-        cls, request: Request = Request, token: str = Depends(oauth2_scheme), query_db: AsyncSession = Depends(get_db)
+        cls,
+        request: Request = Request,
+        token: str = Depends(oauth2_scheme),
+        query_db: AsyncSession = DBSessionDependency(),
     ) -> CurrentUserModel:
         """
         根据token获取当前用户信息

@@ -215,7 +215,7 @@ async def test_plugin_migration_runner_filters_database_dialect_migrations(
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)
-    monkeypatch.setattr('plugins.core.lifecycle.migration.DataBaseConfig.db_type', 'mysql')
+    monkeypatch.setattr('plugins.core.lifecycle.migration.DataBaseConfig.default_source.db_type', 'mysql')
 
     try:
         async with session_maker() as session:

@@ -27,6 +27,6 @@ class SysConfig(Base):
     remark = Column(
         String(500),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='备注',
     )

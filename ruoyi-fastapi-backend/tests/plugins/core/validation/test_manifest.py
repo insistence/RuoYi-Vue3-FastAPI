@@ -217,7 +217,7 @@ def test_manifest_checker_accepts_satisfied_compatibility(tmp_path: Path) -> Non
 
 def test_manifest_checker_accepts_supported_database(monkeypatch: object) -> None:
     """校验当前数据库在插件支持列表内时不产生问题。"""
-    monkeypatch.setattr(manifest_module.DataBaseConfig, 'db_type', 'postgresql')
+    monkeypatch.setattr(manifest_module.DataBaseConfig.default_source, 'db_type', 'postgresql')
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',
@@ -302,7 +302,7 @@ def test_manifest_checker_reports_unsatisfied_compatibility(tmp_path: Path) -> N
 
 def test_manifest_checker_reports_unsupported_database(monkeypatch: object) -> None:
     """校验当前数据库不在插件支持列表内时产生 error。"""
-    monkeypatch.setattr(manifest_module.DataBaseConfig, 'db_type', 'postgresql')
+    monkeypatch.setattr(manifest_module.DataBaseConfig.default_source, 'db_type', 'postgresql')
     manifest = PluginManifest.model_validate(
         {
             'id': 'demo',

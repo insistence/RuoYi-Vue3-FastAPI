@@ -112,7 +112,7 @@ backend:
 """,
         encoding='utf-8',
     )
-    monkeypatch.setattr('plugins.core.lifecycle.seed.DataBaseConfig.db_type', 'mysql')
+    monkeypatch.setattr('plugins.core.lifecycle.seed.DataBaseConfig.default_source.db_type', 'mysql')
     discovered_plugin = PluginScanner(tmp_path / 'plugins').load_manifest(plugin_root / 'plugin.yaml')
     engine = create_async_engine('sqlite+aiosqlite:///:memory:')
     session_maker = async_sessionmaker(bind=engine, expire_on_commit=False)

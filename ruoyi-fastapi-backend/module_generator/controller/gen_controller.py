@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitBypassConfig, ApiRateLimitPreset
-from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.db_session import DBSessionDependency
 from common.aspect.interface_auth import RoleInterfaceAuthDependency, UserInterfaceAuthDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.constant import ApiGroup, ApiNamespace
@@ -21,6 +21,7 @@ from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_generator.entity.vo.gen_vo import (
     DeleteGenTableModel,
     EditGenTableModel,
+    GenDataSourceModel,
     GenTableDbRowModel,
     GenTableDetailModel,
     GenTablePageQueryModel,
@@ -32,6 +33,16 @@ from utils.log_util import logger
 from utils.response_util import ResponseUtil
 
 gen_controller = APIRouterPro(prefix='/tool/gen', order_num=17, tags=['代码生成'], dependencies=[PreAuthDependency()])
+
+
+@gen_controller.get(
+    '/dataSources',
+    summary='获取代码生成数据源选项接口',
+    response_model=DataResponseModel[list[GenDataSourceModel]],
+    dependencies=[UserInterfaceAuthDependency('tool:gen:list')],
+)
+async def get_gen_data_sources(request: Request) -> Response:
+    return ResponseUtil.success(data=GenTableService.get_data_source_list_services())
 
 
 @gen_controller.get(
@@ -93,9 +104,12 @@ async def import_gen_table(
     tables: Annotated[str, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    source_name: Annotated[str | None, Query(alias='dataSourceName')] = None,
 ) -> Response:
     table_names = tables.split(',') if tables else []
-    add_gen_table_list = await GenTableService.get_gen_db_table_list_by_name_services(query_db, table_names)
+    add_gen_table_list = await GenTableService.get_gen_db_table_list_by_name_services(
+        query_db, table_names, source_name
+    )
     add_gen_table_result = await GenTableService.import_gen_table_services(query_db, add_gen_table_list, current_user)
     logger.info(add_gen_table_result.message)
 
@@ -167,8 +181,9 @@ async def create_table(
     sql: Annotated[str, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+    source_name: Annotated[str | None, Query(alias='dataSourceName')] = None,
 ) -> Response:
-    create_table_result = await GenTableService.create_table_services(query_db, sql, current_user)
+    create_table_result = await GenTableService.create_table_services(query_db, sql, current_user, source_name)
     logger.info(create_table_result.message)
 
     return ResponseUtil.success(msg=create_table_result.message)
@@ -199,9 +214,10 @@ async def batch_gen_code(
     request: Request,
     tables: Annotated[str, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
+    source_name: Annotated[str | None, Query(alias='dataSourceName')] = None,
 ) -> Response:
     table_names = tables.split(',') if tables else []
-    batch_gen_code_result = await GenTableService.batch_gen_code_services(query_db, table_names)
+    batch_gen_code_result = await GenTableService.batch_gen_code_services(query_db, table_names, source_name)
     logger.info('生成代码成功')
 
     return ResponseUtil.streaming(data=bytes2file_response(batch_gen_code_result))
@@ -225,11 +241,12 @@ async def gen_code_local(
     request: Request,
     table_name: Annotated[str, Path(description='表名称')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
+    source_name: Annotated[str | None, Query(alias='dataSourceName')] = None,
 ) -> Response:
     if not GenConfig.allow_overwrite:
         logger.error('【系统预设】不允许生成文件覆盖到本地')
         return ResponseUtil.error('【系统预设】不允许生成文件覆盖到本地')
-    gen_code_local_result = await GenTableService.generate_code_services(query_db, table_name)
+    gen_code_local_result = await GenTableService.generate_code_services(query_db, table_name, source_name)
     logger.info(gen_code_local_result.message)
 
     return ResponseUtil.success(msg=gen_code_local_result.message)
@@ -249,7 +266,7 @@ async def query_detail_gen_table(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     gen_table = await GenTableService.get_gen_table_by_id_services(query_db, table_id)
-    gen_tables = await GenTableService.get_gen_table_all_services(query_db)
+    gen_tables = await GenTableService.get_gen_table_all_services(query_db, gen_table.data_source_name)
     gen_columns = await GenTableColumnService.get_gen_table_column_list_by_table_id_services(query_db, table_id)
     gen_table_detail_result = {'info': gen_table, 'rows': gen_columns, 'tables': gen_tables}
     logger.info(f'获取table_id为{table_id}的信息成功')
@@ -290,8 +307,9 @@ async def sync_db(
     request: Request,
     table_name: Annotated[str, Path(description='表名称')],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
+    source_name: Annotated[str | None, Query(alias='dataSourceName')] = None,
 ) -> Response:
-    sync_db_result = await GenTableService.sync_db_services(query_db, table_name)
+    sync_db_result = await GenTableService.sync_db_services(query_db, table_name, source_name)
     logger.info(sync_db_result.message)
 
     return ResponseUtil.success(data=sync_db_result.message)

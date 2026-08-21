@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.db_session import DBSessionDependency
 from common.aspect.pre_auth import CurrentUserDependency, PreAuthDependency
 from common.constant import ApiNamespace
 from common.router import APIRouterPro

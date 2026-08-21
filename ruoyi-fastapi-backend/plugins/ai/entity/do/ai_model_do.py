@@ -20,7 +20,7 @@ class AiModels(Base):
     model_name = Column(
         String(100),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='模型名称',
     )
     provider = Column(String(50), nullable=False, comment='提供商')
@@ -28,19 +28,19 @@ class AiModels(Base):
     api_key = Column(
         String(255),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='API Key',
     )
     base_url = Column(
         String(255),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='Base URL',
     )
     model_type = Column(
         String(50),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='模型类型',
     )
     max_tokens = Column(Integer, nullable=True, comment='最大输出token')
@@ -57,6 +57,6 @@ class AiModels(Base):
     remark = Column(
         String(500),
         nullable=True,
-        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.db_type),
+        server_default=SqlalchemyUtil.get_server_default_null(DataBaseConfig.default_source.db_type),
         comment='备注',
     )

@@ -2,7 +2,7 @@ import re
 from datetime import datetime
 
 from common.constant import GenConstant
-from config.env import GenConfig
+from config.env import DataBaseConfig, GenConfig
 from module_generator.entity.vo.gen_vo import GenTableColumnModel, GenTableModel
 from utils.string_util import StringUtil
 
@@ -41,33 +41,35 @@ class GenUtils:
         param table: 业务表对象
         :return:
         """
-        data_type = cls.get_db_type(column.column_type)
+        data_type = cls.get_db_type(column.column_type).lower()
+        source_config = DataBaseConfig.get_source(table.data_source_name)
+        db_type = source_config.db_type
+        python_mapping = GenConstant.DB_TO_PYTHON_TYPE_MAPPING[db_type]
+        string_types = GenConstant.COLUMNTYPE_STR[db_type]
+        text_types = GenConstant.COLUMNTYPE_TEXT[db_type]
+        time_types = GenConstant.COLUMNTYPE_TIME[db_type]
+        number_types = GenConstant.COLUMNTYPE_NUMBER[db_type]
         column_name = column.column_name
         column.table_id = table.table_id
         column.create_by = table.create_by
         # 设置Python字段名
         column.python_field = cls.to_camel_case(column_name)
         # 设置默认类型
-        column.python_type = StringUtil.get_mapping_value_by_key_ignore_case(
-            GenConstant.DB_TO_PYTHON_TYPE_MAPPING, data_type
-        )
+        column.python_type = StringUtil.get_mapping_value_by_key_ignore_case(python_mapping, data_type) or 'str'
         column.query_type = GenConstant.QUERY_EQ
 
-        if cls.arrays_contains(GenConstant.COLUMNTYPE_STR, data_type) or cls.arrays_contains(
-            GenConstant.COLUMNTYPE_TEXT, data_type
-        ):
+        if data_type in string_types or data_type in text_types:
             # 字符串长度超过500设置为文本域
             column_length = cls.get_column_length(column.column_type)
             html_type = (
                 GenConstant.HTML_TEXTAREA
-                if column_length >= cls.TEXTAREA_COLUMN_LENGTH
-                or cls.arrays_contains(GenConstant.COLUMNTYPE_TEXT, data_type)
+                if column_length >= cls.TEXTAREA_COLUMN_LENGTH or data_type in text_types
                 else GenConstant.HTML_INPUT
             )
             column.html_type = html_type
-        elif cls.arrays_contains(GenConstant.COLUMNTYPE_TIME, data_type):
+        elif data_type in time_types:
             column.html_type = GenConstant.HTML_DATETIME
-        elif cls.arrays_contains(GenConstant.COLUMNTYPE_NUMBER, data_type):
+        elif data_type in number_types:
             column.html_type = GenConstant.HTML_INPUT
 
         # 插入字段（默认所有字段都需要插入）

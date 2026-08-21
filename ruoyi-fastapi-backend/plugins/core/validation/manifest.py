@@ -607,7 +607,7 @@ class PluginManifestChecker:
                 )
             )
 
-        current_database = DataBaseConfig.db_type
+        current_database = DataBaseConfig.default_source.db_type
         if compatibility.databases and current_database not in compatibility.databases:
             issues.append(
                 PluginValidationIssue(

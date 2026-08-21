@@ -7,11 +7,10 @@ from typing import Literal
 from alembic import context
 from alembic.migration import MigrationContext
 from alembic.operations.ops import MigrationScript
-from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from config.database import ASYNC_SQLALCHEMY_DATABASE_URL, Base
+from config.database import Base, DataSourceRegistry, build_async_sqlalchemy_database_url
+from config.env import DataBaseConfig
 from utils.import_util import ImportUtil
 
 # 判断vesrions目录是否存在，如果不存在则创建
@@ -35,7 +34,20 @@ if alembic_config.config_file_name is not None:
 # add your model's MetaData object here
 # for 'autogenerate' support
 target_metadata = Base.metadata
-# ASYNC_SQLALCHEMY_DATABASE_URL = 'mysql+asyncmy://root:mysqlroot@127.0.0.1:3306/ruoyi-fastapi'
+
+
+def _default_source_url() -> str:
+    """
+    构建默认数据源的Alembic数据库连接URL
+
+    :return: Alembic数据库连接URL
+    """
+    database_url = build_async_sqlalchemy_database_url(DataBaseConfig.default_source)
+    return database_url.render_as_string(hide_password=False).replace('%', '%%')
+
+
+ASYNC_SQLALCHEMY_DATABASE_URL = _default_source_url()
+
 # other values from the config, defined by the needs of env.py,
 alembic_config.set_main_option('sqlalchemy.url', ASYNC_SQLALCHEMY_DATABASE_URL)
 
@@ -111,16 +123,12 @@ async def run_async_migrations() -> None:
 
     """
 
-    connectable = async_engine_from_config(
-        alembic_config.get_section(alembic_config.config_ini_section, {}),
-        prefix='sqlalchemy.',
-        poolclass=pool.NullPool,
-    )
+    connectable = DataSourceRegistry.get_async_engine(DataBaseConfig.db_default_source)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
-    await connectable.dispose()
+    await DataSourceRegistry.dispose_all()
 
 
 def run_migrations_online() -> None:

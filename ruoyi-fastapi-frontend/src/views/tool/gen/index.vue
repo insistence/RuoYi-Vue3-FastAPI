@@ -19,6 +19,22 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
+      <el-form-item label="数据源" prop="dataSourceName">
+        <el-select
+          v-model="queryParams.dataSourceName"
+          placeholder="请选择数据源"
+          clearable
+          filterable
+          style="width: 220px"
+        >
+          <el-option
+            v-for="source in dataSources"
+            :key="source.name"
+            :label="source.name + '（' + source.dbType + '）'"
+            :value="source.name"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="创建时间" style="width: 308px">
         <el-date-picker
           v-model="dateRange"
@@ -112,6 +128,7 @@
         prop="className"
         :show-overflow-tooltip="true"
       />
+      <el-table-column label="数据源" align="center" prop="dataSourceName" width="160" />
       <el-table-column label="创建时间" align="center" prop="createTime" width="160" />
       <el-table-column label="更新时间" align="center" prop="updateTime" width="160" />
       <el-table-column label="操作" align="center" width="330" class-name="small-padding fixed-width">
@@ -155,13 +172,13 @@
         </el-tab-pane>
       </el-tabs>
     </el-dialog>
-    <import-table ref="importRef" @ok="handleQuery" />
-    <create-table ref="createRef" @ok="handleQuery" />
+    <import-table ref="importRef" :data-sources="dataSources" @ok="handleQuery" />
+    <create-table ref="createRef" :data-sources="dataSources" @ok="handleQuery" />
   </div>
 </template>
 
 <script setup name="Gen">
-import { listTable, previewTable, delTable, genCode, synchDb } from "@/api/tool/gen";
+import { listDataSources, listTable, previewTable, delTable, genCode, synchDb } from "@/api/tool/gen";
 import router from "@/router";
 import importTable from "./importTable";
 import createTable from "./createTable";
@@ -177,15 +194,18 @@ const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
 const tableNames = ref([]);
+const selectedSourceNames = ref([]);
 const dateRange = ref([]);
 const uniqueId = ref("");
+const dataSources = ref([]);
 
 const data = reactive({
   queryParams: {
     pageNum: 1,
     pageSize: 10,
     tableName: undefined,
-    tableComment: undefined
+    tableComment: undefined,
+    dataSourceName: undefined
   },
   preview: {
     open: false,
@@ -218,6 +238,13 @@ function getList() {
   });
 }
 
+/** 查询代码生成数据源选项 */
+function getDataSources() {
+  listDataSources().then(response => {
+    dataSources.value = response.data || [];
+  });
+}
+
 /** 搜索按钮操作 */
 function handleQuery() {
   queryParams.value.pageNum = 1;
@@ -231,13 +258,24 @@ function handleGenTable(row) {
     proxy.$modal.msgError("请选择要生成的数据");
     return;
   }
+  const sourceNames = row.tableName ? [row.dataSourceName] : selectedSourceNames.value;
+  const uniqueSourceNames = [...new Set(sourceNames.filter(Boolean))];
+  if (uniqueSourceNames.length !== 1) {
+    proxy.$modal.msgError("请选择同一数据源下的生成配置");
+    return;
+  }
+  const dataSourceName = uniqueSourceNames[0];
   if (row.genType === "1") {
-    genCode(row.tableName).then(response => {
+    genCode(row.tableName, dataSourceName).then(response => {
       proxy.$modal.msgSuccess("成功生成到自定义路径：" + row.genPath);
     });
   } else {
     const zipName = Array.isArray(tbNames) ? "vfadmin.zip" : tbNames + ".zip"
-    proxy.$download.zip("/tool/gen/batchGenCode?tables=" + tbNames, zipName)
+    const tables = encodeURIComponent(Array.isArray(tbNames) ? tbNames.join(",") : tbNames);
+    proxy.$download.zip(
+      "/tool/gen/batchGenCode?tables=" + tables + "&dataSourceName=" + encodeURIComponent(dataSourceName),
+      zipName
+    )
   }
 }
 
@@ -245,7 +283,7 @@ function handleGenTable(row) {
 function handleSynchDb(row) {
   const tableName = row.tableName;
   proxy.$modal.confirm('确认要强制同步"' + tableName + '"表结构吗？').then(function () {
-    return synchDb(tableName);
+    return synchDb(tableName, row.dataSourceName);
   }).then(() => {
     proxy.$modal.msgSuccess("同步成功");
   }).catch(() => {});
@@ -286,6 +324,7 @@ function copyTextSuccess() {
 function handleSelectionChange(selection) {
   ids.value = selection.map(item => item.tableId);
   tableNames.value = selection.map(item => item.tableName);
+  selectedSourceNames.value = selection.map(item => item.dataSourceName);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
 }
@@ -310,4 +349,5 @@ function handleDelete(row) {
 }
 
 getList();
+getDataSources();
 </script>

@@ -42,7 +42,7 @@ class AppSnapshotSupport:
         """
         env_module = self.infrastructure_gateway.get_env_module()
         app_config = env_module.AppConfig
-        database_config = env_module.DataBaseConfig
+        database_config = env_module.DataBaseConfig.default_source
         log_config = env_module.LogConfig
         redis_config = env_module.RedisConfig
         transport_crypto_config = env_module.TransportCryptoConfig

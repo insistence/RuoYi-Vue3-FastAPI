@@ -178,11 +178,6 @@ async def test_scheduler_close_releases_owner_lease_before_forgetting_redis() ->
                 'stop_application_lock_renewal',
                 new_callable=AsyncMock,
             ) as stop_renewal,
-            patch.object(
-                SchedulerUtil,
-                '_dispose_sync_async_engine',
-                new_callable=AsyncMock,
-            ),
             patch.object(SchedulerUtil, '_dispose_sync_engines'),
             patch('config.get_scheduler.scheduler', running=False),
             patch(

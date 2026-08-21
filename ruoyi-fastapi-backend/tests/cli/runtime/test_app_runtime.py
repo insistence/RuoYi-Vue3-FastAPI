@@ -92,10 +92,12 @@ def test_app_snapshot_support_builds_config_snapshot() -> None:
             app_disable_redoc=False,
         ),
         DataBaseConfig=SimpleNamespace(
-            db_type='mysql',
-            db_host='127.0.0.1',
-            db_port=3306,
-            db_database='ruoyi',
+            default_source=SimpleNamespace(
+                db_type='mysql',
+                db_host='127.0.0.1',
+                db_port=3306,
+                db_database='ruoyi',
+            )
         ),
         RedisConfig=SimpleNamespace(redis_host='127.0.0.1', redis_port=REDIS_PORT),
         LogConfig=SimpleNamespace(loguru_level='INFO'),

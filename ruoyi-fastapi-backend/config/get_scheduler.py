@@ -21,18 +21,12 @@ from apscheduler.triggers.date import DateTrigger
 from apscheduler.util import obj_to_ref
 from redis import asyncio as aioredis
 from sqlalchemy.engine import Engine
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.orm import sessionmaker
 
 import module_task  # noqa: F401
 from common.constant import LockConstant
-from config.database import (
-    SYNC_SQLALCHEMY_DATABASE_URL,
-    create_async_db_engine,
-    create_async_session_local,
-    create_sync_db_engine,
-    create_sync_session_local,
-)
-from config.env import AppConfig, LogConfig, RedisConfig
+from config.database import DataSourceRegistry, create_sync_db_engine
+from config.env import AppConfig, DataBaseConfig, LogConfig, RedisConfig
 from module_admin.dao.job_dao import JobDao
 from module_admin.entity.vo.job_vo import JobLogModel, JobModel
 from module_admin.service.job_log_service import JobLogService
@@ -134,8 +128,6 @@ class SchedulerUtil:
     _reacquire_interval_seconds: float = 5.0
     _reacquire_jitter_seconds: float = 1.0
     _is_closing: bool = False
-    _sync_async_engine: AsyncEngine | None = None
-    _sync_async_sessionmaker: Any | None = None
     _disposed_sync_engines: bool = False
 
     # 懒加载的同步 Engine 和 SessionLocal
@@ -183,7 +175,8 @@ class SchedulerUtil:
         :return: 同步 Engine
         """
         if cls._jobstore_engine is None:
-            cls._jobstore_engine = create_sync_db_engine(echo=False)
+            # JobStore 使用独立 Engine，避免 APScheduler 关闭时释放 Registry 共享的 Engine。
+            cls._jobstore_engine = create_sync_db_engine(echo=False, config=DataBaseConfig.get_source())
         return cls._jobstore_engine
 
     @classmethod
@@ -194,7 +187,7 @@ class SchedulerUtil:
         :return: 同步 Engine
         """
         if cls._listener_engine is None:
-            cls._listener_engine = create_sync_db_engine()
+            cls._listener_engine = DataSourceRegistry.get_sync_engine(DataBaseConfig.db_default_source)
         return cls._listener_engine
 
     @classmethod
@@ -205,7 +198,11 @@ class SchedulerUtil:
         :return: SessionLocal
         """
         if cls._session_local is None:
-            cls._session_local = create_sync_session_local(cls._get_listener_engine())
+            cls._session_local = sessionmaker(
+                autocommit=False,
+                autoflush=False,
+                bind=cls._get_listener_engine(),
+            )
         return cls._session_local
 
     @classmethod
@@ -219,7 +216,7 @@ class SchedulerUtil:
             return
         job_stores = {
             'default': MemoryJobStore(),
-            'sqlalchemy': SQLAlchemyJobStore(url=SYNC_SQLALCHEMY_DATABASE_URL, engine=cls._get_jobstore_engine()),
+            'sqlalchemy': SQLAlchemyJobStore(engine=cls._get_jobstore_engine()),
             'redis': RedisJobStore(**redis_config),
         }
         executors = {'default': AsyncIOExecutor(), 'processpool': ProcessPoolExecutor(5)}
@@ -425,7 +422,7 @@ class SchedulerUtil:
             cls._sync_pending = False
         if getattr(scheduler, 'running', False):
             scheduler.shutdown()
-        await cls._dispose_sync_async_engine()
+        cls._scheduler_configured = False
         cls._dispose_sync_engines()
         cls._ensure_reacquire_task()
 
@@ -603,22 +600,8 @@ class SchedulerUtil:
 
         :return: 异步 Session
         """
-        if not cls._sync_async_sessionmaker:
-            cls._sync_async_engine = create_async_db_engine(echo=False)
-            cls._sync_async_sessionmaker = create_async_session_local(cls._sync_async_engine)
-        return cls._sync_async_sessionmaker()
-
-    @classmethod
-    async def _dispose_sync_async_engine(cls) -> None:
-        """
-        释放同步任务使用的异步 Engine
-
-        :return: None
-        """
-        if cls._sync_async_engine:
-            await cls._sync_async_engine.dispose()
-            cls._sync_async_engine = None
-            cls._sync_async_sessionmaker = None
+        # 每次同步都从注册中心创建新的异步上下文，避免复用已经退出的会话上下文。
+        return DataSourceRegistry.session(DataBaseConfig.db_default_source)
 
     @classmethod
     def _dispose_sync_engines(cls) -> None:
@@ -632,9 +615,8 @@ class SchedulerUtil:
         if cls._jobstore_engine:
             cls._jobstore_engine.dispose()
             cls._jobstore_engine = None
-        if cls._listener_engine:
-            cls._listener_engine.dispose()
-            cls._listener_engine = None
+        # Listener 使用 Registry 共享的 Engine，此处只清理引用，避免影响其他服务。
+        cls._listener_engine = None
         cls._session_local = None
         cls._disposed_sync_engines = True
 
@@ -927,7 +909,6 @@ class SchedulerUtil:
             except asyncio.CancelledError:
                 pass
             cls._reacquire_task = None
-        await cls._dispose_sync_async_engine()
         cls._dispose_sync_engines()
         if cls._lock_lost_task:
             cls._lock_lost_task.cancel()
@@ -939,6 +920,7 @@ class SchedulerUtil:
         if getattr(scheduler, 'running', False):
             scheduler.shutdown()
             logger.info('✅️ 关闭定时任务成功')
+        cls._scheduler_configured = False
         # 必须在Redis连接池关闭前，原子释放当前进程持有的Application leader租约
         redis = cls._redis
         cls._redis = None

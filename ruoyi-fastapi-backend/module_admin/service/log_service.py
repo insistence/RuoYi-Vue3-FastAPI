@@ -10,7 +10,7 @@ from redis import asyncio as aioredis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
-from config.database import AsyncSessionLocal
+from config.database import DataSourceRegistry
 from config.env import LogConfig
 from exceptions.exception import ServiceException
 from middlewares.trace_middleware.ctx import TraceCtx
@@ -491,7 +491,7 @@ class LogAggregatorService:
         """
         if not messages:
             return
-        async with AsyncSessionLocal() as session:
+        async with DataSourceRegistry.session() as session:
             ack_ids: list[str] = []
             dedup_event_ids: list[str] = []
             try:
