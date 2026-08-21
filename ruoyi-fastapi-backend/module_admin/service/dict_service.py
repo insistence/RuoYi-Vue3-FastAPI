@@ -99,7 +99,7 @@ class DictTypeService:
         :param page_object: 编辑字典类型对象
         :return: 编辑字典类型校验结果
         """
-        edit_dict_type = page_object.model_dump(exclude_unset=True)
+        edit_dict_type = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
         dict_type_info = await cls.dict_type_detail_services(query_db, page_object.dict_id)
         if dict_type_info.dict_id:
             if not await cls.check_dict_type_unique_services(query_db, page_object):
@@ -114,7 +114,7 @@ class DictTypeService:
                             dictType=page_object.dict_type,
                             updateBy=page_object.update_by,
                             updateTime=page_object.update_time,
-                        ).model_dump(exclude_unset=True)
+                        ).model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
                         await DictDataDao.edit_dict_data_dao(query_db, edit_dict_data)
                 await DictTypeDao.edit_dict_type_dao(query_db, edit_dict_type)
                 await query_db.commit()
@@ -354,7 +354,7 @@ class DictDataService:
         :param page_object: 编辑字典数据对象
         :return: 编辑字典数据校验结果
         """
-        edit_data_type = page_object.model_dump(exclude_unset=True)
+        edit_data_type = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
         dict_data_info = await cls.dict_data_detail_services(query_db, page_object.dict_code)
         if dict_data_info.dict_code:
             if not await cls.check_dict_data_unique_services(query_db, page_object):

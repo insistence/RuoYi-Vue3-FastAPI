@@ -92,7 +92,7 @@ class PostService:
         :param page_object: 编辑岗位对象
         :return: 编辑岗位校验结果
         """
-        edit_post = page_object.model_dump(exclude_unset=True)
+        edit_post = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
         post_info = await cls.post_detail_services(query_db, page_object.post_id)
         if post_info.post_id:
             if not await cls.check_post_name_unique_services(query_db, page_object):

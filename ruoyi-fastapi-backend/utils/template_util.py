@@ -299,6 +299,8 @@ class TemplateUtils:
         import_list.add('from sqlalchemy import Column')
         for column in columns:
             sqlalchemy_type = cls.get_sqlalchemy_type(column.column_type, gen_table.data_source_name)
+            if column.column_name in {'create_time', 'update_time'} and sqlalchemy_type == 'DateTime':
+                continue
             if sqlalchemy_type == 'Geometry':
                 import_list.add('from geoalchemy2 import Geometry')
             else:
@@ -308,6 +310,8 @@ class TemplateUtils:
             sub_columns = gen_table.sub_table.columns or []
             for sub_column in sub_columns:
                 sqlalchemy_type = cls.get_sqlalchemy_type(sub_column.column_type, gen_table.data_source_name)
+                if sub_column.column_name in {'create_time', 'update_time'} and sqlalchemy_type == 'DateTime':
+                    continue
                 if sqlalchemy_type == 'Geometry':
                     import_list.add('from geoalchemy2 import Geometry')
                 else:

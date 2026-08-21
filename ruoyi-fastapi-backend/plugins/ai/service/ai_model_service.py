@@ -93,7 +93,7 @@ class AiModelService:
         :param page_object: 编辑AI模型对象
         :return: 编辑AI模型校验结果
         """
-        edit_ai_model = page_object.model_dump(exclude_unset=True)
+        edit_ai_model = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
         if page_object.api_key:
             if page_object.api_key == '********' * 3:
                 if 'api_key' in edit_ai_model:

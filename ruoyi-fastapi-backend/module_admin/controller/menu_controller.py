@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Path, Query, Request, Response
@@ -100,9 +99,7 @@ async def add_system_menu(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_menu.create_by = current_user.user.user_name
-    add_menu.create_time = datetime.now()
     add_menu.update_by = current_user.user.user_name
-    add_menu.update_time = datetime.now()
     add_menu_result = await MenuService.add_menu_services(query_db, add_menu)
     logger.info(add_menu_result.message)
 
@@ -126,7 +123,6 @@ async def edit_system_menu(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_menu.update_by = current_user.user.user_name
-    edit_menu.update_time = datetime.now()
     edit_menu_result = await MenuService.edit_menu_services(query_db, edit_menu)
     logger.info(edit_menu_result.message)
 

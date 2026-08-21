@@ -107,7 +107,7 @@ class PostDao:
         :param post: 岗位对象
         :return:
         """
-        db_post = SysPost(**post.model_dump())
+        db_post = SysPost(**post.model_dump(exclude={'create_time', 'update_time'}))
         db.add(db_post)
         await db.flush()
 
@@ -122,7 +122,10 @@ class PostDao:
         :param post: 需要更新的岗位字典
         :return:
         """
-        await db.execute(update(SysPost), [post])
+        await db.execute(
+            update(SysPost),
+            [{key: value for key, value in post.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_post_dao(cls, db: AsyncSession, post: PostModel) -> None:

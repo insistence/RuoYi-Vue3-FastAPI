@@ -1,15 +1,14 @@
-from datetime import datetime
-
 from sqlalchemy import CHAR, BigInteger, Column, DateTime, String
 from sqlalchemy.dialects.mysql import DATETIME
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 
+from common.mixin import AuditTimeMixin, CreateTimeMixin
 from config.database import Base
 
 JOB_LOG_TIME_TYPE = DateTime().with_variant(DATETIME(fsp=3), 'mysql').with_variant(TIMESTAMP(precision=3), 'postgresql')
 
 
-class SysJob(Base):
+class SysJob(AuditTimeMixin, Base):
     """
     定时任务调度表
     """
@@ -34,13 +33,11 @@ class SysJob(Base):
     concurrent = Column(CHAR(1), nullable=True, server_default='1', comment='是否并发执行（0允许 1禁止）')
     status = Column(CHAR(1), nullable=True, server_default='0', comment='状态（0正常 1暂停）')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
     remark = Column(String(500), nullable=True, server_default="''", comment='备注信息')
 
 
-class SysJobLog(Base):
+class SysJobLog(CreateTimeMixin, Base):
     """
     定时任务调度日志表
     """
@@ -61,4 +58,3 @@ class SysJobLog(Base):
     exception_info = Column(String(2000), nullable=True, server_default="''", comment='异常信息')
     start_time = Column(JOB_LOG_TIME_TYPE, nullable=True, comment='执行开始时间')
     end_time = Column(JOB_LOG_TIME_TYPE, nullable=True, comment='执行结束时间')
-    create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')

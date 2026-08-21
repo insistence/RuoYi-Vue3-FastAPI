@@ -109,7 +109,7 @@ class DictTypeDao:
         :param dict_type: 字典类型对象
         :return:
         """
-        db_dict_type = SysDictType(**dict_type.model_dump())
+        db_dict_type = SysDictType(**dict_type.model_dump(exclude={'create_time', 'update_time'}))
         db.add(db_dict_type)
         await db.flush()
 
@@ -124,7 +124,10 @@ class DictTypeDao:
         :param dict_type: 需要更新的字典类型字典
         :return:
         """
-        await db.execute(update(SysDictType), [dict_type])
+        await db.execute(
+            update(SysDictType),
+            [{key: value for key, value in dict_type.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_dict_type_dao(cls, db: AsyncSession, dict_type: DictTypeModel) -> None:
@@ -250,7 +253,7 @@ class DictDataDao:
         :param dict_data: 字典数据对象
         :return:
         """
-        db_data_type = SysDictData(**dict_data.model_dump())
+        db_data_type = SysDictData(**dict_data.model_dump(exclude={'create_time', 'update_time'}))
         db.add(db_data_type)
         await db.flush()
 
@@ -265,7 +268,10 @@ class DictDataDao:
         :param dict_data: 需要更新的字典数据字典
         :return:
         """
-        await db.execute(update(SysDictData), [dict_data])
+        await db.execute(
+            update(SysDictData),
+            [{key: value for key, value in dict_data.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_dict_data_dao(cls, db: AsyncSession, dict_data: DictDataModel) -> None:

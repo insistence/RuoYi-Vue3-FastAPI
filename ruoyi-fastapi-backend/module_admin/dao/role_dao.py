@@ -179,7 +179,7 @@ class RoleDao:
         :param role: 角色对象
         :return:
         """
-        db_role = SysRole(**role.model_dump(exclude={'admin'}))
+        db_role = SysRole(**role.model_dump(exclude={'admin', 'create_time', 'update_time'}))
         db.add(db_role)
         await db.flush()
 
@@ -194,7 +194,10 @@ class RoleDao:
         :param role: 需要更新的角色字典
         :return:
         """
-        await db.execute(update(SysRole), [role])
+        await db.execute(
+            update(SysRole),
+            [{key: value for key, value in role.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_role_dao(cls, db: AsyncSession, role: RoleModel) -> None:
@@ -206,9 +209,7 @@ class RoleDao:
         :return:
         """
         await db.execute(
-            update(SysRole)
-            .where(SysRole.role_id == role.role_id)
-            .values(del_flag='2', update_by=role.update_by, update_time=role.update_time)
+            update(SysRole).where(SysRole.role_id == role.role_id).values(del_flag='2', update_by=role.update_by)
         )
 
     @classmethod

@@ -118,7 +118,7 @@ class JobDao:
         :param job: 定时任务对象
         :return:
         """
-        db_job = SysJob(**job.model_dump())
+        db_job = SysJob(**job.model_dump(exclude={'create_time', 'update_time'}))
         db.add(db_job)
         await db.flush()
 
@@ -141,7 +141,7 @@ class JobDao:
                 SysJob.job_name == old_job.job_name,
                 SysJob.job_group == old_job.job_group,
             )
-            .values(**job)
+            .values(**{key: value for key, value in job.items() if key not in {'create_time', 'update_time'}})
         )
 
     @classmethod

@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module_admin.entity.do.menu_do import SysMenu
@@ -349,7 +347,6 @@ class PluginMenuInstaller:
             status=menu.status,
             perms=menu.perms or None,
             icon=menu.icon,
-            updateTime=datetime.now(),
             remark=menu_remark,
         )
 

@@ -111,7 +111,7 @@ class JobService:
         :param page_object: 编辑定时任务对象
         :return: 编辑定时任务校验结果
         """
-        edit_job = page_object.model_dump(exclude_unset=True)
+        edit_job = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
         cls._deal_edit_job(page_object, edit_job)
         job_info = await cls.job_detail_services(query_db, page_object.job_id)
         if job_info:

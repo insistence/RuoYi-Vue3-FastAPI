@@ -275,7 +275,6 @@ class FileRetentionPolicyService:
         )
         if exists_policy:
             raise ServiceException(message=f'业务类型{policy.business_type}的保留策略已存在')
-        current_time = datetime.now()
         db_policy = SysFileRetentionPolicy(
             **policy.model_dump(
                 exclude={
@@ -286,9 +285,7 @@ class FileRetentionPolicyService:
                 }
             ),
             create_by=operator_name,
-            create_time=current_time,
             update_by=operator_name,
-            update_time=current_time,
         )
         try:
             await FileRetentionPolicyDao.add_file_retention_policy(query_db, db_policy)
@@ -329,7 +326,7 @@ class FileRetentionPolicyService:
                 'update_time',
             }
         )
-        policy_data.update(update_by=operator_name, update_time=datetime.now())
+        policy_data.update(update_by=operator_name)
         try:
             await FileRetentionPolicyDao.edit_file_retention_policy(
                 query_db,

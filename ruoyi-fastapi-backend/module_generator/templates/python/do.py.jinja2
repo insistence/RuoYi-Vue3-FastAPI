@@ -1,3 +1,31 @@
+{% set main_time = namespace(create=None, update=None) %}
+{% for column in columns %}
+{% if column.column_name == "create_time" and column.python_type == "datetime" %}
+{% set main_time.create = column %}
+{% elif column.column_name == "update_time" and column.python_type == "datetime" %}
+{% set main_time.update = column %}
+{% endif %}
+{% endfor %}
+{% set sub_time = namespace(create=None, update=None) %}
+{% if table.sub %}
+{% for column in subTable.columns %}
+{% if column.column_name == "create_time" and column.python_type == "datetime" %}
+{% set sub_time.create = column %}
+{% elif column.column_name == "update_time" and column.python_type == "datetime" %}
+{% set sub_time.update = column %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% set time_mixin_imports = namespace(names=[]) %}
+{% if (main_time.create and main_time.update) or (sub_time.create and sub_time.update) %}
+{% set time_mixin_imports.names = time_mixin_imports.names + ['AuditTimeMixin'] %}
+{% endif %}
+{% if (main_time.create and not main_time.update) or (sub_time.create and not sub_time.update) %}
+{% set time_mixin_imports.names = time_mixin_imports.names + ['CreateTimeMixin'] %}
+{% endif %}
+{% if (main_time.update and not main_time.create) or (sub_time.update and not sub_time.create) %}
+{% set time_mixin_imports.names = time_mixin_imports.names + ['UpdateTimeMixin'] %}
+{% endif %}
 {% for do_import in doImportList %}
 {{ do_import }}
 {% endfor %}
@@ -5,6 +33,9 @@
 from sqlalchemy.orm import relationship
 {% endif %}
 
+{% if time_mixin_imports.names %}
+from common.mixin import {{ time_mixin_imports.names | join(', ') }}
+{% endif %}
 {% if dataSourceName == defaultDataSourceName %}
 from config.database import Base
 {% else %}
@@ -15,16 +46,30 @@ DataSourceBase = get_data_source_base('{{ dataSourceName }}')
 {% endif %}
 
 
-class {{ ClassName }}({% if dataSourceName == defaultDataSourceName %}Base{% else %}DataSourceBase{% endif %}):
+class {{ ClassName }}({% if main_time.create and main_time.update %}AuditTimeMixin, {% elif main_time.create %}CreateTimeMixin, {% elif main_time.update %}UpdateTimeMixin, {% endif %}{% if dataSourceName == defaultDataSourceName %}Base{% else %}DataSourceBase{% endif %}):
     """
     {{ functionName }}表
     """
 
     __tablename__ = '{{ tableName }}'
     __table_args__ = {'comment': '{{ tableComment }}'}
+    {% if main_time.create and (main_time.create.required or main_time.create.pk) %}
+    __create_time_nullable__ = False
+    {% endif %}
+    {% if main_time.create and main_time.create.column_comment != '创建时间' %}
+    __create_time_comment__ = '{{ main_time.create.column_comment }}'
+    {% endif %}
+    {% if main_time.update and (main_time.update.required or main_time.update.pk) %}
+    __update_time_nullable__ = False
+    {% endif %}
+    {% if main_time.update and main_time.update.column_comment != '更新时间' %}
+    __update_time_comment__ = '{{ main_time.update.column_comment }}'
+    {% endif %}
 
     {% for column in columns %}
+    {% if not (column.column_name in ["create_time", "update_time"] and column.python_type == "datetime") %}
     {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type(dataSourceName) }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
+    {% endif %}
     {% endfor %}
 
     {% if table.sub %}
@@ -33,15 +78,29 @@ class {{ ClassName }}({% if dataSourceName == defaultDataSourceName %}Base{% els
 
 
 {% if table.sub %}
-class {{ subClassName }}({% if dataSourceName == defaultDataSourceName %}Base{% else %}DataSourceBase{% endif %}):
+class {{ subClassName }}({% if sub_time.create and sub_time.update %}AuditTimeMixin, {% elif sub_time.create %}CreateTimeMixin, {% elif sub_time.update %}UpdateTimeMixin, {% endif %}{% if dataSourceName == defaultDataSourceName %}Base{% else %}DataSourceBase{% endif %}):
     """
     {{ subTable.function_name }}表
     """
 
     __tablename__ = '{{ subTableName }}'
+    {% if sub_time.create and (sub_time.create.required or sub_time.create.pk) %}
+    __create_time_nullable__ = False
+    {% endif %}
+    {% if sub_time.create and sub_time.create.column_comment != '创建时间' %}
+    __create_time_comment__ = '{{ sub_time.create.column_comment }}'
+    {% endif %}
+    {% if sub_time.update and (sub_time.update.required or sub_time.update.pk) %}
+    __update_time_nullable__ = False
+    {% endif %}
+    {% if sub_time.update and sub_time.update.column_comment != '更新时间' %}
+    __update_time_comment__ = '{{ sub_time.update.column_comment }}'
+    {% endif %}
 
     {% for column in subTable.columns %}
+    {% if not (column.column_name in ["create_time", "update_time"] and column.python_type == "datetime") %}
     {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type(dataSourceName) }}, {% if column.column_name == subTableFkName %}ForeignKey('{{ tableName }}.{{ subTableFkName }}'), {% endif %}{% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
+    {% endif %}
     {% endfor %}
 
     {% if table.sub %}

@@ -34,7 +34,9 @@ class AiChatConfigDao:
         :param chat_config: 对话配置对象
         :return: 配置对象
         """
-        db_chat_config = AiChatConfig(**chat_config.model_dump(exclude_unset=True))
+        db_chat_config = AiChatConfig(
+            **chat_config.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
+        )
         db.add(db_chat_config)
         await db.flush()
 
@@ -49,4 +51,7 @@ class AiChatConfigDao:
         :param chat_config: 需要更新的对话配置字典
         :return:
         """
-        await db.execute(update(AiChatConfig), [chat_config])
+        await db.execute(
+            update(AiChatConfig),
+            [{key: value for key, value in chat_config.items() if key not in {'create_time', 'update_time'}}],
+        )

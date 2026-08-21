@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Form, Path, Query, Request, Response
@@ -74,9 +73,7 @@ async def add_system_job(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_job.create_by = current_user.user.user_name
-    add_job.create_time = datetime.now()
     add_job.update_by = current_user.user.user_name
-    add_job.update_time = datetime.now()
     add_job_result = await JobService.add_job_services(query_db, add_job)
     logger.info(add_job_result.message)
 
@@ -100,7 +97,6 @@ async def edit_system_job(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_job.update_by = current_user.user.user_name
-    edit_job.update_time = datetime.now()
     edit_job_result = await JobService.edit_job_services(query_db, edit_job)
     logger.info(edit_job_result.message)
 
@@ -126,7 +122,6 @@ async def change_system_job_status(
         jobId=change_job.job_id,
         status=change_job.status,
         updateBy=current_user.user.user_name,
-        updateTime=datetime.now(),
         type='status',
     )
     edit_job_result = await JobService.edit_job_services(query_db, edit_job)

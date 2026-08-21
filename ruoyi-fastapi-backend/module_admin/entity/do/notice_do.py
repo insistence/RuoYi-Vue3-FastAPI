@@ -3,12 +3,13 @@ from datetime import datetime
 from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, LargeBinary, String, UniqueConstraint
 from sqlalchemy.dialects import mysql
 
+from common.mixin import AuditTimeMixin
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
 
 
-class SysNotice(Base):
+class SysNotice(AuditTimeMixin, Base):
     """
     通知公告表
     """
@@ -27,9 +28,7 @@ class SysNotice(Base):
     )
     status = Column(CHAR(1), nullable=True, server_default='0', comment='公告状态（0正常 1关闭）')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, comment='创建时间', default=datetime.now())
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, comment='更新时间', default=datetime.now())
     remark = Column(
         String(255),
         nullable=True,

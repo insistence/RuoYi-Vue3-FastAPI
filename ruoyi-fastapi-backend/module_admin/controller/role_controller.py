@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Form, Path, Query, Request, Response
@@ -102,9 +101,7 @@ async def add_system_role(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_role.create_by = current_user.user.user_name
-    add_role.create_time = datetime.now()
     add_role.update_by = current_user.user.user_name
-    add_role.update_time = datetime.now()
     add_role_result = await RoleService.add_role_services(query_db, add_role)
     logger.info(add_role_result.message)
 
@@ -132,7 +129,6 @@ async def edit_system_role(
     if not current_user.user.admin:
         await RoleService.check_role_data_scope_services(query_db, str(edit_role.role_id), data_scope_sql)
     edit_role.update_by = current_user.user.user_name
-    edit_role.update_time = datetime.now()
     edit_role_result = await RoleService.edit_role_services(query_db, edit_role)
     logger.info(edit_role_result.message)
 
@@ -164,7 +160,6 @@ async def edit_system_role_datascope(
         deptIds=role_data_scope.dept_ids,
         deptCheckStrictly=role_data_scope.dept_check_strictly,
         updateBy=current_user.user.user_name,
-        updateTime=datetime.now(),
     )
     role_data_scope_result = await RoleService.role_datascope_services(query_db, edit_role)
     logger.info(role_data_scope_result.message)
@@ -194,7 +189,7 @@ async def delete_system_role(
             await RoleService.check_role_allowed_services(RoleModel(roleId=int(role_id)))
             if not current_user.user.admin:
                 await RoleService.check_role_data_scope_services(query_db, role_id, data_scope_sql)
-    delete_role = DeleteRoleModel(roleIds=role_ids, updateBy=current_user.user.user_name, updateTime=datetime.now())
+    delete_role = DeleteRoleModel(roleIds=role_ids, updateBy=current_user.user.user_name)
     delete_role_result = await RoleService.delete_role_services(query_db, delete_role)
     logger.info(delete_role_result.message)
 
@@ -280,7 +275,6 @@ async def reset_system_role_status(
         roleId=change_role.role_id,
         status=change_role.status,
         updateBy=current_user.user.user_name,
-        updateTime=datetime.now(),
         type='status',
     )
     edit_role_result = await RoleService.edit_role_services(query_db, edit_role)

@@ -1,14 +1,13 @@
-from datetime import datetime
-
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, SmallInteger, String
+from sqlalchemy import CHAR, BigInteger, Column, Integer, SmallInteger, String
 from sqlalchemy.dialects import mysql
 
+from common.mixin import AuditTimeMixin
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
 
 
-class SysRole(Base):
+class SysRole(AuditTimeMixin, Base):
     """
     角色信息表
     """
@@ -41,9 +40,7 @@ class SysRole(Base):
     status = Column(CHAR(1), nullable=False, comment='角色状态（0正常 1停用）')
     del_flag = Column(CHAR(1), nullable=True, server_default='0', comment='删除标志（0代表存在 2代表删除）')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now(), comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now(), comment='更新时间')
     remark = Column(
         String(500),
         nullable=True,

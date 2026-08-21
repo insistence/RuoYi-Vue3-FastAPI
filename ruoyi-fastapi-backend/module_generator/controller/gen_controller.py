@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Path, Query, Request, Response
@@ -133,7 +132,6 @@ async def edit_gen_table(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_gen_table.update_by = current_user.user.user_name
-    edit_gen_table.update_time = datetime.now()
     await GenTableService.validate_edit(edit_gen_table)
     edit_gen_result = await GenTableService.edit_gen_table_services(query_db, edit_gen_table)
     logger.info(edit_gen_result.message)

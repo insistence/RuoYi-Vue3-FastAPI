@@ -341,7 +341,7 @@ class UserDao:
         :param user: 用户对象
         :return: 新增校验结果
         """
-        db_user = SysUser(**user.model_dump(exclude={'admin'}))
+        db_user = SysUser(**user.model_dump(exclude={'admin', 'create_time', 'update_time'}))
         db.add(db_user)
         await db.flush()
 
@@ -356,7 +356,10 @@ class UserDao:
         :param user: 需要更新的用户字典
         :return: 编辑校验结果
         """
-        await db.execute(update(SysUser), [user])
+        await db.execute(
+            update(SysUser),
+            [{key: value for key, value in user.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_user_dao(cls, db: AsyncSession, user: UserModel) -> None:
@@ -368,9 +371,7 @@ class UserDao:
         :return:
         """
         await db.execute(
-            update(SysUser)
-            .where(SysUser.user_id == user.user_id)
-            .values(del_flag='2', update_by=user.update_by, update_time=user.update_time)
+            update(SysUser).where(SysUser.user_id == user.user_id).values(del_flag='2', update_by=user.update_by)
         )
 
     @classmethod

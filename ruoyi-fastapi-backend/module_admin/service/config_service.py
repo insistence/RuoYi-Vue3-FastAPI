@@ -121,7 +121,7 @@ class ConfigService:
         :param page_object: 编辑参数配置对象
         :return: 编辑参数配置校验结果
         """
-        edit_config = page_object.model_dump(exclude_unset=True)
+        edit_config = page_object.model_dump(exclude_unset=True, exclude={'create_time', 'update_time'})
         config_info = await cls.config_detail_services(query_db, page_object.config_id)
         if config_info.config_id:
             if not await cls.check_config_key_unique_services(query_db, page_object):

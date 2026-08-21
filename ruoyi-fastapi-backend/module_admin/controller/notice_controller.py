@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Annotated
 
 from fastapi import Path, Query, Request, Response
@@ -143,9 +142,7 @@ async def add_system_notice(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     add_notice.create_by = current_user.user.user_name
-    add_notice.create_time = datetime.now()
     add_notice.update_by = current_user.user.user_name
-    add_notice.update_time = datetime.now()
     add_notice_result = await NoticeService.add_notice_services(query_db, add_notice)
     logger.info(add_notice_result.message)
 
@@ -169,7 +166,6 @@ async def edit_system_notice(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     edit_notice.update_by = current_user.user.user_name
-    edit_notice.update_time = datetime.now()
     edit_notice_result = await NoticeService.edit_notice_services(query_db, edit_notice)
     logger.info(edit_notice_result.message)
 

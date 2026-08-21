@@ -2,7 +2,6 @@ import io
 import json
 import os
 import zipfile
-from datetime import datetime
 from typing import Any
 
 import aiofiles
@@ -174,7 +173,11 @@ class GenTableService:
         :param page_object: 编辑业务表对象
         :return: 编辑业务表校验结果
         """
-        edit_gen_table = page_object.model_dump(exclude_unset=True, by_alias=True)
+        edit_gen_table = page_object.model_dump(
+            exclude_unset=True,
+            by_alias=True,
+            exclude={'create_time', 'update_time'},
+        )
         gen_table_info = await cls.get_gen_table_by_id_services(query_db, page_object.table_id)
         if gen_table_info.table_id:
             try:
@@ -184,9 +187,12 @@ class GenTableService:
                 await GenTableDao.edit_gen_table_dao(query_db, edit_gen_table)
                 for gen_table_column in page_object.columns:
                     gen_table_column.update_by = page_object.update_by
-                    gen_table_column.update_time = datetime.now()
                     await GenTableColumnDao.edit_gen_table_column_dao(
-                        query_db, gen_table_column.model_dump(by_alias=True)
+                        query_db,
+                        gen_table_column.model_dump(
+                            by_alias=True,
+                            exclude={'create_time', 'update_time'},
+                        ),
                     )
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='更新成功')

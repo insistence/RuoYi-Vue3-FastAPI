@@ -257,7 +257,7 @@ class NoticeDao:
         :param notice: 通知公告对象
         :return:
         """
-        db_notice = SysNotice(**notice.model_dump())
+        db_notice = SysNotice(**notice.model_dump(exclude={'create_time', 'update_time'}))
         db.add(db_notice)
         await db.flush()
 
@@ -272,7 +272,10 @@ class NoticeDao:
         :param notice: 需要更新的通知公告字典
         :return:
         """
-        await db.execute(update(SysNotice), [notice])
+        await db.execute(
+            update(SysNotice),
+            [{key: value for key, value in notice.items() if key not in {'create_time', 'update_time'}}],
+        )
 
     @classmethod
     async def delete_notice_dao(cls, db: AsyncSession, notice: NoticeModel) -> None:
