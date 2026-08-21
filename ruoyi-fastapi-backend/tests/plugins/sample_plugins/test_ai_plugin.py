@@ -43,24 +43,24 @@ EXPECTED_AI_PYTHON_DEPENDENCIES = [
 ]
 EXPECTED_AI_VUE2_NPM_DEPENDENCIES = [
     '@antv/infographic^0.2.13',
-    '@terrastruct/d2>=0.1.33',
+    '@terrastruct/d2==0.1.33',
     'katex>=0.16.27',
-    'markstream-vue2^0.0.50',
+    'markstream-vue2==0.0.50',
     'mermaid>=11.15.0',
     'shiki^3.21.0',
-    'stream-markdown>=0.0.16',
-    'stream-monaco>=0.0.48',
+    'stream-markdown==0.0.16',
+    'stream-monaco==0.0.48',
 ]
 EXPECTED_AI_VUE3_NPM_DEPENDENCIES = [
     '@antv/infographic^0.2.13',
-    '@terrastruct/d2>=0.1.33',
+    '@terrastruct/d2==0.1.33',
     'katex>=0.16.27',
-    'markstream-vue>=1.0.9-beta.2',
+    'markstream-vue==1.0.9-beta.2',
     'mermaid>=11.15.0',
     'shiki^3.21.0',
-    'stream-diffs>=0.0.2',
-    'stream-markdown>=0.0.16',
-    'stream-monaco>=0.0.48',
+    'stream-diffs==0.0.2',
+    'stream-markdown==0.0.16',
+    'stream-monaco==0.0.48',
 ]
 EXPECTED_AI_VUE3_NPM_DEV_DEPENDENCIES = ['vite-plugin-monaco-editor-esm==2.0.2']
 EXPECTED_DEFAULT_NUM_HISTORY_RUNS = 3
