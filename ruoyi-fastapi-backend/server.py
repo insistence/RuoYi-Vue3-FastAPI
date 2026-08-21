@@ -50,13 +50,55 @@ async def _stop_background_tasks(app: FastAPI) -> None:
                 pass
     finally:
         try:
-            # Scheduler负责停止续期并释放Application租约，必须先于Redis连接池关闭。
-            await SchedulerUtil.close_system_scheduler()
+            redis = getattr(app.state, 'redis', None)
+            if redis is not None:
+                try:
+                    # Scheduler负责停止续期并释放Application租约，必须先于Redis连接池关闭。
+                    await SchedulerUtil.close_system_scheduler()
+                finally:
+                    await RedisUtil.close_redis_pool(app)
         finally:
-            try:
-                await RedisUtil.close_redis_pool(app)
-            finally:
-                await DataSourceRegistry.dispose_all()
+            await DataSourceRegistry.dispose_all()
+
+
+async def _initialize_application_runtime(app: FastAPI, application_leader: bool) -> None:
+    """
+    初始化应用运行时资源。
+
+    :param app: FastAPI对象
+    :param application_leader: 当前worker是否为Application leader
+    :return: None
+    """
+    await DataSourceRegistry.initialize(log_enabled=application_leader)
+
+    plugin_runtime = get_plugin_application_runtime()
+    plugin_runtime.prepare_metadata(app)
+
+    await init_create_table(
+        stage='platform',
+        log_success_enabled=application_leader,
+    )
+
+    async def create_plugin_entity_tables() -> None:
+        """在插件 writer 导入实体后同步插件表。"""
+        await init_create_table(
+            stage='plugin_entities',
+            log_success_enabled=True,
+        )
+
+    await plugin_runtime.startup(
+        app,
+        create_tables=create_plugin_entity_tables,
+    )
+    app.state.plugin_application_runtime_started = True
+    await RedisUtil.check_redis_connection(
+        app.state.redis,
+        log_enabled=application_leader,
+        log_error_enabled=True,
+    )
+    await RedisUtil.init_sys_dict(app.state.redis)
+    await RedisUtil.init_sys_config(app.state.redis)
+    await _start_background_tasks(app)
 
 
 async def _shutdown_application_runtime(app: FastAPI) -> None:
@@ -77,6 +119,20 @@ async def _shutdown_application_runtime(app: FastAPI) -> None:
             await logger.complete()
 
 
+def _log_address_group(
+    title: str,
+    local_ip: str,
+    network_ips: list[str],
+    *,
+    path: str = '',
+) -> None:
+    """输出一组本地和网络访问地址。"""
+    port = AppConfig.app_port
+    links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{path}</cyan>']
+    links.extend(f'📡 Network:  <cyan>http://{ip}:{port}{path}</cyan>' for ip in network_ips)
+    logger.opt(colors=True).info(f'{title}:\n' + '\n'.join(links))
+
+
 def _show_startup_addresses() -> None:
     """
     显示应用及接口文档访问地址
@@ -84,7 +140,6 @@ def _show_startup_addresses() -> None:
     :return: None
     """
     host = AppConfig.app_host
-    port = AppConfig.app_port
     if host == '0.0.0.0':
         local_ip = IPUtil.get_local_ip()
         network_ips = IPUtil.get_network_ips()
@@ -92,23 +147,13 @@ def _show_startup_addresses() -> None:
         local_ip = host
         network_ips = [host]
 
-    app_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}</cyan>']
-    app_links.extend(f'📡 Network:  <cyan>http://{ip}:{port}</cyan>' for ip in network_ips)
-    logger.opt(colors=True).info('💻 应用地址:\n' + '\n'.join(app_links))
+    _log_address_group('💻 应用地址', local_ip, network_ips)
 
     if not AppConfig.app_disable_swagger:
-        swagger_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.docs_url()}</cyan>']
-        swagger_links.extend(
-            f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.docs_url()}</cyan>' for ip in network_ips
-        )
-        logger.opt(colors=True).info('📄 Swagger文档:\n' + '\n'.join(swagger_links))
+        _log_address_group('📄 Swagger文档', local_ip, network_ips, path=APIDocsUtil.docs_url())
 
     if not AppConfig.app_disable_redoc:
-        redoc_links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{APIDocsUtil.redoc_url()}</cyan>']
-        redoc_links.extend(
-            f'📡 Network:  <cyan>http://{ip}:{port}{APIDocsUtil.redoc_url()}</cyan>' for ip in network_ips
-        )
-        logger.opt(colors=True).info('📚 ReDoc文档:\n' + '\n'.join(redoc_links))
+        _log_address_group('📚 ReDoc文档', local_ip, network_ips, path=APIDocsUtil.redoc_url())
 
 
 # 生命周期事件
@@ -138,8 +183,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if application_leader:
             SchedulerUtil.start_application_lock_renewal(app.state.redis)
 
-        await DataSourceRegistry.initialize(log_enabled=application_leader)
-
         startup_logger = logger.bind(
             startup_phase='application_startup',
             startup_role='application_leader',
@@ -162,49 +205,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await logger.complete()
         yield
     finally:
-        if app.state.redis is None:
-            await DataSourceRegistry.dispose_all()
-            await logger.complete()
-        else:
-            await _shutdown_application_runtime(app)
-
-
-async def _initialize_application_runtime(app: FastAPI, application_leader: bool) -> None:
-    """
-    初始化应用运行时资源。
-
-    :param app: FastAPI对象
-    :param application_leader: 当前worker是否为Application leader
-    :return: None
-    """
-    plugin_runtime = get_plugin_application_runtime()
-    plugin_runtime.prepare_metadata(app)
-
-    await init_create_table(
-        stage='platform',
-        log_success_enabled=application_leader,
-    )
-
-    async def create_plugin_entity_tables() -> None:
-        """在插件 writer 导入实体后同步插件表。"""
-        await init_create_table(
-            stage='plugin_entities',
-            log_success_enabled=True,
-        )
-
-    await plugin_runtime.startup(
-        app,
-        create_tables=create_plugin_entity_tables,
-    )
-    app.state.plugin_application_runtime_started = True
-    await RedisUtil.check_redis_connection(
-        app.state.redis,
-        log_enabled=application_leader,
-        log_error_enabled=True,
-    )
-    await RedisUtil.init_sys_dict(app.state.redis)
-    await RedisUtil.init_sys_config(app.state.redis)
-    await _start_background_tasks(app)
+        await _shutdown_application_runtime(app)
 
 
 def create_app() -> FastAPI:

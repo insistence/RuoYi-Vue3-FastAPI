@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime, time
 from typing import Any
 
@@ -18,6 +19,117 @@ from module_generator.entity.vo.gen_vo import (
     GenTablePageQueryModel,
 )
 from utils.page_util import PageUtil
+
+
+@dataclass(frozen=True, slots=True)
+class DatabaseMetadataAdapter:
+    """代码生成器使用的数据库元数据查询。"""
+
+    table_list_query: str
+    tables_by_name_query: str
+    columns_query: str
+    created_after_filter: str
+    created_before_filter: str
+
+
+_METADATA_ADAPTERS = {
+    'mysql': DatabaseMetadataAdapter(
+        table_list_query=r"""
+            table_name as table_name,
+            table_comment as table_comment,
+            create_time as create_time,
+            update_time as update_time
+        from
+            information_schema.tables
+        where
+            table_schema = (select database())
+            and table_name not like 'apscheduler\_%'
+            and table_name not like 'gen\_%'
+        """,
+        tables_by_name_query=r"""
+        select
+            table_name as table_name,
+            table_comment as table_comment,
+            create_time as create_time,
+            update_time as update_time
+        from
+            information_schema.tables
+        where
+            table_name not like 'qrtz\_%'
+            and table_name not like 'gen\_%'
+            and table_schema = (select database())
+            and table_name in :table_names
+        """,
+        columns_query="""
+        select
+            column_name as column_name,
+            case when is_nullable = 'no' and column_key != 'PRI' then '1' else '0' end as is_required,
+            case when column_key = 'PRI' then '1' else '0' end as is_pk,
+            ordinal_position as sort,
+            column_comment as column_comment,
+            case when extra = 'auto_increment' then '1' else '0' end as is_increment,
+            column_type as column_type
+        from
+            information_schema.columns
+        where
+            table_schema = (select database())
+            and table_name = :table_name
+        order by
+            ordinal_position
+        """,
+        created_after_filter=" and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')",
+        created_before_filter=" and date_format(create_time, '%Y%m%d') <= date_format(:end_time, '%Y%m%d')",
+    ),
+    'postgresql': DatabaseMetadataAdapter(
+        table_list_query="""
+            table_name as table_name,
+            table_comment as table_comment,
+            create_time as create_time,
+            update_time as update_time
+        from
+            list_table
+        where
+            table_name not like 'apscheduler_%'
+            and table_name not like 'gen_%'
+        """,
+        tables_by_name_query="""
+        select
+            table_name as table_name,
+            table_comment as table_comment,
+            create_time as create_time,
+            update_time as update_time
+        from
+            list_table
+        where
+            table_name not like 'qrtz_%'
+            and table_name not like 'gen_%'
+            and table_name in :table_names
+        """,
+        columns_query="""
+        select
+            column_name, is_required, is_pk, sort, column_comment, is_increment, column_type
+        from
+            list_column
+        where
+            table_name = :table_name
+        """,
+        created_after_filter=" and create_time::date >= to_date(:begin_time, 'yyyy-MM-dd')",
+        created_before_filter=" and create_time::date <= to_date(:end_time, 'yyyy-MM-dd')",
+    ),
+}
+
+
+def _get_database_metadata_adapter(db_type: str) -> DatabaseMetadataAdapter:
+    """
+    根据数据库类型获取元数据查询适配器
+
+    :param db_type: 数据库类型
+    :return: 元数据查询适配器
+    """
+    try:
+        return _METADATA_ADAPTERS[db_type]
+    except KeyError as exc:
+        raise ValueError(f'不支持的数据库类型：{db_type!r}') from exc
 
 
 class GenTableDao:
@@ -178,32 +290,9 @@ class GenTableDao:
         :return: 数据库列表信息对象
         """
         source_config = source_config or DataBaseConfig.default_source
+        metadata = _get_database_metadata_adapter(source_config.db_type)
         query_params: dict[str, Any] = {}
-        if source_config.db_type == 'postgresql':
-            query_sql = """
-                table_name as table_name,
-                table_comment as table_comment,
-                create_time as create_time,
-                update_time as update_time
-            from
-                list_table
-            where
-                table_name not like 'apscheduler_%'
-                and table_name not like 'gen_%'
-            """
-        else:
-            query_sql = r"""
-                table_name as table_name,
-                table_comment as table_comment,
-                create_time as create_time,
-                update_time as update_time
-            from
-                information_schema.tables
-            where
-                table_schema = (select database())
-                and table_name not like 'apscheduler\_%'
-                and table_name not like 'gen\_%'
-            """
+        query_sql = metadata.table_list_query
         if excluded_table_names:
             query_sql += ' and table_name not in :excluded_table_names'
             query_params['excluded_table_names'] = tuple(excluded_table_names)
@@ -214,16 +303,10 @@ class GenTableDao:
             query_sql += " and lower(table_comment) like lower(concat('%', :table_comment, '%'))"
             query_params['table_comment'] = query_object.table_comment
         if query_object.begin_time:
-            if source_config.db_type == 'postgresql':
-                query_sql += " and create_time::date >= to_date(:begin_time, 'yyyy-MM-dd')"
-            else:
-                query_sql += " and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')"
+            query_sql += metadata.created_after_filter
             query_params['begin_time'] = query_object.begin_time
         if query_object.end_time:
-            if source_config.db_type == 'postgresql':
-                query_sql += " and create_time::date <= to_date(:end_time, 'yyyy-MM-dd')"
-            else:
-                query_sql += " and date_format(create_time, '%Y%m%d') <= date_format(:end_time, '%Y%m%d')"
+            query_sql += metadata.created_before_filter
             query_params['end_time'] = query_object.end_time
         query_sql += ' order by create_time desc'
         statement = text(query_sql)
@@ -249,35 +332,7 @@ class GenTableDao:
         :return: 数据库列表信息对象
         """
         source_config = source_config or DataBaseConfig.default_source
-        if source_config.db_type == 'postgresql':
-            query_sql = """
-            select
-                table_name as table_name,
-                table_comment as table_comment,
-                create_time as create_time,
-                update_time as update_time
-            from
-                list_table
-            where
-                table_name not like 'qrtz_%'
-                and table_name not like 'gen_%'
-                and table_name in :table_names
-            """
-        else:
-            query_sql = r"""
-            select
-                table_name as table_name,
-                table_comment as table_comment,
-                create_time as create_time,
-                update_time as update_time
-            from
-                information_schema.tables
-            where
-                table_name not like 'qrtz\_%'
-                and table_name not like 'gen\_%'
-                and table_schema = (select database())
-                and table_name in :table_names
-            """
+        query_sql = _get_database_metadata_adapter(source_config.db_type).tables_by_name_query
         query = text(query_sql).bindparams(bindparam('table_names', value=table_names, expanding=True))
         gen_db_table_list = (await db.execute(query)).fetchall()
 
@@ -360,42 +415,7 @@ class GenTableColumnDao:
         :return: 业务表字段列表信息对象
         """
         source_config = source_config or DataBaseConfig.default_source
-        if source_config.db_type == 'postgresql':
-            query_sql = """
-            select
-                column_name, is_required, is_pk, sort, column_comment, is_increment, column_type
-            from
-                list_column
-            where
-                table_name = :table_name
-            """
-        else:
-            query_sql = """
-            select
-                column_name as column_name,
-                case
-                    when is_nullable = 'no' and column_key != 'PRI' then '1'
-                    else '0'
-                end as is_required,
-                case
-                    when column_key = 'PRI' then '1'
-                    else '0'
-                end as is_pk,
-                ordinal_position as sort,
-                column_comment as column_comment,
-                case
-                    when extra = 'auto_increment' then '1'
-                    else '0'
-                end as is_increment,
-                column_type as column_type
-            from
-                information_schema.columns
-            where
-                table_schema = (select database())
-                and table_name = :table_name
-            order by
-                ordinal_position
-            """
+        query_sql = _get_database_metadata_adapter(source_config.db_type).columns_query
         query = text(query_sql).bindparams(table_name=table_name)
         gen_db_table_columns = (await db.execute(query)).fetchall()
 

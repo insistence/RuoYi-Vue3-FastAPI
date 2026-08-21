@@ -50,6 +50,7 @@ async def test_initialize_application_runtime_delegates_plugin_steps() -> None:
     fake_plugin_runtime.startup = AsyncMock()
 
     with (
+        patch('server.DataSourceRegistry.initialize', new_callable=AsyncMock) as initialize_data_sources,
         patch('server.get_plugin_application_runtime', return_value=fake_plugin_runtime),
         patch('server.init_create_table', new_callable=AsyncMock) as init_create_table,
         patch('server.RedisUtil.check_redis_connection', new_callable=AsyncMock) as check_redis_connection,
@@ -58,6 +59,7 @@ async def test_initialize_application_runtime_delegates_plugin_steps() -> None:
         patch('server._start_background_tasks', new_callable=AsyncMock) as start_background_tasks,
     ):
         await _initialize_application_runtime(fake_app, application_leader=True)
+        initialize_data_sources.assert_awaited_once_with(log_enabled=True)
         fake_plugin_runtime.prepare_metadata.assert_called_once_with(fake_app)
         init_create_table.assert_awaited_once_with(
             stage='platform',
@@ -99,6 +101,7 @@ async def test_non_leader_plugin_writer_still_runs_global_plugin_sync() -> None:
     fake_plugin_runtime.startup = AsyncMock(side_effect=run_as_plugin_writer)
 
     with (
+        patch('server.DataSourceRegistry.initialize', new_callable=AsyncMock) as initialize_data_sources,
         patch('server.get_plugin_application_runtime', return_value=fake_plugin_runtime),
         patch('server.init_create_table', new_callable=AsyncMock) as init_create_table,
         patch('server.RedisUtil.check_redis_connection', new_callable=AsyncMock) as check_redis_connection,
@@ -108,6 +111,7 @@ async def test_non_leader_plugin_writer_still_runs_global_plugin_sync() -> None:
     ):
         await _initialize_application_runtime(fake_app, application_leader=False)
 
+    initialize_data_sources.assert_awaited_once_with(log_enabled=False)
     assert init_create_table.await_args_list == [
         call(stage='platform', log_success_enabled=False),
         call(stage='plugin_entities', log_success_enabled=True),
@@ -126,14 +130,11 @@ async def test_lifespan_only_application_leader_outputs_banner_and_addresses() -
     """校验仅Application leader输出横幅、成功摘要和访问地址。"""
     app = SimpleNamespace(state=SimpleNamespace())
     redis = MagicMock()
-    database_registry = MagicMock()
-    database_registry.initialize = AsyncMock()
     fake_logger = MagicMock()
     fake_logger.complete = AsyncMock()
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=redis)),
-        patch('server.DataSourceRegistry', database_registry),
         patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-1'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=True)),
         patch('server.SchedulerUtil.start_application_lock_renewal') as start_renewal,
@@ -151,7 +152,6 @@ async def test_lifespan_only_application_leader_outputs_banner_and_addresses() -
             pass
 
     start_renewal.assert_called_once_with(redis)
-    database_registry.initialize.assert_awaited_once_with(log_enabled=True)
     initialize_runtime.assert_awaited_once_with(app, application_leader=True)
     worship.assert_called_once_with()
     fake_logger.bind.return_value.info.assert_has_calls(
@@ -173,14 +173,11 @@ async def test_lifespan_non_leader_runs_local_initialization_without_display_log
     """校验非leader执行本地初始化，但不输出leader专属展示日志。"""
     app = SimpleNamespace(state=SimpleNamespace())
     redis = MagicMock()
-    database_registry = MagicMock()
-    database_registry.initialize = AsyncMock()
     fake_logger = MagicMock()
     fake_logger.complete = AsyncMock()
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=redis)),
-        patch('server.DataSourceRegistry', database_registry),
         patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-2'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=False)),
         patch('server.SchedulerUtil.start_application_lock_renewal') as start_renewal,
@@ -195,7 +192,6 @@ async def test_lifespan_non_leader_runs_local_initialization_without_display_log
             pass
 
     start_renewal.assert_not_called()
-    database_registry.initialize.assert_awaited_once_with(log_enabled=False)
     is_application_leader.assert_not_called()
     initialize_runtime.assert_awaited_once_with(app, application_leader=False)
     worship.assert_not_called()
@@ -209,14 +205,11 @@ async def test_lifespan_non_leader_runs_local_initialization_without_display_log
 async def test_lifespan_non_leader_initialization_error_propagates_and_still_cleans_up() -> None:
     """校验非leader初始化异常不被门禁吞掉，并继续执行finally清理。"""
     app = SimpleNamespace(state=SimpleNamespace())
-    database_registry = MagicMock()
-    database_registry.initialize = AsyncMock()
     fake_logger = MagicMock()
     fake_logger.complete = AsyncMock()
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=MagicMock())),
-        patch('server.DataSourceRegistry', database_registry),
         patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-3'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=False)),
         patch('server.TransportKeyProvider.validate_runtime_configuration'),
@@ -232,7 +225,6 @@ async def test_lifespan_non_leader_initialization_error_propagates_and_still_cle
             pass
 
     initialize_runtime.assert_awaited_once_with(app, application_leader=False)
-    database_registry.initialize.assert_awaited_once_with(log_enabled=False)
     fake_logger.bind.return_value.info.assert_not_called()
     fake_logger.complete.assert_not_awaited()
     shutdown_runtime.assert_awaited_once_with(app)

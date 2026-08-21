@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from functools import cache
 from typing import Any
@@ -274,7 +274,7 @@ class DataSourceRuntime:
     available: bool = False
     last_health_check_at: datetime | None = None
     next_retry_at: datetime | None = None
-    health_lock: asyncio.Lock | None = None
+    health_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 class _DataSourceRegistry:
@@ -311,11 +311,7 @@ class _DataSourceRegistry:
         source_name = self._resolve_name(name)
         runtime = self._runtimes.get(source_name)
         if runtime is None:
-            runtime = DataSourceRuntime(
-                name=source_name,
-                config=self._configs[source_name],
-                health_lock=asyncio.Lock(),
-            )
+            runtime = DataSourceRuntime(name=source_name, config=self._configs[source_name])
             self._runtimes[source_name] = runtime
         return runtime
 
@@ -332,6 +328,16 @@ class _DataSourceRegistry:
         runtime.last_health_check_at = now
         runtime.next_retry_at = now + _HEALTH_RETRY_COOLDOWN
 
+    @staticmethod
+    def _data_source_error(
+        exception_type: type[DataSourceException],
+        runtime: DataSourceRuntime,
+        exc: BaseException,
+    ) -> DataSourceException:
+        """将底层异常转换为不泄露连接信息的数据源异常。"""
+        error_type, error_code = _error_details(exc)
+        return exception_type(runtime.name, error_type=error_type, error_code=error_code)
+
     @classmethod
     def _ensure_async_resources(cls, runtime: DataSourceRuntime) -> None:
         """
@@ -347,12 +353,7 @@ class _DataSourceRegistry:
             session_factory = create_async_session_factory(engine)
         except Exception as exc:
             cls._mark_unavailable(runtime)
-            error_type, error_code = _error_details(exc)
-            raise DataSourceInitializationException(
-                runtime.name,
-                error_type=error_type,
-                error_code=error_code,
-            ) from None
+            raise cls._data_source_error(DataSourceInitializationException, runtime, exc) from None
         runtime.async_engine = engine
         runtime.async_session_factory = session_factory
 
@@ -433,12 +434,7 @@ class _DataSourceRegistry:
             try:
                 runtime.sync_engine = create_sync_db_engine(config=runtime.config)
             except Exception as exc:
-                error_type, error_code = _error_details(exc)
-                raise DataSourceInitializationException(
-                    runtime.name,
-                    error_type=error_type,
-                    error_code=error_code,
-                ) from None
+                raise self._data_source_error(DataSourceInitializationException, runtime, exc) from None
         return runtime.sync_engine
 
     async def _check_health(self, name: str) -> None:
@@ -449,9 +445,7 @@ class _DataSourceRegistry:
         :return: None
         """
         runtime = self._runtime(name)
-        lock = runtime.health_lock
-        assert lock is not None
-        async with lock:
+        async with runtime.health_lock:
             await self._check_health_locked(runtime)
 
     async def _check_health_locked(self, runtime: DataSourceRuntime) -> None:
@@ -468,12 +462,7 @@ class _DataSourceRegistry:
                 await connection.execute(text('SELECT 1'))
         except Exception as exc:
             self._mark_unavailable(runtime)
-            error_type, error_code = _error_details(exc)
-            raise DataSourceUnavailableException(
-                runtime.name,
-                error_type=error_type,
-                error_code=error_code,
-            ) from None
+            raise self._data_source_error(DataSourceUnavailableException, runtime, exc) from None
         runtime.available = True
         runtime.last_health_check_at = datetime.now(timezone.utc)
         runtime.next_retry_at = None
@@ -485,9 +474,7 @@ class _DataSourceRegistry:
         :param runtime: 数据源运行时状态
         :return: None
         """
-        lock = runtime.health_lock
-        assert lock is not None
-        async with lock:
+        async with runtime.health_lock:
             if runtime.available:
                 return
             now = datetime.now(timezone.utc)
@@ -515,12 +502,7 @@ class _DataSourceRegistry:
             if not exc.connection_invalidated:
                 raise
             self._mark_unavailable(runtime)
-            error_type, error_code = _error_details(exc)
-            raise DataSourceUnavailableException(
-                runtime.name,
-                error_type=error_type,
-                error_code=error_code,
-            ) from None
+            raise self._data_source_error(DataSourceUnavailableException, runtime, exc) from None
 
     @asynccontextmanager
     async def session(self, name: str | None = None) -> AsyncGenerator[AsyncSession, None]:
@@ -541,12 +523,7 @@ class _DataSourceRegistry:
             if not exc.connection_invalidated:
                 raise
             self._mark_unavailable(runtime)
-            error_type, error_code = _error_details(exc)
-            raise DataSourceUnavailableException(
-                runtime.name,
-                error_type=error_type,
-                error_code=error_code,
-            ) from None
+            raise self._data_source_error(DataSourceUnavailableException, runtime, exc) from None
 
     async def dispose_all(self) -> None:
         """

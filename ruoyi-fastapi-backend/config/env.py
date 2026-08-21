@@ -5,7 +5,7 @@ import os
 import re
 import secrets
 import sys
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, computed_field, field_validator, model_validator
@@ -109,22 +109,6 @@ class DataBaseSettings(BaseSettings):
 
     db_default_source: str = 'primary'
     db_sources: Annotated[dict[str, DataSourceSettings], NoDecode] = Field(default_factory=dict)
-
-    def __init__(self, **values: Any) -> None:
-        """
-        预解析数据源JSON配置，避免校验异常泄露密码
-
-        :param values: 数据库配置项
-        """
-        raw_sources = values.get('db_sources')
-        if raw_sources is None:
-            raw_sources = os.environ.get('DB_SOURCES')
-        if isinstance(raw_sources, str):
-            try:
-                values['db_sources'] = json.loads(raw_sources)
-            except (json.JSONDecodeError, TypeError):
-                raise ValueError('DB_SOURCES JSON 格式错误') from None
-        super().__init__(**values)
 
     @field_validator('db_sources', mode='before')
     @classmethod
