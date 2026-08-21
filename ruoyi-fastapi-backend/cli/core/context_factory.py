@@ -49,7 +49,7 @@ class CliRuntimeState:
 
         该逻辑同时处理两类来源：
 
-        1. 将 `config.env.DataBaseConfig.default_source.db_echo` 强制关闭，避免后续新建 Engine 时
+        1. 将 `config.env.DataBaseConfig.db_sources` 中全部数据源的 `db_echo` 强制关闭，避免后续新建 Engine 时
            继续打开 SQLAlchemy echo。
         2. 将已知 SQLAlchemy logger 级别提升到 WARNING，避免已有 logger 配置把
            `INFO sqlalchemy.engine.Engine ...` 继续打到标准输出。
@@ -59,10 +59,9 @@ class CliRuntimeState:
         if self.sqlalchemy_logs_suppressed:
             return
         env_module = import_module('config.env')
-        database_config = getattr(env_module, 'DataBaseConfig', None)
-        default_source = getattr(database_config, 'default_source', None) if database_config is not None else None
-        if default_source is not None and hasattr(default_source, 'db_echo'):
-            default_source.db_echo = False
+        database_config = env_module.DataBaseConfig
+        for source_config in database_config.db_sources.values():
+            source_config.db_echo = False
         for logger_name in (
             'sqlalchemy',
             'sqlalchemy.engine',

@@ -172,10 +172,46 @@ def test_secondary_source_templates_use_named_dependency_and_isolated_metadata(
     entity = env.get_template('python/do.py.jinja2').render(**context)
 
     assert "DBSessionDependency('reporting')" in controller
+    assert 'from common.aspect.db_session import DBSessionDependency' in controller
     assert "DataSourceBase = get_data_source_base('reporting')" in entity
     assert 'class GenItem(DataSourceBase):' in entity
     assert 'from config.database import Base' not in entity
     compile(entity, '<generated-entity>', 'exec')
+
+
+def test_sub_table_entity_template_uses_required_nullable_semantics() -> None:
+    gen_table = _gen_table(gen_view=False, tpl_category='sub')
+    gen_table.sub_table_name = 'gen_item_detail'
+    gen_table.sub_table_fk_name = 'item_id'
+    gen_table.sub_table = GenTableModel(
+        tableName='gen_item_detail',
+        tableComment='生成测试明细',
+        className='GenItemDetail',
+        columns=[
+            GenTableColumnModel(
+                columnName='required_value',
+                columnComment='必填值',
+                columnType='varchar(100)',
+                pythonType='str',
+                pythonField='requiredValue',
+                isRequired='1',
+            ),
+            GenTableColumnModel(
+                columnName='optional_value',
+                columnComment='可选值',
+                columnType='varchar(100)',
+                pythonType='str',
+                pythonField='optionalValue',
+                isRequired='0',
+            ),
+        ],
+    )
+
+    context = TemplateUtils.prepare_context(gen_table)
+    entity = TemplateInitializer.init_jinja2().get_template('python/do.py.jinja2').render(**context)
+
+    assert "required_value = Column(String(100), nullable=False, comment='必填值')" in entity
+    assert "optional_value = Column(String(100), nullable=True, comment='可选值')" in entity
 
 
 def test_named_data_source_bases_are_cached_and_isolated(monkeypatch: pytest.MonkeyPatch) -> None:

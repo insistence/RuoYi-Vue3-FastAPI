@@ -379,6 +379,13 @@ class GenTableService:
         :return: 下载代码结果
         """
         source_name = cls._source_name(source_name)
+        configured_table_names = await GenTableDao.get_gen_table_names(query_db, source_name)
+        invalid_table_names = list(dict.fromkeys(name for name in table_names if name not in configured_table_names))
+        if invalid_table_names:
+            raise ServiceException(
+                message=f'业务表不存在或不属于数据源 {source_name}：{", ".join(invalid_table_names)}'
+            )
+
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for table_name in table_names:
@@ -404,9 +411,10 @@ class GenTableService:
         :param source_name: 数据源名称
         :return: 生成代码渲染模板相关信息
         """
-        gen_table = GenTableModel(
-            **CamelCaseUtil.transform_result(await GenTableDao.get_gen_table_by_name(query_db, table_name, source_name))
-        )
+        gen_table_info = await GenTableDao.get_gen_table_by_name(query_db, table_name, source_name)
+        if gen_table_info is None:
+            raise ServiceException(message=f'业务表不存在或不属于数据源 {source_name}：{table_name}')
+        gen_table = GenTableModel(**CamelCaseUtil.transform_result(gen_table_info))
         await cls.set_sub_table(query_db, gen_table)
         await cls.set_pk_column(gen_table)
         context = TemplateUtils.prepare_context(gen_table)

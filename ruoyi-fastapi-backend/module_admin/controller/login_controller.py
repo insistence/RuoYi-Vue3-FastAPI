@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
-from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.db_session import DBSessionDependency
 from common.aspect.pre_auth import CurrentUserDependency
 from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType, RedisInitKeyConfig

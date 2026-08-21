@@ -3,13 +3,13 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 from sqlalchemy import URL
 from sqlalchemy.exc import OperationalError
 
-from common.aspect.db_seesion import DBSessionDependency, get_db_session_provider
+from common.aspect.db_session import DBSessionDependency, get_db_session_provider
 from config import database
 from exceptions.exception import DataSourceInitializationException, DataSourceUnavailableException
 
@@ -263,7 +263,48 @@ async def test_required_engine_creation_failure_disposes_other_sources(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_runtime_operational_error_marks_source_down_then_recovers(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_initialize_logs_all_sources_and_safe_failure_details(monkeypatch: pytest.MonkeyPatch) -> None:
+    primary_engine = _Engine()
+    reporting_engine = _Engine()
+    reporting_engine.should_fail = False
+    monkeypatch.setattr(
+        database,
+        'create_async_db_engine',
+        lambda config: primary_engine if config.db_required else reporting_engine,
+    )
+    registry = database._DataSourceRegistry(
+        SimpleNamespace(
+            db_default_source='primary',
+            db_sources={'primary': _source(), 'reporting': _source(required=False)},
+        )
+    )
+    source_logger = MagicMock()
+    monkeypatch.setattr(database, 'logger', source_logger)
+
+    with pytest.raises(DataSourceInitializationException) as exc_info:
+        await registry.initialize()
+
+    assert exc_info.value.error_type == 'RuntimeError'
+    assert exc_info.value.error_code is None
+    assert source_logger.bind.call_args_list == [
+        call(
+            data_source='primary',
+            database_type='mysql',
+            required=True,
+            error_type='RuntimeError',
+            error_code=None,
+        ),
+        call(data_source='reporting', database_type='mysql', required=False),
+    ]
+    source_logger.bind.return_value.error.assert_called_once_with(
+        '❌ 必需数据源 primary 连接检查失败，错误类型：RuntimeError'
+    )
+    source_logger.bind.return_value.info.assert_called_once_with('✅ 数据源 reporting 初始化成功')
+    assert 'secret' not in str(source_logger.mock_calls)
+
+
+@pytest.mark.asyncio
+async def test_invalidated_operational_error_marks_source_down_then_recovers(monkeypatch: pytest.MonkeyPatch) -> None:
     engine = _Engine()
     engine.should_fail = False
     monkeypatch.setattr(database, 'create_async_db_engine', lambda config: engine)
@@ -285,7 +326,12 @@ async def test_runtime_operational_error_marks_source_down_then_recovers(monkeyp
     runtime.async_session_factory = session_factory
     with pytest.raises(DataSourceUnavailableException):
         async with registry.session():
-            raise OperationalError('SELECT 1', {}, RuntimeError('connection lost'))
+            raise OperationalError(
+                'SELECT 1',
+                {},
+                RuntimeError('connection lost'),
+                connection_invalidated=True,
+            )
 
     assert session_closed
     assert not runtime.available
@@ -297,6 +343,32 @@ async def test_runtime_operational_error_marks_source_down_then_recovers(monkeyp
     async with registry.session() as session:
         assert session is not None
     assert runtime.available
+    await registry.dispose_all()
+
+
+@pytest.mark.asyncio
+async def test_non_invalidated_operational_error_does_not_mark_source_down(monkeypatch: pytest.MonkeyPatch) -> None:
+    engine = _Engine()
+    engine.should_fail = False
+    monkeypatch.setattr(database, 'create_async_db_engine', lambda config: engine)
+    registry = database._DataSourceRegistry(
+        SimpleNamespace(db_default_source='primary', db_sources={'primary': _source()})
+    )
+    await registry.initialize()
+    runtime = registry._runtimes['primary']
+
+    @asynccontextmanager
+    async def session_factory() -> AsyncGenerator[object, None]:
+        yield object()
+
+    runtime.async_session_factory = session_factory
+
+    with pytest.raises(OperationalError):
+        async with registry.session():
+            raise OperationalError('UPDATE sys_user', {}, RuntimeError('deadlock'))
+
+    assert runtime.available
+    assert runtime.next_retry_at is None
     await registry.dispose_all()
 
 
@@ -342,6 +414,37 @@ async def test_dispose_all_releases_sync_and_async_engines(monkeypatch: pytest.M
 
     sync_engine.dispose.assert_called_once_with()
     engine.dispose.assert_awaited_once_with()
+    assert registry._runtimes == {}
+
+
+@pytest.mark.asyncio
+async def test_dispose_all_attempts_every_engine_when_disposal_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    registry = database._DataSourceRegistry(
+        SimpleNamespace(
+            db_default_source='primary',
+            db_sources={'primary': _source(), 'reporting': _source(required=False)},
+        )
+    )
+    primary = registry._runtime('primary')
+    reporting = registry._runtime('reporting')
+    primary.sync_engine = MagicMock()
+    reporting.sync_engine = MagicMock()
+    primary.sync_engine.dispose.side_effect = RuntimeError('sync failed')
+    primary.async_engine = MagicMock()
+    reporting.async_engine = MagicMock()
+    primary.async_engine.dispose = AsyncMock(side_effect=RuntimeError('async failed'))
+    reporting.async_engine.dispose = AsyncMock()
+    source_logger = MagicMock()
+    monkeypatch.setattr(database, 'logger', source_logger)
+
+    await registry.dispose_all()
+
+    primary.sync_engine.dispose.assert_called_once_with()
+    reporting.sync_engine.dispose.assert_called_once_with()
+    primary.async_engine.dispose.assert_awaited_once_with()
+    reporting.async_engine.dispose.assert_awaited_once_with()
+    expected_warning_count = 2
+    assert source_logger.bind.return_value.warning.call_count == expected_warning_count
     assert registry._runtimes == {}
 
 

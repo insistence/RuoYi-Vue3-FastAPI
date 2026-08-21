@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy import create_engine, text
 
+from exceptions.exception import ServiceException
 from module_generator.service.gen_service import GenTableService
 
 
@@ -55,3 +56,23 @@ async def test_get_gen_db_table_list_by_name_services_transforms_rows(monkeypatc
 
     assert result[0].table_name == 'sys_user'
     assert result[0].data_source_name == 'reporting'
+
+
+@pytest.mark.asyncio
+async def test_batch_gen_code_services_rejects_tables_from_other_sources() -> None:
+    with (
+        patch(
+            'module_generator.service.gen_service.GenTableDao.get_gen_table_names',
+            new=AsyncMock(return_value={'sys_user'}),
+        ),
+        patch('module_generator.service.gen_service.TemplateInitializer.init_jinja2') as init_jinja2,
+        pytest.raises(ServiceException) as exc_info,
+    ):
+        await GenTableService.batch_gen_code_services(
+            object(),
+            ['sys_user', 'report_order'],
+            'reporting',
+        )
+
+    assert exc_info.value.message == '业务表不存在或不属于数据源 reporting：report_order'
+    init_jinja2.assert_not_called()

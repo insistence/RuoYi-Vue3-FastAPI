@@ -1,15 +1,14 @@
-from __future__ import annotations
-
 import asyncio
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import cache
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from pydantic import SecretStr
 from sqlalchemy import URL, Engine, create_engine, text
-from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import (
     AsyncAttrs,
     AsyncConnection,
@@ -22,16 +21,40 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from config.env import DataBaseConfig, DataBaseSettings, DataSourceSettings
 from exceptions.exception import (
+    DataSourceException,
     DataSourceInitializationException,
     DataSourceNotFoundException,
     DataSourceUnavailableException,
 )
 from utils.log_util import logger
 
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
 _HEALTH_RETRY_COOLDOWN = timedelta(seconds=5)
+
+
+def _error_details(exc: BaseException) -> tuple[str, int | None]:
+    """
+    提取不含连接凭据和SQL参数的安全错误摘要
+
+    :param exc: 原始异常或数据源异常
+    :return: 异常类型和数字错误码
+    """
+    if isinstance(exc, DataSourceException):
+        return exc.error_type or type(exc).__name__, exc.error_code
+    original = exc.orig if isinstance(exc, DBAPIError) else exc
+    error_code = original.args[0] if original.args and isinstance(original.args[0], int) else None
+    return type(original).__name__, error_code
+
+
+def _error_log_suffix(error_type: str, error_code: int | None) -> str:
+    """
+    构建数据源错误日志摘要
+
+    :param error_type: 异常类型
+    :param error_code: 数字错误码
+    :return: 不含敏感信息的日志后缀
+    """
+    code_text = f'，错误码：{error_code}' if error_code is not None else ''
+    return f'，错误类型：{error_type}{code_text}'
 
 
 @dataclass(frozen=True, slots=True)
@@ -322,9 +345,14 @@ class _DataSourceRegistry:
         try:
             engine = create_async_db_engine(config=runtime.config)
             session_factory = create_async_session_factory(engine)
-        except Exception:
+        except Exception as exc:
             cls._mark_unavailable(runtime)
-            raise DataSourceInitializationException(runtime.name) from None
+            error_type, error_code = _error_details(exc)
+            raise DataSourceInitializationException(
+                runtime.name,
+                error_type=error_type,
+                error_code=error_code,
+            ) from None
         runtime.async_engine = engine
         runtime.async_session_factory = session_factory
 
@@ -341,27 +369,44 @@ class _DataSourceRegistry:
         names = tuple(self._configs)
         results = await asyncio.gather(*(self._check_health(name) for name in names), return_exceptions=True)
         default_name = self._resolve_name()
+        required_failure: tuple[str, BaseException] | None = None
         for name, result in zip(names, results, strict=True):
             config = self._configs[name]
             required = config.db_required or name == default_name
             healthy = not isinstance(result, BaseException)
+            error_type = None
+            error_code = None
+            if not healthy:
+                error_type, error_code = _error_details(result)
             if log_enabled:
-                source_logger = logger.bind(
-                    data_source=name,
-                    database_type=config.db_type,
-                    required=required,
-                )
+                log_context: dict[str, Any] = {
+                    'data_source': name,
+                    'database_type': config.db_type,
+                    'required': required,
+                }
+                if error_type is not None:
+                    log_context['error_type'] = error_type
+                    log_context['error_code'] = error_code
+                source_logger = logger.bind(**log_context)
                 if healthy:
                     source_logger.info(f'✅ 数据源 {name} 初始化成功')
                 elif required:
-                    source_logger.error(f'❌ 必需数据源 {name} 连接检查失败')
+                    source_logger.error(f'❌ 必需数据源 {name} 连接检查失败{_error_log_suffix(error_type, error_code)}')
                 else:
-                    source_logger.warning(f'⚠️ 非必需数据源 {name} 连接检查失败，应用将降级启动')
-            if healthy:
-                continue
-            if required:
-                await self.dispose_all()
-                raise DataSourceInitializationException(name) from None
+                    source_logger.warning(
+                        f'⚠️ 非必需数据源 {name} 连接检查失败，应用将降级启动{_error_log_suffix(error_type, error_code)}'
+                    )
+            if not healthy and required and required_failure is None:
+                required_failure = (name, result)
+        if required_failure is not None:
+            name, result = required_failure
+            error_type, error_code = _error_details(result)
+            await self.dispose_all()
+            raise DataSourceInitializationException(
+                name,
+                error_type=error_type,
+                error_code=error_code,
+            ) from None
         self._initialized = True
 
     def get_async_engine(self, name: str | None = None) -> AsyncEngine:
@@ -387,8 +432,13 @@ class _DataSourceRegistry:
         if runtime.sync_engine is None:
             try:
                 runtime.sync_engine = create_sync_db_engine(config=runtime.config)
-            except Exception:
-                raise DataSourceInitializationException(runtime.name) from None
+            except Exception as exc:
+                error_type, error_code = _error_details(exc)
+                raise DataSourceInitializationException(
+                    runtime.name,
+                    error_type=error_type,
+                    error_code=error_code,
+                ) from None
         return runtime.sync_engine
 
     async def _check_health(self, name: str) -> None:
@@ -416,9 +466,14 @@ class _DataSourceRegistry:
             assert runtime.async_engine is not None
             async with runtime.async_engine.begin() as connection:
                 await connection.execute(text('SELECT 1'))
-        except Exception:
+        except Exception as exc:
             self._mark_unavailable(runtime)
-            raise DataSourceUnavailableException(runtime.name) from None
+            error_type, error_code = _error_details(exc)
+            raise DataSourceUnavailableException(
+                runtime.name,
+                error_type=error_type,
+                error_code=error_code,
+            ) from None
         runtime.available = True
         runtime.last_health_check_at = datetime.now(timezone.utc)
         runtime.next_retry_at = None
@@ -456,14 +511,16 @@ class _DataSourceRegistry:
         try:
             async with runtime.async_engine.begin() as connection:
                 yield connection
-        except (InterfaceError, OperationalError):
-            self._mark_unavailable(runtime)
-            raise DataSourceUnavailableException(runtime.name) from None
         except DBAPIError as exc:
             if not exc.connection_invalidated:
                 raise
             self._mark_unavailable(runtime)
-            raise DataSourceUnavailableException(runtime.name) from None
+            error_type, error_code = _error_details(exc)
+            raise DataSourceUnavailableException(
+                runtime.name,
+                error_type=error_type,
+                error_code=error_code,
+            ) from None
 
     @asynccontextmanager
     async def session(self, name: str | None = None) -> AsyncGenerator[AsyncSession, None]:
@@ -480,14 +537,16 @@ class _DataSourceRegistry:
         try:
             async with factory() as current_db:
                 yield current_db
-        except (InterfaceError, OperationalError):
-            self._mark_unavailable(runtime)
-            raise DataSourceUnavailableException(runtime.name) from None
         except DBAPIError as exc:
             if not exc.connection_invalidated:
                 raise
             self._mark_unavailable(runtime)
-            raise DataSourceUnavailableException(runtime.name) from None
+            error_type, error_code = _error_details(exc)
+            raise DataSourceUnavailableException(
+                runtime.name,
+                error_type=error_type,
+                error_code=error_code,
+            ) from None
 
     async def dispose_all(self) -> None:
         """
@@ -500,9 +559,32 @@ class _DataSourceRegistry:
         self._initialized = False
         for runtime in runtimes:
             if runtime.sync_engine is not None:
-                runtime.sync_engine.dispose()
-        async_engines = [runtime.async_engine for runtime in runtimes if runtime.async_engine is not None]
-        await asyncio.gather(*(engine.dispose() for engine in async_engines), return_exceptions=False)
+                try:
+                    runtime.sync_engine.dispose()
+                except Exception as exc:
+                    error_type, error_code = _error_details(exc)
+                    logger.bind(
+                        data_source=runtime.name,
+                        engine_type='sync',
+                        error_type=error_type,
+                        error_code=error_code,
+                    ).warning(f'⚠️ 数据源 {runtime.name} 同步Engine释放失败{_error_log_suffix(error_type, error_code)}')
+        async_resources = [(runtime, engine) for runtime in runtimes if (engine := runtime.async_engine) is not None]
+        results = await asyncio.gather(
+            *(engine.dispose() for _, engine in async_resources),
+            return_exceptions=True,
+        )
+        for (runtime, _), result in zip(async_resources, results, strict=True):
+            if isinstance(result, Exception):
+                error_type, error_code = _error_details(result)
+                logger.bind(
+                    data_source=runtime.name,
+                    engine_type='async',
+                    error_type=error_type,
+                    error_code=error_code,
+                ).warning(f'⚠️ 数据源 {runtime.name} 异步Engine释放失败{_error_log_suffix(error_type, error_code)}')
+            elif isinstance(result, BaseException):
+                raise result
 
 
 DataSourceRegistry = _DataSourceRegistry()

@@ -3,7 +3,7 @@ from typing import Protocol, runtime_checkable
 from fastapi import Depends, params
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.db_session import DBSessionDependency
 from exceptions.exception import PermissionException
 
 

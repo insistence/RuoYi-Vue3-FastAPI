@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.aspect.db_seesion import DBSessionDependency
+from common.aspect.db_session import DBSessionDependency
 from common.constant import CommonConstant, MenuConstant
 from common.context import RequestContext
 from common.enums import PasswordCharacterType, RedisInitKeyConfig
