@@ -179,6 +179,7 @@ def test_secondary_source_templates_use_named_dependency_and_isolated_metadata(
     assert 'class GenItem(DataSourceBase):' in entity
     assert 'from config.database import Base' not in entity
     assert 'from datetime import datetime' not in entity
+    assert 'from common.mixin import' not in entity
     compile(entity, '<generated-entity>', 'exec')
     dao = env.get_template('python/dao.py.jinja2').render(**context)
     assert 'if key not in set()' in dao
@@ -253,9 +254,11 @@ def test_python_templates_handle_audit_timestamps_by_exact_column_name() -> None
     dao = env.get_template('python/dao.py.jinja2').render(**context)
     controller = env.get_template('python/controller.py.jinja2').render(**context)
 
-    assert 'from datetime import datetime' in entity
-    assert 'create_time = Column(DateTime, nullable=True, default=datetime.now,' in entity
-    assert 'update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now,' in entity
+    assert 'from datetime import datetime' not in entity
+    assert 'from common.mixin import AuditTimeMixin' in entity
+    assert 'class GenItem(AuditTimeMixin, Base):' in entity
+    assert 'create_time = Column(' not in entity
+    assert 'update_time = Column(' not in entity
     assert 'created_time = Column(DateTime, nullable=True, comment=' in entity
     assert "model_dump(exclude={'create_time', 'update_time'})" in dao
     assert "if key not in {'create_time', 'update_time'}" in dao
@@ -266,7 +269,7 @@ def test_python_templates_handle_audit_timestamps_by_exact_column_name() -> None
     compile(entity, '<generated-audit-entity>', 'exec')
     compile(dao, '<generated-audit-dao>', 'exec')
     compile(controller, '<generated-audit-controller>', 'exec')
-    assert entity.index('from datetime import datetime') < entity.index('from sqlalchemy import')
+    assert entity.index('from sqlalchemy import') < entity.index('from common.mixin import AuditTimeMixin')
     assert all(len(line) <= MAX_GENERATED_LINE_LENGTH for line in entity.splitlines())
     assert all(len(line) <= MAX_GENERATED_LINE_LENGTH for line in dao.splitlines())
     assert all(len(line) <= MAX_GENERATED_LINE_LENGTH for line in controller.splitlines())
@@ -297,10 +300,50 @@ def test_dao_audit_filter_uses_a_set_for_a_single_timestamp() -> None:
     gen_table.pk_column = columns[0]
 
     context = TemplateUtils.prepare_context(gen_table)
-    dao = TemplateInitializer.init_jinja2().get_template('python/dao.py.jinja2').render(**context)
+    env = TemplateInitializer.init_jinja2()
+    entity = env.get_template('python/do.py.jinja2').render(**context)
+    dao = env.get_template('python/dao.py.jinja2').render(**context)
 
+    assert 'from common.mixin import CreateTimeMixin' in entity
+    assert 'class GenItem(CreateTimeMixin, Base):' in entity
+    assert 'create_time = Column(' not in entity
     assert "if key not in {'create_time'}" in dao
+    compile(entity, '<generated-single-audit-entity>', 'exec')
     compile(dao, '<generated-single-audit-dao>', 'exec')
+
+
+def test_do_template_supports_required_update_time_only_mixin() -> None:
+    columns = [
+        GenTableColumnModel(
+            columnName='item_id',
+            columnComment='编号',
+            columnType='bigint',
+            pythonType='int',
+            pythonField='itemId',
+            isPk='1',
+        ),
+        GenTableColumnModel(
+            columnName='update_time',
+            columnComment='最后修改时间',
+            columnType='datetime',
+            pythonType='datetime',
+            pythonField='updateTime',
+            isRequired='1',
+        ),
+    ]
+    gen_table = _gen_table(gen_view=False)
+    gen_table.columns = columns
+    gen_table.pk_column = columns[0]
+
+    context = TemplateUtils.prepare_context(gen_table)
+    entity = TemplateInitializer.init_jinja2().get_template('python/do.py.jinja2').render(**context)
+
+    assert 'from common.mixin import UpdateTimeMixin' in entity
+    assert 'class GenItem(UpdateTimeMixin, Base):' in entity
+    assert '__update_time_nullable__ = False' in entity
+    assert "__update_time_comment__ = '最后修改时间'" in entity
+    assert 'DateTime' not in entity
+    compile(entity, '<generated-update-audit-entity>', 'exec')
 
 
 def test_sub_table_entity_template_uses_required_nullable_semantics() -> None:
@@ -334,6 +377,7 @@ def test_sub_table_entity_template_uses_required_nullable_semantics() -> None:
                 columnType='datetime',
                 pythonType='datetime',
                 pythonField='createTime',
+                isRequired='1',
             ),
             GenTableColumnModel(
                 columnName='update_time',
@@ -355,8 +399,11 @@ def test_sub_table_entity_template_uses_required_nullable_semantics() -> None:
 
     assert "required_value = Column(String(100), nullable=False, comment='必填值')" in entity
     assert "optional_value = Column(String(100), nullable=True, comment='可选值')" in entity
-    assert 'create_time = Column(DateTime, nullable=True, default=datetime.now,' in entity
-    assert 'update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now,' in entity
+    assert 'from common.mixin import AuditTimeMixin' in entity
+    assert 'class GenItemDetail(AuditTimeMixin, Base):' in entity
+    assert '__create_time_nullable__ = False' in entity
+    assert 'create_time = Column(' not in entity
+    assert 'update_time = Column(' not in entity
     assert "model_dump(exclude={'create_time', 'update_time'})" in dao
     assert "if key not in {'create_time', 'update_time'}" in dao
     compile(entity, '<generated-sub-entity>', 'exec')

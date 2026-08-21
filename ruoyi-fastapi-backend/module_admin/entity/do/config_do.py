@@ -1,13 +1,12 @@
-from datetime import datetime
+from sqlalchemy import CHAR, Column, Integer, String
 
-from sqlalchemy import CHAR, Column, DateTime, Integer, String
-
+from common.mixin import AuditTimeMixin
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
 
 
-class SysConfig(Base):
+class SysConfig(AuditTimeMixin, Base):
     """
     参数配置表
     """
@@ -21,9 +20,7 @@ class SysConfig(Base):
     config_value = Column(String(500), nullable=True, server_default="''", comment='参数键值')
     config_type = Column(CHAR(1), nullable=True, server_default='N', comment='系统内置（Y是 N否）')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     remark = Column(
         String(500),
         nullable=True,

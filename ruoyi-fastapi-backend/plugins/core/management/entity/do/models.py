@@ -1,13 +1,12 @@
-from datetime import datetime
-
 from sqlalchemy import CHAR, BigInteger, CheckConstraint, Column, DateTime, Integer, String, Text, UniqueConstraint
 
+from common.mixin import AuditTimeMixin, CreateTimeMixin
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
 
 
-class SysPlugin(Base):
+class SysPlugin(AuditTimeMixin, Base):
     """
     插件信息表。
 
@@ -36,15 +35,7 @@ class SysPlugin(Base):
     last_error = Column(String(1000), nullable=True, comment='最近一次错误信息')
     description = Column(String(500), nullable=True, comment='插件说明')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(
-        DateTime,
-        nullable=True,
-        default=datetime.now,
-        onupdate=datetime.now,
-        comment='更新时间',
-    )
     remark = Column(
         String(500),
         nullable=True,
@@ -53,7 +44,7 @@ class SysPlugin(Base):
     )
 
 
-class SysPluginMenu(Base):
+class SysPluginMenu(CreateTimeMixin, Base):
     """
     插件和菜单关联表。
 
@@ -69,10 +60,9 @@ class SysPluginMenu(Base):
     plugin_id = Column(String(64), primary_key=True, nullable=False, comment='插件ID')
     menu_id = Column(BigInteger, primary_key=True, nullable=False, comment='菜单ID')
     menu_key = Column(String(255), nullable=False, comment='插件内菜单自然键')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
 
 
-class SysPluginMigration(Base):
+class SysPluginMigration(AuditTimeMixin, Base):
     """
     插件 migration 执行历史表。
 
@@ -80,6 +70,8 @@ class SysPluginMigration(Base):
     """
 
     __tablename__ = 'sys_plugin_migration'
+    __create_time_comment__ = '执行时间'
+    __update_time_insert_default__ = False
     __table_args__ = {'comment': '插件 migration 执行历史表'}
 
     plugin_id = Column(String(64), primary_key=True, nullable=False, comment='插件ID')
@@ -92,11 +84,9 @@ class SysPluginMigration(Base):
     attempt_count = Column(Integer, nullable=False, default=0, comment='尝试次数')
     started_time = Column(DateTime, nullable=True, comment='最近开始时间')
     finished_time = Column(DateTime, nullable=True, comment='最近结束时间')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='执行时间')
-    update_time = Column(DateTime, nullable=True, onupdate=datetime.now, comment='更新时间')
 
 
-class SysPluginConfig(Base):
+class SysPluginConfig(AuditTimeMixin, Base):
     """
     插件配置表。
 
@@ -116,17 +106,9 @@ class SysPluginConfig(Base):
     secret = Column(CHAR(1), nullable=False, server_default='1', comment='是否敏感（0是 1否）')
     options = Column(Text, nullable=True, comment='配置选项JSON')
     description = Column(String(500), nullable=True, comment='配置说明')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
-    update_time = Column(
-        DateTime,
-        nullable=True,
-        default=datetime.now,
-        onupdate=datetime.now,
-        comment='更新时间',
-    )
 
 
-class SysPluginOperationLog(Base):
+class SysPluginOperationLog(CreateTimeMixin, Base):
     """
     插件批量操作审计日志表。
 
@@ -150,7 +132,6 @@ class SysPluginOperationLog(Base):
     status = Column(String(32), nullable=False, comment='执行状态')
     summary = Column(Text, nullable=True, comment='执行汇总JSON')
     result = Column(Text, nullable=True, comment='完整执行结果JSON')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     remark = Column(
         String(500),
         nullable=True,

@@ -2,15 +2,18 @@ from datetime import datetime
 
 from sqlalchemy import CHAR, BigInteger, Column, DateTime, Index, Integer, String, Text, UniqueConstraint
 
+from common.mixin import AuditTimeMixin, CreateTimeMixin
 from config.database import Base
 
 
-class SysFileInfo(Base):
+class SysFileInfo(AuditTimeMixin, Base):
     """
     文件信息表
     """
 
     __tablename__ = 'sys_file_info'
+    __create_time_nullable__ = False
+    __update_time_nullable__ = False
     __table_args__ = (
         UniqueConstraint(
             'storage_type',
@@ -49,20 +52,19 @@ class SysFileInfo(Base):
     file_hash = Column(String(64), nullable=False, comment='文件SHA-256')
     status = Column(String(20), nullable=False, server_default='active', comment='文件状态')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=False, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=False, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     expire_time = Column(DateTime, nullable=True, comment='过期时间')
     deleted_time = Column(DateTime, nullable=True, comment='移入回收站时间')
     del_flag = Column(CHAR(1), nullable=False, server_default='0', comment='删除标志')
 
 
-class SysFileReference(Base):
+class SysFileReference(CreateTimeMixin, Base):
     """
     文件业务引用表
     """
 
     __tablename__ = 'sys_file_reference'
+    __create_time_nullable__ = False
     __table_args__ = (
         UniqueConstraint(
             'file_id',
@@ -82,15 +84,16 @@ class SysFileReference(Base):
     business_name = Column(String(255), nullable=True, comment='业务名称')
     retention_expire_time = Column(DateTime, nullable=True, comment='保留期限到期时间')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=False, default=datetime.now, comment='创建时间')
 
 
-class SysFileRetentionPolicy(Base):
+class SysFileRetentionPolicy(AuditTimeMixin, Base):
     """
     文件业务保留策略表
     """
 
     __tablename__ = 'sys_file_retention_policy'
+    __create_time_nullable__ = False
+    __update_time_nullable__ = False
     __table_args__ = {'comment': '文件业务保留策略表'}
 
     business_type = Column(String(50), primary_key=True, nullable=False, comment='业务类型')
@@ -98,17 +101,16 @@ class SysFileRetentionPolicy(Base):
     status = Column(CHAR(1), nullable=False, server_default='0', comment='状态（0启用 1停用）')
     remark = Column(String(500), nullable=True, comment='备注')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=False, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=False, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
 
-class SysFileRetentionNotice(Base):
+class SysFileRetentionNotice(CreateTimeMixin, Base):
     """
     文件保留期限提醒表
     """
 
     __tablename__ = 'sys_file_retention_notice'
+    __create_time_nullable__ = False
     __table_args__ = (
         UniqueConstraint(
             'file_id',
@@ -126,17 +128,17 @@ class SysFileRetentionNotice(Base):
     notice_type = Column(String(20), nullable=False, comment='提醒类型')
     expire_time = Column(DateTime, nullable=False, comment='文件过期时间')
     status = Column(CHAR(1), nullable=False, server_default='0', comment='状态（0未读 1已读 2已失效）')
-    create_time = Column(DateTime, nullable=False, default=datetime.now, comment='创建时间')
     read_by = Column(String(64), nullable=True, server_default="''", comment='读取者')
     read_time = Column(DateTime, nullable=True, comment='读取时间')
 
 
-class SysFileAcl(Base):
+class SysFileAcl(CreateTimeMixin, Base):
     """
     文件访问控制表
     """
 
     __tablename__ = 'sys_file_acl'
+    __create_time_nullable__ = False
     __table_args__ = (
         UniqueConstraint(
             'file_id',
@@ -159,7 +161,6 @@ class SysFileAcl(Base):
     include_children = Column(CHAR(1), nullable=False, server_default='0', comment='部门是否包含下级')
     expire_time = Column(DateTime, nullable=True, comment='授权过期时间')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=False, default=datetime.now, comment='创建时间')
     del_flag = Column(CHAR(1), nullable=False, server_default='0', comment='删除标志')
 
 

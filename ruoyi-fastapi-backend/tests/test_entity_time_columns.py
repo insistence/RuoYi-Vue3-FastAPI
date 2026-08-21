@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import DateTime, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from common.mixin import AuditTimeMixin, CreateTimeMixin
 from config.database import Base
 from module_admin.entity.do.config_do import SysConfig
 from module_admin.entity.do.dept_do import SysDept
@@ -40,6 +41,7 @@ from plugins.core.management.entity.do.models import (
 
 EXPECTED_ENTITY_MODEL_COUNT = 35
 EXPECTED_UPDATE_TIME_MODEL_COUNT = 19
+EXPECTED_CREATE_TIME_ONLY_MODEL_COUNT = 6
 
 # Keep both inventories explicit: there are 35 DO classes and 19 update_time
 # columns. Adding/removing one should be an intentional model change.
@@ -103,11 +105,53 @@ UPDATE_TIME_MODELS = (
     SysPluginConfig,
 )
 
+CREATE_TIME_ONLY_MODELS = (
+    SysFileReference,
+    SysFileRetentionNotice,
+    SysFileAcl,
+    SysJobLog,
+    SysPluginMenu,
+    SysPluginOperationLog,
+)
+
+REQUIRED_CREATE_TIME_MODELS = {
+    SysFileInfo,
+    SysFileReference,
+    SysFileRetentionPolicy,
+    SysFileRetentionNotice,
+    SysFileAcl,
+}
+
+REQUIRED_UPDATE_TIME_MODELS = {
+    SysFileInfo,
+    SysFileRetentionPolicy,
+}
+
 
 def _column_default(model: type, field_name: str, attribute: str) -> object | None:
     column = model.__table__.c[field_name]
     value = getattr(column, attribute)
     return None if value is None else value.arg
+
+
+def test_audit_time_columns_are_provided_by_mixins_without_changing_contracts() -> None:
+    """审计字段统一由Mixin声明，并保留非空、注释及特殊默认值语义。"""
+    assert len(UPDATE_TIME_MODELS) == EXPECTED_UPDATE_TIME_MODEL_COUNT
+    assert len(CREATE_TIME_ONLY_MODELS) == EXPECTED_CREATE_TIME_ONLY_MODEL_COUNT
+
+    for model in UPDATE_TIME_MODELS:
+        assert issubclass(model, AuditTimeMixin)
+        assert model.__table__.c.create_time.nullable is (model not in REQUIRED_CREATE_TIME_MODELS)
+        assert model.__table__.c.update_time.nullable is (model not in REQUIRED_UPDATE_TIME_MODELS)
+        assert model.__table__.c.create_time.server_default is None
+        assert model.__table__.c.update_time.server_default is None
+
+    for model in CREATE_TIME_ONLY_MODELS:
+        assert issubclass(model, CreateTimeMixin)
+        assert model.__table__.c.create_time.nullable is (model not in REQUIRED_CREATE_TIME_MODELS)
+        assert model.__table__.c.create_time.server_default is None
+
+    assert SysPluginMigration.__table__.c.create_time.comment == '执行时间'
 
 
 def test_all_update_time_columns_use_callable_defaults_and_onupdate() -> None:

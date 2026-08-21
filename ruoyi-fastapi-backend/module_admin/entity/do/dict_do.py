@@ -1,13 +1,12 @@
-from datetime import datetime
+from sqlalchemy import CHAR, BigInteger, Column, Integer, String
 
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, String
-
+from common.mixin import AuditTimeMixin
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
 
 
-class SysDictType(Base):
+class SysDictType(AuditTimeMixin, Base):
     """
     字典类型表
     """
@@ -20,9 +19,7 @@ class SysDictType(Base):
     dict_type = Column(String(100), unique=True, nullable=True, server_default="''", comment='字典类型')
     status = Column(CHAR(1), nullable=True, server_default='0', comment='状态（0正常 1停用）')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     remark = Column(
         String(500),
         nullable=True,
@@ -31,7 +28,7 @@ class SysDictType(Base):
     )
 
 
-class SysDictData(Base):
+class SysDictData(AuditTimeMixin, Base):
     """
     字典数据表
     """
@@ -59,9 +56,7 @@ class SysDictData(Base):
     is_default = Column(CHAR(1), nullable=True, server_default='N', comment='是否默认（Y是 N否）')
     status = Column(CHAR(1), nullable=True, server_default='0', comment='状态（0正常 1停用）')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     remark = Column(
         String(500),
         nullable=True,

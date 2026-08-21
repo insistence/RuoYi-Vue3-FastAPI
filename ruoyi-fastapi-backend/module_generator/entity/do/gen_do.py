@@ -1,14 +1,13 @@
-from datetime import datetime
-
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, String
+from sqlalchemy import CHAR, BigInteger, Column, Integer, String
 from sqlalchemy.orm import foreign, relationship
 
+from common.mixin import AuditTimeMixin
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
 
 
-class GenTable(Base):
+class GenTable(AuditTimeMixin, Base):
     """
     代码生成业务表
     """
@@ -49,9 +48,7 @@ class GenTable(Base):
     gen_path = Column(String(200), nullable=True, server_default='/', comment='生成路径（不填默认项目路径）')
     options = Column(String(1000), nullable=True, comment='其它生成选项')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     remark = Column(
         String(500),
         nullable=True,
@@ -67,7 +64,7 @@ class GenTable(Base):
     )
 
 
-class GenTableColumn(Base):
+class GenTableColumn(AuditTimeMixin, Base):
     """
     代码生成业务表字段
     """
@@ -99,9 +96,7 @@ class GenTableColumn(Base):
     dict_type = Column(String(200), nullable=True, server_default="''", comment='字典类型')
     sort = Column(Integer, nullable=True, comment='排序')
     create_by = Column(String(64), server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
     tables = relationship(
         'GenTable', primaryjoin=lambda: foreign(GenTableColumn.table_id) == GenTable.table_id, back_populates='columns'

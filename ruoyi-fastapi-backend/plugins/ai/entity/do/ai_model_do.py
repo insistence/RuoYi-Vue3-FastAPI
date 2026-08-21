@@ -1,13 +1,12 @@
-from datetime import datetime
+from sqlalchemy import CHAR, BigInteger, Column, Float, Integer, String
 
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Float, Integer, String
-
+from common.mixin import AuditTimeMixin
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
 
 
-class AiModels(Base):
+class AiModels(AuditTimeMixin, Base):
     """
     AI模型表
     """
@@ -51,9 +50,7 @@ class AiModels(Base):
     user_id = Column(BigInteger, nullable=True, comment='用户ID')
     dept_id = Column(BigInteger, nullable=True, comment='部门ID')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
-    create_time = Column(DateTime, nullable=True, default=datetime.now, comment='创建时间')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    update_time = Column(DateTime, nullable=True, default=datetime.now, onupdate=datetime.now, comment='更新时间')
     remark = Column(
         String(500),
         nullable=True,
