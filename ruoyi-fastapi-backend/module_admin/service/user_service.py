@@ -38,6 +38,7 @@ from module_admin.service.config_service import ConfigService
 from module_admin.service.dept_service import DeptService
 from module_admin.service.post_service import PostService
 from module_admin.service.role_service import RoleService
+from module_identity.service.identity_service import IdentitySecurityEventService, IdentitySubjectService
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
 from utils.pwd_util import PwdUtil
@@ -50,6 +51,37 @@ class UserService:
 
     PASSWORD_MIN_LENGTH = 6
     PASSWORD_MAX_LENGTH = 20
+
+    @staticmethod
+    async def _current_role_ids(query_db: AsyncSession, user_id: int) -> set[int]:
+        """
+        读取用户当前角色ID，用于避免无变化时递增身份版本
+
+        :param query_db: orm对象
+        :param user_id: 用户id
+        :return: 用户当前角色ID集合
+        """
+        return await UserDao.get_role_ids(query_db, user_id)
+
+    @staticmethod
+    async def _handle_role_assignment_changes(
+        query_db: AsyncSession, user_ids: list[int], actor: str | None = None
+    ) -> None:
+        """
+        仅在角色关联实际变化时批量触发身份安全事件
+
+        :param query_db: orm对象
+        :param user_ids: 角色关联发生变化的用户ID列表
+        :param actor: 实际执行角色分配的操作者
+        :return: None
+        """
+        if user_ids:
+            await IdentitySecurityEventService.handle_users_event(
+                query_db,
+                user_ids,
+                'role_assignment_changed',
+                actor=actor,
+            )
 
     @classmethod
     async def validate_password_services(
@@ -207,6 +239,11 @@ class UserService:
         try:
             add_result = await UserDao.add_user_dao(query_db, add_user)
             user_id = add_result.user_id
+            await IdentitySubjectService.create_for_new_user(
+                query_db,
+                user_id=user_id,
+                create_by=page_object.create_by,
+            )
             if page_object.role_ids:
                 for role in page_object.role_ids:
                     await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=user_id, roleId=role))
@@ -234,6 +271,58 @@ class UserService:
             del edit_user['role']
         else:
             del edit_user['type']
+
+    @classmethod
+    async def _handle_edit_identity_security_event(
+        cls,
+        query_db: AsyncSession,
+        page_object: EditUserModel,
+        current_user: UserInfoModel,
+    ) -> None:
+        """
+        将用户编辑类型映射为同事务OIDC安全事件
+
+        :param query_db: orm对象
+        :param page_object: 编辑用户对象
+        :param current_user: 编辑前的用户信息
+        :return: None
+        """
+        user_id = page_object.user_id
+        if user_id is None:
+            raise ServiceException(message='用户不存在')
+        if page_object.type == 'status':
+            if page_object.status == '1' and current_user.status != '1':
+                await IdentitySecurityEventService.handle_user_event(
+                    query_db,
+                    user_id,
+                    'user_disabled',
+                    actor=page_object.update_by,
+                )
+            return
+        if page_object.type == 'pwd':
+            if page_object.password is not None:
+                await IdentitySecurityEventService.handle_user_event(
+                    query_db,
+                    user_id,
+                    'password_changed',
+                    actor=page_object.update_by,
+                )
+            return
+        if page_object.type == 'avatar':
+            return
+
+        current_roles = {int(value) for value in (current_user.role_ids or '').split(',') if value.isdigit()}
+        requested_roles = {int(value) for value in (page_object.role_ids or [])}
+        roles_changed = 'role_ids' in page_object.model_fields_set and current_roles != requested_roles
+        department_changed = 'dept_id' in page_object.model_fields_set and current_user.dept_id != page_object.dept_id
+        if roles_changed or department_changed:
+            event = 'role_assignment_changed' if roles_changed else 'department_changed'
+            await IdentitySecurityEventService.handle_user_event(
+                query_db,
+                user_id,
+                event,
+                actor=page_object.update_by,
+            )
 
     @classmethod
     async def edit_user_services(cls, query_db: AsyncSession, page_object: EditUserModel) -> CrudResponseModel:
@@ -273,6 +362,7 @@ class UserService:
                             await UserDao.add_user_post_dao(
                                 query_db, UserPostModel(userId=page_object.user_id, postId=post)
                             )
+                await cls._handle_edit_identity_security_event(query_db, page_object, user_info.data)
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='更新成功')
             except Exception as e:
@@ -302,6 +392,12 @@ class UserService:
                     await UserDao.delete_user_role_dao(query_db, UserRoleModel(**user_id_dict))
                     await UserDao.delete_user_post_dao(query_db, UserPostModel(**user_id_dict))
                     await UserDao.delete_user_dao(query_db, UserModel(**user_id_dict))
+                    await IdentitySecurityEventService.handle_user_event(
+                        query_db,
+                        int(user_id),
+                        'user_deleted',
+                        actor=page_object.update_by,
+                    )
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='删除成功')
             except Exception as e:
@@ -397,6 +493,12 @@ class UserService:
         try:
             reset_user['password'] = PwdUtil.get_password_hash(page_object.password)
             await UserDao.edit_user_dao(query_db, reset_user)
+            await IdentitySecurityEventService.handle_user_event(
+                query_db,
+                page_object.user_id,
+                'password_changed',
+                actor=page_object.update_by,
+            )
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='重置成功')
         except Exception as e:
@@ -518,6 +620,20 @@ class UserService:
                             exclude={'create_time', 'update_time'},
                         )
                         await UserDao.edit_user_dao(query_db, edit_user)
+                        if edit_user_model.status == '1' and user_info.status != '1':
+                            await IdentitySecurityEventService.handle_user_event(
+                                query_db,
+                                user_info.user_id,
+                                'user_disabled',
+                                actor=current_user.user.user_name,
+                            )
+                        if edit_user_model.dept_id != user_info.dept_id:
+                            await IdentitySecurityEventService.handle_user_event(
+                                query_db,
+                                user_info.user_id,
+                                'department_changed',
+                                actor=current_user.user.user_name,
+                            )
                     else:
                         add_error_result.append(f'{count}.用户账号{row["user_name"]}已存在')
                 else:
@@ -526,7 +642,12 @@ class UserService:
                         await DeptService.check_dept_data_scope_services(
                             query_db, add_user.dept_id, dept_data_scope_sql
                         )
-                    await UserDao.add_user_dao(query_db, add_user)
+                    added_user = await UserDao.add_user_dao(query_db, add_user)
+                    await IdentitySubjectService.create_for_new_user(
+                        query_db,
+                        user_id=added_user.user_id,
+                        create_by=current_user.user.user_name,
+                    )
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='\n'.join(add_error_result))
         except Exception as e:
@@ -623,20 +744,33 @@ class UserService:
         return result
 
     @classmethod
-    async def add_user_role_services(cls, query_db: AsyncSession, page_object: CrudUserRoleModel) -> CrudResponseModel:
+    async def add_user_role_services(
+        cls, query_db: AsyncSession, page_object: CrudUserRoleModel, actor: str | None = None
+    ) -> CrudResponseModel:
         """
         新增用户关联角色信息service
 
         :param query_db: orm对象
         :param page_object: 新增用户关联角色对象
+        :param actor: 实际执行角色分配的操作者
         :return: 新增用户关联角色校验结果
         """
         if page_object.user_id and page_object.role_ids:
             role_id_list = page_object.role_ids.split(',')
             try:
+                requested_role_ids = {int(role_id) for role_id in role_id_list}
+                if await cls._current_role_ids(query_db, page_object.user_id) == requested_role_ids:
+                    await query_db.commit()
+                    return CrudResponseModel(is_success=True, message='分配成功')
                 await UserDao.delete_user_role_by_user_and_role_dao(query_db, UserRoleModel(userId=page_object.user_id))
                 for role_id in role_id_list:
                     await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=page_object.user_id, roleId=role_id))
+                await IdentitySecurityEventService.handle_user_event(
+                    query_db,
+                    page_object.user_id,
+                    'role_assignment_changed',
+                    actor=actor,
+                )
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='分配成功')
             except Exception as e:
@@ -644,7 +778,16 @@ class UserService:
                 raise e
         elif page_object.user_id and not page_object.role_ids:
             try:
+                if not await cls._current_role_ids(query_db, page_object.user_id):
+                    await query_db.commit()
+                    return CrudResponseModel(is_success=True, message='分配成功')
                 await UserDao.delete_user_role_by_user_and_role_dao(query_db, UserRoleModel(userId=page_object.user_id))
+                await IdentitySecurityEventService.handle_user_event(
+                    query_db,
+                    page_object.user_id,
+                    'role_assignment_changed',
+                    actor=actor,
+                )
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='分配成功')
             except Exception as e:
@@ -653,6 +796,7 @@ class UserService:
         elif page_object.user_ids and page_object.role_id:
             user_id_list = page_object.user_ids.split(',')
             try:
+                changed_user_ids: list[int] = []
                 for user_id in user_id_list:
                     user_role = await cls.detail_user_role_services(
                         query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id)
@@ -660,6 +804,8 @@ class UserService:
                     if user_role:
                         continue
                     await UserDao.add_user_role_dao(query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id))
+                    changed_user_ids.append(int(user_id))
+                await cls._handle_role_assignment_changes(query_db, changed_user_ids, actor)
                 await query_db.commit()
                 return CrudResponseModel(is_success=True, message='新增成功')
             except Exception as e:
@@ -670,21 +816,33 @@ class UserService:
 
     @classmethod
     async def delete_user_role_services(
-        cls, query_db: AsyncSession, page_object: CrudUserRoleModel
+        cls, query_db: AsyncSession, page_object: CrudUserRoleModel, actor: str | None = None
     ) -> CrudResponseModel:
         """
         删除用户关联角色信息service
 
         :param query_db: orm对象
         :param page_object: 删除用户关联角色对象
+        :param actor: 实际执行取消分配的操作者
         :return: 删除用户关联角色校验结果
         """
         if (page_object.user_id and page_object.role_id) or (page_object.user_ids and page_object.role_id):
             if page_object.user_id and page_object.role_id:
                 try:
+                    existing = await cls.detail_user_role_services(
+                        query_db,
+                        UserRoleModel(userId=page_object.user_id, roleId=page_object.role_id),
+                    )
                     await UserDao.delete_user_role_by_user_and_role_dao(
                         query_db, UserRoleModel(userId=page_object.user_id, roleId=page_object.role_id)
                     )
+                    if existing is not None:
+                        await IdentitySecurityEventService.handle_user_event(
+                            query_db,
+                            page_object.user_id,
+                            'role_assignment_changed',
+                            actor=actor,
+                        )
                     await query_db.commit()
                     return CrudResponseModel(is_success=True, message='删除成功')
                 except Exception as e:
@@ -693,10 +851,18 @@ class UserService:
             elif page_object.user_ids and page_object.role_id:
                 user_id_list = page_object.user_ids.split(',')
                 try:
+                    changed_user_ids: list[int] = []
                     for user_id in user_id_list:
+                        existing = await cls.detail_user_role_services(
+                            query_db,
+                            UserRoleModel(userId=user_id, roleId=page_object.role_id),
+                        )
                         await UserDao.delete_user_role_by_user_and_role_dao(
                             query_db, UserRoleModel(userId=user_id, roleId=page_object.role_id)
                         )
+                        if existing is not None:
+                            changed_user_ids.append(int(user_id))
+                    await cls._handle_role_assignment_changes(query_db, changed_user_ids, actor)
                     await query_db.commit()
                     return CrudResponseModel(is_success=True, message='删除成功')
                 except Exception as e:

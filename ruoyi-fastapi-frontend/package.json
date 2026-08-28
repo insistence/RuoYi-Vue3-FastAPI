@@ -10,7 +10,9 @@
     "build:prod": "vite build",
     "build:docker": "vite build --mode docker",
     "build:stage": "vite build --mode staging",
-    "test:plugin": "node tests/plugins/run-plugin-tests.js",
+    "test": "node tests/run-tests.js",
+    "test:plugin": "node tests/run-tests.js plugins",
+    "test:auth-center": "node tests/run-tests.js auth-center",
     "preview": "vite preview"
   },
   "repository": {

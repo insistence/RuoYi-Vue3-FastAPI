@@ -14,6 +14,7 @@ from config.lifecycle import init_create_table
 from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
 from module_admin.service.log_service import LogAggregatorService
+from module_identity.service.runtime_service import OidcRuntimeService
 from plugins.core.runtime.application import get_plugin_application_runtime
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
@@ -31,6 +32,7 @@ async def _start_background_tasks(app: FastAPI) -> None:
     """
     await SchedulerUtil.init_system_scheduler(app.state.redis)
     app.state.log_aggregator_task = asyncio.create_task(LogAggregatorService.consume_stream(app.state.redis))
+    await OidcRuntimeService.start_background_tasks(app)
 
 
 async def _stop_background_tasks(app: FastAPI) -> None:
@@ -48,6 +50,7 @@ async def _stop_background_tasks(app: FastAPI) -> None:
                 await log_task
             except asyncio.CancelledError:
                 pass
+        await OidcRuntimeService.stop_background_tasks(app)
     finally:
         try:
             redis = getattr(app.state, 'redis', None)
@@ -78,9 +81,17 @@ async def _initialize_application_runtime(app: FastAPI, application_leader: bool
         stage='platform',
         log_success_enabled=application_leader,
     )
+    try:
+        await OidcRuntimeService.refresh_cors_snapshot(app)
+    except Exception:
+        app.state.oidc_registered_cors_origins = ()
+        logger.error('OIDC registered CORS snapshot load failed')
+    await OidcRuntimeService.validate_runtime(app)
 
     async def create_plugin_entity_tables() -> None:
-        """在插件 writer 导入实体后同步插件表。"""
+        """
+        在插件 writer 导入实体后同步插件表。
+        """
         await init_create_table(
             stage='plugin_entities',
             log_success_enabled=True,
@@ -98,6 +109,7 @@ async def _initialize_application_runtime(app: FastAPI, application_leader: bool
     )
     await RedisUtil.init_sys_dict(app.state.redis)
     await RedisUtil.init_sys_config(app.state.redis)
+    app.state.application_leader = application_leader
     await _start_background_tasks(app)
 
 
@@ -126,7 +138,14 @@ def _log_address_group(
     *,
     path: str = '',
 ) -> None:
-    """输出一组本地和网络访问地址。"""
+    """
+    输出一组本地和网络访问地址。
+
+    :param title: 地址分组标题。
+    :param local_ip: 本机地址。
+    :param network_ips: 网络地址列表。
+    :param path: 地址路径。
+    """
     port = AppConfig.app_port
     links = [f'🏠 Local:    <cyan>http://{local_ip}:{port}{path}</cyan>']
     links.extend(f'📡 Network:  <cyan>http://{ip}:{port}{path}</cyan>' for ip in network_ips)

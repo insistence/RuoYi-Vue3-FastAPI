@@ -14,12 +14,42 @@ def test_root_help_shows_commands_without_completion_options(
     assert 'Usage: ruoyi [OPTIONS] COMMAND [ARGS]...' in completed.stdout
     assert 'app' in completed.stdout
     assert 'db' in completed.stdout
+    assert 'oidc' in completed.stdout
     assert 'completion' in completed.stdout
     assert 'wizard' in completed.stdout
     assert 'tui' in completed.stdout
     assert completed.stdout.index('wizard') < completed.stdout.index('tui')
     assert '--install-completion' not in completed.stdout
     assert '--show-completion' not in completed.stdout
+
+
+def test_oidc_key_bootstrap_dry_run_has_stable_contract(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
+) -> None:
+    """OIDC 初始化命令支持不连接基础设施的部署预演。"""
+    completed = run_cli_command(
+        'oidc',
+        'key',
+        'bootstrap',
+        '--env=dev',
+        '--output=json',
+        '--dry-run',
+        '--yes',
+        '--kid=release-primary',
+    )
+    payload = parse_json_stdout(completed)
+
+    assert completed.returncode == SUCCESS
+    assert payload == {
+        'ok': True,
+        'message': 'OIDC 签名密钥初始化预演完成，未写入数据库',
+        'kid': 'release-primary',
+        'created': False,
+        'active': False,
+        'dryRun': True,
+        'env': 'dev',
+    }
 
 
 def test_completion_show_bash_outputs_completion_script(

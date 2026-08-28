@@ -258,6 +258,7 @@ insert into sys_menu values(107,  '通知公告', 1,   '8', 'notice',           
 insert into sys_menu values(108,  '日志管理', 1,   '9', 'log',                 '',                                  '', '', 1, 0, 'M', '0', '0', '',                                 'log',           'admin', current_timestamp, '', null, '日志管理菜单');
 insert into sys_menu values(119,  '文件管理', 1,  '10', 'file',                'system/file/index',                 '', '', 1, 0, 'C', '0', '0', 'system:file:list',                 'documentation', 'admin', current_timestamp, '', null, '文件管理菜单');
 insert into sys_menu values(120,  '插件管理', 1,  '11', 'plugin',              'system/plugin/index',               '', '', 1, 0, 'C', '0', '0', 'system:plugin:list',               'component',     'admin', current_timestamp, '', null, '插件管理菜单');
+insert into sys_menu values(121,  '认证中心', 1,  '12', 'oauth',               '',                                  '', '', 1, 0, 'M', '0', '0', '',                              'lock',          'admin', current_timestamp, '', null, '统一认证中心管理');
 insert into sys_menu values(109,  '在线用户', 2,   '1', 'online',              'monitor/online/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:online:list',              'online',        'admin', current_timestamp, '', null, '在线用户菜单');
 insert into sys_menu values(110,  '定时任务', 2,   '2', 'job',                 'monitor/job/index',                 '', '', 1, 0, 'C', '0', '0', 'monitor:job:list',                 'job',           'admin', current_timestamp, '', null, '定时任务菜单');
 insert into sys_menu values(111,  '数据监控', 2,   '3', 'druid',               'monitor/druid/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list',               'druid',         'admin', current_timestamp, '', null, '数据监控菜单');
@@ -265,12 +266,19 @@ insert into sys_menu values(112,  '服务监控', 2,   '4', 'server',           
 insert into sys_menu values(113,  '缓存监控', 2,   '5', 'cache',               'monitor/cache/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis',         'admin', current_timestamp, '', null, '缓存监控菜单');
 insert into sys_menu values(114,  '缓存列表', 2,   '6', 'cacheList',           'monitor/cache/list',                '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis-list',    'admin', current_timestamp, '', null, '缓存列表菜单');
 insert into sys_menu values(118,  '传输加密', 2,   '7', 'transportCrypto',     'monitor/transportCrypto/index',     '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list',     'chart',         'admin', current_timestamp, '', null, '传输加密监控菜单');
+insert into sys_menu values(122,  'OAuth审计', 2,   '8', 'oauthAudit',          'monitor/oauthAudit/index',            '', '', 1, 0, 'C', '0', '0', 'monitor:oauthAudit:list',            'form',          'admin', current_timestamp, '', null, 'OAuth 审计日志');
 insert into sys_menu values(115,  '表单构建', 3,   '1', 'build',               'tool/build/index',                  '', '', 1, 0, 'C', '0', '0', 'tool:build:list',                  'build',         'admin', current_timestamp, '', null, '表单构建菜单');
 insert into sys_menu values(116,  '代码生成', 3,   '2', 'gen',                 'tool/gen/index',                    '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                    'code',          'admin', current_timestamp, '', null, '代码生成菜单');
 insert into sys_menu values(117,  '系统接口', 3,   '3', 'swagger',             'tool/swagger/index',                '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',                'swagger',       'admin', current_timestamp, '', null, '系统接口菜单');
 -- 三级菜单
 insert into sys_menu values(500,  '操作日志', 108, '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', current_timestamp, '', null, '操作日志菜单');
 insert into sys_menu values(501,  '登录日志', 108, '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', current_timestamp, '', null, '登录日志菜单');
+insert into sys_menu values(502,  '客户端管理', 121, '1', 'client',             'system/oauth/client/index',           '', '', 1, 0, 'C', '0', '0', 'system:oauthClient:list',          'peoples',       'admin', current_timestamp, '', null, 'OAuth Client 管理');
+insert into sys_menu values(503,  '资源管理', 121, '2', 'resource',            'system/oauth/resource/index',          '', '', 1, 0, 'C', '0', '0', 'system:oauthResource:list',         'component',     'admin', current_timestamp, '', null, 'OAuth Resource 管理');
+insert into sys_menu values(504,  '范围管理', 121, '3', 'scope',               'system/oauth/scope/index',             '', '', 1, 0, 'C', '0', '0', 'system:oauthScope:list',            'dict',          'admin', current_timestamp, '', null, 'OAuth Scope 管理');
+insert into sys_menu values(505,  '外部会话', 121, '4', 'session',             'system/oauth/session/index',           '', '', 1, 0, 'C', '0', '0', 'system:oauthSession:list',          'online',        'admin', current_timestamp, '', null, 'OIDC SSO Session 管理');
+insert into sys_menu values(506,  '外部授权', 121, '5', 'grant',               'system/oauth/grant/index',             '', '', 1, 0, 'C', '0', '0', 'system:oauthGrant:list',            'tree-table',    'admin', current_timestamp, '', null, 'OAuth Grant 管理');
+insert into sys_menu values(507,  '签名密钥', 121, '6', 'key',                 'system/oauth/key/index',               '', '', 1, 0, 'C', '0', '0', 'system:oauthKey:list',              'key',           'admin', current_timestamp, '', null, 'OIDC Key 管理');
 -- 用户管理按钮
 insert into sys_menu values(1000, '用户查询', 100, '1',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:query',          '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1001, '用户新增', 100, '2',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:add',            '#', 'admin', current_timestamp, '', null, '');
@@ -341,6 +349,24 @@ insert into sys_menu values(1042, '登录查询', 501, '1', '#', '', '', '', 1, 
 insert into sys_menu values(1043, '登录删除', 501, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:remove',  '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1044, '日志导出', 501, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:export',  '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1045, '账户解锁', 501, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:unlock',  '#', 'admin', current_timestamp, '', null, '');
+-- 认证中心管理按钮
+insert into sys_menu values(1073, '客户端查询', 502, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:query', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1074, '客户端新增', 502, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:add', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1075, '客户端修改', 502, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:edit', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1076, '客户端删除', 502, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:remove', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1077, '密钥轮换', 502, '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:rotateSecret', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1079, '资源新增', 503, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthResource:add', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1080, '资源修改', 503, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthResource:edit', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1081, '资源删除', 503, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthResource:remove', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1083, '范围新增', 504, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthScope:add', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1084, '范围修改', 504, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthScope:edit', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1085, '范围删除', 504, '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthScope:remove', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1086, '会话下线', 505, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthSession:revoke', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1087, '授权撤销', 506, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthGrant:revoke', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1088, '密钥轮换', 507, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthKey:rotate', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1089, '密钥启用', 507, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthKey:activate', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1090, '密钥退役', 507, '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthKey:retire', '#', 'admin', current_timestamp, '', null, '');
+insert into sys_menu values(1091, '审计导出', 122, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:oauthAudit:export', '#', 'admin', current_timestamp, '', null, '');
 -- 在线用户按钮
 insert into sys_menu values(1046, '在线查询', 109, '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:query',       '#', 'admin', current_timestamp, '', null, '');
 insert into sys_menu values(1047, '批量强退', 109, '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:batchLogout', '#', 'admin', current_timestamp, '', null, '');
@@ -1519,6 +1545,617 @@ comment on column sys_plugin_operation_log.summary is '执行汇总JSON';
 comment on column sys_plugin_operation_log.result is '完整执行结果JSON';
 comment on column sys_plugin_operation_log.create_time is '创建时间';
 comment on column sys_plugin_operation_log.remark is '备注';
+
+-- ----------------------------
+-- 统一认证中心相关表清理
+-- ----------------------------
+drop table if exists sys_oauth_audit_archive;
+drop table if exists sys_oauth_audit_log;
+drop table if exists sys_oidc_signing_key;
+drop table if exists sys_oauth_refresh_token;
+drop table if exists sys_sso_session;
+drop table if exists sys_oauth_grant;
+drop table if exists sys_oauth_client_resource;
+drop table if exists sys_oauth_client_scope;
+drop table if exists sys_oauth_scope;
+drop table if exists sys_oauth_resource;
+drop table if exists sys_oauth_client_uri;
+drop table if exists sys_oauth_client_secret;
+drop table if exists sys_oauth_client;
+drop table if exists sys_identity_subject;
+
+-- ----------------------------
+-- 34、统一认证主体关联表
+-- ----------------------------
+create table sys_identity_subject (
+  identity_id   bigserial    not null,
+  user_id       bigint       not null,
+  subject_id    varchar(36)  not null,
+  auth_version  bigint       not null default 1,
+  create_by     varchar(64)  default null,
+  create_time   timestamp  not null,
+  update_by     varchar(64)  default null,
+  update_time   timestamp  default null,
+  primary key (identity_id),
+  constraint uk_identity_subject_user unique (user_id),
+  constraint uk_identity_subject_subject unique (subject_id),
+  constraint fk_identity_subject_user foreign key (user_id) references sys_user (user_id) on delete restrict
+);
+create index idx_identity_subject_auth_version on sys_identity_subject (auth_version);
+comment on table sys_identity_subject is '统一认证主体关联表';
+comment on column sys_identity_subject.identity_id is '内部主键';
+comment on column sys_identity_subject.user_id is '本地用户ID';
+comment on column sys_identity_subject.subject_id is 'OIDC Subject';
+comment on column sys_identity_subject.auth_version is '认证安全版本';
+comment on column sys_identity_subject.create_by is '创建者';
+comment on column sys_identity_subject.create_time is '创建时间';
+comment on column sys_identity_subject.update_by is '更新者';
+comment on column sys_identity_subject.update_time is '更新时间';
+
+-- ----------------------------
+-- 初始化-统一认证主体关联表数据
+-- ----------------------------
+with seeded_users as materialized (
+  select user_id,
+         overlay(
+           overlay(md5(user_id::text || ':' || clock_timestamp()::text || ':' || random()::text)
+             placing '4' from 13 for 1)
+           placing '8' from 17 for 1
+         ) as uuid_seed
+  from sys_user
+)
+insert into sys_identity_subject (user_id, subject_id, auth_version, create_by, create_time)
+select user_id,
+       substr(uuid_seed, 1, 8) || '-' || substr(uuid_seed, 9, 4) || '-' ||
+       substr(uuid_seed, 13, 4) || '-' || substr(uuid_seed, 17, 4) || '-' ||
+       substr(uuid_seed, 21, 12),
+       1,
+       'initial-sql',
+       current_timestamp
+from seeded_users;
+
+-- ----------------------------
+-- 35、OAuth客户端表
+-- ----------------------------
+create table sys_oauth_client (
+  client_pk                            bigserial     not null,
+  client_id                            varchar(64)   not null,
+  client_name                          varchar(100)  not null,
+  client_type                          varchar(20)   not null,
+  token_endpoint_auth_method           varchar(32)   not null,
+  grant_types                          jsonb         not null,
+  response_types                       jsonb         not null,
+  subject_type                         varchar(16)   not null default 'public',
+  require_pkce                         smallint      not null default 1,
+  require_consent                      smallint      not null default 1,
+  trusted_client                       smallint      not null default 0,
+  policy_version                       bigint        not null default 1,
+  id_token_signed_response_alg         varchar(16)   not null default 'RS256',
+  access_token_ttl_seconds             int4          default null,
+  refresh_token_idle_seconds           int4          default null,
+  refresh_token_absolute_seconds       int4          default null,
+  logo_uri                             varchar(500)  default null,
+  policy_uri                           varchar(500)  default null,
+  tos_uri                              varchar(500)  default null,
+  backchannel_logout_session_required  smallint      not null default 1,
+  status                               char(1)       not null default '0',
+  create_by                            varchar(64)   not null default '',
+  create_time                          timestamp   not null,
+  update_by                            varchar(64)   not null default '',
+  update_time                          timestamp   not null,
+  remark                               varchar(500)  default null,
+  primary key (client_pk),
+  constraint uk_oauth_client_client_id unique (client_id)
+);
+create index idx_oauth_client_status on sys_oauth_client (status);
+comment on table sys_oauth_client is 'OAuth客户端表';
+comment on column sys_oauth_client.client_pk is '内部主键';
+comment on column sys_oauth_client.client_id is 'Client ID';
+comment on column sys_oauth_client.client_name is '客户端名称';
+comment on column sys_oauth_client.client_type is 'Client 类型';
+comment on column sys_oauth_client.token_endpoint_auth_method is 'Token 端点认证方式';
+comment on column sys_oauth_client.grant_types is 'Grant Type 列表';
+comment on column sys_oauth_client.response_types is 'Response Type 列表';
+comment on column sys_oauth_client.subject_type is 'Subject 类型';
+comment on column sys_oauth_client.require_pkce is '是否要求 PKCE';
+comment on column sys_oauth_client.require_consent is '是否要求同意';
+comment on column sys_oauth_client.trusted_client is '是否受信任 Client';
+comment on column sys_oauth_client.policy_version is '安全策略版本';
+comment on column sys_oauth_client.id_token_signed_response_alg is 'ID Token 算法';
+comment on column sys_oauth_client.access_token_ttl_seconds is 'Access Token 有效期';
+comment on column sys_oauth_client.refresh_token_idle_seconds is 'Refresh Token 闲置有效期';
+comment on column sys_oauth_client.refresh_token_absolute_seconds is 'Refresh Token 绝对有效期';
+comment on column sys_oauth_client.logo_uri is 'Logo URI';
+comment on column sys_oauth_client.policy_uri is '隐私政策 URI';
+comment on column sys_oauth_client.tos_uri is '服务条款 URI';
+comment on column sys_oauth_client.backchannel_logout_session_required is '是否要求 Back-Channel Session';
+comment on column sys_oauth_client.status is '状态（0正常 1停用）';
+comment on column sys_oauth_client.create_by is '创建者';
+comment on column sys_oauth_client.create_time is '创建时间';
+comment on column sys_oauth_client.update_by is '更新者';
+comment on column sys_oauth_client.update_time is '更新时间';
+comment on column sys_oauth_client.remark is '备注';
+
+-- ----------------------------
+-- 36、OAuth客户端密钥表
+-- ----------------------------
+create table sys_oauth_client_secret (
+  secret_id     varchar(36)   not null,
+  client_pk     bigint        not null,
+  secret_hash   varchar(100)  not null,
+  secret_hint   varchar(12)   not null,
+  status        varchar(16)   not null default 'active',
+  not_before    timestamp   not null,
+  expires_at    timestamp   default null,
+  last_used_at  timestamp   default null,
+  create_by     varchar(64)   not null,
+  create_time   timestamp   not null,
+  revoked_by    varchar(64)   default null,
+  revoked_at    timestamp   default null,
+  primary key (secret_id),
+  constraint fk_oauth_client_secret_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+);
+create index idx_oauth_client_secret_client on sys_oauth_client_secret (client_pk, status);
+comment on table sys_oauth_client_secret is 'OAuth客户端密钥表';
+comment on column sys_oauth_client_secret.secret_id is 'Secret ID';
+comment on column sys_oauth_client_secret.client_pk is 'Client 主键';
+comment on column sys_oauth_client_secret.secret_hash is 'Secret 强哈希';
+comment on column sys_oauth_client_secret.secret_hint is 'Secret 提示';
+comment on column sys_oauth_client_secret.status is 'Secret 状态';
+comment on column sys_oauth_client_secret.not_before is '生效时间';
+comment on column sys_oauth_client_secret.expires_at is '过期时间';
+comment on column sys_oauth_client_secret.last_used_at is '最近使用时间';
+comment on column sys_oauth_client_secret.create_by is '创建者';
+comment on column sys_oauth_client_secret.create_time is '创建时间';
+comment on column sys_oauth_client_secret.revoked_by is '撤销者';
+comment on column sys_oauth_client_secret.revoked_at is '撤销时间';
+
+-- ----------------------------
+-- 37、OAuth客户端URI表
+-- ----------------------------
+create table sys_oauth_client_uri (
+  uri_id       bigserial      not null,
+  client_pk    bigint         not null,
+  uri_type     varchar(32)    not null,
+  uri          varchar(1000)  not null,
+  uri_hash     char(64)       not null,
+  is_default   smallint       not null default 0,
+  status       char(1)        not null default '0',
+  create_time  timestamp    not null,
+  primary key (uri_id),
+  constraint uk_oauth_client_uri_hash unique (client_pk, uri_type, uri_hash),
+  constraint fk_oauth_client_uri_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+);
+create index idx_oauth_client_uri_type on sys_oauth_client_uri (client_pk, uri_type, status);
+comment on table sys_oauth_client_uri is 'OAuth客户端URI表';
+comment on column sys_oauth_client_uri.uri_id is 'URI 主键';
+comment on column sys_oauth_client_uri.client_pk is 'Client 主键';
+comment on column sys_oauth_client_uri.uri_type is 'URI 类型';
+comment on column sys_oauth_client_uri.uri is '精确 URI';
+comment on column sys_oauth_client_uri.uri_hash is 'URI SHA-256 摘要';
+comment on column sys_oauth_client_uri.is_default is '是否默认 URI';
+comment on column sys_oauth_client_uri.status is '状态（0正常 1停用）';
+comment on column sys_oauth_client_uri.create_time is '创建时间';
+
+-- ----------------------------
+-- 38、OAuth资源服务器表
+-- ----------------------------
+create table sys_oauth_resource (
+  resource_pk               bigserial     not null,
+  resource_id               varchar(64)   not null,
+  resource_name             varchar(100)  not null,
+  audience                  varchar(500)  not null,
+  token_format              varchar(16)   not null default 'jwt',
+  signing_alg               varchar(16)   not null default 'RS256',
+  access_token_ttl_seconds  int4          default null,
+  introspection_client_pk   bigint        default null,
+  allowed_claims            jsonb         not null,
+  status                    char(1)       not null default '0',
+  create_by                 varchar(64)   not null,
+  create_time               timestamp   not null,
+  update_by                 varchar(64)   not null,
+  update_time               timestamp   not null,
+  remark                    varchar(500)  default null,
+  primary key (resource_pk),
+  constraint uk_oauth_resource_resource_id unique (resource_id),
+  constraint uk_oauth_resource_audience unique (audience),
+  constraint fk_oauth_resource_introspection_client foreign key (introspection_client_pk) references sys_oauth_client (client_pk) on delete restrict
+);
+create index idx_oauth_resource_status on sys_oauth_resource (status);
+comment on table sys_oauth_resource is 'OAuth资源服务器表';
+comment on column sys_oauth_resource.resource_pk is '内部主键';
+comment on column sys_oauth_resource.resource_id is 'Resource ID';
+comment on column sys_oauth_resource.resource_name is 'Resource 名称';
+comment on column sys_oauth_resource.audience is 'Access Token audience';
+comment on column sys_oauth_resource.token_format is 'Token 格式';
+comment on column sys_oauth_resource.signing_alg is '签名算法';
+comment on column sys_oauth_resource.access_token_ttl_seconds is 'Access Token 有效期';
+comment on column sys_oauth_resource.introspection_client_pk is 'Introspection Client 主键';
+comment on column sys_oauth_resource.allowed_claims is '允许的 Claims';
+comment on column sys_oauth_resource.status is '状态（0正常 1停用）';
+comment on column sys_oauth_resource.create_by is '创建者';
+comment on column sys_oauth_resource.create_time is '创建时间';
+comment on column sys_oauth_resource.update_by is '更新者';
+comment on column sys_oauth_resource.update_time is '更新时间';
+comment on column sys_oauth_resource.remark is '备注';
+
+-- ----------------------------
+-- 39、OAuth权限范围表
+-- ----------------------------
+create table sys_oauth_scope (
+  scope_pk          bigserial     not null,
+  scope_code        varchar(100)  not null,
+  scope_name        varchar(100)  not null,
+  scope_type        varchar(16)   not null,
+  resource_pk       bigint        default null,
+  claims            jsonb         not null,
+  consent_required  smallint      not null default 1,
+  sensitive         smallint      not null default 0,
+  status            char(1)       not null default '0',
+  create_by         varchar(64)   not null,
+  create_time       timestamp   not null,
+  update_by         varchar(64)   not null,
+  update_time       timestamp   not null,
+  remark            varchar(500)  default null,
+  primary key (scope_pk),
+  constraint uk_oauth_scope_code unique (scope_code),
+  constraint fk_oauth_scope_resource foreign key (resource_pk) references sys_oauth_resource (resource_pk) on delete restrict
+);
+create index idx_oauth_scope_status on sys_oauth_scope (status);
+create index idx_oauth_scope_resource on sys_oauth_scope (resource_pk);
+alter sequence sys_oauth_scope_scope_pk_seq restart 8;
+comment on table sys_oauth_scope is 'OAuth权限范围表';
+comment on column sys_oauth_scope.scope_pk is '内部主键';
+comment on column sys_oauth_scope.scope_code is 'Scope 编码';
+comment on column sys_oauth_scope.scope_name is 'Scope 名称';
+comment on column sys_oauth_scope.scope_type is 'Scope 类型';
+comment on column sys_oauth_scope.resource_pk is 'Resource 主键';
+comment on column sys_oauth_scope.claims is 'Claims 列表';
+comment on column sys_oauth_scope.consent_required is '是否需要同意';
+comment on column sys_oauth_scope.sensitive is '是否敏感';
+comment on column sys_oauth_scope.status is '状态（0正常 1停用）';
+comment on column sys_oauth_scope.create_by is '创建者';
+comment on column sys_oauth_scope.create_time is '创建时间';
+comment on column sys_oauth_scope.update_by is '更新者';
+comment on column sys_oauth_scope.update_time is '更新时间';
+comment on column sys_oauth_scope.remark is '备注';
+
+-- ----------------------------
+-- 初始化-OAuth权限范围表数据
+-- ----------------------------
+insert into sys_oauth_scope values(1, 'openid', 'OpenID', 'identity', null, '["sub"]'::jsonb, 1, 0, '0', 'system', current_timestamp, 'system', current_timestamp, 'OIDC 必需身份范围');
+insert into sys_oauth_scope values(2, 'profile', '基础资料', 'identity', null, '["name", "preferred_username", "picture", "updated_at"]'::jsonb, 1, 0, '0', 'system', current_timestamp, 'system', current_timestamp, 'OIDC Profile');
+insert into sys_oauth_scope values(3, 'email', '邮箱', 'identity', null, '["email", "email_verified"]'::jsonb, 1, 1, '0', 'system', current_timestamp, 'system', current_timestamp, 'OIDC Email');
+insert into sys_oauth_scope values(4, 'phone', '手机号', 'identity', null, '["phone_number", "phone_number_verified"]'::jsonb, 1, 1, '0', 'system', current_timestamp, 'system', current_timestamp, 'OIDC Phone');
+insert into sys_oauth_scope values(5, 'roles', '角色', 'identity', null, '["roles"]'::jsonb, 1, 1, '0', 'system', current_timestamp, 'system', current_timestamp, '外部角色 Claim');
+insert into sys_oauth_scope values(6, 'dept', '部门', 'identity', null, '["dept_id", "dept_name"]'::jsonb, 1, 1, '0', 'system', current_timestamp, 'system', current_timestamp, '外部部门 Claim');
+insert into sys_oauth_scope values(7, 'offline_access', '离线访问', 'identity', null, '[]'::jsonb, 1, 1, '0', 'system', current_timestamp, 'system', current_timestamp, '允许签发 Refresh Token');
+
+-- ----------------------------
+-- 40、OAuth客户端和权限范围关联表
+-- ----------------------------
+create table sys_oauth_client_scope (
+  client_pk       bigint       not null,
+  scope_pk        bigint       not null,
+  is_default      smallint     not null default 0,
+  pre_authorized  smallint     not null default 0,
+  claim_filter    jsonb        default null,
+  create_time     timestamp  not null,
+  primary key (client_pk, scope_pk),
+  constraint fk_oauth_client_scope_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict,
+  constraint fk_oauth_client_scope_scope foreign key (scope_pk) references sys_oauth_scope (scope_pk) on delete restrict
+);
+create index idx_oauth_client_scope_scope on sys_oauth_client_scope (scope_pk);
+comment on table sys_oauth_client_scope is 'OAuth客户端和权限范围关联表';
+comment on column sys_oauth_client_scope.client_pk is 'Client 主键';
+comment on column sys_oauth_client_scope.scope_pk is 'Scope 主键';
+comment on column sys_oauth_client_scope.is_default is '是否默认 Scope';
+comment on column sys_oauth_client_scope.pre_authorized is '是否预授权';
+comment on column sys_oauth_client_scope.claim_filter is 'Client Claim 过滤策略';
+comment on column sys_oauth_client_scope.create_time is '创建时间';
+
+-- ----------------------------
+-- 41、OAuth客户端和资源服务器关联表
+-- ----------------------------
+create table sys_oauth_client_resource (
+  client_pk    bigint       not null,
+  resource_pk  bigint       not null,
+  is_default   smallint     not null default 0,
+  create_time  timestamp  not null,
+  primary key (client_pk, resource_pk),
+  constraint fk_oauth_client_resource_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict,
+  constraint fk_oauth_client_resource_resource foreign key (resource_pk) references sys_oauth_resource (resource_pk) on delete restrict
+);
+create index idx_oauth_client_resource_resource on sys_oauth_client_resource (resource_pk);
+comment on table sys_oauth_client_resource is 'OAuth客户端和资源服务器关联表';
+comment on column sys_oauth_client_resource.client_pk is 'Client 主键';
+comment on column sys_oauth_client_resource.resource_pk is 'Resource 主键';
+comment on column sys_oauth_client_resource.is_default is '是否默认 Resource';
+comment on column sys_oauth_client_resource.create_time is '创建时间';
+
+-- ----------------------------
+-- 42、OAuth授权记录表
+-- ----------------------------
+create table sys_oauth_grant (
+  grant_id               varchar(36)   not null,
+  user_id                bigint        not null,
+  subject_id             varchar(36)   not null,
+  client_pk              bigint        not null,
+  granted_scopes         jsonb         not null,
+  granted_resources      jsonb         not null,
+  client_policy_version  bigint        not null,
+  status                 varchar(16)   not null default 'active',
+  consented_at           timestamp   not null,
+  expires_at             timestamp   default null,
+  revoked_at             timestamp   default null,
+  revoke_reason          varchar(200)  default null,
+  last_used_at           timestamp   default null,
+  primary key (grant_id),
+  constraint fk_oauth_grant_user foreign key (user_id) references sys_user (user_id) on delete restrict,
+  constraint fk_oauth_grant_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+);
+create index idx_oauth_grant_user on sys_oauth_grant (user_id, status);
+create index idx_oauth_grant_client on sys_oauth_grant (client_pk, status);
+create index idx_oauth_grant_user_client on sys_oauth_grant (user_id, client_pk, status);
+comment on table sys_oauth_grant is 'OAuth授权记录表';
+comment on column sys_oauth_grant.grant_id is 'Grant ID';
+comment on column sys_oauth_grant.user_id is '用户ID';
+comment on column sys_oauth_grant.subject_id is 'Subject 快照';
+comment on column sys_oauth_grant.client_pk is 'Client 主键';
+comment on column sys_oauth_grant.granted_scopes is '已同意 Scope';
+comment on column sys_oauth_grant.granted_resources is '已同意 Resource audience';
+comment on column sys_oauth_grant.client_policy_version is 'Client Policy Version';
+comment on column sys_oauth_grant.status is 'Grant 状态';
+comment on column sys_oauth_grant.consented_at is '同意时间';
+comment on column sys_oauth_grant.expires_at is '过期时间';
+comment on column sys_oauth_grant.revoked_at is '撤销时间';
+comment on column sys_oauth_grant.revoke_reason is '撤销原因';
+comment on column sys_oauth_grant.last_used_at is '最近使用时间';
+
+-- ----------------------------
+-- 43、OIDC单点登录会话表
+-- ----------------------------
+create table sys_sso_session (
+  sid                  varchar(36)   not null,
+  session_secret_hash  char(64)      not null,
+  user_id              bigint        not null,
+  subject_id           varchar(36)   not null,
+  auth_version         bigint        not null,
+  auth_time            timestamp   not null,
+  last_seen_at         timestamp   not null,
+  idle_expires_at      timestamp   not null,
+  absolute_expires_at  timestamp   not null,
+  acr                  varchar(100)  not null,
+  amr                  jsonb         not null,
+  remember_me          smallint      not null default 0,
+  ip_address           varchar(128)  default null,
+  user_agent_hash      char(64)      default null,
+  status               varchar(16)   not null default 'active',
+  revoked_at           timestamp   default null,
+  revoke_reason        varchar(200)  default null,
+  create_time          timestamp   not null,
+  primary key (sid),
+  constraint fk_sso_session_user foreign key (user_id) references sys_user (user_id) on delete restrict
+);
+create index idx_sso_session_user on sys_sso_session (user_id, status);
+create index idx_sso_session_idle on sys_sso_session (status, idle_expires_at);
+create index idx_sso_session_absolute on sys_sso_session (status, absolute_expires_at);
+comment on table sys_sso_session is 'OIDC单点登录会话表';
+comment on column sys_sso_session.sid is 'OIDC Session ID';
+comment on column sys_sso_session.session_secret_hash is 'SSO Cookie 摘要';
+comment on column sys_sso_session.user_id is '用户ID';
+comment on column sys_sso_session.subject_id is 'Subject 快照';
+comment on column sys_sso_session.auth_version is '认证安全版本';
+comment on column sys_sso_session.auth_time is '认证时间';
+comment on column sys_sso_session.last_seen_at is '最近活动时间';
+comment on column sys_sso_session.idle_expires_at is '闲置过期时间';
+comment on column sys_sso_session.absolute_expires_at is '绝对过期时间';
+comment on column sys_sso_session.acr is '认证上下文';
+comment on column sys_sso_session.amr is '认证方式';
+comment on column sys_sso_session.remember_me is '是否长期会话';
+comment on column sys_sso_session.ip_address is '登录 IP';
+comment on column sys_sso_session.user_agent_hash is 'User-Agent 摘要';
+comment on column sys_sso_session.status is 'Session 状态';
+comment on column sys_sso_session.revoked_at is '撤销时间';
+comment on column sys_sso_session.revoke_reason is '撤销原因';
+comment on column sys_sso_session.create_time is '创建时间';
+
+-- ----------------------------
+-- 44、OAuth刷新令牌表
+-- ----------------------------
+create table sys_oauth_refresh_token (
+  token_id              varchar(36)   not null,
+  token_hash            char(64)      not null,
+  family_id             varchar(36)   not null,
+  parent_token_id       varchar(36)   default null,
+  replaced_by_token_id  varchar(36)   default null,
+  grant_id              varchar(36)   not null,
+  user_id               bigint        not null,
+  subject_id            varchar(36)   not null,
+  auth_version          bigint        not null,
+  client_pk             bigint        not null,
+  sid                   varchar(36)   not null,
+  scopes                jsonb         not null,
+  resources             jsonb         not null,
+  status                varchar(24)   not null default 'active',
+  issued_at             timestamp   not null,
+  last_used_at          timestamp   default null,
+  idle_expires_at       timestamp   not null,
+  absolute_expires_at   timestamp   not null,
+  revoked_at            timestamp   default null,
+  revoke_reason         varchar(200)  default null,
+  reuse_detected_at     timestamp   default null,
+  primary key (token_id),
+  constraint uk_oauth_refresh_token_hash unique (token_hash),
+  constraint fk_oauth_refresh_parent foreign key (parent_token_id) references sys_oauth_refresh_token (token_id) on delete restrict,
+  constraint fk_oauth_refresh_replaced_by foreign key (replaced_by_token_id) references sys_oauth_refresh_token (token_id) on delete restrict,
+  constraint fk_oauth_refresh_grant foreign key (grant_id) references sys_oauth_grant (grant_id) on delete restrict,
+  constraint fk_oauth_refresh_user foreign key (user_id) references sys_user (user_id) on delete restrict,
+  constraint fk_oauth_refresh_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict,
+  constraint fk_oauth_refresh_sid foreign key (sid) references sys_sso_session (sid) on delete restrict
+);
+create index idx_oauth_refresh_family on sys_oauth_refresh_token (family_id, status);
+create index idx_oauth_refresh_user on sys_oauth_refresh_token (user_id, status);
+create index idx_oauth_refresh_client on sys_oauth_refresh_token (client_pk, status);
+create index idx_oauth_refresh_sid on sys_oauth_refresh_token (sid, status);
+create index idx_oauth_refresh_expire on sys_oauth_refresh_token (status, absolute_expires_at);
+comment on table sys_oauth_refresh_token is 'OAuth刷新令牌表';
+comment on column sys_oauth_refresh_token.token_id is 'Token ID';
+comment on column sys_oauth_refresh_token.token_hash is 'Token HMAC 摘要';
+comment on column sys_oauth_refresh_token.family_id is 'Token Family ID';
+comment on column sys_oauth_refresh_token.parent_token_id is '父 Token ID';
+comment on column sys_oauth_refresh_token.replaced_by_token_id is '替代 Token ID';
+comment on column sys_oauth_refresh_token.grant_id is 'Grant ID';
+comment on column sys_oauth_refresh_token.user_id is '用户ID';
+comment on column sys_oauth_refresh_token.subject_id is 'Subject 快照';
+comment on column sys_oauth_refresh_token.auth_version is '认证安全版本';
+comment on column sys_oauth_refresh_token.client_pk is 'Client 主键';
+comment on column sys_oauth_refresh_token.sid is 'SSO Session ID';
+comment on column sys_oauth_refresh_token.scopes is '绑定 Scope';
+comment on column sys_oauth_refresh_token.resources is '绑定 Resource audience';
+comment on column sys_oauth_refresh_token.status is 'Token 状态';
+comment on column sys_oauth_refresh_token.issued_at is '签发时间';
+comment on column sys_oauth_refresh_token.last_used_at is '最近使用时间';
+comment on column sys_oauth_refresh_token.idle_expires_at is '闲置过期时间';
+comment on column sys_oauth_refresh_token.absolute_expires_at is '绝对过期时间';
+comment on column sys_oauth_refresh_token.revoked_at is '撤销时间';
+comment on column sys_oauth_refresh_token.revoke_reason is '撤销原因';
+comment on column sys_oauth_refresh_token.reuse_detected_at is '重放检测时间';
+
+-- ----------------------------
+-- 45、OIDC签名密钥表
+-- ----------------------------
+create table sys_oidc_signing_key (
+  key_pk                  bigserial      not null,
+  kid                     varchar(100)   not null,
+  key_use                 varchar(16)    not null default 'sig',
+  alg                     varchar(16)    not null default 'RS256',
+  public_jwk              jsonb          not null,
+  private_key_ref         varchar(1000)  default null,
+  private_key_ciphertext  text           default null,
+  status                  varchar(16)    not null,
+  publish_at              timestamp    not null,
+  signing_start_at        timestamp    default null,
+  signing_stop_at         timestamp    default null,
+  remove_from_jwks_at     timestamp    default null,
+  create_by               varchar(64)    not null,
+  create_time             timestamp    not null,
+  remark                  varchar(500)   default null,
+  primary key (key_pk),
+  constraint uk_oidc_signing_key_kid unique (kid),
+  constraint ck_oidc_signing_key_private_material check (num_nonnulls(private_key_ref, private_key_ciphertext) = 1)
+);
+create index idx_oidc_signing_key_status_publish on sys_oidc_signing_key (status, publish_at);
+create index idx_oidc_signing_key_jwks_remove on sys_oidc_signing_key (status, remove_from_jwks_at);
+comment on table sys_oidc_signing_key is 'OIDC签名密钥表';
+comment on column sys_oidc_signing_key.key_pk is '内部主键';
+comment on column sys_oidc_signing_key.kid is 'JWKS Key ID';
+comment on column sys_oidc_signing_key.key_use is 'JWK 用途';
+comment on column sys_oidc_signing_key.alg is '签名算法';
+comment on column sys_oidc_signing_key.public_jwk is '公开 JWK';
+comment on column sys_oidc_signing_key.private_key_ref is 'KMS/HSM/文件引用';
+comment on column sys_oidc_signing_key.private_key_ciphertext is '加密私钥材料';
+comment on column sys_oidc_signing_key.status is '密钥状态';
+comment on column sys_oidc_signing_key.publish_at is '发布时间';
+comment on column sys_oidc_signing_key.signing_start_at is '开始签名时间';
+comment on column sys_oidc_signing_key.signing_stop_at is '停止签名时间';
+comment on column sys_oidc_signing_key.remove_from_jwks_at is '移出 JWKS 时间';
+comment on column sys_oidc_signing_key.create_by is '创建者';
+comment on column sys_oidc_signing_key.create_time is '创建时间';
+comment on column sys_oidc_signing_key.remark is '备注';
+
+-- ----------------------------
+-- 46、OAuth审计日志表
+-- ----------------------------
+create table sys_oauth_audit_log (
+  event_id      bigserial     not null,
+  trace_id      varchar(64)   default null,
+  event_type    varchar(64)   not null,
+  result        varchar(16)   not null,
+  risk_level    varchar(16)   not null default 'normal',
+  client_id     varchar(64)   default null,
+  resource_id   varchar(64)   default null,
+  user_id       bigint        default null,
+  subject_id    varchar(36)   default null,
+  sid           varchar(36)   default null,
+  grant_id      varchar(36)   default null,
+  token_id      varchar(36)   default null,
+  ip_address    varchar(128)  default null,
+  user_agent    varchar(500)  default null,
+  failure_code  varchar(64)   default null,
+  detail        jsonb         default null,
+  create_time   timestamp   not null,
+  primary key (event_id)
+);
+create index idx_oauth_audit_time on sys_oauth_audit_log (create_time);
+create index idx_oauth_audit_client on sys_oauth_audit_log (client_id, create_time);
+create index idx_oauth_audit_user on sys_oauth_audit_log (user_id, create_time);
+create index idx_oauth_audit_event on sys_oauth_audit_log (event_type, result, create_time);
+create index idx_oauth_audit_risk on sys_oauth_audit_log (risk_level, create_time);
+comment on table sys_oauth_audit_log is 'OAuth审计日志表';
+comment on column sys_oauth_audit_log.event_id is '事件ID';
+comment on column sys_oauth_audit_log.trace_id is '链路追踪ID';
+comment on column sys_oauth_audit_log.event_type is '事件类型';
+comment on column sys_oauth_audit_log.result is '结果';
+comment on column sys_oauth_audit_log.risk_level is '风险等级';
+comment on column sys_oauth_audit_log.client_id is 'Client ID 快照';
+comment on column sys_oauth_audit_log.resource_id is 'Resource ID 快照';
+comment on column sys_oauth_audit_log.user_id is '用户ID快照';
+comment on column sys_oauth_audit_log.subject_id is 'Subject 快照';
+comment on column sys_oauth_audit_log.sid is 'SSO Session ID';
+comment on column sys_oauth_audit_log.grant_id is 'Grant ID';
+comment on column sys_oauth_audit_log.token_id is 'Token ID';
+comment on column sys_oauth_audit_log.ip_address is '客户端 IP';
+comment on column sys_oauth_audit_log.user_agent is '脱敏 User-Agent';
+comment on column sys_oauth_audit_log.failure_code is '失败码';
+comment on column sys_oauth_audit_log.detail is '脱敏扩展详情';
+comment on column sys_oauth_audit_log.create_time is '事件时间';
+
+-- ----------------------------
+-- 47、OAuth审计归档表
+-- ----------------------------
+create table sys_oauth_audit_archive (
+  event_id      bigint        not null,
+  trace_id      varchar(64)   default null,
+  event_type    varchar(64)   not null,
+  result        varchar(16)   not null,
+  risk_level    varchar(16)   not null,
+  client_id     varchar(64)   default null,
+  resource_id   varchar(64)   default null,
+  user_id       bigint        default null,
+  subject_id    varchar(36)   default null,
+  sid           varchar(36)   default null,
+  grant_id      varchar(36)   default null,
+  token_id      varchar(36)   default null,
+  ip_address    varchar(128)  default null,
+  user_agent    varchar(500)  default null,
+  failure_code  varchar(64)   default null,
+  detail        jsonb         default null,
+  create_time   timestamp   not null,
+  archived_at   timestamp   not null,
+  primary key (event_id)
+);
+create index idx_oauth_audit_archive_time on sys_oauth_audit_archive (create_time);
+create index idx_oauth_audit_archive_event on sys_oauth_audit_archive (event_type, result, create_time);
+comment on table sys_oauth_audit_archive is 'OAuth审计归档表';
+comment on column sys_oauth_audit_archive.event_id is '原事件ID';
+comment on column sys_oauth_audit_archive.trace_id is '链路追踪ID';
+comment on column sys_oauth_audit_archive.event_type is '事件类型';
+comment on column sys_oauth_audit_archive.result is '结果';
+comment on column sys_oauth_audit_archive.risk_level is '风险等级';
+comment on column sys_oauth_audit_archive.client_id is 'Client ID 快照';
+comment on column sys_oauth_audit_archive.resource_id is 'Resource ID 快照';
+comment on column sys_oauth_audit_archive.user_id is '用户ID快照';
+comment on column sys_oauth_audit_archive.subject_id is 'Subject 快照';
+comment on column sys_oauth_audit_archive.sid is 'SSO Session ID';
+comment on column sys_oauth_audit_archive.grant_id is 'Grant ID';
+comment on column sys_oauth_audit_archive.token_id is 'Token ID';
+comment on column sys_oauth_audit_archive.ip_address is '客户端 IP';
+comment on column sys_oauth_audit_archive.user_agent is '脱敏 User-Agent';
+comment on column sys_oauth_audit_archive.failure_code is '失败码';
+comment on column sys_oauth_audit_archive.detail is '脱敏扩展详情';
+comment on column sys_oauth_audit_archive.create_time is '事件时间';
+comment on column sys_oauth_audit_archive.archived_at is '归档时间';
 
 CREATE OR REPLACE FUNCTION "find_in_set"(int8, varchar)
     RETURNS "pg_catalog"."bool" AS $BODY$

@@ -449,7 +449,6 @@ async def test_dispose_all_attempts_every_engine_when_disposal_fails(monkeypatch
 
 
 def test_dependency_provider_is_cached_per_source() -> None:
-    get_db_session_provider.cache_clear()
     assert get_db_session_provider('reporting') is get_db_session_provider('reporting')
     assert get_db_session_provider('reporting') is not get_db_session_provider('archive')
     assert DBSessionDependency('reporting').dependency is get_db_session_provider('reporting')

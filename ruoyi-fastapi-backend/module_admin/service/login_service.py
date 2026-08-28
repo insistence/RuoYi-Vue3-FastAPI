@@ -15,7 +15,6 @@ from common.enums import PasswordCharacterType, RedisInitKeyConfig
 from common.vo import CrudResponseModel
 from config.env import AppConfig, JwtConfig
 from exceptions.exception import AuthException, LoginException, ServiceException
-from module_admin.dao.login_dao import login_by_account
 from module_admin.dao.user_dao import UserDao
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.menu_do import SysMenu
@@ -23,6 +22,10 @@ from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.login_vo import MenuTreeModel, MetaModel, RouterModel, SmsCode, UserLogin, UserRegister
 from module_admin.entity.vo.user_vo import AddUserModel, CurrentUserModel, ResetUserModel, TokenData, UserInfoModel
 from module_admin.service.user_service import UserService
+from module_identity.service.identity_service import (
+    CredentialAuthenticationError,
+    CredentialAuthenticationService,
+)
 from utils.client_ip_util import ClientIPUtil
 from utils.common_util import CamelCaseUtil
 from utils.jwt_util import JwtUtil
@@ -80,62 +83,19 @@ class LoginService:
         :param login_user: 登录用户对象
         :return: 校验结果
         """
-        await cls.__check_login_ip(request)
-        account_lock = await request.app.state.redis.get(
-            f'{RedisInitKeyConfig.ACCOUNT_LOCK.key}:{login_user.user_name}'
-        )
-        if login_user.user_name == account_lock:
-            logger.warning('账号已锁定，请稍后再试')
-            raise LoginException(data='', message='账号已锁定，请稍后再试')
-        # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug
-        request_from_swagger = (
-            request.headers.get('referer').endswith('docs') if request.headers.get('referer') else False
-        )
-        request_from_redoc = (
-            request.headers.get('referer').endswith('redoc') if request.headers.get('referer') else False
-        )
-        # 判断是否开启验证码，开启则验证，否则不验证（dev模式下来自API文档的登录请求不检验）
-        if not login_user.captcha_enabled or (
-            (request_from_swagger or request_from_redoc) and AppConfig.app_env == 'dev'
-        ):
-            pass
-        else:
-            await cls.__check_login_captcha(request, login_user)
-        user = await login_by_account(query_db, login_user.user_name)
-        if not user:
-            logger.warning('用户不存在')
-            raise LoginException(data='', message='用户不存在')
-        if not PwdUtil.verify_password(login_user.password, user[0].password):
-            cache_password_error_count = await request.app.state.redis.get(
-                f'{RedisInitKeyConfig.PASSWORD_ERROR_COUNT.key}:{login_user.user_name}'
+        referer = request.headers.get('referer')
+        request_from_docs = bool(referer and referer.endswith(('docs', 'redoc')))
+        try:
+            return await CredentialAuthenticationService.authenticate_legacy(
+                request.app.state.redis,
+                query_db,
+                login_user,
+                client_ip=ClientIPUtil.get_client_ip(request),
+                skip_captcha=request_from_docs and AppConfig.app_env == 'dev',
             )
-            password_error_counted = 0
-            if cache_password_error_count:
-                password_error_counted = cache_password_error_count
-            password_error_count = int(password_error_counted) + 1
-            await request.app.state.redis.set(
-                f'{RedisInitKeyConfig.PASSWORD_ERROR_COUNT.key}:{login_user.user_name}',
-                password_error_count,
-                ex=timedelta(minutes=10),
-            )
-            if password_error_count > CommonConstant.PASSWORD_ERROR_COUNT:
-                await request.app.state.redis.delete(
-                    f'{RedisInitKeyConfig.PASSWORD_ERROR_COUNT.key}:{login_user.user_name}'
-                )
-                await request.app.state.redis.set(
-                    f'{RedisInitKeyConfig.ACCOUNT_LOCK.key}:{login_user.user_name}',
-                    login_user.user_name,
-                    ex=timedelta(minutes=10),
-                )
-                logger.warning('10分钟内密码已输错超过5次，账号已锁定，请10分钟后再试')
-                raise LoginException(data='', message='10分钟内密码已输错超过5次，账号已锁定，请10分钟后再试')
-            logger.warning('密码错误')
-            raise LoginException(data='', message='密码错误')
-        if user[0].status == '1':
-            logger.warning('用户已停用')
-            raise LoginException(data='', message='用户已停用')
-        await request.app.state.redis.delete(f'{RedisInitKeyConfig.PASSWORD_ERROR_COUNT.key}:{login_user.user_name}')
-        return user
+        except CredentialAuthenticationError as exc:
+            logger.warning(exc.legacy_message)
+            raise LoginException(data='', message=exc.legacy_message) from exc
 
     @classmethod
     async def unlock_screen_services(
@@ -157,39 +117,6 @@ class LoginService:
         if not PwdUtil.verify_password(password, user.password):
             raise ServiceException(message='密码错误，请重新输入')
 
-        return True
-
-    @classmethod
-    async def __check_login_ip(cls, request: Request) -> bool:
-        """
-        校验用户登录ip是否在黑名单内
-
-        :param request: Request对象
-        :return: 校验结果
-        """
-        black_ip_value = await request.app.state.redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.login.blackIPList')
-        black_ip_list = black_ip_value.split(',') if black_ip_value else []
-        if ClientIPUtil.get_client_ip(request) in black_ip_list:
-            logger.warning('当前IP禁止登录')
-            raise LoginException(data='', message='当前IP禁止登录')
-        return True
-
-    @classmethod
-    async def __check_login_captcha(cls, request: Request, login_user: UserLogin) -> bool:
-        """
-        校验用户登录验证码
-
-        :param request: Request对象
-        :param login_user: 登录用户对象
-        :return: 校验结果
-        """
-        captcha_value = await request.app.state.redis.get(f'{RedisInitKeyConfig.CAPTCHA_CODES.key}:{login_user.uuid}')
-        if not captcha_value:
-            logger.warning('验证码已失效')
-            raise LoginException(data='', message='验证码已失效')
-        if login_user.code != str(captcha_value):
-            logger.warning('验证码错误')
-            raise LoginException(data='', message='验证码错误')
         return True
 
     @classmethod

@@ -74,6 +74,7 @@ def test_app_doctor_text_output_has_stable_check_structure(
     assert 'database:' in completed.stdout
     assert 'redis:' in completed.stdout
     assert 'crypto:' in completed.stdout
+    assert 'oidc:' in completed.stdout
 
 
 def test_app_doctor_json_output_has_stable_contract(
@@ -88,10 +89,11 @@ def test_app_doctor_json_output_has_stable_contract(
     assert completed.stderr == ''
     assert payload['env'] == 'dev'
     assert isinstance(payload['ok'], bool)
-    assert set(payload) == {'env', 'database', 'redis', 'crypto', 'ok'}
+    assert set(payload) == {'env', 'database', 'redis', 'crypto', 'oidc', 'ok'}
     assert_check_payload_contract(payload['database'], True)
     assert_check_payload_contract(payload['redis'], True)
     assert_check_payload_contract(payload['crypto'], False)
+    assert_check_payload_contract(payload['oidc'], False)
 
 
 def test_app_env_json_output_has_stable_contract(

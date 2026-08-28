@@ -13,6 +13,7 @@ from cli.exit_codes import DEPENDENCY_ERROR, SUCCESS
 from cli.runtime.app import APP_RUNTIME, AppRuntimeService
 from cli.runtime.crypto import CRYPTO_RUNTIME, CryptoRuntimeService
 from cli.runtime.db import DATABASE_RUNTIME, DatabaseRuntimeService
+from cli.runtime.oidc import OIDC_RUNTIME, OidcRuntimeCliService
 from cli.runtime.ops import OPERATIONS_RUNTIME, OperationsRuntimeService
 
 from .presenter import AppCommandPresenter
@@ -36,6 +37,7 @@ class AppCommandController:
         database_runtime: DatabaseRuntimeService | None = None,
         operations_runtime: OperationsRuntimeService | None = None,
         crypto_runtime: CryptoRuntimeService | None = None,
+        oidc_runtime: OidcRuntimeCliService | None = None,
         bootstrap_service: AppBootstrapService | None = None,
     ) -> None:
         """
@@ -48,6 +50,7 @@ class AppCommandController:
         :param database_runtime: 数据库运行时服务
         :param operations_runtime: 运维运行时服务
         :param crypto_runtime: 传输加密运行时服务
+        :param oidc_runtime: OIDC 就绪检查运行时服务
         :param bootstrap_service: 应用引导服务
         :return: None
         """
@@ -58,6 +61,7 @@ class AppCommandController:
         self.database_runtime = database_runtime or DATABASE_RUNTIME
         self.operations_runtime = operations_runtime or OPERATIONS_RUNTIME
         self.crypto_runtime = crypto_runtime or CRYPTO_RUNTIME
+        self.oidc_runtime = oidc_runtime or OIDC_RUNTIME
         self.bootstrap_service = bootstrap_service or APP_BOOTSTRAP
 
     def run_app(self, env: str) -> None:
@@ -81,13 +85,15 @@ class AppCommandController:
         db_status = self.execution_service.run_async(self.database_runtime.ping_database())
         redis_status = self.execution_service.run_async(self.operations_runtime.ping_redis())
         crypto_status = self.crypto_runtime.validate_crypto_config()
+        oidc_status = self.execution_service.run_async(self.oidc_runtime.check_readiness())
         payload = {
             'env': ctx.env,
             'database': db_status,
             'redis': redis_status,
             'crypto': crypto_status,
+            'oidc': oidc_status,
         }
-        payload['ok'] = all(item.get('ok', False) for item in (db_status, redis_status, crypto_status))
+        payload['ok'] = all(item.get('ok', False) for item in (db_status, redis_status, crypto_status, oidc_status))
         exit_code = SUCCESS if payload['ok'] else DEPENDENCY_ERROR
         self.execution_service.complete_payload_with_text(
             ctx,

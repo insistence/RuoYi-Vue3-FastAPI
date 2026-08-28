@@ -1,5 +1,9 @@
-from fastapi import FastAPI, Request, Response
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import HTTPException
+from fastapi.responses import JSONResponse as FastAPIJSONResponse
+from fastapi.responses import RedirectResponse
 from pydantic_validation_decorator import FieldValidationError
 
 from exceptions.exception import (
@@ -7,12 +11,16 @@ from exceptions.exception import (
     FileRangeNotSatisfiableException,
     LoginException,
     ModelValidatorException,
+    OAuthProtocolException,
+    OidcInteractionException,
     PermissionException,
     ServiceException,
     ServiceWarning,
 )
 from utils.log_util import logger
 from utils.response_util import JSONResponse, ResponseUtil, jsonable_encoder
+
+_OAUTH_RESPONSE_PARAMETER_NAMES = frozenset({'code', 'error', 'error_description', 'error_uri', 'iss', 'state'})
 
 
 def handle_exception(app: FastAPI) -> None:
@@ -24,6 +32,37 @@ def handle_exception(app: FastAPI) -> None:
     @app.exception_handler(AuthException)
     async def auth_exception_handler(request: Request, exc: AuthException) -> Response:
         return ResponseUtil.unauthorized(data=exc.data, msg=exc.message)
+
+    # 自定义OAuth协议异常
+    @app.exception_handler(OAuthProtocolException)
+    async def oauth_protocol_exception_handler(request: Request, exc: OAuthProtocolException) -> Response:
+        if exc.can_redirect:
+            return _build_oauth_redirect(exc)
+        headers = {**exc.headers, 'Cache-Control': 'no-store', 'Pragma': 'no-cache'}
+        if exc.error == 'invalid_client' and exc.status_code == status.HTTP_401_UNAUTHORIZED:
+            headers.setdefault('WWW-Authenticate', 'Basic realm="oauth2/token"')
+        return FastAPIJSONResponse(
+            content=exc.as_dict(),
+            status_code=exc.status_code,
+            headers=headers,
+        )
+
+    # 自定义OIDC认证交互异常
+    @app.exception_handler(OidcInteractionException)
+    async def oidc_interaction_exception_handler(request: Request, exc: OidcInteractionException) -> Response:
+        safe_message = {
+            'invalid_request': '认证交互请求无效',
+            'interaction_required': '认证交互已过期或不可用',
+            'login_required': '需要登录',
+            'consent_required': '需要授权确认',
+            'invalid_scope': '请求权限无效',
+            'server_error': '认证服务暂不可用',
+        }.get(exc.error, '认证交互无效或已过期')
+        return ResponseUtil.failure(
+            data=exc.interaction_id,
+            msg=safe_message,
+            headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'},
+        )
 
     # 自定义登录检验异常
     @app.exception_handler(LoginException)
@@ -86,3 +125,37 @@ def handle_exception(app: FastAPI) -> None:
     async def exception_handler(request: Request, exc: Exception) -> Response:
         logger.exception(exc)
         return ResponseUtil.error(msg=str(exc))
+
+
+def _build_oauth_redirect(exc: OAuthProtocolException) -> Response:
+    """
+    构造安全的 OAuth 授权响应重定向。
+
+    :param exc: 已完成 Redirect URI 精确注册校验的协议异常
+    :return: 303 重定向或本地 400 标准错误响应
+    """
+    parsed = urlsplit(exc.redirect_uri or '')
+    if parsed.fragment or not parsed.scheme or not parsed.netloc:
+        return FastAPIJSONResponse(
+            content={'error': 'server_error', 'error_description': 'Invalid validated redirect URI'},
+            status_code=400,
+            headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'},
+        )
+    params = [
+        (name, value)
+        for name, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if name not in _OAUTH_RESPONSE_PARAMETER_NAMES
+    ]
+    params.append(('error', exc.error))
+    if exc.error_description:
+        params.append(('error_description', exc.error_description))
+    if exc.state:
+        params.append(('state', exc.state))
+    if exc.issuer:
+        params.append(('iss', exc.issuer))
+    location = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(params, doseq=True), ''))
+    return RedirectResponse(
+        url=location,
+        status_code=303,
+        headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'},
+    )

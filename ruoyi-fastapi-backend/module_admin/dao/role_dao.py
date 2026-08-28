@@ -249,6 +249,18 @@ class RoleDao:
         return role_menu_query_all
 
     @classmethod
+    async def list_role_menu_ids(cls, db: AsyncSession, role_id: int) -> Sequence[int]:
+        """
+        查询角色完整菜单关联编号
+
+        :param db: 异步数据库会话
+        :param role_id: 角色编号
+        :return: 角色已关联的菜单编号序列
+        """
+        result = await db.execute(select(SysRoleMenu.menu_id).where(SysRoleMenu.role_id == role_id))
+        return result.scalars().all()
+
+    @classmethod
     async def add_role_menu_dao(cls, db: AsyncSession, role_menu: RoleMenuModel) -> None:
         """
         新增角色菜单关联信息数据库操作

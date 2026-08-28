@@ -48,7 +48,31 @@ export const constantRoutes = [
     hidden: true
   },
   {
-    path: "/:pathMatch(.*)*",
+    path: '/auth-center/login',
+    component: () => import('@/views/auth-center/login.vue'),
+    hidden: true,
+    meta: { title: '统一认证' }
+  },
+  {
+    path: '/auth-center/consent',
+    component: () => import('@/views/auth-center/consent.vue'),
+    hidden: true,
+    meta: { title: '授权确认' }
+  },
+  {
+    path: '/auth-center/change-password',
+    component: () => import('@/views/auth-center/changePassword.vue'),
+    hidden: true,
+    meta: { title: '更新密码' }
+  },
+  {
+    path: '/auth-center/error',
+    component: () => import('@/views/auth-center/error.vue'),
+    hidden: true,
+    meta: { title: '认证未完成' }
+  },
+  {
+    path: '/:pathMatch(.*)*',
     component: () => import('@/views/error/404'),
     hidden: true
   },

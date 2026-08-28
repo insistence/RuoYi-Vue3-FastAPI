@@ -23,8 +23,7 @@ print(json.dumps({
     'processAppEnv': os.environ.get('APP_ENV'),
 }, ensure_ascii=False))
 """
-    process_env = dict(os.environ)
-    process_env.pop('APP_ENV', None)
+    process_env = {key: value for key, value in os.environ.items() if key != 'APP_ENV' and not key.startswith('OIDC_')}
     completed = subprocess.run(
         [sys.executable, '-c', script, '--env', 'dockermy'],
         cwd=BACKEND_DIR,

@@ -132,6 +132,7 @@ class AppCommandPresenter:
                 self._build_check_status_line('database', payload.get('database')),
                 self._build_check_status_line('redis', payload.get('redis')),
                 self._build_check_status_line('crypto', payload.get('crypto')),
+                self._build_check_status_line('oidc', payload.get('oidc')),
             ]
         )
 

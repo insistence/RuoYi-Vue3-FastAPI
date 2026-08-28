@@ -196,6 +196,9 @@ DEFAULT_DANGEROUS_COMMAND_RULES: dict[str, DangerousCommandRule] = {
         supports_dry_run=False,
     ),
     'crypto rotate': DangerousCommandRule(command_name='crypto rotate', risk_level='high', supports_dry_run=True),
+    'oidc key bootstrap': DangerousCommandRule(
+        command_name='oidc key bootstrap', risk_level='high', supports_dry_run=True
+    ),
     'job run-once': DangerousCommandRule(command_name='job run-once', risk_level='normal', supports_dry_run=False),
     'job pause': DangerousCommandRule(command_name='job pause', risk_level='normal', supports_dry_run=False),
     'job resume': DangerousCommandRule(command_name='job resume', risk_level='normal', supports_dry_run=False),

@@ -49,6 +49,18 @@ export default defineConfig(({ mode, command }) => {
           target: 'http://127.0.0.1:9099',
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dev-api/, '')
+        },
+        '/.well-known': {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: true
+        },
+        '/oauth2': {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: true
+        },
+        '/auth/interaction': {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: true
         }
       }
     },

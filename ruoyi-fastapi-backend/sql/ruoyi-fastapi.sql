@@ -175,6 +175,7 @@ insert into sys_menu values('107',  '通知公告', '1',   '8', 'notice',       
 insert into sys_menu values('108',  '日志管理', '1',   '9', 'log',                 '',                                  '', '', 1, 0, 'M', '0', '0', '',                                 'log',           'admin', sysdate(), '', null, '日志管理菜单');
 insert into sys_menu values('119',  '文件管理', '1',  '10', 'file',                'system/file/index',                 '', '', 1, 0, 'C', '0', '0', 'system:file:list',                 'documentation', 'admin', sysdate(), '', null, '文件管理菜单');
 insert into sys_menu values('120',  '插件管理', '1',  '11', 'plugin',              'system/plugin/index',               '', '', 1, 0, 'C', '0', '0', 'system:plugin:list',               'component',     'admin', sysdate(), '', null, '插件管理菜单');
+insert into sys_menu values('121',  '认证中心', '1',  '12', 'oauth',               '',                                  '', '', 1, 0, 'M', '0', '0', '',                              'lock',          'admin', sysdate(), '', null, '统一认证中心管理');
 insert into sys_menu values('109',  '在线用户', '2',   '1', 'online',              'monitor/online/index',              '', '', 1, 0, 'C', '0', '0', 'monitor:online:list',              'online',        'admin', sysdate(), '', null, '在线用户菜单');
 insert into sys_menu values('110',  '定时任务', '2',   '2', 'job',                 'monitor/job/index',                 '', '', 1, 0, 'C', '0', '0', 'monitor:job:list',                 'job',           'admin', sysdate(), '', null, '定时任务菜单');
 insert into sys_menu values('111',  '数据监控', '2',   '3', 'druid',               'monitor/druid/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:druid:list',               'druid',         'admin', sysdate(), '', null, '数据监控菜单');
@@ -182,12 +183,19 @@ insert into sys_menu values('112',  '服务监控', '2',   '4', 'server',       
 insert into sys_menu values('113',  '缓存监控', '2',   '5', 'cache',               'monitor/cache/index',               '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis',         'admin', sysdate(), '', null, '缓存监控菜单');
 insert into sys_menu values('114',  '缓存列表', '2',   '6', 'cacheList',           'monitor/cache/list',                '', '', 1, 0, 'C', '0', '0', 'monitor:cache:list',               'redis-list',    'admin', sysdate(), '', null, '缓存列表菜单');
 insert into sys_menu values('118',  '传输加密', '2',   '7', 'transportCrypto',     'monitor/transportCrypto/index',     '', '', 1, 0, 'C', '0', '0', 'monitor:transportCrypto:list',     'chart',         'admin', sysdate(), '', null, '传输加密监控菜单');
+insert into sys_menu values('122',  'OAuth审计', '2',   '8', 'oauthAudit',          'monitor/oauthAudit/index',            '', '', 1, 0, 'C', '0', '0', 'monitor:oauthAudit:list',            'form',          'admin', sysdate(), '', null, 'OAuth 审计日志');
 insert into sys_menu values('115',  '表单构建', '3',   '1', 'build',               'tool/build/index',                  '', '', 1, 0, 'C', '0', '0', 'tool:build:list',                  'build',         'admin', sysdate(), '', null, '表单构建菜单');
 insert into sys_menu values('116',  '代码生成', '3',   '2', 'gen',                 'tool/gen/index',                    '', '', 1, 0, 'C', '0', '0', 'tool:gen:list',                    'code',          'admin', sysdate(), '', null, '代码生成菜单');
 insert into sys_menu values('117',  '系统接口', '3',   '3', 'swagger',             'tool/swagger/index',                '', '', 1, 0, 'C', '0', '0', 'tool:swagger:list',                'swagger',       'admin', sysdate(), '', null, '系统接口菜单');
 -- 三级菜单
 insert into sys_menu values('500',  '操作日志', '108', '1', 'operlog',    'monitor/operlog/index',    '', '', 1, 0, 'C', '0', '0', 'monitor:operlog:list',    'form',          'admin', sysdate(), '', null, '操作日志菜单');
 insert into sys_menu values('501',  '登录日志', '108', '2', 'logininfor', 'monitor/logininfor/index', '', '', 1, 0, 'C', '0', '0', 'monitor:logininfor:list', 'logininfor',    'admin', sysdate(), '', null, '登录日志菜单');
+insert into sys_menu values('502',  '客户端管理', '121', '1', 'client',             'system/oauth/client/index',           '', '', 1, 0, 'C', '0', '0', 'system:oauthClient:list',          'peoples',       'admin', sysdate(), '', null, 'OAuth Client 管理');
+insert into sys_menu values('503',  '资源管理', '121', '2', 'resource',            'system/oauth/resource/index',          '', '', 1, 0, 'C', '0', '0', 'system:oauthResource:list',         'component',     'admin', sysdate(), '', null, 'OAuth Resource 管理');
+insert into sys_menu values('504',  '范围管理', '121', '3', 'scope',               'system/oauth/scope/index',             '', '', 1, 0, 'C', '0', '0', 'system:oauthScope:list',            'dict',          'admin', sysdate(), '', null, 'OAuth Scope 管理');
+insert into sys_menu values('505',  '外部会话', '121', '4', 'session',             'system/oauth/session/index',           '', '', 1, 0, 'C', '0', '0', 'system:oauthSession:list',          'online',        'admin', sysdate(), '', null, 'OIDC SSO Session 管理');
+insert into sys_menu values('506',  '外部授权', '121', '5', 'grant',               'system/oauth/grant/index',             '', '', 1, 0, 'C', '0', '0', 'system:oauthGrant:list',            'tree-table',    'admin', sysdate(), '', null, 'OAuth Grant 管理');
+insert into sys_menu values('507',  '签名密钥', '121', '6', 'key',                 'system/oauth/key/index',               '', '', 1, 0, 'C', '0', '0', 'system:oauthKey:list',              'key',           'admin', sysdate(), '', null, 'OIDC Key 管理');
 -- 用户管理按钮
 insert into sys_menu values('1000', '用户查询', '100', '1',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:query',          '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1001', '用户新增', '100', '2',  '', '', '', '', 1, 0, 'F', '0', '0', 'system:user:add',            '#', 'admin', sysdate(), '', null, '');
@@ -258,6 +266,24 @@ insert into sys_menu values('1042', '登录查询', '501', '1', '#', '', '', '',
 insert into sys_menu values('1043', '登录删除', '501', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:remove',  '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1044', '日志导出', '501', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:export',  '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1045', '账户解锁', '501', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:logininfor:unlock',  '#', 'admin', sysdate(), '', null, '');
+-- 认证中心管理按钮
+insert into sys_menu values('1073', '客户端查询', '502', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:query', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1074', '客户端新增', '502', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:add', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1075', '客户端修改', '502', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:edit', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1076', '客户端删除', '502', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:remove', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1077', '密钥轮换', '502', '5', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthClient:rotateSecret', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1079', '资源新增', '503', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthResource:add', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1080', '资源修改', '503', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthResource:edit', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1081', '资源删除', '503', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthResource:remove', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1083', '范围新增', '504', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthScope:add', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1084', '范围修改', '504', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthScope:edit', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1085', '范围删除', '504', '4', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthScope:remove', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1086', '会话下线', '505', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthSession:revoke', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1087', '授权撤销', '506', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthGrant:revoke', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1088', '密钥轮换', '507', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthKey:rotate', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1089', '密钥启用', '507', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthKey:activate', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1090', '密钥退役', '507', '3', '#', '', '', '', 1, 0, 'F', '0', '0', 'system:oauthKey:retire', '#', 'admin', sysdate(), '', null, '');
+insert into sys_menu values('1091', '审计导出', '122', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:oauthAudit:export', '#', 'admin', sysdate(), '', null, '');
 -- 在线用户按钮
 insert into sys_menu values('1046', '在线查询', '109', '1', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:query',       '#', 'admin', sysdate(), '', null, '');
 insert into sys_menu values('1047', '批量强退', '109', '2', '#', '', '', '', 1, 0, 'F', '0', '0', 'monitor:online:batchLogout', '#', 'admin', sysdate(), '', null, '');
@@ -1088,3 +1114,388 @@ create table sys_plugin_operation_log (
   remark             varchar(500)    default null               comment '备注',
   primary key (operation_id)
 ) engine=innodb comment = '插件批量操作审计日志表';
+
+-- ----------------------------
+-- 统一认证中心相关表清理
+-- ----------------------------
+drop table if exists sys_oauth_audit_archive;
+drop table if exists sys_oauth_audit_log;
+drop table if exists sys_oidc_signing_key;
+drop table if exists sys_oauth_refresh_token;
+drop table if exists sys_sso_session;
+drop table if exists sys_oauth_grant;
+drop table if exists sys_oauth_client_resource;
+drop table if exists sys_oauth_client_scope;
+drop table if exists sys_oauth_scope;
+drop table if exists sys_oauth_resource;
+drop table if exists sys_oauth_client_uri;
+drop table if exists sys_oauth_client_secret;
+drop table if exists sys_oauth_client;
+drop table if exists sys_identity_subject;
+
+-- ----------------------------
+-- 34、统一认证主体关联表
+-- ----------------------------
+create table sys_identity_subject (
+  identity_id   bigint       not null auto_increment  comment '内部主键',
+  user_id       bigint       not null                 comment '本地用户ID',
+  subject_id    varchar(36)  not null                 comment 'OIDC Subject',
+  auth_version  bigint       not null default 1       comment '认证安全版本',
+  create_by     varchar(64)  default null             comment '创建者',
+  create_time   datetime     not null                 comment '创建时间',
+  update_by     varchar(64)  default null             comment '更新者',
+  update_time   datetime     default null             comment '更新时间',
+  primary key (identity_id),
+  unique key uk_identity_subject_user (user_id),
+  unique key uk_identity_subject_subject (subject_id),
+  key idx_identity_subject_auth_version (auth_version),
+  constraint fk_identity_subject_user foreign key (user_id) references sys_user (user_id) on delete restrict
+) engine=innodb comment = '统一认证主体关联表';
+
+-- ----------------------------
+-- 初始化-统一认证主体关联表数据
+-- ----------------------------
+insert into sys_identity_subject (user_id, subject_id, auth_version, create_by, create_time)
+select user_id, uuid(), 1, 'initial-sql', sysdate() from sys_user;
+
+-- ----------------------------
+-- 35、OAuth客户端表
+-- ----------------------------
+create table sys_oauth_client (
+  client_pk                            bigint        not null auto_increment    comment '内部主键',
+  client_id                            varchar(64)   not null                   comment 'Client ID',
+  client_name                          varchar(100)  not null                   comment '客户端名称',
+  client_type                          varchar(20)   not null                   comment 'Client 类型',
+  token_endpoint_auth_method           varchar(32)   not null                   comment 'Token 端点认证方式',
+  grant_types                          json          not null                   comment 'Grant Type 列表',
+  response_types                       json          not null                   comment 'Response Type 列表',
+  subject_type                         varchar(16)   not null default 'public'  comment 'Subject 类型',
+  require_pkce                         smallint      not null default 1         comment '是否要求 PKCE',
+  require_consent                      smallint      not null default 1         comment '是否要求同意',
+  trusted_client                       smallint      not null default 0         comment '是否受信任 Client',
+  policy_version                       bigint        not null default 1         comment '安全策略版本',
+  id_token_signed_response_alg         varchar(16)   not null default 'RS256'   comment 'ID Token 算法',
+  access_token_ttl_seconds             int           default null               comment 'Access Token 有效期',
+  refresh_token_idle_seconds           int           default null               comment 'Refresh Token 闲置有效期',
+  refresh_token_absolute_seconds       int           default null               comment 'Refresh Token 绝对有效期',
+  logo_uri                             varchar(500)  default null               comment 'Logo URI',
+  policy_uri                           varchar(500)  default null               comment '隐私政策 URI',
+  tos_uri                              varchar(500)  default null               comment '服务条款 URI',
+  backchannel_logout_session_required  smallint      not null default 1         comment '是否要求 Back-Channel Session',
+  status                               char(1)       not null default '0'       comment '状态（0正常 1停用）',
+  create_by                            varchar(64)   not null default ''        comment '创建者',
+  create_time                          datetime      not null                   comment '创建时间',
+  update_by                            varchar(64)   not null default ''        comment '更新者',
+  update_time                          datetime      not null                   comment '更新时间',
+  remark                               varchar(500)  default null               comment '备注',
+  primary key (client_pk),
+  unique key uk_oauth_client_client_id (client_id),
+  key idx_oauth_client_status (status)
+) engine=innodb comment = 'OAuth客户端表';
+
+-- ----------------------------
+-- 36、OAuth客户端密钥表
+-- ----------------------------
+create table sys_oauth_client_secret (
+  secret_id     varchar(36)   not null                   comment 'Secret ID',
+  client_pk     bigint        not null                   comment 'Client 主键',
+  secret_hash   varchar(100)  not null                   comment 'Secret 强哈希',
+  secret_hint   varchar(12)   not null                   comment 'Secret 提示',
+  status        varchar(16)   not null default 'active'  comment 'Secret 状态',
+  not_before    datetime      not null                   comment '生效时间',
+  expires_at    datetime      default null               comment '过期时间',
+  last_used_at  datetime      default null               comment '最近使用时间',
+  create_by     varchar(64)   not null                   comment '创建者',
+  create_time   datetime      not null                   comment '创建时间',
+  revoked_by    varchar(64)   default null               comment '撤销者',
+  revoked_at    datetime      default null               comment '撤销时间',
+  primary key (secret_id),
+  key idx_oauth_client_secret_client (client_pk, status),
+  constraint fk_oauth_client_secret_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+) engine=innodb comment = 'OAuth客户端密钥表';
+
+-- ----------------------------
+-- 37、OAuth客户端URI表
+-- ----------------------------
+create table sys_oauth_client_uri (
+  uri_id       bigint         not null auto_increment  comment 'URI 主键',
+  client_pk    bigint         not null                 comment 'Client 主键',
+  uri_type     varchar(32)    not null                 comment 'URI 类型',
+  uri          varchar(1000)  not null                 comment '精确 URI',
+  uri_hash     char(64)       not null                 comment 'URI SHA-256 摘要',
+  is_default   smallint       not null default 0       comment '是否默认 URI',
+  status       char(1)        not null default '0'     comment '状态（0正常 1停用）',
+  create_time  datetime       not null                 comment '创建时间',
+  primary key (uri_id),
+  unique key uk_oauth_client_uri_hash (client_pk, uri_type, uri_hash),
+  key idx_oauth_client_uri_type (client_pk, uri_type, status),
+  constraint fk_oauth_client_uri_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+) engine=innodb comment = 'OAuth客户端URI表';
+
+-- ----------------------------
+-- 38、OAuth资源服务器表
+-- ----------------------------
+create table sys_oauth_resource (
+  resource_pk               bigint        not null auto_increment   comment '内部主键',
+  resource_id               varchar(64)   not null                  comment 'Resource ID',
+  resource_name             varchar(100)  not null                  comment 'Resource 名称',
+  audience                  varchar(500)  not null                  comment 'Access Token audience',
+  token_format              varchar(16)   not null default 'jwt'    comment 'Token 格式',
+  signing_alg               varchar(16)   not null default 'RS256'  comment '签名算法',
+  access_token_ttl_seconds  int           default null              comment 'Access Token 有效期',
+  introspection_client_pk   bigint        default null              comment 'Introspection Client 主键',
+  allowed_claims            json          not null                  comment '允许的 Claims',
+  status                    char(1)       not null default '0'      comment '状态（0正常 1停用）',
+  create_by                 varchar(64)   not null                  comment '创建者',
+  create_time               datetime      not null                  comment '创建时间',
+  update_by                 varchar(64)   not null                  comment '更新者',
+  update_time               datetime      not null                  comment '更新时间',
+  remark                    varchar(500)  default null              comment '备注',
+  primary key (resource_pk),
+  unique key uk_oauth_resource_resource_id (resource_id),
+  unique key uk_oauth_resource_audience (audience),
+  key idx_oauth_resource_status (status),
+  constraint fk_oauth_resource_introspection_client foreign key (introspection_client_pk) references sys_oauth_client (client_pk) on delete restrict
+) engine=innodb comment = 'OAuth资源服务器表';
+
+-- ----------------------------
+-- 39、OAuth权限范围表
+-- ----------------------------
+create table sys_oauth_scope (
+  scope_pk          bigint        not null auto_increment  comment '内部主键',
+  scope_code        varchar(100)  not null                 comment 'Scope 编码',
+  scope_name        varchar(100)  not null                 comment 'Scope 名称',
+  scope_type        varchar(16)   not null                 comment 'Scope 类型',
+  resource_pk       bigint        default null             comment 'Resource 主键',
+  claims            json          not null                 comment 'Claims 列表',
+  consent_required  smallint      not null default 1       comment '是否需要同意',
+  `sensitive`       smallint      not null default 0       comment '是否敏感',
+  status            char(1)       not null default '0'     comment '状态（0正常 1停用）',
+  create_by         varchar(64)   not null                 comment '创建者',
+  create_time       datetime      not null                 comment '创建时间',
+  update_by         varchar(64)   not null                 comment '更新者',
+  update_time       datetime      not null                 comment '更新时间',
+  remark            varchar(500)  default null             comment '备注',
+  primary key (scope_pk),
+  unique key uk_oauth_scope_code (scope_code),
+  key idx_oauth_scope_status (status),
+  key idx_oauth_scope_resource (resource_pk),
+  constraint fk_oauth_scope_resource foreign key (resource_pk) references sys_oauth_resource (resource_pk) on delete restrict
+) engine=innodb comment = 'OAuth权限范围表';
+
+-- ----------------------------
+-- 初始化-OAuth权限范围表数据
+-- ----------------------------
+insert into sys_oauth_scope values(1, 'openid', 'OpenID', 'identity', null, json_array('sub'), 1, 0, '0', 'system', sysdate(), 'system', sysdate(), 'OIDC 必需身份范围');
+insert into sys_oauth_scope values(2, 'profile', '基础资料', 'identity', null, json_array('name', 'preferred_username', 'picture', 'updated_at'), 1, 0, '0', 'system', sysdate(), 'system', sysdate(), 'OIDC Profile');
+insert into sys_oauth_scope values(3, 'email', '邮箱', 'identity', null, json_array('email', 'email_verified'), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), 'OIDC Email');
+insert into sys_oauth_scope values(4, 'phone', '手机号', 'identity', null, json_array('phone_number', 'phone_number_verified'), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), 'OIDC Phone');
+insert into sys_oauth_scope values(5, 'roles', '角色', 'identity', null, json_array('roles'), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), '外部角色 Claim');
+insert into sys_oauth_scope values(6, 'dept', '部门', 'identity', null, json_array('dept_id', 'dept_name'), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), '外部部门 Claim');
+insert into sys_oauth_scope values(7, 'offline_access', '离线访问', 'identity', null, json_array(), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), '允许签发 Refresh Token');
+
+-- ----------------------------
+-- 40、OAuth客户端和权限范围关联表
+-- ----------------------------
+create table sys_oauth_client_scope (
+  client_pk       bigint    not null            comment 'Client 主键',
+  scope_pk        bigint    not null            comment 'Scope 主键',
+  is_default      smallint  not null default 0  comment '是否默认 Scope',
+  pre_authorized  smallint  not null default 0  comment '是否预授权',
+  claim_filter    json      default null        comment 'Client Claim 过滤策略',
+  create_time     datetime  not null            comment '创建时间',
+  primary key (client_pk, scope_pk),
+  key idx_oauth_client_scope_scope (scope_pk),
+  constraint fk_oauth_client_scope_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict,
+  constraint fk_oauth_client_scope_scope foreign key (scope_pk) references sys_oauth_scope (scope_pk) on delete restrict
+) engine=innodb comment = 'OAuth客户端和权限范围关联表';
+
+-- ----------------------------
+-- 41、OAuth客户端和资源服务器关联表
+-- ----------------------------
+create table sys_oauth_client_resource (
+  client_pk    bigint    not null            comment 'Client 主键',
+  resource_pk  bigint    not null            comment 'Resource 主键',
+  is_default   smallint  not null default 0  comment '是否默认 Resource',
+  create_time  datetime  not null            comment '创建时间',
+  primary key (client_pk, resource_pk),
+  key idx_oauth_client_resource_resource (resource_pk),
+  constraint fk_oauth_client_resource_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict,
+  constraint fk_oauth_client_resource_resource foreign key (resource_pk) references sys_oauth_resource (resource_pk) on delete restrict
+) engine=innodb comment = 'OAuth客户端和资源服务器关联表';
+
+-- ----------------------------
+-- 42、OAuth授权记录表
+-- ----------------------------
+create table sys_oauth_grant (
+  grant_id               varchar(36)   not null                   comment 'Grant ID',
+  user_id                bigint        not null                   comment '用户ID',
+  subject_id             varchar(36)   not null                   comment 'Subject 快照',
+  client_pk              bigint        not null                   comment 'Client 主键',
+  granted_scopes         json          not null                   comment '已同意 Scope',
+  granted_resources      json          not null                   comment '已同意 Resource audience',
+  client_policy_version  bigint        not null                   comment 'Client Policy Version',
+  status                 varchar(16)   not null default 'active'  comment 'Grant 状态',
+  consented_at           datetime      not null                   comment '同意时间',
+  expires_at             datetime      default null               comment '过期时间',
+  revoked_at             datetime      default null               comment '撤销时间',
+  revoke_reason          varchar(200)  default null               comment '撤销原因',
+  last_used_at           datetime      default null               comment '最近使用时间',
+  primary key (grant_id),
+  key idx_oauth_grant_user (user_id, status),
+  key idx_oauth_grant_client (client_pk, status),
+  key idx_oauth_grant_user_client (user_id, client_pk, status),
+  constraint fk_oauth_grant_user foreign key (user_id) references sys_user (user_id) on delete restrict,
+  constraint fk_oauth_grant_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+) engine=innodb comment = 'OAuth授权记录表';
+
+-- ----------------------------
+-- 43、OIDC单点登录会话表
+-- ----------------------------
+create table sys_sso_session (
+  sid                  varchar(36)   not null                   comment 'OIDC Session ID',
+  session_secret_hash  char(64)      not null                   comment 'SSO Cookie 摘要',
+  user_id              bigint        not null                   comment '用户ID',
+  subject_id           varchar(36)   not null                   comment 'Subject 快照',
+  auth_version         bigint        not null                   comment '认证安全版本',
+  auth_time            datetime      not null                   comment '认证时间',
+  last_seen_at         datetime      not null                   comment '最近活动时间',
+  idle_expires_at      datetime      not null                   comment '闲置过期时间',
+  absolute_expires_at  datetime      not null                   comment '绝对过期时间',
+  acr                  varchar(100)  not null                   comment '认证上下文',
+  amr                  json          not null                   comment '认证方式',
+  remember_me          smallint      not null default 0         comment '是否长期会话',
+  ip_address           varchar(128)  default null               comment '登录 IP',
+  user_agent_hash      char(64)      default null               comment 'User-Agent 摘要',
+  status               varchar(16)   not null default 'active'  comment 'Session 状态',
+  revoked_at           datetime      default null               comment '撤销时间',
+  revoke_reason        varchar(200)  default null               comment '撤销原因',
+  create_time          datetime      not null                   comment '创建时间',
+  primary key (sid),
+  key idx_sso_session_user (user_id, status),
+  key idx_sso_session_idle (status, idle_expires_at),
+  key idx_sso_session_absolute (status, absolute_expires_at),
+  constraint fk_sso_session_user foreign key (user_id) references sys_user (user_id) on delete restrict
+) engine=innodb comment = 'OIDC单点登录会话表';
+
+-- ----------------------------
+-- 44、OAuth刷新令牌表
+-- ----------------------------
+create table sys_oauth_refresh_token (
+  token_id              varchar(36)   not null                   comment 'Token ID',
+  token_hash            char(64)      not null                   comment 'Token HMAC 摘要',
+  family_id             varchar(36)   not null                   comment 'Token Family ID',
+  parent_token_id       varchar(36)   default null               comment '父 Token ID',
+  replaced_by_token_id  varchar(36)   default null               comment '替代 Token ID',
+  grant_id              varchar(36)   not null                   comment 'Grant ID',
+  user_id               bigint        not null                   comment '用户ID',
+  subject_id            varchar(36)   not null                   comment 'Subject 快照',
+  auth_version          bigint        not null                   comment '认证安全版本',
+  client_pk             bigint        not null                   comment 'Client 主键',
+  sid                   varchar(36)   not null                   comment 'SSO Session ID',
+  scopes                json          not null                   comment '绑定 Scope',
+  resources             json          not null                   comment '绑定 Resource audience',
+  status                varchar(24)   not null default 'active'  comment 'Token 状态',
+  issued_at             datetime      not null                   comment '签发时间',
+  last_used_at          datetime      default null               comment '最近使用时间',
+  idle_expires_at       datetime      not null                   comment '闲置过期时间',
+  absolute_expires_at   datetime      not null                   comment '绝对过期时间',
+  revoked_at            datetime      default null               comment '撤销时间',
+  revoke_reason         varchar(200)  default null               comment '撤销原因',
+  reuse_detected_at     datetime      default null               comment '重放检测时间',
+  primary key (token_id),
+  unique key uk_oauth_refresh_token_hash (token_hash),
+  key idx_oauth_refresh_family (family_id, status),
+  key idx_oauth_refresh_user (user_id, status),
+  key idx_oauth_refresh_client (client_pk, status),
+  key idx_oauth_refresh_sid (sid, status),
+  key idx_oauth_refresh_expire (status, absolute_expires_at),
+  constraint fk_oauth_refresh_parent foreign key (parent_token_id) references sys_oauth_refresh_token (token_id) on delete restrict,
+  constraint fk_oauth_refresh_replaced_by foreign key (replaced_by_token_id) references sys_oauth_refresh_token (token_id) on delete restrict,
+  constraint fk_oauth_refresh_grant foreign key (grant_id) references sys_oauth_grant (grant_id) on delete restrict,
+  constraint fk_oauth_refresh_user foreign key (user_id) references sys_user (user_id) on delete restrict,
+  constraint fk_oauth_refresh_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict,
+  constraint fk_oauth_refresh_sid foreign key (sid) references sys_sso_session (sid) on delete restrict
+) engine=innodb comment = 'OAuth刷新令牌表';
+
+-- ----------------------------
+-- 45、OIDC签名密钥表
+-- ----------------------------
+create table sys_oidc_signing_key (
+  key_pk                  bigint         not null auto_increment   comment '内部主键',
+  kid                     varchar(100)   not null                  comment 'JWKS Key ID',
+  key_use                 varchar(16)    not null default 'sig'    comment 'JWK 用途',
+  alg                     varchar(16)    not null default 'RS256'  comment '签名算法',
+  public_jwk              json           not null                  comment '公开 JWK',
+  private_key_ref         varchar(1000)  default null              comment 'KMS/HSM/文件引用',
+  private_key_ciphertext  text           default null              comment '加密私钥材料',
+  status                  varchar(16)    not null                  comment '密钥状态',
+  publish_at              datetime       not null                  comment '发布时间',
+  signing_start_at        datetime       default null              comment '开始签名时间',
+  signing_stop_at         datetime       default null              comment '停止签名时间',
+  remove_from_jwks_at     datetime       default null              comment '移出 JWKS 时间',
+  create_by               varchar(64)    not null                  comment '创建者',
+  create_time             datetime       not null                  comment '创建时间',
+  remark                  varchar(500)   default null              comment '备注',
+  primary key (key_pk),
+  unique key uk_oidc_signing_key_kid (kid),
+  key idx_oidc_signing_key_status_publish (status, publish_at),
+  key idx_oidc_signing_key_jwks_remove (status, remove_from_jwks_at),
+  constraint ck_oidc_signing_key_private_material check (((case when private_key_ref is null then 0 else 1 end) + (case when private_key_ciphertext is null then 0 else 1 end)) = 1)
+) engine=innodb comment = 'OIDC签名密钥表';
+
+-- ----------------------------
+-- 46、OAuth审计日志表
+-- ----------------------------
+create table sys_oauth_audit_log (
+  event_id      bigint        not null auto_increment    comment '事件ID',
+  trace_id      varchar(64)   default null               comment '链路追踪ID',
+  event_type    varchar(64)   not null                   comment '事件类型',
+  result        varchar(16)   not null                   comment '结果',
+  risk_level    varchar(16)   not null default 'normal'  comment '风险等级',
+  client_id     varchar(64)   default null               comment 'Client ID 快照',
+  resource_id   varchar(64)   default null               comment 'Resource ID 快照',
+  user_id       bigint        default null               comment '用户ID快照',
+  subject_id    varchar(36)   default null               comment 'Subject 快照',
+  sid           varchar(36)   default null               comment 'SSO Session ID',
+  grant_id      varchar(36)   default null               comment 'Grant ID',
+  token_id      varchar(36)   default null               comment 'Token ID',
+  ip_address    varchar(128)  default null               comment '客户端 IP',
+  user_agent    varchar(500)  default null               comment '脱敏 User-Agent',
+  failure_code  varchar(64)   default null               comment '失败码',
+  detail        json          default null               comment '脱敏扩展详情',
+  create_time   datetime      not null                   comment '事件时间',
+  primary key (event_id),
+  key idx_oauth_audit_time (create_time),
+  key idx_oauth_audit_client (client_id, create_time),
+  key idx_oauth_audit_user (user_id, create_time),
+  key idx_oauth_audit_event (event_type, result, create_time),
+  key idx_oauth_audit_risk (risk_level, create_time)
+) engine=innodb comment = 'OAuth审计日志表';
+
+-- ----------------------------
+-- 47、OAuth审计归档表
+-- ----------------------------
+create table sys_oauth_audit_archive (
+  event_id      bigint        not null      comment '原事件ID',
+  trace_id      varchar(64)   default null  comment '链路追踪ID',
+  event_type    varchar(64)   not null      comment '事件类型',
+  result        varchar(16)   not null      comment '结果',
+  risk_level    varchar(16)   not null      comment '风险等级',
+  client_id     varchar(64)   default null  comment 'Client ID 快照',
+  resource_id   varchar(64)   default null  comment 'Resource ID 快照',
+  user_id       bigint        default null  comment '用户ID快照',
+  subject_id    varchar(36)   default null  comment 'Subject 快照',
+  sid           varchar(36)   default null  comment 'SSO Session ID',
+  grant_id      varchar(36)   default null  comment 'Grant ID',
+  token_id      varchar(36)   default null  comment 'Token ID',
+  ip_address    varchar(128)  default null  comment '客户端 IP',
+  user_agent    varchar(500)  default null  comment '脱敏 User-Agent',
+  failure_code  varchar(64)   default null  comment '失败码',
+  detail        json          default null  comment '脱敏扩展详情',
+  create_time   datetime      not null      comment '事件时间',
+  archived_at   datetime      not null      comment '归档时间',
+  primary key (event_id),
+  key idx_oauth_audit_archive_time (create_time),
+  key idx_oauth_audit_archive_event (event_type, result, create_time)
+) engine=innodb comment = 'OAuth审计归档表';
