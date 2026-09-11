@@ -30,8 +30,8 @@
               {% else %}
               <dict-tag :options="{{ dictType }}" :value="info.{{ pythonField }}" />
               {% endif %}
-              {% elif column.html_type == "datetime" %}
-              {% raw %}{{{% endraw %} parseTime(info.{{ pythonField }}, '{y}-{m}-{d}') {% raw %}}}{% endraw %}
+              {% elif column.time_kind == "instant" %}
+              {% raw %}{{{% endraw %} parseTime(info.{{ pythonField }}) {% raw %}}}{% endraw %}
               {% elif column.html_type == "imageUpload" %}
               <image-preview :src="info.{{ pythonField }}" :width="60" :height="60" />
               {% else %}

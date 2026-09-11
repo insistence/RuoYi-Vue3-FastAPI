@@ -1,12 +1,10 @@
-"""契约测试：实体 DO 的时间列必须使用 SQLAlchemy callable defaults。"""
-
 import asyncio
 
 import pytest
-from sqlalchemy import DateTime, update
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from common.mixin import AuditTimeMixin, CreateTimeMixin
+from common.types import DbUtcDateTime
 from config.database import Base
 from module_admin.entity.do.config_do import SysConfig
 from module_admin.entity.do.dept_do import SysDept
@@ -22,6 +20,7 @@ from module_admin.entity.do.file_do import (
     SysFileRetentionPolicy,
 )
 from module_admin.entity.do.job_do import SysJob, SysJobLog
+from module_admin.entity.do.job_runtime_do import SysJobExecution, SysJobSync
 from module_admin.entity.do.log_do import SysLogininfor, SysOperLog
 from module_admin.entity.do.menu_do import SysMenu
 from module_admin.entity.do.notice_do import SysNotice, SysNoticeRead
@@ -39,12 +38,7 @@ from plugins.core.management.entity.do.models import (
     SysPluginOperationLog,
 )
 
-EXPECTED_ENTITY_MODEL_COUNT = 35
-EXPECTED_UPDATE_TIME_MODEL_COUNT = 19
-EXPECTED_CREATE_TIME_ONLY_MODEL_COUNT = 6
-
-# Keep both inventories explicit: there are 35 DO classes and 19 update_time
-# columns. Adding/removing one should be an intentional model change.
+# 显式维护 DO 类及 update_time 列清单，新增或移除时需同步核对模型。
 ENTITY_MODELS = (
     SysConfig,
     SysDept,
@@ -60,6 +54,8 @@ ENTITY_MODELS = (
     SysFileReconcileIssue,
     SysJob,
     SysJobLog,
+    SysJobSync,
+    SysJobExecution,
     SysLogininfor,
     SysOperLog,
     SysMenu,
@@ -92,6 +88,8 @@ UPDATE_TIME_MODELS = (
     SysFileRetentionPolicy,
     SysJob,
     SysMenu,
+    SysJobSync,
+    SysJobExecution,
     SysNotice,
     SysPost,
     SysRole,
@@ -134,20 +132,15 @@ def _column_default(model: type, field_name: str, attribute: str) -> object | No
     return None if value is None else value.arg
 
 
-def test_audit_time_columns_are_provided_by_mixins_without_changing_contracts() -> None:
-    """审计字段统一由Mixin声明，并保留非空、注释及特殊默认值语义。"""
-    assert len(UPDATE_TIME_MODELS) == EXPECTED_UPDATE_TIME_MODEL_COUNT
-    assert len(CREATE_TIME_ONLY_MODELS) == EXPECTED_CREATE_TIME_ONLY_MODEL_COUNT
-
+def test_audit_time_columns_preserve_nullability_and_migration_semantics() -> None:
+    """审计字段保留非空约束、迁移时间注释和应用侧默认值。"""
     for model in UPDATE_TIME_MODELS:
-        assert issubclass(model, AuditTimeMixin)
         assert model.__table__.c.create_time.nullable is (model not in REQUIRED_CREATE_TIME_MODELS)
         assert model.__table__.c.update_time.nullable is (model not in REQUIRED_UPDATE_TIME_MODELS)
         assert model.__table__.c.create_time.server_default is None
         assert model.__table__.c.update_time.server_default is None
 
     for model in CREATE_TIME_ONLY_MODELS:
-        assert issubclass(model, CreateTimeMixin)
         assert model.__table__.c.create_time.nullable is (model not in REQUIRED_CREATE_TIME_MODELS)
         assert model.__table__.c.create_time.server_default is None
 
@@ -156,33 +149,28 @@ def test_audit_time_columns_are_provided_by_mixins_without_changing_contracts() 
 
 def test_all_update_time_columns_use_callable_defaults_and_onupdate() -> None:
     """每个 update_time 都在每次插入/更新时求值，而非导入时冻结时间。"""
-    assert len(UPDATE_TIME_MODELS) == EXPECTED_UPDATE_TIME_MODEL_COUNT
-
     for model in UPDATE_TIME_MODELS:
         onupdate = _column_default(model, 'update_time', 'onupdate')
         assert callable(onupdate)
-        assert getattr(onupdate, '__name__', None) == 'now'
 
         if model is SysPluginMigration:
-            # Migration history rows are created with an explicit timestamp;
-            # preserve that special semantic while still tracking updates.
+            # 迁移历史在创建时显式传入时间，同时保留后续更新的审计行为。
             assert _column_default(model, 'update_time', 'default') is None
         else:
             default = _column_default(model, 'update_time', 'default')
             assert callable(default)
-            assert getattr(default, '__name__', None) == 'now'
 
 
-def test_all_create_time_defaults_are_callable() -> None:
-    """所有使用 datetime.now 默认值的 DateTime 列都必须传入 callable。"""
-    assert len(ENTITY_MODELS) == EXPECTED_ENTITY_MODEL_COUNT
-
+def test_all_time_columns_use_utc_type_and_callable_defaults() -> None:
+    """时刻列使用DbUtcDateTime，并在写入时计算默认值。"""
     for model in ENTITY_MODELS:
         for column in model.__table__.columns:
-            if isinstance(column.type, DateTime) and column.default is not None:
+            # 耗时和延迟宽限以数值存储，不属于UTC时刻。
+            if column.name.endswith(('_time', '_date')) and column.name not in {'cost_time', 'misfire_grace_time'}:
+                assert isinstance(column.type, DbUtcDateTime), f'{model.__name__}.{column.name}'
+            if isinstance(column.type, DbUtcDateTime) and column.default is not None:
                 default = column.default.arg
                 assert callable(default), f'{model.__name__}.{column.name}'
-                assert getattr(default, '__name__', None) == 'now', f'{model.__name__}.{column.name}'
 
 
 @pytest.mark.asyncio

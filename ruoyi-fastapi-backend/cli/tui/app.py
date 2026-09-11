@@ -2,7 +2,6 @@ import asyncio
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import datetime
 from time import monotonic
 
 from textual.app import App
@@ -20,6 +19,7 @@ from cli.tui.keymaps import TUI_KEYMAP_REGISTRY
 from cli.tui.queries import TUI_PAGE_TIMEOUT_SECONDS
 from cli.tui.screens import BrowserScreen, DashboardScreen, DetailScreen
 from cli.tui.widgets import NavigationItem, WorkspaceSidebar
+from utils.time_util import TimezoneUtil
 
 PageSnapshot = BrowserPageSnapshot | DashboardSnapshot | DetailPageSnapshot
 SnapshotCollector = Callable[['RuoyiTuiApp'], Awaitable[PageSnapshot]]
@@ -539,7 +539,7 @@ class TuiScreenFactory:
 
         :return: 格式化后的刷新时间
         """
-        return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        return TimezoneUtil.to_business_time(TimezoneUtil.utc_now()).strftime('%Y-%m-%d %H:%M:%S')
 
     def build(
         self,

@@ -1,12 +1,12 @@
-from datetime import datetime
-
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Integer, LargeBinary, String, UniqueConstraint
+from sqlalchemy import CHAR, BigInteger, Column, Integer, LargeBinary, String, UniqueConstraint
 from sqlalchemy.dialects import mysql
 
 from common.mixin import AuditTimeMixin
+from common.types import DbUtcDateTime
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
+from utils.time_util import TimezoneUtil
 
 
 class SysNotice(AuditTimeMixin, Base):
@@ -57,4 +57,4 @@ class SysNoticeRead(Base):
     )
     notice_id = Column(Integer, nullable=False, comment='公告ID')
     user_id = Column(BigInteger, nullable=False, comment='用户ID')
-    read_time = Column(DateTime, nullable=False, default=datetime.now, comment='阅读时间')
+    read_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='阅读时间')

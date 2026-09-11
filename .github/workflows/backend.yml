@@ -56,3 +56,9 @@ jobs:
 
       - name: Run backend tests
         run: pytest -q
+
+      - name: Check timezone behavior under independent host timezones
+        run: |
+          for zone in UTC Asia/Shanghai America/New_York; do
+            TZ="$zone" python -m pytest -q tests/common/test_types.py tests/common/test_query_time.py tests/utils/test_time_util.py tests/config/test_scheduler_database.py tests/utils/test_cron_util.py tests/module_admin/controller/test_job_controller.py tests/config/test_scheduler_job_persistence.py
+          done

@@ -158,9 +158,9 @@ class JobSchedulerSupport:
         :param redis: Redis 客户端实例
         :return: None
         """
-        scheduler_util = self.infrastructure_gateway.get_scheduler_util()
+        scheduler_manager = self.infrastructure_gateway.get_scheduler_manager()
         try:
-            await scheduler_util.close_system_scheduler()
+            await scheduler_manager.close_system_scheduler()
         except Exception:
             pass
 

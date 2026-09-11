@@ -27,7 +27,7 @@
           </span>
           <span class="meta-item">
             <el-icon><Clock /></el-icon>
-            <span>{{ detail.createTime || '—' }}</span>
+            <span>{{ parseTime(detail.createTime) || '—' }}</span>
           </span>
           <span class="meta-item">
             <span :class="['status-dot', isStatusNormal ? 'status-ok' : 'status-off']"></span>

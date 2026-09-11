@@ -14,7 +14,7 @@ async def test_dashboard_page() -> None:
     assert token is not None, '登录应该成功'
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
         context = await browser.new_context()
         # 设置认证token
         await context.add_cookies(
@@ -52,7 +52,7 @@ async def test_druid_page() -> None:
     assert token is not None, '登录应该成功'
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
         context = await browser.new_context()
         # 设置认证token
         await context.add_cookies(
@@ -90,7 +90,7 @@ async def test_build_page() -> None:
     assert token is not None, '登录应该成功'
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
         context = await browser.new_context()
         # 设置认证token
         await context.add_cookies(

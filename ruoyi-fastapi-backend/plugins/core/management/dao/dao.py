@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from datetime import datetime, time
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import delete, func, or_, select, update
@@ -28,6 +28,7 @@ from plugins.core.management.entity.vo.schemas import (
 )
 from plugins.core.utils import escape_sql_like
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 PLUGIN_MODEL_RUNTIME_FIELDS = {
     'capability',
@@ -421,7 +422,7 @@ class PluginDao:
         if not existing_plugin_migration:
             return None
 
-        now = datetime.now()
+        now = TimezoneUtil.utc_now()
         await db.execute(
             update(SysPluginMigration)
             .where(
@@ -448,7 +449,7 @@ class PluginDao:
         :return: 新增后的 migration 执行历史对象
         """
         payload = plugin_migration.model_dump(exclude_unset=True)
-        now = datetime.now()
+        now = TimezoneUtil.utc_now()
         cls._apply_migration_observability_payload(payload, None, now)
         if payload.get('status') == 'success' and 'error_message' not in payload:
             payload['error_message'] = None
@@ -492,10 +493,10 @@ class PluginDao:
         """
         status = payload.get('status', 'success')
         if existing_plugin_migration is None:
-            # migration records have no INSERT default; keep one snapshot on first write.
+            # 迁移记录没有插入默认值，首次写入时使用同一时间快照。
             payload['update_time'] = now
         else:
-            # UPDATE statements use the mapped onupdate callback.  Ignore client/audit input.
+            # 更新语句交由ORM的onupdate回调生成审计时间，不采用传入值。
             payload.pop('update_time', None)
         if status == 'running':
             payload.setdefault('started_time', now)
@@ -749,10 +750,8 @@ class PluginDao:
         if not query_object.begin_time or not query_object.end_time:
             return True
 
-        return SysPluginOperationLog.create_time.between(
-            datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
-            datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),
-        )
+        start, end = TimezoneUtil.local_date_strings_to_utc(query_object.begin_time, query_object.end_time)
+        return (SysPluginOperationLog.create_time >= start) & (SysPluginOperationLog.create_time < end)
 
     @classmethod
     async def get_plugin_operation_log_by_id(

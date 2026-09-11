@@ -57,7 +57,7 @@ for module_name in [
     'cli.bootstrap',
     'config.database',
     'config.get_redis',
-    'config.get_scheduler',
+    'config.scheduler.manager',
     'module_admin.service.server_service',
     'utils.transport_crypto_util',
 ]:
@@ -68,7 +68,7 @@ import cli.bootstrap
 print(json.dumps({
     'config.database': 'config.database' in sys.modules,
     'config.get_redis': 'config.get_redis' in sys.modules,
-    'config.get_scheduler': 'config.get_scheduler' in sys.modules,
+    'config.scheduler.manager': 'config.scheduler.manager' in sys.modules,
     'module_admin.service.server_service': 'module_admin.service.server_service' in sys.modules,
     'utils.transport_crypto_util': 'utils.transport_crypto_util' in sys.modules,
 }, ensure_ascii=False))
@@ -87,7 +87,7 @@ print(json.dumps({
     assert payload == {
         'config.database': False,
         'config.get_redis': False,
-        'config.get_scheduler': False,
+        'config.scheduler.manager': False,
         'module_admin.service.server_service': False,
         'utils.transport_crypto_util': False,
     }
@@ -109,7 +109,7 @@ for module_name in [
     'config.env',
     'config.database',
     'config.get_redis',
-    'config.get_scheduler',
+    'config.scheduler.manager',
     'cli.tui.app',
     'module_admin.service.server_service',
     'module_admin.service.job_service',
@@ -128,7 +128,7 @@ print(json.dumps({
     'config.env': 'config.env' in sys.modules,
     'config.database': 'config.database' in sys.modules,
     'config.get_redis': 'config.get_redis' in sys.modules,
-    'config.get_scheduler': 'config.get_scheduler' in sys.modules,
+    'config.scheduler.manager': 'config.scheduler.manager' in sys.modules,
     'cli.tui.app': 'cli.tui.app' in sys.modules,
     'module_admin.service.server_service': 'module_admin.service.server_service' in sys.modules,
     'module_admin.service.job_service': 'module_admin.service.job_service' in sys.modules,
@@ -153,7 +153,7 @@ print(json.dumps({
         'config.env': False,
         'config.database': False,
         'config.get_redis': False,
-        'config.get_scheduler': False,
+        'config.scheduler.manager': False,
         'cli.tui.app': False,
         'module_admin.service.server_service': False,
         'module_admin.service.job_service': False,

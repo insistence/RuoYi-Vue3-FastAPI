@@ -1,7 +1,8 @@
-from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class OnlineModel(BaseModel):
@@ -18,10 +19,10 @@ class OnlineModel(BaseModel):
     login_location: str | None = Field(default=None, description='登录地点')
     browser: str | None = Field(default=None, description='浏览器类型')
     os: str | None = Field(default=None, description='操作系统')
-    login_time: datetime | None = Field(default=None, description='登录时间')
+    login_time: ApiUtcDateTime | None = Field(default=None, description='登录时间')
 
 
-class OnlineQueryModel(OnlineModel):
+class OnlineQueryModel(DateRangeQueryMixin, OnlineModel):
     """
     岗位管理不分页查询模型
     """

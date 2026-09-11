@@ -2,7 +2,6 @@ import base64
 import hashlib
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +9,7 @@ import yaml
 
 from cli.exit_codes import RUNTIME_ERROR, SUCCESS
 from plugins.core.utils import validate_plugin_id_value
+from utils.time_util import TimezoneUtil
 
 DEPENDENCY_OPERATOR_PATTERN = re.compile(r'==|!=|>=|<=|=|>|<|\^|~')
 PYTHON_PACKAGE_SEPARATOR_PATTERN = re.compile(r'[-_.]+')
@@ -283,7 +283,7 @@ class PluginDependencyLockfileTemplateBuilder:
         :param offline_dir: 离线制品根目录
         :return: 锁文件模板
         """
-        generated_at = datetime.now().astimezone().isoformat()
+        generated_at = TimezoneUtil.format_rfc3339(TimezoneUtil.utc_now())
         dependencies = manifest.dependencies
         artifact_resolver = PluginDependencyOfflineArtifactResolver(offline_dir)
         warnings: list[str] = []

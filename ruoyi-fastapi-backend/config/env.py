@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, computed_field, fi
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from exceptions.exception import DataSourceNotFoundException
+from utils.time_util import TimezoneUtil
 
 
 class AppSettings(BaseSettings):
@@ -36,6 +37,21 @@ class AppSettings(BaseSettings):
     app_trusted_proxy_ips: str = '127.0.0.1,::1'
     app_trusted_proxy_hops: int = 1
     app_default_enabled_plugins: str = 'ai'
+    app_timezone: str = 'Asia/Shanghai'
+
+    @field_validator('app_timezone')
+    @classmethod
+    def validate_app_timezone(cls, value: str) -> str:
+        """
+        校验应用业务时区是否为有效的IANA时区名称。
+
+        :param value: IANA时区名称
+        :return: 去除首尾空格后的IANA时区名称
+        """
+        try:
+            return TimezoneUtil.validate_timezone_name(value)
+        except ValueError as exc:
+            raise ValueError(f'APP_TIMEZONE: {exc}') from None
 
 
 class JwtSettings(BaseSettings):

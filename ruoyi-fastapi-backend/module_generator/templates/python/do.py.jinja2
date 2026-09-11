@@ -1,17 +1,17 @@
 {% set main_time = namespace(create=None, update=None) %}
 {% for column in columns %}
-{% if column.column_name == "create_time" and column.python_type == "datetime" %}
+{% if column.column_name == "create_time" and column.time_kind == "instant" %}
 {% set main_time.create = column %}
-{% elif column.column_name == "update_time" and column.python_type == "datetime" %}
+{% elif column.column_name == "update_time" and column.time_kind == "instant" %}
 {% set main_time.update = column %}
 {% endif %}
 {% endfor %}
 {% set sub_time = namespace(create=None, update=None) %}
 {% if table.sub %}
 {% for column in subTable.columns %}
-{% if column.column_name == "create_time" and column.python_type == "datetime" %}
+{% if column.column_name == "create_time" and column.time_kind == "instant" %}
 {% set sub_time.create = column %}
-{% elif column.column_name == "update_time" and column.python_type == "datetime" %}
+{% elif column.column_name == "update_time" and column.time_kind == "instant" %}
 {% set sub_time.update = column %}
 {% endif %}
 {% endfor %}
@@ -26,8 +26,10 @@
 {% if (main_time.update and not main_time.create) or (sub_time.update and not sub_time.create) %}
 {% set time_mixin_imports.names = time_mixin_imports.names + ['UpdateTimeMixin'] %}
 {% endif %}
-{% for do_import in doImportList %}
+{% for do_import in doImportList | sort %}
+{% if not do_import.startswith('from common.') %}
 {{ do_import }}
+{% endif %}
 {% endfor %}
 {% if table.sub %}
 from sqlalchemy.orm import relationship
@@ -36,6 +38,11 @@ from sqlalchemy.orm import relationship
 {% if time_mixin_imports.names %}
 from common.mixin import {{ time_mixin_imports.names | join(', ') }}
 {% endif %}
+{% for do_import in doImportList %}
+{% if do_import.startswith('from common.') %}
+{{ do_import }}
+{% endif %}
+{% endfor %}
 {% if dataSourceName == defaultDataSourceName %}
 from config.database import Base
 {% else %}
@@ -67,8 +74,8 @@ class {{ ClassName }}({% if main_time.create and main_time.update %}AuditTimeMix
     {% endif %}
 
     {% for column in columns %}
-    {% if not (column.column_name in ["create_time", "update_time"] and column.python_type == "datetime") %}
-    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type(dataSourceName) }}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
+    {% if not (column.column_name in ["create_time", "update_time"] and column.time_kind == "instant") %}
+    {{ column.column_name }} = Column({% if column.time_kind == "instant" %}DbUtcDateTime(){% else %}{{ column.column_type | get_sqlalchemy_type(dataSourceName) }}{% endif %}, {% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
     {% endif %}
     {% endfor %}
 
@@ -98,8 +105,8 @@ class {{ subClassName }}({% if sub_time.create and sub_time.update %}AuditTimeMi
     {% endif %}
 
     {% for column in subTable.columns %}
-    {% if not (column.column_name in ["create_time", "update_time"] and column.python_type == "datetime") %}
-    {{ column.column_name }} = Column({{ column.column_type | get_sqlalchemy_type(dataSourceName) }}, {% if column.column_name == subTableFkName %}ForeignKey('{{ tableName }}.{{ subTableFkName }}'), {% endif %}{% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
+    {% if not (column.column_name in ["create_time", "update_time"] and column.time_kind == "instant") %}
+    {{ column.column_name }} = Column({% if column.time_kind == "instant" %}DbUtcDateTime(){% else %}{{ column.column_type | get_sqlalchemy_type(dataSourceName) }}{% endif %}, {% if column.column_name == subTableFkName %}ForeignKey('{{ tableName }}.{{ pkColumn.column_name }}'), {% endif %}{% if column.pk %}primary_key=True, {% endif %}{% if column.increment %}autoincrement=True, {% endif %}{% if column.required or column.pk %}nullable=False{% else %}nullable=True{% endif %}, comment='{{ column.column_comment }}')
     {% endif %}
     {% endfor %}
 

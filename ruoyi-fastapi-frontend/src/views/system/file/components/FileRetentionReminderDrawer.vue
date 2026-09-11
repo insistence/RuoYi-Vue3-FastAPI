@@ -234,11 +234,9 @@
         <span>{{ parseTime(currentRow.expireTime) }}</span>
       </el-form-item>
       <el-form-item label="新到期时间" prop="expireTime">
-        <el-date-picker
+        <BusinessDateTimePicker
           v-model="extendForm.expireTime"
-          type="datetime"
-          value-format="YYYY-MM-DD HH:mm:ss"
-          placeholder="请选择新的到期时间"
+          label="新到期时间"
           style="width: 100%"
         />
       </el-form-item>
@@ -272,6 +270,8 @@ import {
   readFileRetentionReminder,
   scanFileRetentionReminder
 } from "@/api/system/file";
+import { toBusinessDateTimeInput, serializeTimeFieldsForSubmit } from "@/utils/time";
+import BusinessDateTimePicker from "@/components/BusinessDateTimePicker";
 
 const emit = defineEmits(["refresh"]);
 const { proxy } = getCurrentInstance();
@@ -377,10 +377,12 @@ function handleExtend(row) {
 }
 
 function submitExtend() {
-  extendRef.value.validate(valid => {
+  extendRef.value.validate(async valid => {
     if (!valid) return;
+    const submitData = await serializeTimeFieldsForSubmit(extendForm, ['expireTime']);
+    if (!submitData) return;
     submitting.value = true;
-    extendFileRetention(currentRow.value.noticeId, extendForm)
+    extendFileRetention(currentRow.value.noticeId, submitData)
       .then(() => {
         proxy.$modal.msgSuccess("文件保留期限已延长");
         extendOpen.value = false;
@@ -425,12 +427,7 @@ function handleDispose(row) {
 function defaultExtendTime(expireTime) {
   const baseTime = Math.max(Date.now(), new Date(expireTime).getTime());
   const target = new Date(baseTime + 30 * 24 * 60 * 60 * 1000);
-  const pad = value => String(value).padStart(2, "0");
-  return `${target.getFullYear()}-${pad(target.getMonth() + 1)}-${pad(
-    target.getDate()
-  )} ${pad(target.getHours())}:${pad(target.getMinutes())}:${pad(
-    target.getSeconds()
-  )}`;
+  return toBusinessDateTimeInput(target);
 }
 
 defineExpose({ open });

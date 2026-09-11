@@ -1,9 +1,10 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
+
+from common.types import ApiUtcDateTime
 
 
 class AiModelModel(BaseModel):
@@ -29,9 +30,9 @@ class AiModelModel(BaseModel):
     user_id: int | None = Field(default=None, description='用户ID')
     dept_id: int | None = Field(default=None, description='部门ID')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
 
     @NotBlank(field_name='model_code', message='模型编码不能为空')

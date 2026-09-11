@@ -61,12 +61,12 @@
          <el-form-item label="操作时间" style="width: 308px">
             <el-date-picker
                v-model="dateRange"
-               value-format="YYYY-MM-DD HH:mm:ss"
+               value-format="YYYY-MM-DD"
                type="daterange"
+               :aria-label="`日期范围（${getDisplayTimezone()}）`"
                range-separator="-"
                start-placeholder="开始日期"
                end-placeholder="结束日期"
-               :default-time="[new Date(2000, 1, 1, 0, 0, 0), new Date(2000, 1, 1, 23, 59, 59)]"
             ></el-date-picker>
          </el-form-item>
          <el-form-item>
@@ -153,6 +153,7 @@
 </template>
 
 <script setup name="Operlog">
+import { getDisplayTimezone } from '@/utils/time';
 import OperlogDetail from "./detail";
 import { list, delOperlog, cleanOperlog } from "@/api/monitor/operlog";
 
@@ -251,4 +252,10 @@ function handleExport() {
 }
 
 getList();
+// 时区变化后重新查询日期范围，保留正在编辑的表单。
+watch(getDisplayTimezone, () => {
+  if (dateRange.value?.length) {
+    handleQuery();
+  }
+});
 </script>

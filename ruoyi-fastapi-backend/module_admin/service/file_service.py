@@ -41,6 +41,7 @@ from module_admin.service.file_access_service import FileAuditService
 from module_admin.service.file_business_service import FileReferenceService
 from utils.file_util import FileReconcileUtil, FileUtil
 from utils.log_util import logger
+from utils.time_util import TimezoneUtil
 from utils.upload_util import UploadUtil
 
 
@@ -96,10 +97,9 @@ class FileRetentionDispositionService:
             original_name=file_info.original_name,
             access_type=file_info.access_type,
         )
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         new_expire_time = extend_retention.expire_time
-        if new_expire_time.tzinfo:
-            new_expire_time = new_expire_time.astimezone().replace(tzinfo=None)
+        new_expire_time = TimezoneUtil.to_utc(new_expire_time)
         previous_expire_time = file_info.expire_time
         if previous_expire_time is None:
             await query_db.rollback()
@@ -233,7 +233,7 @@ class FileRetentionDispositionService:
             original_name=file_info.original_name,
             access_type=file_info.access_type,
         )
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         expire_time = file_info.expire_time
         if expire_time is None or expire_time > current_time:
             await cls._enqueue_retention_audit(
@@ -460,7 +460,7 @@ class FileLifecycleService:
             raise ServiceException(message='文件移入回收区失败') from exc
 
         try:
-            await FileInfoDao.soft_delete_file_infos(query_db, file_ids, user.user_name, datetime.now())
+            await FileInfoDao.soft_delete_file_infos(query_db, file_ids, user.user_name, TimezoneUtil.utc_now())
             await query_db.commit()
         except Exception as exc:
             await query_db.rollback()
@@ -564,7 +564,7 @@ class FileLifecycleService:
                 query_db,
                 parsed_file_ids,
                 user.user_name,
-                datetime.now(),
+                TimezoneUtil.utc_now(),
             )
             await query_db.commit()
         except Exception:
@@ -621,7 +621,7 @@ class FileLifecycleService:
         :return: 永久清理文件数量
         """
         cls._validate_purge_parameters(retention_days, batch_size)
-        deleted_before = datetime.now() - timedelta(days=retention_days)
+        deleted_before = TimezoneUtil.utc_now() - timedelta(days=retention_days)
         file_infos = await FileInfoDao.get_recycle_bin_purge_candidates(
             query_db,
             deleted_before,
@@ -638,7 +638,7 @@ class FileLifecycleService:
             raise ServiceException(message='自动清理候选文件仍存在业务引用')
         try:
             staged_files = await asyncio.to_thread(FileUtil.prepare_deleted_files_for_purge, file_infos)
-            await FileInfoDao.mark_file_infos_purging(query_db, file_ids, 'system', datetime.now())
+            await FileInfoDao.mark_file_infos_purging(query_db, file_ids, 'system', TimezoneUtil.utc_now())
             await query_db.commit()
         except Exception:
             await query_db.rollback()
@@ -744,7 +744,7 @@ class FileLifecycleService:
                 query_db,
                 parsed_file_ids,
                 user.user_name,
-                datetime.now(),
+                TimezoneUtil.utc_now(),
             )
             await query_db.commit()
         except Exception as exc:
@@ -772,7 +772,7 @@ class FileLifecycleService:
                     query_db,
                     parsed_file_ids,
                     user.user_name,
-                    datetime.now(),
+                    TimezoneUtil.utc_now(),
                 )
                 await query_db.commit()
             except Exception as compensation_exc:
@@ -1040,7 +1040,7 @@ class FileTransferService:
                 target_dept_id,
                 transfer_file.retain_uploader_access,
                 user.user_name,
-                datetime.now(),
+                TimezoneUtil.utc_now(),
             )
             await query_db.commit()
         except Exception as exc:
@@ -1122,7 +1122,7 @@ class FileReconcileService:
         if trigger_type == 'manual':
             user = cls._require_admin(current_user)
             started_by = user.user_name
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         reconcile_run = SysFileReconcileRun(
             run_id=str(uuid.uuid4()),
             trigger_type=trigger_type,
@@ -1169,7 +1169,7 @@ class FileReconcileService:
                     file_infos,
                     check_hash,
                 )
-                current_time = datetime.now()
+                current_time = TimezoneUtil.utc_now()
                 new_issue_count = await FileInfoDao.upsert_reconcile_issues(
                     query_db,
                     run_id,
@@ -1205,7 +1205,7 @@ class FileReconcileService:
                         query_db,
                         run_id,
                         status='failed',
-                        finished_time=datetime.now(),
+                        finished_time=TimezoneUtil.utc_now(),
                         error_message=f'{exc.__class__.__name__}：对账任务执行失败',
                     )
                     await query_db.commit()
@@ -1347,7 +1347,7 @@ class FileReconcileService:
             'expectedKey': issue.expected_key,
         }
         performed_move: tuple[str, str, str, str] | None = None
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         try:
             file_id, performed_move = await cls._apply_reconcile_action(
                 query_db,

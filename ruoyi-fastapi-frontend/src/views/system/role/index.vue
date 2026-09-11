@@ -39,6 +39,7 @@
                v-model="dateRange"
                value-format="YYYY-MM-DD"
                type="daterange"
+               :aria-label="`日期范围（${getDisplayTimezone()}）`"
                range-separator="-"
                start-placeholder="开始日期"
                end-placeholder="结束日期"
@@ -242,6 +243,7 @@
 </template>
 
 <script setup name="Role">
+import { getDisplayTimezone } from '@/utils/time';
 import { addRole, changeRoleStatus, dataScope, delRole, getRole, listRole, updateRole, deptTreeSelect } from "@/api/system/role";
 import { roleMenuTreeselect, treeselect as menuTreeselect } from "@/api/system/menu";
 
@@ -556,4 +558,10 @@ function cancelDataScope() {
 }
 
 getList();
+// 时区变化后重新查询日期范围，保留正在编辑的表单。
+watch(getDisplayTimezone, () => {
+  if (dateRange.value?.length) {
+    handleQuery();
+  }
+});
 </script>

@@ -103,6 +103,18 @@ python -m pytest -v
 - 验证未登录用户访问受保护页面时被重定向到登录页
 - 验证登录后可以访问受保护页面
 
+## 通用时间契约
+
+`time-contract` 为本项目 Web、App 和缺少原生 Intl 的 App 实现提供相同的时间工具回归测试，覆盖 RFC 3339、日期合法性、epoch 单位、DST 缺失/重复时间和表单往返。固定时间样例用于验证边界行为，不依赖真实业务数据、数据库、浏览器、构建产物或 `.cache` 中预先生成的文件。
+
+先按前端和 App 各自的依赖清单安装依赖，再从仓库根目录运行：
+
+```bash
+node ruoyi-fastapi-test/time-contract/run-host-timezones.mjs
+```
+
+脚本通过自身位置定位仓库，在 UTC、Asia/Shanghai 和 America/New_York 三个独立进程中执行；更换检出目录或从其他目录调用不影响路径解析。各工程中的测试入口负责导入自身时间工具，共享契约不写死本机绝对路径。
+
 ## 配置说明
 
 使用 `docker-compose.test.my.yml`或`docker-compose.test.pg.yml`启动服务，默认前端端口为 `80`，后端端口为 `9099`。测试环境已禁用验证码功能。

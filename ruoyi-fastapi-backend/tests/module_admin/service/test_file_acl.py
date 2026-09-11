@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -91,7 +91,7 @@ def test_private_file_acl_allows_matching_user_role_or_department(
                 current_user,
                 make_file_info(),
                 FILE_ID,
-                datetime.now(),
+                datetime.now(timezone.utc),
             )
         )
 
@@ -109,7 +109,7 @@ def test_private_file_acl_does_not_apply_parent_department_without_include_child
                 current_user,
                 make_file_info(),
                 FILE_ID,
-                datetime.now(),
+                datetime.now(timezone.utc),
             )
         )
 
@@ -261,7 +261,7 @@ def test_private_file_acl_explicit_deny_overrides_uploader_and_allow_rule() -> N
                 current_user,
                 make_file_info(upload_user_id=20),
                 FILE_ID,
-                datetime.now(),
+                datetime.now(timezone.utc),
             )
         )
 
@@ -278,7 +278,7 @@ def test_private_file_acl_does_not_allow_uploader_when_compatibility_access_is_d
                 current_user,
                 make_file_info(upload_user_id=20, uploader_access_enabled='0'),
                 FILE_ID,
-                datetime.now(),
+                datetime.now(timezone.utc),
             )
         )
 
@@ -297,7 +297,7 @@ def test_private_file_acl_admin_or_owner_is_not_blocked_by_deny(current_user: Si
                 current_user,
                 file_info,
                 FILE_ID,
-                datetime.now(),
+                datetime.now(timezone.utc),
             )
         )
 
@@ -318,7 +318,7 @@ def test_save_file_acl_normalizes_department_scope_and_commits() -> None:
                 'subjectId': 100,
                 'effect': 'allow',
                 'includeChildren': True,
-                'expireTime': datetime.now() + timedelta(days=1),
+                'expireTime': datetime.now(timezone.utc) + timedelta(days=1),
             },
             {
                 'subjectType': 'user',
@@ -453,7 +453,7 @@ def test_save_file_acl_rejects_duplicate_or_expired_entries() -> None:
                 'subjectType': 'user',
                 'subjectId': 20,
                 'effect': 'allow',
-                'expireTime': datetime.now() - timedelta(seconds=1),
+                'expireTime': datetime.now(timezone.utc) - timedelta(seconds=1),
             }
         ],
     )

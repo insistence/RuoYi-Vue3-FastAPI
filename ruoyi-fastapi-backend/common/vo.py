@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, create_model
@@ -6,6 +5,8 @@ from pydantic.alias_generators import to_camel
 from typing_extensions import Self
 
 from common.constant import HttpStatusConstant
+from common.types import ApiUtcDateTime
+from utils.time_util import TimezoneUtil
 
 T = TypeVar('T')
 
@@ -28,7 +29,7 @@ class ResponseBaseModel(BaseModel):
     code: int = Field(default=HttpStatusConstant.SUCCESS, description='响应码')
     msg: str = Field(default='操作成功', description='响应信息')
     success: bool = Field(default=True, description='响应是否成功')
-    time: datetime = Field(default_factory=datetime.now, description='响应时间')
+    time: ApiUtcDateTime = Field(default_factory=TimezoneUtil.utc_now, description='响应时间')
 
 
 class DynamicResponseModel(ResponseBaseModel, Generic[T]):

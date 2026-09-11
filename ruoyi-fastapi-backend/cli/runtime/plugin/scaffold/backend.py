@@ -119,11 +119,6 @@ router = APIRouterPro(prefix='/{plugin_id}', tags=['{plugin_id}'])
 
 @router.get('/ping')
 async def ping() -> dict[str, str]:
-    \"\"\"
-    插件探活接口。
-
-    :return: 插件探活结果
-    \"\"\"
     return {service_class_name}Service.ping()
 """
 
@@ -145,56 +140,26 @@ router = APIRouterPro(prefix='/{plugin_id}', tags=['{plugin_id}'])
 
 @router.get('/ping')
 async def ping() -> dict[str, str]:
-    \"\"\"
-    插件探活接口。
-
-    :return: 插件探活结果
-    \"\"\"
     return {service_class_name}Service.ping()
 
 
 @router.get('/items')
 async def list_items(keyword: str = '') -> dict[str, object]:
-    \"\"\"
-    查询示例数据列表。
-
-    :param keyword: 名称关键字
-    :return: 示例数据分页结果
-    \"\"\"
     return {service_class_name}Service.list_items(keyword)
 
 
 @router.post('/items')
 async def create_item(payload: dict[str, object]) -> dict[str, object]:
-    \"\"\"
-    创建示例数据。
-
-    :param payload: 示例数据负载
-    :return: 创建后的示例数据
-    \"\"\"
     return {service_class_name}Service.create_item(payload)
 
 
 @router.put('/items/{{item_id}}')
 async def update_item(item_id: int, payload: dict[str, object]) -> dict[str, object]:
-    \"\"\"
-    更新示例数据。
-
-    :param item_id: 示例数据ID
-    :param payload: 示例数据负载
-    :return: 更新后的示例数据
-    \"\"\"
     return {service_class_name}Service.update_item(item_id, payload)
 
 
 @router.delete('/items/{{item_id}}')
 async def delete_item(item_id: int) -> dict[str, object]:
-    \"\"\"
-    删除示例数据。
-
-    :param item_id: 示例数据ID
-    :return: 删除结果
-    \"\"\"
     return {service_class_name}Service.delete_item(item_id)
 """
 

@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import ColumnElement, and_, delete, desc, func, or_, select, update
@@ -20,6 +19,7 @@ from module_admin.entity.vo.user_vo import (
     UserRoleQueryModel,
 )
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 class UserDao:
@@ -291,6 +291,9 @@ class UserDao:
         :param is_page: 是否开启分页
         :return: 用户列表信息对象
         """
+        time_range = TimezoneUtil.local_date_strings_to_utc(
+            query_object.begin_time, query_object.end_time, timezone_name=TimezoneUtil.get_request_timezone()
+        )
         query = (
             select(SysUser, SysDept)
             .where(
@@ -310,12 +313,8 @@ class UserDao:
                 SysUser.phonenumber.like(f'%{query_object.phonenumber}%') if query_object.phonenumber else True,
                 SysUser.status == query_object.status if query_object.status else True,
                 SysUser.sex == query_object.sex if query_object.sex else True,
-                SysUser.create_time.between(
-                    datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
-                    datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),
-                )
-                if query_object.begin_time and query_object.end_time
-                else True,
+                SysUser.create_time >= time_range[0] if time_range and time_range[0] is not None else True,
+                SysUser.create_time < time_range[1] if time_range and time_range[1] is not None else True,
                 data_scope_sql,
             )
             .join(

@@ -1,7 +1,7 @@
-from datetime import datetime
-
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+from common.types import ApiUtcDateTime
 
 
 class TransportCryptoFrontendConfigModel(BaseModel):
@@ -61,7 +61,7 @@ class TransportCryptoFailureRecordModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel)
 
-    time: datetime | None = Field(default=None, description='失败时间')
+    time: ApiUtcDateTime | None = Field(default=None, description='失败时间')
     method: str | None = Field(default=None, description='请求方法')
     path: str | None = Field(default=None, description='请求路径')
     reason: str | None = Field(default=None, description='失败原因分类')
@@ -76,7 +76,7 @@ class TransportCryptoMonitorModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     monitor_scope: str | None = Field(default=None, description='监控统计范围，默认基于Redis聚合')
-    started_at: datetime | None = Field(default=None, description='当前监控统计起始时间')
+    started_at: ApiUtcDateTime | None = Field(default=None, description='当前监控统计起始时间')
     app_env: str | None = Field(default=None, description='当前应用环境')
     transport_crypto_enabled: bool | None = Field(default=None, description='是否启用传输层加解密')
     transport_crypto_mode: str | None = Field(default=None, description='当前传输层加解密模式')

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -96,13 +96,16 @@ async def create_sqlite_sys_job_table(connection: object) -> None:
                 job_id integer primary key autoincrement,
                 job_name varchar(64) not null,
                 job_group varchar(64) not null default 'default',
+                job_store varchar(64) not null default 'default',
                 job_executor varchar(64) default 'default',
                 invoke_target varchar(500) not null,
-                job_args varchar(255) default '',
-                job_kwargs varchar(255) default '',
+                job_args json not null,
+                job_kwargs json not null,
                 cron_expression varchar(255) default '',
-                misfire_policy varchar(20) default '3',
-                concurrent char(1) default '1',
+                time_zone varchar(64) not null,
+                misfire_grace_time integer default 1,
+                coalesce boolean not null default false,
+                max_instances integer not null default 1,
                 status char(1) default '0',
                 create_by varchar(64) default '',
                 create_time datetime,
@@ -353,8 +356,8 @@ def test_plugin_job_model_builder_maps_manifest_to_job_model(tmp_path: Path) -> 
     assert job_model.job_name == 'demo:cleanup'
     assert job_model.job_group == 'default'
     assert job_model.invoke_target == 'plugins.demo.jobs.cleanup'
-    assert job_model.job_args == '["tenant,a", "dry-run"]'
-    assert job_model.job_kwargs == '{"days": 7}'
+    assert job_model.job_args == ['tenant,a', 'dry-run']
+    assert job_model.job_kwargs == {'days': 7}
     assert job_model.cron_expression == '0 0/5 * * * ?'
     assert job_model.status == '0'
 
@@ -1029,6 +1032,7 @@ async def test_plugin_job_sync_deletes_stale_owned_jobs_but_keeps_manual_jobs(tm
                     job_name='demo:manual',
                     job_group='default',
                     invoke_target='module_task.scheduler_test.job',
+                    time_zone='Asia/Shanghai',
                     status='0',
                     remark='用户手工任务',
                 )
@@ -1060,6 +1064,7 @@ async def test_plugin_job_sync_rejects_exact_name_collision_with_manual_job(tmp_
                     job_name='demo:cleanup',
                     job_group='default',
                     invoke_target='module_task.scheduler_test.job',
+                    time_zone='Asia/Shanghai',
                     status='0',
                     remark='用户手工任务',
                 )
@@ -1964,6 +1969,7 @@ async def test_plugin_job_prefix_queries_treat_like_wildcards_as_literals() -> N
                         job_name='foo_bar:cleanup',
                         job_group='default',
                         invoke_target='plugins.foo_bar.jobs.cleanup',
+                        time_zone='Asia/Shanghai',
                         status='0',
                         remark=f'{PluginJobModelBuilder.REMARK_PREFIX} foo_bar:cleanup',
                     ),
@@ -1971,6 +1977,7 @@ async def test_plugin_job_prefix_queries_treat_like_wildcards_as_literals() -> N
                         job_name='fooXbar:cleanup',
                         job_group='default',
                         invoke_target='plugins.fooXbar.jobs.cleanup',
+                        time_zone='Asia/Shanghai',
                         status='0',
                         remark=f'{PluginJobModelBuilder.REMARK_PREFIX} fooXbar:cleanup',
                     ),
@@ -2257,7 +2264,7 @@ async def test_plugin_operation_log_export_services_returns_filtered_rows() -> N
             )
             await session.commit()
 
-            today = datetime.now().strftime('%Y-%m-%d')
+            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
             export_list = await PluginService.get_plugin_operation_log_export_list_services(
                 session,
                 PluginOperationLogExportQueryModel(
@@ -2303,7 +2310,7 @@ async def test_retain_plugin_operation_log_services_supports_dry_run_and_delete(
                         dry_run='1',
                         continue_on_error='1',
                         status='success',
-                        create_time=datetime.now() - timedelta(days=30),
+                        create_time=datetime.now(timezone.utc) - timedelta(days=30),
                     ),
                     SysPluginOperationLog(
                         operation='install',
@@ -2311,7 +2318,7 @@ async def test_retain_plugin_operation_log_services_supports_dry_run_and_delete(
                         dry_run='1',
                         continue_on_error='1',
                         status='success',
-                        create_time=datetime.now(),
+                        create_time=datetime.now(timezone.utc),
                     ),
                 ]
             )
@@ -2328,7 +2335,7 @@ async def test_retain_plugin_operation_log_services_supports_dry_run_and_delete(
             await session.commit()
             remaining_count = await PluginDao.count_plugin_operation_logs_before(
                 session,
-                datetime.now() + timedelta(days=1),
+                datetime.now(timezone.utc) + timedelta(days=1),
             )
 
         assert dry_run_result.matched_count == 1
@@ -2357,7 +2364,7 @@ async def test_retain_plugin_operation_log_services_accepts_zero_days() -> None:
                     dry_run='1',
                     continue_on_error='1',
                     status='success',
-                    create_time=datetime.now() - timedelta(minutes=1),
+                    create_time=datetime.now(timezone.utc) - timedelta(minutes=1),
                 )
             )
             await session.commit()
@@ -2369,7 +2376,7 @@ async def test_retain_plugin_operation_log_services_accepts_zero_days() -> None:
             await session.commit()
             remaining_count = await PluginDao.count_plugin_operation_logs_before(
                 session,
-                datetime.now() + timedelta(days=1),
+                datetime.now(timezone.utc) + timedelta(days=1),
             )
 
         assert delete_result.retention_days == 0

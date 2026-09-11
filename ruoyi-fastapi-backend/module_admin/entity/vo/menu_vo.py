@@ -1,9 +1,11 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class MenuModel(BaseModel):
@@ -29,9 +31,9 @@ class MenuModel(BaseModel):
     perms: str | None = Field(default=None, description='权限标识')
     icon: str | None = Field(default=None, description='菜单图标')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
 
     @NotBlank(field_name='menu_name', message='菜单名称不能为空')
@@ -68,7 +70,7 @@ class MenuModel(BaseModel):
         self.get_perms()
 
 
-class MenuQueryModel(MenuModel):
+class MenuQueryModel(DateRangeQueryMixin, MenuModel):
     """
     菜单管理不分页查询模型
     """

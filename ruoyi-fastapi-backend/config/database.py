@@ -1,10 +1,11 @@
 import asyncio
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from functools import cache
-from typing import Any
+from typing import Any, TypeVar, cast
 
 from pydantic import SecretStr
 from sqlalchemy import URL, Engine, create_engine, text
@@ -27,8 +28,54 @@ from exceptions.exception import (
     DataSourceUnavailableException,
 )
 from utils.log_util import logger
+from utils.time_util import TimezoneUtil
 
 _HEALTH_RETRY_COOLDOWN = timedelta(seconds=5)
+_SESSION_TIMEZONE_QUERY = {
+    'mysql': 'SELECT @@session.time_zone',
+    'postgresql': 'SHOW TIME ZONE',
+}
+_UTC_SESSION_TIMEZONES = {'+00:00', 'UTC', 'Etc/UTC'}
+_QUIET_SQL_LOG_TOKEN = 'ruoyi_internal_sql'
+_DatabaseEngine = TypeVar('_DatabaseEngine', Engine, AsyncEngine)
+
+
+class _QuietSqlLogFilter(logging.Filter):
+    """
+    按连接日志标记过滤内部SQL，保留警告和错误
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """
+        判断是否保留当前SQLAlchemy日志
+
+        :param record: 待输出的日志记录
+        :return: 是否保留日志
+        """
+        return (
+            record.levelno >= logging.WARNING
+            or not isinstance(record.msg, str)
+            or not record.msg.startswith(f'[{_QUIET_SQL_LOG_TOKEN}] ')
+        )
+
+
+_QUIET_SQL_LOG_FILTER = _QuietSqlLogFilter()
+
+
+def quiet_sql_engine(engine: _DatabaseEngine) -> _DatabaseEngine:
+    """
+    创建复用原连接池、只过滤自身常规SQL日志的引擎视图
+
+    :param engine: 注册中心管理的同步或异步引擎
+    :return: 带有内部SQL日志标记的引擎视图，由原引擎统一管理连接池
+    """
+    sync_engine = engine.sync_engine if isinstance(engine, AsyncEngine) else engine
+    logger_name = 'sqlalchemy.engine.Engine'
+    if sync_engine.logging_name:
+        logger_name = f'{logger_name}.{sync_engine.logging_name}'
+    # Logger过滤同时覆盖echo自动创建的Handler和应用日志转发，不修改共享日志等级。
+    logging.getLogger(logger_name).addFilter(_QUIET_SQL_LOG_FILTER)
+    return cast('_DatabaseEngine', engine.execution_options(logging_token=_QUIET_SQL_LOG_TOKEN))
 
 
 def _error_details(exc: BaseException) -> tuple[str, int | None]:
@@ -86,7 +133,7 @@ class DatabaseDriverAdapter:
             database=config.db_database,
         )
 
-    def build_connect_args(self, config: DataSourceSettings, *, sync: bool) -> dict[str, int]:
+    def build_connect_args(self, config: DataSourceSettings, *, sync: bool) -> dict[str, Any]:
         """
         构建数据库驱动连接参数
 
@@ -95,7 +142,15 @@ class DatabaseDriverAdapter:
         :return: 数据库驱动连接参数
         """
         timeout_key = self.sync_connect_timeout_key if sync else self.async_connect_timeout_key
-        return {timeout_key: config.db_connect_timeout}
+        connect_args: dict[str, Any] = {timeout_key: config.db_connect_timeout}
+        if self.db_type == 'postgresql':
+            if sync:
+                connect_args['options'] = '-c timezone=UTC'
+            else:
+                connect_args['server_settings'] = {'timezone': 'UTC'}
+        elif self.db_type == 'mysql':
+            connect_args['init_command'] = "SET time_zone = '+00:00'"
+        return connect_args
 
 
 _DATABASE_DRIVER_ADAPTERS = {
@@ -274,6 +329,7 @@ class DataSourceRuntime:
     available: bool = False
     last_health_check_at: datetime | None = None
     next_retry_at: datetime | None = None
+    session_timezone: str | None = None
     health_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -323,8 +379,9 @@ class _DataSourceRegistry:
         :param runtime: 数据源运行时状态
         :return: None
         """
-        now = datetime.now(timezone.utc)
+        now = TimezoneUtil.utc_now()
         runtime.available = False
+        runtime.session_timezone = None
         runtime.last_health_check_at = now
         runtime.next_retry_at = now + _HEALTH_RETRY_COOLDOWN
 
@@ -388,9 +445,13 @@ class _DataSourceRegistry:
                 if error_type is not None:
                     log_context['error_type'] = error_type
                     log_context['error_code'] = error_code
+                elif healthy:
+                    log_context['session_timezone'] = self._runtime(name).session_timezone
                 source_logger = logger.bind(**log_context)
                 if healthy:
-                    source_logger.info(f'✅ 数据源 {name} 初始化成功')
+                    source_logger.info(
+                        f'✅ 数据源 {name} 初始化成功，sessionTimeZone={self._runtime(name).session_timezone}'
+                    )
                 elif required:
                     source_logger.error(f'❌ 必需数据源 {name} 连接检查失败{_error_log_suffix(error_type, error_code)}')
                 else:
@@ -460,11 +521,16 @@ class _DataSourceRegistry:
             assert runtime.async_engine is not None
             async with runtime.async_engine.begin() as connection:
                 await connection.execute(text('SELECT 1'))
+                timezone_result = await connection.execute(text(_SESSION_TIMEZONE_QUERY[runtime.config.db_type]))
+                session_timezone = str(timezone_result.scalar_one())
+                if session_timezone not in _UTC_SESSION_TIMEZONES:
+                    raise RuntimeError(f'数据库session timezone必须为UTC，实际为{session_timezone}')
+                runtime.session_timezone = session_timezone
         except Exception as exc:
             self._mark_unavailable(runtime)
             raise self._data_source_error(DataSourceUnavailableException, runtime, exc) from None
         runtime.available = True
-        runtime.last_health_check_at = datetime.now(timezone.utc)
+        runtime.last_health_check_at = TimezoneUtil.utc_now()
         runtime.next_retry_at = None
 
     async def _ensure_available(self, runtime: DataSourceRuntime) -> None:
@@ -477,12 +543,14 @@ class _DataSourceRegistry:
         async with runtime.health_lock:
             if runtime.available:
                 return
-            now = datetime.now(timezone.utc)
+            now = TimezoneUtil.utc_now()
             if runtime.next_retry_at is not None and now < runtime.next_retry_at:
                 raise DataSourceUnavailableException(runtime.name)
             await self._check_health_locked(runtime)
             if self._log_enabled:
-                logger.bind(data_source=runtime.name).info(f'✅ 数据源 {runtime.name} 连接已恢复')
+                logger.bind(data_source=runtime.name, session_timezone=runtime.session_timezone).info(
+                    f'✅ 数据源 {runtime.name} 连接已恢复，sessionTimeZone={runtime.session_timezone}'
+                )
 
     @asynccontextmanager
     async def connection(self, name: str | None = None) -> AsyncGenerator[AsyncConnection, None]:
@@ -505,19 +573,24 @@ class _DataSourceRegistry:
             raise self._data_source_error(DataSourceUnavailableException, runtime, exc) from None
 
     @asynccontextmanager
-    async def session(self, name: str | None = None) -> AsyncGenerator[AsyncSession, None]:
+    async def session(self, name: str | None = None, *, log_sql: bool = True) -> AsyncGenerator[AsyncSession, None]:
         """
         创建指定数据源的异步数据库会话
 
         :param name: 数据源名称
+        :param log_sql: 是否保留数据源原有的SQL日志设置，False时只过滤此会话的常规SQL日志
         :return: 异步数据库会话
         """
         runtime = self._runtime(name)
         await self._ensure_available(runtime)
         factory = runtime.async_session_factory
         assert factory is not None
+        session_options: dict[str, Any] = {}
+        if not log_sql:
+            assert runtime.async_engine is not None
+            session_options['bind'] = quiet_sql_engine(runtime.async_engine)
         try:
-            async with factory() as current_db:
+            async with factory(**session_options) as current_db:
                 yield current_db
         except DBAPIError as exc:
             if not exc.connection_invalidated:

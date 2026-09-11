@@ -1,8 +1,10 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+from common.mixin import InstantRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 FileReconcileAction = Literal[
     'ignore',
@@ -44,11 +46,11 @@ class FileInfoModel(BaseModel):
     file_hash: str = Field(min_length=64, max_length=64, description='文件SHA-256')
     status: Literal['active', 'deleted', 'purging'] = Field(default='active', description='文件状态')
     create_by: str | None = Field(default=None, max_length=64, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, max_length=64, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
-    expire_time: datetime | None = Field(default=None, description='过期时间')
-    deleted_time: datetime | None = Field(default=None, description='移入回收站时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
+    expire_time: ApiUtcDateTime | None = Field(default=None, description='过期时间')
+    deleted_time: ApiUtcDateTime | None = Field(default=None, description='移入回收站时间')
     del_flag: Literal['0', '1'] = Field(default='0', description='删除标志')
 
 
@@ -59,7 +61,7 @@ class FileInfoDisplayModel(FileInfoModel):
 
     owner_name: str | None = Field(default=None, description='所有者用户名称')
     dept_name: str | None = Field(default=None, description='所属部门名称')
-    acl_nearest_expire_time: datetime | None = Field(default=None, description='最近ACL过期时间')
+    acl_nearest_expire_time: ApiUtcDateTime | None = Field(default=None, description='最近ACL过期时间')
     acl_entry_count: int = Field(default=0, ge=0, description='ACL配置数量')
     reference_count: int = Field(default=0, ge=0, description='业务引用数量')
     storage_status: Literal['normal', 'missing', 'quarantined', 'invalid'] = Field(
@@ -79,9 +81,9 @@ class FileReferenceModel(BaseModel):
     business_type: str = Field(description='业务类型')
     business_id: str = Field(description='业务ID')
     business_name: str | None = Field(default=None, description='业务名称')
-    retention_expire_time: datetime | None = Field(default=None, description='保留期限到期时间')
+    retention_expire_time: ApiUtcDateTime | None = Field(default=None, description='保留期限到期时间')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     legacy: bool = Field(default=False, description='是否为文件主表兼容引用')
 
 
@@ -97,9 +99,9 @@ class FileRetentionPolicyModel(BaseModel):
     status: Literal['0', '1'] = Field(default='0', description='状态（0启用 1停用）')
     remark: str | None = Field(default=None, max_length=500, description='备注')
     create_by: str | None = Field(default=None, max_length=64, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, max_length=64, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
 
 class FileRetentionNoticeModel(BaseModel):
@@ -115,11 +117,11 @@ class FileRetentionNoticeModel(BaseModel):
     owner_name: str | None = Field(default=None, description='所有者用户名称')
     dept_name: str | None = Field(default=None, description='所属部门名称')
     notice_type: Literal['expiring', 'expired'] = Field(description='提醒类型')
-    expire_time: datetime = Field(description='文件过期时间')
+    expire_time: ApiUtcDateTime = Field(description='文件过期时间')
     status: Literal['0', '1'] = Field(description='状态（0未读 1已读）')
-    create_time: datetime = Field(description='创建时间')
+    create_time: ApiUtcDateTime = Field(description='创建时间')
     read_by: str | None = Field(default=None, description='读取者')
-    read_time: datetime | None = Field(default=None, description='读取时间')
+    read_time: ApiUtcDateTime | None = Field(default=None, description='读取时间')
     reference_count: int = Field(default=0, ge=0, description='业务引用数量')
     can_dispose: bool = Field(default=False, description='是否允许到期处置')
 
@@ -163,7 +165,7 @@ class ExtendFileRetentionModel(BaseModel):
 
     model_config = ConfigDict(alias_generator=to_camel, str_strip_whitespace=True)
 
-    expire_time: datetime = Field(description='新的到期时间')
+    expire_time: ApiUtcDateTime = Field(description='新的到期时间')
     reason: str = Field(min_length=1, max_length=500, description='延期原因')
 
 
@@ -208,7 +210,7 @@ class FileAccessLogModel(BaseModel):
     bytes_sent: int = Field(default=0, description='发送字节数')
     error_message: str | None = Field(default=None, description='失败原因')
     operation_detail: str | None = Field(default=None, description='操作详情')
-    access_time: datetime | None = Field(default=None, description='访问时间')
+    access_time: ApiUtcDateTime | None = Field(default=None, description='访问时间')
 
 
 class FileAclModel(BaseModel):
@@ -226,9 +228,9 @@ class FileAclModel(BaseModel):
     permission: Literal['download'] = Field(default='download', description='权限类型')
     effect: Literal['allow', 'deny'] = Field(description='授权效果')
     include_children: bool = Field(default=False, description='部门是否包含下级')
-    expire_time: datetime | None = Field(default=None, description='授权过期时间')
+    expire_time: ApiUtcDateTime | None = Field(default=None, description='授权过期时间')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
 
 
 class FileAclItemModel(BaseModel):
@@ -242,7 +244,7 @@ class FileAclItemModel(BaseModel):
     subject_id: int = Field(gt=0, description='主体ID')
     effect: Literal['allow', 'deny'] = Field(description='授权效果')
     include_children: bool = Field(default=False, description='部门是否包含下级')
-    expire_time: datetime | None = Field(default=None, description='授权过期时间')
+    expire_time: ApiUtcDateTime | None = Field(default=None, description='授权过期时间')
 
 
 class FileAclBuiltinPermissionModel(BaseModel):
@@ -309,7 +311,7 @@ class FileAclSubjectOptionModel(BaseModel):
     dept_id: int | None = Field(default=None, description='所属部门ID')
 
 
-class FileInfoQueryModel(BaseModel):
+class FileInfoQueryModel(InstantRangeQueryMixin, BaseModel):
     """
     文件信息管理不分页查询模型
     """
@@ -356,7 +358,7 @@ class FileStatsModel(BaseModel):
     acl_expiring_count: int = Field(default=0, ge=0, description='ACL即将过期文件数')
 
 
-class FileAccessLogQueryModel(BaseModel):
+class FileAccessLogQueryModel(InstantRangeQueryMixin, BaseModel):
     """
     文件访问审计不分页查询模型
     """
@@ -433,8 +435,8 @@ class FileReconcileRunModel(BaseModel):
     new_issue_count: int = Field(default=0, ge=0, description='新增或重新出现异常数')
     resolved_issue_count: int = Field(default=0, ge=0, description='自动恢复异常数')
     started_by: str | None = Field(default=None, description='发起人')
-    started_time: datetime = Field(description='开始时间')
-    finished_time: datetime | None = Field(default=None, description='完成时间')
+    started_time: ApiUtcDateTime = Field(description='开始时间')
+    finished_time: ApiUtcDateTime | None = Field(default=None, description='完成时间')
     error_message: str | None = Field(default=None, description='失败原因')
 
 
@@ -489,12 +491,12 @@ class FileReconcileIssueModel(BaseModel):
     status: Literal['open', 'ignored', 'quarantined', 'resolved'] = Field(description='处理状态')
     detail: str | None = Field(default=None, description='异常说明')
     occurrence_count: int = Field(default=1, ge=1, description='发现次数')
-    first_seen_time: datetime = Field(description='首次发现时间')
-    last_seen_time: datetime = Field(description='最近发现时间')
+    first_seen_time: ApiUtcDateTime = Field(description='首次发现时间')
+    last_seen_time: ApiUtcDateTime = Field(description='最近发现时间')
     handle_action: str | None = Field(default=None, description='处理动作')
     handle_reason: str | None = Field(default=None, description='处理原因')
     handled_by: str | None = Field(default=None, description='处理人')
-    handled_time: datetime | None = Field(default=None, description='处理时间')
+    handled_time: ApiUtcDateTime | None = Field(default=None, description='处理时间')
     quarantine_key: str | None = Field(default=None, description='隔离区相对路径')
     available_actions: list[FileReconcileAction] = Field(default_factory=list, description='可用处理动作')
 

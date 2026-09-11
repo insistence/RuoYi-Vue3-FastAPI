@@ -135,10 +135,10 @@ async def test_lifespan_only_application_leader_outputs_banner_and_addresses() -
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=redis)),
-        patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-1'),
+        patch('server.SchedulerManager.get_application_lock_owner_token', return_value='owner-1'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=True)),
-        patch('server.SchedulerUtil.start_application_lock_renewal') as start_renewal,
-        patch('server.SchedulerUtil.is_application_leader', return_value=True),
+        patch('server.SchedulerManager.start_application_lock_renewal') as start_renewal,
+        patch('server.SchedulerManager.is_application_leader', return_value=True),
         patch('server.TransportKeyProvider.validate_runtime_configuration'),
         patch('server._initialize_application_runtime', new_callable=AsyncMock) as initialize_runtime,
         patch('server._shutdown_application_runtime', new_callable=AsyncMock) as shutdown_runtime,
@@ -178,10 +178,10 @@ async def test_lifespan_non_leader_runs_local_initialization_without_display_log
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=redis)),
-        patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-2'),
+        patch('server.SchedulerManager.get_application_lock_owner_token', return_value='owner-2'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=False)),
-        patch('server.SchedulerUtil.start_application_lock_renewal') as start_renewal,
-        patch('server.SchedulerUtil.is_application_leader') as is_application_leader,
+        patch('server.SchedulerManager.start_application_lock_renewal') as start_renewal,
+        patch('server.SchedulerManager.is_application_leader') as is_application_leader,
         patch('server.TransportKeyProvider.validate_runtime_configuration'),
         patch('server._initialize_application_runtime', new_callable=AsyncMock) as initialize_runtime,
         patch('server._shutdown_application_runtime', new_callable=AsyncMock) as shutdown_runtime,
@@ -210,7 +210,7 @@ async def test_lifespan_non_leader_initialization_error_propagates_and_still_cle
 
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=MagicMock())),
-        patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-3'),
+        patch('server.SchedulerManager.get_application_lock_owner_token', return_value='owner-3'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=False)),
         patch('server.TransportKeyProvider.validate_runtime_configuration'),
         patch(
@@ -268,7 +268,7 @@ async def test_lifespan_database_initialization_failure_releases_redis_and_datab
     with (
         patch('server.RedisUtil.create_redis_pool', new=AsyncMock(return_value=redis)),
         patch('server.DataSourceRegistry', database_registry),
-        patch('server.SchedulerUtil.get_application_lock_owner_token', return_value='owner-db-failure'),
+        patch('server.SchedulerManager.get_application_lock_owner_token', return_value='owner-db-failure'),
         patch('server.StartupUtil.acquire_application_leader', new=AsyncMock(return_value=False)),
         patch('server._shutdown_application_runtime', new_callable=AsyncMock) as shutdown_runtime,
         pytest.raises(RuntimeError, match='database unavailable'),
@@ -311,7 +311,7 @@ async def test_shutdown_application_runtime_preserves_cleanup_order() -> None:
     with (
         patch('server.get_plugin_application_runtime', return_value=plugin_runtime),
         patch(
-            'server.SchedulerUtil.close_system_scheduler',
+            'server.SchedulerManager.close_system_scheduler',
             new=AsyncMock(side_effect=record_scheduler_shutdown),
         ),
         patch(
@@ -352,7 +352,7 @@ async def test_stop_background_tasks_closes_redis_and_database_when_scheduler_cl
 
     with (
         patch(
-            'server.SchedulerUtil.close_system_scheduler',
+            'server.SchedulerManager.close_system_scheduler',
             new=AsyncMock(side_effect=RuntimeError('scheduler close failed')),
         ),
         patch('server.RedisUtil.close_redis_pool', new_callable=AsyncMock) as close_redis_pool,

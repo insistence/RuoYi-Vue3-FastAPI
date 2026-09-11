@@ -1,6 +1,6 @@
 import json
 from collections.abc import Generator
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -482,7 +482,7 @@ async def test_retain_system_plugin_operation_log_commits_session(monkeypatch: p
     recorded: dict[str, object] = {}
     retention_result = PluginOperationLogRetentionResultModel(
         retentionDays=0,
-        cutoffTime=datetime(2026, 5, 22, 12, 0, 0),
+        cutoffTime=datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc),
         matchedCount=2,
         deletedCount=0,
         dryRun=True,

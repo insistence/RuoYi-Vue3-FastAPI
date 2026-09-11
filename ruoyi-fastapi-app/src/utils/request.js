@@ -1,5 +1,6 @@
 import config from "@/config";
 import { getToken } from "@/utils/auth";
+import { getDisplayTimezone } from "@/utils/time";
 import errorCode from "@/utils/errorCode";
 import { useUserStore } from "@/store/modules/user";
 import { toast, showConfirm, tansParams } from "@/utils/common";
@@ -20,6 +21,8 @@ const request = async (config) => {
   const isToken = (config.headers || {}).isToken === false;
   config.header = config.header || {};
   config.headers = config.headers || {};
+  config.header["X-Timezone"] =
+    config.header["X-Timezone"] || getDisplayTimezone();
   if (getToken() && !isToken) {
     config.header["Authorization"] = "Bearer " + getToken();
   }
@@ -46,7 +49,10 @@ const request = async (config) => {
           try {
             const res = await decryptTransportResponse(response, config);
 
-            if (shouldRetryTransportWithFreshKey(res) && !config.__transportRetried) {
+            if (
+              shouldRetryTransportWithFreshKey(res) &&
+              !config.__transportRetried
+            ) {
               invalidateTransportKeyMeta();
               config.__transportRetried = true;
               config.headers.repeatSubmit = false;
@@ -69,7 +75,9 @@ const request = async (config) => {
                     });
                 }
               });
-              const error = new Error("无效的会话，或者会话已过期，请重新登录。");
+              const error = new Error(
+                "无效的会话，或者会话已过期，请重新登录。",
+              );
               error.response = res;
               reject(error);
             } else if (code === 500) {

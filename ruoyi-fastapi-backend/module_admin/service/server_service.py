@@ -2,6 +2,7 @@ import os
 import platform
 import socket
 import time
+from datetime import datetime, timezone
 
 import anyio
 import psutil
@@ -54,7 +55,7 @@ class ServerService:
         python_version = platform.python_version()
         python_home = current_process.exe()
         start_time_stamp = current_process.create_time()
-        start_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time_stamp))
+        start_time = datetime.fromtimestamp(start_time_stamp, tz=timezone.utc)
         current_time_stamp = time.time()
         difference = current_time_stamp - start_time_stamp
         # 将时间差转换为天、小时和分钟数

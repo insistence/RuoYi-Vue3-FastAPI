@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     image: ruoyi-frontend:latest
     container_name: ruoyi-frontend
+    environment:
+      TZ: UTC
     ports:
       - "12580:80"
     volumes:
@@ -22,6 +24,8 @@ services:
       dockerfile: Dockerfile.my
     image: ruoyi-backend-my:latest
     container_name: ruoyi-backend-my
+    environment:
+      TZ: UTC
     ports:
       - "19099:9099"
     depends_on:
@@ -37,6 +41,7 @@ services:
     image: mysql:8.0
     container_name: ruoyi-mysql
     environment:
+      TZ: UTC
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ruoyi-fastapi
     ports:
@@ -56,6 +61,8 @@ services:
   ruoyi-redis:
     image: redis:latest
     container_name: ruoyi-redis
+    environment:
+      TZ: UTC
     ports:
       - "16379:6379"
     networks:

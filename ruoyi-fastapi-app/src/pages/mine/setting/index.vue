@@ -13,6 +13,18 @@
         <view class="i-mdi-chevron-right text-base text-gray-400"></view>
       </view>
 
+      <!-- 时区设置 -->
+      <view
+        class="flex items-center justify-between border-b border-gray-100 px-5 py-4 active:bg-gray-50"
+        @click="handleToTimezone"
+      >
+        <view class="flex items-center">
+          <view class="i-mdi-earth text-xl text-gray-600 mr-3"></view>
+          <text class="text-base text-gray-800">时区设置</text>
+        </view>
+        <view class="i-mdi-chevron-right text-base text-gray-400"></view>
+      </view>
+
       <!-- Check Update -->
       <view
         class="flex items-center justify-between border-b border-gray-100 px-5 py-4 active:bg-gray-50"
@@ -57,6 +69,10 @@ const { proxy } = getCurrentInstance();
 
 function handleToPwd() {
   proxy.$tab.navigateTo("/pages/mine/pwd/index");
+}
+
+function handleToTimezone() {
+  proxy.$tab.navigateTo("/pages/mine/setting/timezone");
 }
 
 function handleToUpgrade() {

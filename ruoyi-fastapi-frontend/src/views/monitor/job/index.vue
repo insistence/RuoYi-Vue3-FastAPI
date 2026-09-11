@@ -10,15 +10,8 @@
                @keyup.enter="handleQuery"
             />
          </el-form-item>
-         <el-form-item label="任务组名" prop="jobGroup">
-            <el-select v-model="queryParams.jobGroup" placeholder="请选择任务组名" clearable style="width: 200px">
-               <el-option
-                  v-for="dict in sys_job_group"
-                  :key="dict.value"
-                  :label="dict.label"
-                  :value="dict.value"
-               />
-            </el-select>
+         <el-form-item label="业务分组" prop="jobGroup">
+            <el-input v-model="queryParams.jobGroup" placeholder="请输入业务分组" clearable style="width: 200px" @keyup.enter="handleQuery" />
          </el-form-item>
          <el-form-item label="任务状态" prop="status">
             <el-select v-model="queryParams.status" placeholder="请选择任务状态" clearable style="width: 200px">
@@ -84,6 +77,10 @@
                v-hasPermi="['monitor:job:query']"
             >日志</el-button>
          </el-col>
+         <el-col :span="1.5">
+            <el-button type="info" plain icon="Tickets" @click="handleRuntime('executions')"
+               v-hasPermi="['monitor:job:query']">运行记录</el-button>
+         </el-col>
          <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
       </el-row>
 
@@ -95,19 +92,31 @@
                <a class="link-type" style="cursor:pointer" @click="handleView(scope.row)">{{ scope.row.jobName }}</a>
             </template>
          </el-table-column>
-         <el-table-column label="任务组名" align="center" prop="jobGroup">
+         <el-table-column label="业务分组" align="center" prop="jobGroup">
             <template #default="scope">
-               <dict-tag :options="sys_job_group" :value="scope.row.jobGroup" />
+               {{ scope.row.jobGroup }}
             </template>
          </el-table-column>
          <el-table-column label="调用目标字符串" align="center" prop="invokeTarget" :show-overflow-tooltip="true" />
          <el-table-column label="cron执行表达式" align="center" prop="cronExpression" :show-overflow-tooltip="true" />
+         <el-table-column label="cron时区" align="center" prop="timeZone" width="150" />
+         <el-table-column label="调度同步" align="center" width="115">
+            <template #default="scope">
+               <el-button v-if="canQueryRuntime" link :type="syncStates[scope.row.syncStatus]?.type || 'warning'"
+                  @click="handleRuntime('sync', scope.row)">
+                  {{ syncStates[scope.row.syncStatus]?.label || '待同步' }}
+               </el-button>
+               <span v-else>{{ syncStates[scope.row.syncStatus]?.label || '待同步' }}</span>
+            </template>
+         </el-table-column>
          <el-table-column label="状态" align="center">
             <template #default="scope">
                <el-switch
                   v-model="scope.row.status"
                   active-value="0"
                   inactive-value="1"
+                  :disabled="changingIds.has(scope.row.jobId)"
+                  :aria-label="`任务 ${scope.row.jobName} 的启停状态`"
                   @change="handleStatusChange(scope.row)"
                ></el-switch>
             </template>
@@ -121,7 +130,9 @@
                   <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['monitor:job:remove']"></el-button>
                </el-tooltip>
                <el-tooltip content="执行一次" placement="top">
-                  <el-button link type="primary" icon="CaretRight" @click="handleRun(scope.row)" v-hasPermi="['monitor:job:changeStatus']"></el-button>
+                  <el-button link type="primary" icon="CaretRight" :loading="runningIds.has(scope.row.jobId)"
+                     :aria-label="`立即执行 ${scope.row.jobName}`" @click="handleRun(scope.row)"
+                     v-hasPermi="['monitor:job:changeStatus']"></el-button>
                </el-tooltip>
                <el-tooltip content="调度日志" placement="top">
                   <el-button link type="primary" icon="Operation" @click="handleJobLog(scope.row)" v-hasPermi="['monitor:job:query']"></el-button>
@@ -139,28 +150,22 @@
       />
 
       <!-- 添加或修改定时任务对话框 -->
-      <el-dialog :title="title" v-model="open" width="820px" append-to-body>
+      <el-dialog :title="title" v-model="open" width="820px" class="scrollbar" style="max-width: calc(100vw - 32px)" append-to-body
+         :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting" destroy-on-close>
          <el-form ref="jobRef" :model="form" :rules="rules" label-width="120px">
             <el-row>
                <el-col :span="24">
                   <el-form-item label="任务名称" prop="jobName">
-                     <el-input v-model="form.jobName" placeholder="请输入任务名称" />
+                     <el-input v-model="form.jobName" maxlength="64" placeholder="同一业务分组内名称唯一" />
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item label="任务分组" prop="jobGroup">
-                     <el-select v-model="form.jobGroup" placeholder="请选择">
-                        <el-option
-                           v-for="dict in sys_job_group"
-                           :key="dict.value"
-                           :label="dict.label"
-                           :value="dict.value"
-                        ></el-option>
-                     </el-select>
+                  <el-form-item label="业务分组" prop="jobGroup">
+                     <el-input v-model="form.jobGroup" maxlength="64" placeholder="例如 default、报表、文件维护" />
                   </el-form-item>
                </el-col>
                <el-col :span="12">
-                  <el-form-item prop="jobGroup">
+                  <el-form-item prop="jobExecutor">
                      <template #label>
                         <span>
                            任务执行器
@@ -185,6 +190,14 @@
                   </el-form-item>
                </el-col>
                <el-col :span="24">
+                  <el-form-item label="调度存储" prop="jobStore">
+                     <el-select v-model="form.jobStore" placeholder="请选择调度存储">
+                        <el-option v-for="dict in sys_job_store" :key="dict.value" :label="dict.label" :value="dict.value" />
+                     </el-select>
+                     <div class="form-help">内存存储重启后重建计划；数据库和Redis可保留下次调度进度。</div>
+                  </el-form-item>
+               </el-col>
+               <el-col :span="24">
                   <el-form-item prop="invokeTarget">
                      <template #label>
                         <span>
@@ -204,12 +217,14 @@
                </el-col>
                <el-col :span="24">
                   <el-form-item label="位置参数" prop="jobArgs">
-                  <el-input v-model="form.jobArgs" placeholder="请输入位置参数" />
+                     <json-editor v-model="form.jobArgs" label="位置参数" value-type="array" :validate="value => parseJobParameter(value, 'jobArgs')" />
+                     <div class="form-help">无参数填写 []，数组内可使用字符串、数字、布尔值和对象。</div>
                   </el-form-item>
                </el-col>
                <el-col :span="24">
                   <el-form-item label="关键字参数" prop="jobKwargs">
-                  <el-input v-model="form.jobKwargs" placeholder="请输入关键字参数" />
+                     <json-editor v-model="form.jobKwargs" label="关键字参数" value-type="object" :validate="value => parseJobParameter(value, 'jobKwargs')" />
+                     <div class="form-help">无参数填写 {}，属性名需与函数参数名一致。</div>
                   </el-form-item>
                </el-col>
                <el-col :span="24">
@@ -224,6 +239,13 @@
                      </el-input>
                   </el-form-item>
                </el-col>
+               <el-col :span="24">
+                  <el-form-item label="cron时区" prop="timeZone">
+                     <el-select v-model="form.timeZone" filterable allow-create placeholder="选择IANA时区">
+                        <el-option v-for="zone in timeZoneOptions" :key="zone" :label="zone" :value="zone" />
+                     </el-select>
+                  </el-form-item>
+               </el-col>
                <el-col :span="24" v-if="form.jobId !== undefined">
                   <el-form-item label="状态">
                      <el-radio-group v-model="form.status">
@@ -235,50 +257,71 @@
                      </el-radio-group>
                   </el-form-item>
                </el-col>
-               <el-col :span="12">
-                  <el-form-item label="执行策略" prop="misfirePolicy">
-                     <el-radio-group v-model="form.misfirePolicy">
-                        <el-radio-button value="1">立即执行</el-radio-button>
-                        <el-radio-button value="2">执行一次</el-radio-button>
-                        <el-radio-button value="3">放弃执行</el-radio-button>
-                     </el-radio-group>
+               <el-col :span="24">
+                  <el-form-item label="允许延迟" prop="misfireGraceTime">
+                     <el-input-number v-if="!unlimitedDelay" v-model="form.misfireGraceTime" :min="1" :max="2147483647" :precision="0" controls-position="right" aria-label="允许延迟秒数" />
+                     <span v-if="!unlimitedDelay" class="field-unit">秒</span>
+                     <el-switch v-model="unlimitedDelay" active-text="不限延迟" aria-label="是否不限延迟" />
+                     <div class="form-help">从计划时刻起计算，超过宽限时间则跳过本次定时执行；不限延迟时允许补跑过期计划。</div>
                   </el-form-item>
                </el-col>
-               <el-col :span="12">
-                  <el-form-item label="是否并发" prop="concurrent">
-                     <el-radio-group v-model="form.concurrent">
-                        <el-radio-button value="0">允许</el-radio-button>
-                        <el-radio-button value="1">禁止</el-radio-button>
+               <el-col :span="24">
+                  <el-form-item label="积压处理" prop="coalesce">
+                     <el-radio-group v-model="form.coalesce">
+                        <el-radio-button :value="false">逐次执行</el-radio-button>
+                        <el-radio-button :value="true">只执行最近一次</el-radio-button>
                      </el-radio-group>
+                     <div class="form-help">同次检查发现多个到期计划时采用此规则，仍受允许延迟限制。</div>
+                  </el-form-item>
+               </el-col>
+               <el-col :span="24">
+                  <el-form-item label="最大并发数" prop="maxInstances">
+                     <el-input-number v-model="form.maxInstances" :min="1" :max="2147483647" :precision="0" controls-position="right" />
+                     <div class="form-help">定时与手动执行共同遵守此上限；超限时跳过并记录原因，不排队等待。</div>
                   </el-form-item>
                </el-col>
             </el-row>
          </el-form>
          <template #footer>
             <div class="dialog-footer">
-               <el-button type="primary" @click="submitForm">确 定</el-button>
-               <el-button @click="cancel">取 消</el-button>
+               <el-button type="primary" :loading="submitting" @click="submitForm">确 定</el-button>
+               <el-button :disabled="submitting" @click="cancel">取 消</el-button>
             </div>
          </template>
       </el-dialog>
 
      <el-dialog title="Cron表达式生成器" v-model="openCron" append-to-body destroy-on-close>
-       <crontab ref="crontabRef" @hide="openCron=false" @fill="crontabFill" :expression="expression"></crontab>
+       <crontab
+         ref="crontabRef"
+         :expression="expression"
+         :time-zone="form.timeZone"
+         @hide="openCron=false"
+         @fill="crontabFill"
+       />
      </el-dialog>
 
       <!-- 任务详细 -->
       <job-detail v-model:visible="openView" :row="form" type="job" />
+      <job-runtime v-model:visible="runtimeOpen" :initial-tab="runtimeContext.tab"
+         :job-id="runtimeContext.jobId" :execution-id="runtimeContext.executionId" @sync-updated="getList" />
    </div>
 </template>
 
 <script setup name="Job">
 import Crontab from '@/components/Crontab'
 import JobDetail from './detail'
+import JobRuntime from './runtime'
+import JsonEditor from '@/components/JsonEditor'
+import { syncStates, notifyJobMutation } from './runtimeState'
+import { parseJobParameter, buildJobPayload } from './jobForm'
+import { checkPermi } from '@/utils/permission'
 import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus } from "@/api/monitor/job"
+import useUserStore from '@/store/modules/user'
 
 const router = useRouter();
+const userStore = useUserStore();
 const { proxy } = getCurrentInstance();
-const { sys_job_group, sys_job_status, sys_job_executor } = proxy.useDict("sys_job_group", "sys_job_status", "sys_job_executor");
+const { sys_job_status, sys_job_executor, sys_job_store } = proxy.useDict("sys_job_status", "sys_job_executor", "sys_job_store");
 
 const jobList = ref([]);
 const open = ref(false);
@@ -292,6 +335,35 @@ const title = ref("");
 const openView = ref(false);
 const openCron = ref(false);
 const expression = ref("");
+const submitting = ref(false);
+const changingIds = reactive(new Set());
+const runningIds = reactive(new Set());
+const runtimeOpen = ref(false);
+const runtimeContext = ref({ tab: 'executions' });
+const canQueryRuntime = computed(() => checkPermi(['monitor:job:query']));
+let syncRefreshTimer;
+let listController;
+let listVersion = 0;
+let pageActive = true;
+const timeZoneOptions = typeof Intl.supportedValuesOf === 'function'
+  ? Intl.supportedValuesOf('timeZone')
+  : [userStore.appTimezone];
+
+/** 显示对应参数字段的JSON格式错误 */
+function validateParameter(rule, value, callback) {
+  try {
+    parseJobParameter(value, rule.field);
+    callback();
+  } catch (error) {
+    callback(error);
+  }
+}
+
+/** 校验允许延迟，空值表示不限延迟 */
+function validateGraceTime(_rule, value, callback) {
+  const valid = value === null || Number.isInteger(value) && value >= 1 && value <= 2147483647;
+  callback(valid ? undefined : new Error("允许延迟必须为正整数秒"));
+}
 
 const data = reactive({
   form: {},
@@ -304,21 +376,65 @@ const data = reactive({
   },
   rules: {
     jobName: [{ required: true, message: "任务名称不能为空", trigger: "blur" }],
+    jobGroup: [{ required: true, whitespace: true, message: "业务分组不能为空", trigger: "blur" }],
+    jobStore: [{ required: true, message: "调度存储不能为空", trigger: "change" }],
+    jobArgs: [{ validator: validateParameter, trigger: "blur" }],
+    jobKwargs: [{ validator: validateParameter, trigger: "blur" }],
+    maxInstances: [{ required: true, type: "number", min: 1, message: "最大并发数必须为正整数", trigger: "change" }],
+    misfireGraceTime: [{ validator: validateGraceTime, trigger: "change" }],
     invokeTarget: [{ required: true, message: "调用目标字符串不能为空", trigger: "blur" }],
-    cronExpression: [{ required: true, message: "cron执行表达式不能为空", trigger: "change" }]
+    cronExpression: [{ required: true, message: "cron执行表达式不能为空", trigger: "change" }],
+    timeZone: [{ required: true, message: "cron时区不能为空", trigger: "blur" }]
   }
 });
 
 const { queryParams, form, rules } = toRefs(data);
+const unlimitedDelay = computed({
+  get: () => form.value.misfireGraceTime === null,
+  set: (value) => {
+    form.value.misfireGraceTime = value ? null : 1;
+  }
+});
 
 /** 查询定时任务列表 */
-function getList() {
-  loading.value = true;
-  listJob(queryParams.value).then(response => {
+async function getList(options = {}) {
+  const silent = options?.silent === true;
+  clearTimeout(syncRefreshTimer);
+  listController?.abort();
+  listController = new AbortController();
+  const version = ++listVersion;
+  if (!silent) loading.value = true;
+  try {
+    const response = await listJob({ ...queryParams.value }, { signal: listController.signal, skipErrorMessage: silent });
+    if (version !== listVersion) return;
     jobList.value = response.rows;
     total.value = response.total;
-    loading.value = false;
-  });
+  } catch {
+    // 保留当前列表；主动请求的失败信息由请求层显示。
+  } finally {
+    if (version === listVersion) {
+      loading.value = false;
+      if (pageActive && !document.hidden && jobList.value.some(job => ['pending', 'failed'].includes(job.syncStatus))) {
+        syncRefreshTimer = setTimeout(() => getList({ silent: true }), 3000);
+      }
+    }
+  }
+}
+
+/** 打开任务运行记录 */
+function handleRuntime(tab, row, executionId) {
+  if (!canQueryRuntime.value) return;
+  runtimeContext.value = { tab, jobId: row?.jobId, executionId };
+  runtimeOpen.value = true;
+}
+
+/** 显示任务变更结果 */
+function showMutationResult(response) {
+  notifyJobMutation(proxy.$modal, response);
+  if (response.data?.syncStatus === 'failed') {
+    const affected = response.data.jobs;
+    handleRuntime('sync', affected?.length === 1 ? affected[0] : undefined);
+  }
 }
 /** 取消按钮 */
 function cancel() {
@@ -330,11 +446,17 @@ function reset() {
   form.value = {
     jobId: undefined,
     jobName: undefined,
-    jobGroup: undefined,
+    jobGroup: 'default',
+    jobStore: 'default',
+    jobExecutor: 'default',
+    jobArgs: '[]',
+    jobKwargs: '{}',
     invokeTarget: undefined,
     cronExpression: undefined,
-    misfirePolicy: "1",
-    concurrent: "1",
+    timeZone: userStore.appTimezone,
+    misfireGraceTime: 1,
+    coalesce: false,
+    maxInstances: 1,
     status: "1"
   };
   proxy.resetForm("jobRef");
@@ -356,23 +478,35 @@ function handleSelectionChange(selection) {
   multiple.value = !selection.length;
 }
 // 任务状态修改
-function handleStatusChange(row) {
+async function handleStatusChange(row) {
+  if (changingIds.has(row.jobId)) return;
+  changingIds.add(row.jobId);
   let text = row.status === "0" ? "启用" : "停用";
-  proxy.$modal.confirm('确认要"' + text + '""' + row.jobName + '"任务吗?').then(function () {
-    return changeJobStatus(row.jobId, row.status);
-  }).then(() => {
-    proxy.$modal.msgSuccess(text + "成功");
-  }).catch(function () {
+  try {
+    await proxy.$modal.confirm(`确认要${text}任务“${row.jobName}”吗？`);
+    const response = await changeJobStatus(row.jobId, row.status);
+    showMutationResult(response);
+    await getList();
+  } catch {
     row.status = row.status === "0" ? "1" : "0";
-  });
+  } finally {
+    changingIds.delete(row.jobId);
+  }
 }
 /* 立即执行一次 */
-function handleRun(row) {
-  proxy.$modal.confirm('确认要立即执行一次"' + row.jobName + '"任务吗?').then(function () {
-    return runJob(row.jobId, row.jobGroup);
-  }).then(() => {
-    proxy.$modal.msgSuccess("执行成功");
-  }).catch(() => {});
+async function handleRun(row) {
+  if (runningIds.has(row.jobId)) return;
+  runningIds.add(row.jobId);
+  try {
+    await proxy.$modal.confirm(`确认要立即执行一次任务“${row.jobName}”吗？`);
+    const response = await runJob(row.jobId);
+    proxy.$modal.msg(response.msg);
+    handleRuntime('executions', row, response.data.executionId);
+  } catch {
+    // 用户取消或请求层已显示失败原因。
+  } finally {
+    runningIds.delete(row.jobId);
+  }
 }
 /** 任务详细信息 */
 function handleView(row) {
@@ -406,39 +540,41 @@ function handleUpdate(row) {
   reset();
   const jobId = row.jobId || ids.value;
   getJob(jobId).then(response => {
-    form.value = response.data;
+    form.value = {
+      ...response.data,
+      jobArgs: JSON.stringify(response.data.jobArgs ?? [], null, 2),
+      jobKwargs: JSON.stringify(response.data.jobKwargs ?? {}, null, 2)
+    };
     open.value = true;
     title.value = "修改任务";
   });
 }
 /** 提交按钮 */
-function submitForm() {
-  proxy.$refs["jobRef"].validate(valid => {
-    if (valid) {
-      if (form.value.jobId != undefined) {
-        updateJob(form.value).then(response => {
-          proxy.$modal.msgSuccess("修改成功");
-          open.value = false;
-          getList();
-        });
-      } else {
-        addJob(form.value).then(response => {
-          proxy.$modal.msgSuccess("新增成功");
-          open.value = false;
-          getList();
-        });
-      }
-    }
-  });
+async function submitForm() {
+  if (submitting.value) return;
+  submitting.value = true;
+  try {
+    const valid = await proxy.$refs["jobRef"].validate().catch(() => false);
+    if (!valid) return;
+    const save = form.value.jobId != undefined ? updateJob : addJob;
+    const response = await save(buildJobPayload(form.value));
+    open.value = false;
+    showMutationResult(response);
+    await getList();
+  } catch {
+    // 校验或保存失败时保留表单；同步失败通过已保存响应单独展示。
+  } finally {
+    submitting.value = false;
+  }
 }
 /** 删除按钮操作 */
 function handleDelete(row) {
   const jobIds = row.jobId || ids.value;
   proxy.$modal.confirm('是否确认删除定时任务编号为"' + jobIds + '"的数据项?').then(function () {
     return delJob(jobIds);
-  }).then(() => {
+  }).then(response => {
     getList();
-    proxy.$modal.msgSuccess("删除成功");
+    showMutationResult(response);
   }).catch(() => {});
 }
 /** 导出按钮操作 */
@@ -448,5 +584,47 @@ function handleExport() {
   }, `job_${new Date().getTime()}.xlsx`);
 }
 
+/** 停止列表刷新并取消未完成的请求 */
+function stopListRefresh() {
+  clearTimeout(syncRefreshTimer);
+  listController?.abort();
+  listVersion++;
+  loading.value = false;
+}
+
+/** 处理页面显示状态变化 */
+function handlePageVisibility() {
+  if (document.hidden) stopListRefresh();
+  else if (pageActive) getList({ silent: true });
+}
+
+onMounted(() => document.addEventListener('visibilitychange', handlePageVisibility));
+onActivated(() => {
+  if (!pageActive) {
+    pageActive = true;
+    getList();
+  }
+});
+onDeactivated(() => {
+  pageActive = false;
+  stopListRefresh();
+});
+onBeforeUnmount(() => {
+  pageActive = false;
+  stopListRefresh();
+  document.removeEventListener('visibilitychange', handlePageVisibility);
+});
 getList();
 </script>
+
+<style scoped>
+.form-help {
+  width: 100%;
+  color: var(--el-text-color-secondary);
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.field-unit {
+  margin: 0 16px 0 8px;
+}
+</style>

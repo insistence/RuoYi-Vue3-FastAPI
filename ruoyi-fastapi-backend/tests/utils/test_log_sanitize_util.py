@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -399,7 +399,7 @@ def test_log_handles_missing_user_agent_without_error() -> None:
         None,
         oper_ip='127.0.0.1',
         oper_location='内网IP',
-        oper_time=datetime(2026, 4, 20, 12, 0, 0),
+        oper_time=datetime(2026, 4, 20, 12, 0, 0, tzinfo=timezone.utc),
         origin_kwargs={},
     )
 

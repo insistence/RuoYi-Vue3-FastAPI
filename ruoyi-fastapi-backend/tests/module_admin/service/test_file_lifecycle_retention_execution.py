@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -24,6 +24,7 @@ from module_admin.service.file_business_service import (
 )
 from module_admin.service.file_service import FileLifecycleService, FileRetentionDispositionService
 from utils.file_util import FileUtil
+from utils.time_util import TimezoneUtil
 
 FILE_ID = '11111111-1111-4111-8111-111111111111'
 PURGE_COMMIT_COUNT = 2
@@ -132,7 +133,7 @@ def test_purge_file_rejects_business_reference(tmp_path: Path) -> None:
 
 
 def test_retention_scan_creates_expiring_and_expired_notices() -> None:
-    current_time = datetime.now()
+    current_time = datetime.now(timezone.utc)
     expired_file = make_file_info(expire_time=current_time - timedelta(days=1))
     expiring_file = SimpleNamespace(
         **{
@@ -263,7 +264,7 @@ def test_retention_policy_rejects_public_business_file() -> None:
 
 
 def test_extend_file_retention_updates_terminal_references() -> None:
-    current_time = datetime.now()
+    current_time = datetime.now(timezone.utc)
     previous_expire_time = current_time + timedelta(days=1)
     new_expire_time = current_time + timedelta(days=31)
     file_info = make_file_info(expire_time=previous_expire_time)
@@ -303,15 +304,16 @@ def test_extend_file_retention_updates_terminal_references() -> None:
         )
 
     assert result.is_success is True
-    assert file_info.expire_time == new_expire_time
-    assert reference.retention_expire_time == new_expire_time
+    expected_expire_time = TimezoneUtil.to_utc_milliseconds(new_expire_time)
+    assert file_info.expire_time == expected_expire_time
+    assert reference.retention_expire_time == expected_expire_time
     invalidate_notices.assert_awaited_once_with(query_db, FILE_ID)
     query_db.commit.assert_awaited_once()
     assert enqueue_file_audit.await_args.args[3:5] == ('retention_extend', 'completed')
 
 
 def test_dispose_expired_file_releases_expired_references() -> None:
-    current_time = datetime.now()
+    current_time = datetime.now(timezone.utc)
     expire_time = current_time - timedelta(days=1)
     file_info = make_file_info(expire_time=expire_time)
     reference = SimpleNamespace(
@@ -359,7 +361,7 @@ def test_dispose_expired_file_releases_expired_references() -> None:
 
 
 def test_dispose_expired_file_rejects_active_reference() -> None:
-    expire_time = datetime.now() - timedelta(days=1)
+    expire_time = datetime.now(timezone.utc) - timedelta(days=1)
     file_info = make_file_info(expire_time=expire_time)
     reference = SimpleNamespace(
         reference_id=1,

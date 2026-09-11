@@ -22,6 +22,20 @@ export function getUserProfile() {
   });
 }
 
+// 查询服务端支持的显示时区
+export function getTimezoneOptions() {
+  return request({ url: "/system/user/profile/timezones", method: "get" });
+}
+
+// 修改当前账号的显示时区
+export function updateUserTimezone(timeZone) {
+  return request({
+    url: "/system/user/profile/timezone",
+    method: "put",
+    data: { timeZone },
+  });
+}
+
 // 修改用户个人信息
 export function updateUserProfile(data) {
   return request({

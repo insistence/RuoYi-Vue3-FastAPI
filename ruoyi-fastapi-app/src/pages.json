@@ -62,6 +62,12 @@
       }
     },
     {
+      "path": "pages/mine/setting/timezone",
+      "style": {
+        "navigationBarTitleText": "时区设置"
+      }
+    },
+    {
       "path": "pages/mine/help/index",
       "style": {
         "navigationBarTitleText": "常见问题"

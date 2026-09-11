@@ -23,6 +23,7 @@ from module_admin.entity.vo.file_vo import (
     FileStatsModel,
 )
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 class FileInfoDao:
@@ -745,7 +746,7 @@ class FileInfoDao:
         :param is_page: 是否开启分页
         :return: 文件信息列表
         """
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         acl_summary = (
             select(
                 SysFileAcl.file_id.label('acl_file_id'),
@@ -793,7 +794,7 @@ class FileInfoDao:
         :param file_data_scope_sql: 文件数据权限对应的查询sql语句
         :return: 文件管理详情
         """
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         acl_summary = (
             select(
                 SysFileAcl.file_id.label('acl_file_id'),
@@ -843,7 +844,7 @@ class FileInfoDao:
         :param file_data_scope_sql: 文件数据权限对应的查询sql语句
         :return: 文件管理统计信息
         """
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         acl_expiring_time = current_time + timedelta(days=cls.ACL_EXPIRING_DAYS)
         acl_expiring_files = (
             select(SysFileAcl.file_id)
@@ -938,6 +939,7 @@ class FileInfoDao:
         :return: 查询条件列表
         """
         expiring_time = current_time + timedelta(days=cls.FILE_EXPIRING_DAYS)
+        time_range = TimezoneUtil.rfc3339_range_to_utc(query_object.begin_time, query_object.end_time)
         expiration_condition: ColumnElement | bool = True
         if query_object.expiration_status == 'permanent':
             expiration_condition = SysFileInfo.expire_time.is_(None)
@@ -960,12 +962,8 @@ class FileInfoDao:
             else True,
             SysFileInfo.dept_id == query_object.dept_id if query_object.dept_id else True,
             expiration_condition,
-            SysFileInfo.create_time.between(
-                datetime.strptime(query_object.begin_time, '%Y-%m-%d %H:%M:%S'),
-                datetime.strptime(query_object.end_time, '%Y-%m-%d %H:%M:%S'),
-            )
-            if query_object.begin_time and query_object.end_time
-            else True,
+            SysFileInfo.create_time >= time_range[0] if time_range and time_range[0] is not None else True,
+            SysFileInfo.create_time <= time_range[1] if time_range and time_range[1] is not None else True,
         ]
 
     @classmethod

@@ -1,8 +1,8 @@
-from datetime import datetime
 from typing import Any, Literal
 
 from cli.exit_codes import RUNTIME_ERROR
 from cli.runtime.base import RUNTIME_OPERATOR, RuntimeOperatorService
+from utils.time_util import TimezoneUtil
 
 from .gateway import ConfigInfrastructureGateway
 
@@ -133,7 +133,7 @@ class ConfigDomainSupport:
         :return: 目标配置模型
         """
         operator = self.operator_service.resolve_operator()
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         common_constant = self.infrastructure_gateway.get_common_constant()
         config_vo_module = self.infrastructure_gateway.get_config_vo_module()
         default_config_type = existing_config.config_type if existing_config else common_constant.NO

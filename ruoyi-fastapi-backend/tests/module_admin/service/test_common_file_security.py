@@ -2,7 +2,7 @@ import asyncio
 import io
 import re
 from collections.abc import AsyncGenerator
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -340,7 +340,7 @@ def test_upload_removes_file_when_metadata_write_fails(tmp_path: Path) -> None:
 
 
 def test_upload_retries_name_collision_without_deleting_existing_file(tmp_path: Path) -> None:
-    fixed_time = datetime(2026, 7, 19, 12, 0, 0)
+    fixed_time = datetime(2026, 7, 19, 4, 0, 0, tzinfo=timezone.utc)
     existing_file = tmp_path / 'upload' / '2026' / '07' / '19' / 'report_20260719120000A001.txt'
     existing_file.parent.mkdir(parents=True)
     existing_file.write_bytes(b'existing-content')
@@ -351,7 +351,7 @@ def test_upload_retries_name_collision_without_deleting_existing_file(tmp_path: 
 
     with (
         patch.object(UploadConfig, 'UPLOAD_PATH', str(tmp_path)),
-        patch('module_admin.service.common_service.datetime', new=SimpleNamespace(now=lambda: fixed_time)),
+        patch('module_admin.service.common_service.TimezoneUtil.utc_now', return_value=fixed_time),
         patch.object(UploadUtil, 'generate_random_number', side_effect=['001', '002']),
         patch.object(FileInfoDao, 'add_file_info_dao', new_callable=AsyncMock),
         patch.object(CommonService, '_enqueue_file_access_log', new_callable=AsyncMock),
@@ -542,7 +542,7 @@ def test_private_download_rejects_expired_file(tmp_path: Path, admin: bool) -> N
         access_type='private',
         upload_user_id=10,
         owner_user_id=10,
-        expire_time=datetime.now() - timedelta(seconds=1),
+        expire_time=datetime.now(timezone.utc) - timedelta(seconds=1),
         storage_key='upload/2026/07/report_20260719120000A001.txt',
         original_name='report.txt',
     )

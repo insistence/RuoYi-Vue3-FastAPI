@@ -4,7 +4,7 @@ import os
 import time
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from threading import Lock
 from typing import Any
 
@@ -16,6 +16,7 @@ from redis import asyncio as aioredis
 
 from config.env import AppConfig, TransportCryptoConfig
 from utils.log_util import logger
+from utils.time_util import TimezoneUtil
 
 
 # 通用编码辅助
@@ -613,7 +614,7 @@ class TransportCryptoMonitorUtil:
     _RECENT_FAILURE_LIMIT = 20
     _REDIS_WARNING_INTERVAL_SECONDS = 60
     _lock = Lock()
-    _started_at = datetime.now()
+    _started_at = TimezoneUtil.utc_now()
     _counters: Counter[str] = Counter()
     _failure_reasons: Counter[str] = Counter()
     _kid_counters: defaultdict[str, Counter[str]] = defaultdict(Counter)
@@ -837,7 +838,7 @@ class TransportCryptoMonitorUtil:
         try:
             recent_failure = json.dumps(
                 {
-                    'time': datetime.now().isoformat(),
+                    'time': TimezoneUtil.format_rfc3339(TimezoneUtil.utc_now()),
                     'method': method,
                     'path': path,
                     'reason': reason,
@@ -1026,7 +1027,7 @@ class TransportCryptoMonitorUtil:
             cls._increase_kid_counter_local(kid, 'decrypt_failure_total')
             cls._recent_failures.appendleft(
                 {
-                    'time': datetime.now(),
+                    'time': TimezoneUtil.utc_now(),
                     'method': method,
                     'path': path,
                     'reason': reason,
@@ -1262,11 +1263,14 @@ class TransportCryptoMonitorUtil:
         :return: datetime对象，解析失败时返回None
         """
         if isinstance(value, datetime):
-            return value
+            try:
+                return TimezoneUtil.to_utc(value)
+            except ValueError:
+                return None
         if not value or not isinstance(value, str):
             return None
         try:
-            return datetime.fromisoformat(value)
+            return TimezoneUtil.to_utc(datetime.fromisoformat(value.replace('Z', '+00:00')))
         except ValueError:
             return None
 
@@ -1281,4 +1285,4 @@ class TransportCryptoMonitorUtil:
         parsed_datetime = cls._parse_datetime(value)
         if parsed_datetime:
             return parsed_datetime
-        return datetime.min
+        return datetime.min.replace(tzinfo=timezone.utc)
