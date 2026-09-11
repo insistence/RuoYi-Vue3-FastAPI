@@ -854,7 +854,7 @@ insert into sys_job values(5, '回收站永久清理', 'default', 'default', 'de
 insert into sys_job values(6, '文件存储对账', 'default', 'default', 'default', 'module_task.file_task.reconcile_file_storage', '[]', '{"check_hash": false}', '0 0 3 * * ?', 'Asia/Shanghai', 1, false, 1, '1', 'admin', current_timestamp, '', null, '校验文件信息表和本地存储一致性，默认暂停');
 
 -- ----------------------------
--- 15.1、任务调度同步状态（删除任务后保留同步记录）
+-- 16、任务调度同步状态（删除任务后保留同步记录）
 -- ----------------------------
 drop table if exists sys_job_sync;
 create table sys_job_sync (
@@ -887,7 +887,7 @@ comment on column sys_job_sync.create_time is '创建时间';
 comment on column sys_job_sync.update_time is '更新时间';
 
 -- ----------------------------
--- 15.2、任务执行请求与状态
+-- 17、任务执行请求与状态
 -- ----------------------------
 drop table if exists sys_job_execution;
 create table sys_job_execution (
@@ -927,7 +927,7 @@ comment on column sys_job_execution.create_time is '创建时间';
 comment on column sys_job_execution.update_time is '更新时间';
 
 -- ----------------------------
--- 16、定时任务调度日志表
+-- 18、定时任务调度日志表
 -- ----------------------------
 drop table if exists sys_job_log;
 create table sys_job_log (
@@ -978,7 +978,7 @@ comment on column sys_job_log.job_store is '调度存储快照';
 comment on table sys_job_log is '定时任务调度日志表';
 
 -- ----------------------------
--- 17、通知公告表
+-- 19、通知公告表
 -- ----------------------------
 drop table if exists sys_notice;
 create table sys_notice (
@@ -1014,7 +1014,7 @@ insert into sys_notice values(1, '温馨提醒：2018-07-01 vfadmin新版本发�
 insert into sys_notice values(2, '维护通知：2018-07-01 vfadmin系统凌晨维护', '1', '维护内容',   '0', 'admin', current_timestamp, '', null, '管理员');
 
 -- ----------------------------
--- 18、公告已读记录表
+-- 20、公告已读记录表
 -- ----------------------------
 drop table if exists sys_notice_read;
 create table sys_notice_read (
@@ -1032,7 +1032,7 @@ comment on column sys_notice_read.read_time is '阅读时间';
 comment on table sys_notice_read is '公告已读记录表';
 
 -- ----------------------------
--- 19、代码生成业务表
+-- 21、代码生成业务表
 -- ----------------------------
 drop table if exists gen_table;
 create table gen_table (
@@ -1087,7 +1087,7 @@ comment on column gen_table.remark is '备注';
 comment on table gen_table is '代码生成业务表';
 
 -- ----------------------------
--- 20、代码生成业务表字段
+-- 22、代码生成业务表字段
 -- ----------------------------
 drop table if exists gen_table_column;
 create table gen_table_column (
@@ -1142,7 +1142,7 @@ comment on column gen_table_column.update_time is '更新时间';
 comment on table gen_table_column is '代码生成业务表字段';
 
 -- ----------------------------
--- 21、文件信息表
+-- 23、文件信息表
 -- ----------------------------
 drop table if exists sys_file_info;
 create table sys_file_info (
@@ -1206,7 +1206,7 @@ comment on column sys_file_info.deleted_time is '移入回收站时间';
 comment on column sys_file_info.del_flag is '删除标志';
 
 -- ----------------------------
--- 22、文件业务引用表
+-- 24、文件业务引用表
 -- ----------------------------
 drop table if exists sys_file_reference;
 create table sys_file_reference (
@@ -1234,7 +1234,7 @@ comment on column sys_file_reference.create_by is '创建者';
 comment on column sys_file_reference.create_time is '创建时间';
 
 -- ----------------------------
--- 23、文件业务保留策略表
+-- 25、文件业务保留策略表
 -- ----------------------------
 drop table if exists sys_file_retention_policy;
 create table sys_file_retention_policy (
@@ -1259,7 +1259,7 @@ comment on column sys_file_retention_policy.update_by is '更新者';
 comment on column sys_file_retention_policy.update_time is '更新时间';
 
 -- ----------------------------
--- 24、文件保留期限提醒表
+-- 26、文件保留期限提醒表
 -- ----------------------------
 drop table if exists sys_file_retention_notice;
 create table sys_file_retention_notice (
@@ -1288,7 +1288,7 @@ comment on column sys_file_retention_notice.read_by is '读取者';
 comment on column sys_file_retention_notice.read_time is '读取时间';
 
 -- ----------------------------
--- 25、文件访问控制表
+-- 27、文件访问控制表
 -- ----------------------------
 drop table if exists sys_file_acl;
 create table sys_file_acl (
@@ -1322,7 +1322,7 @@ comment on column sys_file_acl.create_time is '创建时间';
 comment on column sys_file_acl.del_flag is '删除标志';
 
 -- ----------------------------
--- 26、文件访问审计表
+-- 28、文件访问审计表
 -- ----------------------------
 drop table if exists sys_file_access_log;
 create table sys_file_access_log (
@@ -1361,7 +1361,7 @@ comment on column sys_file_access_log.operation_detail is '操作详情';
 comment on column sys_file_access_log.access_time is '访问时间';
 
 -- ----------------------------
--- 27、文件存储对账任务表
+-- 29、文件存储对账任务表
 -- ----------------------------
 drop table if exists sys_file_reconcile_run;
 create table sys_file_reconcile_run (
@@ -1400,7 +1400,7 @@ comment on column sys_file_reconcile_run.finished_time is '完成时间';
 comment on column sys_file_reconcile_run.error_message is '失败原因';
 
 -- ----------------------------
--- 28、文件存储对账异常表
+-- 30、文件存储对账异常表
 -- ----------------------------
 drop table if exists sys_file_reconcile_issue;
 create table sys_file_reconcile_issue (
@@ -1465,7 +1465,7 @@ comment on column sys_file_reconcile_issue.handled_time is '处理时间';
 comment on column sys_file_reconcile_issue.quarantine_key is '隔离区相对路径';
 
 -- ----------------------------
--- 29、插件信息表
+-- 31、插件信息表
 -- ----------------------------
 drop table if exists sys_plugin;
 create table sys_plugin (
@@ -1508,7 +1508,7 @@ comment on column sys_plugin.update_time is '更新时间';
 comment on column sys_plugin.remark is '备注';
 
 -- ----------------------------
--- 30、插件和菜单关联表
+-- 32、插件和菜单关联表
 -- ----------------------------
 drop table if exists sys_plugin_menu;
 create table sys_plugin_menu (
@@ -1526,7 +1526,7 @@ comment on column sys_plugin_menu.menu_key is '插件内菜单自然键';
 comment on column sys_plugin_menu.create_time is '创建时间';
 
 -- ----------------------------
--- 31、插件 migration 执行历史表
+-- 33、插件 migration 执行历史表
 -- ----------------------------
 drop table if exists sys_plugin_migration;
 create table sys_plugin_migration (
@@ -1559,7 +1559,7 @@ comment on column sys_plugin_migration.create_time is '执行时间';
 comment on column sys_plugin_migration.update_time is '更新时间';
 
 -- ----------------------------
--- 32、插件配置表
+-- 34、插件配置表
 -- ----------------------------
 drop table if exists sys_plugin_config;
 create table sys_plugin_config (
@@ -1592,7 +1592,7 @@ comment on column sys_plugin_config.create_time is '创建时间';
 comment on column sys_plugin_config.update_time is '更新时间';
 
 -- ----------------------------
--- 33、插件批量操作审计日志表
+-- 35、插件批量操作审计日志表
 -- ----------------------------
 drop table if exists sys_plugin_operation_log;
 create table sys_plugin_operation_log (

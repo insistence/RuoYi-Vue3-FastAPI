@@ -390,7 +390,11 @@ async def change_system_user_profile_info(
 
 @user_controller.get(
     '/profile/timezones',
-    summary='获取可选显示时区',
+    summary='获取可选显示时区列表接口',
+    description=(
+        '返回服务端支持的 IANA 时区名称列表，按名称排序并排除 localtime，供当前登录用户选择显示时区。'
+        '如需跟随设备时区，可在修改显示时区接口中提交 timeZone=auto。'
+    ),
     response_model=DataResponseModel[list[str]],
 )
 async def get_system_user_timezones(request: Request) -> Response:
@@ -399,7 +403,12 @@ async def get_system_user_timezones(request: Request) -> Response:
 
 @user_controller.put(
     '/profile/timezone',
-    summary='修改当前用户显示时区',
+    summary='修改当前用户显示时区接口',
+    description=(
+        '保存当前登录账号的显示时区偏好，timeZone 支持 auto（跟随设备）或有效的 IANA 时区名称。'
+        '更新成功后清理用户信息缓存并记录操作日志，返回保存结果；该偏好用于界面时间显示，'
+        '系统业务时区和定时任务时区由各自配置决定。'
+    ),
     response_model=ResponseBaseModel,
 )
 @ApiCacheEvict(namespaces=ApiGroup.USER_INFO_MUTATION)

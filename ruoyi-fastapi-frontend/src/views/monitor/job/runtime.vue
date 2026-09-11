@@ -88,7 +88,7 @@
 
 <script setup name="JobRuntime">
 import { listJobExecutions, listJobSync, retryJobSync } from '@/api/monitor/job'
-import { executionStates, syncStates, notifyJobMutation } from './runtimeState'
+import { executionStates, syncStates, notifyJobMutation } from '@/utils/job'
 
 const props = defineProps({
   visible: Boolean,

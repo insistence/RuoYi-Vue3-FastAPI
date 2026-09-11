@@ -290,7 +290,7 @@
 </template>
 
 <script setup name="JobDetail">
-import { syncStates } from './runtimeState'
+import { syncStates } from '@/utils/job'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },

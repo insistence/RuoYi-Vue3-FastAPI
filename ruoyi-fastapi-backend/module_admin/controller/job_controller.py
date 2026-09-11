@@ -51,7 +51,12 @@ job_controller = APIRouterPro(
 
 @job_controller.post(
     '/job/preview',
-    summary='预览 Cron 的未来执行时刻',
+    summary='预览定时任务执行时刻接口',
+    description=(
+        '根据 Quartz Cron 表达式和任务 IANA 时区计算未来执行时刻。'
+        'timeZone 省略时使用系统业务时区，startTime 省略时使用服务端当前时刻；'
+        'count 默认为 5，支持 1～20。返回 UTC 起算时刻及执行时刻列表，无后续匹配时返回空列表。'
+    ),
     response_model=DataResponseModel[JobPreviewResult],
     dependencies=[UserInterfaceAuthDependency(['monitor:job:add', 'monitor:job:edit'])],
 )
@@ -186,7 +191,12 @@ async def execute_system_job(
 
 @job_controller.get(
     '/job/execution/list',
-    summary='查询任务执行记录',
+    summary='获取定时任务执行记录分页列表接口',
+    description=(
+        '按任务ID、执行ID、执行状态和执行来源（manual 手动、cron 定时）分页查询执行记录，'
+        '返回执行结果或未执行原因、计划/开始/结束时刻及耗时。时间字段统一以 UTC 返回，'
+        '支持查询已删除任务保留的执行记录。'
+    ),
     response_model=PageResponseModel[JobExecutionModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
 )
@@ -201,7 +211,11 @@ async def get_system_job_executions(
 
 @job_controller.get(
     '/job/execution/{execution_id}',
-    summary='查询任务执行结果',
+    summary='获取定时任务执行记录详情接口',
+    description=(
+        '根据 32 位小写十六进制执行ID查询单次执行的当前状态、执行结果或未执行原因及 UTC 时间信息。'
+        '任务删除后仍可通过执行ID追踪；执行记录不存在时返回业务错误。'
+    ),
     response_model=DataResponseModel[JobExecutionModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
 )
@@ -216,7 +230,12 @@ async def get_system_job_execution(
 
 @job_controller.get(
     '/job/sync/list',
-    summary='查询任务调度同步状态',
+    summary='获取定时任务调度同步状态分页列表接口',
+    description=(
+        '按任务ID和同步状态（pending 待同步、applied 已生效、failed 同步失败）分页查询调度同步记录，'
+        '返回最新配置版本、已应用版本、最近同步错误、删除标记及 UTC 应用/更新时间，'
+        '包含任务删除后保留的同步记录。'
+    ),
     response_model=PageResponseModel[JobSyncModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
 )
@@ -231,7 +250,12 @@ async def get_system_job_sync_states(
 
 @job_controller.post(
     '/job/sync/{job_id}',
-    summary='重试任务调度同步',
+    summary='重试定时任务调度同步接口',
+    description=(
+        '根据任务ID重新请求应用已保存的最新任务配置或删除操作，返回提交状态、同步状态及任务同步结果。'
+        '以 syncStatus 判断调度是否生效：pending 待同步、applied 已生效、failed 同步失败；'
+        '失败原因见 syncError。同步记录不存在时返回业务错误。'
+    ),
     response_model=DataResponseModel[JobMutationResult],
     dependencies=[UserInterfaceAuthDependency('monitor:job:edit')],
 )

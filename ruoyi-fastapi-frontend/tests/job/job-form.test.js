@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildJobPayload, parseJobParameter } from '../../src/views/monitor/job/jobForm.js'
+import { buildJobPayload, parseJobParameter } from '../../src/utils/job.js'
 
 test('JSON参数保持嵌套值类型和字符串内逗号，提交时转换为数组和对象', () => {
   const form = {
