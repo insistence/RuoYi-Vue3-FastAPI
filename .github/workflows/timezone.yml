@@ -35,7 +35,7 @@ jobs:
           --health-interval=10s --health-timeout=5s --health-retries=12
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.10'
           cache: pip
@@ -60,36 +60,44 @@ jobs:
         run: |
           python -m scripts.verify_timezone_database --config .cache/timezone-ci/mysql.json --report .cache/timezone-ci/mysql-report.json
           python -m scripts.verify_timezone_database --config .cache/timezone-ci/postgresql.json --report .cache/timezone-ci/postgresql-report.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: timezone-database-reports
           path: ruoyi-fastapi-backend/.cache/timezone-ci/*-report.json
+          include-hidden-files: true
 
   web-app:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: ruoyi-fastapi-frontend/package-lock.json
-      - uses: pnpm/action-setup@v4
+          # Lockfiles are ignored by this repository; cache by the committed manifest.
+          cache-dependency-path: ruoyi-fastapi-frontend/package.json
+      - uses: pnpm/action-setup@v5
         with:
           package_json_file: ruoyi-fastapi-app/package.json
-      - name: Install dependencies from lockfiles
-        run: |
-          npm ci --prefix ruoyi-fastapi-frontend
-          pnpm --dir ruoyi-fastapi-app install --frozen-lockfile
+      - name: Install Web dependencies
+        working-directory: ruoyi-fastapi-frontend
+        run: npm install --no-package-lock
+      - name: Install App dependencies
+        working-directory: ruoyi-fastapi-app
+        run: pnpm install --no-frozen-lockfile
       - name: Run time contracts in three host timezones
         run: node ruoyi-fastapi-test/time-contract/run-host-timezones.mjs
-      - name: Build Web and App targets
+      - name: Build Web targets
+        working-directory: ruoyi-fastapi-frontend
         run: |
-          npm --prefix ruoyi-fastapi-frontend run build:prod
-          npm --prefix ruoyi-fastapi-frontend run build:docker
-          pnpm --dir ruoyi-fastapi-app build:h5
-          pnpm --dir ruoyi-fastapi-app build:mp-weixin
+          npm run build:prod
+          npm run build:docker
+      - name: Build App targets
+        working-directory: ruoyi-fastapi-app
+        run: |
+          pnpm build:h5
+          pnpm build:mp-weixin
       - name: Validate all Compose configurations
         run: |
           docker compose -f docker-compose.my.yml config --quiet
