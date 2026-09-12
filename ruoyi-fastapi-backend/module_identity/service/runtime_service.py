@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.constant import OidcAuditEvent
 from config.database import DataSourceRegistry
 from config.env import OidcConfig
-from config.get_scheduler import SchedulerUtil
+from config.scheduler.manager import SchedulerManager
 from module_identity.dao.oauth_audit_dao import OAuthAuditDao
 from module_identity.service.audit_service import AuditService
 from module_identity.service.key_service import KeyService, KeyServiceError
@@ -231,7 +231,7 @@ class OidcRuntimeService:
         :param app: FastAPI 应用
         :return: None
         """
-        is_leader = bool(getattr(app.state, 'application_leader', False)) and SchedulerUtil.is_application_leader()
+        is_leader = bool(getattr(app.state, 'application_leader', False)) and SchedulerManager.is_application_leader()
         redis = app.state.redis
         app.state.oidc_key_lifecycle_task = (
             asyncio.create_task(cls.key_lifecycle_loop(app)) if OidcConfig.oidc_enabled and is_leader else None
@@ -251,10 +251,10 @@ class OidcRuntimeService:
         last_archive_at: datetime | None = None
         redis = app.state.redis
         while True:
-            if not SchedulerUtil.is_application_leader():
+            if not SchedulerManager.is_application_leader():
                 return
             await asyncio.sleep(60)
-            if not SchedulerUtil.is_application_leader():
+            if not SchedulerManager.is_application_leader():
                 return
             try:
                 async with DataSourceRegistry.session() as db:
@@ -293,10 +293,10 @@ class OidcRuntimeService:
         :return: None
         """
         while True:
-            if not SchedulerUtil.is_application_leader():
+            if not SchedulerManager.is_application_leader():
                 return
             await asyncio.sleep(1)
-            if not SchedulerUtil.is_application_leader():
+            if not SchedulerManager.is_application_leader():
                 return
             try:
                 async with DataSourceRegistry.session() as db:

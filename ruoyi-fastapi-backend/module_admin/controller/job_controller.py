@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from pydantic_validation_decorator import ValidateFields
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from common.annotation.cache_annotation import ApiCache, ApiCacheEvict
+from common.annotation.cache_annotation import ApiCacheEvict
 from common.annotation.log_annotation import Log
 from common.annotation.rate_limit_annotation import ApiRateLimit, ApiRateLimitPreset
 from common.aspect.db_session import DBSessionDependency
@@ -15,7 +15,15 @@ from common.constant import ApiGroup, ApiNamespace
 from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
+from module_admin.entity.vo.job_runtime_vo import (
+    JobExecutionModel,
+    JobExecutionQueryModel,
+    JobMutationResult,
+    JobSyncModel,
+    JobSyncQueryModel,
+)
 from module_admin.entity.vo.job_vo import (
+    ChangeJobStatusModel,
     DeleteJobLogModel,
     DeleteJobModel,
     EditJobModel,
@@ -23,17 +31,43 @@ from module_admin.entity.vo.job_vo import (
     JobLogPageQueryModel,
     JobModel,
     JobPageQueryModel,
+    JobPreviewRequest,
+    JobPreviewResult,
+    JobRunModel,
 )
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.job_log_service import JobLogService
 from module_admin.service.job_service import JobService
 from utils.common_util import bytes2file_response
+from utils.cron_util import CronUtil
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
+from utils.time_util import TimezoneUtil
 
 job_controller = APIRouterPro(
     prefix='/monitor', order_num=13, tags=['系统监控-定时任务'], dependencies=[PreAuthDependency()]
 )
+
+
+@job_controller.post(
+    '/job/preview',
+    summary='预览定时任务执行时刻接口',
+    description=(
+        '根据 Quartz Cron 表达式和任务 IANA 时区计算未来执行时刻。'
+        'timeZone 省略时使用系统业务时区，startTime 省略时使用服务端当前时刻；'
+        'count 默认为 5，支持 1～20。返回 UTC 起算时刻及执行时刻列表，无后续匹配时返回空列表。'
+    ),
+    response_model=DataResponseModel[JobPreviewResult],
+    dependencies=[UserInterfaceAuthDependency(['monitor:job:add', 'monitor:job:edit'])],
+)
+async def preview_system_job(request: Request, preview: JobPreviewRequest) -> Response:
+    start_time = preview.start_time or TimezoneUtil.utc_now()
+    result = JobPreviewResult(
+        timeZone=preview.time_zone,
+        startTime=start_time,
+        nextRunTimes=CronUtil.next_run_times(preview.cron_expression, preview.time_zone, start_time, preview.count),
+    )
+    return ResponseUtil.success(data=result)
 
 
 @job_controller.get(
@@ -43,7 +77,6 @@ job_controller = APIRouterPro(
     response_model=PageResponseModel[JobModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:list')],
 )
-@ApiCache(namespace=ApiNamespace.MONITOR_JOB_LIST)
 async def get_system_job_list(
     request: Request,
     job_page_query: Annotated[JobPageQueryModel, Query()],
@@ -60,7 +93,7 @@ async def get_system_job_list(
     '/job',
     summary='新增定时任务接口',
     description='用于新增定时任务',
-    response_model=ResponseBaseModel,
+    response_model=DataResponseModel[JobMutationResult],
     dependencies=[UserInterfaceAuthDependency('monitor:job:add')],
 )
 @ValidateFields(validate_model='add_job')
@@ -77,14 +110,14 @@ async def add_system_job(
     add_job_result = await JobService.add_job_services(query_db, add_job)
     logger.info(add_job_result.message)
 
-    return ResponseUtil.success(msg=add_job_result.message)
+    return ResponseUtil.success(msg=add_job_result.message, data=add_job_result.result)
 
 
 @job_controller.put(
     '/job',
     summary='编辑定时任务接口',
     description='用于编辑定时任务',
-    response_model=ResponseBaseModel,
+    response_model=DataResponseModel[JobMutationResult],
     dependencies=[UserInterfaceAuthDependency('monitor:job:edit')],
 )
 @ValidateFields(validate_model='edit_job')
@@ -100,21 +133,21 @@ async def edit_system_job(
     edit_job_result = await JobService.edit_job_services(query_db, edit_job)
     logger.info(edit_job_result.message)
 
-    return ResponseUtil.success(msg=edit_job_result.message)
+    return ResponseUtil.success(msg=edit_job_result.message, data=edit_job_result.result)
 
 
 @job_controller.put(
     '/job/changeStatus',
     summary='修改定时任务状态接口',
     description='用于修改定时任务状态',
-    response_model=ResponseBaseModel,
+    response_model=DataResponseModel[JobMutationResult],
     dependencies=[UserInterfaceAuthDependency('monitor:job:changeStatus')],
 )
 @ApiCacheEvict(namespaces=ApiGroup.JOB_MUTATION)
 @Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def change_system_job_status(
     request: Request,
-    change_job: EditJobModel,
+    change_job: ChangeJobStatusModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
@@ -127,14 +160,14 @@ async def change_system_job_status(
     edit_job_result = await JobService.edit_job_services(query_db, edit_job)
     logger.info(edit_job_result.message)
 
-    return ResponseUtil.success(msg=edit_job_result.message)
+    return ResponseUtil.success(msg=edit_job_result.message, data=edit_job_result.result)
 
 
 @job_controller.put(
     '/job/run',
     summary='执行定时任务接口',
     description='用于执行指定的定时任务',
-    response_model=ResponseBaseModel,
+    response_model=DataResponseModel[JobExecutionModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:changeStatus')],
 )
 @ApiRateLimit(namespace=ApiNamespace.MONITOR_JOB_RUN, preset=ApiRateLimitPreset.USER_RESOURCE_EXECUTION)
@@ -142,20 +175,104 @@ async def change_system_job_status(
 @Log(title='定时任务', business_type=BusinessType.UPDATE)
 async def execute_system_job(
     request: Request,
-    execute_job: JobModel,
+    execute_job: JobRunModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    execute_job_result = await JobService.execute_job_once_services(query_db, execute_job)
+    execute_job_result = await JobService.execute_job_once_services(
+        query_db,
+        execute_job,
+        requested_by=current_user.user.user_name,
+    )
     logger.info(execute_job_result.message)
 
-    return ResponseUtil.success(msg=execute_job_result.message)
+    return ResponseUtil.success(msg=execute_job_result.message, data=execute_job_result.result)
+
+
+@job_controller.get(
+    '/job/execution/list',
+    summary='获取定时任务执行记录分页列表接口',
+    description=(
+        '按任务ID、执行ID、执行状态和执行来源（manual 手动、cron 定时）分页查询执行记录，'
+        '返回执行结果或未执行原因、计划/开始/结束时刻及耗时。时间字段统一以 UTC 返回，'
+        '支持查询已删除任务保留的执行记录。'
+    ),
+    response_model=PageResponseModel[JobExecutionModel],
+    dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
+)
+async def get_system_job_executions(
+    request: Request,
+    query: Annotated[JobExecutionQueryModel, Query()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    result = await JobService.execution_list_services(query_db, query)
+    return ResponseUtil.success(model_content=result)
+
+
+@job_controller.get(
+    '/job/execution/{execution_id}',
+    summary='获取定时任务执行记录详情接口',
+    description=(
+        '根据 32 位小写十六进制执行ID查询单次执行的当前状态、执行结果或未执行原因及 UTC 时间信息。'
+        '任务删除后仍可通过执行ID追踪；执行记录不存在时返回业务错误。'
+    ),
+    response_model=DataResponseModel[JobExecutionModel],
+    dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
+)
+async def get_system_job_execution(
+    request: Request,
+    execution_id: Annotated[str, Path(min_length=32, max_length=32, pattern='^[0-9a-f]{32}$', description='执行ID')],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    result = await JobService.execution_detail_services(query_db, execution_id)
+    return ResponseUtil.success(data=result)
+
+
+@job_controller.get(
+    '/job/sync/list',
+    summary='获取定时任务调度同步状态分页列表接口',
+    description=(
+        '按任务ID和同步状态（pending 待同步、applied 已生效、failed 同步失败）分页查询调度同步记录，'
+        '返回最新配置版本、已应用版本、最近同步错误、删除标记及 UTC 应用/更新时间，'
+        '包含任务删除后保留的同步记录。'
+    ),
+    response_model=PageResponseModel[JobSyncModel],
+    dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
+)
+async def get_system_job_sync_states(
+    request: Request,
+    query: Annotated[JobSyncQueryModel, Query()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    result = await JobService.sync_list_services(query_db, query)
+    return ResponseUtil.success(model_content=result)
+
+
+@job_controller.post(
+    '/job/sync/{job_id}',
+    summary='重试定时任务调度同步接口',
+    description=(
+        '根据任务ID重新请求应用已保存的最新任务配置或删除操作，返回提交状态、同步状态及任务同步结果。'
+        '以 syncStatus 判断调度是否生效：pending 待同步、applied 已生效、failed 同步失败；'
+        '失败原因见 syncError。同步记录不存在时返回业务错误。'
+    ),
+    response_model=DataResponseModel[JobMutationResult],
+    dependencies=[UserInterfaceAuthDependency('monitor:job:edit')],
+)
+async def retry_system_job_sync(
+    request: Request,
+    job_id: Annotated[int, Path(gt=0, description='任务ID')],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+) -> Response:
+    result = await JobService.retry_sync_services(query_db, job_id)
+    return ResponseUtil.success(msg=result.message, data=result.result)
 
 
 @job_controller.delete(
     '/job/{job_ids}',
     summary='删除定时任务接口',
     description='用于删除定时任务',
-    response_model=ResponseBaseModel,
+    response_model=DataResponseModel[JobMutationResult],
     dependencies=[UserInterfaceAuthDependency('monitor:job:remove')],
 )
 @ApiRateLimit(namespace=ApiNamespace.MONITOR_JOB_DELETE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
@@ -170,7 +287,7 @@ async def delete_system_job(
     delete_job_result = await JobService.delete_job_services(query_db, delete_job)
     logger.info(delete_job_result.message)
 
-    return ResponseUtil.success(msg=delete_job_result.message)
+    return ResponseUtil.success(msg=delete_job_result.message, data=delete_job_result.result)
 
 
 @job_controller.get(
@@ -180,7 +297,6 @@ async def delete_system_job(
     response_model=DataResponseModel[JobModel],
     dependencies=[UserInterfaceAuthDependency('monitor:job:query')],
 )
-@ApiCache(namespace=ApiNamespace.MONITOR_JOB_DETAIL)
 async def query_detail_system_job(
     request: Request,
     job_id: Annotated[int, Path(description='任务ID')],

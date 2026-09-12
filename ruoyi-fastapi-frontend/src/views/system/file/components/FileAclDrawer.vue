@@ -137,14 +137,11 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="有效期至" align="center" width="205">
+      <el-table-column label="有效期至" align="center" width="310">
         <template #default="scope">
-          <el-date-picker
+          <BusinessDateTimePicker
             v-model="scope.row.expireTime"
-            type="datetime"
-            value-format="YYYY-MM-DD HH:mm:ss"
-            placeholder="永久有效"
-            style="width: 185px"
+            label="有效期至，留空为永久有效"
           />
         </template>
       </el-table-column>
@@ -180,6 +177,8 @@ import {
   saveFileAcl,
   searchFileAclSubjects
 } from "@/api/system/file";
+import { prepareTimeFields, serializeTimeFieldsForSubmit } from "@/utils/time";
+import BusinessDateTimePicker from "@/components/BusinessDateTimePicker";
 
 const emit = defineEmits(["refresh"]);
 const { proxy } = getCurrentInstance();
@@ -238,7 +237,7 @@ function open(row, selectedIds, selectedPrivateIds) {
       deptOptions.value = deptResponse.data;
       aclVersion.value = aclResponse.data.aclVersion;
       builtinPermissions.value = aclResponse.data.builtinPermissions || [];
-      entries.value = aclResponse.data.entries.map(item => ({
+      entries.value = aclResponse.data.entries.map(item => prepareTimeFields({
         subjectType: item.subjectType,
         subjectId: item.subjectId,
         effect: item.effect,
@@ -248,7 +247,7 @@ function open(row, selectedIds, selectedPrivateIds) {
         subjectOptions: [
           { subjectId: item.subjectId, subjectName: item.subjectName }
         ]
-      }));
+      }, ['expireTime']));
     })
     .finally(() => {
       loading.value = false;
@@ -318,17 +317,23 @@ function searchSubjectOptions(row, keyword) {
     });
 }
 
-function submit() {
+async function submit() {
   if (entries.value.some(item => !item.subjectId)) {
     proxy.$modal.msgError("请选择完整的授权主体");
     return;
   }
-  const aclEntries = entries.value.map(item => ({
+  const convertedEntries = [];
+  for (const item of entries.value) {
+    const converted = await serializeTimeFieldsForSubmit(item, ['expireTime']);
+    if (!converted) return;
+    convertedEntries.push(converted);
+  }
+  const aclEntries = convertedEntries.map(item => ({
     subjectType: item.subjectType,
     subjectId: item.subjectId,
     effect: item.effect,
     includeChildren: item.subjectType === "dept" && item.includeChildren,
-    expireTime: item.expireTime || undefined
+    expireTime: item.expireTime
   }));
   const saveAcl = () => {
     saving.value = true;

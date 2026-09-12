@@ -1,4 +1,3 @@
-from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import and_, case, delete, func, or_, select, update
@@ -13,6 +12,7 @@ from module_admin.entity.do.notice_do import SysNotice, SysNoticeRead
 from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.notice_vo import NoticeModel, NoticePageQueryModel, NoticeReadUserPageQueryModel
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 class NoticeDao:
@@ -70,18 +70,17 @@ class NoticeDao:
         :param is_page: 是否开启分页
         :return: 通知公告列表信息对象
         """
+        time_range = TimezoneUtil.local_date_strings_to_utc(
+            query_object.begin_time, query_object.end_time, timezone_name=TimezoneUtil.get_request_timezone()
+        )
         query = (
             select(SysNotice)
             .where(
                 SysNotice.notice_title.like(f'%{query_object.notice_title}%') if query_object.notice_title else True,
                 SysNotice.create_by.like(f'%{query_object.create_by}%') if query_object.create_by else True,
                 SysNotice.notice_type == query_object.notice_type if query_object.notice_type else True,
-                SysNotice.create_time.between(
-                    datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
-                    datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),
-                )
-                if query_object.begin_time and query_object.end_time
-                else True,
+                SysNotice.create_time >= time_range[0] if time_range and time_range[0] is not None else True,
+                SysNotice.create_time < time_range[1] if time_range and time_range[1] is not None else True,
             )
             .order_by(SysNotice.notice_id.desc())
             .distinct()
@@ -197,7 +196,8 @@ class NoticeDao:
             return
 
         values = [
-            {'notice_id': notice_id, 'user_id': user_id, 'read_time': datetime.now()} for notice_id in unique_notice_ids
+            {'notice_id': notice_id, 'user_id': user_id, 'read_time': TimezoneUtil.utc_now()}
+            for notice_id in unique_notice_ids
         ]
         dialect_name = db.get_bind().dialect.name
         if dialect_name == 'mysql':

@@ -78,9 +78,9 @@ async def test_job_scheduler_support_closes_scheduler_and_redis() -> None:
             """
             close_events.append('redis')
 
-    class FakeSchedulerUtil:
+    class FakeSchedulerManager:
         """
-        模拟调度器工具。
+        模拟调度器管理类。
         """
 
         @staticmethod
@@ -95,10 +95,10 @@ async def test_job_scheduler_support_closes_scheduler_and_redis() -> None:
     gateway = JobInfrastructureGateway()
     support = JobSchedulerSupport(gateway)
 
-    def _fake_get_scheduler_util() -> FakeSchedulerUtil:
-        return FakeSchedulerUtil()
+    def _fake_get_scheduler_manager() -> FakeSchedulerManager:
+        return FakeSchedulerManager()
 
-    object.__setattr__(gateway, 'get_scheduler_util', _fake_get_scheduler_util)
+    object.__setattr__(gateway, 'get_scheduler_manager', _fake_get_scheduler_manager)
 
     await support.close_scheduler_context(FakeRedis())
 

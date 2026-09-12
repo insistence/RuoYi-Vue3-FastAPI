@@ -31,6 +31,7 @@ from utils.client_ip_util import ClientIPUtil
 from utils.dependency_util import DependencyUtil
 from utils.log_util import LogSanitizer, logger
 from utils.response_util import ResponseUtil
+from utils.time_util import TimezoneUtil
 
 P = ParamSpec('P')
 R = TypeVar('R')
@@ -189,7 +190,7 @@ class Log:
             oper_param = self._limit_log_text(oper_param, self._oper_param_len, '请求参数过长')
 
             # 获取操作时间
-            oper_time = datetime.now()
+            oper_time = TimezoneUtil.utc_now()
             # 此处在登录之前向原始函数传递一些登录信息，用于监测在线用户的相关信息
             login_log = self._get_login_log(user_agent, oper_ip, oper_location, oper_time, kwargs)
             try:
@@ -936,7 +937,7 @@ class Log:
                 'loginLocation': oper_location,
                 'browser': browser,
                 'os': system_os,
-                'loginTime': oper_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'loginTime': TimezoneUtil.format_rfc3339(oper_time),
             }
             self._set_login_data(login_log, origin_kwargs)
 

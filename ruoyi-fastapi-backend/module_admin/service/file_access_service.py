@@ -1,5 +1,4 @@
 import json
-from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import Request
@@ -28,6 +27,7 @@ from module_admin.service.log_service import LogQueueService
 from utils.client_ip_util import ClientIPUtil
 from utils.file_util import FileUtil
 from utils.log_util import LogSanitizer, logger
+from utils.time_util import TimezoneUtil
 
 
 class FileAclService:
@@ -243,7 +243,7 @@ class FileAclService:
             await query_db.rollback()
             raise ServiceException(message='文件权限已被其他用户修改，请刷新后重试')
 
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         unique_subjects = set()
         subject_ids: dict[str, set[int]] = {'user': set(), 'role': set(), 'dept': set()}
         normalized_expire_times = []
@@ -254,8 +254,8 @@ class FileAclService:
             unique_subjects.add(subject_key)
             subject_ids[entry.subject_type].add(entry.subject_id)
             expire_time = entry.expire_time
-            if expire_time and expire_time.tzinfo:
-                expire_time = expire_time.astimezone().replace(tzinfo=None)
+            if expire_time:
+                expire_time = TimezoneUtil.to_utc(expire_time)
             normalized_expire_times.append(expire_time)
             if expire_time and expire_time <= current_time:
                 raise ServiceException(message='授权过期时间必须晚于当前时间')
@@ -357,7 +357,7 @@ class FileAclService:
             await query_db.rollback()
             raise ServiceException(message='批量授权仅支持受保护文件')
 
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         unique_subjects = set()
         subject_ids: dict[str, set[int]] = {'user': set(), 'role': set(), 'dept': set()}
         normalized_entries = []
@@ -368,8 +368,8 @@ class FileAclService:
             unique_subjects.add(subject_key)
             subject_ids[entry.subject_type].add(entry.subject_id)
             expire_time = entry.expire_time
-            if expire_time and expire_time.tzinfo:
-                expire_time = expire_time.astimezone().replace(tzinfo=None)
+            if expire_time:
+                expire_time = TimezoneUtil.to_utc(expire_time)
             if expire_time and expire_time <= current_time:
                 raise ServiceException(message='授权过期时间必须晚于当前时间')
             normalized_entries.append((entry, expire_time))
@@ -516,7 +516,7 @@ class FileAuditService:
                 bytesSent=bytes_sent,
                 errorMessage=error_message[:500],
                 operationDetail=cls._serialize_operation_detail(operation_detail),
-                accessTime=datetime.now(),
+                accessTime=TimezoneUtil.utc_now(),
             )
             await LogQueueService.enqueue_file_access_log(
                 request,
@@ -554,7 +554,7 @@ class FileAuditService:
             result=result,
             errorMessage=error_message[:500],
             operationDetail=cls._serialize_operation_detail(operation_detail),
-            accessTime=datetime.now(),
+            accessTime=TimezoneUtil.utc_now(),
         )
         await FileAccessLogDao.add_file_access_log_dao(query_db, file_access_log)
 

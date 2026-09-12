@@ -1,15 +1,17 @@
 import re
-from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import Network, NotBlank, Size, Xss
 
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 from exceptions.exception import ModelValidatorException
 from module_admin.entity.vo.dept_vo import DeptModel
 from module_admin.entity.vo.post_vo import PostModel
 from module_admin.entity.vo.role_vo import RoleModel
+from utils.time_util import TimezoneUtil
 
 
 class TokenData(BaseModel):
@@ -36,18 +38,30 @@ class UserModel(BaseModel):
     phonenumber: str | None = Field(default=None, description='手机号码')
     sex: Literal['0', '1', '2'] | None = Field(default=None, description='用户性别（0男 1女 2未知）')
     avatar: str | None = Field(default=None, description='头像地址')
+    time_zone: str = Field(default='auto', max_length=64, description='显示时区（auto跟随设备或IANA名称）')
     password: str | None = Field(default=None, description='密码')
     status: Literal['0', '1'] | None = Field(default=None, description='帐号状态（0正常 1停用）')
     del_flag: Literal['0', '2'] | None = Field(default=None, description='删除标志（0代表存在 2代表删除）')
     login_ip: str | None = Field(default=None, description='最后登录IP')
-    login_date: datetime | None = Field(default=None, description='最后登录时间')
-    pwd_update_date: datetime | None = Field(default=None, description='密码最后更新时间')
+    login_date: ApiUtcDateTime | None = Field(default=None, description='最后登录时间')
+    pwd_update_date: ApiUtcDateTime | None = Field(default=None, description='密码最后更新时间')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
     admin: bool | None = Field(default=False, description='是否为admin')
+
+    @field_validator('time_zone')
+    @classmethod
+    def validate_time_zone(cls, value: str) -> str:
+        """
+        校验账号显示时区偏好
+
+        :param value: auto或IANA时区名称
+        :return: 校验后的时区偏好
+        """
+        return TimezoneUtil.validate_timezone_preference(value)
 
     @model_validator(mode='after')
     def check_password(self) -> 'UserModel':
@@ -141,12 +155,34 @@ class UpdateUserProfileModel(BaseModel):
     sex: Literal['0', '1', '2'] | None = Field(default=None, description='用户性别（0男 1女 2未知）')
 
 
+class UserTimezoneModel(BaseModel):
+    """
+    当前用户的显示时区偏好模型
+    """
+
+    model_config = ConfigDict(alias_generator=to_camel, extra='forbid')
+
+    time_zone: str = Field(max_length=64, description='auto跟随设备，或指定IANA时区')
+
+    @field_validator('time_zone')
+    @classmethod
+    def validate_time_zone(cls, value: str) -> str:
+        """
+        校验并规范化时区偏好
+
+        :param value: auto或IANA时区名称
+        :return: 校验后的时区偏好
+        """
+        return TimezoneUtil.validate_timezone_preference(value)
+
+
 class CurrentUserModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
 
     permissions: list = Field(description='权限信息')
     roles: list = Field(description='角色信息')
     user: UserInfoModel | None = Field(description='用户信息')
+    app_timezone: str = Field(default='UTC', description='业务时区（IANA）')
     pwd_chrtype: str = Field(default='0', description='密码字符范围')
     is_default_modify_pwd: bool = Field(default=False, description='是否初始密码修改提醒')
     is_password_expired: bool = Field(default=False, description='密码是否过期提醒')
@@ -188,7 +224,7 @@ class AvatarModel(BaseModel):
     img_url: str = Field(description='头像地址')
 
 
-class UserQueryModel(UserModel):
+class UserQueryModel(DateRangeQueryMixin, UserModel):
     """
     用户管理不分页查询模型
     """
@@ -261,7 +297,7 @@ class DeleteUserModel(BaseModel):
 
     user_ids: str = Field(description='需要删除的用户ID')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
 
 class UserRoleQueryModel(UserModel):

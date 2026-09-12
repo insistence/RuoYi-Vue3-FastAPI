@@ -1,9 +1,11 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class RoleModel(BaseModel):
@@ -26,9 +28,9 @@ class RoleModel(BaseModel):
     status: Literal['0', '1'] | None = Field(default=None, description='角色状态（0正常 1停用）')
     del_flag: Literal['0', '2'] | None = Field(default=None, description='删除标志（0代表存在 2代表删除）')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
     admin: bool | None = Field(default=False, description='是否为admin')
 
@@ -95,7 +97,7 @@ class RoleDeptModel(BaseModel):
     dept_id: int | None = Field(default=None, description='部门ID')
 
 
-class RoleQueryModel(RoleModel):
+class RoleQueryModel(DateRangeQueryMixin, RoleModel):
     """
     角色管理不分页查询模型
     """
@@ -154,4 +156,4 @@ class DeleteRoleModel(BaseModel):
 
     role_ids: str = Field(description='需要删除的角色ID')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')

@@ -1,7 +1,6 @@
 import hashlib
 import json
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import datetime
 from functools import wraps
 from typing import Any, TypeVar
 
@@ -18,6 +17,7 @@ from exceptions.exception import LoginException
 from utils.api_annotation_util import ApiAnnotationUtil
 from utils.api_response_header_util import ApiResponseHeaderUtil
 from utils.log_util import logger
+from utils.time_util import TimezoneUtil
 
 P = ParamSpec('P')
 R = TypeVar('R')
@@ -283,6 +283,7 @@ class ApiCache(_ApiCacheSupport):
             'query_params': sorted(request.query_params.multi_items()),
             'body_digest': hashlib.sha256(request_body).hexdigest() if request_body else '',
             'user_scope': user_scope,
+            'timezone': TimezoneUtil.get_request_timezone(),
         }
         key_digest = hashlib.sha256(
             json.dumps(
@@ -422,7 +423,7 @@ class ApiCache(_ApiCacheSupport):
 
         if {'code', 'msg', 'success', 'time'}.issubset(response_content):
             refreshed_content = response_content.copy()
-            refreshed_content['time'] = datetime.now()
+            refreshed_content['time'] = TimezoneUtil.utc_now()
             return refreshed_content
 
         return response_content

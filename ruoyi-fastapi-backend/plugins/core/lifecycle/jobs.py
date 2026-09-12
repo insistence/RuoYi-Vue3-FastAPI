@@ -1,5 +1,3 @@
-import json
-
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,13 +35,16 @@ class PluginJobModelBuilder:
         return JobModel(
             jobName=cls.build_job_name(plugin_id, job.id),
             jobGroup=cls.JOB_GROUP,
+            jobStore=job.job_store,
             jobExecutor=job.executor,
             invokeTarget=job.callable,
-            jobArgs=json.dumps(job.args, ensure_ascii=False) if job.args else '',
-            jobKwargs=json.dumps(job.kwargs, ensure_ascii=False) if job.kwargs else '',
+            jobArgs=job.args,
+            jobKwargs=job.kwargs,
             cronExpression=job.cron_expression,
-            misfirePolicy=job.misfire_policy,
-            concurrent=job.concurrent,
+            timeZone=job.time_zone,
+            misfireGraceTime=job.misfire_grace_time,
+            coalesce=job.coalesce,
+            maxInstances=job.max_instances,
             status='0' if enabled and job.enabled else '1',
             createBy='plugin',
             updateBy='plugin',
@@ -265,12 +266,15 @@ class PluginJobInstaller:
                 )
                 .values(
                     job_executor=job_model.job_executor,
+                    job_store=job_model.job_store,
                     invoke_target=job_model.invoke_target,
                     job_args=job_model.job_args,
                     job_kwargs=job_model.job_kwargs,
                     cron_expression=job_model.cron_expression,
-                    misfire_policy=job_model.misfire_policy,
-                    concurrent=job_model.concurrent,
+                    time_zone=job_model.time_zone,
+                    misfire_grace_time=job_model.misfire_grace_time,
+                    coalesce=job_model.coalesce,
+                    max_instances=job_model.max_instances,
                     status=job_model.status,
                     update_by=job_model.update_by,
                     remark=job_model.remark,

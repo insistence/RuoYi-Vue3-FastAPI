@@ -26,12 +26,6 @@ transport_crypto_controller = APIRouterPro(prefix='/transport/crypto', order_num
 )
 @ApiRateLimit(namespace=ApiNamespace.TRANSPORT_CRYPTO_FRONTEND_CONFIG, preset=ApiRateLimitPreset.ANON_PUBLIC_METADATA)
 async def get_transport_frontend_config(request: Request) -> Response:
-    """
-    获取当前前端传输层加解密运行配置
-
-    :param request: 当前请求对象
-    :return: 前端传输层加解密运行配置响应
-    """
     transport_frontend_config = await TransportCryptoService.get_transport_frontend_config_services()
     logger.info('获取成功')
 
@@ -46,12 +40,6 @@ async def get_transport_frontend_config(request: Request) -> Response:
 )
 @ApiRateLimit(namespace=ApiNamespace.TRANSPORT_CRYPTO_PUBLIC_KEY, preset=ApiRateLimitPreset.ANON_PUBLIC_METADATA)
 async def get_transport_public_key(request: Request) -> Response:
-    """
-    获取当前传输层加密公钥
-
-    :param request: 当前请求对象
-    :return: 公钥下发响应
-    """
     transport_public_key = await TransportCryptoService.get_transport_public_key_services()
     logger.info('获取成功')
 
@@ -66,12 +54,6 @@ async def get_transport_public_key(request: Request) -> Response:
     dependencies=[PreAuthDependency(), UserInterfaceAuthDependency('monitor:transportCrypto:list')],
 )
 async def get_transport_crypto_monitor_info(request: Request) -> Response:
-    """
-    获取基于Redis聚合的传输层加解密监控信息
-
-    :param request: 当前请求对象
-    :return: 传输层加解密监控信息响应
-    """
     transport_crypto_monitor_info = await TransportCryptoService.get_transport_crypto_monitor_info_services(request)
     logger.info('获取成功')
 

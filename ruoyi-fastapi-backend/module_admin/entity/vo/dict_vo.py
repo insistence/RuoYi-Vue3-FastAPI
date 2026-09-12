@@ -1,9 +1,11 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Pattern, Size
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class DictTypeModel(BaseModel):
@@ -18,9 +20,9 @@ class DictTypeModel(BaseModel):
     dict_type: str | None = Field(default=None, description='字典类型')
     status: Literal['0', '1'] | None = Field(default=None, description='状态（0正常 1停用）')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
 
     @NotBlank(field_name='dict_name', message='字典名称不能为空')
@@ -60,9 +62,9 @@ class DictDataModel(BaseModel):
     is_default: Literal['Y', 'N'] | None = Field(default=None, description='是否默认（Y是 N否）')
     status: Literal['0', '1'] | None = Field(default=None, description='状态（0正常 1停用）')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
 
     @NotBlank(field_name='dict_label', message='字典标签不能为空')
@@ -91,7 +93,7 @@ class DictDataModel(BaseModel):
         self.get_css_class()
 
 
-class DictTypeQueryModel(DictTypeModel):
+class DictTypeQueryModel(DateRangeQueryMixin, DictTypeModel):
     """
     字典类型管理不分页查询模型
     """
@@ -119,7 +121,7 @@ class DeleteDictTypeModel(BaseModel):
     dict_ids: str = Field(description='需要删除的字典主键')
 
 
-class DictDataQueryModel(DictDataModel):
+class DictDataQueryModel(DateRangeQueryMixin, DictDataModel):
     """
     字典数据管理不分页查询模型
     """

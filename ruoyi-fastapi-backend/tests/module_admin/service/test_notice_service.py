@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 from sqlalchemy import func, select, text
@@ -57,7 +57,7 @@ def _notice(notice_id: int, status: str = '0') -> SysNotice:
         notice_content=f'内容{notice_id}'.encode(),
         status=status,
         create_by='admin',
-        create_time=datetime(2026, 3, notice_id),
+        create_time=datetime(2026, 3, notice_id, tzinfo=timezone.utc),
     )
 
 
@@ -135,10 +135,10 @@ async def test_get_notice_read_user_list_supports_search_and_pagination() -> Non
             )
             session.add_all(
                 [
-                    SysNoticeRead(notice_id=1, user_id=1, read_time=datetime(2026, 7, 30, 10, 0)),
-                    SysNoticeRead(notice_id=1, user_id=2, read_time=datetime(2026, 7, 30, 11, 0)),
-                    SysNoticeRead(notice_id=1, user_id=3, read_time=datetime(2026, 7, 30, 12, 0)),
-                    SysNoticeRead(notice_id=2, user_id=1, read_time=datetime(2026, 7, 30, 13, 0)),
+                    SysNoticeRead(notice_id=1, user_id=1, read_time=datetime(2026, 7, 30, 10, 0, tzinfo=timezone.utc)),
+                    SysNoticeRead(notice_id=1, user_id=2, read_time=datetime(2026, 7, 30, 11, 0, tzinfo=timezone.utc)),
+                    SysNoticeRead(notice_id=1, user_id=3, read_time=datetime(2026, 7, 30, 12, 0, tzinfo=timezone.utc)),
+                    SysNoticeRead(notice_id=2, user_id=1, read_time=datetime(2026, 7, 30, 13, 0, tzinfo=timezone.utc)),
                 ]
             )
             await session.commit()

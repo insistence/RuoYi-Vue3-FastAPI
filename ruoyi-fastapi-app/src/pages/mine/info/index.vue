@@ -88,7 +88,7 @@
           </view>
           <text class="ml-3 text-base font-medium text-gray-800">创建日期</text>
         </view>
-        <text class="text-sm text-gray-500">{{ user.createTime }}</text>
+        <text class="text-sm text-gray-500">{{ formatBusinessTime(user.createTime) || '-' }}</text>
       </view>
     </view>
   </view>
@@ -97,17 +97,26 @@
 <script setup>
 import { getUserProfile } from "@/api/system/user";
 import { ref } from "vue";
+import { formatBusinessTime } from "@/utils/time";
+import { useUserStore } from "@/store/modules/user";
 
 const user = ref({});
 const roleGroup = ref("");
 const postGroup = ref("");
 
-function getUser() {
-  getUserProfile().then((response) => {
+async function getUser() {
+  try {
+    // 冷启动或直接进入资料页时，先获取服务器业务时区再展示时间。
+    const [, response] = await Promise.all([
+      useUserStore().getInfo(),
+      getUserProfile(),
+    ]);
     user.value = response.data;
     roleGroup.value = response.roleGroup;
     postGroup.value = response.postGroup;
-  });
+  } catch {
+    // 请求工具已展示错误，保留空状态。
+  }
 }
 
 getUser();

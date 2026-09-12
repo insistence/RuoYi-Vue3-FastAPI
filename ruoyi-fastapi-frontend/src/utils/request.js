@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElNotification , ElMessageBox, ElMessage, ElLoading } from 'element-plus'
 import { getToken } from '@/utils/auth'
+import { getDisplayTimezone } from '@/utils/time';
 import errorCode from '@/utils/errorCode'
 import { tansParams, blobValidate } from '@/utils/ruoyi'
 import cache from '@/plugins/cache'
@@ -36,6 +37,7 @@ const service = axios.create({
  */
 // request拦截器
 service.interceptors.request.use(async config => {
+  config.headers['X-Timezone'] = config.headers['X-Timezone'] || getDisplayTimezone()
   // 是否需要设置 token
   const isToken = (config.headers || {}).isToken === false
   // 是否需要防止数据重复提交
@@ -48,6 +50,7 @@ service.interceptors.request.use(async config => {
   if (!isRepeatSubmit && (config.method === 'post' || config.method === 'put')) {
     const requestObj = {
       url: config.url,
+      timezone: config.headers['X-Timezone'],
       data: typeof config.data === 'object' ? JSON.stringify(config.data) : config.data,
       time: new Date().getTime()
     }
@@ -64,7 +67,7 @@ service.interceptors.request.use(async config => {
       const s_url = sessionObj.url;                // 请求地址
       const s_data = sessionObj.data;              // 请求数据
       const s_time = sessionObj.time;              // 请求时间
-      if (s_data === requestObj.data && requestObj.time - s_time < interval && s_url === requestObj.url) {
+      if (s_data === requestObj.data && requestObj.time - s_time < interval && s_url === requestObj.url && sessionObj.timezone === requestObj.timezone) {
         const message = '数据正在处理，请勿重复提交';
         console.warn(`[${s_url}]: ` + message)
         return Promise.reject(new Error(message))
@@ -133,6 +136,7 @@ service.interceptors.response.use(async res => {
     }
   },
   async error => {
+    if (axios.isCancel(error)) return Promise.reject(error)
     // 错误响应也可能是加密信封，先尝试解密再进入统一错误提示流程。
     error = await decryptTransportErrorResponse(error)
     // 若后端提示密钥失效，则清空本地公钥缓存并基于原始请求重试一次。
@@ -149,6 +153,14 @@ service.interceptors.response.use(async res => {
     const responseStatus = response?.status
     const responseCode = response?.data?.code
     const responseMsg = response?.data?.msg
+    if (responseStatus === 422) {
+      const details = Array.isArray(response?.data?.detail) ? response.data.detail : []
+      error.fieldErrors = Object.fromEntries(details.map(item => [item.loc?.slice(1).join('.') || '参数', item.msg]))
+      error.message = details.map(item => `${item.loc?.slice(1).join('.') || '参数'}：${item.msg}`).join('；') || responseMsg || '请检查输入参数'
+      if (!error.config?.skipErrorMessage) ElMessage({ message: error.message, type: 'warning', duration: 5000 })
+      return Promise.reject(error)
+    }
+    if (error.config?.skipErrorMessage) return Promise.reject(error)
     if (responseMsg) {
       const messageType = responseStatus === 429 || responseCode === 429 ? 'warning' : 'error'
       ElMessage({ message: responseMsg, type: messageType, duration: 5 * 1000 })

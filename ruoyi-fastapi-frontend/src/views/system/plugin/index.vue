@@ -657,7 +657,6 @@ const { proxy } = getCurrentInstance();
 const { plugin_operation_type } = proxy.useDict("plugin_operation_type");
 const parseTime = proxy.parseTime;
 const INVALID_PLUGIN_TIME_VALUES = new Set(["", "-", "0", "0-0-0 0:0:0", "0000-00-00 00:00:00"]);
-const PLUGIN_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/;
 const OPERATION_LOG_RETENTION_CONFIG_KEY = "sys.plugin.operationLogRetentionDays";
 
 const pluginTableRef = ref(null);
@@ -719,7 +718,7 @@ function formatPluginTime(value) {
     return "-";
   }
 
-  const formatted = formatPluginIsoTime(value) || parseTime(value);
+  const formatted = parseTime(value);
   if (!formatted || INVALID_PLUGIN_TIME_VALUES.has(String(formatted).trim())) {
     return "-";
   }
@@ -727,17 +726,6 @@ function formatPluginTime(value) {
   return formatted;
 }
 
-function formatPluginIsoTime(value) {
-  if (typeof value !== "string") {
-    return "";
-  }
-  const matched = value.trim().match(PLUGIN_TIME_PATTERN);
-  if (!matched) {
-    return "";
-  }
-
-  return `${matched[1]}-${matched[2]}-${matched[3]} ${matched[4]}:${matched[5]}:${matched[6]}`;
-}
 const pluginStatusOptions = [
   { label: "已发现", value: "discovered", tagType: "info" },
   { label: "已安装", value: "installed", tagType: "success" },

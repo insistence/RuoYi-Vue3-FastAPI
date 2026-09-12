@@ -8,7 +8,7 @@
 {% if column.required %}
     {% set vo_field_required.has_required = True %}
 {% endif %}
-{% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+{% if column.time_kind and column.query_type == "BETWEEN" %}
     {% set vo_field_daterange.has_daterange = True %}
 {% endif %}
 {% endfor %}
@@ -21,14 +21,28 @@
 {% endfor %}
 {% endif %}
 {% for vo_import in voImportList %}
+{% if not vo_import.startswith('from common.') %}
 {{ vo_import }}
+{% endif %}
 {% endfor %}
+{% if vo_field_daterange.has_daterange %}
+from typing import ClassVar
+{% endif %}
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 {% if vo_field_required.has_required or sub_vo_field_required.has_required %}
 from pydantic_validation_decorator import NotBlank
 {% endif %}
+
+{% if vo_field_daterange.has_daterange %}
+from common.mixin import GeneratedTimeRangeQueryMixin
+{% endif %}
+{% for vo_import in voImportList %}
+{% if vo_import.startswith('from common.') %}
+{{ vo_import }}
+{% endif %}
+{% endfor %}
 
 
 {% if table.sub %}
@@ -40,7 +54,7 @@ class {{ BusinessName }}BaseModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     {% for column in columns %}
-    {{ column.column_name }}: {{ column.python_type }} | None = Field(default=None, description='{{ column.column_comment }}')
+    {{ column.column_name }}: {{ column.vo_type }} | None = Field(default=None, description='{{ column.column_comment }}')
     {% endfor %}
 
     {% for column in columns %}
@@ -48,7 +62,7 @@ class {{ BusinessName }}BaseModel(BaseModel):
     {% set parentheseIndex = column.column_comment.find("（") %}
     {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
     @NotBlank(field_name='{{ column.column_name }}', message='{{ comment }}不能为空')
-    def get_{{ column.column_name }}(self) -> {{ column.python_type }} | None:
+    def get_{{ column.column_name }}(self) -> {{ column.vo_type }} | None:
         return self.{{ column.column_name }}
     {% if not loop.last %}{{ "\n" }}{% endif %}
     {% endif %}
@@ -62,9 +76,9 @@ class {{ BusinessName }}BaseModel(BaseModel):
     {% endif %}
     {% endfor %}
     {% endif %}
+
+
 {% endif %}
-
-
 class {{ BusinessName }}Model({% if table.sub %}{{ BusinessName }}BaseModel{% else %}BaseModel{% endif %}):
     """
     {{ functionName }}表对应pydantic模型
@@ -73,7 +87,7 @@ class {{ BusinessName }}Model({% if table.sub %}{{ BusinessName }}BaseModel{% el
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     {% for column in columns %}
-    {{ column.column_name }}: {{ column.python_type }} | None = Field(default=None, description='{{ column.column_comment }}')
+    {{ column.column_name }}: {{ column.vo_type }} | None = Field(default=None, description='{{ column.column_comment }}')
     {% endfor %}
     {% endif %}
     {% if table.sub %}
@@ -86,7 +100,7 @@ class {{ BusinessName }}Model({% if table.sub %}{{ BusinessName }}BaseModel{% el
     {% set parentheseIndex = column.column_comment.find("（") %}
     {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
     @NotBlank(field_name='{{ column.column_name }}', message='{{ comment }}不能为空')
-    def get_{{ column.column_name }}(self) -> {{ column.python_type }} | None:
+    def get_{{ column.column_name }}(self) -> {{ column.vo_type }} | None:
         return self.{{ column.column_name }}
     {% if not loop.last %}{{ "\n" }}{% endif %}
     {% endif %}
@@ -112,7 +126,7 @@ class {{ subTable.business_name | capitalize }}Model(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     {% for sub_column in subTable.columns %}
-    {{ sub_column.column_name }}: {{ sub_column.python_type }} | None = Field(default=None, description='{{ sub_column.column_comment}}')
+    {{ sub_column.column_name }}: {{ sub_column.vo_type }} | None = Field(default=None, description='{{ sub_column.column_comment}}')
     {% endfor %}
 
     {% for sub_column in subTable.columns %}
@@ -120,7 +134,7 @@ class {{ subTable.business_name | capitalize }}Model(BaseModel):
     {% set parentheseIndex = sub_column.column_comment.find("（") %}
     {% set comment = sub_column.column_comment[:parentheseIndex] if parentheseIndex != -1 else sub_column.column_comment %}
     @NotBlank(field_name='{{ sub_column.column_name }}', message='{{ comment }}不能为空')
-    def get_{{ sub_column.column_name }}(self) -> {{ sub_column.python_type }} | None:
+    def get_{{ sub_column.column_name }}(self) -> {{ sub_column.vo_type }} | None:
         return self.{{ sub_column.column_name }}
     {% if not loop.last %}{{ "\n" }}{% endif %}
     {% endif %}
@@ -137,15 +151,23 @@ class {{ subTable.business_name | capitalize }}Model(BaseModel):
 {% endif %}
 
 
-class {{ BusinessName }}QueryModel({% if table.sub %}{{ BusinessName }}BaseModel{% else %}{{ BusinessName }}Model{% endif %}):
+class {{ BusinessName }}QueryModel({% if vo_field_daterange.has_daterange %}GeneratedTimeRangeQueryMixin, {% endif %}{% if table.sub %}{{ BusinessName }}BaseModel{% else %}{{ BusinessName }}Model{% endif %}):
     """
     {{ functionName }}不分页查询模型
     """
     {% if vo_field_daterange.has_daterange %}
+    time_range_fields: ClassVar[dict[str, str]] = {
+        {% for column in columns %}
+        {% if column.time_kind and column.query_type == 'BETWEEN' %}
+        '{{ column.column_name }}': '{{ column.time_kind }}',
+        {% endif %}
+        {% endfor %}
+    }
+
     {% for column in columns %}
-    {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
-    begin_{{ column.column_name  }}: str | None = Field(default=None, description='开始{{ column.column_comment }}')
-    end_{{ column.column_name  }}: str | None = Field(default=None, description='结束{{ column.column_comment }}')
+    {% if column.time_kind and column.query_type == "BETWEEN" %}
+    begin_{{ column.column_name  }}: {% if column.time_kind == 'time' %}BusinessTime{% else %}BusinessDate{% endif %} | None = Field(default=None, description='开始{{ column.column_comment }}')
+    end_{{ column.column_name  }}: {% if column.time_kind == 'time' %}BusinessTime{% else %}BusinessDate{% endif %} | None = Field(default=None, description='结束{{ column.column_comment }}')
     {% endif %}
     {% endfor %}
     {% else %}

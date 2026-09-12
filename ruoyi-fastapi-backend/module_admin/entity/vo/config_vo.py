@@ -1,9 +1,11 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class ConfigModel(BaseModel):
@@ -19,9 +21,9 @@ class ConfigModel(BaseModel):
     config_value: str | None = Field(default=None, description='参数键值')
     config_type: Literal['Y', 'N'] | None = Field(default=None, description='系统内置（Y是 N否）')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
 
     @NotBlank(field_name='config_key', message='参数名称不能为空')
@@ -45,7 +47,7 @@ class ConfigModel(BaseModel):
         self.get_config_value()
 
 
-class ConfigQueryModel(ConfigModel):
+class ConfigQueryModel(DateRangeQueryMixin, ConfigModel):
     """
     参数配置管理不分页查询模型
     """

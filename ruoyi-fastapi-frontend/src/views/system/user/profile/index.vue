@@ -35,7 +35,7 @@
                      </li>
                      <li class="list-group-item">
                         <svg-icon icon-class="date" />创建日期
-                        <div class="pull-right">{{ state.user.createTime }}</div>
+                        <div class="pull-right">{{ parseTime(state.user.createTime) || '-' }}</div>
                      </li>
                   </ul>
                </div>
@@ -55,6 +55,9 @@
                   <el-tab-pane label="修改密码" name="resetPwd">
                      <resetPwd />
                   </el-tab-pane>
+                  <el-tab-pane label="时区设置" name="timezone">
+                     <timezoneSettings :user="state.user" @saved="state.user.timeZone = $event" />
+                  </el-tab-pane>
                </el-tabs>
             </el-card>
          </el-col>
@@ -66,6 +69,8 @@
 import userAvatar from "./userAvatar";
 import userInfo from "./userInfo";
 import resetPwd from "./resetPwd";
+import timezoneSettings from "./timezoneSettings.vue";
+import useUserStore from '@/store/modules/user';
 import { getUserProfile } from "@/api/system/user";
 
 const route = useRoute()
@@ -79,6 +84,7 @@ const state = reactive({
 function getUser() {
   getUserProfile().then(response => {
     state.user = response.data;
+    useUserStore().applyTimezone(response.data.timeZone);
     state.roleGroup = response.roleGroup;
     state.postGroup = response.postGroup;
   });

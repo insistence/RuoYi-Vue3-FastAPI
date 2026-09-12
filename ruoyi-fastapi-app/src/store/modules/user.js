@@ -6,6 +6,7 @@ import constant from "@/utils/constant";
 import { isHttp, isEmpty } from "@/utils/validate";
 import { getInfo, login, logout } from "@/api/login";
 import { getToken, removeToken, setToken } from "@/utils/auth";
+import { setBusinessTimezone, setUserTimezone } from "@/utils/time";
 import defAva from "@/static/images/profile.jpg";
 
 const baseUrl = config.baseUrl;
@@ -17,6 +18,28 @@ export const useUserStore = defineStore("user", () => {
   const avatar = ref(storage.get(constant.avatar));
   const roles = ref(storage.get(constant.roles));
   const permissions = ref(storage.get(constant.permissions));
+  const appTimezone = ref("Asia/Shanghai");
+  const timeZone = ref("auto");
+
+  const applyTimezone = (preference = "auto") => {
+    setUserTimezone(preference);
+    timeZone.value = preference;
+    storage.set(constant.timezone, {
+      appTimezone: appTimezone.value,
+      timeZone: preference,
+    });
+  };
+  // 恢复已登录账号的设置，避免首屏短暂显示为另一个时区。
+  const savedTimezone = storage.get(constant.timezone);
+  if (token.value && savedTimezone) {
+    try {
+      appTimezone.value = savedTimezone.appTimezone;
+      setBusinessTimezone(appTimezone.value);
+      applyTimezone(savedTimezone.timeZone);
+    } catch {
+      storage.remove(constant.timezone);
+    }
+  }
 
   const SET_TOKEN = (val) => {
     token.value = val;
@@ -67,6 +90,9 @@ export const useUserStore = defineStore("user", () => {
       getInfo()
         .then((res) => {
           const user = res.user;
+          appTimezone.value = res.appTimezone;
+          setBusinessTimezone(res.appTimezone);
+          applyTimezone(user.timeZone);
           let avatar = user.avatar || "";
           if (!isHttp(avatar)) {
             avatar = isEmpty(avatar) ? defAva : baseUrl + avatar;
@@ -98,6 +124,7 @@ export const useUserStore = defineStore("user", () => {
       logout(token.value)
         .then(() => {
           SET_TOKEN("");
+          applyTimezone("auto");
           SET_ROLES([]);
           SET_PERMISSIONS([]);
           removeToken();
@@ -117,6 +144,9 @@ export const useUserStore = defineStore("user", () => {
     avatar,
     roles,
     permissions,
+    appTimezone,
+    timeZone,
+    applyTimezone,
     SET_AVATAR,
     login: loginAction,
     getInfo: getInfoAction,

@@ -19,9 +19,9 @@ create table ai_models (
   user_id           bigint,
   dept_id           bigint,
   create_by         varchar(64)     default '',
-  create_time       timestamp(0),
+  create_time       timestamp(3) with time zone,
   update_by         varchar(64)     default '',
-  update_time       timestamp(0),
+  update_time       timestamp(3) with time zone,
   remark            varchar(500)    default null,
   primary key (model_id)
 );
@@ -61,8 +61,8 @@ create table ai_chat_config (
   metrics_default_visible char(1)        default '0',
   vision_enabled          char(1)        default '1',
   image_max_size_mb       int4           default null,
-  create_time             timestamp(0),
-  update_time             timestamp(0),
+  create_time             timestamp(3) with time zone,
+  update_time             timestamp(3) with time zone,
   primary key (chat_config_id)
 );
 comment on table ai_chat_config is 'AI对话配置表';

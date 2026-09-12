@@ -9,7 +9,7 @@ from common.login_helper import LoginHelper
 async def test_login_page_loads() -> None:
     """测试登录页面是否能正常加载"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
         page = await browser.new_page()
 
         # 访问登录页面
@@ -33,7 +33,7 @@ async def test_login_page_loads() -> None:
 async def test_captcha_generation() -> None:
     """测试验证码是否正常生成（在测试环境中，验证码已禁用，但仍应能访问登录页面）"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
         page = await browser.new_page()
 
         # 访问登录页面
@@ -62,7 +62,7 @@ def test_login_without_captcha() -> None:
 async def test_login_flow_with_playwright() -> None:
     """使用Playwright测试完整的登录流程（测试环境中验证码已禁用）"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
         page = await browser.new_page()
 
         # 访问登录页面
@@ -110,7 +110,7 @@ async def test_login_flow_with_playwright() -> None:
 async def test_protected_routes_require_auth() -> None:
     """测试受保护的路由需要认证"""
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
         page = await browser.new_page()
 
         # 直接访问受保护的页面（如用户管理）
@@ -157,7 +157,7 @@ async def test_authenticated_access() -> None:
 
     # 使用Playwright测试带认证的访问
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
         context = await browser.new_context(
             storage_state={  # 使用storage state来保持登录状态
                 'cookies': [

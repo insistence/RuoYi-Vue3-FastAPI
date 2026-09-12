@@ -39,6 +39,7 @@
                v-model="dateRange"
                value-format="YYYY-MM-DD"
                type="daterange"
+               :aria-label="`日期范围（${getDisplayTimezone()}）`"
                range-separator="-"
                start-placeholder="开始日期"
                end-placeholder="结束日期"
@@ -170,6 +171,7 @@
 </template>
 
 <script setup name="Config">
+import { getDisplayTimezone } from '@/utils/time';
 import { listConfig, getConfig, delConfig, addConfig, updateConfig, refreshCache } from "@/api/system/config";
 
 const { proxy } = getCurrentInstance();
@@ -307,4 +309,10 @@ function handleRefreshCache() {
 }
 
 getList();
+// 时区变化后重新查询日期范围，保留正在编辑的表单。
+watch(getDisplayTimezone, () => {
+  if (dateRange.value?.length) {
+    handleQuery();
+  }
+});
 </script>

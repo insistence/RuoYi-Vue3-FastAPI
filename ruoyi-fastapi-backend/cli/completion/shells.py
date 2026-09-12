@@ -109,5 +109,6 @@ def ensure_custom_completion_classes_registered() -> None:
 
     :return: None
     """
-    if get_completion_class(PowerShellComplete.name) is None:
+    # Click 8.5 新增同名实现，但其数字索引协议与本项目脚本的文本参数协议不同。
+    if get_completion_class(PowerShellComplete.name) is not PowerShellComplete:
         add_completion_class(PowerShellComplete)

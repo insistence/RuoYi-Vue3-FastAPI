@@ -1,6 +1,6 @@
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -49,7 +49,7 @@ def make_file_access_log() -> FileAccessLogModel:
         userAgent='pytest',
         bytesSent=FILE_SIZE,
         operationDetail='{"newStatus":"active"}',
-        accessTime=datetime(2026, 7, 19, 12, 0, 0),
+        accessTime=datetime(2026, 7, 19, 12, 0, 0, tzinfo=timezone.utc),
     )
 
 
@@ -76,6 +76,7 @@ def test_file_access_log_is_enqueued_to_redis_stream() -> None:
     assert stream_name == LogConfig.log_stream_key
     assert event['event_type'] == 'file_access'
     payload = json.loads(event['payload'])
+    assert payload['accessTime'] == '2026-07-19T12:00:00.000Z'
     assert payload['fileId'] == 'file-id'
     assert payload['result'] == 'completed'
     assert payload['bytesSent'] == FILE_SIZE
@@ -92,7 +93,9 @@ def test_file_access_log_event_is_persisted_and_acknowledged() -> None:
             {
                 'event_type': 'file_access',
                 'event_id': 'event-id',
-                'payload': json.dumps(file_access_log.model_dump(by_alias=True, exclude_none=True), default=str),
+                'payload': json.dumps(
+                    file_access_log.model_dump(mode='json', by_alias=True, exclude_none=True), default=str
+                ),
             },
         )
     ]

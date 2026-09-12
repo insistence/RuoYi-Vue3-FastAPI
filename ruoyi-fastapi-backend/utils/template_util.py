@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+import re
 from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
@@ -11,6 +11,7 @@ from exceptions.exception import ServiceWarning
 from module_generator.entity.vo.gen_vo import GenTableColumnModel, GenTableModel
 from utils.common_util import CamelCaseUtil, SnakeCaseUtil
 from utils.string_util import StringUtil
+from utils.time_util import GenTimeUtil, TimezoneUtil
 
 
 class TemplateInitializer:
@@ -66,6 +67,8 @@ class TemplateUtils:
         """
         if not gen_table.options:
             raise ServiceWarning(message='请先完善生成配置信息')
+        gen_table = gen_table.model_copy(deep=True)
+        cls.prepare_time_columns(gen_table)
         class_name = gen_table.class_name
         module_name = gen_table.module_name
         business_name = gen_table.business_name
@@ -90,12 +93,27 @@ class TemplateUtils:
             'packageName': package_name,
             'author': gen_table.function_author,
             'colSpan': cls.get_col_span(gen_table.form_col_num),
-            'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'datetime': TimezoneUtil.to_business_time(TimezoneUtil.utc_now()).strftime('%Y-%m-%d %H:%M:%S'),
             'pkColumn': gen_table.pk_column,
             'doImportList': cls.get_do_import_list(gen_table),
             'voImportList': cls.get_vo_import_list(gen_table),
             'permissionPrefix': cls.get_permission_prefix(module_name, business_name),
             'columns': gen_table.columns,
+            'instantFields': [
+                column.python_field
+                for column in gen_table.columns or []
+                if column.time_kind == 'instant' and (column.insert or column.edit)
+            ],
+            'instantQueryFields': [
+                column.python_field
+                for column in gen_table.columns or []
+                if column.time_kind == 'instant' and column.query and column.query_type != 'BETWEEN'
+            ],
+            'subInstantFields': [
+                column.python_field for column in gen_table.sub_table.columns or [] if column.time_kind == 'instant'
+            ]
+            if gen_table.sub_table
+            else [],
             'table': gen_table,
             'dicts': cls.get_dicts(gen_table),
             'dbType': source_config.db_type,
@@ -119,6 +137,32 @@ class TemplateUtils:
             cls.set_sub_context(context, gen_table)
 
         return context
+
+    @classmethod
+    def prepare_time_columns(cls, gen_table: GenTableModel) -> None:
+        """
+        规范化模板副本中的主表和子表时间字段
+
+        只处理模板副本，不改写数据库中保存的生成配置。
+
+        :param gen_table: 用于渲染的生成表配置副本
+        """
+        db_type = DataBaseConfig.get_source(gen_table.data_source_name).db_type
+        for table in [gen_table, gen_table.sub_table]:
+            if table is None:
+                continue
+            for column in table.columns or []:
+                try:
+                    semantics = GenTimeUtil.get_time_semantics(column.column_type, db_type)
+                    GenTimeUtil.validate_time_control(column.column_type, db_type, column.html_type)
+                except ServiceWarning as exc:
+                    raise ServiceWarning(message=f'{table.table_name}.{column.column_name}: {exc.message}') from exc
+                column.vo_type = column.python_type
+                if semantics:
+                    column.time_kind = semantics.kind
+                    column.python_type = semantics.python_type
+                    column.vo_type = semantics.vo_type
+                    column.html_type = semantics.control
 
     @classmethod
     def set_extensions_context(cls, context: dict, gen_table: GenTableModel) -> None:
@@ -178,7 +222,7 @@ class TemplateUtils:
         context['subTableName'] = sub_table_name
         context['subTableFkName'] = sub_table_fk_name
         context['subTableFkClassName'] = sub_table_fk_class_name
-        context['subTableFkclassName'] = sub_table_fk_class_name.lower()
+        context['subTableFkclassName'] = sub_table_fk_class_name[0].lower() + sub_table_fk_class_name[1:]
         context['subClassName'] = sub_class_name
         context['subclassName'] = sub_class_name.lower()
 
@@ -270,65 +314,63 @@ class TemplateUtils:
         :param gen_table: 生成表的配置信息
         :return: 导入包列表
         """
-        columns = gen_table.columns or []
         import_list = set()
-        for column in columns:
-            if column.python_type in GenConstant.TYPE_DATE:
-                import_list.add(f'from datetime import {column.python_type}')
-            elif column.python_type == GenConstant.TYPE_DECIMAL:
-                import_list.add('from decimal import Decimal')
-        if gen_table.sub:
-            sub_columns = gen_table.sub_table.columns or []
-            for sub_column in sub_columns:
-                if sub_column.python_type in GenConstant.TYPE_DATE:
-                    import_list.add(f'from datetime import {sub_column.python_type}')
-                elif sub_column.python_type == GenConstant.TYPE_DECIMAL:
+        db_type = DataBaseConfig.get_source(gen_table.data_source_name).db_type
+        for table in [gen_table, gen_table.sub_table]:
+            if table is None:
+                continue
+            for column in table.columns or []:
+                semantics = GenTimeUtil.get_time_semantics(column.column_type, db_type)
+                if semantics:
+                    import_list.add(f'from common.types import {semantics.vo_type}')
+                elif column.python_type == GenConstant.TYPE_DECIMAL:
                     import_list.add('from decimal import Decimal')
-        return cls.merge_same_imports(list(import_list), 'from datetime import')
+        if any(
+            column.query_type == 'BETWEEN' and GenTimeUtil.get_time_semantics(column.column_type, db_type)
+            for column in gen_table.columns or []
+        ):
+            import_list.add('from common.types import BusinessDate')
+        return cls.merge_same_imports(sorted(import_list), 'from common.types import')
 
     @classmethod
     def get_do_import_list(cls, gen_table: GenTableModel) -> list[str]:
         """
-        获取do模板导入包列表
+        根据实际ORM列类型构建生成模型的导入列表
 
-        :param gen_table: 生成表的配置信息
-        :return: 导入包列表
+        :param gen_table: 生成表配置信息
+        :return: 已合并同源导入的语句列表
         """
-        columns = gen_table.columns or []
-        import_list = set()
-        import_list.add('from sqlalchemy import Column')
-        for column in columns:
-            sqlalchemy_type = cls.get_sqlalchemy_type(column.column_type, gen_table.data_source_name)
-            if column.column_name in {'create_time', 'update_time'} and sqlalchemy_type == 'DateTime':
-                continue
-            if sqlalchemy_type == 'Geometry':
-                import_list.add('from geoalchemy2 import Geometry')
-            else:
-                import_list.add(f'from sqlalchemy import {sqlalchemy_type.split("(", 1)[0]}')
+        import_list = {'from sqlalchemy import Column'}
         if gen_table.sub:
             import_list.add('from sqlalchemy import ForeignKey')
-            sub_columns = gen_table.sub_table.columns or []
-            for sub_column in sub_columns:
-                sqlalchemy_type = cls.get_sqlalchemy_type(sub_column.column_type, gen_table.data_source_name)
-                if sub_column.column_name in {'create_time', 'update_time'} and sqlalchemy_type == 'DateTime':
-                    continue
-                if sqlalchemy_type == 'Geometry':
+        for table in [gen_table, gen_table.sub_table]:
+            if table is None:
+                continue
+            for column in table.columns or []:
+                sqlalchemy_type = cls.get_sqlalchemy_type(column.column_type, gen_table.data_source_name)
+                if sqlalchemy_type == 'DbUtcDateTime':
+                    if column.column_name not in {'create_time', 'update_time'}:
+                        import_list.add('from common.types import DbUtcDateTime')
+                elif sqlalchemy_type == 'Geometry':
                     import_list.add('from geoalchemy2 import Geometry')
+                elif sqlalchemy_type.startswith('TIME('):
+                    dialect = DataBaseConfig.get_source(gen_table.data_source_name).db_type
+                    import_list.add(f'from sqlalchemy.dialects.{dialect} import TIME')
+                elif sqlalchemy_type.split('(', 1)[0] in {'JSONB', 'INET', 'CIDR', 'MACADDR'}:
+                    import_list.add(f'from sqlalchemy.dialects.postgresql import {sqlalchemy_type}')
                 else:
                     import_list.add(f'from sqlalchemy import {sqlalchemy_type.split("(", 1)[0]}')
-        return cls.merge_same_imports(list(import_list), 'from sqlalchemy import')
+        return cls.merge_same_imports(sorted(import_list), 'from sqlalchemy import')
 
     @classmethod
     def get_db_type(cls, column_type: str) -> str:
         """
-        获取数据库类型字段
+        获取规范化的数据库列类型
 
-        param column_type: 字段类型
-        :return: 数据库类型
+        :param column_type: 数据库列类型
+        :return: 保留时区限定的规范化类型名称
         """
-        if '(' in column_type:
-            return column_type.split('(', maxsplit=1)[0]
-        return column_type
+        return GenTimeUtil.normalize_db_type(column_type)
 
     @classmethod
     def merge_same_imports(cls, imports: list[str], import_start: str) -> list[str]:
@@ -515,9 +557,17 @@ class TemplateUtils:
         """
         source_config = DataBaseConfig.get_source(source_name)
         normalized = column_type.lower().strip()
-        base = normalized.split('(', 1)[0].removesuffix(' unsigned').strip()
+        base = GenTimeUtil.normalize_db_type(normalized)
+        semantics = GenTimeUtil.get_time_semantics(column_type, source_config.db_type)
+        if semantics:
+            precision = re.search(r'\((\d+)\)', normalized)
+            if semantics.kind == 'time' and precision:
+                keyword = 'fsp' if source_config.db_type == 'mysql' else 'precision'
+                return f'TIME({keyword}={precision.group(1)})'
+            return semantics.sqlalchemy_type
         type_mapping = GenConstant.DB_TO_SQLALCHEMY_TYPE_MAPPING[source_config.db_type]
         sqlalchemy_type = StringUtil.get_mapping_value_by_key_ignore_case(type_mapping, base) or 'String'
         if '(' in normalized and sqlalchemy_type in {'String', 'CHAR', 'Numeric', 'DECIMAL'}:
-            return f'{sqlalchemy_type}({normalized.split("(", 1)[1]}'
+            precision = re.search(r'\(([^)]*)\)', normalized).group(1)
+            return f'{sqlalchemy_type}({precision})'
         return sqlalchemy_type

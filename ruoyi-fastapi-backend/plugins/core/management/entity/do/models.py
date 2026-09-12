@@ -1,6 +1,7 @@
-from sqlalchemy import CHAR, BigInteger, CheckConstraint, Column, DateTime, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CHAR, BigInteger, CheckConstraint, Column, Integer, String, Text, UniqueConstraint
 
 from common.mixin import AuditTimeMixin, CreateTimeMixin
+from common.types import DbUtcDateTime
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
@@ -82,8 +83,8 @@ class SysPluginMigration(AuditTimeMixin, Base):
     status = Column(String(32), nullable=False, server_default='success', comment='执行状态')
     error_message = Column(Text, nullable=True, comment='失败错误信息')
     attempt_count = Column(Integer, nullable=False, default=0, comment='尝试次数')
-    started_time = Column(DateTime, nullable=True, comment='最近开始时间')
-    finished_time = Column(DateTime, nullable=True, comment='最近结束时间')
+    started_time = Column(DbUtcDateTime(), nullable=True, comment='最近开始时间')
+    finished_time = Column(DbUtcDateTime(), nullable=True, comment='最近结束时间')
 
 
 class SysPluginConfig(AuditTimeMixin, Base):

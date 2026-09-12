@@ -183,13 +183,13 @@ class JobRuntimeService:
         redis = None
         async_session_local = self.infrastructure_gateway.get_async_session_local()
         redis_util = self.infrastructure_gateway.get_redis_util()
-        scheduler_util = self.infrastructure_gateway.get_scheduler_util()
+        scheduler_manager = self.infrastructure_gateway.get_scheduler_manager()
         job_vo_module = self.infrastructure_gateway.get_job_vo_module()
         job_service = self.infrastructure_gateway.get_job_service()
         try:
             async with async_session_local() as session:
                 redis = await redis_util.create_redis_pool(log_enabled=False)
-                await scheduler_util.init_system_scheduler(redis)
+                await scheduler_manager.init_system_scheduler(redis)
 
                 if operation == 'run-once':
                     result = await job_service.execute_job_once_services(session, job_vo_module.JobModel(jobId=job_id))

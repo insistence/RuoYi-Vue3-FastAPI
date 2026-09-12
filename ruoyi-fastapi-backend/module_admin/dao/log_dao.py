@@ -1,4 +1,3 @@
-from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import asc, delete, desc, select
@@ -9,7 +8,7 @@ from module_admin.entity.do.log_do import SysLogininfor, SysOperLog
 from module_admin.entity.vo.log_vo import LogininforModel, LoginLogPageQueryModel, OperLogModel, OperLogPageQueryModel
 from utils.common_util import SnakeCaseUtil
 from utils.page_util import PageUtil
-from utils.time_format_util import TimeFormatUtil
+from utils.time_util import TimezoneUtil
 
 
 class OperationLogDao:
@@ -37,6 +36,9 @@ class OperationLogDao:
             )
         else:
             order_by_column = desc(SysOperLog.oper_time)
+        time_range = TimezoneUtil.local_date_strings_to_utc(
+            query_object.begin_time, query_object.end_time, timezone_name=TimezoneUtil.get_request_timezone()
+        )
         query = (
             select(SysOperLog)
             .where(
@@ -44,12 +46,8 @@ class OperationLogDao:
                 SysOperLog.oper_name.like(f'%{query_object.oper_name}%') if query_object.oper_name else True,
                 SysOperLog.business_type == query_object.business_type if query_object.business_type else True,
                 SysOperLog.status == query_object.status if query_object.status else True,
-                SysOperLog.oper_time.between(
-                    datetime.combine(TimeFormatUtil.parse_date(query_object.begin_time), time(00, 00, 00)),
-                    datetime.combine(TimeFormatUtil.parse_date(query_object.end_time), time(23, 59, 59)),
-                )
-                if query_object.begin_time and query_object.end_time
-                else True,
+                SysOperLog.oper_time >= time_range[0] if time_range and time_range[0] is not None else True,
+                SysOperLog.oper_time < time_range[1] if time_range and time_range[1] is not None else True,
             )
             .distinct()
             .order_by(order_by_column)
@@ -124,18 +122,17 @@ class LoginLogDao:
             )
         else:
             order_by_column = desc(SysLogininfor.login_time)
+        time_range = TimezoneUtil.local_date_strings_to_utc(
+            query_object.begin_time, query_object.end_time, timezone_name=TimezoneUtil.get_request_timezone()
+        )
         query = (
             select(SysLogininfor)
             .where(
                 SysLogininfor.ipaddr.like(f'%{query_object.ipaddr}%') if query_object.ipaddr else True,
                 SysLogininfor.user_name.like(f'%{query_object.user_name}%') if query_object.user_name else True,
                 SysLogininfor.status == query_object.status if query_object.status else True,
-                SysLogininfor.login_time.between(
-                    datetime.combine(TimeFormatUtil.parse_date(query_object.begin_time), time(00, 00, 00)),
-                    datetime.combine(TimeFormatUtil.parse_date(query_object.end_time), time(23, 59, 59)),
-                )
-                if query_object.begin_time and query_object.end_time
-                else True,
+                SysLogininfor.login_time >= time_range[0] if time_range and time_range[0] is not None else True,
+                SysLogininfor.login_time < time_range[1] if time_range and time_range[1] is not None else True,
             )
             .distinct()
             .order_by(order_by_column)

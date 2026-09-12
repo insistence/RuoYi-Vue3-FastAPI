@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import Row, bindparam, delete, func, select, text, update
@@ -8,8 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlglot.expressions import Expression
 
+from common.types import DbUtcDateTime
 from common.vo import PageModel
 from config.env import DataBaseConfig, DataSourceSettings
+from exceptions.exception import ServiceWarning
 from module_generator.entity.do.gen_do import GenTable, GenTableColumn
 from module_generator.entity.vo.gen_vo import (
     GenTableBaseModel,
@@ -19,11 +20,14 @@ from module_generator.entity.vo.gen_vo import (
     GenTablePageQueryModel,
 )
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 @dataclass(frozen=True, slots=True)
 class DatabaseMetadataAdapter:
-    """代码生成器使用的数据库元数据查询。"""
+    """元数据时间单独定义：MySQL 的目录时间按连接会话时区返回（连接工厂固定 UTC）；
+    PostgreSQL 不提供表创建时间，list_table 返回 NULL，不能用查询时刻冒充。
+    """
 
     table_list_query: str
     tables_by_name_query: str
@@ -37,8 +41,8 @@ _METADATA_ADAPTERS = {
         table_list_query=r"""
             table_name as table_name,
             table_comment as table_comment,
-            create_time as create_time,
-            update_time as update_time
+            date_format(create_time, '%Y-%m-%dT%H:%i:%s.000Z') as create_time,
+            date_format(update_time, '%Y-%m-%dT%H:%i:%s.000Z') as update_time
         from
             information_schema.tables
         where
@@ -50,8 +54,8 @@ _METADATA_ADAPTERS = {
         select
             table_name as table_name,
             table_comment as table_comment,
-            create_time as create_time,
-            update_time as update_time
+            date_format(create_time, '%Y-%m-%dT%H:%i:%s.000Z') as create_time,
+            date_format(update_time, '%Y-%m-%dT%H:%i:%s.000Z') as update_time
         from
             information_schema.tables
         where
@@ -77,8 +81,8 @@ _METADATA_ADAPTERS = {
         order by
             ordinal_position
         """,
-        created_after_filter=" and date_format(create_time, '%Y%m%d') >= date_format(:begin_time, '%Y%m%d')",
-        created_before_filter=" and date_format(create_time, '%Y%m%d') <= date_format(:end_time, '%Y%m%d')",
+        created_after_filter=' and create_time >= :begin_time',
+        created_before_filter=' and create_time < :end_time',
     ),
     'postgresql': DatabaseMetadataAdapter(
         table_list_query="""
@@ -229,6 +233,7 @@ class GenTableDao:
         :param is_page: 是否开启分页
         :return: 代码生成业务表列表信息对象
         """
+        time_range = TimezoneUtil.local_date_strings_to_utc(query_object.begin_time, query_object.end_time)
         query = (
             select(GenTable)
             .options(selectinload(GenTable.columns))
@@ -239,12 +244,8 @@ class GenTableDao:
                 func.lower(GenTable.table_comment).like(f'%{query_object.table_comment.lower()}%')
                 if query_object.table_comment
                 else True,
-                GenTable.create_time.between(
-                    datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
-                    datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),
-                )
-                if query_object.begin_time and query_object.end_time
-                else True,
+                GenTable.create_time >= time_range[0] if time_range and time_range[0] is not None else True,
+                GenTable.create_time < time_range[1] if time_range and time_range[1] is not None else True,
                 GenTable.data_source_name == query_object.data_source_name if query_object.data_source_name else True,
             )
             .distinct()
@@ -302,14 +303,21 @@ class GenTableDao:
         if query_object.table_comment:
             query_sql += " and lower(table_comment) like lower(concat('%', :table_comment, '%'))"
             query_params['table_comment'] = query_object.table_comment
+        metadata_range = TimezoneUtil.local_date_strings_to_utc(query_object.begin_time, query_object.end_time)
+        if metadata_range and source_config.db_type == 'postgresql':
+            raise ServiceWarning(message='PostgreSQL 系统目录不记录建表时间，请清除建表日期筛选')
         if query_object.begin_time:
             query_sql += metadata.created_after_filter
-            query_params['begin_time'] = query_object.begin_time
+            query_params['begin_time'] = metadata_range[0]
         if query_object.end_time:
             query_sql += metadata.created_before_filter
-            query_params['end_time'] = query_object.end_time
+            query_params['end_time'] = metadata_range[1]
         query_sql += ' order by create_time desc'
         statement = text(query_sql)
+        if 'begin_time' in query_params:
+            statement = statement.bindparams(bindparam('begin_time', type_=DbUtcDateTime()))
+        if 'end_time' in query_params:
+            statement = statement.bindparams(bindparam('end_time', type_=DbUtcDateTime()))
         if excluded_table_names:
             statement = statement.bindparams(bindparam('excluded_table_names', expanding=True))
         query = select(statement.bindparams(**query_params))

@@ -35,9 +35,10 @@
 {% for field in sub_edit_audit_fields.fields %}
 {% set sub_edit_audit_values.value = sub_edit_audit_values.value ~ "'" ~ field ~ "'" ~ (", " if not loop.last else "") %}
 {% endfor %}
+{% set has_datetime_range = namespace(value=False) %}
 {% for column in columns %}
-{% if column.query and column.query_type == 'BETWEEN' and column.column_name == "create_time" %}
-from datetime import datetime, time
+{% if column.query and column.time_kind == "instant" and column.query_type == "BETWEEN" %}
+{% set has_datetime_range.value = True %}
 {% endif %}
 {% endfor %}
 from typing import Any
@@ -50,13 +51,16 @@ from sqlalchemy.orm import selectinload
 
 from common.vo import PageModel
 {% if table.sub %}
-from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}, {{ subClassName }}
-from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel, {{ subTable.business_name | capitalize }}Model
+from {{ packageName }}.entity.do.{{ businessName }}_do import {{ [ClassName, subClassName] | sort | join(', ') }}
+from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ [BusinessName ~ 'Model', BusinessName ~ 'PageQueryModel', (subTable.business_name | capitalize) ~ 'Model'] | sort | join(', ') }}
 {% else %}
 from {{ packageName }}.entity.do.{{ businessName }}_do import {{ ClassName }}
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
 {% endif %}
 from utils.page_util import PageUtil
+{% if has_datetime_range.value %}
+from utils.time_util import TimezoneUtil
+{% endif %}
 
 
 class {{ BusinessName }}Dao:
@@ -132,6 +136,14 @@ class {{ BusinessName }}Dao:
         :param is_page: 是否开启分页
         :return: {{ functionName }}列表信息对象
         """
+        {% for column in columns %}
+        {% if column.query and column.time_kind == "instant" and column.query_type == "BETWEEN" %}
+        {{ column.column_name }}_range = TimezoneUtil.local_date_strings_to_utc(
+            query_object.begin_{{ column.column_name }}, query_object.end_{{ column.column_name }},
+            timezone_name=TimezoneUtil.get_request_timezone(),
+        )
+        {% endif %}
+        {% endfor %}
         query = (
             {% if table.sub %}
             select({{ ClassName }})
@@ -157,13 +169,12 @@ class {{ BusinessName }}Dao:
                 {{ ClassName }}.{{ field }} <= query_object.{{ field }} if query_object.{{ field }} else True,
                 {% elif column.query_type == "LIKE" %}
                 {{ ClassName }}.{{ field }}.like(f'%{% raw %}{{% endraw %}query_object.{{ field }}{% raw %}}{% endraw %}%') if query_object.{{ field }} else True,
-                {% elif column.html_type == "datetime" and column.query_type == "BETWEEN" %}
-                {{ ClassName }}.{{ field }}.between(
-                    datetime.combine(datetime.strptime(query_object.begin_{{ column.column_name }}, '%Y-%m-%d'), time(00, 00, 00)),
-                    datetime.combine(datetime.strptime(query_object.end_{{ column.column_name }}, '%Y-%m-%d'), time(23, 59, 59)),
-                )
-                if query_object.begin_{{ column.column_name }} and query_object.end_{{ column.column_name }}
-                else True,
+                {% elif column.time_kind in ['date', 'time'] and column.query_type == "BETWEEN" %}
+                {{ ClassName }}.{{ field }} >= query_object.begin_{{ column.column_name }} if query_object.begin_{{ column.column_name }} is not None else True,
+                {{ ClassName }}.{{ field }} <= query_object.end_{{ column.column_name }} if query_object.end_{{ column.column_name }} is not None else True,
+                {% elif column.time_kind == "instant" and column.query_type == "BETWEEN" %}
+                {{ ClassName }}.{{ field }} >= {{ column.column_name }}_range[0] if {{ column.column_name }}_range and {{ column.column_name }}_range[0] is not None else True,
+                {{ ClassName }}.{{ field }} < {{ column.column_name }}_range[1] if {{ column.column_name }}_range and {{ column.column_name }}_range[1] is not None else True,
                 {% endif %}
                 {% endif %}
                 {% endfor %}

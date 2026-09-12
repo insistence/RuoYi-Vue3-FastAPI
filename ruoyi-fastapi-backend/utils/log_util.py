@@ -6,6 +6,7 @@ import re
 import sys
 import traceback
 from collections.abc import Mapping, Sequence
+from datetime import timezone
 from typing import Any
 
 from loguru import logger as _logger
@@ -542,7 +543,7 @@ class LoggerInitializer:
         """
         record['extra']['sanitized_exception'] = self._build_plain_exception_suffix(record)
         return (
-            '<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | '
+            '<green>{time:YYYY-MM-DDTHH:mm:ss.SSS}Z</green> | '
             '<cyan>{extra[trace_id]}</cyan> | '
             '<magenta>{extra[span_id]}</magenta> | '
             '<yellow>{extra[request_id]}</yellow> | '
@@ -560,6 +561,7 @@ class LoggerInitializer:
         :return: 脱敏后的日志记录字典
         """
         record['message'] = LogSanitizer.sanitize_text(record['message'])
+        record['time'] = record['time'].astimezone(timezone.utc)
         return record
 
     def _info_file_filter(self, record: dict) -> bool:

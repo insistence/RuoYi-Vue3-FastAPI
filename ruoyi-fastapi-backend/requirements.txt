@@ -20,5 +20,6 @@ ruff==0.16.1
 SQLAlchemy[asyncio]==2.0.51
 sqlglot[rs]==30.14.0
 textual==8.2.8
+tzdata==2026.3
 user-agents==2.2.0
 .

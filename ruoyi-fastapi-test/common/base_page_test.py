@@ -2,6 +2,7 @@ import re
 
 from playwright.async_api._context_manager import PlaywrightContextManager
 
+from common.config import Config
 from common.login_helper import LoginHelper
 
 
@@ -19,7 +20,7 @@ class BasePageTest:
         assert self.token is not None, '登录应该成功'
 
         # 启动浏览器
-        self.browser = await playwright.chromium.launch(headless=True)
+        self.browser = await playwright.chromium.launch(headless=True, channel=Config.browser_channel)
         self.context = await self.browser.new_context()
         # 设置认证token
         await self.context.add_cookies(

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import Depends, Request, Response
@@ -29,6 +29,7 @@ from module_admin.service.user_service import UserService
 from utils.jwt_util import JwtUtil
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
+from utils.time_util import TimezoneUtil
 
 login_controller = APIRouterPro(order_num=1, tags=['登录模块'])
 
@@ -85,7 +86,7 @@ async def login(
             ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
         )
     await UserService.edit_user_services(
-        query_db, EditUserModel(userId=result[0].user_id, loginDate=datetime.now(), type='status')
+        query_db, EditUserModel(userId=result[0].user_id, loginDate=TimezoneUtil.utc_now(), type='status')
     )
     logger.info('登录成功')
     # 判断请求是否来自于api文档，如果是返回指定格式的结果，用于修复api文档认证成功后token显示undefined的bug

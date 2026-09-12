@@ -1,9 +1,9 @@
-from datetime import datetime
-
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CHAR, BigInteger, Column, Index, Integer, String, Text, UniqueConstraint
 
 from common.mixin import AuditTimeMixin, CreateTimeMixin
+from common.types import DbUtcDateTime
 from config.database import Base
+from utils.time_util import TimezoneUtil
 
 
 class SysFileInfo(AuditTimeMixin, Base):
@@ -53,8 +53,8 @@ class SysFileInfo(AuditTimeMixin, Base):
     status = Column(String(20), nullable=False, server_default='active', comment='文件状态')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
-    expire_time = Column(DateTime, nullable=True, comment='过期时间')
-    deleted_time = Column(DateTime, nullable=True, comment='移入回收站时间')
+    expire_time = Column(DbUtcDateTime(), nullable=True, comment='过期时间')
+    deleted_time = Column(DbUtcDateTime(), nullable=True, comment='移入回收站时间')
     del_flag = Column(CHAR(1), nullable=False, server_default='0', comment='删除标志')
 
 
@@ -82,7 +82,7 @@ class SysFileReference(CreateTimeMixin, Base):
     business_type = Column(String(50), nullable=False, comment='业务类型')
     business_id = Column(String(64), nullable=False, comment='业务ID')
     business_name = Column(String(255), nullable=True, comment='业务名称')
-    retention_expire_time = Column(DateTime, nullable=True, comment='保留期限到期时间')
+    retention_expire_time = Column(DbUtcDateTime(), nullable=True, comment='保留期限到期时间')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
 
 
@@ -126,10 +126,10 @@ class SysFileRetentionNotice(CreateTimeMixin, Base):
     notice_id = Column(BigInteger, primary_key=True, nullable=False, autoincrement=True, comment='提醒ID')
     file_id = Column(String(36), nullable=False, comment='文件ID')
     notice_type = Column(String(20), nullable=False, comment='提醒类型')
-    expire_time = Column(DateTime, nullable=False, comment='文件过期时间')
+    expire_time = Column(DbUtcDateTime(), nullable=False, comment='文件过期时间')
     status = Column(CHAR(1), nullable=False, server_default='0', comment='状态（0未读 1已读 2已失效）')
     read_by = Column(String(64), nullable=True, server_default="''", comment='读取者')
-    read_time = Column(DateTime, nullable=True, comment='读取时间')
+    read_time = Column(DbUtcDateTime(), nullable=True, comment='读取时间')
 
 
 class SysFileAcl(CreateTimeMixin, Base):
@@ -159,7 +159,7 @@ class SysFileAcl(CreateTimeMixin, Base):
     permission = Column(String(20), nullable=False, server_default='download', comment='权限类型')
     effect = Column(String(10), nullable=False, server_default='allow', comment='授权效果')
     include_children = Column(CHAR(1), nullable=False, server_default='0', comment='部门是否包含下级')
-    expire_time = Column(DateTime, nullable=True, comment='授权过期时间')
+    expire_time = Column(DbUtcDateTime(), nullable=True, comment='授权过期时间')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
     del_flag = Column(CHAR(1), nullable=False, server_default='0', comment='删除标志')
 
@@ -189,7 +189,7 @@ class SysFileAccessLog(Base):
     bytes_sent = Column(BigInteger, nullable=False, server_default='0', comment='发送字节数')
     error_message = Column(String(500), nullable=True, server_default="''", comment='失败原因')
     operation_detail = Column(Text, nullable=True, comment='操作详情')
-    access_time = Column(DateTime, nullable=False, default=datetime.now, comment='访问时间')
+    access_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='访问时间')
 
 
 class SysFileReconcileRun(Base):
@@ -215,8 +215,8 @@ class SysFileReconcileRun(Base):
     new_issue_count = Column(BigInteger, nullable=False, server_default='0', comment='新增或重新出现异常数')
     resolved_issue_count = Column(BigInteger, nullable=False, server_default='0', comment='自动恢复异常数')
     started_by = Column(String(64), nullable=True, server_default="''", comment='发起人')
-    started_time = Column(DateTime, nullable=False, default=datetime.now, comment='开始时间')
-    finished_time = Column(DateTime, nullable=True, comment='完成时间')
+    started_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='开始时间')
+    finished_time = Column(DbUtcDateTime(), nullable=True, comment='完成时间')
     error_message = Column(Text, nullable=True, comment='失败原因')
 
 
@@ -253,10 +253,10 @@ class SysFileReconcileIssue(Base):
     status = Column(String(20), nullable=False, server_default='open', comment='处理状态')
     detail = Column(Text, nullable=True, comment='异常说明')
     occurrence_count = Column(Integer, nullable=False, server_default='1', comment='发现次数')
-    first_seen_time = Column(DateTime, nullable=False, default=datetime.now, comment='首次发现时间')
-    last_seen_time = Column(DateTime, nullable=False, default=datetime.now, comment='最近发现时间')
+    first_seen_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='首次发现时间')
+    last_seen_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='最近发现时间')
     handle_action = Column(String(32), nullable=True, comment='处理动作')
     handle_reason = Column(String(500), nullable=True, comment='处理原因')
     handled_by = Column(String(64), nullable=True, comment='处理人')
-    handled_time = Column(DateTime, nullable=True, comment='处理时间')
+    handled_time = Column(DbUtcDateTime(), nullable=True, comment='处理时间')
     quarantine_key = Column(String(500), nullable=True, comment='隔离区相对路径')

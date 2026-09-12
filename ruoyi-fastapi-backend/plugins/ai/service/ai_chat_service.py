@@ -2,7 +2,7 @@ import json
 import os
 import uuid
 from collections.abc import AsyncGenerator, AsyncIterator
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from agno.agent import Agent
@@ -392,8 +392,8 @@ class AiChatService:
 
         result = []
         for s in sessions:
-            created_at = datetime.fromtimestamp(s.created_at) if s.created_at else None
-            updated_at = datetime.fromtimestamp(s.updated_at) if s.updated_at else None
+            created_at = datetime.fromtimestamp(s.created_at, tz=timezone.utc) if s.created_at else None
+            updated_at = datetime.fromtimestamp(s.updated_at, tz=timezone.utc) if s.updated_at else None
 
             title_limit = 20
             session_title = s.runs[0].input.input_content[:title_limit] + '...' if s.runs else ''
@@ -486,7 +486,7 @@ class AiChatService:
                     content=m.content,
                     images=cls._convert_images_to_upload_paths(m.images),
                     metrics=metrics_model,
-                    createdAt=datetime.fromtimestamp(m.created_at) if m.created_at else None,
+                    createdAt=datetime.fromtimestamp(m.created_at, tz=timezone.utc) if m.created_at else None,
                     reasoningContent=m.reasoning_content,
                     fromHistory=m.from_history,
                     stopAfterToolCall=m.stop_after_tool_call,
@@ -497,8 +497,8 @@ class AiChatService:
             sessionId=session.session_id,
             sessionTitle=session.runs[0].input.input_content[:20] + '...' if session.runs else '',
             userId=session.user_id,
-            createdAt=datetime.fromtimestamp(session.created_at) if session.created_at else None,
-            updatedAt=datetime.fromtimestamp(session.updated_at) if session.updated_at else None,
+            createdAt=datetime.fromtimestamp(session.created_at, tz=timezone.utc) if session.created_at else None,
+            updatedAt=datetime.fromtimestamp(session.updated_at, tz=timezone.utc) if session.updated_at else None,
             agentId=session.agent_id,
             sessionData=SessionDataModel(
                 sessionState=session_data.get('session_state'),

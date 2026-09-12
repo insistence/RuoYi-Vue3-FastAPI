@@ -29,13 +29,13 @@ class OperationsInfrastructureGateway:
         return import_module('redis.exceptions').RedisError
 
     @staticmethod
-    def get_scheduler_util() -> Any:
+    def get_scheduler_manager() -> Any:
         """
-        获取调度器工具类。
+        获取调度器管理类。
 
-        :return: 调度器工具类
+        :return: 调度器管理类
         """
-        return import_module('config.get_scheduler').SchedulerUtil
+        return import_module('config.scheduler.manager').SchedulerManager
 
     @staticmethod
     def get_server_service() -> Any:

@@ -113,9 +113,9 @@ async def test_operations_runtime_service_sync_jobs_closes_resources_on_success(
             del log_enabled
             return FakeRedis()
 
-    class FakeSchedulerUtil:
+    class FakeSchedulerManager:
         """
-        模拟调度器工具。
+        模拟调度器管理类。
         """
 
         _is_leader = True
@@ -153,11 +153,11 @@ async def test_operations_runtime_service_sync_jobs_closes_resources_on_success(
     def _fake_get_redis_util() -> FakeRedisUtil:
         return FakeRedisUtil()
 
-    def _fake_get_scheduler_util() -> FakeSchedulerUtil:
-        return FakeSchedulerUtil()
+    def _fake_get_scheduler_manager() -> FakeSchedulerManager:
+        return FakeSchedulerManager()
 
     object.__setattr__(gateway, 'get_redis_util', _fake_get_redis_util)
-    object.__setattr__(gateway, 'get_scheduler_util', _fake_get_scheduler_util)
+    object.__setattr__(gateway, 'get_scheduler_manager', _fake_get_scheduler_manager)
 
     payload = await service.sync_jobs()
 

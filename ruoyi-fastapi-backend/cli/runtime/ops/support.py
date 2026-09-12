@@ -3,10 +3,12 @@ import platform
 import socket
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from importlib import metadata
 from typing import Any
 
 from cli.exit_codes import RUNTIME_ERROR
+from utils.time_util import TimezoneUtil
 
 from .gateway import OperationsInfrastructureGateway
 
@@ -229,7 +231,9 @@ class OperationsServerInfoSupport:
             'py': {
                 'name': current_process.name(),
                 'version': platform.python_version(),
-                'startTime': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(start_time_stamp)),
+                'startTime': TimezoneUtil.to_business_time(
+                    datetime.fromtimestamp(start_time_stamp, tz=timezone.utc)
+                ).strftime('%Y-%m-%d %H:%M:%S'),
                 'runTime': f'{days}天{hours}小时{minutes}分钟',
                 'home': current_process.exe(),
                 'total': bytes2human(memory_info.available),

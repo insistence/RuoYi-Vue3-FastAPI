@@ -1,9 +1,11 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import Network, NotBlank, Size
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class DeptModel(BaseModel):
@@ -24,9 +26,9 @@ class DeptModel(BaseModel):
     status: Literal['0', '1'] | None = Field(default=None, description='部门状态（0正常 1停用）')
     del_flag: Literal['0', '2'] | None = Field(default=None, description='删除标志（0代表存在 2代表删除）')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
     @NotBlank(field_name='dept_name', message='部门名称不能为空')
     @Size(field_name='dept_name', min_length=0, max_length=30, message='部门名称长度不能超过30个字符')
@@ -53,7 +55,7 @@ class DeptModel(BaseModel):
         self.get_email()
 
 
-class DeptQueryModel(DeptModel):
+class DeptQueryModel(DateRangeQueryMixin, DeptModel):
     """
     部门管理不分页查询模型
     """

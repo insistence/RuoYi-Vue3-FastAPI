@@ -259,7 +259,8 @@ def test_python_templates_handle_audit_timestamps_by_exact_column_name() -> None
     assert 'class GenItem(AuditTimeMixin, Base):' in entity
     assert 'create_time = Column(' not in entity
     assert 'update_time = Column(' not in entity
-    assert 'created_time = Column(DateTime, nullable=True, comment=' in entity
+    assert 'from common.types import DbUtcDateTime' in entity
+    assert 'created_time = Column(DbUtcDateTime(), nullable=True, comment=' in entity
     assert "model_dump(exclude={'create_time', 'update_time'})" in dao
     assert "if key not in {'create_time', 'update_time'}" in dao
     assert 'create_time = datetime.now()' not in controller

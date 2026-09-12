@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +38,7 @@ from plugins.core.validation.menus import PluginMenuConflictItem
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 class PluginService:
@@ -549,7 +550,7 @@ class PluginService:
         :param retention_model: 插件批量操作审计日志保留策略模型
         :return: 插件批量操作审计日志保留策略执行结果
         """
-        cutoff_time = datetime.now() - timedelta(days=retention_model.retention_days)
+        cutoff_time = TimezoneUtil.utc_now() - timedelta(days=retention_model.retention_days)
         matched_count = await PluginDao.count_plugin_operation_logs_before(query_db, cutoff_time)
         deleted_count = 0
         if not retention_model.dry_run:
@@ -976,7 +977,7 @@ class PluginService:
             frontendPath=str(frontend_path.relative_to(frontend_root)) if frontend_path and frontend_root else None,
             lastError=last_error,
             description=manifest.description,
-            updateTime=datetime.now(),
+            updateTime=TimezoneUtil.utc_now(),
             capability=capability.to_payload(),
             metadata=manifest.metadata.model_dump(by_alias=True),
             backend={

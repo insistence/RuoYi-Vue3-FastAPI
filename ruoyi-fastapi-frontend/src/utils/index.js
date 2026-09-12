@@ -4,15 +4,7 @@ import { parseTime } from './ruoyi'
  * 表格时间格式化
  */
 export function formatDate(cellValue) {
-  if (cellValue == null || cellValue == "") return "";
-  const date = new Date(cellValue)
-  const year = date.getFullYear()
-  const month = date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1
-  const day = date.getDate() < 10 ? '0' + date.getDate() : date.getDate()
-  const hours = date.getHours() < 10 ? '0' + date.getHours() : date.getHours()
-  const minutes = date.getMinutes() < 10 ? '0' + date.getMinutes() : date.getMinutes()
-  const seconds = date.getSeconds() < 10 ? '0' + date.getSeconds() : date.getSeconds()
-  return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds
+  return parseTime(cellValue) || ''
 }
 
 /**
@@ -21,15 +13,12 @@ export function formatDate(cellValue) {
  * @returns {string}
  */
 export function formatTime(time, option) {
-  if (('' + time).length === 10) {
-    time = parseInt(time) * 1000
-  } else {
-    time = +time
-  }
-  const d = new Date(time)
+  const formattedTime = parseTime(time, option || '{m}月{d}日{h}时{i}分')
+  if (!formattedTime) return ''
+  time = new Date(time).getTime()
   const now = Date.now()
 
-  const diff = (now - d) / 1000
+  const diff = (now - time) / 1000
 
   if (diff < 30) {
     return '刚刚'
@@ -41,21 +30,7 @@ export function formatTime(time, option) {
   } else if (diff < 3600 * 24 * 2) {
     return '1天前'
   }
-  if (option) {
-    return parseTime(time, option)
-  } else {
-    return (
-      d.getMonth() +
-      1 +
-      '月' +
-      d.getDate() +
-      '日' +
-      d.getHours() +
-      '时' +
-      d.getMinutes() +
-      '分'
-    )
-  }
+  return formattedTime
 }
 
 /**

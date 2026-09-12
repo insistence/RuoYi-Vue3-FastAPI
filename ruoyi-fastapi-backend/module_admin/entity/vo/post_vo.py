@@ -1,9 +1,11 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class PostModel(BaseModel):
@@ -19,9 +21,9 @@ class PostModel(BaseModel):
     post_sort: int | None = Field(default=None, description='显示顺序')
     status: Literal['0', '1'] | None = Field(default=None, description='状态（0正常 1停用）')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
 
     @NotBlank(field_name='post_code', message='岗位编码不能为空')
@@ -44,7 +46,7 @@ class PostModel(BaseModel):
         self.get_post_sort()
 
 
-class PostQueryModel(PostModel):
+class PostQueryModel(DateRangeQueryMixin, PostModel):
     """
     岗位管理不分页查询模型
     """

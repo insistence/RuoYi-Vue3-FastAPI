@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -208,7 +208,7 @@ def test_reconcile_run_page_converts_database_field_names() -> None:
                     'trigger_type': 'manual',
                     'status': 'completed',
                     'check_hash': '0',
-                    'started_time': '2026-07-25 12:00:00',
+                    'started_time': '2026-07-25T12:00:00.000Z',
                 }
             ],
             'page_num': 1,
@@ -239,7 +239,7 @@ def test_reconcile_run_page_converts_database_field_names() -> None:
 
 def test_reconcile_issue_page_calculates_actions_from_camel_case_rows() -> None:
     current_user = SimpleNamespace(user=SimpleNamespace(admin=True, user_name='admin'))
-    current_time = datetime(2026, 7, 26, 12, 0, 0)
+    current_time = datetime(2026, 7, 26, 12, 0, 0, tzinfo=timezone.utc)
     issue_page = PageModel(
         rows=[
             {

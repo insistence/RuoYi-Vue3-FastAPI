@@ -1,9 +1,11 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank, Size, Xss
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class NoticeModel(BaseModel):
@@ -19,9 +21,9 @@ class NoticeModel(BaseModel):
     notice_content: bytes | None = Field(default=None, description='公告内容')
     status: Literal['0', '1'] | None = Field(default=None, description='公告状态（0正常 1关闭）')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
 
     @Xss(field_name='notice_title', message='公告标题不能包含脚本字符')
@@ -34,7 +36,7 @@ class NoticeModel(BaseModel):
         self.get_notice_title()
 
 
-class NoticeQueryModel(NoticeModel):
+class NoticeQueryModel(DateRangeQueryMixin, NoticeModel):
     """
     通知公告管理不分页查询模型
     """
@@ -64,7 +66,7 @@ class NoticeReadUserModel(BaseModel):
     nick_name: str = Field(description='用户昵称')
     dept_name: str | None = Field(default=None, description='部门名称')
     phonenumber: str | None = Field(default=None, description='手机号码')
-    read_time: datetime = Field(description='阅读时间')
+    read_time: ApiUtcDateTime = Field(description='阅读时间')
 
 
 class NoticeReadUserPageQueryModel(BaseModel):
@@ -102,7 +104,7 @@ class NoticeTopModel(BaseModel):
     notice_type: Literal['1', '2'] = Field(description='公告类型（1通知 2公告）')
     status: Literal['0', '1'] = Field(description='公告状态（0正常 1关闭）')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     is_read: bool = Field(default=False, description='是否已读')
 
 

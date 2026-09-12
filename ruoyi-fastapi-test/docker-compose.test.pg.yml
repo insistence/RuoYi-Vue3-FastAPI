@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     image: ruoyi-frontend:latest
     container_name: ruoyi-frontend-test
+    environment:
+      TZ: UTC
     ports:
       - "80:80"
     volumes:
@@ -25,6 +27,7 @@ services:
     ports:
       - "9099:9099"
     environment:
+      TZ: UTC
       TRANSPORT_CRYPTO_ENABLED: "false"
       TRANSPORT_CRYPTO_MODE: "off"
     depends_on:
@@ -40,6 +43,7 @@ services:
     image: postgres:14
     container_name: ruoyi-pg-test
     environment:
+      TZ: UTC
       POSTGRES_PASSWORD: root
       POSTGRES_DB: ruoyi-fastapi
       POSTGRES_INITDB_ARGS: --encoding=UTF8 --lc-collate=C --lc-ctype=C
@@ -60,6 +64,8 @@ services:
   ruoyi-redis:
     image: redis:latest
     container_name: ruoyi-redis-test
+    environment:
+      TZ: UTC
     ports:
       - "16381:6379"
     networks:

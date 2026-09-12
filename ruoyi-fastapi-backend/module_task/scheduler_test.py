@@ -1,4 +1,4 @@
-from datetime import datetime
+from utils.time_util import TimezoneUtil
 
 
 def job(*args, **kwargs) -> None:
@@ -7,7 +7,7 @@ def job(*args, **kwargs) -> None:
     """
     print(args)
     print(kwargs)
-    print(f'{datetime.now()}同步函数执行了')
+    print(f'{TimezoneUtil.format_rfc3339(TimezoneUtil.utc_now())}同步函数执行了')
 
 
 async def async_job(*args, **kwargs) -> None:
@@ -16,4 +16,4 @@ async def async_job(*args, **kwargs) -> None:
     """
     print(args)
     print(kwargs)
-    print(f'{datetime.now()}异步函数执行了')
+    print(f'{TimezoneUtil.format_rfc3339(TimezoneUtil.utc_now())}异步函数执行了')

@@ -10,20 +10,14 @@
                @keyup.enter="handleQuery"
             />
          </el-form-item>
-         <el-form-item label="任务组名" prop="jobGroup">
-            <el-select
-               v-model="queryParams.jobGroup"
-               placeholder="请选择任务组名"
-               clearable
-               style="width: 240px"
-            >
-               <el-option
-                  v-for="dict in sys_job_group"
-                  :key="dict.value"
-                  :label="dict.label"
-                  :value="dict.value"
-               />
-            </el-select>
+         <el-form-item label="业务分组" prop="jobGroup">
+            <el-input v-model="queryParams.jobGroup" placeholder="请输入业务分组" clearable style="width: 240px" @keyup.enter="handleQuery" />
+         </el-form-item>
+         <el-form-item label="任务编号" prop="jobId">
+            <el-input v-model="queryParams.jobId" placeholder="精确匹配任务ID" clearable style="width: 240px" @keyup.enter="handleQuery" />
+         </el-form-item>
+         <el-form-item label="执行编号" prop="executionId">
+            <el-input v-model="queryParams.executionId" placeholder="精确匹配执行ID" clearable style="width: 240px" @keyup.enter="handleQuery" />
          </el-form-item>
          <el-form-item label="执行状态" prop="status">
             <el-select
@@ -45,6 +39,7 @@
                v-model="dateRange"
                value-format="YYYY-MM-DD"
                type="daterange"
+               :aria-label="`日期范围（${getDisplayTimezone()}）`"
                range-separator="-"
                start-placeholder="开始日期"
                end-placeholder="结束日期"
@@ -99,10 +94,11 @@
       <el-table v-loading="loading" :data="jobLogList" @selection-change="handleSelectionChange">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="日志编号" width="80" align="center" prop="jobLogId" />
+         <el-table-column label="任务编号" width="90" align="center" prop="jobId" />
          <el-table-column label="任务名称" align="center" prop="jobName" :show-overflow-tooltip="true" />
-         <el-table-column label="任务组名" align="center" prop="jobGroup" :show-overflow-tooltip="true">
+         <el-table-column label="业务分组" align="center" prop="jobGroup" :show-overflow-tooltip="true">
             <template #default="scope">
-               <dict-tag :options="sys_job_group" :value="scope.row.jobGroup" />
+               {{ scope.row.jobGroup }}
             </template>
          </el-table-column>
          <el-table-column label="调用目标字符串" align="center" prop="invokeTarget" :show-overflow-tooltip="true" />
@@ -138,12 +134,12 @@
 </template>
 
 <script setup name="JobLog">
+import { getDisplayTimezone } from '@/utils/time';
 import JobDetail from './detail'
-import { getJob } from "@/api/monitor/job";
 import { listJobLog, delJobLog, cleanJobLog } from "@/api/monitor/jobLog";
 
 const { proxy } = getCurrentInstance();
-const { sys_common_status, sys_job_group } = proxy.useDict("sys_common_status", "sys_job_group");
+const { sys_common_status } = proxy.useDict("sys_common_status");
 
 const jobLogList = ref([]);
 const open = ref(false);
@@ -160,8 +156,10 @@ const data = reactive({
   queryParams: {
     pageNum: 1,
     pageSize: 10,
-    dictName: undefined,
-    dictType: undefined,
+    jobId: undefined,
+    executionId: undefined,
+    jobName: undefined,
+    jobGroup: undefined,
     status: undefined
   }
 });
@@ -171,9 +169,15 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询调度日志列表 */
 function getList() {
   loading.value = true;
-  listJobLog(proxy.addDateRange(queryParams.value, dateRange.value)).then(response => {
+  const query = {
+    ...queryParams.value,
+    jobId: queryParams.value.jobId || undefined,
+    executionId: queryParams.value.executionId || undefined
+  };
+  listJobLog(proxy.addDateRange(query, dateRange.value)).then(response => {
     jobLogList.value = response.rows;
     total.value = response.total;
+  }).finally(() => {
     loading.value = false;
   });
 }
@@ -223,21 +227,25 @@ function handleClean() {
 }
 /** 导出按钮操作 */
 function handleExport() {
-  proxy.download("monitor/jobLog/export", {
+  proxy.download("monitor/jobLog/export", proxy.addDateRange({
     ...queryParams.value,
-  }, `job_log_${new Date().getTime()}.xlsx`);
+    jobId: queryParams.value.jobId || undefined,
+    executionId: queryParams.value.executionId || undefined
+  }, dateRange.value), `job_log_${new Date().getTime()}.xlsx`);
 }
 
-(() => {
-  const jobId = route.params && route.params.jobId;
-  if (jobId !== undefined && jobId != 0) {
-    getJob(jobId).then(response => {
-      queryParams.value.jobName = response.data.jobName;
-      queryParams.value.jobGroup = response.data.jobGroup;
-      getList();
-    });
-  } else {
-    getList();
+// 使用稳定编号查询，任务改名或删除后仍能查看执行日志。
+watch(() => [route.params.jobId, route.query.executionId], ([jobId, executionId]) => {
+  queryParams.value.jobId = jobId && jobId != 0 ? jobId : undefined;
+  queryParams.value.executionId = executionId || undefined;
+  queryParams.value.jobName = undefined;
+  queryParams.value.jobGroup = undefined;
+  handleQuery();
+}, { immediate: true });
+// 时区变化后重新查询日期范围，保留正在编辑的表单。
+watch(getDisplayTimezone, () => {
+  if (dateRange.value?.length) {
+    handleQuery();
   }
-})();
+});
 </script>

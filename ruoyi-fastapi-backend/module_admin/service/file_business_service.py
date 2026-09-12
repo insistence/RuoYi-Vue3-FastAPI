@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, true
@@ -26,6 +26,7 @@ from module_admin.entity.vo.file_vo import (
     FileRetentionScanModel,
 )
 from utils.common_util import CamelCaseUtil
+from utils.time_util import TimezoneUtil
 
 
 class FileReferenceService:
@@ -107,7 +108,7 @@ class FileReferenceService:
             )
             if len(file_infos) != len(normalized_file_ids):
                 raise ServiceException(message='部分引用文件不存在或已失效')
-        create_time = datetime.now()
+        create_time = TimezoneUtil.utc_now()
         retention_policy = await FileRetentionPolicyService.get_enabled_file_retention_policy_services(
             query_db,
             normalized_business_type,
@@ -402,7 +403,7 @@ class FileRetentionNoticeService:
         :return: 扫描结果
         """
         cls._validate_scan_parameters(remind_days, batch_size)
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         reminder_deadline = current_time + timedelta(days=remind_days)
         data_scope_sql = file_data_scope_sql if file_data_scope_sql is not None else true()
         try:
@@ -505,7 +506,7 @@ class FileRetentionNoticeService:
                 query_db,
                 parsed_notice_ids,
                 read_by,
-                datetime.now(),
+                TimezoneUtil.utc_now(),
             )
             await query_db.commit()
             return CrudResponseModel(is_success=True, message='提醒已标记为已读')

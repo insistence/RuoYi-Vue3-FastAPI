@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -7,10 +7,11 @@ import pytest
 from module_generator.dao.gen_dao import GenTableColumnDao, GenTableDao
 from module_generator.entity.vo.gen_vo import GenTablePageQueryModel
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 TABLE_ID = 7
 COLUMN_ID = 9
-CLIENT_AUDIT_TIME = datetime(2000, 1, 1)
+CLIENT_AUDIT_TIME = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
 
 @pytest.mark.asyncio
@@ -66,11 +67,12 @@ async def test_get_gen_db_table_list_only_binds_active_sql_filters() -> None:
 
     query = paginate.await_args.args[1]
     compiled_sql = str(query.compile())
+    begin, end = TimezoneUtil.local_date_strings_to_utc('2026-07-01', '2026-07-30')
     assert query.compile().params == {
         'table_name': 'sys_user',
         'table_comment': '用户',
-        'begin_time': '2026-07-01',
-        'end_time': '2026-07-30',
+        'begin_time': begin,
+        'end_time': end,
     }
     assert ')and ' not in compiled_sql
 

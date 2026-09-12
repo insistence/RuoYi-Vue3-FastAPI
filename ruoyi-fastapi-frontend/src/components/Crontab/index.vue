@@ -113,7 +113,7 @@
                     </tbody>
                 </table>
             </div>
-            <CrontabResult :ex="crontabValueString"></CrontabResult>
+            <CrontabResult :ex="crontabValueString" :time-zone="timeZone"></CrontabResult>
 
             <div class="pop_btn">
                 <el-button type="primary" @click="submitFill">确定</el-button>
@@ -143,6 +143,10 @@ const props = defineProps({
     expression: {
         type: String,
         default: ""
+    },
+    timeZone: {
+        type: String,
+        required: true
     }
 })
 const tabTitles = ref(["秒", "分钟", "小时", "日", "月", "周", "年"])

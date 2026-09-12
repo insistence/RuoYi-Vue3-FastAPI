@@ -3,12 +3,18 @@ import config from "./config";
 import { getToken } from "@/utils/auth";
 import { useConfigStore } from "@/store";
 import { getCurrentInstance } from "vue";
-import { onLaunch } from "@dcloudio/uni-app";
+import { onLaunch, onShow } from "@dcloudio/uni-app";
+
+import { refreshDeviceTimezone } from "@/utils/time";
 
 const { proxy } = getCurrentInstance();
 
 onLaunch(() => {
   initApp();
+});
+
+onShow(() => {
+  refreshDeviceTimezone();
 });
 
 // 初始化应用

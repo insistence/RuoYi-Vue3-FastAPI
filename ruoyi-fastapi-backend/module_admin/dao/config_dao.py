@@ -1,4 +1,3 @@
-from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import delete, select, update
@@ -8,6 +7,7 @@ from common.vo import PageModel
 from module_admin.entity.do.config_do import SysConfig
 from module_admin.entity.vo.config_vo import ConfigModel, ConfigPageQueryModel
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 class ConfigDao:
@@ -64,18 +64,17 @@ class ConfigDao:
         :param is_page: 是否开启分页
         :return: 参数配置列表信息对象
         """
+        time_range = TimezoneUtil.local_date_strings_to_utc(
+            query_object.begin_time, query_object.end_time, timezone_name=TimezoneUtil.get_request_timezone()
+        )
         query = (
             select(SysConfig)
             .where(
                 SysConfig.config_name.like(f'%{query_object.config_name}%') if query_object.config_name else True,
                 SysConfig.config_key.like(f'%{query_object.config_key}%') if query_object.config_key else True,
                 SysConfig.config_type == query_object.config_type if query_object.config_type else True,
-                SysConfig.create_time.between(
-                    datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
-                    datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),
-                )
-                if query_object.begin_time and query_object.end_time
-                else True,
+                SysConfig.create_time >= time_range[0] if time_range and time_range[0] is not None else True,
+                SysConfig.create_time < time_range[1] if time_range and time_range[1] is not None else True,
             )
             .order_by(SysConfig.config_id)
             .distinct()

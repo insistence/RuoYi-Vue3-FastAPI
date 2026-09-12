@@ -1,4 +1,5 @@
 FROM python:3.10
+ENV TZ=UTC
 WORKDIR /app
 
 # 复制源代码

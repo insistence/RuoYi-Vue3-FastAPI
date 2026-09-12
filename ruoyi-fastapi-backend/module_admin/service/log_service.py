@@ -334,7 +334,7 @@ class LogQueueService:
         :param source: 日志来源
         :return: None
         """
-        payload = LogSanitizer.sanitize_data(login_log.model_dump(by_alias=True, exclude_none=True))
+        payload = LogSanitizer.sanitize_data(login_log.model_dump(mode='json', by_alias=True, exclude_none=True))
         await cls._xadd_event(request.app.state.redis, 'login', payload, source)
 
     @classmethod
@@ -347,7 +347,7 @@ class LogQueueService:
         :param source: 日志来源
         :return: None
         """
-        payload = LogSanitizer.sanitize_data(operation_log.model_dump(by_alias=True, exclude_none=True))
+        payload = LogSanitizer.sanitize_data(operation_log.model_dump(mode='json', by_alias=True, exclude_none=True))
         await cls._xadd_event(request.app.state.redis, 'operation', payload, source)
 
     @classmethod
@@ -360,7 +360,7 @@ class LogQueueService:
         :param source: 日志来源
         :return: None
         """
-        payload = LogSanitizer.sanitize_data(file_access_log.model_dump(by_alias=True, exclude_none=True))
+        payload = LogSanitizer.sanitize_data(file_access_log.model_dump(mode='json', by_alias=True, exclude_none=True))
         await cls._xadd_event(request.app.state.redis, 'file_access', payload, source)
 
 

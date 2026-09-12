@@ -1,9 +1,10 @@
-from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 from plugins.core.state import PluginStatus
 from plugins.core.types import PluginConfigValue
 
@@ -31,9 +32,9 @@ class PluginModel(BaseModel):
     last_error: str | None = Field(default=None, description='最近一次错误信息')
     description: str | None = Field(default=None, description='插件说明')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
     capability: dict[str, Any] | None = Field(default=None, description='插件运行时操作能力')
     metadata: dict[str, Any] | None = Field(default=None, description='插件展示元数据')
@@ -104,11 +105,11 @@ class PluginOperationLogModel(BaseModel):
     status: str = Field(description='执行状态')
     summary: str | None = Field(default=None, description='执行汇总JSON')
     result: str | None = Field(default=None, description='完整执行结果JSON')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     remark: str | None = Field(default=None, description='备注')
 
 
-class PluginOperationLogQueryModel(BaseModel):
+class PluginOperationLogQueryModel(DateRangeQueryMixin, BaseModel):
     """
     插件批量操作审计日志不分页查询模型。
 
@@ -162,7 +163,7 @@ class PluginOperationLogDetailModel(BaseModel):
     status: str = Field(description='执行状态')
     summary: dict[str, object] = Field(default_factory=dict, description='执行汇总')
     result: dict[str, object] = Field(default_factory=dict, description='完整执行结果')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     remark: str | None = Field(default=None, description='备注')
 
 
@@ -189,7 +190,7 @@ class PluginOperationLogRetentionResultModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, from_attributes=True)
 
     retention_days: int = Field(description='审计日志保留天数')
-    cutoff_time: datetime = Field(description='清理截止时间')
+    cutoff_time: ApiUtcDateTime = Field(description='清理截止时间')
     matched_count: int = Field(description='匹配保留策略的日志数量')
     deleted_count: int = Field(description='已删除日志数量')
     dry_run: bool = Field(description='是否仅预览清理结果')
@@ -207,7 +208,7 @@ class PluginMenuModel(BaseModel):
     plugin_id: str = Field(description='插件ID')
     menu_id: int = Field(description='菜单ID')
     menu_key: str = Field(description='插件内菜单自然键')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
 
 
 class PluginMigrationModel(BaseModel):
@@ -227,10 +228,10 @@ class PluginMigrationModel(BaseModel):
     status: str = Field(default='success', description='执行状态')
     error_message: str | None = Field(default=None, description='失败错误信息')
     attempt_count: int = Field(default=0, description='尝试次数')
-    started_time: datetime | None = Field(default=None, description='最近开始时间')
-    finished_time: datetime | None = Field(default=None, description='最近结束时间')
-    create_time: datetime | None = Field(default=None, description='执行时间')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    started_time: ApiUtcDateTime | None = Field(default=None, description='最近开始时间')
+    finished_time: ApiUtcDateTime | None = Field(default=None, description='最近结束时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='执行时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
 
 class PluginMigrationRecoveryModel(BaseModel):
@@ -265,8 +266,8 @@ class PluginConfigModel(BaseModel):
     secret: PluginEnabled = Field(default='1', description='是否敏感（0是 1否）')
     options: str | None = Field(default=None, description='配置选项JSON')
     description: str | None = Field(default=None, description='配置说明')
-    create_time: datetime | None = Field(default=None, description='创建时间')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
 
 class PluginConfigValueModel(BaseModel):

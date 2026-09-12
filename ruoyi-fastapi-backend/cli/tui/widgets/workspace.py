@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import datetime
 from math import sin
 from time import monotonic
 
@@ -12,6 +11,7 @@ from cli.tui.copy import TUI_COPY
 from cli.tui.keymaps import TUI_KEYMAP_REGISTRY
 from cli.tui.platform import TUI_PLATFORM_POLICY
 from cli.tui.search import TUI_SEARCH_HIGHLIGHTER
+from utils.time_util import TimezoneUtil
 
 
 class WorkspaceRenderingSupport:
@@ -521,7 +521,7 @@ class WorkspaceHeader(Static):
 
         :return: 渲染富文本
         """
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        timestamp = TimezoneUtil.to_business_time(TimezoneUtil.utc_now()).strftime('%Y-%m-%d %H:%M:%S')
         lines = TUI_COPY.build_workspace_header_lines(
             env=self.env,
             view_label=TUI_COPY.render_view_label(self.active_view),

@@ -1,4 +1,6 @@
 import re
+from http import HTTPStatus
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from playwright.async_api import async_playwright, expect
@@ -56,16 +58,32 @@ class GenTableTest(BasePageTest):
 
     async def import_table(self, table_name: str) -> None:
         """导入表"""
-        await self.page.get_by_role('button', name='导入').click()
+        # 初始列表响应可能晚于搜索响应，先等待初始数据渲染，避免覆盖搜索结果。
+        async with self.page.expect_response(
+            lambda response: urlparse(response.url).path.endswith('/tool/gen/db/list')
+        ) as initial_response:
+            await self.page.get_by_role('button', name='导入').click()
+        response = await initial_response.value
+        assert response.status == HTTPStatus.OK
+        initial_data = await response.json()
+        assert initial_data['code'] == HTTPStatus.OK, initial_data
+        dialog = self.page.get_by_role('dialog', name='导入表', exact=True)
+        await expect(dialog.locator('tbody tr')).to_have_count(len(initial_data['rows']))
 
-        dialog = self.page.locator("div[role='dialog'][aria-label='导入表']")
-        await dialog.wait_for()
-
-        # 搜索要导入的表
+        # 等待本次搜索响应及表格更新后再选择目标表。
         await dialog.get_by_placeholder('请输入表名称').fill(table_name)
-        await dialog.get_by_role('button', name='搜索').click()
-
-        # 等待搜索结果
+        async with self.page.expect_response(
+            lambda response: (
+                urlparse(response.url).path.endswith('/tool/gen/db/list')
+                and parse_qs(urlparse(response.url).query).get('tableName') == [table_name]
+            )
+        ) as search_response:
+            await dialog.get_by_role('button', name='搜索').click()
+        response = await search_response.value
+        assert response.status == HTTPStatus.OK
+        search_data = await response.json()
+        assert search_data['code'] == HTTPStatus.OK, search_data
+        await expect(dialog.locator('tbody tr')).to_have_count(len(search_data['rows']))
         await dialog.locator(f"tr:has-text('{table_name}')").wait_for()
 
         # 选中行

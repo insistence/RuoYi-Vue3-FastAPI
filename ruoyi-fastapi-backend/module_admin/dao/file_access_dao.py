@@ -14,6 +14,7 @@ from module_admin.entity.vo.file_vo import (
     FileAccessLogPageQueryModel,
 )
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 class FileAclDao:
@@ -347,6 +348,7 @@ class FileAccessLogDao:
         :param is_page: 是否开启分页
         :return: 文件访问审计列表
         """
+        time_range = TimezoneUtil.rfc3339_range_to_utc(query_object.begin_time, query_object.end_time)
         query = (
             select(SysFileAccessLog)
             .where(
@@ -354,12 +356,8 @@ class FileAccessLogDao:
                 SysFileAccessLog.action == query_object.action if query_object.action else True,
                 SysFileAccessLog.result == query_object.result if query_object.result else True,
                 SysFileAccessLog.actor_name.like(f'%{query_object.actor_name}%') if query_object.actor_name else True,
-                SysFileAccessLog.access_time.between(
-                    datetime.strptime(query_object.begin_time, '%Y-%m-%d %H:%M:%S'),
-                    datetime.strptime(query_object.end_time, '%Y-%m-%d %H:%M:%S'),
-                )
-                if query_object.begin_time and query_object.end_time
-                else True,
+                SysFileAccessLog.access_time >= time_range[0] if time_range and time_range[0] is not None else True,
+                SysFileAccessLog.access_time <= time_range[1] if time_range and time_range[1] is not None else True,
             )
             .order_by(SysFileAccessLog.access_time.desc(), SysFileAccessLog.audit_id.desc())
         )

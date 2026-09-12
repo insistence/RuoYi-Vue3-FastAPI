@@ -19,9 +19,9 @@ create table ai_models (
   user_id           bigint(20)                                 comment '用户ID',
   dept_id           bigint(20)                                 comment '部门ID',
   create_by         varchar(64)     default ''                 comment '创建者',
-  create_time       datetime                                   comment '创建时间',
+  create_time       datetime(3)                                   comment '创建时间',
   update_by         varchar(64)     default ''                 comment '更新者',
-  update_time       datetime                                   comment '更新时间',
+  update_time       datetime(3)                                   comment '更新时间',
   remark            varchar(500)    default null               comment '备注',
   primary key (model_id)
 ) engine=innodb auto_increment=1 comment = 'AI模型表';
@@ -41,7 +41,7 @@ create table ai_chat_config (
   metrics_default_visible char(1)         default '0'                comment '默认显示指标(0是, 1否)',
   vision_enabled          char(1)         default '1'                comment '是否开启视觉(0是, 1否)',
   image_max_size_mb       int(4)          default null               comment '图片最大大小(MB)',
-  create_time             datetime                                   comment '创建时间',
-  update_time             datetime                                   comment '更新时间',
+  create_time             datetime(3)                                   comment '创建时间',
+  update_time             datetime(3)                                   comment '更新时间',
   primary key (chat_config_id)
 ) engine=innodb auto_increment=1 comment = 'AI对话配置表';

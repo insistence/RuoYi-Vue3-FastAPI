@@ -5,7 +5,7 @@ import mimetypes
 import stat
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import aiofiles
@@ -147,7 +147,7 @@ def collect_legacy_files() -> tuple[list[LegacyFileInfo], int]:
                 extension=extension,
                 content_type=content_type,
                 file_size=signature.file_size,
-                file_time=datetime.fromtimestamp(signature.modified_time_ns / 1_000_000_000),
+                file_time=datetime.fromtimestamp(signature.modified_time_ns / 1_000_000_000, tz=timezone.utc),
                 signature=signature,
             )
         )

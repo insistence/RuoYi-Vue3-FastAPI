@@ -22,6 +22,7 @@ from module_admin.entity.vo.file_vo import FileInfoModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_admin.service.file_access_service import FileAuditService
 from utils.file_util import FileByteRange, FileDownloadResult, FileUtil
+from utils.time_util import TimezoneUtil
 from utils.upload_util import FilePathUtil, UploadUtil
 
 
@@ -56,7 +57,7 @@ class CommonService:
         if file.size is not None and file.size > UploadConfig.MAX_FILE_SIZE:
             raise ServiceException(message=f'文件大小不能超过{UploadConfig.MAX_FILE_SIZE // 1024 // 1024}MB')
 
-        now = datetime.now()
+        now = TimezoneUtil.to_business_time(TimezoneUtil.utc_now())
         relative_path = Path('upload', now.strftime('%Y'), now.strftime('%m'), now.strftime('%d'))
         storage_root = UploadConfig.UPLOAD_PATH if access_type == 'public' else UploadConfig.PRIVATE_UPLOAD_PATH
         dir_path = Path(storage_root, relative_path)
@@ -224,7 +225,7 @@ class CommonService:
             )
             raise ServiceException(message='文件不存在或无权访问')
 
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         is_expired = (
             file_info.access_type == 'private' and file_info.expire_time and file_info.expire_time < current_time
         )

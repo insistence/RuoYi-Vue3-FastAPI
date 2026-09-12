@@ -99,7 +99,7 @@ async def test_key_lifecycle_task_starts_only_for_current_application_leader() -
 
     with (
         patch('module_identity.service.runtime_service.OidcConfig.oidc_enabled', True),
-        patch('module_identity.service.runtime_service.SchedulerUtil.is_application_leader', return_value=True),
+        patch('module_identity.service.runtime_service.SchedulerManager.is_application_leader', return_value=True),
         patch('module_identity.service.runtime_service.asyncio.create_task', side_effect=create_task),
     ):
         await OidcRuntimeService.start_background_tasks(app)
@@ -110,7 +110,7 @@ async def test_key_lifecycle_task_starts_only_for_current_application_leader() -
     created.clear()
     with (
         patch('module_identity.service.runtime_service.OidcConfig.oidc_enabled', True),
-        patch('module_identity.service.runtime_service.SchedulerUtil.is_application_leader', return_value=False),
+        patch('module_identity.service.runtime_service.SchedulerManager.is_application_leader', return_value=False),
         patch('module_identity.service.runtime_service.asyncio.create_task', side_effect=create_task),
     ):
         await OidcRuntimeService.start_background_tasks(app)
@@ -122,7 +122,7 @@ async def test_key_lifecycle_task_starts_only_for_current_application_leader() -
 async def test_key_lifecycle_loop_stops_when_leader_lease_is_lost() -> None:
     """生命周期循环在续租状态丢失后立即停止，不再推进数据库。"""
     with (
-        patch('module_identity.service.runtime_service.SchedulerUtil.is_application_leader', side_effect=[True, False]),
+        patch('module_identity.service.runtime_service.SchedulerManager.is_application_leader', side_effect=[True, False]),
         patch('module_identity.service.runtime_service.asyncio.sleep', new_callable=AsyncMock),
         patch(
             'module_identity.service.runtime_service.KeyService.activate_due', new_callable=AsyncMock
@@ -138,7 +138,7 @@ async def test_key_lifecycle_loop_stops_when_leader_lease_is_lost() -> None:
 async def test_backchannel_retry_loop_stops_when_leader_lease_is_lost() -> None:
     """Back-Channel worker 丢失 leader 租约后退出且不再消费队列。"""
     with (
-        patch('module_identity.service.runtime_service.SchedulerUtil.is_application_leader', side_effect=[True, False]),
+        patch('module_identity.service.runtime_service.SchedulerManager.is_application_leader', side_effect=[True, False]),
         patch('module_identity.service.runtime_service.asyncio.sleep', new_callable=AsyncMock),
         patch(
             'module_identity.service.runtime_service.LogoutService.consume_backchannel_retry',
@@ -160,7 +160,7 @@ async def test_server_background_task_setup_delegates_oidc_runtime() -> None:
         return log_task
 
     with (
-        patch('server.SchedulerUtil.init_system_scheduler', new_callable=AsyncMock) as init_scheduler,
+        patch('server.SchedulerManager.init_system_scheduler', new_callable=AsyncMock) as init_scheduler,
         patch('server.LogAggregatorService.consume_stream', new_callable=AsyncMock),
         patch('server.asyncio.create_task', side_effect=create_task),
         patch.object(OidcRuntimeService, 'start_background_tasks', new_callable=AsyncMock) as start_oidc,

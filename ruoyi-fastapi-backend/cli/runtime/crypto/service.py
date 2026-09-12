@@ -1,5 +1,6 @@
-from datetime import datetime
 from typing import Any
+
+from utils.time_util import TimezoneUtil
 
 from .gateway import CryptoInfrastructureGateway
 from .support import CryptoDomainSupport, CryptoResultSupport
@@ -119,7 +120,7 @@ class CryptoRuntimeService:
                 'currentKid': current_key_pair.kid,
                 'nextKid': next_kid,
                 'keySize': key_size,
-                'generatedAt': datetime.now().isoformat(),
+                'generatedAt': TimezoneUtil.format_rfc3339(TimezoneUtil.utc_now()),
                 'nextKeyPair': {
                     'kid': next_kid,
                     'privateKey': private_key_pem,

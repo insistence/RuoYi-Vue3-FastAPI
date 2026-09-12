@@ -1,4 +1,5 @@
 const constant = {
+  timezone: "timezone",
   avatar: "user_avatar",
   id: "user_id",
   name: "user_name",

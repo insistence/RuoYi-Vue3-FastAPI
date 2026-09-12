@@ -17,12 +17,11 @@ from common.enums import BusinessType
 from common.router import APIRouterPro
 from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from module_admin.entity.vo.user_vo import CurrentUserModel
-from {{ packageName }}.service.{{ businessName }}_service import {{ BusinessName }}Service
 from {{ packageName }}.entity.vo.{{ businessName }}_vo import Delete{{ BusinessName }}Model, {{ BusinessName }}Model, {{ BusinessName }}PageQueryModel
+from {{ packageName }}.service.{{ businessName }}_service import {{ BusinessName }}Service
 from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.response_util import ResponseUtil
-
 
 {{ businessName }}_controller = APIRouterPro(
     prefix='/{{ moduleName }}/{{ businessName }}', order_num=50, tags=['{{ functionName }}'], dependencies=[PreAuthDependency()]

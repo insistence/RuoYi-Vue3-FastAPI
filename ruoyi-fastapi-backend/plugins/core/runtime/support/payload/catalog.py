@@ -124,12 +124,15 @@ class PluginManifestJobItemPayload(PluginPayloadModel):
     callable: str
     trigger: str
     cron_expression: str = Field(alias='cronExpression')
-    args: list[str]
+    time_zone: str = Field(alias='timeZone')
+    args: list[object]
     kwargs: dict[str, object]
     enabled: bool
     description: str
-    misfire_policy: str = Field(alias='misfirePolicy')
-    concurrent: str
+    misfire_grace_time: int | None = Field(alias='misfireGraceTime')
+    coalesce: bool
+    max_instances: int = Field(alias='maxInstances')
+    job_store: str = Field(alias='jobStore')
     executor: str
 
 
@@ -383,12 +386,15 @@ class PluginCatalogPayloadMixin:
             callable=job.callable,
             trigger=job.trigger,
             cron_expression=job.cron_expression,
+            time_zone=job.time_zone,
             args=job.args,
             kwargs=job.kwargs,
             enabled=job.enabled,
             description=job.description,
-            misfire_policy=job.misfire_policy,
-            concurrent=job.concurrent,
+            misfire_grace_time=job.misfire_grace_time,
+            coalesce=job.coalesce,
+            max_instances=job.max_instances,
+            job_store=job.job_store,
             executor=job.executor,
         ).to_payload()
 

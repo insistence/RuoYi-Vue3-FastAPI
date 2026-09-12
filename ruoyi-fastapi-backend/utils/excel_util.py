@@ -1,10 +1,13 @@
 import io
+from datetime import datetime
 
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
+
+from utils.time_util import TimezoneUtil
 
 
 class ExcelUtil:
@@ -13,28 +16,46 @@ class ExcelUtil:
     """
 
     @classmethod
-    def __mapping_list(cls, list_data: list, mapping_dict: dict) -> list[dict]:
+    def __mapping_list(cls, list_data: list, mapping_dict: dict, timezone_name: str) -> list[dict]:
         """
         工具方法：将list数据中的字段名映射为对应的中文字段名
 
         :param list_data: 数据列表
         :param mapping_dict: 映射字典
+        :param timezone_name: 导出使用的IANA时区名称
         :return: 映射后的数据列表
         """
-        mapping_data = [{mapping_dict.get(key): item.get(key) for key in mapping_dict} for item in list_data]
+        datetime_keys = {key for key in mapping_dict if any(isinstance(item.get(key), datetime) for item in list_data)}
+        display_mapping = {
+            key: (f'{header} ({timezone_name})' if key in datetime_keys else header)
+            for key, header in mapping_dict.items()
+        }
+        mapping_data = [
+            {
+                display_mapping.get(key): (
+                    TimezoneUtil.to_business_time(item.get(key), timezone_name).replace(tzinfo=None)
+                    if isinstance(item.get(key), datetime)
+                    else item.get(key)
+                )
+                for key in display_mapping
+            }
+            for item in list_data
+        ]
 
         return mapping_data
 
     @classmethod
-    def export_list2excel(cls, list_data: list, mapping_dict: dict) -> bytes:
+    def export_list2excel(cls, list_data: list, mapping_dict: dict, timezone_name: str | None = None) -> bytes:
         """
         工具方法：将需要导出的list数据转化为对应excel的二进制数据
 
         :param list_data: 数据列表
         :param mapping_dict: 映射字典
+        :param timezone_name: 导出时区，省略时使用当前请求时区
         :return: list数据对应excel的二进制数据
         """
-        mapping_data = cls.__mapping_list(list_data, mapping_dict)
+        export_timezone = TimezoneUtil.validate_timezone_name(timezone_name or TimezoneUtil.get_request_timezone())
+        mapping_data = cls.__mapping_list(list_data, mapping_dict, export_timezone)
         df = pd.DataFrame(mapping_data)
         binary_data = io.BytesIO()
         df.to_excel(binary_data, index=False, engine='openpyxl')

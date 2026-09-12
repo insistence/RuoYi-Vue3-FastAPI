@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from fastapi import Request
@@ -104,8 +105,11 @@ class JobLogService:
         # 创建一个映射字典，将英文键映射到中文键
         mapping_dict = {
             'jobLogId': '任务日志编码',
+            'jobId': '任务ID',
+            'executionId': '执行ID',
             'jobName': '任务名称',
             'jobGroup': '任务组名',
+            'jobStore': '调度存储',
             'jobExecutor': '任务执行器',
             'invokeTarget': '调用目标字符串',
             'jobArgs': '位置参数',
@@ -114,16 +118,14 @@ class JobLogService:
             'jobMessage': '日志信息',
             'status': '执行状态',
             'exceptionInfo': '异常信息',
+            'scheduledTime': '计划执行时刻',
+            'runDurationMs': '执行耗时（毫秒）',
+            'timeZone': '任务时区',
             'startTime': '执行开始时间',
             'endTime': '执行结束时间',
             'createTime': '创建时间',
         }
 
-        job_group_list = await DictDataService.query_dict_data_list_from_cache_services(
-            request.app.state.redis, dict_type='sys_job_group'
-        )
-        job_group_option = [{'label': item.get('dictLabel'), 'value': item.get('dictValue')} for item in job_group_list]
-        job_group_option_dict = {item.get('value'): item for item in job_group_option}
         job_executor_list = await DictDataService.query_dict_data_list_from_cache_services(
             request.app.state.redis, dict_type='sys_job_executor'
         )
@@ -133,12 +135,12 @@ class JobLogService:
         job_executor_option_dict = {item.get('value'): item for item in job_executor_option}
 
         for item in job_log_list:
+            item['jobArgs'] = json.dumps(item.get('jobArgs'), ensure_ascii=False)
+            item['jobKwargs'] = json.dumps(item.get('jobKwargs'), ensure_ascii=False)
             if item.get('status') == '0':
                 item['status'] = '正常'
             else:
-                item['status'] = '暂停'
-            if str(item.get('jobGroup')) in job_group_option_dict:
-                item['jobGroup'] = job_group_option_dict.get(str(item.get('jobGroup'))).get('label')
+                item['status'] = '失败'
             if str(item.get('jobExecutor')) in job_executor_option_dict:
                 item['jobExecutor'] = job_executor_option_dict.get(str(item.get('jobExecutor'))).get('label')
         binary_data = ExcelUtil.export_list2excel(job_log_list, mapping_dict)

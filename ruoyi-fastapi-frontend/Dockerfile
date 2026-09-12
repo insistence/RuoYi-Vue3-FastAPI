@@ -1,5 +1,6 @@
 # 构建阶段
 FROM node:18-slim AS builder
+ENV TZ=UTC
 WORKDIR /app
 
 # 复制源代码
@@ -16,6 +17,7 @@ RUN npm run build:docker
 
 # 运行阶段
 FROM nginx:latest
+ENV TZ=UTC
 WORKDIR /usr/share/nginx/html
 
 # 复制构建产物

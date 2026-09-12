@@ -14,7 +14,7 @@
         </el-row>
         <el-row class="detail-row">
           <el-col :span="12">
-            <div class="detail-item"><span class="detail-label">操作时间</span><span class="detail-value">{{ form.operTime }}</span></div>
+            <div class="detail-item"><span class="detail-label">操作时间</span><span class="detail-value">{{ parseTime(form.operTime) || '-' }}</span></div>
           </el-col>
           <el-col :span="12">
             <div class="detail-item">

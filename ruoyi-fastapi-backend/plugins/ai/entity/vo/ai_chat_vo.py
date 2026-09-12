@@ -1,8 +1,9 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+from common.types import ApiUtcDateTime
 
 
 class AiChatRequestModel(BaseModel):
@@ -35,8 +36,8 @@ class AiChatConfigModel(BaseModel):
     metrics_default_visible: Literal['0', '1'] | None = Field(default=None, description='默认显示指标')
     vision_enabled: Literal['0', '1'] | None = Field(default=None, description='是否开启视觉')
     image_max_size_mb: int | None = Field(default=None, description='图片最大大小(MB)')
-    create_time: datetime | None = Field(default=None, description='创建时间')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
 
 class AiChatSessionBaseModel(BaseModel):
@@ -50,8 +51,8 @@ class AiChatSessionBaseModel(BaseModel):
     session_title: str | None = Field(default=None, description='会话标题')
     session_type: str | None = Field(default=None, description='会话类型')
     user_id: str | None = Field(default=None, description='用户ID')
-    created_at: datetime | None = Field(default=None, description='创建时间')
-    updated_at: datetime | None = Field(default=None, description='更新时间')
+    created_at: ApiUtcDateTime | None = Field(default=None, description='创建时间')
+    updated_at: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
 
 class ModelInfoModel(BaseModel):
@@ -140,7 +141,7 @@ class ChatMessageModel(BaseModel):
     content: str | None = Field(default=None, description='内容')
     images: list[str] | None = Field(default=None, description='图片列表')
     metrics: MessageMetrics | None = Field(default=None, description='Token使用统计')
-    created_at: datetime | None = Field(default=None, description='创建时间')
+    created_at: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     from_history: bool | None = Field(default=None, description='是否来自历史记录')
     reasoning_content: str | None = Field(default=None, description='推理/思考内容')
     stop_after_tool_call: bool | None = Field(default=None, description='是否在工具调用后停止')
