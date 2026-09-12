@@ -2,7 +2,7 @@ import re
 import time
 
 import pytest
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, expect
 
 from common.base_page_test import BasePageTest
 from common.config import Config
@@ -108,14 +108,17 @@ class NoticeManagementTest(BasePageTest):
     async def test_notice_crud_operations(self) -> None:
         """测试通知公告的增删查改功能"""
         # 访问通知公告页面
-        await self.goto_page(Config.frontend_url + '/system/notice')
+        async with self.page.expect_response(
+            lambda response: '/system/notice/list?' in response.url
+        ) as initial_response:
+            await self.goto_page(Config.frontend_url + '/system/notice')
+        initial_payload = await (await initial_response.value).json()
 
         # 等待页面加载完成
         await self.wait_for_page_title('通知公告', timeout=10000)
-        await self.page.wait_for_timeout(1000)  # 等待列表刷新
-
-        # 记录初始公告数量
-        initial_notice_count = await self.get_table_total_rows()
+        # 等待真实列表数据渲染，不能将加载中的 total=0 当作初始数量。
+        initial_notice_count = initial_payload['total']
+        await expect(self.page.locator('span.el-pagination__total').first).to_contain_text(str(initial_notice_count))
 
         # 生成测试数据
         data = self.generate_notice_data()

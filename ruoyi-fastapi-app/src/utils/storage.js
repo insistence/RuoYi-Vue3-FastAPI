@@ -10,6 +10,7 @@ let storageNodeKeys = [
   constant.name,
   constant.roles,
   constant.permissions,
+  constant.timezone,
 ];
 
 const storage = {

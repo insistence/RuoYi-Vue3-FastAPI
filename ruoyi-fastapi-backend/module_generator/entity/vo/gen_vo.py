@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -6,6 +5,8 @@ from pydantic.alias_generators import to_camel
 from pydantic_validation_decorator import NotBlank
 
 from common.constant import GenConstant
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 from utils.string_util import StringUtil
 
 
@@ -35,9 +36,9 @@ class GenTableBaseModel(BaseModel):
     gen_path: str | None = Field(default=None, description='生成路径（不填默认项目路径）')
     options: str | None = Field(default=None, description='其它生成选项')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
     remark: str | None = Field(default=None, description='备注')
 
     @NotBlank(field_name='table_name', message='表名称不能为空')
@@ -100,8 +101,8 @@ class GenTableDbRowModel(BaseModel):
 
     table_name: str | None = Field(default=None, description='表名称')
     table_comment: str | None = Field(default=None, description='表描述')
-    create_time: datetime | None = Field(default=None, description='创建时间')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
 
 class GenDataSourceModel(BaseModel):
@@ -164,7 +165,7 @@ class GenTableParamsModel(BaseModel):
     gen_view: bool = Field(default=False, description='是否生成详情页')
 
 
-class GenTableQueryModel(GenTableBaseModel):
+class GenTableQueryModel(DateRangeQueryMixin, GenTableBaseModel):
     """
     代码生成业务表不分页查询模型
     """
@@ -233,9 +234,9 @@ class GenTableColumnBaseModel(BaseModel):
     dict_type: str | None = Field(default=None, description='字典类型')
     sort: int | None = Field(default=None, description='排序')
     create_by: str | None = Field(default=None, description='创建者')
-    create_time: datetime | None = Field(default=None, description='创建时间')
+    create_time: ApiUtcDateTime | None = Field(default=None, description='创建时间')
     update_by: str | None = Field(default=None, description='更新者')
-    update_time: datetime | None = Field(default=None, description='更新时间')
+    update_time: ApiUtcDateTime | None = Field(default=None, description='更新时间')
 
     @NotBlank(field_name='python_field', message='Python属性不能为空')
     def get_python_field(self) -> str | None:
@@ -261,6 +262,8 @@ class GenTableColumnModel(GenTableColumnBaseModel):
     query: bool | None = Field(default=None, description='是否查询字段')
     super_column: bool | None = Field(default=None, description='是否为基类字段')
     usable_column: bool | None = Field(default=None, description='是否为基类字段白名单')
+    time_kind: str | None = Field(default=None, exclude=True)
+    vo_type: str | None = Field(default=None, exclude=True)
 
     @model_validator(mode='after')
     def check_some_is(self) -> 'GenTableModel':
@@ -282,7 +285,7 @@ class GenTableColumnModel(GenTableColumnBaseModel):
         return self
 
 
-class GenTableColumnQueryModel(GenTableColumnBaseModel):
+class GenTableColumnQueryModel(DateRangeQueryMixin, GenTableColumnBaseModel):
     """
     代码生成业务表字段不分页查询模型
     """

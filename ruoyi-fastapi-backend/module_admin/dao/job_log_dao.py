@@ -1,4 +1,3 @@
-from datetime import datetime, time
 from typing import Any
 
 from sqlalchemy import delete, desc, select
@@ -9,6 +8,7 @@ from common.vo import PageModel
 from module_admin.entity.do.job_do import SysJobLog
 from module_admin.entity.vo.job_vo import JobLogModel, JobLogPageQueryModel
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 class JobLogDao:
@@ -28,21 +28,21 @@ class JobLogDao:
         :param is_page: 是否开启分页
         :return: 定时任务日志列表信息对象
         """
+        time_range = TimezoneUtil.local_date_strings_to_utc(
+            query_object.begin_time, query_object.end_time, timezone_name=TimezoneUtil.get_request_timezone()
+        )
         query = (
             select(SysJobLog)
             .where(
+                SysJobLog.job_id == query_object.job_id if query_object.job_id is not None else True,
+                SysJobLog.execution_id == query_object.execution_id if query_object.execution_id else True,
                 SysJobLog.job_name.like(f'%{query_object.job_name}%') if query_object.job_name else True,
                 SysJobLog.job_group == query_object.job_group if query_object.job_group else True,
                 SysJobLog.status == query_object.status if query_object.status else True,
-                SysJobLog.create_time.between(
-                    datetime.combine(datetime.strptime(query_object.begin_time, '%Y-%m-%d'), time(00, 00, 00)),
-                    datetime.combine(datetime.strptime(query_object.end_time, '%Y-%m-%d'), time(23, 59, 59)),
-                )
-                if query_object.begin_time and query_object.end_time
-                else True,
+                SysJobLog.create_time >= time_range[0] if time_range and time_range[0] is not None else True,
+                SysJobLog.create_time < time_range[1] if time_range and time_range[1] is not None else True,
             )
             .order_by(desc(SysJobLog.create_time))
-            .distinct()
         )
         job_log_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page

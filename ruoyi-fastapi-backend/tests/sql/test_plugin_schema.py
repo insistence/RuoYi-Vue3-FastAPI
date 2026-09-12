@@ -103,11 +103,15 @@ def test_builtin_sql_excludes_ai_plugin_content_and_preserves_file_management() 
             'create table sys_file_reconcile_issue',
         ):
             assert expected_text in sql_content
-        assert '-- 21、文件信息表' in sql_content
-        assert '-- 28、文件存储对账异常表' in sql_content
-        assert '-- 29、插件信息表' in sql_content
-        assert '-- 33、插件批量操作审计日志表' in sql_content
-        assert sql_content.index('create table sys_file_info') < sql_content.index('create table sys_plugin')
+        # 表结构及文件管理先于插件管理的顺序不依赖章节注释编号。
+        table_order = (
+            'create table sys_file_info (',
+            'create table sys_file_reconcile_issue (',
+            'create table sys_plugin (',
+            'create table sys_plugin_operation_log (',
+        )
+        positions = [sql_content.index(table) for table in table_order]
+        assert positions == sorted(positions)
 
 
 def test_builtin_sql_contains_notice_read_schema() -> None:

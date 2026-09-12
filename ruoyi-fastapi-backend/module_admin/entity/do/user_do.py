@@ -1,6 +1,7 @@
-from sqlalchemy import CHAR, BigInteger, Column, DateTime, String
+from sqlalchemy import CHAR, BigInteger, Column, String
 
 from common.mixin import AuditTimeMixin
+from common.types import DbUtcDateTime
 from config.database import Base
 from config.env import DataBaseConfig
 from utils.common_util import SqlalchemyUtil
@@ -28,12 +29,13 @@ class SysUser(AuditTimeMixin, Base):
     phonenumber = Column(String(11), nullable=True, server_default="''", comment='手机号码')
     sex = Column(CHAR(1), nullable=True, server_default='0', comment='用户性别（0男 1女 2未知）')
     avatar = Column(String(100), nullable=True, server_default="''", comment='头像地址')
+    time_zone = Column(String(64), nullable=False, server_default='auto', comment='显示时区（auto跟随设备或IANA名称）')
     password = Column(String(100), nullable=True, server_default="''", comment='密码')
     status = Column(CHAR(1), nullable=True, server_default='0', comment='帐号状态（0正常 1停用）')
     del_flag = Column(CHAR(1), nullable=True, server_default='0', comment='删除标志（0代表存在 2代表删除）')
     login_ip = Column(String(128), nullable=True, server_default="''", comment='最后登录IP')
-    login_date = Column(DateTime, nullable=True, comment='最后登录时间')
-    pwd_update_date = Column(DateTime, nullable=True, comment='密码最后更新时间')
+    login_date = Column(DbUtcDateTime(), nullable=True, comment='最后登录时间')
+    pwd_update_date = Column(DbUtcDateTime(), nullable=True, comment='密码最后更新时间')
     create_by = Column(String(64), nullable=True, server_default="''", comment='创建者')
     update_by = Column(String(64), nullable=True, server_default="''", comment='更新者')
     remark = Column(

@@ -38,6 +38,7 @@ import { useRouter } from 'vue-router'
 import useUserStore from '@/store/modules/user'
 import useLockStore from '@/store/modules/lock'
 import { unlockScreen } from '@/api/login'
+import { formatBusinessTime } from '@/utils/time'
 import defAva from '@/assets/images/profile.jpg'
 
 const router = useRouter()
@@ -64,10 +65,8 @@ const onAvatarError = (e) => {
 const startClock = () => {
   const update = () => {
     const now = new Date()
-    const pad = n => String(n).padStart(2, '0')
-    currentTime.value = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
-    const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
-    currentDate.value = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${days[now.getDay()]}`
+    currentTime.value = formatBusinessTime(now, 'HH:mm:ss')
+    currentDate.value = formatBusinessTime(now, 'YYYY年M月D日 星期{a}')
   }
   update()
   timer = setInterval(update, 1000)

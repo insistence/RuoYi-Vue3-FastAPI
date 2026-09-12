@@ -43,6 +43,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.pnpm-store/
 nosetests.xml
 coverage.xml
 *.cover

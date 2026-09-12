@@ -43,11 +43,6 @@ class JobDao:
                     select(SysJob).where(
                         SysJob.job_name == job.job_name,
                         SysJob.job_group == job.job_group,
-                        SysJob.job_executor == job.job_executor,
-                        SysJob.invoke_target == job.invoke_target,
-                        SysJob.job_args == job.job_args,
-                        SysJob.job_kwargs == job.job_kwargs,
-                        SysJob.cron_expression == job.cron_expression,
                     )
                 )
             )
@@ -77,7 +72,6 @@ class JobDao:
                 SysJob.status == query_object.status if query_object.status else True,
             )
             .order_by(SysJob.job_id)
-            .distinct()
         )
         job_list: PageModel | list[dict[str, Any]] = await PageUtil.paginate(
             db, query, query_object.page_num, query_object.page_size, is_page
@@ -93,7 +87,7 @@ class JobDao:
         :param db: orm对象
         :return: 定时任务列表信息对象
         """
-        job_list = (await db.execute(select(SysJob).where(SysJob.status == '0').distinct())).scalars().all()
+        job_list = (await db.execute(select(SysJob).where(SysJob.status == '0'))).scalars().all()
 
         return job_list
 
@@ -105,7 +99,7 @@ class JobDao:
         :param db: orm对象
         :return: 定时任务列表信息对象
         """
-        job_list = (await db.execute(select(SysJob).distinct())).scalars().all()
+        job_list = (await db.execute(select(SysJob))).scalars().all()
 
         return job_list
 
@@ -118,7 +112,22 @@ class JobDao:
         :param job: 定时任务对象
         :return:
         """
-        db_job = SysJob(**job.model_dump(exclude={'create_time', 'update_time'}))
+        db_job = SysJob(
+            **job.model_dump(
+                exclude={
+                    'create_time',
+                    'update_time',
+                    'cron_next_time',
+                    'next_run_time',
+                    'schedule_observed_time',
+                    'config_version',
+                    'applied_version',
+                    'sync_status',
+                    'sync_error',
+                    'applied_time',
+                }
+            )
+        )
         db.add(db_job)
         await db.flush()
 
@@ -138,8 +147,6 @@ class JobDao:
             update(SysJob)
             .where(
                 SysJob.job_id == old_job.job_id,
-                SysJob.job_name == old_job.job_name,
-                SysJob.job_group == old_job.job_group,
             )
             .values(**{key: value for key, value in job.items() if key not in {'create_time', 'update_time'}})
         )

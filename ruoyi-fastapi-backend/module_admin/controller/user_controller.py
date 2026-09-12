@@ -1,6 +1,6 @@
 import os
-from datetime import datetime
 from typing import Annotated, Literal
+from zoneinfo import available_timezones
 
 import aiofiles
 from fastapi import File, Form, Path, Query, Request, Response, UploadFile
@@ -41,6 +41,7 @@ from module_admin.entity.vo.user_vo import (
     UserRoleQueryModel,
     UserRoleResponseModel,
     UserRowModel,
+    UserTimezoneModel,
 )
 from module_admin.service.dept_service import DeptService
 from module_admin.service.role_service import RoleService
@@ -49,6 +50,7 @@ from utils.common_util import bytes2file_response
 from utils.log_util import logger
 from utils.pwd_util import PwdUtil
 from utils.response_util import ResponseUtil
+from utils.time_util import TimezoneUtil
 from utils.upload_util import UploadUtil
 
 user_controller = APIRouterPro(
@@ -222,7 +224,7 @@ async def reset_system_user_pwd(
     edit_user = EditUserModel(
         userId=reset_user.user_id,
         password=PwdUtil.get_password_hash(reset_user.password),
-        pwdUpdateDate=datetime.now(),
+        pwdUpdateDate=TimezoneUtil.utc_now(),
         updateBy=current_user.user.user_name,
         type='pwd',
     )
@@ -327,15 +329,16 @@ async def change_system_user_profile_avatar(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     if avatarfile:
+        business_now = TimezoneUtil.to_business_time(TimezoneUtil.utc_now())
         relative_path = (
-            f'avatar/{datetime.now().strftime("%Y")}/{datetime.now().strftime("%m")}/{datetime.now().strftime("%d")}'
+            f'avatar/{business_now.strftime("%Y")}/{business_now.strftime("%m")}/{business_now.strftime("%d")}'
         )
         dir_path = os.path.join(UploadConfig.UPLOAD_PATH, relative_path)
         try:
             os.makedirs(dir_path)
         except FileExistsError:
             pass
-        avatar_name = f'avatar_{datetime.now().strftime("%Y%m%d%H%M%S")}{UploadConfig.UPLOAD_MACHINE}{UploadUtil.generate_random_number()}.png'
+        avatar_name = f'avatar_{business_now.strftime("%Y%m%d%H%M%S")}{UploadConfig.UPLOAD_MACHINE}{UploadUtil.generate_random_number()}.png'
         avatar_path = os.path.join(dir_path, avatar_name)
         async with aiofiles.open(avatar_path, 'wb') as f:
             await f.write(avatarfile)
@@ -385,6 +388,43 @@ async def change_system_user_profile_info(
     return ResponseUtil.success(msg=edit_user_result.message)
 
 
+@user_controller.get(
+    '/profile/timezones',
+    summary='获取可选显示时区列表接口',
+    description=(
+        '返回服务端支持的 IANA 时区名称列表，按名称排序并排除 localtime，供当前登录用户选择显示时区。'
+        '如需跟随设备时区，可在修改显示时区接口中提交 timeZone=auto。'
+    ),
+    response_model=DataResponseModel[list[str]],
+)
+async def get_system_user_timezones(request: Request) -> Response:
+    return ResponseUtil.success(data=sorted(available_timezones() - {'localtime'}))
+
+
+@user_controller.put(
+    '/profile/timezone',
+    summary='修改当前用户显示时区接口',
+    description=(
+        '保存当前登录账号的显示时区偏好，timeZone 支持 auto（跟随设备）或有效的 IANA 时区名称。'
+        '更新成功后清理用户信息缓存并记录操作日志，返回保存结果；该偏好用于界面时间显示，'
+        '系统业务时区和定时任务时区由各自配置决定。'
+    ),
+    response_model=ResponseBaseModel,
+)
+@ApiCacheEvict(namespaces=ApiGroup.USER_INFO_MUTATION)
+@Log(title='时区设置', business_type=BusinessType.UPDATE)
+async def change_system_user_timezone(
+    request: Request,
+    preference: UserTimezoneModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    result = await UserService.update_user_timezone_services(
+        query_db, current_user.user.user_id, current_user.user.user_name, preference.time_zone
+    )
+    return ResponseUtil.success(msg=result.message)
+
+
 @user_controller.put(
     '/profile/updatePwd',
     summary='修改用户密码接口',
@@ -403,7 +443,7 @@ async def reset_system_user_password(
         userId=current_user.user.user_id,
         oldPassword=reset_password.old_password,
         password=reset_password.new_password,
-        pwdUpdateDate=datetime.now(),
+        pwdUpdateDate=TimezoneUtil.utc_now(),
         updateBy=current_user.user.user_name,
     )
     await UserService.validate_password_services(request.app.state.redis, reset_user.password)

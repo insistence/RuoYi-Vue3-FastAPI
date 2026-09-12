@@ -3,6 +3,7 @@ import cache from '@/plugins/cache'
 import { ElMessageBox } from 'element-plus'
 import { login, logout, getInfo } from '@/api/login'
 import { getToken, setToken, removeToken } from '@/utils/auth'
+import { setBusinessTimezone, setUserTimezone } from '@/utils/time'
 import { isHttp, isEmpty } from "@/utils/validate"
 import useLockStore from '@/store/modules/lock'
 import defAva from '@/assets/images/profile.jpg'
@@ -16,10 +17,17 @@ const useUserStore = defineStore(
       name: '',
       nickName: '',
       avatar: '',
+      appTimezone: 'Asia/Shanghai',
+      timeZone: 'auto',
       roles: [],
       permissions: []
     }),
     actions: {
+      // 保存成功后同步当前页面使用的偏好。
+      applyTimezone(preference = 'auto') {
+        setUserTimezone(preference)
+        this.timeZone = preference
+      },
       // 登录
       login(userInfo) {
         const username = userInfo.username.trim()
@@ -42,6 +50,9 @@ const useUserStore = defineStore(
         return new Promise((resolve, reject) => {
           getInfo().then(res => {
             const user = res.user
+            this.appTimezone = res.appTimezone
+            setBusinessTimezone(res.appTimezone)
+            this.applyTimezone(user.timeZone)
             let avatar = user.avatar || ""
             if (!isHttp(avatar)) {
               avatar = (isEmpty(avatar)) ? defAva : import.meta.env.VITE_APP_BASE_API + avatar
@@ -80,6 +91,7 @@ const useUserStore = defineStore(
         return new Promise((resolve, reject) => {
           logout(this.token).then(() => {
             this.token = ''
+            this.applyTimezone('auto')
             this.roles = []
             this.permissions = []
             removeToken()

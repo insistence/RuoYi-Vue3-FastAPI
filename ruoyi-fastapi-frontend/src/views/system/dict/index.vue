@@ -39,6 +39,7 @@
                v-model="dateRange"
                value-format="YYYY-MM-DD"
                type="daterange"
+               :aria-label="`日期范围（${getDisplayTimezone()}）`"
                range-separator="-"
                start-placeholder="开始日期"
                end-placeholder="结束日期"
@@ -181,6 +182,7 @@
 </template>
 
 <script setup name="Dict">
+import { getDisplayTimezone } from '@/utils/time';
 import DictDataDrawer from './detail'
 import useDictStore from '@/store/modules/dict'
 import { listType, getType, delType, addType, updateType, refreshCache } from "@/api/system/dict/type";
@@ -330,4 +332,10 @@ function handleRefreshCache() {
 }
 
 getList();
+// 时区变化后重新查询日期范围，保留正在编辑的表单。
+watch(getDisplayTimezone, () => {
+  if (dateRange.value?.length) {
+    handleQuery();
+  }
+});
 </script>

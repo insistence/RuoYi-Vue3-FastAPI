@@ -1,4 +1,5 @@
 import ast
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,11 @@ MAX_PLUGIN_JOB_NAME_LENGTH = 64
 SUPPORTED_SEED_SUFFIXES = {'.py', '.sql'}
 SUPPORTED_MIGRATION_SUFFIXES = {'.py', '.sql'}
 ROUTER_FACTORY_NAMES = {'APIRouter', 'APIRouterPro'}
+ALLOWED_SQL_TIME_TYPES = (
+    re.compile(r'\btimestamp\s*\(\s*3\s*\)\s+with\s+time\s+zone\b', re.IGNORECASE),
+    re.compile(r'\bdatetime\s*\(\s*3\s*\)', re.IGNORECASE),
+)
+UNSAFE_SQL_TIME_TYPE = re.compile(r'\b(?:timestamp|datetime)\b', re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -515,7 +521,7 @@ class PluginStructureChecker:
         :param job: 插件定时任务声明
         :return: 结构检查项
         """
-        ok = CronUtil.validate_cron_expression(job.cron_expression)
+        ok = CronUtil.validate_cron_expression(job.cron_expression, job.time_zone)
         return PluginStructureCheckItem(
             kind='job_cron',
             path=f'{job.id}:{job.cron_expression}',
@@ -538,8 +544,38 @@ class PluginStructureChecker:
                 self._check_plugin_relative_file('migration_file', discovered_plugin.backend_path, migration_path)
             )
             items.append(self._check_migration_type(migration_path))
+            migration_file = discovered_plugin.backend_path / migration_path
+            if migration_file.is_file() and migration_file.suffix == '.sql':
+                items.append(self._check_migration_time_types(migration_file, migration_path))
 
         return items
+
+    @staticmethod
+    def _check_migration_time_types(migration_file: Path, migration_path: str) -> PluginStructureCheckItem:
+        """
+        检查插件SQL脚本中的真实时刻列类型
+
+        :param migration_file: 待检查的SQL文件路径
+        :param migration_path: SQL文件相对插件根目录的路径
+        :return: 时间列类型及毫秒精度的检查结果
+        """
+        sql = migration_file.read_text(encoding='utf-8')
+        remaining_sql = sql
+        for allowed_pattern in ALLOWED_SQL_TIME_TYPES:
+            remaining_sql = allowed_pattern.sub('', remaining_sql)
+        unsafe_match = UNSAFE_SQL_TIME_TYPE.search(remaining_sql)
+        ok = unsafe_match is None
+        return PluginStructureCheckItem(
+            kind='migration_time_type',
+            path=migration_path,
+            ok=ok,
+            message=(
+                f'migration时间类型符合UTC目标态：{migration_path}'
+                if ok
+                else f'migration包含无时区或非毫秒时间类型：{migration_path}'
+            ),
+            suggestion='PostgreSQL使用TIMESTAMP(3) WITH TIME ZONE，MySQL使用UTC语义DATETIME(3)',
+        )
 
     @staticmethod
     def _check_migration_type(migration_path: str) -> PluginStructureCheckItem:

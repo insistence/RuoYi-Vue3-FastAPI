@@ -6,6 +6,8 @@ services:
       dockerfile: Dockerfile
     image: ruoyi-frontend:latest
     container_name: ruoyi-frontend
+    environment:
+      TZ: UTC
     ports:
       - "12580:80"
     volumes:
@@ -22,6 +24,8 @@ services:
       dockerfile: Dockerfile.pg
     image: ruoyi-backend-pg:latest
     container_name: ruoyi-backend-pg
+    environment:
+      TZ: UTC
     ports:
       - "19099:9099"
     depends_on:
@@ -37,6 +41,7 @@ services:
     image: postgres:14
     container_name: ruoyi-pg
     environment:
+      TZ: UTC
       POSTGRES_PASSWORD: root
       POSTGRES_DB: ruoyi-fastapi
       POSTGRES_INITDB_ARGS: --encoding=UTF8 --lc-collate=C --lc-ctype=C
@@ -56,6 +61,8 @@ services:
   ruoyi-redis:
     image: redis:latest
     container_name: ruoyi-redis
+    environment:
+      TZ: UTC
     ports:
       - "16379:6379"
     networks:

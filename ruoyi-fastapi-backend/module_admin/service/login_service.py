@@ -1,6 +1,6 @@
 import random
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi import Depends, Form, Request
@@ -29,6 +29,7 @@ from utils.jwt_util import JwtUtil
 from utils.log_util import logger
 from utils.message_util import message_service
 from utils.pwd_util import PwdUtil
+from utils.time_util import TimezoneUtil
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='login')
 
@@ -202,10 +203,9 @@ class LoginService:
         :return: token
         """
         to_encode = data.copy()
-        if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
-        else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=30)
+        expire = (
+            TimezoneUtil.utc_now() + expires_delta if expires_delta else TimezoneUtil.utc_now() + timedelta(minutes=30)
+        )
         to_encode.update({'exp': expire})
         return JwtUtil.encode(to_encode)
 
@@ -285,6 +285,7 @@ class LoginService:
             current_user = CurrentUserModel(
                 permissions=permissions,
                 roles=roles,
+                appTimezone=AppConfig.app_timezone,
                 user=UserInfoModel(
                     **CamelCaseUtil.transform_result(query_user.get('user_basic_info')),
                     postIds=post_ids,
@@ -344,7 +345,7 @@ class LoginService:
             if pwd_update_date is None:
                 return True
             expire_date = pwd_update_date + timedelta(days=int(password_validate_days))
-            if datetime.now() > expire_date:
+            if TimezoneUtil.utc_now() > expire_date:
                 return True
         return False
 
@@ -493,7 +494,7 @@ class LoginService:
                     userName=user_register.username,
                     nickName=user_register.username,
                     password=PwdUtil.get_password_hash(user_register.password),
-                    pwdUpdateDate=datetime.now(),
+                    pwdUpdateDate=TimezoneUtil.utc_now(),
                 )
                 result = await UserService.add_user_services(query_db, add_user)
                 return result

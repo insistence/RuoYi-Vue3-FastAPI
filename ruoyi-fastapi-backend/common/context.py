@@ -12,6 +12,7 @@ current_exclude_patterns: ContextVar[
 ] = ContextVar('current_exclude_patterns', default=None)
 # 存储当前用户信息
 current_user: ContextVar[CurrentUserModel | None] = ContextVar('current_user', default=None)
+current_timezone: ContextVar[str | None] = ContextVar('current_timezone', default=None)
 
 
 class RequestContext:
@@ -88,9 +89,42 @@ class RequestContext:
         current_user.reset(token)
 
     @staticmethod
+    def set_current_timezone(timezone_name: str | None) -> Token:
+        """
+        保存中间件已校验的请求时区
+
+        :param timezone_name: IANA时区名称，未上报时为None
+        :return: 用于恢复上下文的令牌
+        """
+        return current_timezone.set(timezone_name)
+
+    @staticmethod
+    def reset_current_timezone(token: Token) -> None:
+        """
+        恢复请求进入前的时区，避免并发请求之间串用
+
+        :param token: 设置请求时区时返回的令牌
+        """
+        current_timezone.reset(token)
+
+    @staticmethod
+    def get_current_timezone() -> str | None:
+        """
+        优先使用页面实际展示的时区，未上报时回退到账号偏好
+
+        :return: 当前请求的IANA时区名称，未指定时为None
+        """
+        if current_timezone.get():
+            return current_timezone.get()
+        user = current_user.get()
+        preference = user.user.time_zone if user and user.user else 'auto'
+        return preference if preference != 'auto' else None
+
+    @staticmethod
     def clear_all() -> None:
         """
         清除所有上下文变量
         """
         current_exclude_patterns.set(None)
         current_user.set(None)
+        current_timezone.set(None)

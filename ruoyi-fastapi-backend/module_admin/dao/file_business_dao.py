@@ -15,6 +15,7 @@ from module_admin.entity.do.file_do import (
 from module_admin.entity.do.user_do import SysUser
 from module_admin.entity.vo.file_vo import FileRetentionNoticePageQueryModel
 from utils.page_util import PageUtil
+from utils.time_util import TimezoneUtil
 
 
 class FileReferenceDao:
@@ -478,7 +479,7 @@ class FileRetentionNoticeDao:
         :param is_page: 是否开启分页
         :return: 文件保留期限提醒列表
         """
-        current_time = datetime.now()
+        current_time = TimezoneUtil.utc_now()
         reference_count = (
             select(func.count(SysFileReference.reference_id))
             .where(SysFileReference.file_id == SysFileInfo.file_id)

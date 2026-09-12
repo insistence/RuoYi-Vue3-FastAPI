@@ -500,29 +500,6 @@ const healthMessage = computed(() => {
 })
 
 function formatMonitorTime(value, pattern = '{y}-{m}-{d} {h}:{i}:{s}') {
-  if (!value) {
-    return null
-  }
-  if (typeof value === 'string') {
-    const normalizedValue = value.trim()
-    const microsecondIsoMatch = normalizedValue.match(
-      /^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2}):(\d{2})(?:\.\d+)?$/
-    )
-    if (microsecondIsoMatch) {
-      const [, year, month, day, hour, minute, second] = microsecondIsoMatch
-      return parseTime(
-        new Date(
-          Number(year),
-          Number(month) - 1,
-          Number(day),
-          Number(hour),
-          Number(minute),
-          Number(second)
-        ),
-        pattern
-      )
-    }
-  }
   return parseTime(value, pattern)
 }
 

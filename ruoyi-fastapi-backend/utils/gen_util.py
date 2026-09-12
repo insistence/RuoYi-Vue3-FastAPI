@@ -4,10 +4,13 @@ from common.constant import GenConstant
 from config.env import DataBaseConfig, GenConfig
 from module_generator.entity.vo.gen_vo import GenTableColumnModel, GenTableModel
 from utils.string_util import StringUtil
+from utils.time_util import GenTimeUtil
 
 
 class GenUtils:
-    """代码生成器工具类"""
+    """
+    代码生成器工具类
+    """
 
     TEXTAREA_COLUMN_LENGTH = 500
 
@@ -16,9 +19,8 @@ class GenUtils:
         """
         初始化表信息
 
-        param gen_table: 业务表对象
-        param oper_name: 操作人
-        :return:
+        :param gen_table: 业务表对象
+        :param oper_name: 操作人
         """
         gen_table.class_name = cls.convert_class_name(gen_table.table_name)
         gen_table.package_name = GenConfig.package_name
@@ -34,9 +36,8 @@ class GenUtils:
         """
         初始化列属性字段
 
-        param column: 业务表字段对象
-        param table: 业务表对象
-        :return:
+        :param column: 业务表字段对象
+        :param table: 业务表对象
         """
         data_type = cls.get_db_type(column.column_type).lower()
         source_config = DataBaseConfig.get_source(table.data_source_name)
@@ -65,7 +66,13 @@ class GenUtils:
             )
             column.html_type = html_type
         elif data_type in time_types:
-            column.html_type = GenConstant.HTML_DATETIME
+            column.html_type = (
+                'date' if data_type == 'date' else 'time' if column.python_type == 'time' else GenConstant.HTML_DATETIME
+            )
+            # MySQL TIME也可表示时长，需要在生成配置中明确确认字段语义。
+            column.html_type = (
+                GenConstant.HTML_INPUT if db_type == 'mysql' and data_type == 'time' else column.html_type
+            )
         elif data_type in number_types:
             column.html_type = GenConstant.HTML_INPUT
 
@@ -109,8 +116,8 @@ class GenUtils:
         """
         校验数组是否包含指定值
 
-        param arr: 数组
-        param target_value: 需要校验的值
+        :param arr: 数组
+        :param target_value: 需要校验的值
         :return: 校验结果
         """
         return target_value in arr
@@ -120,7 +127,7 @@ class GenUtils:
         """
         获取模块名
 
-        param package_name: 包名
+        :param package_name: 包名
         :return: 模块名
         """
         return package_name.rsplit('.', maxsplit=1)[-1]
@@ -130,7 +137,7 @@ class GenUtils:
         """
         获取业务名
 
-        param table_name: 业务表名
+        :param table_name: 业务表名
         :return: 业务名
         """
         return table_name.rsplit('_', maxsplit=1)[-1]
@@ -140,7 +147,7 @@ class GenUtils:
         """
         表名转换成Python类名
 
-        param table_name: 业务表名
+        :param table_name: 业务表名
         :return: Python类名
         """
         auto_remove_pre = GenConfig.auto_remove_pre
@@ -155,8 +162,8 @@ class GenUtils:
         """
         批量替换前缀
 
-        param replacement: 需要被替换的字符串
-        param search_list: 可替换的字符串列表
+        :param replacement: 需要被替换的字符串
+        :param search_list: 可替换的字符串列表
         :return: 替换后的字符串
         """
         for search_string in search_list:
@@ -169,7 +176,7 @@ class GenUtils:
         """
         关键字替换
 
-        param text: 需要被替换的字符串
+        :param text: 需要被替换的字符串
         :return: 替换后的字符串
         """
         return re.sub(r'(?:表|若依)', '', text)
@@ -179,19 +186,17 @@ class GenUtils:
         """
         获取数据库类型字段
 
-        param column_type: 字段类型
+        :param column_type: 字段类型
         :return: 数据库类型
         """
-        if '(' in column_type:
-            return column_type.split('(', maxsplit=1)[0]
-        return column_type
+        return GenTimeUtil.normalize_db_type(column_type)
 
     @classmethod
     def get_column_length(cls, column_type: str) -> int:
         """
         获取字段长度
 
-        param column_type: 字段类型
+        :param column_type: 字段类型
         :return: 字段长度
         """
         if '(' in column_type:
@@ -204,7 +209,7 @@ class GenUtils:
         """
         拆分列类型
 
-        param column_type: 字段类型
+        :param column_type: 字段类型
         :return: 拆分结果
         """
         if '(' in column_type and ')' in column_type:
@@ -216,7 +221,7 @@ class GenUtils:
         """
         将字符串转换为驼峰命名
 
-        param text: 需要转换的字符串
+        :param text: 需要转换的字符串
         :return: 驼峰命名
         """
         parts = text.split('_')

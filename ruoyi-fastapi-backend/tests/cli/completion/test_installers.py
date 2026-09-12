@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 import typer
 from pytest import MonkeyPatch
@@ -110,3 +111,16 @@ def test_render_powershell_completion_script_contains_native_completer() -> None
 
     assert 'Register-ArgumentCompleter -Native -CommandName ruoyi' in rendered_script
     assert '$env:_RUOYI_COMPLETE = "powershell_complete"' in rendered_script
+
+
+def test_render_bash_script_does_not_execute_the_host_shell() -> None:
+    root_cli = typer.Typer()
+
+    @root_cli.command()
+    def demo() -> None:
+        return None
+
+    with patch('click.shell_completion.BashComplete._check_version', side_effect=AssertionError('host shell invoked')):
+        rendered = CompletionInstallerService().render_completion_script(root_cli, 'bash')
+    assert '_ruoyi_completion()' in rendered
+    assert 'command -v compopt' in rendered

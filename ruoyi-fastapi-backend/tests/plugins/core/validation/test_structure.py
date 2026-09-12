@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
 from plugins.core.validation.structure import PluginStructureChecker
 
@@ -316,6 +318,43 @@ frontend:
 
     assert result.ok is False
     assert [item.kind for item in result.failed_items] == ['migration_file', 'migration_type']
+
+
+@pytest.mark.parametrize(
+    ('sql', 'expected_failures'),
+    [
+        ('create table demo(created_at timestamp(0), updated_at datetime);', ['migration_time_type']),
+        ('create table demo(created_at timestamp(3) with time zone, updated_at datetime(3));', []),
+    ],
+    ids=['naive-or-imprecise', 'utc-milliseconds'],
+)
+def test_structure_checker_validates_plugin_migration_time_types(
+    tmp_path: Path, sql: str, expected_failures: list[str]
+) -> None:
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    plugin_root = backend_root / 'plugins' / 'demo'
+    write_manifest(
+        plugin_root,
+        """
+id: demo
+name: 演示插件
+version: 1.0.0
+backend:
+  module: plugins.demo
+  migrations:
+    - migrations/001_init.sql
+frontend:
+  menus: []
+""",
+    )
+    (plugin_root / 'controller').mkdir()
+    (plugin_root / 'migrations').mkdir()
+    (plugin_root / 'migrations' / '001_init.sql').write_text(sql, encoding='utf-8')
+
+    result = PluginStructureChecker(backend_root).check(load_discovered_plugin(backend_root, 'demo'))
+
+    assert [item.kind for item in result.failed_items] == expected_failures
+    assert result.ok is (not expected_failures)
 
 
 def test_structure_checker_reports_migration_escape_path(tmp_path: Path) -> None:

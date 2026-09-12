@@ -41,6 +41,7 @@ from module_admin.service.role_service import RoleService
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
 from utils.pwd_util import PwdUtil
+from utils.time_util import TimezoneUtil
 
 
 class UserService:
@@ -343,6 +344,28 @@ class UserService:
             )
 
         return UserDetailModel(posts=posts, roles=roles)
+
+    @classmethod
+    async def update_user_timezone_services(
+        cls, query_db: AsyncSession, user_id: int, user_name: str, time_zone: str
+    ) -> CrudResponseModel:
+        """
+        更新当前账号的显示时区
+
+        :param query_db: 数据库会话
+        :param user_id: 当前登录用户ID
+        :param user_name: 当前登录用户账号
+        :param time_zone: auto或IANA时区名称
+        :return: 时区更新结果
+        """
+        preference = TimezoneUtil.validate_timezone_preference(time_zone)
+        try:
+            await UserDao.edit_user_dao(query_db, {'user_id': user_id, 'time_zone': preference, 'update_by': user_name})
+            await query_db.commit()
+        except Exception:
+            await query_db.rollback()
+            raise
+        return CrudResponseModel(is_success=True, message='时区设置已保存')
 
     @classmethod
     async def user_profile_services(cls, query_db: AsyncSession, user_id: int) -> UserProfileModel:

@@ -1,8 +1,12 @@
-import uni from "@dcloudio/vite-plugin-uni";
+import uniPackage from "@dcloudio/vite-plugin-uni";
 import { defineConfig } from "vite";
 import { UnifiedViteWeappTailwindcssPlugin } from "weapp-tailwindcss/vite";
 import { WeappTailwindcssDisabled } from "./platform";
 import postcssPlugins from "./postcss.config";
+
+// 当前 uni 插件以 CommonJS 导出 default；ESM 配置需解开这一层。
+const uni =
+  (uniPackage as unknown as { default?: typeof uniPackage }).default || uniPackage;
 
 function patchNodeForgeMiniProgramRuntime() {
   return {

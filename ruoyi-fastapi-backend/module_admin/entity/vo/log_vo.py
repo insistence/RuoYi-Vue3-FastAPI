@@ -1,8 +1,10 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
+
+from common.mixin import DateRangeQueryMixin
+from common.types import ApiUtcDateTime
 
 
 class OperLogModel(BaseModel):
@@ -31,7 +33,7 @@ class OperLogModel(BaseModel):
     json_result: str | None = Field(default=None, description='返回参数')
     status: Literal[0, 1, '0', '1'] | None = Field(default=None, description='操作状态（0正常 1异常）')
     error_msg: str | None = Field(default=None, description='错误消息')
-    oper_time: datetime | None = Field(default=None, description='操作时间')
+    oper_time: ApiUtcDateTime | None = Field(default=None, description='操作时间')
     cost_time: int | None = Field(default=None, description='消耗时间')
 
 
@@ -50,10 +52,10 @@ class LogininforModel(BaseModel):
     os: str | None = Field(default=None, description='操作系统')
     status: Literal['0', '1'] | None = Field(default=None, description='登录状态（0成功 1失败）')
     msg: str | None = Field(default=None, description='提示消息')
-    login_time: datetime | None = Field(default=None, description='访问时间')
+    login_time: ApiUtcDateTime | None = Field(default=None, description='访问时间')
 
 
-class OperLogQueryModel(OperLogModel):
+class OperLogQueryModel(DateRangeQueryMixin, OperLogModel):
     """
     操作日志管理不分页查询模型
     """
@@ -85,7 +87,7 @@ class DeleteOperLogModel(BaseModel):
     oper_ids: str = Field(description='需要删除的日志主键')
 
 
-class LoginLogQueryModel(LogininforModel):
+class LoginLogQueryModel(DateRangeQueryMixin, LogininforModel):
     """
     登录日志管理不分页查询模型
     """

@@ -1,6 +1,5 @@
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 from cli.completion.installers import COMPLETION_INSTALLER, CompletionInstallerService
@@ -17,6 +16,7 @@ from cli.runtime.ops import OPERATIONS_RUNTIME, OperationsRuntimeService
 from cli.tui.actions.models import TuiActionResult, TuiActionSpec
 from cli.tui.copy import TUI_COPY
 from cli.utils import SHELL_TEXT_FORMATTER
+from utils.time_util import TimezoneUtil
 
 TUI_ACTION_TIMEOUT_SECONDS = 30.0
 
@@ -190,7 +190,7 @@ class TuiActionExecutionService:
 
     async def _dispatch_crypto(self, action_id: str, parameters: dict[str, object]) -> dict[str, Any]:
         """执行传输加密领域动作。"""
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        timestamp = TimezoneUtil.to_business_time(TimezoneUtil.utc_now()).strftime('%Y%m%d%H%M%S')
         key_size = int(parameters.get('key_size') or 2048)
         if action_id == 'crypto-keygen':
             return await asyncio.to_thread(

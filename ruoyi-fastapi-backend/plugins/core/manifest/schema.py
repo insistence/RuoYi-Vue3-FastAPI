@@ -9,6 +9,7 @@ from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.types import PluginConfigValue
 from plugins.core.utils import PLUGIN_ID_PATTERN_TEXT, validate_plugin_id_value
 from plugins.core.validation.python_requirements import PythonRequirementParser
+from utils.time_util import TimezoneUtil
 
 RESERVED_PLUGIN_IDS = {'admin', 'system', 'monitor', 'tool'}
 PERMISSION_PATTERN = re.compile(r'^[a-z][a-z0-9_-]*(?::[a-z][a-z0-9_-]*)+$')
@@ -26,6 +27,19 @@ FRONTEND_RELATIVE_PATH_PATTERN = re.compile(r'^[a-z][a-z0-9_-]*(/[a-z][a-z0-9_-]
 PLUGIN_COMPONENT_SEGMENT_PATTERN = re.compile(r'^[a-z][a-z0-9_-]*$')
 RESOURCE_RELATIVE_PATH_PATTERN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]*(/[A-Za-z0-9][A-Za-z0-9_.-]*)*$')
 CORE_FRONTEND_COMPONENTS = {'Layout', 'ParentView', 'InnerLink'}
+
+
+def get_default_job_timezone() -> str:
+    """
+    获取插件任务默认使用的业务时区
+
+    :return: 应用配置的IANA时区名称
+    """
+    from config.env import AppConfig  # noqa: PLC0415
+
+    return AppConfig.app_timezone
+
+
 MIN_PLUGIN_COMPONENT_PARTS = 3
 SUPPORTED_MANIFEST_VERSION = 1
 
@@ -108,16 +122,21 @@ class PluginJobManifest(BaseModel):
     callable: str = Field(description='定时任务调用目标，格式为 Python 模块路径加函数名')
     trigger: Literal['cron'] = Field(default='cron', description='定时任务触发器类型')
     cron_expression: str = Field(alias='cronExpression', description='cron 执行表达式')
-    args: list[str] = Field(default_factory=list, description='位置参数列表')
+    time_zone: str = Field(default_factory=get_default_job_timezone, alias='timeZone', description='cron时区（IANA）')
+    args: list[Any] = Field(default_factory=list, description='位置参数列表')
     kwargs: dict[str, Any] = Field(default_factory=dict, description='关键字参数字典')
     enabled: bool = Field(default=True, description='是否默认启用任务')
     description: str = Field(default='', description='任务说明')
-    misfire_policy: Literal['1', '2', '3'] = Field(
-        default='3',
-        alias='misfirePolicy',
-        description='计划执行错误策略（1立即执行 2执行一次 3放弃执行）',
+    misfire_grace_time: int | None = Field(
+        default=1, ge=1, le=2147483647, strict=True, alias='misfireGraceTime', description='允许延迟秒数，null表示不限'
     )
-    concurrent: Literal['0', '1'] = Field(default='1', description='是否并发执行（0允许 1禁止）')
+    coalesce: bool = Field(default=False, strict=True, description='积压时是否只执行最近一次')
+    max_instances: int = Field(
+        default=1, ge=1, le=2147483647, strict=True, alias='maxInstances', description='任务最大并发数'
+    )
+    job_store: Literal['default', 'sqlalchemy', 'redis'] = Field(
+        default='default', alias='jobStore', description='调度存储'
+    )
     executor: Literal['default', 'processpool'] = Field(default='default', description='任务执行器')
 
     @field_validator('id')
@@ -171,6 +190,17 @@ class PluginJobManifest(BaseModel):
         if not value.strip():
             raise ValueError('插件任务 cronExpression 不能为空')
         return value
+
+    @field_validator('time_zone')
+    @classmethod
+    def validate_time_zone(cls, value: str) -> str:
+        """
+        校验插件任务的IANA时区名称
+
+        :param value: 插件任务时区名称
+        :return: 去除首尾空白后的有效时区名称
+        """
+        return TimezoneUtil.validate_timezone_name(value)
 
     @model_validator(mode='after')
     def fill_name(self) -> 'PluginJobManifest':

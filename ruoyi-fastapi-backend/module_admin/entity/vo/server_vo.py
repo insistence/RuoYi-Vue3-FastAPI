@@ -1,6 +1,8 @@
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
+from common.types import ApiUtcDateTime
+
 
 class CpuInfo(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel)
@@ -35,7 +37,7 @@ class PyInfo(MemoryInfo):
 
     name: str | None = Field(default=None, description='Python名称')
     version: str | None = Field(default=None, description='Python版本')
-    start_time: str | None = Field(default=None, description='启动时间')
+    start_time: ApiUtcDateTime | None = Field(default=None, description='启动时间')
     run_time: str | None = Field(default=None, description='运行时长')
     home: str | None = Field(default=None, description='安装路径')
 

@@ -30,8 +30,8 @@
               {% else %}
               <dict-tag :options="dict.type.{{ dictType }}" :value="info.{{ pythonField }}" />
               {% endif %}
-              {% elif column.html_type == "datetime" %}
-              {% raw %}{{{% endraw %} parseTime(info.{{ pythonField }}, '{y}-{m}-{d}') {% raw %}}}{% endraw %}
+              {% elif column.time_kind == "instant" %}
+              {% raw %}{{{% endraw %} parseTime(info.{{ pythonField }}) {% raw %}}}{% endraw %}
               {% elif column.html_type == "imageUpload" %}
               <image-preview :src="info.{{ pythonField }}" :width="60" :height="60" />
               {% else %}
@@ -55,6 +55,7 @@
 
 <script>
 import { get{{ BusinessName }} } from "@/api/{{ moduleName }}/{{ businessName }}";
+import { formatBusinessTime } from "@/utils/time";
 
 export default {
   name: "{{ BusinessName }}ViewDrawer",
@@ -69,6 +70,7 @@ export default {
     };
   },
   methods: {
+    parseTime: formatBusinessTime,
     open({{ pkColumn.python_field }}) {
       this.visible = true;
       this.loading = true;

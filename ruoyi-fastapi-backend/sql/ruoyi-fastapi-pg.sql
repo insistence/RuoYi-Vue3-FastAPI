@@ -1,3 +1,5 @@
+SET TIME ZONE 'UTC';
+
 -- ----------------------------
 -- 1、部门表
 -- ----------------------------
@@ -14,9 +16,9 @@ create table sys_dept (
     status char(1) default '0',
     del_flag char(1) default '0',
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     primary key (dept_id)
 );
 alter sequence sys_dept_dept_id_seq restart 200;
@@ -64,16 +66,17 @@ create table sys_user (
     phonenumber varchar(11) default '',
     sex char(1) default '0',
     avatar varchar(100) default '',
+    time_zone varchar(64) not null default 'auto',
     password varchar(100) default '',
     status char(1) default '0',
     del_flag char(1) default '0',
     login_ip varchar(128) default '',
-    login_date timestamp(0),
-    pwd_update_date timestamp(0),
+    login_date timestamp(3) with time zone,
+    pwd_update_date timestamp(3) with time zone,
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500) default null,
     primary key (user_id)
 );
@@ -87,6 +90,7 @@ comment on column sys_user.email is '用户邮箱';
 comment on column sys_user.phonenumber is '手机号码';
 comment on column sys_user.sex is '用户性别（0男 1女 2未知）';
 comment on column sys_user.avatar is '头像地址';
+comment on column sys_user.time_zone is '显示时区（auto跟随设备或IANA名称）';
 comment on column sys_user.password is '密码';
 comment on column sys_user.status is '帐号状态（0正常 1停用）';
 comment on column sys_user.del_flag is '删除标志（0代表存在 2代表删除）';
@@ -103,8 +107,8 @@ comment on table sys_user is '用户信息表';
 -- ----------------------------
 -- 初始化-用户信息表数据
 -- ----------------------------
-insert into sys_user values(1,  103, 'admin',   '超级管理员', '00', 'niangao@163.com', '15888888888', '1', '', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', current_timestamp, current_timestamp, 'admin', current_timestamp, '', null, '管理员');
-insert into sys_user values(2,  105, 'niangao', '年糕', 			'00', 'niangao@qq.com',  '15666666666', '1', '', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', current_timestamp, current_timestamp, 'admin', current_timestamp, '', null, '测试员');
+insert into sys_user values(1,  103, 'admin',   '超级管理员', '00', 'niangao@163.com', '15888888888', '1', '', 'auto', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', current_timestamp, current_timestamp, 'admin', current_timestamp, '', null, '管理员');
+insert into sys_user values(2,  105, 'niangao', '年糕', 			'00', 'niangao@qq.com',  '15666666666', '1', '', 'auto', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', '0', '0', '127.0.0.1', current_timestamp, current_timestamp, 'admin', current_timestamp, '', null, '测试员');
 
 -- ----------------------------
 -- 3、岗位信息表
@@ -117,9 +121,9 @@ create table sys_post (
     post_sort int4 not null,
     status char(1) not null,
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500) default null,
     primary key (post_id)
 );
@@ -159,9 +163,9 @@ create table sys_role (
     status char(1) not null,
     del_flag char(1) default '0',
     create_by varchar(64)  default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64)  default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500)  default null,
     primary key (role_id)
 );
@@ -209,9 +213,9 @@ create table sys_menu (
     perms varchar(100) default null,
     icon varchar(100) default '#',
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500) default '',
     primary key (menu_id)
 );
@@ -554,7 +558,7 @@ create table sys_oper_log (
     json_result varchar(2000) default '',
     status int4 default 0,
     error_msg varchar(2000) default '',
-    oper_time timestamp(0),
+    oper_time timestamp(3) with time zone,
     cost_time bigint default 0,
     primary key (oper_id)
 );
@@ -591,9 +595,9 @@ create table sys_dict_type (
     dict_type varchar(100) unique default '',
     status char(1) default '0',
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500) default null,
     primary key (dict_id)
 );
@@ -616,7 +620,7 @@ insert into sys_dict_type values(1,  '用户性别',     'sys_user_sex',        
 insert into sys_dict_type values(2,  '菜单状态',     'sys_show_hide',       '0', 'admin', current_timestamp, '', null, '菜单状态列表');
 insert into sys_dict_type values(3,  '系统开关',     'sys_normal_disable',  '0', 'admin', current_timestamp, '', null, '系统开关列表');
 insert into sys_dict_type values(4,  '任务状态',     'sys_job_status',      '0', 'admin', current_timestamp, '', null, '任务状态列表');
-insert into sys_dict_type values(5,  '任务分组',     'sys_job_group',       '0', 'admin', current_timestamp, '', null, '任务分组列表');
+insert into sys_dict_type values(5,  '调度存储',     'sys_job_store',       '0', 'admin', current_timestamp, '', null, '调度存储列表');
 insert into sys_dict_type values(6,  '任务执行器',   'sys_job_executor',    '0', 'admin', current_timestamp, '', null, '任务执行器列表');
 insert into sys_dict_type values(7,  '系统是否',     'sys_yes_no',          '0', 'admin', current_timestamp, '', null, '系统是否列表');
 insert into sys_dict_type values(8,  '通知类型',     'sys_notice_type',     '0', 'admin', current_timestamp, '', null, '通知类型列表');
@@ -640,9 +644,9 @@ create table sys_dict_data (
     is_default char(1) default 'N',
     status char(1) default '0',
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500) default null,
     primary key (dict_code)
 );
@@ -675,10 +679,10 @@ insert into sys_dict_data values(6,  1,  '正常',             '0',             
 insert into sys_dict_data values(7,  2,  '停用',             '1',             'sys_normal_disable',  '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
 insert into sys_dict_data values(8,  1,  '正常',             '0',              'sys_job_status',      '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '正常状态');
 insert into sys_dict_data values(9,  2,  '暂停',             '1',              'sys_job_status',      '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '停用状态');
-insert into sys_dict_data values(10, 1,  '默认',             'default',        'sys_job_group',       '',   '',        'Y', '0', 'admin', current_timestamp, '', null, '默认分组');
-insert into sys_dict_data values(11, 2,  '数据库',           'sqlalchemy',      'sys_job_group',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, '数据库分组');
-insert into sys_dict_data values(12, 3,  'redis',           'redis',  			'sys_job_group',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, 'reids分组');
-insert into sys_dict_data values(13, 1,  '默认',             'default',  		'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '线程池');
+insert into sys_dict_data values(10, 1,  '内存',             'default',        'sys_job_store',       '',   '',        'Y', '0', 'admin', current_timestamp, '', null, '内存调度存储');
+insert into sys_dict_data values(11, 2,  '数据库',           'sqlalchemy',     'sys_job_store',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, '数据库调度存储');
+insert into sys_dict_data values(12, 3,  'Redis',            'redis',          'sys_job_store',       '',   '',        'N', '0', 'admin', current_timestamp, '', null, 'Redis调度存储');
+insert into sys_dict_data values(13, 1,  '默认',             'default',  		'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '异步函数在事件循环运行，同步函数在线程池运行');
 insert into sys_dict_data values(14, 2,  '进程池',           'processpool',     'sys_job_executor',    '',   '',        'N', '0', 'admin', current_timestamp, '', null, '进程池');
 insert into sys_dict_data values(15, 1,  '是',               'Y',       		'sys_yes_no',          '',   'primary', 'Y', '0', 'admin', current_timestamp, '', null, '系统默认是');
 insert into sys_dict_data values(16, 2,  '否',               'N',       		'sys_yes_no',          '',   'danger',  'N', '0', 'admin', current_timestamp, '', null, '系统默认否');
@@ -725,9 +729,9 @@ create table sys_config (
     config_value varchar(500) default '',
     config_type char(1) default 'N',
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500) default null,
     primary key (config_id)
 );
@@ -771,7 +775,7 @@ create table sys_logininfor (
     os varchar(50) default '',
     status char(1) default '0',
     msg varchar(255) default '',
-    login_time timestamp(0),
+    login_time timestamp(3) with time zone,
     primary key (info_id)
 );
 alter sequence sys_logininfor_info_id_seq restart 100;
@@ -794,73 +798,163 @@ comment on table sys_logininfor is '系统访问记录';
 drop table if exists sys_job;
 create table sys_job (
     job_id bigserial not null,
-    job_name varchar(64) default '',
-    job_group varchar(64) default 'default',
+    job_name varchar(64) not null,
+    job_group varchar(64) not null default 'default',
+    job_store varchar(64) not null default 'default',
     job_executor varchar(64) default 'default',
     invoke_target varchar(500) not null,
-    job_args varchar(255) default '',
-    job_kwargs varchar(255) default '',
+    job_args json not null,
+    job_kwargs json not null,
     cron_expression varchar(255) default '',
-    misfire_policy varchar(20) default '3',
-    concurrent char(1) default '1',
-    status char(1) default '0',
+    time_zone varchar(64) not null,
+    misfire_grace_time integer default 1,
+    coalesce boolean not null default false,
+    max_instances integer not null default 1,
+    status char(1) not null default '1',
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500) default '',
-    primary key (job_id, job_name, job_group)
+    primary key (job_id),
+    constraint uq_job_group_name unique (job_group, job_name),
+    constraint ck_job_max_instances check (max_instances >= 1),
+    constraint ck_job_misfire_grace check (misfire_grace_time is null or misfire_grace_time >= 1)
 );
 alter sequence sys_job_job_id_seq restart 100;
 comment on column sys_job.job_id is '任务ID';
 comment on column sys_job.job_name is '任务名称';
-comment on column sys_job.job_group is '任务组名';
+comment on column sys_job.job_group is '业务分组';
 comment on column sys_job.job_executor is '任务执行器';
 comment on column sys_job.invoke_target is '调用目标字符串';
 comment on column sys_job.job_args is '位置参数';
 comment on column sys_job.job_kwargs is '关键字参数';
 comment on column sys_job.cron_expression is 'cron执行表达式';
-comment on column sys_job.misfire_policy is '计划执行错误策略（1立即执行 2执行一次 3放弃执行）';
-comment on column sys_job.concurrent is '是否并发执行（0允许 1禁止）';
+comment on column sys_job.time_zone is 'cron时区（IANA）';
 comment on column sys_job.status is '状态（0正常 1暂停）';
 comment on column sys_job.create_by is '创建者';
 comment on column sys_job.create_time is '创建时间';
 comment on column sys_job.update_by is '更新者';
 comment on column sys_job.update_time is '更新时间';
 comment on column sys_job.remark is '备注信息';
+comment on column sys_job.job_store is '调度存储';
+comment on column sys_job.misfire_grace_time is '允许延迟秒数，NULL表示不限';
+comment on column sys_job.coalesce is '积压时是否只执行最近一次';
+comment on column sys_job.max_instances is '任务最大并发数';
 comment on table sys_job is '定时任务调度表';
 
 -- ----------------------------
 -- 初始化-定时任务调度表数据
 -- ----------------------------
-insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'module_task.scheduler_test.job', null,   null, '0/10 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
-insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'module_task.scheduler_test.job', 'test', null, '0/15 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
-insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'module_task.scheduler_test.job', 'new',  '{test: 111}', '0/20 * * * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '');
-insert into sys_job values(4, '文件保留期限提醒', 'default', 'default', 'module_task.file_task.scan_retention_reminders', null, '{"remind_days": 7, "batch_size": 500}', '0 0 1 * * ?', '3', '1', '0', 'admin', current_timestamp, '', null, '每天扫描即将到期和已到期的受保护文件');
-insert into sys_job values(5, '回收站永久清理', 'default', 'default', 'module_task.file_task.purge_recycle_bin', null, '{"retention_days": 30, "batch_size": 100}', '0 0 2 * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '永久清理超过保留期限的回收站文件，默认暂停');
-insert into sys_job values(6, '文件存储对账', 'default', 'default', 'module_task.file_task.reconcile_file_storage', null, '{"check_hash": false}', '0 0 3 * * ?', '3', '1', '1', 'admin', current_timestamp, '', null, '校验文件信息表和本地存储一致性，默认暂停');
+insert into sys_job values(1, '系统默认（无参）', 'default', 'default', 'default', 'module_task.scheduler_test.job', '[]', '{}', '0/10 * * * * ?', 'Asia/Shanghai', 1, false, 1, '1', 'admin', current_timestamp, '', null, '');
+insert into sys_job values(2, '系统默认（有参）', 'default', 'default', 'default', 'module_task.scheduler_test.job', '["test"]', '{}', '0/15 * * * * ?', 'Asia/Shanghai', 1, false, 1, '1', 'admin', current_timestamp, '', null, '');
+insert into sys_job values(3, '系统默认（多参）', 'default', 'default', 'default', 'module_task.scheduler_test.job', '["new"]',  '{"test": 111}', '0/20 * * * * ?', 'Asia/Shanghai', 1, false, 1, '1', 'admin', current_timestamp, '', null, '');
+insert into sys_job values(4, '文件保留期限提醒', 'default', 'default', 'default', 'module_task.file_task.scan_retention_reminders', '[]', '{"remind_days": 7, "batch_size": 500}', '0 0 1 * * ?', 'Asia/Shanghai', 1, false, 1, '0', 'admin', current_timestamp, '', null, '每天扫描即将到期和已到期的受保护文件');
+insert into sys_job values(5, '回收站永久清理', 'default', 'default', 'default', 'module_task.file_task.purge_recycle_bin', '[]', '{"retention_days": 30, "batch_size": 100}', '0 0 2 * * ?', 'Asia/Shanghai', 1, false, 1, '1', 'admin', current_timestamp, '', null, '永久清理超过保留期限的回收站文件，默认暂停');
+insert into sys_job values(6, '文件存储对账', 'default', 'default', 'default', 'module_task.file_task.reconcile_file_storage', '[]', '{"check_hash": false}', '0 0 3 * * ?', 'Asia/Shanghai', 1, false, 1, '1', 'admin', current_timestamp, '', null, '校验文件信息表和本地存储一致性，默认暂停');
 
 -- ----------------------------
--- 16、定时任务调度日志表
+-- 16、任务调度同步状态（删除任务后保留同步记录）
+-- ----------------------------
+drop table if exists sys_job_sync;
+create table sys_job_sync (
+    job_id bigint not null primary key,
+    config_version bigint not null default 1,
+    applied_version bigint not null default 0,
+    config_hash varchar(64) not null,
+    deleted boolean not null default false,
+    sync_status varchar(16) not null default 'pending',
+    sync_error varchar(2000),
+    applied_time timestamp(3) with time zone,
+    next_run_time timestamp(3) with time zone,
+    schedule_observed_time timestamp(3) with time zone,
+    create_time timestamp(3) with time zone,
+    update_time timestamp(3) with time zone
+);
+create index ix_job_sync_status on sys_job_sync(sync_status, update_time);
+comment on column sys_job_sync.next_run_time is '最近观测的实际下次调度时刻';
+comment on column sys_job_sync.schedule_observed_time is 'Leader调度观测时刻';
+comment on table sys_job_sync is '任务调度同步状态';
+comment on column sys_job_sync.job_id is '逻辑任务ID';
+comment on column sys_job_sync.config_version is '最新配置版本';
+comment on column sys_job_sync.applied_version is '已应用版本';
+comment on column sys_job_sync.config_hash is '最新配置摘要';
+comment on column sys_job_sync.deleted is '任务是否已删除';
+comment on column sys_job_sync.sync_status is 'pending/applied/failed';
+comment on column sys_job_sync.sync_error is '最近同步错误';
+comment on column sys_job_sync.applied_time is '最近应用时刻';
+comment on column sys_job_sync.create_time is '创建时间';
+comment on column sys_job_sync.update_time is '更新时间';
+
+-- ----------------------------
+-- 17、任务执行请求与状态
+-- ----------------------------
+drop table if exists sys_job_execution;
+create table sys_job_execution (
+    execution_id varchar(32) not null primary key,
+    job_id bigint not null,
+    source varchar(10) not null,
+    status varchar(16) not null default 'pending',
+    job_snapshot json not null,
+    owner_token varchar(64),
+    lease_until timestamp(3) with time zone,
+    scheduled_time timestamp(3) with time zone,
+    start_time timestamp(3) with time zone,
+    end_time timestamp(3) with time zone,
+    run_duration_ms bigint,
+    message text,
+    requested_by varchar(64),
+    create_time timestamp(3) with time zone,
+    update_time timestamp(3) with time zone
+);
+create index ix_job_execution_dispatch on sys_job_execution(status, create_time);
+create index ix_job_execution_active on sys_job_execution(job_id, status);
+comment on table sys_job_execution is '任务执行请求与状态';
+comment on column sys_job_execution.execution_id is '执行ID';
+comment on column sys_job_execution.job_id is '逻辑任务ID';
+comment on column sys_job_execution.source is 'manual/cron';
+comment on column sys_job_execution.status is '执行状态';
+comment on column sys_job_execution.job_snapshot is '提交时任务配置快照';
+comment on column sys_job_execution.owner_token is '派发或执行占用凭据';
+comment on column sys_job_execution.lease_until is '执行占用租约截止时刻';
+comment on column sys_job_execution.scheduled_time is '计划执行时刻';
+comment on column sys_job_execution.start_time is '实际开始时刻';
+comment on column sys_job_execution.end_time is '实际结束时刻';
+comment on column sys_job_execution.run_duration_ms is '实际执行耗时（毫秒）';
+comment on column sys_job_execution.message is '执行结果或未执行原因';
+comment on column sys_job_execution.requested_by is '手动执行提交者';
+comment on column sys_job_execution.create_time is '创建时间';
+comment on column sys_job_execution.update_time is '更新时间';
+
+-- ----------------------------
+-- 18、定时任务调度日志表
 -- ----------------------------
 drop table if exists sys_job_log;
 create table sys_job_log (
     job_log_id bigserial not null,
+    job_id bigint,
+    execution_id varchar(32),
+    job_store varchar(64),
     job_name varchar(64) not null,
     job_group varchar(64) not null,
     job_executor varchar(64) not null,
     invoke_target varchar(500) not null,
-    job_args varchar(255) default '',
-    job_kwargs varchar(255) default '',
+    job_args json,
+    job_kwargs json,
     job_trigger varchar(255) default '',
+    time_zone varchar(64) default null,
     job_message varchar(500),
     status char(1) default '0',
     exception_info varchar(2000) default '',
-    start_time timestamp(3),
-    end_time timestamp(3),
-    create_time timestamp(0),
+    scheduled_time timestamp(3) with time zone default null,
+    start_time timestamp(3) with time zone,
+    end_time timestamp(3) with time zone,
+    run_duration_ms bigint default null,
+    create_time timestamp(3) with time zone,
     primary key (job_log_id)
 );
+create index ix_job_log_job_id on sys_job_log(job_id, create_time);
+create index ix_job_log_execution_id on sys_job_log(execution_id);
 comment on column sys_job_log.job_log_id is '任务日志ID';
 comment on column sys_job_log.job_name is '任务名称';
 comment on column sys_job_log.job_group is '任务组名';
@@ -869,16 +963,22 @@ comment on column sys_job_log.invoke_target is '调用目标字符串';
 comment on column sys_job_log.job_args is '位置参数';
 comment on column sys_job_log.job_kwargs is '关键字参数';
 comment on column sys_job_log.job_trigger is '任务触发器';
+comment on column sys_job_log.time_zone is '任务时区快照（IANA）';
 comment on column sys_job_log.job_message is '日志信息';
 comment on column sys_job_log.status is '执行状态（0正常 1失败）';
 comment on column sys_job_log.exception_info is '异常信息';
+comment on column sys_job_log.scheduled_time is '计划执行时刻';
 comment on column sys_job_log.start_time is '执行开始时间';
 comment on column sys_job_log.end_time is '执行结束时间';
+comment on column sys_job_log.run_duration_ms is '实际执行耗时（毫秒）';
 comment on column sys_job_log.create_time is '创建时间';
+comment on column sys_job_log.job_id is '逻辑任务ID，历史未关联日志可为空';
+comment on column sys_job_log.execution_id is '执行ID，历史未关联日志可为空';
+comment on column sys_job_log.job_store is '调度存储快照';
 comment on table sys_job_log is '定时任务调度日志表';
 
 -- ----------------------------
--- 17、通知公告表
+-- 19、通知公告表
 -- ----------------------------
 drop table if exists sys_notice;
 create table sys_notice (
@@ -888,9 +988,9 @@ create table sys_notice (
     notice_content bytea default null,
     status char(1) default '0',
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(255) default null,
     primary key (notice_id)
 );
@@ -914,14 +1014,14 @@ insert into sys_notice values(1, '温馨提醒：2018-07-01 vfadmin新版本发�
 insert into sys_notice values(2, '维护通知：2018-07-01 vfadmin系统凌晨维护', '1', '维护内容',   '0', 'admin', current_timestamp, '', null, '管理员');
 
 -- ----------------------------
--- 18、公告已读记录表
+-- 20、公告已读记录表
 -- ----------------------------
 drop table if exists sys_notice_read;
 create table sys_notice_read (
     read_id bigserial not null,
     notice_id integer not null,
     user_id bigint not null,
-    read_time timestamp(0) not null,
+    read_time timestamp(3) with time zone not null,
     primary key (read_id),
     constraint uk_user_notice unique (user_id, notice_id)
 );
@@ -932,7 +1032,7 @@ comment on column sys_notice_read.read_time is '阅读时间';
 comment on table sys_notice_read is '公告已读记录表';
 
 -- ----------------------------
--- 19、代码生成业务表
+-- 21、代码生成业务表
 -- ----------------------------
 drop table if exists gen_table;
 create table gen_table (
@@ -955,9 +1055,9 @@ create table gen_table (
     gen_path varchar(200) default '/',
     options varchar(1000),
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     remark varchar(500) default null,
     primary key (table_id)
 );
@@ -987,7 +1087,7 @@ comment on column gen_table.remark is '备注';
 comment on table gen_table is '代码生成业务表';
 
 -- ----------------------------
--- 20、代码生成业务表字段
+-- 22、代码生成业务表字段
 -- ----------------------------
 drop table if exists gen_table_column;
 create table gen_table_column (
@@ -1011,9 +1111,9 @@ create table gen_table_column (
     dict_type varchar(200) default '',
     sort int4,
     create_by varchar(64) default '',
-    create_time timestamp(0),
+    create_time timestamp(3) with time zone,
     update_by varchar(64) default '',
-    update_time timestamp(0),
+    update_time timestamp(3) with time zone,
     primary key (column_id)
 );
 comment on column gen_table_column.column_id is '编号';
@@ -1042,7 +1142,7 @@ comment on column gen_table_column.update_time is '更新时间';
 comment on table gen_table_column is '代码生成业务表字段';
 
 -- ----------------------------
--- 21、文件信息表
+-- 23、文件信息表
 -- ----------------------------
 drop table if exists sys_file_info;
 create table sys_file_info (
@@ -1065,11 +1165,11 @@ create table sys_file_info (
     file_hash varchar(64) not null,
     status varchar(20) not null default 'active',
     create_by varchar(64) default '',
-    create_time timestamp(0) not null,
+    create_time timestamp(3) with time zone not null,
     update_by varchar(64) default '',
-    update_time timestamp(0) not null,
-    expire_time timestamp(0),
-    deleted_time timestamp(0),
+    update_time timestamp(3) with time zone not null,
+    expire_time timestamp(3) with time zone,
+    deleted_time timestamp(3) with time zone,
     del_flag char(1) not null default '0',
     primary key (file_id)
 );
@@ -1106,7 +1206,7 @@ comment on column sys_file_info.deleted_time is '移入回收站时间';
 comment on column sys_file_info.del_flag is '删除标志';
 
 -- ----------------------------
--- 22、文件业务引用表
+-- 24、文件业务引用表
 -- ----------------------------
 drop table if exists sys_file_reference;
 create table sys_file_reference (
@@ -1115,9 +1215,9 @@ create table sys_file_reference (
     business_type varchar(50) not null,
     business_id varchar(64) not null,
     business_name varchar(255),
-    retention_expire_time timestamp(0),
+    retention_expire_time timestamp(3) with time zone,
     create_by varchar(64) default '',
-    create_time timestamp(0) not null,
+    create_time timestamp(3) with time zone not null,
     primary key (reference_id)
 );
 create unique index uk_sys_file_reference_business on sys_file_reference(file_id, business_type, business_id);
@@ -1134,7 +1234,7 @@ comment on column sys_file_reference.create_by is '创建者';
 comment on column sys_file_reference.create_time is '创建时间';
 
 -- ----------------------------
--- 23、文件业务保留策略表
+-- 25、文件业务保留策略表
 -- ----------------------------
 drop table if exists sys_file_retention_policy;
 create table sys_file_retention_policy (
@@ -1143,9 +1243,9 @@ create table sys_file_retention_policy (
     status char(1) not null default '0',
     remark varchar(500),
     create_by varchar(64) default '',
-    create_time timestamp(0) not null,
+    create_time timestamp(3) with time zone not null,
     update_by varchar(64) default '',
-    update_time timestamp(0) not null,
+    update_time timestamp(3) with time zone not null,
     primary key (business_type)
 );
 comment on table sys_file_retention_policy is '文件业务保留策略表';
@@ -1159,18 +1259,18 @@ comment on column sys_file_retention_policy.update_by is '更新者';
 comment on column sys_file_retention_policy.update_time is '更新时间';
 
 -- ----------------------------
--- 24、文件保留期限提醒表
+-- 26、文件保留期限提醒表
 -- ----------------------------
 drop table if exists sys_file_retention_notice;
 create table sys_file_retention_notice (
     notice_id bigserial not null,
     file_id varchar(36) not null,
     notice_type varchar(20) not null,
-    expire_time timestamp(0) not null,
+    expire_time timestamp(3) with time zone not null,
     status char(1) not null default '0',
-    create_time timestamp(0) not null,
+    create_time timestamp(3) with time zone not null,
     read_by varchar(64) default '',
-    read_time timestamp(0),
+    read_time timestamp(3) with time zone,
     primary key (notice_id)
 );
 create unique index uk_sys_file_retention_notice_file_type_time
@@ -1188,7 +1288,7 @@ comment on column sys_file_retention_notice.read_by is '读取者';
 comment on column sys_file_retention_notice.read_time is '读取时间';
 
 -- ----------------------------
--- 25、文件访问控制表
+-- 27、文件访问控制表
 -- ----------------------------
 drop table if exists sys_file_acl;
 create table sys_file_acl (
@@ -1199,9 +1299,9 @@ create table sys_file_acl (
     permission varchar(20) not null default 'download',
     effect varchar(10) not null default 'allow',
     include_children char(1) not null default '0',
-    expire_time timestamp(0),
+    expire_time timestamp(3) with time zone,
     create_by varchar(64) default '',
-    create_time timestamp(0) not null,
+    create_time timestamp(3) with time zone not null,
     del_flag char(1) not null default '0',
     primary key (acl_id)
 );
@@ -1222,7 +1322,7 @@ comment on column sys_file_acl.create_time is '创建时间';
 comment on column sys_file_acl.del_flag is '删除标志';
 
 -- ----------------------------
--- 26、文件访问审计表
+-- 28、文件访问审计表
 -- ----------------------------
 drop table if exists sys_file_access_log;
 create table sys_file_access_log (
@@ -1239,7 +1339,7 @@ create table sys_file_access_log (
     bytes_sent bigint not null default 0,
     error_message varchar(500) default '',
     operation_detail text,
-    access_time timestamp(0) not null,
+    access_time timestamp(3) with time zone not null,
     primary key (audit_id)
 );
 create index idx_sys_file_access_log_file_time on sys_file_access_log(file_id, access_time);
@@ -1261,7 +1361,7 @@ comment on column sys_file_access_log.operation_detail is '操作详情';
 comment on column sys_file_access_log.access_time is '访问时间';
 
 -- ----------------------------
--- 27、文件存储对账任务表
+-- 29、文件存储对账任务表
 -- ----------------------------
 drop table if exists sys_file_reconcile_run;
 create table sys_file_reconcile_run (
@@ -1276,8 +1376,8 @@ create table sys_file_reconcile_run (
     new_issue_count bigint not null default 0,
     resolved_issue_count bigint not null default 0,
     started_by varchar(64) default '',
-    started_time timestamp(0) not null,
-    finished_time timestamp(0),
+    started_time timestamp(3) with time zone not null,
+    finished_time timestamp(3) with time zone,
     error_message text,
     primary key (run_id)
 );
@@ -1300,7 +1400,7 @@ comment on column sys_file_reconcile_run.finished_time is '完成时间';
 comment on column sys_file_reconcile_run.error_message is '失败原因';
 
 -- ----------------------------
--- 28、文件存储对账异常表
+-- 30、文件存储对账异常表
 -- ----------------------------
 drop table if exists sys_file_reconcile_issue;
 create table sys_file_reconcile_issue (
@@ -1323,12 +1423,12 @@ create table sys_file_reconcile_issue (
     status varchar(20) not null default 'open',
     detail text,
     occurrence_count integer not null default 1,
-    first_seen_time timestamp(0) not null,
-    last_seen_time timestamp(0) not null,
+    first_seen_time timestamp(3) with time zone not null,
+    last_seen_time timestamp(3) with time zone not null,
     handle_action varchar(32),
     handle_reason varchar(500),
     handled_by varchar(64),
-    handled_time timestamp(0),
+    handled_time timestamp(3) with time zone,
     quarantine_key varchar(500),
     primary key (issue_id)
 );
@@ -1365,7 +1465,7 @@ comment on column sys_file_reconcile_issue.handled_time is '处理时间';
 comment on column sys_file_reconcile_issue.quarantine_key is '隔离区相对路径';
 
 -- ----------------------------
--- 29、插件信息表
+-- 31、插件信息表
 -- ----------------------------
 drop table if exists sys_plugin;
 create table sys_plugin (
@@ -1381,9 +1481,9 @@ create table sys_plugin (
   last_error         varchar(1000)  default null,
   description        varchar(500)   default null,
   create_by          varchar(64)    default '',
-  create_time        timestamp(0),
+  create_time        timestamp(3) with time zone,
   update_by          varchar(64)    default '',
-  update_time        timestamp(0),
+  update_time        timestamp(3) with time zone,
   remark             varchar(500)   default null,
   primary key (plugin_id),
   constraint ck_sys_plugin_enabled check (enabled in ('0', '1')),
@@ -1408,14 +1508,14 @@ comment on column sys_plugin.update_time is '更新时间';
 comment on column sys_plugin.remark is '备注';
 
 -- ----------------------------
--- 30、插件和菜单关联表
+-- 32、插件和菜单关联表
 -- ----------------------------
 drop table if exists sys_plugin_menu;
 create table sys_plugin_menu (
   plugin_id          varchar(64)    not null,
   menu_id            bigint         not null,
   menu_key           varchar(255)   not null,
-  create_time        timestamp(0),
+  create_time        timestamp(3) with time zone,
   primary key (plugin_id, menu_id),
   constraint uk_sys_plugin_menu_key unique (plugin_id, menu_key)
 );
@@ -1426,7 +1526,7 @@ comment on column sys_plugin_menu.menu_key is '插件内菜单自然键';
 comment on column sys_plugin_menu.create_time is '创建时间';
 
 -- ----------------------------
--- 31、插件 migration 执行历史表
+-- 33、插件 migration 执行历史表
 -- ----------------------------
 drop table if exists sys_plugin_migration;
 create table sys_plugin_migration (
@@ -1438,10 +1538,10 @@ create table sys_plugin_migration (
   status              varchar(32)   not null default 'success',
   error_message       text,
   attempt_count       int4          not null default 0,
-  started_time        timestamp(0),
-  finished_time       timestamp(0),
-  create_time         timestamp(0),
-  update_time         timestamp(0),
+  started_time        timestamp(3) with time zone,
+  finished_time       timestamp(3) with time zone,
+  create_time         timestamp(3) with time zone,
+  update_time         timestamp(3) with time zone,
   primary key (plugin_id, migration_path)
 );
 comment on table sys_plugin_migration is '插件 migration 执行历史表';
@@ -1459,7 +1559,7 @@ comment on column sys_plugin_migration.create_time is '执行时间';
 comment on column sys_plugin_migration.update_time is '更新时间';
 
 -- ----------------------------
--- 32、插件配置表
+-- 34、插件配置表
 -- ----------------------------
 drop table if exists sys_plugin_config;
 create table sys_plugin_config (
@@ -1473,8 +1573,8 @@ create table sys_plugin_config (
   secret             char(1)       not null default '1',
   options            text,
   description        varchar(500)  default null,
-  create_time        timestamp(0),
-  update_time        timestamp(0),
+  create_time        timestamp(3) with time zone,
+  update_time        timestamp(3) with time zone,
   primary key (plugin_id, config_key)
 );
 comment on table sys_plugin_config is '插件配置表';
@@ -1492,7 +1592,7 @@ comment on column sys_plugin_config.create_time is '创建时间';
 comment on column sys_plugin_config.update_time is '更新时间';
 
 -- ----------------------------
--- 33、插件批量操作审计日志表
+-- 35、插件批量操作审计日志表
 -- ----------------------------
 drop table if exists sys_plugin_operation_log;
 create table sys_plugin_operation_log (
@@ -1504,7 +1604,7 @@ create table sys_plugin_operation_log (
   status             varchar(32)    not null,
   summary            text,
   result             text,
-  create_time        timestamp(0),
+  create_time        timestamp(3) with time zone,
   remark             varchar(500)   default null,
   primary key (operation_id)
 );
@@ -1563,8 +1663,8 @@ SELECT c.relname                                                                
                        WHEN t.typelem <> 0::oid AND t.typlen = '-1'::integer THEN 'ARRAY'::text
             ELSE
             CASE
-                WHEN t.typtype = 'd'::"char" THEN format_type(t.typbasetype, NULL::integer)
-                ELSE format_type(a.atttypid, NULL::integer)
+                WHEN t.typtype = 'd'::"char" THEN format_type(t.typbasetype, t.typtypmod)
+                ELSE format_type(a.atttypid, a.atttypmod)
             END
         END, '"'::text) AS column_type
 FROM pg_attribute a
@@ -1583,8 +1683,9 @@ WHERE (c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"]))
 create or replace view list_table as
 SELECT c.relname              AS table_name,
        obj_description(c.oid) AS table_comment,
-       CURRENT_TIMESTAMP      AS create_time,
-       CURRENT_TIMESTAMP      AS update_time
+       -- PostgreSQL catalogs do not record table creation/update instants.
+       NULL::timestamptz      AS create_time,
+       NULL::timestamptz      AS update_time
 FROM pg_class c
          LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
 WHERE (c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"]))

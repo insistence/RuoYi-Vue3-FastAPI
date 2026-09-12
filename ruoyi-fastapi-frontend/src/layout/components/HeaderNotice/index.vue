@@ -19,7 +19,7 @@
             {{ item.noticeType === '1' ? '通知' : '公告' }}
           </el-tag>
           <span class="notice-item-title">{{ item.noticeTitle }}</span>
-          <span class="notice-item-date">{{ item.createTime }}</span>
+          <span class="notice-item-date">{{ parseTime(item.createTime) || '-' }}</span>
         </div>
       </div>
 

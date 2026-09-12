@@ -1,3 +1,33 @@
+{% set hasUserDateQuery = columns | selectattr('query') | selectattr('time_kind', 'equalto', 'instant') | selectattr('query_type', 'equalto', 'BETWEEN') | list %}
+{% macro picker(column, model, vue3=True, range=False) -%}
+{% set date_format = 'YYYY-MM-DD' if vue3 else 'yyyy-MM-dd' %}
+{% if column.time_kind == 'instant' and not range %}
+<business-date-time-picker v-model="{{ model }}" :timezone="getTimeFieldsTimezone({{ model.rsplit('.', 1)[0] }})" label="{{ column.column_comment }}" />
+{% elif column.time_kind == 'time' %}
+<el-time-picker
+  v-model="{{ model }}"
+  {% if range %}is-range{% endif %}
+  value-format="HH:mm:ss.SSS"
+  format="HH:mm:ss"
+  clearable
+  placeholder="请选择{{ column.column_comment }}"
+/>
+{% else %}
+<el-date-picker
+  v-model="{{ model }}"
+  type="{{ 'daterange' if range else 'datetime' if column.time_kind == 'instant' else 'date' }}"
+  value-format="{{ date_format }}{{ ' HH:mm:ss' if not range and column.time_kind == 'instant' else '' }}"
+  {% if range %}
+  range-separator="-"
+  start-placeholder="开始日期"
+  end-placeholder="结束日期"
+  {% else %}
+  placeholder="请选择{{ column.column_comment }}"
+  {% endif %}
+  clearable
+/>
+{% endif %}
+{%- endmacro %}
 <template>
   <div class="app-container">
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
@@ -34,28 +64,13 @@
           <el-option label="请选择字典生成" value="" />
         </el-select>
       </el-form-item>
-      {% elif column.html_type == "datetime" and column.query_type != "BETWEEN" %}
+      {% elif column.time_kind and column.query_type != "BETWEEN" %}
       <el-form-item label="{{ comment }}" prop="{{ column.python_field }}">
-        <el-date-picker
-          v-model="queryParams.{{ column.python_field }}"
-          type="date"
-          value-format="YYYY-MM-DD"
-          placeholder="请选择{{ comment }}"
-          clearable
-          style="width: 240px"
-        />
+        {{ picker(column, "queryParams." ~ column.python_field ~ "", True, False) | indent(10) }}
       </el-form-item>
-      {% elif column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+      {% elif column.time_kind and column.query_type == "BETWEEN" %}
       <el-form-item label="{{ comment }}" style="width: 308px">
-        <el-date-picker
-          v-model="daterange{{ AttrName }}"
-          value-format="YYYY-MM-DD"
-          type="daterange"
-          range-separator="-"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          style="width: 240px"
-        />
+        {{ picker(column, "daterange" ~ AttrName ~ "", True, True) | indent(10) }}
       </el-form-item>
       {% endif %}
       {% endif %}
@@ -116,10 +131,10 @@
       {% set comment = column.column_comment[:parentheseIndex] if parentheseIndex != -1 else column.column_comment %}
       {% if column.pk %}
       <el-table-column label="{{ comment }}" align="center" prop="{{ pythonField }}" />
-      {% elif column.list and column.html_type == "datetime" %}
+      {% elif column.list and column.time_kind == "instant" %}
       <el-table-column label="{{ comment }}" align="center" prop="{{ pythonField }}" width="180">
         <template #default="scope">
-          <span>{% raw %}{{{% endraw %} parseTime(scope.row.{{ pythonField }}, '{y}-{m}-{d}') {% raw %}}}{% endraw %}</span>
+          <span>{% raw %}{{{% endraw %} parseTime(scope.row.{{ pythonField }}) {% raw %}}}{% endraw %}</span>
         </template>
       </el-table-column>
       {% elif column.list and column.html_type == "imageUpload" %}
@@ -278,15 +293,10 @@
               </el-radio-group>
             </el-form-item>
           </el-col>
-      {% elif column.html_type == "datetime" %}
+      {% elif column.time_kind %}
           <el-col v-if="renderField({{ column.insert | lower }}, {{ column.edit | lower }})" :span="{{ colSpan }}">
             <el-form-item label="{{ comment }}" prop="{{ field }}">
-              <el-date-picker clearable
-                v-model="form.{{ field }}"
-                type="date"
-                value-format="YYYY-MM-DD"
-                placeholder="请选择{{ comment }}">
-              </el-date-picker>
+              {{ picker(column, "form." ~ field ~ "", True, False) | indent(10) }}
             </el-form-item>
           </el-col>
       {% elif column.html_type == "textarea" %}
@@ -325,15 +335,10 @@
             <el-input v-model="scope.row.{{ pythonField }}" placeholder="请输入{{ comment }}" />
           </template>
         </el-table-column>
-        {% elif column.list and column.html_type == 'datetime' %}
+        {% elif column.list and column.time_kind %}
         <el-table-column label="{{ comment }}" prop="{{ pythonField }}" width="240">
           <template #default="scope">
-            <el-date-picker clearable
-              v-model="scope.row.{{ pythonField }}"
-              type="date"
-              value-format="YYYY-MM-DD"
-              placeholder="请选择{{ comment }}">
-            </el-date-picker>
+            {{ picker(column, "scope.row." ~ pythonField ~ "", True, False) | indent(10) }}
           </template>
         </el-table-column>
         {% elif column.list and (column.html_type == 'select' or column.html_type == 'radio') and column.dict_type %}
@@ -373,7 +378,9 @@
 </template>
 
 <script setup name="{{ BusinessName }}">
+import BusinessDateTimePicker from "@/components/BusinessDateTimePicker";
 import { list{{ BusinessName }}, get{{ BusinessName }}, del{{ BusinessName }}, add{{ BusinessName }}, update{{ BusinessName }} } from "@/api/{{ moduleName }}/{{ businessName }}";
+import { {% if hasUserDateQuery %}getDisplayTimezone, {% endif %}getTimeFieldsTimezone, prepareTimeFields, serializeTimeFieldsForSubmit } from "@/utils/time";
 {% if genView %}
 import {{ BusinessName }}ViewDrawer from "./view";
 {% endif %}
@@ -400,7 +407,7 @@ const multiple = ref(true);
 const total = ref(0);
 const title = ref("");
 {% for column in columns %}
-{% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+{% if column.time_kind and column.query_type == "BETWEEN" %}
 {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
 const daterange{{ AttrName }} = ref([]);
 {% endif %}
@@ -433,23 +440,26 @@ const data = reactive({
 const { queryParams, form, rules } = toRefs(data);
 
 /** 查询{{ functionName }}列表 */
-function getList() {
+async function getList() {
   loading.value = true;
   {% for column in columns %}
-  {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+  {% if column.time_kind and column.query_type == "BETWEEN" %}
   queryParams.value.params = {};
   {% endif %}
   {% endfor %}
   {% for column in columns %}
-  {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+  {% if column.time_kind and column.query_type == "BETWEEN" %}
   {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
-  if (null != daterange{{ AttrName }}.value && '' != daterange{{ AttrName }}.value) {
-    queryParams.value.begin{{ AttrName }} = daterange{{ AttrName }}.value[0];
-    queryParams.value.end{{ AttrName }} = daterange{{ AttrName }}.value[1];
-  }
+  queryParams.value.begin{{ AttrName }} = daterange{{ AttrName }}.value?.[0];
+  queryParams.value.end{{ AttrName }} = daterange{{ AttrName }}.value?.[1];
   {% endif %}
   {% endfor %}
-  list{{ BusinessName }}(queryParams.value).then(response => {
+  const queryData = await serializeTimeFieldsForSubmit(queryParams.value, {{ instantQueryFields | tojson }});
+  if (!queryData) {
+    loading.value = false;
+    return;
+  }
+  list{{ BusinessName }}(queryData).then(response => {
     {{ businessName }}List.value = response.rows;
     total.value = response.total;
     loading.value = false;
@@ -464,7 +474,7 @@ function cancel() {
 
 /** 表单重置 */
 function reset() {
-  form.value = {
+  form.value = prepareTimeFields({
     {% for column in columns %}
     {% if column.html_type == "checkbox" %}
     {{ column.python_field }}: [],
@@ -472,7 +482,7 @@ function reset() {
     {{ column.python_field }}: null,
     {% endif %}
     {% endfor %}
-  };
+  }, {{ instantFields | tojson }});
   {% if table.sub %}
   {{ subclassName }}List.value = [];
   {% endif %}
@@ -488,7 +498,7 @@ function handleQuery() {
 /** 重置按钮操作 */
 function resetQuery() {
   {% for column in columns %}
-  {% if column.html_type == "datetime" and column.query_type == "BETWEEN" %}
+  {% if column.time_kind and column.query_type == "BETWEEN" %}
   {% set AttrName = column.python_field[0] | upper + column.python_field[1:] %}
   daterange{{ AttrName }}.value = [];
   {% endif %}
@@ -516,14 +526,16 @@ function handleUpdate(row) {
   reset();
   const _{{ pkColumn.python_field }} = row.{{ pkColumn.python_field }} || ids.value;
   get{{ BusinessName }}(_{{ pkColumn.python_field }}).then(response => {
-    form.value = response.data;
+    form.value = prepareTimeFields(response.data, {{ instantFields | tojson }});
     {% for column in columns %}
     {% if column.html_type == "checkbox" %}
     form.value.{{ column.python_field }} = form.value.{{ column.python_field }}.split(",");
     {% endif %}
     {% endfor %}
     {% if table.sub %}
-    {{ subclassName }}List.value = response.data.{{ subclassName }}List;
+    {{ subclassName }}List.value = (response.data.{{ subclassName }}List || []).map(row =>
+      prepareTimeFields(row, {{ subInstantFields | tojson }})
+    );
     {% endif %}
     open.value = true;
     title.value = "修改{{ functionName }}";
@@ -532,24 +544,35 @@ function handleUpdate(row) {
 
 /** 提交按钮 */
 function submitForm() {
-  proxy.$refs["{{ businessName }}Ref"].validate(valid => {
+  proxy.$refs["{{ businessName }}Ref"].validate(async valid => {
     if (valid) {
+      const submitData = await serializeTimeFieldsForSubmit(form.value, {{ instantFields | tojson }});
+      if (!submitData) {
+        return;
+      }
       {% for column in columns %}
       {% if column.html_type == "checkbox" %}
-      form.value.{{ column.python_field }} = form.value.{{ column.python_field }}.join(",");
+      submitData.{{ column.python_field }} = (form.value.{{ column.python_field }} || []).join(",");
       {% endif %}
       {% endfor %}
       {% if table.sub %}
-      form.value.{{ subclassName }}List = {{ subclassName }}List.value;
+      submitData.{{ subclassName }}List = [];
+      for (const row of {{ subclassName }}List.value) {
+        const submitRow = await serializeTimeFieldsForSubmit(row, {{ subInstantFields | tojson }});
+        if (!submitRow) {
+          return;
+        }
+        submitData.{{ subclassName }}List.push(submitRow);
+      }
       {% endif %}
       if (form.value.{{ pkColumn.python_field }} != null) {
-        update{{ BusinessName }}(form.value).then(() => {
+        update{{ BusinessName }}(submitData).then(() => {
           proxy.$modal.msgSuccess("修改成功");
           open.value = false;
           getList();
         });
       } else {
-        add{{ BusinessName }}(form.value).then(() => {
+        add{{ BusinessName }}(submitData).then(() => {
           proxy.$modal.msgSuccess("新增成功");
           open.value = false;
           getList();
@@ -585,7 +608,7 @@ function handleAdd{{ subClassName }}() {
   obj.{{ column.python_field }} = undefined;
   {% endif %}
   {% endfor %}
-  {{ subclassName }}List.value.push(obj);
+  {{ subclassName }}List.value.push(prepareTimeFields(obj, {{ subInstantFields | tojson }}));
 }
 
 /** {{ subTable.functionName }}删除按钮操作 */
@@ -615,10 +638,19 @@ function handleViewData(row) {
 
 {% endif %}
 /** 导出按钮操作 */
-function handleExport() {
-  proxy.download('{{ moduleName }}/{{ businessName }}/export', {
-    ...queryParams.value
-  }, `{{ businessName }}_${new Date().getTime()}.xlsx`);
+async function handleExport() {
+  {% for column in columns %}
+  {% if column.query_type == 'BETWEEN' and column.time_kind %}
+  {% set AttrName = column.python_field[0] | upper ~ column.python_field[1:] %}
+  queryParams.value.begin{{ AttrName }} = daterange{{ AttrName }}.value?.[0];
+  queryParams.value.end{{ AttrName }} = daterange{{ AttrName }}.value?.[1];
+  {% endif %}
+  {% endfor %}
+  const queryData = await serializeTimeFieldsForSubmit(queryParams.value, {{ instantQueryFields | tojson }});
+  if (!queryData) {
+    return;
+  }
+  proxy.download('{{ moduleName }}/{{ businessName }}/export', queryData, `{{ businessName }}_${new Date().getTime()}.xlsx`);
 }
 
 /** 是否渲染字段 */
@@ -627,4 +659,8 @@ function renderField(insert, edit) {
 }
 
 getList();
+{% if hasUserDateQuery %}
+// 重新查询当前时区的日期范围，保留编辑中的表单。
+watch(getDisplayTimezone, handleQuery);
+{% endif %}
 </script>

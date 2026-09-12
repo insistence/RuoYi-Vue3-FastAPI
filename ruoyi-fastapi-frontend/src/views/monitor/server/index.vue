@@ -112,7 +112,7 @@
                 </tr>
                 <tr>
                   <td class="el-table__cell is-leaf"><div class="cell">启动时间</div></td>
-                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.py">{{ server.py.startTime }}</div></td>
+                  <td class="el-table__cell is-leaf"><div class="cell" v-if="server.py">{{ parseTime(server.py.startTime) }}</div></td>
                   <td class="el-table__cell is-leaf"><div class="cell">运行时长</div></td>
                   <td class="el-table__cell is-leaf"><div class="cell" v-if="server.py">{{ server.py.runTime }}</div></td>
                 </tr>
