@@ -65,7 +65,7 @@ def _execution(
     # 内部周期任务正常执行时不输出日志，避免每秒派发和定期同步刷屏。
     log_execution = not job.id.startswith('_scheduler_')
     if log_execution:
-        logger.info('Running job "%s" (scheduled at %s)', job, run_time)
+        logger.info('▶️ 开始执行任务“%s”，计划执行时间：%s', job, run_time)
     event.start_time = TimezoneUtil.utc_now()
     started_at = time.perf_counter()
     try:
@@ -80,10 +80,10 @@ def _execution(
     if event.exception is not None:
         exc = event.exception
         event.traceback = ''.join(traceback.format_tb(exc.__traceback__))
-        logger.error('Job "%s" raised an exception', job, exc_info=(type(exc), exc, exc.__traceback__))
+        logger.error('❌ 任务“%s”执行异常', job, exc_info=(type(exc), exc, exc.__traceback__))
         traceback.clear_frames(exc.__traceback__)
     if event.code == EVENT_JOB_EXECUTED and log_execution:
-        logger.info('Job "%s" executed successfully', job)
+        logger.info('✅ 任务“%s”执行成功', job)
 
 
 def _claim_execution(event: TimedJobExecutionEvent) -> str | None:
@@ -134,7 +134,7 @@ def _finish_execution(event: TimedJobExecutionEvent, token: str) -> None:
             run_duration_ms=event.run_duration_ms,
         )
     except Exception:
-        logging.getLogger(__name__).exception('保存任务执行结果失败：%s', event.execution_id)
+        logging.getLogger(__name__).exception('❌ 保存任务执行结果失败：%s', event.execution_id)
 
 
 def _record_unstarted_execution(event: TimedJobExecutionEvent) -> None:
@@ -157,7 +157,7 @@ def _record_unstarted_execution(event: TimedJobExecutionEvent) -> None:
             dispatch_token=event.snapshot.dispatch_token,
         )
     except Exception:
-        logging.getLogger(__name__).exception('保存任务未执行记录失败：%s', event.execution_id)
+        logging.getLogger(__name__).exception('❌ 保存任务未执行记录失败：%s', event.execution_id)
 
 
 def run_timed_job(
@@ -282,7 +282,7 @@ class JobSubmission:
                         if self._on_rejected is not None:
                             self._on_rejected(event)
                 except Exception:
-                    job_logger.exception('记录任务并发拒绝日志失败')
+                    job_logger.exception('❌ 记录任务并发拒绝日志失败')
             # 标准JobSubmissionEvent仍由调度器捕获此异常后统一发送。
             raise
 
@@ -414,7 +414,7 @@ class TimedProcessPoolExecutor(ProcessPoolExecutor):
         try:
             future = self._pool.submit(run_timed_job, job, run_times, snapshot, self._logger.name)
         except BrokenProcessPool:
-            self._logger.warning('Process pool is broken; replacing pool with a fresh instance')
+            self._logger.warning('⚠️ 进程池异常，正在重建进程池')
             self._pool = self._pool.__class__(self._pool._max_workers, **self.pool_kwargs)
             future = self._pool.submit(run_timed_job, job, run_times, snapshot, self._logger.name)
         future.add_done_callback(callback)

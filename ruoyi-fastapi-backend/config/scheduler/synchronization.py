@@ -63,7 +63,7 @@ class SchedulerSynchronizer:
         except Exception as exc:
             if raise_errors:
                 raise
-            logger.exception('读取任务同步配置失败')
+            logger.exception('❌ 读取任务同步配置失败')
             return {'syncStatus': 'failed', 'jobs': [], 'syncError': str(exc)[:2000]}
         results = []
         for job_id in sorted(job_ids):
@@ -89,7 +89,7 @@ class SchedulerSynchronizer:
             try:
                 results.append(await self.sync_job(job_id, is_leader=is_leader))
             except Exception as exc:
-                logger.exception(f'同步任务 {job_id} 的数据库操作失败')
+                logger.exception(f'❌ 同步任务 {job_id} 的数据库操作失败')
                 results.append({'jobId': job_id, 'syncStatus': 'failed', 'syncError': str(exc)[:2000]})
         return self.result(results)
 
@@ -136,7 +136,7 @@ class SchedulerSynchronizer:
                 state.sync_error = str(exc)[:2000]
                 state.next_run_time = None
                 state.schedule_observed_time = None
-                logger.exception(f'应用任务 {job_id} 的调度配置失败')
+                logger.exception(f'❌ 应用任务 {job_id} 的调度配置失败')
             await session.commit()
             result = JobRuntimeDao.state_result(state)
             if state.sync_status == 'applied':

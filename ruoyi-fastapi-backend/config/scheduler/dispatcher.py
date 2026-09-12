@@ -98,7 +98,7 @@ class SchedulerDispatcher:
                         JobModel.model_validate(snapshot), execution_id=execution_id, dispatch_token=token
                     )
                 except Exception as exc:
-                    logger.exception(f'注册手动执行请求失败：{execution_id}')
+                    logger.exception(f'❌ 注册手动执行请求失败：{execution_id}')
                     async with self.resources.session() as session:
                         await JobRuntimeDao.fail_dispatch(session, execution_id, token, str(exc))
                         await session.commit()

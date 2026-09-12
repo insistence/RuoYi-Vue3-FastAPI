@@ -68,7 +68,7 @@ class SchedulerJobListener:
             )
             self.persist_log(job_log)
         except Exception:
-            logger.exception('调度任务事件监听器异常')
+            logger.exception('❌ 调度任务事件监听器异常')
 
     def persist_log(self, job_log: JobLogModel) -> None:
         """
@@ -81,6 +81,6 @@ class SchedulerJobListener:
         try:
             result = JobLogService.add_job_log_services(session, job_log)
             if not result.is_success:
-                logger.error(f'记录任务执行日志失败: {result.message}')
+                logger.error(f'❌ 记录任务执行日志失败：{result.message}')
         finally:
             session.close()

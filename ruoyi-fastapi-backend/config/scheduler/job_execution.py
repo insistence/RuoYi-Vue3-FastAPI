@@ -303,5 +303,5 @@ class ExecutionHeartbeat:
         try:
             return JobExecutionStore.renew(self.execution_id, self.token)
         except Exception:
-            logging.getLogger(__name__).exception('任务执行占用续租失败：%s', self.execution_id)
+            logging.getLogger(__name__).exception('❌ 任务执行占用续租失败：%s', self.execution_id)
             return True

@@ -196,7 +196,7 @@ class SchedulerManager:
             cls._sync_listener_task = asyncio.create_task(cls._listen_sync_channel(redis))
         cls._scheduler.resume()
 
-        logger.info('✅️ 系统初始定时任务加载成功')
+        logger.info('✅ 系统初始定时任务加载成功')
 
     @classmethod
     async def _activate_scheduler_as_leader(cls, redis: aioredis.Redis) -> None:
@@ -222,7 +222,7 @@ class SchedulerManager:
                     cls.get_application_lock_owner_token(),
                 )
             except Exception:
-                logger.exception('❌ Scheduler启动失败后释放Application leader租约失败')
+                logger.exception('❌ Scheduler 启动失败后释放 Application Leader 租约失败')
             raise
 
     @classmethod
@@ -311,13 +311,13 @@ class SchedulerManager:
                         lock_expire_seconds=LockConstant.LOCK_EXPIRE_SECONDS,
                     )
                 except Exception as exc:
-                    logger.error(f'❌ Application leader租约重新竞争失败：{exc}')
+                    logger.error(f'❌ Application Leader 租约重新竞争失败：{exc}')
                     continue
                 if acquired:
                     try:
                         await cls._activate_scheduler_as_leader(cls._redis)
                     except Exception:
-                        logger.exception('❌ 重新获得Application leader租约后恢复Scheduler失败')
+                        logger.exception('❌ 重新获得 Application Leader 租约后恢复 Scheduler 失败')
                         continue
                     return
         except asyncio.CancelledError:
@@ -366,7 +366,7 @@ class SchedulerManager:
             cls._lock_lost_task = None
         if getattr(cls._scheduler, 'running', False):
             cls._scheduler.shutdown()
-            logger.info('✅️ 关闭定时任务成功')
+            logger.info('⏹️ 关闭定时任务成功')
         # 必须在Redis连接池关闭前，原子释放当前进程持有的Application leader租约
         redis = cls._redis
         cls._redis = None
@@ -418,7 +418,7 @@ class SchedulerManager:
                 )
             except Exception:
                 # 数据库已提交，Leader 的周期同步负责重试。
-                logger.exception('调度同步通知失败，将由 Leader 周期同步重试')
+                logger.exception('❌ 调度同步通知失败，将由 Leader 周期同步重试')
         return SchedulerSynchronizer.result(
             [{'jobId': job_id, 'syncStatus': 'pending'} for job_id in sorted(job_ids or [])], default='pending'
         )
@@ -498,7 +498,7 @@ class SchedulerManager:
                 await pubsub.close()
                 raise
             except Exception as e:
-                logger.error(f'❌ Scheduler 同步监听异常: {e}，5秒后重试...')
+                logger.error(f'❌ Scheduler 同步监听异常：{e}，5 秒后重试...')
                 await pubsub.close()
                 await asyncio.sleep(5)
             finally:
@@ -526,7 +526,7 @@ class SchedulerManager:
                 if ids is None or (isinstance(ids, list) and all(type(item) is int for item in ids)):
                     await cls.request_scheduler_sync(set(ids) if ids is not None else None)
         except (TypeError, ValueError):
-            logger.warning('忽略无效的任务同步通知')
+            logger.warning('⚠️ 忽略无效的任务同步通知')
 
     @classmethod
     async def request_execution_dispatch(cls) -> None:
@@ -541,7 +541,7 @@ class SchedulerManager:
             elif cls._redis:
                 await cls._redis.publish(cls._sync_channel, json.dumps({'executions': True}))
         except Exception:
-            logger.exception('执行请求已保存，唤醒派发失败，将由周期派发重试')
+            logger.exception('❌ 执行请求已保存，唤醒派发失败，将由周期派发重试')
 
     @classmethod
     def _configure_scheduler(cls) -> None:

@@ -234,7 +234,7 @@ class SchedulerJobs:
         if not self.is_config_current(scheduler_job, job_info):
             if not self.register_job(job_info):
                 return
-            logger.info(f'♻️ 同步更新任务: {job_info.job_name}')
+            logger.info(f'🔄 同步更新任务：{job_info.job_name}')
         self.record_update_time(job_id, job_update_time)
 
     def has_update_time(self, job_id: str, job_update_time: datetime | None) -> bool:
