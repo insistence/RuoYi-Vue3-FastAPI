@@ -1091,8 +1091,8 @@ Promise.all([getList(), loadAccessOptions().catch(() => {})])
 .editor-map {
   margin-bottom: 20px;
   padding: 14px;
-  background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-color-primary-light-7);
+  background: color-mix(in srgb, var(--el-color-primary) 10%, var(--el-bg-color-overlay));
+  border: 1px solid color-mix(in srgb, var(--el-color-primary) 30%, var(--el-bg-color-overlay));
   border-radius: 9px;
 }
 
