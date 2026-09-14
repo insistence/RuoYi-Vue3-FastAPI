@@ -349,6 +349,7 @@ class TokenService:
             resources,
             resource,
             grant_type='authorization_code',
+            grant_id=code_payload.get('grantId'),
             signing_key=signing_key,
             kid=kid,
             now=current,
@@ -526,6 +527,7 @@ class TokenService:
             resources,
             resource,
             grant_type='refresh_token',
+            grant_id=grant.grant_id,
             signing_key=signing_key,
             kid=kid,
             now=current,
@@ -587,10 +589,10 @@ class TokenService:
         resource_value = parsed.get('resource')
         if not isinstance(resource_value, str) or not resource_value:
             cls._invalid_scope()
-        scopes, resources, _ = await cls._validate_client_scope_resource(
+        scopes, resources, resource = await cls._validate_client_scope_resource(
             db, client_row, requested, [resource_value], machine_only=True
         )
-        ttl = cls._access_ttl(client_row, None)
+        ttl = cls._access_ttl(client_row, resource)
         signer, signing_kid = await cls._resolve_signer(db, signing_key, kid, current)
         claims = {
             'iss': OidcConfig.oidc_issuer,
@@ -599,6 +601,7 @@ class TokenService:
             'client_id': client_row.client_id,
             'scope': ' '.join(scopes),
             'gty': 'client_credentials',
+            'client_policy_version': client_row.policy_version,
             'iat': int(current.timestamp()),
             'nbf': int(current.timestamp()),
             'exp': int((current + timedelta(seconds=ttl)).timestamp()),
@@ -735,12 +738,13 @@ class TokenService:
         resource: SysOAuthResource | None,
         *,
         grant_type: str,
+        grant_id: str | None = None,
         signing_key: RSAPrivateKey | None,
         kid: str | None,
         now: datetime,
     ) -> tuple[str, int]:
         """
-        构造并持久化 Access Token
+        构造并签署 Access Token
 
         :param db: 异步数据库会话
         :param client: OAuth Client ORM（SysOAuthClient）
@@ -751,6 +755,7 @@ class TokenService:
         :param resources: 已校验的 Resource audience 列表
         :param resource: 与 Resource audience 对应的 OAuth Resource ORM，或 None
         :param grant_type: 产生该 Access Token 的 OAuth Grant Type 字符串
+        :param grant_id: 持久授权的 Grant ID，一次性在线授权为 None
         :param signing_key: 用于签署 Access Token JWT 的 RSA 私钥，或 None
         :param kid: 签名 JWT header 使用的 Key ID，或 None
         :param now: 生成 JWT 的 项目当前时间
@@ -778,6 +783,8 @@ class TokenService:
                 'amr': session_amr,
                 'ver': int(subject.auth_version),
                 'gty': grant_type,
+                'grant_id': grant_id,
+                'client_policy_version': client.policy_version,
             }
         )
         signer, signing_kid = await cls._resolve_signer(db, signing_key, kid, now)

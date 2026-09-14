@@ -117,7 +117,7 @@ def _login_response(outcome: InteractionLoginOutcome) -> Response:
     response = ResponseUtil.success(data=outcome.result, headers=_NO_STORE)
     if outcome.cookie is not None:
         SsoSessionService.parse_cookie(outcome.cookie)
-        response.set_cookie(value=outcome.cookie, **SsoSessionService.cookie_parameters())
+        response.set_cookie(value=outcome.cookie, **SsoSessionService.cookie_parameters(max_age=outcome.cookie_max_age))
     return response
 
 

@@ -322,7 +322,9 @@ class AuthorizationService:
         coordinator: AfterCommitCoordinator,
     ) -> SysSsoSession | None:
         """
-        只读取认证中心 SSO Cookie，拒绝 Legacy Token 作为登录态
+        校验认证中心 SSO Cookie 并更新 Session 空闲期限
+
+        仅接受认证中心 SSO Cookie，拒绝 Legacy Token 作为登录态
 
         :param db: 异步数据库会话
         :param redis: Redis 客户端
@@ -334,7 +336,7 @@ class AuthorizationService:
         if cookie is None:
             return None
         try:
-            return await SsoSessionService.validate(
+            return await SsoSessionService.touch(
                 db,
                 redis,
                 cookie,

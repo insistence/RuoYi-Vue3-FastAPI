@@ -105,6 +105,7 @@ class InteractionService:
             'scopes',
             'grantId',
             'credentialProofHash',
+            'rememberMe',
         }
     )
     _PROMPT_VALUES = frozenset({'none', 'login', 'consent'})
@@ -464,6 +465,7 @@ return 1
             'subjectId',
             'authVersion',
             'credentialProofHash',
+            'rememberMe',
         }
         if not set(payload).issubset(allowed):
             raise ValueError('interaction payload contains unknown fields')
@@ -539,6 +541,8 @@ return 1
             not isinstance(payload['maxAge'], int) or isinstance(payload['maxAge'], bool) or payload['maxAge'] < 0
         ):
             raise ValueError('maxAge is invalid')
+        if 'rememberMe' in payload and not isinstance(payload['rememberMe'], bool):
+            raise ValueError('rememberMe is invalid')
         if not isinstance(payload['consentRequired'], bool):
             raise ValueError('consentRequired is invalid')
         for field, limit in (('authenticatedSid', 36), ('subjectId', 36)):
@@ -929,6 +933,7 @@ class InteractionLoginOutcome:
     result: InteractionResultModel | None = None
     cookie: str | None = None
     failure_message: str | None = None
+    cookie_max_age: int | None = None
 
 
 class InteractionLoginService:
@@ -1018,6 +1023,7 @@ class InteractionLoginService:
             'userId': result.user.user_id,
             'subjectId': subject.subject_id,
             'authVersion': subject.auth_version,
+            'rememberMe': result.remember_me,
         }
         if result.password_change_required:
             updates['credentialProofHash'] = InteractionLoginService.credential_proof(
@@ -1095,7 +1101,11 @@ class InteractionLoginService:
             reason=result.password_change_reason if target_status == 'password_change_required' else None,
         )
 
-        return InteractionLoginOutcome(result=model, cookie=cookie)
+        return InteractionLoginOutcome(
+            result=model,
+            cookie=cookie,
+            cookie_max_age=SsoSessionService.cookie_max_age(session) if session is not None else None,
+        )
 
     @staticmethod
     async def change_password(
@@ -1175,6 +1185,7 @@ class InteractionLoginService:
                 subject.auth_version,
                 'urn:ruoyi:acr:pwd',
                 ('pwd',),
+                remember_me=record.get('rememberMe', False),
                 pepper=OidcConfig.oidc_token_hash_pepper,
                 coordinator=coordinator,
             )
@@ -1247,4 +1258,6 @@ class InteractionLoginService:
             redirect_url=f'/auth/interaction/{interaction_id}/complete' if target_status == 'completed' else None,
         )
 
-        return InteractionLoginOutcome(result=model, cookie=cookie)
+        return InteractionLoginOutcome(
+            result=model, cookie=cookie, cookie_max_age=SsoSessionService.cookie_max_age(session)
+        )

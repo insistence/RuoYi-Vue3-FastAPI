@@ -190,6 +190,7 @@ async def test_login_and_complete_real_interaction_lifecycle(monkeypatch: pytest
         subject_id=subject.subject_id,
         auth_version=1,
         auth_time=None,
+        remember_me=False,
     )
 
     async def authenticate(*args: object, **kwargs: object) -> CredentialAuthenticationResult:

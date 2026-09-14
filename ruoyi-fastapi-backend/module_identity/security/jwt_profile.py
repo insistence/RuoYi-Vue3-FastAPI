@@ -210,6 +210,7 @@ def _validate_access_claims(payload: Mapping[str, Any]) -> None:
         if name not in payload:
             raise JwtProfileError(f'access token required claim is missing: {name}')
     _validate_string_claim(payload, 'jti')
+    _validate_access_authorization_context(payload)
     if payload['gty'] == 'client_credentials':
         if payload.get('sub') != f'client:{payload["client_id"]}' or any(
             name in payload for name in ('sid', 'ver', 'auth_time', 'acr', 'amr')
@@ -228,6 +229,36 @@ def _validate_access_claims(payload: Mapping[str, Any]) -> None:
         raise JwtProfileError('access token version is invalid')
     if 'auth_time' not in payload:
         raise JwtProfileError('access token auth_time is required')
+
+
+def _validate_access_authorization_context(payload: Mapping[str, Any]) -> None:
+    """
+    校验 Access Token 的可选授权来源 Claims
+
+    :param payload: Access Token Claims，存量令牌可不包含授权来源字段
+    :return: None
+    :raises JwtProfileError: Client 策略版本或 Grant 绑定不合法
+    """
+
+    if 'client_policy_version' not in payload:
+        if 'grant_id' in payload:
+            raise JwtProfileError('access token client policy version is required')
+        return
+    version = payload['client_policy_version']
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise JwtProfileError('access token client policy version is invalid')
+    if payload['gty'] == 'client_credentials':
+        if 'grant_id' in payload:
+            raise JwtProfileError('machine access token cannot carry a user grant')
+        return
+    if 'grant_id' not in payload:
+        raise JwtProfileError('access token grant binding is required')
+    grant_id = payload['grant_id']
+    if grant_id is None:
+        if payload['gty'] != 'authorization_code' or 'offline_access' in payload['scope'].split():
+            raise JwtProfileError('offline access token requires a persisted grant')
+    elif not isinstance(grant_id, str) or not grant_id.strip():
+        raise JwtProfileError('access token grant binding is invalid')
 
 
 def _validate_id_claims(payload: Mapping[str, Any]) -> None:

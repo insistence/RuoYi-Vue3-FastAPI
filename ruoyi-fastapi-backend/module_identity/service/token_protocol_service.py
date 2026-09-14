@@ -289,7 +289,7 @@ class IntrospectionService:
         issuer_client = await OAuthClientDao.get_by_client_id(db, issuer_client_id, active_only=True)
         if issuer_client is None or issuer_client.status != cls._ACTIVE_CLIENT_STATUS:
             return {'active': False}
-        if not await cls._client_allows_resources(db, issuer_client, resources):
+        if not await cls._client_allows_access(db, issuer_client, claims, resources):
             return {'active': False}
         grant_type = claims.get('gty')
         user_state = None
@@ -322,14 +322,14 @@ class IntrospectionService:
         cls, db: AsyncSession, claims: dict[str, Any], client: Any, resources: list[str], now: datetime
     ) -> Any:
         """
-        验证 Access Token 对应的用户、Session 和 Grant
+        验证 Access Token 对应的用户、Session 和授权来源
 
         :param db: 异步数据库会话
         :param claims: 令牌声明
         :param client: 签发该 Access Token 的 OAuth Client ORM
         :param resources: Access Token 声明中的 Resource Audience 列表
         :param now: 当前时间
-        :return: 当前身份对应的启用用户 ORM 对象，授权 Grant 不匹配时返回 None
+        :return: 当前身份对应的启用用户 ORM 对象，安全状态或授权来源不匹配时返回 None
         """
 
         subject_id = claims.get('sub')
@@ -373,6 +373,23 @@ class IntrospectionService:
         ):
             return None
         scopes = scope.split()
+        if 'grant_id' in claims:
+            grant_id = claims['grant_id']
+            if grant_id is None:
+                # 签名声明中的空 Grant ID 表示一次性在线授权
+                if (
+                    claims.get('gty') != 'authorization_code'
+                    or 'offline_access' in scopes
+                    or claims.get('client_policy_version') != client.policy_version
+                ):
+                    return None
+                return user
+            # 按 Grant ID 校验持久授权，避免重新同意后恢复旧令牌
+            grant = await OAuthGrantDao.get_by_grant_id(db, grant_id)
+            if not cls._grant_active(grant, subject.user_id, subject_id, client, scopes, resources, now):
+                return None
+            return user
+        # 存量令牌仍通过持久 Grant 校验授权状态
         grant = await cls._find_grant(db, subject.user_id, client, subject_id, scopes, resources, now)
 
         return user if grant is not None else None
@@ -407,19 +424,33 @@ class IntrospectionService:
         return None
 
     @classmethod
-    async def _client_allows_resources(cls, db: AsyncSession, client: Any, resources: list[str]) -> bool:
+    async def _client_allows_access(
+        cls, db: AsyncSession, client: Any, claims: dict[str, Any], resources: list[str]
+    ) -> bool:
         """
-        检查 Client 是否登记了指定 Resource
+        检查当前 Client 策略是否仍允许令牌中的 Scope 和 Resource
 
         :param db: 异步数据库会话
         :param client: 签发该 Access Token 的 OAuth Client ORM
+        :param claims: 已验证签名的 Access Token 声明
         :param resources: 待检查的 Resource Audience 列表
-        :return: OAuth Client 已登记全部 Resource 时为 True
+        :return: 策略版本及 Scope、Resource 绑定均有效时为 True
         """
 
-        rows = await OAuthClientDao.list_resources(db, client.client_pk)
-
-        return set(resources).issubset({row.audience for row in rows if row.status == '0'})
+        scope = claims.get('scope')
+        if not isinstance(scope, str) or not scope.strip():
+            return False
+        if 'client_policy_version' in claims:
+            version = claims['client_policy_version']
+            if isinstance(version, bool) or not isinstance(version, int) or version != client.policy_version:
+                return False
+        try:
+            await TokenService._validate_client_scope_resource(
+                db, client, scope.split(), resources, machine_only=claims.get('gty') == 'client_credentials'
+            )
+        except OAuthProtocolException:
+            return False
+        return True
 
     @classmethod
     async def _introspect_refresh(

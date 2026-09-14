@@ -966,6 +966,24 @@ class SsoSessionService:
 
         return len(changed_snapshots)
 
+    @classmethod
+    def cookie_max_age(cls, session: SysSsoSession, *, now: datetime | None = None) -> int | None:
+        """
+        根据 Session 的绝对过期时间计算保持登录 Cookie 的剩余寿命
+
+        :param session: 当前 SSO Session ORM
+        :param now: 可注入当前项目时间
+        :return: 保持登录 Cookie 的剩余秒数，普通登录返回 None
+        :raises SsoSessionError: Session 缺少绝对过期时间或已过期
+        """
+
+        if not session.remember_me:
+            return None
+        absolute = cls._utc_datetime(session.absolute_expires_at)
+        if absolute is None:
+            raise SsoSessionError('session absolute expiry is missing')
+        return cls._remaining_ttl(absolute, cls._utc_datetime(now) or TimezoneUtil.utc_now())
+
     @staticmethod
     def cookie_parameters(*, max_age: int | None = None) -> dict[str, str | bool | int]:
         """

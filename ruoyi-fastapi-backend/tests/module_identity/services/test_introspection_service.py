@@ -182,7 +182,7 @@ async def test_business_client_a_is_introspected_by_independent_resource_client_
         },
     )
     monkeypatch.setattr(IntrospectionService, '_resources_owned_by_caller', lambda *_args, **_kwargs: _async_true())
-    monkeypatch.setattr(IntrospectionService, '_client_allows_resources', lambda *_args, **_kwargs: _async_true())
+    monkeypatch.setattr(IntrospectionService, '_client_allows_access', lambda *_args, **_kwargs: _async_true())
     monkeypatch.setattr(IntrospectionService, '_access_user_state', lambda *_args, **_kwargs: _async_user())
     result = await IntrospectionService.introspect(object(), FakeRedis(), 'signed-access', _principal())
 
@@ -302,7 +302,7 @@ async def test_machine_access_token_uses_client_binding_without_user_state(
         },
     )
     monkeypatch.setattr(IntrospectionService, '_resources_owned_by_caller', lambda *_args, **_kwargs: _async_true())
-    monkeypatch.setattr(IntrospectionService, '_client_allows_resources', lambda *_args, **_kwargs: _async_true())
+    monkeypatch.setattr(IntrospectionService, '_client_allows_access', lambda *_args, **_kwargs: _async_true())
 
     result = await IntrospectionService.introspect(object(), FakeRedis(), 'machine-access', _principal())
 
