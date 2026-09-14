@@ -118,10 +118,10 @@ async def query_system_oauth_resource(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_RESOURCE_CREATE, preset=ApiRateLimitPreset.USER_COMMON_MUTATION)
 @Log(title='OAuth Resource管理', business_type=BusinessType.INSERT)
 async def add_system_oauth_resource(
+    request: Request,
     payload: ResourceCreateModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     return ResponseUtil.success(
         data=await OAuthResourceManagementService.create_resource(
@@ -140,10 +140,10 @@ async def add_system_oauth_resource(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_RESOURCE_UPDATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='OAuth Resource管理', business_type=BusinessType.UPDATE)
 async def edit_system_oauth_resource(
+    request: Request,
     payload: ResourceUpdateModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     return ResponseUtil.success(
         data=await OAuthResourceManagementService.update_resource(
@@ -162,10 +162,10 @@ async def edit_system_oauth_resource(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_RESOURCE_DISABLE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='OAuth Resource管理', business_type=BusinessType.DELETE)
 async def delete_system_oauth_resources(
+    request: Request,
     resource_ids: Annotated[str, Path(min_length=1, max_length=6500)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     actor = _actor(current_user)
     await OAuthResourceManagementService.disable_resources(
@@ -188,10 +188,10 @@ async def delete_system_oauth_resources(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_RESOURCE_STATUS, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='OAuth Resource管理', business_type=BusinessType.UPDATE)
 async def change_system_oauth_resource_status(
+    request: Request,
     payload: ResourceStatusModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OAuthResourceManagementService.change_resource_status(
         query_db, payload, _actor(current_user), after_commit=OidcRuntimeService.cors_snapshot_callback(request.app)
@@ -240,10 +240,10 @@ async def query_system_oauth_scope(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SCOPE_CREATE, preset=ApiRateLimitPreset.USER_COMMON_MUTATION)
 @Log(title='OAuth Scope管理', business_type=BusinessType.INSERT)
 async def add_system_oauth_scope(
+    request: Request,
     payload: ScopeModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     return ResponseUtil.success(
         data=await OAuthResourceManagementService.create_scope(
@@ -262,10 +262,10 @@ async def add_system_oauth_scope(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SCOPE_UPDATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='OAuth Scope管理', business_type=BusinessType.UPDATE)
 async def edit_system_oauth_scope(
+    request: Request,
     payload: ScopeModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     return ResponseUtil.success(
         data=await OAuthResourceManagementService.update_scope(
@@ -284,10 +284,10 @@ async def edit_system_oauth_scope(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SCOPE_DISABLE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='OAuth Scope管理', business_type=BusinessType.DELETE)
 async def delete_system_oauth_scopes(
+    request: Request,
     scope_codes: Annotated[str, Path(min_length=1, max_length=10000)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     actor = _actor(current_user)
     await OAuthResourceManagementService.disable_scopes(
@@ -310,10 +310,10 @@ async def delete_system_oauth_scopes(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SCOPE_STATUS, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='OAuth Scope管理', business_type=BusinessType.UPDATE)
 async def change_system_oauth_scope_status(
+    request: Request,
     payload: ScopeStatusModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OAuthResourceManagementService.change_scope_status(
         query_db, payload, _actor(current_user), after_commit=OidcRuntimeService.cors_snapshot_callback(request.app)

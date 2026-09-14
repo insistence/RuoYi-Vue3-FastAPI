@@ -74,7 +74,7 @@ async def test_key_write_failures_rollback_and_never_return_private_fields(monke
 
     monkeypatch.setattr(KeyService, 'activate_key', fail)
     with pytest.raises(ServiceException) as exc_info:
-        await activate_oidc_key.__wrapped__.__wrapped__('kid-1', db, _user(), _request())
+        await activate_oidc_key.__wrapped__.__wrapped__(_request(), 'kid-1', db, _user())
     assert 'private_key_ciphertext' not in exc_info.value.message
     assert db.rollbacks == 1 and db.commits == 0
 
@@ -82,12 +82,12 @@ async def test_key_write_failures_rollback_and_never_return_private_fields(monke
         return True
 
     monkeypatch.setattr(KeyService, 'retire_key', retire)
-    response = await retire_oidc_key.__wrapped__.__wrapped__('kid-1', db, _user(), _request())
+    response = await retire_oidc_key.__wrapped__.__wrapped__(_request(), 'kid-1', db, _user())
     assert b'true' in response.body
     assert db.commits == 1
 
     monkeypatch.setattr(KeyService, 'delete_key', retire)
-    response = await delete_oidc_key.__wrapped__.__wrapped__('kid-1', db, _user(), _request())
+    response = await delete_oidc_key.__wrapped__.__wrapped__(_request(), 'kid-1', db, _user())
     assert b'true' in response.body
 
 
@@ -101,7 +101,7 @@ async def test_key_activation_returns_clear_message_before_publication(monkeypat
 
     monkeypatch.setattr(KeyService, 'activate_key', unpublished)
     with pytest.raises(ServiceException) as exc_info:
-        await activate_oidc_key.__wrapped__.__wrapped__('kid-1', db, _user(), _request())
+        await activate_oidc_key.__wrapped__.__wrapped__(_request(), 'kid-1', db, _user())
     assert '签名公钥尚未到公开时间' in exc_info.value.message
     assert db.rollbacks == 1 and db.commits == 0
 

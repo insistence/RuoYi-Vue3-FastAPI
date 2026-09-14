@@ -100,11 +100,11 @@ async def list_oauth_sessions(
 )
 @Log(title='OAuth Session管理', business_type=BusinessType.DELETE)
 async def revoke_user_oauth_sessions(
+    request: Request,
     user_id: Annotated[int, Path(gt=0)],
     payload: SessionRevokeModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     count = await OAuthSessionManagementService.revoke_user(
         query_db, request.app.state.redis, user_id, _actor(current_user), payload.reason
@@ -139,11 +139,11 @@ async def get_oauth_session(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SESSION_REVOKE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='OAuth Session管理', business_type=BusinessType.DELETE)
 async def revoke_oauth_sessions(
+    request: Request,
     sids: Annotated[str, Path(min_length=1, max_length=6500)],
     payload: SessionRevokeModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     count = await OAuthSessionManagementService.revoke_sessions(
         query_db, request.app.state.redis, _split(sids, 'sids'), _actor(current_user), payload.reason
@@ -194,6 +194,7 @@ async def get_oauth_grant(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_GRANT_REVOKE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='OAuth Grant管理', business_type=BusinessType.DELETE)
 async def revoke_oauth_grants(
+    request: Request,
     grant_ids: Annotated[str, Path(min_length=1, max_length=6500)],
     payload: SessionRevokeModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],

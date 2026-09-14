@@ -112,7 +112,7 @@ async def test_client_create_commits_and_secret_is_only_in_rotation_response(mon
         return SimpleNamespace(model_dump=lambda **_: {'clientId': 'cli_test'})
 
     monkeypatch.setattr(OAuthClientManagementService, 'create_client', fake_create)
-    response = await add_system_oauth_client(payload, session, _user(), _request())
+    response = await add_system_oauth_client(_request(), payload, session, _user())
     assert isinstance(response, Response)
     assert session.commits == 0 and session.rollbacks == 0
 
@@ -129,7 +129,7 @@ async def test_client_create_commits_and_secret_is_only_in_rotation_response(mon
 
     monkeypatch.setattr(OAuthClientManagementService, 'rotate_secret', fake_rotate)
     rotation_response = await rotate_system_oauth_client_secret(
-        'cli_test', session, _user(), _request(), SecretRotationModel()
+        _request(), 'cli_test', session, _user(), SecretRotationModel()
     )
     assert b'cs1.one-time-secret' in rotation_response.body
     assert session.commits == 0
@@ -138,7 +138,7 @@ async def test_client_create_commits_and_secret_is_only_in_rotation_response(mon
         raise OAuthClientManagementError('OAuth Client request rejected')
 
     monkeypatch.setattr(OAuthClientManagementService, 'create_client', fake_fail)
-    failed = await add_system_oauth_client(payload, session, _user(), _request())
+    failed = await add_system_oauth_client(_request(), payload, session, _user())
     assert b'secret_hash' not in failed.body
     assert b'cs1.' not in failed.body
     assert session.rollbacks == 0
@@ -158,7 +158,7 @@ async def test_client_batch_failure_rolls_back_all_items(monkeypatch: pytest.Mon
         return SimpleNamespace()
 
     monkeypatch.setattr(OAuthClientManagementService, '_soft_disable', fake_disable)
-    response = await delete_system_oauth_clients('cli_good,cli_bad', session, _user(), _request())
+    response = await delete_system_oauth_clients(_request(), 'cli_good,cli_bad', session, _user())
     assert b'false' in response.body
     assert calls == ['cli_good', 'cli_bad']
     assert session.commits == 0
@@ -197,7 +197,7 @@ async def test_client_list_uses_real_total_and_actor_failure_is_mapped(
     assert b'"total":37' in response.body
     assert b'"rows":["row-1","row-2"]' in response.body
 
-    failed = await add_system_oauth_client(SimpleNamespace(), session, SimpleNamespace(user=None), _request())
+    failed = await add_system_oauth_client(_request(), SimpleNamespace(), session, SimpleNamespace(user=None))
     assert b'false' in failed.body
     assert b'actor' not in failed.body
     assert session.rollbacks == 0

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Form, Query, Response
+from fastapi import Form, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,7 +48,9 @@ async def list_oauth_audit(
 @ApiRateLimit(namespace=ApiNamespace.MONITOR_OAUTH_AUDIT_EXPORT, preset=ApiRateLimitPreset.USER_RESOURCE_EXPORT)
 @Log(title='OAuth 审计', business_type=BusinessType.EXPORT)
 async def export_oauth_audit(
-    query: Annotated[AuditPageQueryModel, Form()], query_db: Annotated[AsyncSession, DBSessionDependency()]
+    request: Request,
+    query: Annotated[AuditPageQueryModel, Form()],
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
 ) -> Response:
     data = await AuditService.export_admin(query_db, query)
 

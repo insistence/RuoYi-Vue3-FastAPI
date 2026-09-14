@@ -68,10 +68,10 @@ async def list_oidc_keys(
 @Log(title='OIDC 签名密钥', business_type=BusinessType.INSERT)
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_KEY_ROTATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 async def rotate_oidc_key(
+    request: Request,
     payload: OidcKeyRotateModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OidcKeyManagementService.rotate(query_db, payload, _actor(current_user))
 
@@ -88,10 +88,10 @@ async def rotate_oidc_key(
 @Log(title='OIDC 签名密钥', business_type=BusinessType.UPDATE)
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_KEY_ACTIVATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 async def activate_oidc_key(
+    request: Request,
     kid: Annotated[str, Path(min_length=1, max_length=100)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OidcKeyManagementService.activate(
         query_db, kid, _actor(current_user), getattr(request.app.state, 'redis', None)
@@ -111,10 +111,10 @@ async def activate_oidc_key(
 @Log(title='OIDC 签名密钥', business_type=BusinessType.UPDATE)
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_KEY_RETIRE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 async def retire_oidc_key(
+    request: Request,
     kid: Annotated[str, Path(min_length=1, max_length=100)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OidcKeyManagementService.retire(query_db, kid, _actor(current_user))
 
@@ -131,10 +131,10 @@ async def retire_oidc_key(
 @Log(title='OIDC 签名密钥', business_type=BusinessType.DELETE)
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_KEY_DELETE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 async def delete_oidc_key(
+    request: Request,
     kid: Annotated[str, Path(min_length=1, max_length=100)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OidcKeyManagementService.delete(query_db, kid, _actor(current_user))
 

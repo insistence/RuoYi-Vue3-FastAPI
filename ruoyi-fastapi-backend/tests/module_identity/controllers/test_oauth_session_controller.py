@@ -1,11 +1,16 @@
 """SSO Session 与 Grant 管理端路由和事务测试。"""
 
+import json
+from http import HTTPStatus
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import Request
+from fastapi import FastAPI, Request
 from fastapi.routing import APIRoute
+from httpx import ASGITransport, AsyncClient
 
+from common.annotation.rate_limit_annotation import ApiRateLimit
 from common.context import RequestContext
 from module_admin.service.log_service import LogQueueService
 from module_identity.controller.oauth_session_controller import (
@@ -109,7 +114,7 @@ async def test_batch_revoke_is_atomic_and_reason_does_not_leak(monkeypatch: pyte
     token = RequestContext.set_current_user(_user())
     try:
         response = await revoke_oauth_sessions.__wrapped__(
-            'good,bad', SimpleNamespace(reason='管理员操作'), db, _user(), _request()
+            _request(), 'good,bad', SimpleNamespace(reason='管理员操作'), db, _user()
         )
     finally:
         RequestContext.reset_current_user(token)
@@ -123,8 +128,8 @@ async def test_batch_revoke_is_atomic_and_reason_does_not_leak(monkeypatch: pyte
     monkeypatch.setattr(OAuthGrantDao, 'revoke', grant_revoke)
     token = RequestContext.set_current_user(_user())
     try:
-        response = await revoke_oauth_grants.__wrapped__.__wrapped__(
-            'grant-1', SimpleNamespace(reason='撤销'), db, _user()
+        response = await revoke_oauth_grants.__wrapped__(
+            _request(), 'grant-1', SimpleNamespace(reason='撤销'), db, _user()
         )
     finally:
         RequestContext.reset_current_user(token)
@@ -155,7 +160,7 @@ async def test_session_controller_injects_redis_without_passing_request_to_servi
     token = RequestContext.set_current_user(_user())
     try:
         response = await revoke_oauth_sessions.__wrapped__(
-            'sid-1', SimpleNamespace(reason='管理员操作'), db, _user(), request
+            request, 'sid-1', SimpleNamespace(reason='管理员操作'), db, _user()
         )
     finally:
         RequestContext.reset_current_user(token)
@@ -196,3 +201,53 @@ async def test_grant_detail_never_returns_refresh_hash(monkeypatch: pytest.Monke
     db.execute = execute
     response = await get_oauth_grant('g1', db)
     assert b'refresh_token_hash' not in response.body
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('grant_ids', ['grant-1', 'grant-1,grant-2'])
+async def test_grant_revoke_runs_rate_limit_and_operation_log(monkeypatch: pytest.MonkeyPatch, grant_ids: str) -> None:
+    """HTTP 撤销请求经过完整装饰器链并记录实际请求和撤销结果。"""
+
+    db = _Session()
+    user = _user()
+    path = f'/system/oauth/grant/{grant_ids}'
+    route = _route_map(oauth_grant_controller)[('/system/oauth/grant/{grant_ids}', 'DELETE')]
+    app = FastAPI()
+    app.state.redis = SimpleNamespace()
+    app.include_router(oauth_grant_controller)
+    for dependency in route.dependant.dependencies:
+        if dependency.name == 'query_db':
+            app.dependency_overrides[dependency.call] = lambda: db
+        elif dependency.name == 'current_user':
+            app.dependency_overrides[dependency.call] = lambda: user
+        else:
+            app.dependency_overrides[dependency.call] = lambda: None
+    rate_limit = AsyncMock(return_value={'allowed': True, 'remaining': 9, 'reset_at': 60})
+    revoke = AsyncMock(return_value=True)
+    audit = AsyncMock()
+    operation_log = AsyncMock()
+    monkeypatch.setattr(ApiRateLimit, '_acquire_rate_limit', rate_limit)
+    monkeypatch.setattr(OAuthGrantDao, 'revoke', revoke)
+    monkeypatch.setattr(AuditService, 'record', audit)
+    monkeypatch.setattr(LogQueueService, 'enqueue_operation_log', operation_log)
+    token = RequestContext.set_current_user(user)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url='http://testserver') as client:
+            response = await client.request('DELETE', path, json={'reason': '管理员撤销'})
+    finally:
+        RequestContext.reset_current_user(token)
+    expected_ids = grant_ids.split(',')
+    result = response.json()
+    assert response.status_code == HTTPStatus.OK
+    assert result['success'] is True
+    assert result['data']['count'] == len(expected_ids)
+    assert [call.args[1] for call in revoke.await_args_list] == expected_ids
+    assert audit.await_count == len(expected_ids)
+    assert db.commits == 1 and db.rollbacks == 0
+    rate_limit.assert_awaited_once()
+    operation_log.assert_awaited_once()
+    logged_request, logged_operation, _ = operation_log.call_args.args
+    assert isinstance(logged_request, Request)
+    assert logged_request is rate_limit.call_args.args[-1]
+    assert logged_operation.oper_url == path
+    assert json.loads(logged_operation.json_result)['data']['count'] == len(expected_ids)

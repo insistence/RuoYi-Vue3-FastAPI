@@ -116,10 +116,10 @@ async def query_system_oauth_client(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_CREATE, preset=ApiRateLimitPreset.USER_COMMON_MUTATION)
 @Log(title='OAuth Client管理', business_type=BusinessType.INSERT)
 async def add_system_oauth_client(
+    request: Request,
     payload: ClientCreateModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OAuthClientManagementService.create_client(
         query_db,
@@ -142,10 +142,10 @@ async def add_system_oauth_client(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_UPDATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='OAuth Client管理', business_type=BusinessType.UPDATE)
 async def edit_system_oauth_client(
+    request: Request,
     payload: ClientUpdateModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OAuthClientManagementService.update_client(
         query_db,
@@ -167,10 +167,10 @@ async def edit_system_oauth_client(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_DISABLE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
 @Log(title='OAuth Client管理', business_type=BusinessType.DELETE)
 async def delete_system_oauth_clients(
+    request: Request,
     client_ids: Annotated[str, Path(min_length=1, max_length=6500)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     actor = _actor(current_user)
     await OAuthClientManagementService.disable_clients(
@@ -193,10 +193,10 @@ async def delete_system_oauth_clients(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_STATUS, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='OAuth Client管理', business_type=BusinessType.UPDATE)
 async def change_system_oauth_client_status(
+    request: Request,
     payload: ClientStatusModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OAuthClientManagementService.change_client_status(
         query_db,
@@ -220,10 +220,10 @@ async def change_system_oauth_client_status(
 )
 @Log(title='OAuth Client密钥管理', business_type=BusinessType.UPDATE)
 async def rotate_system_oauth_client_secret(
+    request: Request,
     client_id: Annotated[str, Path(min_length=1, max_length=64)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
     payload: SecretRotationModel = Body(default_factory=SecretRotationModel),
 ) -> Response:
     result = await OAuthClientManagementService.rotate_secret(
@@ -251,11 +251,11 @@ async def rotate_system_oauth_client_secret(
 )
 @Log(title='OAuth Client密钥管理', business_type=BusinessType.DELETE)
 async def revoke_system_oauth_client_secret(
+    request: Request,
     client_id: Annotated[str, Path(min_length=1, max_length=64)],
     secret_id: Annotated[str, Path(min_length=1, max_length=64)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OAuthClientManagementService.revoke_secret(
         query_db,
@@ -278,11 +278,11 @@ async def revoke_system_oauth_client_secret(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_URI_ADD, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='OAuth Client管理', business_type=BusinessType.INSERT)
 async def add_system_oauth_client_uri(
+    request: Request,
     client_id: Annotated[str, Path(min_length=1, max_length=64)],
     payload: ClientUriModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OAuthClientManagementService.add_uri(
         query_db,
@@ -305,11 +305,11 @@ async def add_system_oauth_client_uri(
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_URI_REMOVE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
 @Log(title='OAuth Client管理', business_type=BusinessType.DELETE)
 async def delete_system_oauth_client_uri(
+    request: Request,
     client_id: Annotated[str, Path(min_length=1, max_length=64)],
     uri_id: Annotated[int, Path(gt=0)],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
-    request: Request,
 ) -> Response:
     result = await OAuthClientManagementService.remove_uri(
         query_db,
