@@ -77,7 +77,7 @@ def _record(tmp_path: Path, *, status: str = 'active', matching: bool = True) ->
         key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption())
     )
 
-    now = datetime.now()
+    now = datetime.now(tz=timezone.utc)
     return SimpleNamespace(
         kid='k1',
         alg='RS256',
@@ -362,27 +362,27 @@ async def test_management_key_bootstrap_is_available_when_oidc_disabled(data_ses
 
 
 @pytest.mark.asyncio
-async def test_pending_key_times_are_stored_and_returned_without_timezone(data_session: AsyncSession) -> None:
-    """轮换时间应按项目约定的本地无时区格式持久化并返回。"""
+async def test_pending_key_times_are_stored_and_returned_in_utc(data_session: AsyncSession) -> None:
+    """轮换时间持久化后仍保持 UTC，并按毫秒精度返回。"""
     config = _config()
     config.oidc_signing_key_encryption_key = 'e' * 32
     await KeyService.create_pending_key(
         data_session,
         kid='timezone-normalized',
-        publish_at=datetime(2026, 8, 27, 17, 37, 37),
-        activate_at=datetime(2026, 8, 27, 17, 38, 31),
+        publish_at=datetime(2026, 8, 27, 17, 37, 37, tzinfo=timezone.utc),
+        activate_at=datetime(2026, 8, 27, 17, 38, 31, tzinfo=timezone.utc),
         actor='admin',
-        now=datetime(2026, 8, 27, 17, 30),
+        now=datetime(2026, 8, 27, 17, 30, tzinfo=timezone.utc),
     )
     await data_session.commit()
     data_session.expunge_all()
 
     row = (await data_session.execute(select(SysOidcSigningKey))).scalar_one()
-    assert row.publish_at == datetime(2026, 8, 27, 17, 37, 37)
-    assert row.signing_start_at == datetime(2026, 8, 27, 17, 38, 31)
+    assert row.publish_at == datetime(2026, 8, 27, 17, 37, 37, tzinfo=timezone.utc)
+    assert row.signing_start_at == datetime(2026, 8, 27, 17, 38, 31, tzinfo=timezone.utc)
     view = OidcKeyManagementService.view(row)
-    assert view['publishAt'] == datetime(2026, 8, 27, 17, 37, 37)
-    assert view['signingStartAt'] == datetime(2026, 8, 27, 17, 38, 31)
+    assert view['publishAt'] == datetime(2026, 8, 27, 17, 37, 37, tzinfo=timezone.utc)
+    assert view['signingStartAt'] == datetime(2026, 8, 27, 17, 38, 31, tzinfo=timezone.utc)
 
 
 @pytest.mark.asyncio
@@ -449,7 +449,7 @@ async def test_real_session_rotation_persists_state_and_injected_time(
     data_session: AsyncSession, tmp_path: Path
 ) -> None:
     """真实 AsyncSession 轮换后恰有一个 active 且窗口和时间准确。"""
-    now = datetime(2026, 1, 1)
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     old = _record(tmp_path)
     new = _record(tmp_path)
     new.kid = 'new'
@@ -484,7 +484,7 @@ async def test_manual_activation_can_override_future_signing_schedule(
     data_session: AsyncSession, tmp_path: Path
 ) -> None:
     """管理员明确确认后可提前启用已公开的 pending 密钥。"""
-    now = datetime.now()
+    now = datetime.now(tz=timezone.utc)
     target = _record(tmp_path, status='pending')
     target.publish_at = now - timedelta(minutes=5)
     target.signing_start_at = now + timedelta(hours=1)
@@ -496,7 +496,7 @@ async def test_manual_activation_can_override_future_signing_schedule(
 
     row = (await data_session.execute(select(SysOidcSigningKey))).scalar_one()
     assert row.status == 'active'
-    assert row.signing_start_at == now
+    assert row.signing_start_at == now.replace(microsecond=now.microsecond // 1000 * 1000)
 
 
 @pytest.mark.asyncio
@@ -644,7 +644,7 @@ async def test_activation_retains_old_key_for_max_overlap_window(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """轮换将旧 active 置为 retiring，并覆盖 overlap 与 Token 安全窗口的较大值。"""
-    now = datetime.now()
+    now = datetime.now(tz=timezone.utc)
     target = _record(tmp_path, status='pending')
     target.publish_at = now - timedelta(seconds=1)
     old = SimpleNamespace(kid='old', status='active', remove_from_jwks_at=None)

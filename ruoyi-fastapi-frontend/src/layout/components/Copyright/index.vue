@@ -1,5 +1,8 @@
 <template>
-  <footer v-if="visible" class="copyright">
+  <footer
+    v-if="visible"
+    class="copyright"
+  >
     <span>{{ content }}</span>
   </footer>
 </template>

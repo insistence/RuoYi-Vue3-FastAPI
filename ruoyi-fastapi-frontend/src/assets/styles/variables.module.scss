@@ -1,12 +1,12 @@
 // base color
 $blue: #324157;
 $light-blue: #333c46;
-$red: #C03639;
-$pink: #E65D6E;
-$green: #30B08F;
-$tiffany: #4AB7BD;
-$yellow: #FEC171;
-$panGreen: #30B08F;
+$red: #c03639;
+$pink: #e65d6e;
+$green: #30b08f;
+$tiffany: #4ab7bd;
+$yellow: #fec171;
+$panGreen: #30b08f;
 
 // 默认主题变量
 $menuText: #bfcbd9;
@@ -18,24 +18,24 @@ $menuHover: #263445;
 $menuLightBg: #ffffff;
 $menuLightHover: #f0f1f5;
 $menuLightText: #303133;
-$menuLightActiveText: #409EFF;
+$menuLightActiveText: #409eff;
 
 // 基础变量
 $base-sidebar-width: 200px;
 $sideBarWidth: 200px;
 
 // 菜单暗色变量
-$base-menu-color: rgba(255,255,255,.65);
+$base-menu-color: rgba(255, 255, 255, 0.65);
 $base-menu-color-active: #ffffff;
 $base-menu-background: #1a1f2e;
 $base-sub-menu-background: #141824;
-$base-sub-menu-hover: rgba(255,255,255,.06);
+$base-sub-menu-hover: rgba(255, 255, 255, 0.06);
 
 // 组件变量
-$--color-primary: #409EFF;
-$--color-success: #67C23A;
-$--color-warning: #E6A23C;
-$--color-danger: #F56C6C;
+$--color-primary: #409eff;
+$--color-success: #67c23a;
+$--color-warning: #e6a23c;
+$--color-danger: #f56c6c;
 $--color-info: #909399;
 
 :export {
@@ -71,13 +71,12 @@ $--color-info: #909399;
   --sidebar-bg: #{$menuBg};
   --sidebar-text: #{$menuText};
   --menu-hover: #{$menuHover};
-  
+
   --navbar-bg: #ffffff;
   --navbar-text: #303133;
-  
+
   /* splitpanes default-theme 变量 */
   --splitpanes-default-bg: #ffffff;
-
 }
 
 // 暗黑模式变量
@@ -115,7 +114,11 @@ html.dark {
   --tags-close-hover: #64666a;
   /* 卡片模式激活页签 */
   --tags-card-active-bg: var(--el-bg-color-overlay);
-  --tags-card-active-bg: color-mix(in srgb, var(--el-color-primary) 22%, var(--el-bg-color-overlay) 78%);
+  --tags-card-active-bg: color-mix(
+    in srgb,
+    var(--el-color-primary) 22%,
+    var(--el-bg-color-overlay) 78%
+  );
   --tags-card-active-border: var(--tags-card-active-bg);
 
   /* splitpanes 组件暗黑模式变量 */
@@ -128,7 +131,7 @@ html.dark {
   --blockquote-bg: #1d1e1f;
   --blockquote-border: #303030;
   --blockquote-text: #d0d0d0;
-  
+
   /* Cron 时间表达式 模式变量 */
   --cron-border: #303030;
 
@@ -137,7 +140,8 @@ html.dark {
 
   /* 侧边栏菜单覆盖 */
   .sidebar-container {
-    .el-menu-item:not(.is-active), .menu-title {
+    .el-menu-item:not(.is-active),
+    .menu-title {
       color: var(--el-text-color-regular);
     }
     & .el-menu .theme-dark .nest-menu .el-sub-menu > .el-sub-menu__title,
@@ -161,9 +165,9 @@ html.dark {
       .el-sub-menu__title:hover {
         background-color: var(--menu-hover) !important;
       }
-      .el-menu .nest-menu .el-sub-menu>.el-sub-menu__title,
+      .el-menu .nest-menu .el-sub-menu > .el-sub-menu__title,
       .el-menu .el-sub-menu .el-menu-item,
-      .nest-menu .el-sub-menu>.el-sub-menu__title,
+      .nest-menu .el-sub-menu > .el-sub-menu__title,
       .el-sub-menu .el-menu-item {
         background-color: var(--el-bg-color) !important;
         &:hover {
@@ -180,13 +184,14 @@ html.dark {
     }
   }
 
-  .topbar-menu.el-menu--horizontal > .el-sub-menu .el-sub-menu__title{
+  .topbar-menu.el-menu--horizontal > .el-sub-menu .el-sub-menu__title {
     color: var(--el-text-color-regular) !important;
   }
 
   /* 顶部栏栏菜单覆盖 */
   .el-menu--horizontal {
-    .el-menu-item, .el-sub-menu {
+    .el-menu-item,
+    .el-sub-menu {
       &:not(.is-disabled) {
         &:hover,
         &:focus {
@@ -208,7 +213,11 @@ html.dark {
       --chrome-strip-bg: var(--el-bg-color);
       --chrome-strip-border: var(--el-border-color);
       --chrome-tab-active-bg: var(--el-bg-color-overlay);
-      --chrome-tab-active-bg: color-mix(in srgb, var(--el-color-primary) 22%, var(--el-bg-color-overlay) 78%);
+      --chrome-tab-active-bg: color-mix(
+        in srgb,
+        var(--el-color-primary) 22%,
+        var(--el-bg-color-overlay) 78%
+      );
       --chrome-tab-text: var(--el-text-color-secondary);
       --chrome-tab-text-active: var(--el-color-primary);
       .tags-view-wrapper .tags-view-item:not(.active) + .tags-view-item:not(.active) {
@@ -305,7 +314,8 @@ html.dark {
     --el-table-border-color: var(--el-border-color-light) !important;
     --el-table-row-hover-bg-color: var(--el-bg-color-overlay) !important;
 
-    .el-table__header-wrapper, .el-table__fixed-header-wrapper {
+    .el-table__header-wrapper,
+    .el-table__fixed-header-wrapper {
       th {
         background-color: var(--el-bg-color-overlay, #f8f8f9) !important;
         color: var(--el-text-color-regular, #515a6e);
@@ -324,9 +334,10 @@ html.dark {
       background-color: var(--el-bg-color-overlay);
     }
   }
-  
+
   /* 下拉菜单样式覆盖 */
-  .el-dropdown-menu__item:not(.is-disabled):focus, .el-dropdown-menu__item:not(.is-disabled):hover{
+  .el-dropdown-menu__item:not(.is-disabled):focus,
+  .el-dropdown-menu__item:not(.is-disabled):hover {
     background-color: var(--navbar-hover) !important;
   }
 
@@ -336,7 +347,7 @@ html.dark {
     border-left-color: var(--blockquote-border) !important;
     color: var(--blockquote-text) !important;
   }
-  
+
   /* 时间表达式标题样式覆盖 */
   .popup-result .title {
     background: var(--cron-border);
@@ -424,7 +435,12 @@ html.dark {
   --notice-body-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);
   --notice-content-color: var(--el-text-color-regular);
   --notice-drawer-body-bg: var(--el-bg-color);
-  --notice-divider-gradient: linear-gradient(to right, transparent, var(--el-border-color), transparent);
+  --notice-divider-gradient: linear-gradient(
+    to right,
+    transparent,
+    var(--el-border-color),
+    transparent
+  );
   --notice-divider-dot-color: var(--el-border-color-light, #434343);
   --notice-blockquote-bg: var(--el-bg-color);
   --notice-blockquote-border: var(--el-border-color);
@@ -439,10 +455,21 @@ html.dark {
 .notice-detail-drawer {
   .notice-content {
     color: var(--el-text-color-regular) !important;
-    * { color: var(--el-text-color-regular) !important; }
-    h1~h6, strong, b { color: var(--el-text-color-primary) !important; }
-    a, a * { color: #5ba7f5 !important; }
-    blockquote, blockquote * { color: var(--el-text-color-secondary) !important; }
+    * {
+      color: var(--el-text-color-regular) !important;
+    }
+    h1 ~ h6,
+    strong,
+    b {
+      color: var(--el-text-color-primary) !important;
+    }
+    a,
+    a * {
+      color: #5ba7f5 !important;
+    }
+    blockquote,
+    blockquote * {
+      color: var(--el-text-color-secondary) !important;
+    }
   }
 }
-

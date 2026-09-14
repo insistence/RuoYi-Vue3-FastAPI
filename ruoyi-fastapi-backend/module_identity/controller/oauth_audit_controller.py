@@ -34,6 +34,7 @@ async def list_oauth_audit(
     query: Annotated[AuditPageQueryModel, Query()], query_db: Annotated[AsyncSession, DBSessionDependency()]
 ) -> Response:
     rows, total = await AuditService.list_admin_page(query_db, query)
+
     return ResponseUtil.success(rows=rows, dict_content={'total': total})
 
 
@@ -50,6 +51,7 @@ async def export_oauth_audit(
     query: Annotated[AuditPageQueryModel, Form()], query_db: Annotated[AsyncSession, DBSessionDependency()]
 ) -> Response:
     data = await AuditService.export_admin(query_db, query)
+
     return ResponseUtil.streaming(
         data=bytes2file_response(data),
         media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

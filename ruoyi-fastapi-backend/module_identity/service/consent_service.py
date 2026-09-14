@@ -30,7 +30,7 @@ class ConsentResult:
 
     :ivar approved: 是否批准授权
     :ivar scopes: 服务端从原请求范围内收敛后的 Scope
-    :ivar grant: rememberConsent 创建或更新的 Grant
+    :ivar grant: 记住同意或离线访问创建的可撤销 Grant
     """
 
     approved: bool
@@ -59,6 +59,7 @@ class ConsentService:
         :return: 按原请求顺序返回的有效 Scope
         :raises OAuthProtocolException: 拒绝授权、扩大 Scope 或取消必需 Scope 时抛出
         """
+
         requested = tuple(context.scopes)
         submitted = tuple(dict.fromkeys(scopes))
         requested_set = set(requested)
@@ -92,7 +93,9 @@ class ConsentService:
 
         调用方负责提交事务；本方法不执行 commit。Grant 撤销与 Token 联动不在本接口内完成
         """
+
         selected_scopes = cls.validate_submission(context, True, scopes)
+
         return await OAuthGrantDao.merge_active_grant(
             db=db,
             user_id=user_id,
@@ -121,19 +124,20 @@ class ConsentService:
         :param context: 已完成协议校验的授权上下文
         :param approved: 用户是否批准授权
         :param scopes: 用户提交的 Scope 集合
-        :param remember_consent: 是否持久化本次授权
+        :param remember_consent: 是否在后续请求复用本次同意；offline_access 总是保存可撤销授权
         :param user_id: 持久化 Grant 所需的本地用户 ID
         :param subject_id: 持久化 Grant 所需的稳定 Subject
         :return: 授权处理结果
 
         调用方负责 commit；拒绝授权不会写入 Grant
         """
+
         selected_scopes = cls.validate_submission(context, approved, scopes)
         grant = None
         previous_grant = None
-        if remember_consent:
+        if remember_consent or 'offline_access' in selected_scopes:
             if user_id is None or subject_id is None:
-                raise ValueError('user_id and subject_id are required when remember_consent is true')
+                raise ValueError('user_id and subject_id are required for a persisted grant')
             current = await OAuthGrantDao.get_active_for_user_client(
                 db, user_id, context.client.client_pk, for_update=True
             )
@@ -146,6 +150,7 @@ class ConsentService:
                 granted_scopes=list(selected_scopes),
                 granted_resources=list(context.resources),
                 client_policy_version=context.client.policy_version,
+                remember_consent=remember_consent,
             )
         return ConsentResult(
             approved=True,
@@ -164,6 +169,7 @@ class ConsentService:
         :param result: 已提交的授权结果及更新前快照
         :return: None
         """
+
         if result.grant is None or result.persisted_grant is None:
             return
         try:
@@ -207,6 +213,7 @@ class ConsentService:
         :param grant: 当前用户和 Client 的候选 Grant
         :return: 仅当策略版本、范围和 Resource 均匹配时返回 True
         """
+
         return AuthorizationService.consent_is_satisfied(context, grant)
 
     @staticmethod
@@ -219,6 +226,7 @@ class ConsentService:
         :param description: 安全错误描述
         :return: 可安全重定向的协议异常
         """
+
         return OAuthProtocolException(
             error,
             description,
@@ -244,6 +252,7 @@ class InteractionConsentService:
         :param record: Interaction 内部记录
         :return: 当前策略下的授权上下文
         """
+
         client = await OAuthClientDao.get_by_pk(db, record['clientPk'], active_only=True)
         if client is None:
             raise OidcInteractionException(
@@ -269,6 +278,7 @@ class InteractionConsentService:
             for binding in bindings
             if binding.scope_pk == by_code[code].scope_pk and bool(binding.pre_authorized)
         )
+
         return AuthorizationContext(
             client=ClientSnapshot(
                 client_pk=client.client_pk,
@@ -321,6 +331,7 @@ class InteractionConsentService:
         :param csrf_token: Interaction CSRF 原文
         :return: 同源完成跳转动作
         """
+
         record = await InteractionFlowService.csrf_record(redis, interaction_id, csrf_token)
         InteractionFlowService.require_status(record, 'awaiting_consent')
         context = await InteractionConsentService.context_from_record(db, record)
@@ -375,6 +386,7 @@ class InteractionConsentService:
 
             :return: None
             """
+
             await ConsentService.compensate_persisted_grant(db, result)
 
         await InteractionFlowService.commit_transition(
@@ -386,6 +398,7 @@ class InteractionConsentService:
             {'scopes': list(result.scopes), 'grantId': grant_id},
             compensate=compensate if result.grant is not None else None,
         )
+
         return InteractionFlowService.interaction_result(interaction_id, 'redirect')
 
     @staticmethod
@@ -404,6 +417,7 @@ class InteractionConsentService:
         :param csrf_token: Interaction CSRF 原文
         :return: 同源完成跳转动作
         """
+
         record = await InteractionFlowService.csrf_record(redis, interaction_id, csrf_token)
         if record.get('status') not in {'awaiting_login', 'awaiting_consent', 'password_change_required'}:
             raise OidcInteractionException(
@@ -418,4 +432,5 @@ class InteractionConsentService:
             failure_code='access_denied',
         )
         await InteractionFlowService.commit_transition(db, AfterCommitCoordinator(), redis, interaction_id, 'denied')
+
         return InteractionFlowService.interaction_result(interaction_id, 'redirect')

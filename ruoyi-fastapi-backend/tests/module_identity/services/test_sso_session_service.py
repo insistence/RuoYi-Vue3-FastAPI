@@ -3,7 +3,7 @@
 import asyncio
 import builtins
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 import pytest
@@ -21,7 +21,7 @@ from module_identity.service.infrastructure_service import AfterCommitCoordinato
 from module_identity.service.session_service import SsoSessionError, SsoSessionService
 
 _PEPPER = 's' * 32
-_NOW = datetime(2026, 1, 1)
+_NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
 _COOKIE_SECRET_TEXT_LENGTH = 43
 _SUBJECT_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 

@@ -19,7 +19,6 @@ import jwt
 
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
-from module_identity.dao._helpers import local_datetime
 from module_identity.dao.identity_subject_dao import IdentitySubjectDao
 from module_identity.dao.identity_user_dao import IdentityUserDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
@@ -36,7 +35,7 @@ from module_identity.security.backchannel_transport import (
 from module_identity.security.jwt_profile import (
     BACKCHANNEL_LOGOUT_EVENT,
     JwtProfileError,
-    decode_id_token,
+    decode_id_token_hint,
     encode_logout_token,
 )
 from module_identity.security.uri_validator import (
@@ -47,6 +46,7 @@ from module_identity.security.uri_validator import (
 from module_identity.service.audit_service import AuditService
 from module_identity.service.infrastructure_service import AfterCommitCoordinator
 from module_identity.service.key_service import KeyService, KeyServiceError
+from utils.time_util import TimezoneUtil
 
 if TYPE_CHECKING:
     from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
@@ -103,14 +103,15 @@ class SsoSessionService:
     """
 
     @staticmethod
-    def _local_datetime(value: datetime | None) -> datetime | None:
+    def _utc_datetime(value: datetime | None) -> datetime | None:
         """
         将输入时间统一转换为项目时间
 
         :param value: 可选的数据库时间
-        :return: 本地无时区时间或 None
+        :return: 带时区的 UTC 时间或 None
         """
-        return local_datetime(value)
+
+        return TimezoneUtil.to_utc(value) if value is not None else None
 
     @staticmethod
     def _pepper_bytes(pepper: str | bytes) -> bytes:
@@ -121,6 +122,7 @@ class SsoSessionService:
         :return: Pepper 字节
         :raises SsoSessionError: Pepper 类型或长度不合法
         """
+
         if not isinstance(pepper, (str, bytes)):
             raise SsoSessionError('session pepper must be str or bytes')
         raw = pepper.encode() if isinstance(pepper, str) else pepper
@@ -137,6 +139,7 @@ class SsoSessionService:
         :return: 通过校验的协调器
         :raises SsoSessionError: 未提供有效协调器
         """
+
         if not isinstance(coordinator, AfterCommitCoordinator):
             raise SsoSessionError('after_commit coordinator is required')
         return coordinator
@@ -149,6 +152,7 @@ class SsoSessionService:
         :return: None
         :raises SsoSessionError: TTL 不是正整数
         """
+
         for field_name in _SESSION_TTL_FIELDS:
             value = getattr(OidcConfig, field_name, None)
             if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -164,6 +168,7 @@ class SsoSessionService:
         :return: 十六进制 HMAC 摘要
         :raises SsoSessionError: secret 不是 str/bytes，或 pepper 不是 str/bytes、编码后少于 32 字节
         """
+
         raw_secret = secret.encode() if isinstance(secret, str) else secret
         if not isinstance(raw_secret, bytes):
             raise SsoSessionError('session secret must be bytes or str')
@@ -179,6 +184,7 @@ class SsoSessionService:
         :return: User-Agent 摘要或 None
         :raises SsoSessionError: User-Agent 不是字符串、超过 500 个字符，或 pepper 编码后少于 32 字节
         """
+
         if user_agent is None:
             return None
         if not isinstance(user_agent, str) or len(user_agent) > _MAX_USER_AGENT_LENGTH:
@@ -194,6 +200,7 @@ class SsoSessionService:
         :return: ``(sid, secret)``
         :raises SsoSessionError: Cookie 格式、UUID 或 Secret 长度不合法
         """
+
         if not isinstance(cookie, str):
             raise SsoSessionError('session cookie must be text')
         parts = cookie.split('.')
@@ -222,6 +229,7 @@ class SsoSessionService:
         :param value: 待检查的 UUID 字符串
         :return: 是否为规范的 RFC 4122 UUID 字符串
         """
+
         try:
             parsed = UUID(value)
         except (TypeError, ValueError, AttributeError):
@@ -238,6 +246,7 @@ class SsoSessionService:
         :return: 至少一秒的 Redis TTL
         :raises SsoSessionError: Session 已过期
         """
+
         seconds = int((absolute_expires_at - now).total_seconds())
         if seconds < _SESSION_CACHE_TTL_FLOOR:
             raise SsoSessionError('session is expired')
@@ -251,15 +260,16 @@ class SsoSessionService:
         :param row: 数据库 Session ORM 行
         :return: 不再依赖 ORM 生命周期的 Session 快照
         """
+
         return SsoSessionSnapshot(
             sid=row.sid,
             user_id=row.user_id,
             subject_id=row.subject_id,
             auth_version=row.auth_version,
-            auth_time=cls._local_datetime(row.auth_time),
-            last_seen_at=cls._local_datetime(row.last_seen_at),
-            idle_expires_at=cls._local_datetime(row.idle_expires_at),
-            absolute_expires_at=cls._local_datetime(row.absolute_expires_at),
+            auth_time=cls._utc_datetime(row.auth_time),
+            last_seen_at=cls._utc_datetime(row.last_seen_at),
+            idle_expires_at=cls._utc_datetime(row.idle_expires_at),
+            absolute_expires_at=cls._utc_datetime(row.absolute_expires_at),
             acr=row.acr,
             amr=tuple(row.amr or ()),
             remember_me=bool(row.remember_me),
@@ -275,20 +285,21 @@ class SsoSessionService:
         :param row: 数据库 Session
         :return: 可 JSON 序列化的缓存摘要
         """
+
         return {
             'sid': row.sid,
             'user_id': row.user_id,
             'subject_id': row.subject_id,
             'auth_version': row.auth_version,
-            'auth_time': cls._local_datetime(row.auth_time).isoformat() if cls._local_datetime(row.auth_time) else None,
-            'last_seen_at': cls._local_datetime(row.last_seen_at).isoformat()
-            if cls._local_datetime(row.last_seen_at)
+            'auth_time': cls._utc_datetime(row.auth_time).isoformat() if cls._utc_datetime(row.auth_time) else None,
+            'last_seen_at': cls._utc_datetime(row.last_seen_at).isoformat()
+            if cls._utc_datetime(row.last_seen_at)
             else None,
-            'idle_expires_at': cls._local_datetime(row.idle_expires_at).isoformat()
-            if cls._local_datetime(row.idle_expires_at)
+            'idle_expires_at': cls._utc_datetime(row.idle_expires_at).isoformat()
+            if cls._utc_datetime(row.idle_expires_at)
             else None,
-            'absolute_expires_at': cls._local_datetime(row.absolute_expires_at).isoformat()
-            if cls._local_datetime(row.absolute_expires_at)
+            'absolute_expires_at': cls._utc_datetime(row.absolute_expires_at).isoformat()
+            if cls._utc_datetime(row.absolute_expires_at)
             else None,
             'acr': row.acr,
             'amr': row.amr,
@@ -306,7 +317,8 @@ class SsoSessionService:
         :param now: 当前时间
         :return: None
         """
-        ttl = cls._remaining_ttl(cls._local_datetime(row.absolute_expires_at) or now, now)
+
+        ttl = cls._remaining_ttl(cls._utc_datetime(row.absolute_expires_at) or now, now)
         payload = json.dumps(cls._cache_payload(row), ensure_ascii=False, separators=(',', ':'))
         await redis.set(OidcRedisKey.sso_session(row.sid), payload, ex=ttl)
         await redis.set(OidcRedisKey.sso_cookie(row.session_secret_hash), row.sid, ex=ttl)
@@ -326,6 +338,7 @@ class SsoSessionService:
         :param extra_secret_hash: 需要额外清理的 Cookie Secret 摘要
         :return: None
         """
+
         hashes = {row.session_secret_hash}
         if extra_secret_hash:
             hashes.add(extra_secret_hash)
@@ -344,6 +357,7 @@ class SsoSessionService:
         :param reason: 撤销原因
         :return: None
         """
+
         await redis.publish(
             OidcRedisKey.event_session_revoked(),
             json.dumps({'event': 'session_revoked', 'sid': sid, 'reason': reason}, separators=(',', ':')),
@@ -367,6 +381,7 @@ class SsoSessionService:
         :param reason: 撤销原因
         :return: None
         """
+
         try:
             await cls._clear_cache(redis, row, presented_digest)
         except Exception:
@@ -414,7 +429,8 @@ class SsoSessionService:
         :return: ``(Cookie 原文, 数据库 Session)``
         :raises SsoSessionError: Session 状态或事务操作不符合要求
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         coordinator = cls._require_coordinator(coordinator)
         cls._validate_config_ttls()
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
@@ -478,13 +494,39 @@ class SsoSessionService:
 
             :return: None
             """
+
             try:
                 await cls._cache_row(redis, snapshot, current)
             except Exception:
                 pass
 
         await coordinator.register(cache_after_commit)
+
         return f'{_COOKIE_PREFIX}.{sid}.{secret}', row
+
+    @classmethod
+    async def validate_logout_cookie(cls, db: AsyncSession, cookie: str) -> SysSsoSession:
+        """
+        校验退出确认时的浏览器会话归属
+
+        允许用户显式退出自然过期的会话，并继续撤销其关联离线授权。
+
+        :param db: orm对象
+        :param cookie: 浏览器提交的SSO Cookie
+        :return: 已校验归属的SSO会话
+        :raises SsoSessionError: 会话不存在、已撤销或凭据不匹配
+        """
+
+        sid, secret = cls.parse_cookie(cookie)
+        digest = cls._secret_digest(secret, OidcConfig.oidc_token_hash_pepper)
+        row = await SsoSessionDao.get_by_sid(db, sid, for_update=True)
+        if (
+            row is None
+            or row.status not in {'active', 'expired'}
+            or not hmac.compare_digest(row.session_secret_hash, digest)
+        ):
+            raise SsoSessionError('session cookie is invalid')
+        return row
 
     @classmethod
     async def validate(  # noqa: PLR0915
@@ -509,7 +551,8 @@ class SsoSessionService:
         :return: 已验证的数据库 Session
         :raises SsoSessionError: Cookie 或任何安全状态校验失败
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         coordinator = cls._require_coordinator(coordinator)
         sid, secret = cls.parse_cookie(cookie)
         digest = cls._secret_digest(secret, pepper)
@@ -526,6 +569,7 @@ class SsoSessionService:
 
                 :return: None
                 """
+
                 try:
                     await redis.delete(OidcRedisKey.sso_cookie(digest))
                 except Exception:
@@ -541,6 +585,7 @@ class SsoSessionService:
 
                 :return: None
                 """
+
                 try:
                     await redis.delete(OidcRedisKey.sso_cookie(digest))
                 except Exception:
@@ -548,8 +593,8 @@ class SsoSessionService:
 
             await coordinator.register(clear_presented_cookie)
             raise SsoSessionError('session secret is invalid')
-        absolute = cls._local_datetime(row.absolute_expires_at)
-        idle = cls._local_datetime(row.idle_expires_at)
+        absolute = cls._utc_datetime(row.absolute_expires_at)
+        idle = cls._utc_datetime(row.idle_expires_at)
         if (
             row.status != _SESSION_STATUS_ACTIVE
             or absolute is None
@@ -568,6 +613,7 @@ class SsoSessionService:
 
                     :return: None
                     """
+
                     await cls._best_effort_cleanup(redis, snapshot, presented_digest=digest)
 
                 await coordinator.register(clear_expired)
@@ -595,12 +641,14 @@ class SsoSessionService:
 
             :return: None
             """
+
             try:
                 await cls._cache_row(redis, snapshot, current)
             except Exception:
                 pass
 
         await coordinator.register(refresh_cache)
+
         return row
 
     @classmethod
@@ -626,6 +674,7 @@ class SsoSessionService:
         :param coordinator: 事务提交协调器
         :return: None
         """
+
         changed = False
         if row.status == _SESSION_STATUS_ACTIVE:
             changed = await SsoSessionDao.revoke(db, row.sid, reason=reason, now=now)
@@ -648,6 +697,7 @@ class SsoSessionService:
 
             :return: None
             """
+
             await cls._best_effort_cleanup(
                 redis,
                 snapshot,
@@ -680,11 +730,12 @@ class SsoSessionService:
         :return: 更新后的数据库 Session
         :raises SsoSessionError: Session 状态或事务操作不符合要求
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         coordinator = cls._require_coordinator(coordinator)
         cls._validate_config_ttls()
         row = await cls.validate(db, redis, cookie, pepper=pepper, now=current, coordinator=coordinator)
-        absolute = cls._local_datetime(row.absolute_expires_at)
+        absolute = cls._utc_datetime(row.absolute_expires_at)
         if absolute is None:
             raise SsoSessionError('session absolute expiry is missing')
         idle = min(current + timedelta(seconds=OidcConfig.oidc_sso_idle_seconds), absolute)
@@ -701,12 +752,14 @@ class SsoSessionService:
 
             :return: None
             """
+
             try:
                 await cls._cache_row(redis, snapshot, current)
             except Exception:
                 pass
 
         await coordinator.register(refresh_cache)
+
         return refreshed
 
     @classmethod
@@ -732,7 +785,8 @@ class SsoSessionService:
         :return: 新 Cookie 原文
         :raises SsoSessionError: Session 状态或事务操作不符合要求
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         coordinator = cls._require_coordinator(coordinator)
         row = await cls.validate(db, redis, cookie, pepper=pepper, now=current, coordinator=coordinator)
         sid, old_secret = cls.parse_cookie(cookie)
@@ -750,6 +804,7 @@ class SsoSessionService:
 
             :return: None
             """
+
             try:
                 await redis.delete(OidcRedisKey.sso_cookie(old_digest))
                 await cls._cache_row(redis, snapshot, current)
@@ -757,6 +812,7 @@ class SsoSessionService:
                 pass
 
         await coordinator.register(refresh_rotated_cache)
+
         return f'{_COOKIE_PREFIX}.{sid}.{new_secret}'
 
     @classmethod
@@ -781,7 +837,8 @@ class SsoSessionService:
         :param coordinator: 必须由调用方在数据库提交成功后执行清理闭包
         :return: 数据库状态实际改变时返回 True
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         coordinator = cls._require_coordinator(coordinator)
         row = await SsoSessionDao.get_by_sid(db, sid, for_update=True)
         if row is None:
@@ -806,9 +863,11 @@ class SsoSessionService:
 
             :return: None
             """
+
             await cls._best_effort_cleanup(redis, snapshot, reason=reason if changed else None)
 
         await coordinator.register(cleanup)
+
         return changed
 
     @classmethod
@@ -833,7 +892,8 @@ class SsoSessionService:
         :param coordinator: 必须由调用方在数据库提交成功后执行清理闭包
         :return: 数据库更新的 Session 数量
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         coordinator = cls._require_coordinator(coordinator)
         rows = list(await SsoSessionDao.list_for_user(db, user_id, active_only=True, for_update=True))
         changed_snapshots: list[SsoSessionSnapshot] = []
@@ -857,10 +917,12 @@ class SsoSessionService:
 
             :return: None
             """
+
             for snapshot in changed_snapshots:
                 await cls._best_effort_cleanup(redis, snapshot, reason=reason)
 
         await coordinator.register(cleanup)
+
         return len(changed_snapshots)
 
     @classmethod
@@ -881,7 +943,8 @@ class SsoSessionService:
         :param coordinator: 必须由调用方在数据库提交成功后执行缓存清理
         :return: 数据库更新数量
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         coordinator = cls._require_coordinator(coordinator)
         rows = list(await SsoSessionDao.list_due(db, now=current, for_update=True))
         changed_snapshots: list[SsoSessionSnapshot] = []
@@ -895,10 +958,12 @@ class SsoSessionService:
 
             :return: None
             """
+
             for snapshot in changed_snapshots:
                 await cls._best_effort_cleanup(redis, snapshot)
 
         await coordinator.register(cleanup)
+
         return len(changed_snapshots)
 
     @staticmethod
@@ -910,6 +975,7 @@ class SsoSessionService:
         :return: 由 Controller 传给 HTTP Response 的 Cookie 参数
         :raises SsoSessionError: Logout Session 校验失败
         """
+
         if not OidcConfig.oidc_sso_cookie_name.startswith('__Host-') or not OidcConfig.oidc_sso_cookie_secure:
             raise SsoSessionError('__Host- SSO cookie requires Secure')
         if OidcConfig.oidc_sso_cookie_domain or OidcConfig.oidc_sso_cookie_samesite != 'lax':
@@ -995,6 +1061,7 @@ class LogoutService:
         cookie: str | None = None,
         post_logout_redirect_uri: str | None = None,
         state: str | None = None,
+        confirmed: bool = False,
         now: datetime | None = None,
         signing_key: RSAPrivateKey | None = None,
         signing_kid: str | None = None,
@@ -1017,9 +1084,11 @@ class LogoutService:
         :param notifier: 提交后的 Back-Channel 通知回调
         :param audit_writer: Back-Channel 失败审计回调
         :param retry_queue: Back-Channel 重试队列回调
+        :param confirmed: 是否已通过当前浏览器的一次性退出确认
         :return: 不包含敏感材料的退出结果
         :raises Exception: 核心流程或数据库提交失败时原样抛出异常
         """
+
         coordinator = AfterCommitCoordinator()
         try:
             result = await cls._logout(
@@ -1029,6 +1098,7 @@ class LogoutService:
                 cookie=cookie,
                 post_logout_redirect_uri=post_logout_redirect_uri,
                 state=state,
+                confirmed=confirmed,
                 now=now,
                 coordinator=coordinator,
                 signing_key=signing_key,
@@ -1047,7 +1117,7 @@ class LogoutService:
             raise
 
     @classmethod
-    async def _logout(  # noqa: PLR0912, PLR0913
+    async def _logout(  # noqa: PLR0912, PLR0913, PLR0915
         cls,
         db: AsyncSession,
         redis: Redis,
@@ -1056,6 +1126,7 @@ class LogoutService:
         cookie: str | None = None,
         post_logout_redirect_uri: str | None = None,
         state: str | None = None,
+        confirmed: bool = False,
         now: datetime | None = None,
         coordinator: AfterCommitCoordinator,
         signing_key: RSAPrivateKey | None = None,
@@ -1080,14 +1151,17 @@ class LogoutService:
         :param notifier: 提交后的 Back-Channel 通知回调
         :param audit_writer: 审计写入回调
         :param retry_queue: 重试队列回调
+        :param confirmed: 是否已通过当前浏览器的一次性退出确认
         :return: 不包含敏感材料的退出结果
         :raises LogoutServiceError: 请求违反安全边界
         """
 
         if not OidcConfig.oidc_enabled:
             raise LogoutServiceError('OIDC is disabled')
+        if not confirmed:
+            raise LogoutServiceError('Browser confirmation is required')
         commit_coordinator = coordinator
-        current = cls._local_datetime(now) or datetime.now()
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         if state is not None and (not isinstance(state, str) or len(state) > _MAX_STATE_LENGTH):
             state = None
         session = None
@@ -1103,7 +1177,9 @@ class LogoutService:
             if hint_valid:
                 sid = claims['sid']
                 session = await SsoSessionDao.get_by_sid(db, sid, for_update=True)
-            if hint_valid and (session is None or session.status != 'active' or session.subject_id != claims['sub']):
+            if hint_valid and (
+                session is None or session.status not in {'active', 'expired'} or session.subject_id != claims['sub']
+            ):
                 session = None
                 hint_valid = False
             if hint_valid and post_logout_redirect_uri and cls._safe_post_logout_uri(post_logout_redirect_uri):
@@ -1116,18 +1192,18 @@ class LogoutService:
                     state = None
             elif hint_valid and post_logout_redirect_uri:
                 state = None
-        if session is None and cookie:
+        browser_session = None
+        if cookie:
             try:
-                session = await SsoSessionService.validate(
-                    db,
-                    redis,
-                    cookie,
-                    pepper=OidcConfig.oidc_token_hash_pepper,
-                    now=current,
-                    coordinator=commit_coordinator,
-                )
+                browser_session = await SsoSessionService.validate_logout_cookie(db, cookie)
             except (SsoSessionError, TypeError, ValueError):
-                session = None
+                browser_session = None
+        if browser_session is not None:
+            if session is None or session.sid != browser_session.sid:
+                # 其他账号的退出提示不得用于终止该账号会话
+                validated_redirect = None
+                client = None
+            session = browser_session
         if session is None:
             return LogoutResult(None, None, False)
 
@@ -1135,7 +1211,7 @@ class LogoutService:
         client_ids = {row.client_pk for row in refresh_rows}
         if client is not None:
             client_ids.add(client.client_pk)
-        auth_time = cls._local_datetime(getattr(session, 'auth_time', None))
+        auth_time = cls._utc_datetime(getattr(session, 'auth_time', None))
         if auth_time is not None:
             participant_ids = await SsoSessionDao.client_ids_for_participation(db, session.user_id, auth_time)
             for participant_id in participant_ids:
@@ -1156,6 +1232,7 @@ class LogoutService:
             audit_writer=audit_writer,
             retry_queue=retry_queue,
         )
+
         return LogoutResult(validated_redirect, state if validated_redirect else None, True)
 
     @classmethod
@@ -1169,6 +1246,7 @@ class LogoutService:
         :return: 包含协议字段的字典
         :raises LogoutServiceError: Logout 参数或回调地址不符合要求
         """
+
         if not isinstance(token, str) or not token or token.count('.') != _JWT_DOT_COUNT:
             raise LogoutServiceError('invalid id_token_hint')
         try:
@@ -1195,13 +1273,14 @@ class LogoutService:
             raise LogoutServiceError('unknown signing key')
         public_jwk = KeyService._normalise_public_jwk(key_record)
         verification_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(public_jwk, separators=(',', ':')))
-        claims = decode_id_token(
+        claims = decode_id_token_hint(
             token,
             verification_key=verification_key,
             issuer=OidcConfig.oidc_issuer.rstrip('/'),
             audience=client.client_id,
             clock_skew=OidcConfig.oidc_allowed_clock_skew_seconds,
         )
+
         return claims, client
 
     @classmethod
@@ -1213,6 +1292,7 @@ class LogoutService:
         :param sid: Session 标识
         :return: 规范化后的列表
         """
+
         return list(await OAuthTokenDao.list_for_sid_for_update(db, sid))
 
     @classmethod
@@ -1273,6 +1353,7 @@ class LogoutService:
         :param retry_queue: 重试队列回调
         :return: None
         """
+
         effective_retry_queue = retry_queue or cls._redis_retry_queue(redis)
         effective_audit_writer = audit_writer or cls._audit_writer(db)
         callbacks: list[Callable[[], Awaitable[None]]] = []
@@ -1313,6 +1394,7 @@ class LogoutService:
                         :param client_value: 客户端值
                         :return: None
                         """
+
                         await cls._write_backchannel_audit(
                             effective_audit_writer,
                             OidcAuditEvent.BACKCHANNEL_LOGOUT_FAILED,
@@ -1342,6 +1424,7 @@ class LogoutService:
                         :param include_sid_value: 是否包含 Session 标识
                         :return: None
                         """
+
                         await cls._write_backchannel_audit(
                             effective_audit_writer,
                             OidcAuditEvent.BACKCHANNEL_LOGOUT_FAILED,
@@ -1392,6 +1475,7 @@ class LogoutService:
                     :param callback: 提交后回调
                     :return: None
                     """
+
                     async with semaphore:
                         await callback()
 
@@ -1421,8 +1505,9 @@ class LogoutService:
         :raises PermanentBackchannelError: Back-Channel 通知达到永久失败条件
         :raises ValueError: 输入值不符合约束
         """
+
         limit = max(1, min(int(max_items), _BACKCHANNEL_MAX_QUEUE_ITEMS))
-        current = cls._local_datetime(now) or datetime.now()
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         processed = 0
         for _ in range(limit):
             raw = await redis.lpop(OidcRedisKey.backchannel_retry_queue())
@@ -1529,6 +1614,7 @@ class LogoutService:
         :param uri: 回调 URI
         :return: URI 是否通过 Back-Channel 网络地址安全检查
         """
+
         return await is_safe_backchannel_uri(uri)
 
     @staticmethod
@@ -1610,6 +1696,7 @@ class LogoutService:
         :param db: 异步数据库会话
         :return: 已签名的 Back-Channel Logout JWT，签名材料不可用时返回 None
         """
+
         if signing_key is None or signing_kid is None:
             record = await OidcKeyDao.get_active(db, alg=_RS256)
             if record is None:
@@ -1670,6 +1757,7 @@ class LogoutService:
 
             :return: None
             """
+
             last_error: Exception | None = None
             for attempt in range(_BACKCHANNEL_MAX_ATTEMPTS):
                 try:
@@ -1726,6 +1814,7 @@ class LogoutService:
         :return: None
         :raises LogoutServiceError: Logout 参数或回调地址不符合要求
         """
+
         addresses: set[str] | None = None
         if notifier is None:
             parsed = urlsplit(uri)
@@ -1768,6 +1857,7 @@ class LogoutService:
             :param failure_code: 失败代码
             :return: None
             """
+
             try:
                 await AuditService.record_independent(
                     db,
@@ -1876,6 +1966,7 @@ class LogoutService:
             :param include_sid: 是否包含 Session 标识
             :return: None
             """
+
             payload = json.dumps(
                 {
                     'uri': uri,
@@ -1885,7 +1976,7 @@ class LogoutService:
                     'subject_id': subject_id,
                     'include_sid': include_sid,
                     'attempt': 1,
-                    'nextAttemptAt': int(datetime.now().timestamp()),
+                    'nextAttemptAt': int(TimezoneUtil.utc_now().timestamp()),
                 },
                 separators=(',', ':'),
             )
@@ -1913,11 +2004,12 @@ class LogoutService:
         return float(value)
 
     @staticmethod
-    def _local_datetime(value: datetime | None) -> datetime | None:
+    def _utc_datetime(value: datetime | None) -> datetime | None:
         """
         将输入时间统一转换为项目时间
 
         :param value: 数据库读取的可选时间
-        :return: 本地无时区时间或 None
+        :return: 带时区的 UTC 时间或 None
         """
-        return local_datetime(value)
+
+        return TimezoneUtil.to_utc(value) if value is not None else None

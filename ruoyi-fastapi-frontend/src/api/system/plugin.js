@@ -5,7 +5,7 @@ export function listPlugin(query) {
   return request({
     url: '/system/plugin/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -13,7 +13,7 @@ export function listPlugin(query) {
 export function getPlugin(pluginId) {
   return request({
     url: '/system/plugin/' + pluginId,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -21,7 +21,7 @@ export function getPlugin(pluginId) {
 export function enablePlugin(pluginId) {
   return request({
     url: '/system/plugin/' + pluginId + '/enable',
-    method: 'put'
+    method: 'put',
   })
 }
 
@@ -29,7 +29,7 @@ export function enablePlugin(pluginId) {
 export function disablePlugin(pluginId) {
   return request({
     url: '/system/plugin/' + pluginId + '/disable',
-    method: 'put'
+    method: 'put',
   })
 }
 
@@ -37,7 +37,7 @@ export function disablePlugin(pluginId) {
 export function checkPlugin(pluginId) {
   return request({
     url: '/system/plugin/' + pluginId + '/check',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -45,7 +45,7 @@ export function checkPlugin(pluginId) {
 export function healthPlugin(pluginId) {
   return request({
     url: '/system/plugin/' + pluginId + '/health',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -53,7 +53,7 @@ export function healthPlugin(pluginId) {
 export function diagnosePlugin(pluginId) {
   return request({
     url: '/system/plugin/' + pluginId + '/diagnose',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -62,7 +62,7 @@ export function installPlugin(pluginId, dryRun = false) {
   return request({
     url: '/system/plugin/' + pluginId + '/install',
     method: 'post',
-    params: { dryRun }
+    params: { dryRun },
   })
 }
 
@@ -71,7 +71,7 @@ export function upgradePlugin(pluginId, dryRun = false) {
   return request({
     url: '/system/plugin/' + pluginId + '/upgrade',
     method: 'post',
-    params: { dryRun }
+    params: { dryRun },
   })
 }
 
@@ -80,7 +80,7 @@ export function uninstallPlugin(pluginId, dryRun = false) {
   return request({
     url: '/system/plugin/' + pluginId + '/uninstall',
     method: 'post',
-    params: { dryRun }
+    params: { dryRun },
   })
 }
 
@@ -89,7 +89,7 @@ export function purgePlugin(pluginId, dryRun = false) {
   return request({
     url: '/system/plugin/' + pluginId + '/purge',
     method: 'post',
-    params: { dryRun }
+    params: { dryRun },
   })
 }
 
@@ -97,7 +97,7 @@ export function purgePlugin(pluginId, dryRun = false) {
 export function getPluginConfig(pluginId) {
   return request({
     url: '/system/plugin/' + pluginId + '/config',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -106,7 +106,7 @@ export function listPluginMigrations(pluginId, status) {
   return request({
     url: '/system/plugin/' + pluginId + '/migrations',
     method: 'get',
-    params: { status }
+    params: { status },
   })
 }
 
@@ -115,7 +115,7 @@ export function markPluginMigrationSuccess(pluginId, data) {
   return request({
     url: '/system/plugin/' + pluginId + '/migrations/mark-success',
     method: 'post',
-    data
+    data,
   })
 }
 
@@ -124,7 +124,7 @@ export function markPluginMigrationFailed(pluginId, data) {
   return request({
     url: '/system/plugin/' + pluginId + '/migrations/mark-failed',
     method: 'post',
-    data
+    data,
   })
 }
 
@@ -133,7 +133,7 @@ export function updatePluginConfig(pluginId, data) {
   return request({
     url: '/system/plugin/' + pluginId + '/config',
     method: 'put',
-    data
+    data,
   })
 }
 
@@ -141,7 +141,7 @@ export function updatePluginConfig(pluginId, data) {
 export function checkPluginDependencies(pluginId) {
   return request({
     url: '/system/plugin/' + pluginId + '/dependencies',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -152,8 +152,8 @@ export function planPlugins(operation, pluginIds = []) {
     method: 'get',
     params: {
       operation,
-      pluginIds
-    }
+      pluginIds,
+    },
   })
 }
 
@@ -166,8 +166,8 @@ export function batchPlugins(operation, pluginIds = [], dryRun = true, continueO
       operation,
       pluginIds,
       dryRun,
-      continueOnError
-    }
+      continueOnError,
+    },
   })
 }
 
@@ -176,7 +176,7 @@ export function listPluginOperationLog(query) {
   return request({
     url: '/system/plugin/operation-log/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -184,7 +184,7 @@ export function listPluginOperationLog(query) {
 export function getPluginOperationLog(operationId) {
   return request({
     url: '/system/plugin/operation-log/' + operationId,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -193,7 +193,7 @@ export function retainPluginOperationLog(params) {
   return request({
     url: '/system/plugin/operation-log/retention',
     method: 'delete',
-    params
+    params,
   })
 }
 
@@ -202,6 +202,6 @@ export function installPluginDependencies(pluginId, dryRun = true) {
   return request({
     url: '/system/plugin/' + pluginId + '/dependencies/install',
     method: 'post',
-    params: { dryRun }
+    params: { dryRun },
   })
 }

@@ -24,13 +24,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import ServiceException
-from module_identity.dao._helpers import current_time, local_datetime
 from module_identity.dao.oidc_key_dao import OidcKeyDao
 from module_identity.entity.do.oidc_key_do import SysOidcSigningKey
 from module_identity.entity.vo.oidc_key_vo import OidcKeyRotateModel, OidcKeyViewModel
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.audit_service import AuditService
 from utils.log_util import logger
+from utils.time_util import TimezoneUtil
 
 RS256 = 'RS256'
 _PUBLISHED_STATUSES = frozenset({'pending', 'active', 'retiring'})
@@ -75,6 +75,7 @@ class KeyService:
         :param salt: 单条密钥记录的随机盐
         :return: AES-GCM 使用的 256 位密钥
         """
+
         return PBKDF2HMAC(
             algorithm=SHA256(),
             length=32,
@@ -83,14 +84,15 @@ class KeyService:
         ).derive(material)
 
     @staticmethod
-    def _local_datetime(value: datetime | None) -> datetime | None:
+    def _utc_datetime(value: datetime | None) -> datetime | None:
         """
         规范化项目时间
 
         :param value: 数据库时间值
-        :return: 本地无时区时间或 None
+        :return: 带时区的 UTC 时间或 None
         """
-        return local_datetime(value)
+
+        return TimezoneUtil.to_utc(value) if value is not None else None
 
     @classmethod
     def _require_enabled(cls, *, management: bool = False) -> None:
@@ -101,6 +103,7 @@ class KeyService:
         :return: None
         :raises KeyServiceError: OIDC 未启用
         """
+
         if not OidcConfig.oidc_enabled and not management:
             raise KeyServiceError('OIDC is disabled')
 
@@ -113,6 +116,7 @@ class KeyService:
         :return: 原样返回的安全密钥标识
         :raises KeyServiceError: 标识包含路径分隔符、空白、百分号或非 ASCII 字符
         """
+
         if not isinstance(kid, str) or not _SAFE_KID_PATTERN.fullmatch(kid):
             raise KeyServiceError('kid contains invalid characters')
         return kid
@@ -127,6 +131,7 @@ class KeyService:
         :return: 异步上下文管理器
         :raises KeyServiceError: 锁已被其他实例持有
         """
+
         if redis is None:
             yield
             return
@@ -155,6 +160,7 @@ class KeyService:
         :return: 只包含公开字段的 JWK
         :raises KeyServiceError: JWK 结构或算法不合法
         """
+
         value = getattr(record, 'public_jwk', record)
         if not isinstance(value, Mapping):
             raise KeyServiceError('public JWK must be an object')
@@ -221,6 +227,7 @@ class KeyService:
         :return: PEM 编码私钥字节
         :raises KeyServiceError: 私钥来源不合法或无法解密
         """
+
         reference = getattr(record, 'private_key_ref', None)
         ciphertext = getattr(record, 'private_key_ciphertext', None)
         if bool(reference) == bool(ciphertext):
@@ -283,14 +290,15 @@ class KeyService:
         :return: None
         :raises KeyServiceError: 记录不能用于签名
         """
+
         expected_status = 'active' if require_active else 'pending'
         if getattr(record, 'status', None) != expected_status:
             raise KeyServiceError(f'signing key is not {expected_status}')
         if getattr(record, 'alg', None) != RS256 or OidcConfig.oidc_signing_algorithm != RS256:
             raise KeyServiceError('only RS256 signing keys are supported')
         cls._validate_kid(getattr(record, 'kid', None))
-        start = cls._local_datetime(getattr(record, 'signing_start_at', None))
-        stop = cls._local_datetime(getattr(record, 'signing_stop_at', None))
+        start = cls._utc_datetime(getattr(record, 'signing_start_at', None))
+        stop = cls._utc_datetime(getattr(record, 'signing_stop_at', None))
         if require_active and (start is None or start > now or (stop is not None and stop <= now)):
             raise KeyServiceError('signing key is outside its signing window')
 
@@ -315,8 +323,9 @@ class KeyService:
         :return: 已验证且不会被序列化的 RSA 私钥
         :raises KeyServiceError: 状态、来源、格式或公私钥不匹配
         """
+
         cls._require_enabled(management=management)
-        current = cls._local_datetime(now or current_time())
+        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
         cls._validate_record_window(record, current, require_active=require_active)
         material = await cls._private_material_async(record, decrypt_private_key)
         try:
@@ -358,6 +367,7 @@ class KeyService:
         :return: 已验证的 RSA 私钥
         :raises KeyServiceError: 私钥不合法或无法同步加载
         """
+
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -381,6 +391,7 @@ class KeyService:
         :return: 已验证 RSA 私钥
         :raises KeyServiceError: 没有匹配的 active 密钥
         """
+
         cls._require_enabled()
         record = await OidcKeyDao.get_active(db, alg=RS256)
         if record is None:
@@ -397,13 +408,14 @@ class KeyService:
         :return: 标准 ``{'keys': [...]}`` JSON 结构
         :raises KeyServiceError: OIDC 关闭或公开密钥记录不合法
         """
+
         cls._require_enabled()
-        current = cls._local_datetime(now or current_time())
+        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
         records = await OidcKeyDao.list_published(db, now=current)
         keys: list[dict[str, str]] = []
         for record in records:
-            publish_at = cls._local_datetime(getattr(record, 'publish_at', None))
-            remove_at = cls._local_datetime(getattr(record, 'remove_from_jwks_at', None))
+            publish_at = cls._utc_datetime(getattr(record, 'publish_at', None))
+            remove_at = cls._utc_datetime(getattr(record, 'remove_from_jwks_at', None))
             if (
                 getattr(record, 'status', None) not in _PUBLISHED_STATUSES
                 or getattr(record, 'alg', None) != RS256
@@ -414,6 +426,7 @@ class KeyService:
                 continue
             keys.append(cls._normalise_public_jwk(record))
         keys.sort(key=lambda item: item['kid'])
+
         return {'keys': keys}
 
     @staticmethod
@@ -424,7 +437,9 @@ class KeyService:
         :param payload: 公开响应 JSON 映射
         :return: 带双引号的 SHA-256 ETag
         """
+
         canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+
         return '"' + hashlib.sha256(canonical).hexdigest() + '"'
 
     @classmethod
@@ -450,15 +465,16 @@ class KeyService:
         :return: 成功完成切换时返回 True
         :raises KeyServiceError: 目标密钥未到发布时间或算法不符
         """
+
         cls._require_enabled(management=True)
         cls._validate_kid(kid)
         async with cls._rotation_lock(redis):
-            current = cls._local_datetime(now or current_time())
+            current = cls._utc_datetime(now or TimezoneUtil.utc_now())
             await OidcKeyDao.lock_algorithm_for_update(db, alg=RS256)
             target = await OidcKeyDao.get_by_kid_for_update(db, kid)
             if target is None or target.alg != RS256 or target.status != 'pending':
                 raise KeyServiceError('target key is not pending')
-            publish_at = cls._local_datetime(target.publish_at)
+            publish_at = cls._utc_datetime(target.publish_at)
             if publish_at is None or publish_at > current:
                 raise KeyServiceError('target key is not published')
             old = await OidcKeyDao.get_active(db, alg=RS256, for_update=True)
@@ -482,7 +498,7 @@ class KeyService:
                         + OidcConfig.oidc_allowed_clock_skew_seconds,
                     )
                 )
-                previous_remove_at = cls._local_datetime(old.remove_from_jwks_at)
+                previous_remove_at = cls._utc_datetime(old.remove_from_jwks_at)
                 if previous_remove_at is None or previous_remove_at < retention_at:
                     await OidcKeyDao.set_retiring(db, old.kid, retention_at, current)
             if changed:
@@ -519,6 +535,7 @@ class KeyService:
         :return: 不含私钥明文的数据库实体
         :raises KeyServiceError: 配置、标识或密钥加密条件不满足
         """
+
         cls._require_enabled(management=True)
         if not isinstance(actor, str) or not actor.strip():
             raise KeyServiceError('kid and actor are required')
@@ -526,9 +543,9 @@ class KeyService:
         encryption_material = str(OidcConfig.oidc_signing_key_encryption_key or '').encode()
         if len(encryption_material) < _MIN_ENCRYPTION_KEY_BYTES:
             raise KeyServiceError('signing key encryption key is required')
-        current = cls._local_datetime(now or current_time())
-        publish_at = cls._local_datetime(publish_at)
-        activate_at = cls._local_datetime(activate_at)
+        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
+        publish_at = cls._utc_datetime(publish_at)
+        activate_at = cls._utc_datetime(activate_at)
         if activate_at is not None and activate_at < publish_at:
             raise KeyServiceError('activate_at must not precede publish_at')
         if publish_at < current:
@@ -574,6 +591,7 @@ class KeyService:
             'success',
             detail={'action': 'created_pending', 'kid': kid, 'actor': actor[:64]},
         )
+
         return record
 
     @classmethod
@@ -600,7 +618,8 @@ class KeyService:
         :return: 签名密钥记录与本次是否创建新密钥
         :raises KeyServiceError: 密钥配置、状态或材料不可用
         """
-        current = cls._local_datetime(now or current_time())
+
+        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
         async with cls._rotation_lock(redis):
             records = await OidcKeyDao.lock_algorithm_for_update(db, alg=RS256)
             active = next(
@@ -608,8 +627,8 @@ class KeyService:
                     row
                     for row in reversed(records)
                     if row.status == 'active'
-                    and cls._local_datetime(row.signing_start_at) is not None
-                    and cls._local_datetime(row.signing_start_at) <= current
+                    and cls._utc_datetime(row.signing_start_at) is not None
+                    and cls._utc_datetime(row.signing_start_at) <= current
                 ),
                 None,
             )
@@ -667,9 +686,10 @@ class KeyService:
         :return: 本次是否将签名密钥转为退役中状态
         :raises KeyServiceError: 签名密钥状态、材料或配置不符合要求
         """
+
         cls._require_enabled(management=True)
         cls._validate_kid(kid)
-        current = cls._local_datetime(now or current_time())
+        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
         record = await OidcKeyDao.get_by_kid_for_update(db, kid)
         if record is None or record.status not in {'active', 'retiring'}:
             raise KeyServiceError('key is not active')
@@ -693,6 +713,7 @@ class KeyService:
             'success',
             detail={'action': 'retired', 'kid': kid, 'actor': actor[:64]},
         )
+
         return True
 
     @classmethod
@@ -703,7 +724,9 @@ class KeyService:
         :param db: 异步数据库会话
         :return: 更新的记录数量
         """
+
         cls._require_enabled()
+
         return await OidcKeyDao.retire_due(db)
 
     @classmethod
@@ -724,8 +747,9 @@ class KeyService:
         :param audit_writer: 可注入的独立审计写入器，生产默认使用独立提交事务
         :return: 本次成功激活的密钥数量
         """
+
         cls._require_enabled()
-        current = cls._local_datetime(now or current_time())
+        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
         pending = await OidcKeyDao.list_due_pending(db, now=current)
         activated = 0
         for record in pending:
@@ -775,13 +799,14 @@ class KeyService:
         :return: 删除成功时返回 True
         :raises KeyServiceError: 密钥仍可能用于验签或不存在
         """
+
         cls._require_enabled(management=True)
         cls._validate_kid(kid)
         record = await OidcKeyDao.get_by_kid_for_update(db, kid)
         if record is None or record.status != 'retired':
             raise KeyServiceError('key is not safely retired')
-        remove_at = cls._local_datetime(record.remove_from_jwks_at)
-        if remove_at is None or remove_at > current_time():
+        remove_at = cls._utc_datetime(record.remove_from_jwks_at)
+        if remove_at is None or remove_at > TimezoneUtil.utc_now():
             raise KeyServiceError('key is still within JWKS retention window')
         if not await OidcKeyDao.delete_retired(db, kid):
             raise KeyServiceError('key deletion failed')
@@ -791,6 +816,7 @@ class KeyService:
             'success',
             detail={'action': 'deleted', 'kid': kid, 'actor': actor[:64]},
         )
+
         return True
 
 
@@ -813,17 +839,18 @@ class OidcKeyManagementService:
         :param row: 签名密钥 ORM 记录
         :return: 签名密钥管理视图字段映射
         """
+
         return OidcKeyViewModel(
             kid=row.kid,
             key_use=row.key_use,
             alg=row.alg,
             public_jwk=row.public_jwk,
             status=row.status,
-            publish_at=KeyService._local_datetime(row.publish_at),
-            signing_start_at=KeyService._local_datetime(row.signing_start_at),
-            signing_stop_at=KeyService._local_datetime(row.signing_stop_at),
-            remove_from_jwks_at=KeyService._local_datetime(row.remove_from_jwks_at),
-            create_time=KeyService._local_datetime(row.create_time),
+            publish_at=KeyService._utc_datetime(row.publish_at),
+            signing_start_at=KeyService._utc_datetime(row.signing_start_at),
+            signing_stop_at=KeyService._utc_datetime(row.signing_stop_at),
+            remove_from_jwks_at=KeyService._utc_datetime(row.remove_from_jwks_at),
+            create_time=KeyService._utc_datetime(row.create_time),
         ).model_dump(by_alias=True)
 
     @classmethod
@@ -837,7 +864,7 @@ class OidcKeyManagementService:
         now: datetime | None = None,
     ) -> tuple[dict[str, object], bool]:
         """
-        幂等创建并激活首把 OIDC 签名密钥。
+        幂等创建并激活首把 OIDC 签名密钥
 
         已存在可用 active 密钥时只校验并返回；否则在 Redis 轮换锁与
         数据库行锁保护下创建、激活并提交，适合部署流水线并发调用。
@@ -850,6 +877,7 @@ class OidcKeyManagementService:
         :return: 管理视图与本次是否创建新密钥
         :raises ServiceException: 签名密钥初始化失败
         """
+
         row, created = await cls._execute(
             db,
             lambda: KeyService.bootstrap_signing_key(
@@ -861,6 +889,7 @@ class OidcKeyManagementService:
             ),
         )
         await db.refresh(row)
+
         return cls.view(row), created
 
     @classmethod
@@ -880,8 +909,10 @@ class OidcKeyManagementService:
         :param page_size: 页大小
         :return: 管理视图列表和总数
         """
+
         rows = await OidcKeyDao.list_admin(db, status=status, offset=(page_num - 1) * page_size, limit=page_size)
         total = await OidcKeyDao.count_admin(db, status=status)
+
         return [cls.view(row) for row in rows], total
 
     @staticmethod
@@ -894,6 +925,7 @@ class OidcKeyManagementService:
         :param actor: 操作人标识
         :return: 新建签名密钥的管理视图字段映射
         """
+
         result = await OidcKeyManagementService._execute(
             db,
             lambda: KeyService.create_pending_key(
@@ -905,6 +937,7 @@ class OidcKeyManagementService:
                 remark=payload.remark,
             ),
         )
+
         return OidcKeyManagementService.view(result)
 
     @staticmethod
@@ -919,6 +952,7 @@ class OidcKeyManagementService:
         :return: 本次是否激活签名密钥
         :raises ServiceException: 签名密钥无法开始使用
         """
+
         return await OidcKeyManagementService._execute(
             db, lambda: KeyService.activate_key(db, kid, actor=actor, redis=redis)
         )
@@ -933,6 +967,7 @@ class OidcKeyManagementService:
         :param actor: 操作人标识
         :return: 本次是否将签名密钥转为退役中状态
         """
+
         return await OidcKeyManagementService._execute(db, lambda: KeyService.retire_key(db, kid, actor=actor))
 
     @staticmethod
@@ -945,6 +980,7 @@ class OidcKeyManagementService:
         :param actor: 操作人标识
         :return: 本次是否删除签名密钥
         """
+
         return await OidcKeyManagementService._execute(db, lambda: KeyService.delete_key(db, kid, actor=actor))
 
     @staticmethod
@@ -957,6 +993,7 @@ class OidcKeyManagementService:
         :return: operation 回调的返回值
         :raises ServiceException: 签名密钥管理事务失败时抛出
         """
+
         try:
             result = await operation()
             await db.commit()

@@ -1,14 +1,16 @@
 import request from '@/utils/request'
 
-const encodePathSegment = value => encodeURIComponent(String(value))
-const encodeBatchPath = value => String(value).split(',').map(encodePathSegment).join(',')
+// 编码单个路径标识
+const encodePathSegment = (value) => encodeURIComponent(String(value))
+// 分别编码批量操作中的路径标识
+const encodeBatchPath = (value) => String(value).split(',').map(encodePathSegment).join(',')
 
 // 查询 OAuth 会话列表
 export function listOAuthSessions(query) {
   return request({
     url: '/system/oauth/session/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -16,7 +18,7 @@ export function listOAuthSessions(query) {
 export function getOAuthSession(sid) {
   return request({
     url: `/system/oauth/session/${encodePathSegment(sid)}`,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -25,7 +27,7 @@ export function revokeOAuthSessions(sids, data) {
   return request({
     url: `/system/oauth/session/${encodeBatchPath(sids)}`,
     method: 'delete',
-    data
+    data,
   })
 }
 
@@ -34,7 +36,7 @@ export function revokeUserOAuthSessions(userId, data) {
   return request({
     url: `/system/oauth/session/user/${encodePathSegment(userId)}`,
     method: 'delete',
-    data
+    data,
   })
 }
 
@@ -43,7 +45,7 @@ export function listOAuthGrants(query) {
   return request({
     url: '/system/oauth/grant/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -51,7 +53,7 @@ export function listOAuthGrants(query) {
 export function getOAuthGrant(grantId) {
   return request({
     url: `/system/oauth/grant/${encodePathSegment(grantId)}`,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -60,7 +62,7 @@ export function revokeOAuthGrants(grantIds, data) {
   return request({
     url: `/system/oauth/grant/${encodeBatchPath(grantIds)}`,
     method: 'delete',
-    data
+    data,
   })
 }
 
@@ -69,7 +71,7 @@ export function listOidcKeys(query) {
   return request({
     url: '/system/oauth/key/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -78,7 +80,7 @@ export function rotateOidcKey(data) {
   return request({
     url: '/system/oauth/key/rotate',
     method: 'post',
-    data
+    data,
   })
 }
 
@@ -86,7 +88,7 @@ export function rotateOidcKey(data) {
 export function activateOidcKey(kid) {
   return request({
     url: `/system/oauth/key/${encodePathSegment(kid)}/activate`,
-    method: 'put'
+    method: 'put',
   })
 }
 
@@ -94,7 +96,7 @@ export function activateOidcKey(kid) {
 export function retireOidcKey(kid) {
   return request({
     url: `/system/oauth/key/${encodePathSegment(kid)}/retire`,
-    method: 'put'
+    method: 'put',
   })
 }
 
@@ -102,6 +104,6 @@ export function retireOidcKey(kid) {
 export function deleteOidcKey(kid) {
   return request({
     url: `/system/oauth/key/${encodePathSegment(kid)}`,
-    method: 'delete'
+    method: 'delete',
   })
 }

@@ -83,6 +83,7 @@ class AfterCommitCoordinator:
 
         :return: None
         """
+
         self._callbacks: list[AfterCommitCallback] = []
         self._callback_errors: list[Exception] = []
 
@@ -93,6 +94,7 @@ class AfterCommitCoordinator:
 
         :return: 尚未执行的回调数量
         """
+
         return len(self._callbacks)
 
     @property
@@ -102,6 +104,7 @@ class AfterCommitCoordinator:
 
         :return: 提交后回调异常元组
         """
+
         return tuple(self._callback_errors)
 
     async def register(self, callback: AfterCommitCallback) -> None:
@@ -112,6 +115,7 @@ class AfterCommitCoordinator:
         :return: None
         :raises TypeError: callback 不是可调用对象
         """
+
         if not callable(callback):
             raise TypeError('after-commit callback must be callable')
         self._callbacks.append(callback)
@@ -124,6 +128,7 @@ class AfterCommitCoordinator:
         :return: None
         :raises Exception: 数据库提交失败
         """
+
         callbacks, self._callbacks = self._callbacks, []
         try:
             await db.commit()
@@ -144,5 +149,6 @@ class AfterCommitCoordinator:
         :param db: 要回滚的异步数据库会话
         :return: None
         """
+
         self._callbacks.clear()
         await db.rollback()

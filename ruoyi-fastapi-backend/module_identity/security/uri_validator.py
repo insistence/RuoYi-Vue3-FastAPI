@@ -13,6 +13,7 @@ def _is_public_ip(value: str) -> bool:
     :param value: IPv4 或 IPv6 文本地址
     :return: 仅当地址可作为公网目标时返回 ``True``
     """
+
     try:
         address = ipaddress.ip_address(value)
     except ValueError:
@@ -35,6 +36,7 @@ async def public_dns_only(hostname: str, port: int) -> bool:
     :param port: 目标 TCP 端口
     :return: 解析成功且全部地址为公网地址时返回 ``True``
     """
+
     return bool(await public_dns_addresses(hostname, port))
 
 
@@ -46,6 +48,7 @@ async def public_dns_addresses(hostname: str, port: int) -> set[str]:
     :param port: 目标 TCP 端口
     :return: 全部解析结果均安全时的地址集合，失败返回空集合
     """
+
     loop = asyncio.get_running_loop()
     try:
         records = await loop.run_in_executor(
@@ -55,6 +58,7 @@ async def public_dns_addresses(hostname: str, port: int) -> set[str]:
     except (OSError, socket.gaierror, ValueError):
         return set()
     addresses = {item[4][0] for item in records if item[4]}
+
     return addresses if addresses and all(_is_public_ip(address) for address in addresses) else set()
 
 
@@ -65,6 +69,7 @@ def parse_backchannel_uri(uri: object) -> tuple[str, int] | None:
     :param uri: 待校验的 URI
     :return: 合法时返回主机名和端口，否则返回 ``None``
     """
+
     if not isinstance(uri, str) or not uri or len(uri) > _MAX_URI_LENGTH or '*' in uri:
         return None
     try:
@@ -101,8 +106,10 @@ async def is_safe_backchannel_uri(uri: object) -> bool:
     :param uri: 待校验的注册或发送 URI
     :return: 仅 HTTPS、无用户信息、查询、片段且 DNS 目标全部公网时返回 ``True``
     """
+
     parsed = parse_backchannel_uri(uri)
     if parsed is None:
         return False
     hostname, port = parsed
+
     return bool(await public_dns_addresses(hostname, port))

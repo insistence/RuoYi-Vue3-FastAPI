@@ -8,7 +8,7 @@ from .gateway import OidcInfrastructureGateway
 
 class OidcRuntimeCliService:
     """
-    OIDC CLI 运行时服务。
+    OIDC CLI 运行时服务
 
     该服务对外统一暴露 OIDC 就绪检查和首把签名密钥初始化入口。
 

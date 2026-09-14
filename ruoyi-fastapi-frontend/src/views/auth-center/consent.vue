@@ -5,53 +5,122 @@
     :application-name="interaction.client?.clientName"
     :application-id="interaction.client?.clientId"
   >
-    <div v-loading="initializing" class="auth-flow">
+    <div
+      v-loading="initializing"
+      class="auth-flow"
+    >
       <p class="panel-kicker">确认权限</p>
       <h2>确认要分享的信息</h2>
-      <p class="panel-lead"><strong>{{ applicationName }}</strong> 正在请求以下信息。必需信息用于完成本次访问，可选信息由你决定。</p>
-      <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" />
+      <p class="panel-lead">
+        <strong>{{ applicationName }}</strong>
+        正在请求以下信息。必需信息用于完成本次访问，可选信息由你决定。
+      </p>
+      <el-alert
+        v-if="errorMessage"
+        :title="errorMessage"
+        type="error"
+        show-icon
+        :closable="false"
+      />
 
-      <el-checkbox-group v-model="selectedScopes" class="scope-selection">
-        <section v-if="requiredScopes.length" class="scope-group" aria-labelledby="required-scope-title">
+      <el-checkbox-group
+        v-model="selectedScopes"
+        class="scope-selection"
+      >
+        <section
+          v-if="requiredScopes.length"
+          class="scope-group"
+          aria-labelledby="required-scope-title"
+        >
           <div class="group-heading">
-            <div><h3 id="required-scope-title">完成访问所需</h3><p>拒绝这些权限将无法继续进入应用</p></div>
+            <div>
+              <h3 id="required-scope-title">完成访问所需</h3>
+              <p>拒绝这些权限将无法继续进入应用</p>
+            </div>
             <span>{{ requiredScopes.length }} 项</span>
           </div>
           <div class="scope-list">
-            <label v-for="scope in requiredScopes" :key="scope.scope" class="scope-item is-required">
-              <el-checkbox :value="scope.scope" disabled />
+            <label
+              v-for="scope in requiredScopes"
+              :key="scope.scope"
+              class="scope-item is-required"
+            >
+              <el-checkbox
+                :value="scope.scope"
+                disabled
+              />
               <span class="scope-copy">
                 <span class="scope-title">
                   <strong>{{ scope.name || scope.scope }}</strong>
-                  <el-tooltip v-if="scope.name && scope.name !== scope.scope" :content="`系统权限代码：${scope.scope}`" placement="top">
-                    <el-icon class="scope-help" tabindex="0" aria-label="查看系统权限代码"><QuestionFilled /></el-icon>
+                  <el-tooltip
+                    v-if="scope.name && scope.name !== scope.scope"
+                    :content="`系统权限代码：${scope.scope}`"
+                    placement="top"
+                  >
+                    <el-icon
+                      class="scope-help"
+                      tabindex="0"
+                      aria-label="查看系统权限代码"
+                      ><QuestionFilled
+                    /></el-icon>
                   </el-tooltip>
                 </span>
                 <small>{{ scope.description || '用于完成登录或提供应用的核心功能' }}</small>
               </span>
-              <el-tag size="small" type="info" effect="plain">必需</el-tag>
+              <el-tag
+                size="small"
+                type="info"
+                effect="plain"
+                >必需</el-tag
+              >
             </label>
           </div>
         </section>
 
-        <section v-if="optionalScopes.length" class="scope-group" aria-labelledby="optional-scope-title">
+        <section
+          v-if="optionalScopes.length"
+          class="scope-group"
+          aria-labelledby="optional-scope-title"
+        >
           <div class="group-heading">
-            <div><h3 id="optional-scope-title">由你选择</h3><p>不勾选也可以继续使用应用</p></div>
+            <div>
+              <h3 id="optional-scope-title">由你选择</h3>
+              <p>不勾选也可以继续使用应用</p>
+            </div>
             <span>已选 {{ selectedOptionalCount }}/{{ optionalScopes.length }}</span>
           </div>
           <div class="scope-list">
-            <label v-for="scope in optionalScopes" :key="scope.scope" class="scope-item">
+            <label
+              v-for="scope in optionalScopes"
+              :key="scope.scope"
+              class="scope-item"
+            >
               <el-checkbox :value="scope.scope" />
               <span class="scope-copy">
                 <span class="scope-title">
                   <strong>{{ scope.name || scope.scope }}</strong>
-                  <el-tooltip v-if="scope.name && scope.name !== scope.scope" :content="`系统权限代码：${scope.scope}`" placement="top">
-                    <el-icon class="scope-help" tabindex="0" aria-label="查看系统权限代码"><QuestionFilled /></el-icon>
+                  <el-tooltip
+                    v-if="scope.name && scope.name !== scope.scope"
+                    :content="`系统权限代码：${scope.scope}`"
+                    placement="top"
+                  >
+                    <el-icon
+                      class="scope-help"
+                      tabindex="0"
+                      aria-label="查看系统权限代码"
+                      ><QuestionFilled
+                    /></el-icon>
                   </el-tooltip>
                 </span>
                 <small>{{ scope.description || '允许应用使用这项信息或能力' }}</small>
               </span>
-              <el-tag v-if="scope.sensitive" size="small" type="warning" effect="plain">敏感信息</el-tag>
+              <el-tag
+                v-if="scope.sensitive"
+                size="small"
+                type="warning"
+                effect="plain"
+                >敏感信息</el-tag
+              >
             </label>
           </div>
         </section>
@@ -59,15 +128,41 @@
 
       <label class="remember-card">
         <el-checkbox v-model="rememberConsent" />
-        <span><strong>记住本次选择</strong><small>下次访问该应用时不再重复询问；你仍可以在用户授权页面撤销。</small></span>
+        <span>
+          <strong>记住本次选择</strong>
+          <small>下次访问该应用时不再重复询问；你仍可以在用户授权页面撤销。</small>
+          <small v-if="selectedScopes.includes('offline_access')"
+            >离线访问授权会单独保存并可撤销；不勾选时，下次仍会询问权限。</small
+          >
+        </span>
       </label>
 
       <div class="actions">
-        <el-button size="large" :disabled="submitting" @click="submit(false)">不允许并返回</el-button>
-        <el-button type="primary" size="large" :loading="submitting" @click="submit(true)">允许 {{ selectedScopes.length }} 项并继续</el-button>
+        <el-button
+          size="large"
+          :disabled="submitting"
+          @click="submit(false)"
+          >不允许并返回</el-button
+        >
+        <el-button
+          type="primary"
+          size="large"
+          :loading="submitting"
+          @click="submit(true)"
+          >允许 {{ selectedScopes.length }} 项并继续</el-button
+        >
       </div>
-      <div v-if="policyUri" class="policy-link">
-        <el-link :href="policyUri" target="_blank" rel="noopener noreferrer" type="primary">查看该应用的隐私说明</el-link>
+      <div
+        v-if="policyUri"
+        class="policy-link"
+      >
+        <el-link
+          :href="policyUri"
+          target="_blank"
+          rel="noopener noreferrer"
+          type="primary"
+          >查看该应用的隐私说明</el-link
+        >
       </div>
     </div>
   </AuthCenterShell>
@@ -88,49 +183,73 @@ const submitting = ref(false)
 const errorMessage = ref('')
 
 const applicationName = computed(() => interaction.value.client?.clientName || '发起登录的应用')
-const requiredScopes = computed(() => (interaction.value.requestedScopes || []).filter(item => item.required))
-const optionalScopes = computed(() => (interaction.value.requestedScopes || []).filter(item => !item.required))
-const selectedOptionalCount = computed(() => optionalScopes.value.filter(item => selectedScopes.value.includes(item.scope)).length)
+const requiredScopes = computed(() =>
+  (interaction.value.requestedScopes || []).filter((item) => item.required)
+)
+const optionalScopes = computed(() =>
+  (interaction.value.requestedScopes || []).filter((item) => !item.required)
+)
+const selectedOptionalCount = computed(
+  () => optionalScopes.value.filter((item) => selectedScopes.value.includes(item.scope)).length
+)
 const policyUri = computed(() => safeExternalUrl(interaction.value.client?.policyUri))
 
+/** 校验可展示的客户端外部链接 */
 function safeExternalUrl(value) {
-  if (!value) return ''
+  if (!value) {
+    return ''
+  }
   try {
     const url = new URL(value)
     return ['http:', 'https:'].includes(url.protocol) ? url.href : ''
-  } catch { return '' }
+  } catch {
+    return ''
+  }
 }
 
+/** 读取授权请求并初始化必选权限 */
 async function initialize() {
-  if (!interactionId.value || !csrfToken()) return fatal('认证请求不完整，请返回应用重新登录')
+  if (!interactionId.value || !csrfToken()) {
+    return fatal('认证请求不完整，请返回应用重新登录')
+  }
   try {
     const response = await getInteraction(interactionId.value, csrfToken())
     interaction.value = response.data || {}
-    if (interaction.value.nextAction !== 'consent') return goToAction(interaction.value.nextAction)
-    selectedScopes.value = requiredScopes.value.map(item => item.scope)
+    if (interaction.value.nextAction !== 'consent') {
+      return goToAction(interaction.value.nextAction)
+    }
+    selectedScopes.value = requiredScopes.value.map((item) => item.scope)
   } catch (error) {
     fatal(error?.message || '授权请求已失效')
-  } finally { initializing.value = false }
+  } finally {
+    initializing.value = false
+  }
 }
 
+/** 提交授权决定和记忆选择 */
 async function submit(approved) {
   submitting.value = true
   errorMessage.value = ''
   try {
-    const required = requiredScopes.value.map(item => item.scope)
+    const required = requiredScopes.value.map((item) => item.scope)
     const approvedScopes = [...new Set([...required, ...selectedScopes.value])]
     const response = await submitInteractionConsent(interactionId.value, csrfToken(), {
       approved,
       scopes: approved ? approvedScopes : [],
-      rememberConsent: approved && rememberConsent.value
+      rememberConsent: approved && rememberConsent.value,
     })
     await followServerRedirect(response.data?.redirectUrl)
   } catch (error) {
     errorMessage.value = error?.message || '未能保存本次权限选择，请重试'
-  } finally { submitting.value = false }
+  } finally {
+    submitting.value = false
+  }
 }
 
-function fatal(message) { router.replace({ path: '/auth-center/error', query: { message } }) }
+/** 跳转到认证错误页面 */
+function fatal(message) {
+  router.replace({ path: '/auth-center/error', query: { message } })
+}
 initialize()
 </script>
 
@@ -144,7 +263,7 @@ initialize()
   color: var(--el-color-primary);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
 }
 
 h2 {
@@ -170,12 +289,13 @@ h2 {
   margin-bottom: 18px;
 }
 
-.scope-group+.scope-group {
+.scope-group + .scope-group {
   margin-top: 20px;
 }
 
 .scope-selection {
   display: block;
+  line-height: 1.5;
 }
 
 .group-heading {
@@ -198,7 +318,7 @@ h2 {
   font-size: 11px;
 }
 
-.group-heading>span {
+.group-heading > span {
   color: var(--el-text-color-secondary);
   font-size: 11px;
   white-space: nowrap;
@@ -230,7 +350,7 @@ h2 {
   cursor: default;
 }
 
-.scope-item+.scope-item {
+.scope-item + .scope-item {
   border-top: 1px solid var(--el-border-color-lighter);
 }
 
@@ -327,7 +447,7 @@ h2 {
     grid-template-columns: 22px minmax(0, 1fr);
   }
 
-  .scope-item>.el-tag {
+  .scope-item > .el-tag {
     grid-column: 2;
     justify-self: start;
   }

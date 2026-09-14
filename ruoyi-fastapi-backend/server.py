@@ -15,6 +15,7 @@ from exceptions.handle import handle_exception
 from middlewares.handle import handle_middleware
 from module_admin.service.log_service import LogAggregatorService
 from module_identity.service.runtime_service import OidcRuntimeService
+from module_identity.service.schema_service import IdentitySchemaService
 from plugins.core.runtime.application import get_plugin_application_runtime
 from sub_applications.handle import handle_sub_applications
 from utils.common_util import worship
@@ -77,6 +78,7 @@ async def _initialize_application_runtime(app: FastAPI, application_leader: bool
     plugin_runtime = get_plugin_application_runtime()
     plugin_runtime.prepare_metadata(app)
 
+    await IdentitySchemaService.validate_before_start()
     await init_create_table(
         stage='platform',
         log_success_enabled=application_leader,

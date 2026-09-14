@@ -74,6 +74,7 @@ def _request_redis(request: Request) -> Redis:
     :return: Redis 客户端
     :raises OAuthProtocolException: Redis 客户端不可用时抛出
     """
+
     redis = getattr(request.app.state, 'redis', None)
     if redis is None:
         raise OAuthProtocolException('server_error', 'Token endpoint is unavailable', 503)
@@ -154,6 +155,7 @@ async def _record_independent_audit(db: AsyncSession, event_type: str, **fields:
     :param fields: 审计字段
     :return: 无返回值
     """
+
     try:
         await AuditService.record_independent(db, event_type, 'failure', **fields)
     except Exception:
@@ -185,6 +187,7 @@ async def _verification_key_loader(query_db: AsyncSession, token: str) -> object
     :param token: 待读取的访问令牌
     :return: 本地公钥或 None
     """
+
     return await _verification_key_or_none(token, query_db)
 
 
@@ -195,6 +198,7 @@ def _oauth_error(error: OAuthProtocolException) -> JSONResponse:
     :param error: OAuth 协议异常
     :return: 裸标准 OAuth 错误响应
     """
+
     content = {'error': error.error}
     if error.error_description:
         content['error_description'] = error.error_description
@@ -202,6 +206,7 @@ def _oauth_error(error: OAuthProtocolException) -> JSONResponse:
     if error.error == 'invalid_client':
         headers['WWW-Authenticate'] = 'Basic realm="oauth2/token"'
     headers.update(error.headers)
+
     return JSONResponse(content=content, status_code=error.status_code, headers=headers)
 
 
@@ -212,7 +217,9 @@ def _http_error(error: HTTPException) -> JSONResponse:
     :param error: 输入边界 HTTP 异常
     :return: 裸 JSON 错误响应
     """
+
     code = 'not_found' if error.status_code == _NOT_FOUND else 'invalid_request'
+
     return JSONResponse(content={'error': code}, status_code=error.status_code, headers=_NO_STORE)
 
 

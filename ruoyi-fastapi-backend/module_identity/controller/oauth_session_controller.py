@@ -41,6 +41,7 @@ def _actor(user: CurrentUserModel) -> str:
     :return: 安全截断后的用户名
     :raises ServiceException: 当前用户不可用
     """
+
     value = getattr(getattr(user, 'user', None), 'user_name', None)
     if not isinstance(value, str) or not value.strip():
         raise ServiceException(message='当前操作者不可用')
@@ -56,6 +57,7 @@ def _split(value: str, name: str) -> list[str]:
     :return: 去除空白后的参数列表
     :raises ServiceException: 参数为空、超出数量限制、包含非法字符或重复值
     """
+
     values = [item.strip() for item in value.split(',')] if isinstance(value, str) else []
     if (
         not values
@@ -82,6 +84,7 @@ async def list_oauth_sessions(
     query: Annotated[SessionPageQueryModel, Query()], query_db: Annotated[AsyncSession, DBSessionDependency()]
 ) -> Response:
     rows, total = await OAuthSessionManagementService.list_sessions(query_db, query)
+
     return ResponseUtil.success(rows=rows, dict_content={'total': total})
 
 
@@ -106,6 +109,7 @@ async def revoke_user_oauth_sessions(
     count = await OAuthSessionManagementService.revoke_user(
         query_db, request.app.state.redis, user_id, _actor(current_user), payload.reason
     )
+
     return ResponseUtil.success(msg='SSO Session 已撤销', data={'count': count})
 
 
@@ -144,6 +148,7 @@ async def revoke_oauth_sessions(
     count = await OAuthSessionManagementService.revoke_sessions(
         query_db, request.app.state.redis, _split(sids, 'sids'), _actor(current_user), payload.reason
     )
+
     return ResponseUtil.success(msg='SSO Session 已撤销', data={'count': count})
 
 
@@ -158,6 +163,7 @@ async def list_oauth_grants(
     query: Annotated[GrantPageQueryModel, Query()], query_db: Annotated[AsyncSession, DBSessionDependency()]
 ) -> Response:
     rows, total = await OAuthSessionManagementService.list_grants(query_db, query)
+
     return ResponseUtil.success(rows=rows, dict_content={'total': total})
 
 
@@ -196,4 +202,5 @@ async def revoke_oauth_grants(
     count = await OAuthSessionManagementService.revoke_grants(
         query_db, _split(grant_ids, 'grant_ids'), _actor(current_user), payload.reason
     )
+
     return ResponseUtil.success(msg='OAuth Grant 已撤销', data={'count': count})

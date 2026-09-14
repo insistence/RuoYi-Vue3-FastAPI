@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import FastAPI
@@ -28,7 +29,14 @@ from module_identity.controller.interaction_controller import (
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao, OAuthGrantSnapshot
 from module_identity.dependencies import require_oidc_protocol_ready
-from module_identity.entity.vo.interaction_vo import ChangePasswordModel, InteractionConsentModel, InteractionLoginModel
+from module_identity.entity.vo.interaction_vo import (
+    CaptchaResponseModel,
+    ChangePasswordModel,
+    InteractionConsentModel,
+    InteractionLoginModel,
+    InteractionResultModel,
+    InteractionViewModel,
+)
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.audit_service import AuditService
 from module_identity.service.authorization_service import (
@@ -48,6 +56,7 @@ from module_identity.service.identity_service import (
 from module_identity.service.infrastructure_service import AfterCommitCoordinator, OidcRateLimiter, RateLimitUnavailable
 from module_identity.service.interaction_service import (
     InteractionFlowService,
+    InteractionLoginOutcome,
     InteractionLoginService,
     InteractionService,
 )
@@ -278,19 +287,23 @@ async def test_forced_password_login_creates_no_sso_cookie_or_active_session(
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('oidc_enabled')
+@pytest.mark.usefixtures('interaction_page_metadata')
 async def test_get_interaction_requires_csrf_header() -> None:
     """Interaction 页面读取也必须使用原始 CSRF Header。"""
     redis = FakeRedis()
     created = await InteractionService.create(redis, _payload(), pepper=_PEPPER)
     with pytest.raises(OidcInteractionException):
-        await get_interaction(_request(redis), created.interaction_id)
-    response = await get_interaction(_request(redis, created.csrf_token), created.interaction_id, created.csrf_token)
+        await get_interaction(_request(redis), created.interaction_id, _Db())
+    response = await get_interaction(
+        _request(redis, created.csrf_token), created.interaction_id, _Db(), created.csrf_token
+    )
     assert response.status_code == _HTTP_OK
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('oidc_enabled')
 @pytest.mark.parametrize(('stored_value', 'expected'), [('true', True), ('false', False)])
+@pytest.mark.usefixtures('interaction_page_metadata')
 async def test_get_interaction_captcha_enabled_reflects_system_config(stored_value: str, expected: bool) -> None:
     """Interaction 页面验证码开关必须来自系统配置，而不是固定默认值。"""
     redis = FakeRedis()
@@ -298,10 +311,12 @@ async def test_get_interaction_captcha_enabled_reflects_system_config(stored_val
     config_key = f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled'
     await redis.set(config_key, stored_value)
 
-    response = await get_interaction(_request(redis, created.csrf_token), created.interaction_id, created.csrf_token)
+    response = await get_interaction(
+        _request(redis, created.csrf_token), created.interaction_id, _Db(), created.csrf_token
+    )
 
     assert response.status_code == _HTTP_OK
-    assert json.loads(response.body)['captchaEnabled'] is expected
+    assert json.loads(response.body)['data']['captchaEnabled'] is expected
 
 
 def test_interaction_error_responses_use_the_unified_response_util_envelope() -> None:
@@ -395,7 +410,7 @@ async def test_cancel_is_csrf_protected_and_legacy_cookie_is_ignored() -> None:
 async def test_interaction_disabled_is_local_404(monkeypatch: pytest.MonkeyPatch) -> None:
     """OIDC 关闭时交互页面和写入口均返回本地 404。"""
     monkeypatch.setattr(OidcConfig, 'oidc_enabled', False)
-    response = await get_interaction(_request(FakeRedis()), 'interaction-id')
+    response = await get_interaction(_request(FakeRedis()), 'interaction-id', _Db())
     assert response.status_code == _HTTP_NOT_FOUND
     assert response.headers['cache-control'] == 'no-store'
 
@@ -841,3 +856,62 @@ def _append_async(values: list[Any], value: Any) -> Any:
         values.append(value)
 
     return result()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('oidc_enabled')
+@pytest.mark.parametrize('endpoint', ['', 'captcha', 'login', 'change-password', 'consent', 'cancel', 'complete'])
+@pytest.mark.usefixtures('interaction_page_metadata')
+async def test_interaction_http_response_matches_frontend_data_contract(
+    monkeypatch: pytest.MonkeyPatch, endpoint: str
+) -> None:
+    """真实 HTTP 响应按 OpenAPI 和页面约定将交互字段放在 data 下。"""
+    redis = FakeRedis()
+    created = await InteractionService.create(redis, _payload(), pepper=_PEPPER)
+    result = InteractionResultModel(
+        next_action='redirect', interaction_id=created.interaction_id, redirect_url='/auth/interaction/complete'
+    )
+    outcome = InteractionLoginOutcome(result=result)
+    monkeypatch.setattr(InteractionLoginService, 'login', AsyncMock(return_value=outcome))
+    monkeypatch.setattr(InteractionLoginService, 'change_password', AsyncMock(return_value=outcome))
+    monkeypatch.setattr(InteractionConsentService, 'consent', AsyncMock(return_value=result))
+    monkeypatch.setattr(InteractionConsentService, 'cancel', AsyncMock(return_value=result))
+    monkeypatch.setattr(
+        InteractionCompletionService, 'complete', AsyncMock(return_value=SimpleNamespace(location=result.redirect_url))
+    )
+    await redis.set(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled', 'false')
+    app = FastAPI()
+    app.state.redis = redis
+    app.include_router(interaction_controller)
+
+    async def db_override() -> Any:
+        yield _Db()
+
+    app.dependency_overrides[get_db_session_provider(None)] = db_override
+    app.dependency_overrides[require_oidc_protocol_ready] = lambda: None
+    bodies = {
+        'login': {'userName': 'alice', 'password': 'test-password'},
+        'change-password': {'oldPassword': 'old', 'newPassword': 'new', 'confirmPassword': 'new'},
+        'consent': {'approved': True, 'scopes': ['openid']},
+    }
+    path = '/auth/interaction/' + created.interaction_id + ('/' + endpoint if endpoint else '')
+    with TestClient(app) as client:
+        response = client.request(
+            'GET' if endpoint in {'', 'captcha'} else 'POST',
+            path,
+            headers={'X-CSRF-Token': created.csrf_token},
+            json=bodies.get(endpoint),
+        )
+    assert response.status_code == _HTTP_OK
+    payload = response.json()
+    model = (
+        InteractionViewModel
+        if not endpoint
+        else CaptchaResponseModel
+        if endpoint == 'captcha'
+        else InteractionResultModel
+    )
+    model.model_validate(payload['data'])
+    assert payload['code'] == _HTTP_OK and payload['success']
+    assert 'nextAction' not in payload and 'captchaEnabled' not in payload
+    assert response.headers['cache-control'] == 'no-store'

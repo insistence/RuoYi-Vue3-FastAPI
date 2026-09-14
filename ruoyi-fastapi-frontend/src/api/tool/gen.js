@@ -4,7 +4,7 @@ import request from '@/utils/request'
 export function listDataSources() {
   return request({
     url: '/tool/gen/dataSources',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -13,7 +13,7 @@ export function listTable(query) {
   return request({
     url: '/tool/gen/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 // 查询db数据库列表
@@ -21,7 +21,7 @@ export function listDbTable(query) {
   return request({
     url: '/tool/gen/db/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -29,7 +29,7 @@ export function listDbTable(query) {
 export function getGenTable(tableId) {
   return request({
     url: '/tool/gen/' + tableId,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -38,7 +38,7 @@ export function updateGenTable(data) {
   return request({
     url: '/tool/gen',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -47,7 +47,7 @@ export function importTable(data) {
   return request({
     url: '/tool/gen/importTable',
     method: 'post',
-    params: data
+    params: data,
   })
 }
 
@@ -56,7 +56,7 @@ export function createTable(data) {
   return request({
     url: '/tool/gen/createTable',
     method: 'post',
-    params: data
+    params: data,
   })
 }
 
@@ -64,7 +64,7 @@ export function createTable(data) {
 export function previewTable(tableId) {
   return request({
     url: '/tool/gen/preview/' + tableId,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -72,7 +72,7 @@ export function previewTable(tableId) {
 export function delTable(tableId) {
   return request({
     url: '/tool/gen/' + tableId,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -81,7 +81,7 @@ export function genCode(tableName, dataSourceName) {
   return request({
     url: '/tool/gen/genCode/' + tableName,
     method: 'get',
-    params: { dataSourceName }
+    params: { dataSourceName },
   })
 }
 
@@ -90,6 +90,6 @@ export function synchDb(tableName, dataSourceName) {
   return request({
     url: '/tool/gen/synchDb/' + tableName,
     method: 'get',
-    params: { dataSourceName }
+    params: { dataSourceName },
   })
 }

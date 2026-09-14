@@ -1,14 +1,16 @@
 import request from '@/utils/request'
 
-const encodePathSegment = value => encodeURIComponent(String(value))
-const encodeBatchPath = value => String(value).split(',').map(encodePathSegment).join(',')
+// 编码单个路径标识
+const encodePathSegment = (value) => encodeURIComponent(String(value))
+// 分别编码批量操作中的路径标识
+const encodeBatchPath = (value) => String(value).split(',').map(encodePathSegment).join(',')
 
 // 查询 OAuth 资源列表
 export function listOAuthResources(query) {
   return request({
     url: '/system/oauth/resource/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -16,7 +18,7 @@ export function listOAuthResources(query) {
 export function getOAuthResource(resourceId) {
   return request({
     url: `/system/oauth/resource/${encodePathSegment(resourceId)}`,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -25,7 +27,7 @@ export function addOAuthResource(data) {
   return request({
     url: '/system/oauth/resource',
     method: 'post',
-    data
+    data,
   })
 }
 
@@ -34,7 +36,7 @@ export function updateOAuthResource(data) {
   return request({
     url: '/system/oauth/resource',
     method: 'put',
-    data
+    data,
   })
 }
 
@@ -42,7 +44,7 @@ export function updateOAuthResource(data) {
 export function deleteOAuthResources(resourceIds) {
   return request({
     url: `/system/oauth/resource/${encodeBatchPath(resourceIds)}`,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -51,7 +53,7 @@ export function changeOAuthResourceStatus(data) {
   return request({
     url: '/system/oauth/resource/changeStatus',
     method: 'put',
-    data
+    data,
   })
 }
 
@@ -60,7 +62,7 @@ export function listOAuthScopes(query) {
   return request({
     url: '/system/oauth/scope/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -68,7 +70,7 @@ export function listOAuthScopes(query) {
 export function getOAuthScope(scopeCode) {
   return request({
     url: `/system/oauth/scope/${encodePathSegment(scopeCode)}`,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -77,7 +79,7 @@ export function addOAuthScope(data) {
   return request({
     url: '/system/oauth/scope',
     method: 'post',
-    data
+    data,
   })
 }
 
@@ -86,7 +88,7 @@ export function updateOAuthScope(data) {
   return request({
     url: '/system/oauth/scope',
     method: 'put',
-    data
+    data,
   })
 }
 
@@ -94,7 +96,7 @@ export function updateOAuthScope(data) {
 export function deleteOAuthScopes(scopeCodes) {
   return request({
     url: `/system/oauth/scope/${encodeBatchPath(scopeCodes)}`,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -103,6 +105,6 @@ export function changeOAuthScopeStatus(data) {
   return request({
     url: '/system/oauth/scope/changeStatus',
     method: 'put',
-    data
+    data,
   })
 }

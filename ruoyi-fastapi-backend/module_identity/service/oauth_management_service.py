@@ -14,7 +14,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import ServiceException
-from module_identity.dao._helpers import current_time, local_datetime
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_resource_dao import OAuthResourceDao
 from module_identity.entity.do.oauth_client_do import SysOAuthClient, SysOAuthClientSecret, SysOAuthClientUri
@@ -41,6 +40,7 @@ from module_identity.entity.vo.oauth_resource_vo import (
 from module_identity.security.client_auth import generate_client_secret, hash_client_secret
 from module_identity.security.uri_validator import is_safe_backchannel_uri
 from module_identity.service.audit_service import AuditService
+from utils.time_util import TimezoneUtil
 
 T = TypeVar('T')
 
@@ -69,6 +69,7 @@ class OAuthClientManagementError(ServiceException):
         :param message: 错误消息
         :return: None
         """
+
         super().__init__(message=message)
         self.args = (message,)
 
@@ -94,6 +95,7 @@ class OAuthManagementBaseService:
         :return: operation 回调的返回值
         :raises OAuthClientManagementError: 敏感凭据相关 ServiceException 被转换为安全管理异常
         """
+
         try:
             result = await operation()
             await db.commit()
@@ -166,6 +168,7 @@ class OAuthManagementBaseService:
         :param detail: 审计详情
         :return: None
         """
+
         safe_detail = {'actor': actor[:64]}
         if detail:
             safe_detail.update({key: value[:200] for key, value in detail.items() if key in {'reason', 'action'}})
@@ -186,14 +189,15 @@ class OAuthManagementBaseService:
         将输入时间规范化为项目时间
 
         :param value: 调用方提供的当前时间值
-        :return: 规范化后的本地无时区时间
+        :return: 规范化后的带时区的 UTC 时间
         :raises OAuthClientManagementError: now 不是 datetime 时抛出
         """
+
         if value is None:
-            return current_time()
+            return TimezoneUtil.utc_now()
         if not isinstance(value, datetime):
             raise OAuthClientManagementError('now must be a datetime')
-        return local_datetime(value)
+        return TimezoneUtil.to_utc(value)
 
     @staticmethod
     def _actor(actor: str) -> str:
@@ -204,6 +208,7 @@ class OAuthManagementBaseService:
         :return: 规范化后的操作者标识
         :raises OAuthClientManagementError: actor 为空或不是字符串时抛出
         """
+
         if not isinstance(actor, str) or not actor.strip():
             raise OAuthClientManagementError('actor is required')
         return actor[:64]
@@ -217,6 +222,7 @@ class OAuthManagementBaseService:
         :return: None
         :raises OAuthClientManagementError: Client TTL 非正数、超出平台上限或闲置 TTL 超过绝对 TTL 时抛出
         """
+
         access = payload.access_token_ttl_seconds or OidcConfig.oidc_access_token_ttl_seconds
         refresh_idle = payload.refresh_token_idle_seconds or OidcConfig.oidc_refresh_token_idle_seconds
         refresh_absolute = payload.refresh_token_absolute_seconds or OidcConfig.oidc_refresh_token_absolute_seconds
@@ -241,6 +247,7 @@ class OAuthManagementBaseService:
         :return: None
         :raises OAuthClientManagementError: Resource TTL 非正数或超出平台上限时抛出
         """
+
         value = payload.access_token_ttl_seconds or OidcConfig.oidc_access_token_ttl_seconds
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise OAuthClientManagementError('Resource access token TTL policy is invalid')
@@ -254,6 +261,7 @@ class OAuthManagementBaseService:
 
         :return: 带 cli_ 前缀的随机 Client 标识
         """
+
         return f'cli_{secrets.token_urlsafe(24)}'
 
     @classmethod
@@ -266,6 +274,7 @@ class OAuthManagementBaseService:
         :return: 校验后的完整 URI
         :raises OAuthClientManagementError: URI 格式不合法、包含保留参数或 Back-Channel 地址不安全时抛出
         """
+
         try:
             value = ClientUriModel(uri_type=uri_type, uri=uri).uri
         except (TypeError, ValueError) as exc:
@@ -305,6 +314,7 @@ class OAuthManagementBaseService:
         :return: 按 URI 类型分组的注册地址映射
         :raises OAuthClientManagementError: URI 重复或格式不合法时抛出
         """
+
         values: dict[str, list[str]] = {}
         for uri_type, field_name in cls._URI_TYPES:
             uris = list(getattr(payload, field_name))
@@ -322,6 +332,7 @@ class OAuthManagementBaseService:
         :return: 完成 DNS 校验的注册地址映射
         :raises OAuthClientManagementError: Back-Channel URI DNS 目标不是公网地址时抛出
         """
+
         values = cls._uri_values(payload)
         backchannels = values.get('backchannel_logout', [])
         for uri in backchannels:
@@ -339,6 +350,7 @@ class OAuthManagementBaseService:
         :return: 去重后的编码列表
         :raises OAuthClientManagementError: 编码为空、包含空白或重复时抛出
         """
+
         result: list[str] = []
         for value in values:
             if not isinstance(value, str) or not value.strip() or value.strip() != value:
@@ -360,6 +372,7 @@ class OAuthManagementBaseService:
         :return: 已校验的 Scope ORM 列表和 Resource ORM 列表
         :raises OAuthClientManagementError: Scope 或 Resource 不存在、未启用或绑定关系不合法时抛出
         """
+
         scope_codes = cls._unique_codes(payload.scope_codes, 'scope_codes')
         resource_ids = cls._unique_codes(payload.resource_ids, 'resource_ids')
         pre_authorized = set(cls._unique_codes(payload.pre_authorized_scope_codes, 'pre_authorized_scope_codes'))
@@ -404,6 +417,7 @@ class OAuthManagementBaseService:
         :param now: 当前时间
         :return: None
         """
+
         uri_values = await cls._uri_values_async(payload)
         await OAuthClientDao.replace_bindings(
             db,
@@ -413,6 +427,7 @@ class OAuthManagementBaseService:
             uri_values,
             set(payload.pre_authorized_scope_codes),
             now,
+            allowed_role_keys=payload.allowed_role_keys,
         )
 
     @staticmethod
@@ -423,6 +438,7 @@ class OAuthManagementBaseService:
         :param payload: Client 创建参数
         :return: 可写入 Client ORM 的字段映射
         """
+
         return {
             'client_name': payload.client_name,
             'client_type': payload.client_type,
@@ -451,6 +467,7 @@ class OAuthManagementBaseService:
         :param plaintext: 明文密钥
         :return: 包含一次性明文的 ClientSecretResponseModel
         """
+
         return ClientSecretResponseModel(
             client_id=client_id,
             secret_id=secret.secret_id,
@@ -482,6 +499,7 @@ class OAuthManagementBaseService:
         :param expires_at: 过期时间
         :return: 已 flush 的 ClientSecretResponseModel
         """
+
         plaintext = generate_client_secret()
         secret = SysOAuthClientSecret(
             secret_id=str(uuid4()),
@@ -495,6 +513,7 @@ class OAuthManagementBaseService:
             create_time=created_at,
         )
         await OAuthClientDao.add_secret(db, secret)
+
         return cls._secret_response(client.client_id, secret, plaintext)
 
     @classmethod
@@ -506,6 +525,7 @@ class OAuthManagementBaseService:
         :return: 校验后的 Resource audience URI
         :raises OAuthClientManagementError: audience 不是无用户信息的绝对 HTTPS URI 时抛出
         """
+
         if not isinstance(audience, str) or not audience or len(audience) > cls._MAX_AUDIENCE_LENGTH:
             raise OAuthClientManagementError('audience must be a non-empty URI')
         parsed = urlsplit(audience)
@@ -532,6 +552,7 @@ class OAuthManagementBaseService:
         :return: 已校验的 Resource Claim 名称列表
         :raises OAuthClientManagementError: Claim 列表不是允许的字符串列表或包含重复项时抛出
         """
+
         if not isinstance(values, list) or len(values) > cls._MAX_CLAIMS:
             raise OAuthClientManagementError(f'{field_name} must be a list with at most 64 items')
         result: list[str] = []
@@ -553,6 +574,7 @@ class OAuthManagementBaseService:
         :param payload: Resource 创建或更新参数
         :return: 可写入 Resource ORM 的字段映射
         """
+
         return {
             'resource_name': payload.resource_name,
             'audience': payload.audience,
@@ -573,6 +595,7 @@ class OAuthManagementBaseService:
         :return: 启用的 introspection Client ORM 记录或 None
         :raises OAuthClientManagementError: introspection Client 不存在、未启用或不是机密 Client 时抛出
         """
+
         if client_id is None:
             return None
         if not isinstance(client_id, str) or not client_id or len(client_id) > cls._MAX_CLIENT_ID_LENGTH:
@@ -591,6 +614,7 @@ class OAuthManagementBaseService:
         :param introspection_client_id: 用于内省的客户端标识
         :return: ResourceViewModel 管理视图
         """
+
         return ResourceViewModel.model_validate(
             {
                 'resource_id': resource.resource_id,
@@ -615,6 +639,7 @@ class OAuthManagementBaseService:
         :param resource_id: 资源标识
         :return: ScopeModel 管理视图
         """
+
         return ScopeModel.model_validate(
             {
                 'scope_code': scope.scope_code,
@@ -638,6 +663,7 @@ class OAuthManagementBaseService:
         :param resource_pk: 资源主键
         :return: 已锁定的 Client ORM 记录列表
         """
+
         return list(await OAuthClientDao.lock_clients_for_resource(db, resource_pk))
 
     @staticmethod
@@ -650,6 +676,7 @@ class OAuthManagementBaseService:
         :param now: 当前时间
         :return: None
         """
+
         for client in clients:
             client.policy_version = int(client.policy_version or 0) + 1
             client.update_by, client.update_time = actor, now
@@ -664,6 +691,7 @@ class OAuthManagementBaseService:
         :param now: 当前时间
         :return: None
         """
+
         await OAuthClientDao.revoke_client_credentials(db, client_pk, now)
 
 
@@ -692,6 +720,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 创建后的 Client 详情
         """
+
         return await cls._transaction(db, lambda: cls._create_client(db, payload, actor=actor, now=now), after_commit)
 
     @classmethod
@@ -714,6 +743,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 更新后的 Client 详情
         """
+
         return await cls._transaction(db, lambda: cls._update_client(db, payload, actor=actor, now=now), after_commit)
 
     @classmethod
@@ -741,6 +771,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
 
             :return: None
             """
+
             for identifier in identifiers:
                 await cls._soft_disable(db, identifier, actor=actor)
 
@@ -764,6 +795,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 更新后的 Client 详情
         """
+
         return await cls._transaction(db, lambda: cls._change_status(db, payload, actor=actor), after_commit)
 
     @classmethod
@@ -792,6 +824,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 只包含一次性明文的 Secret 响应
         """
+
         return await cls._transaction(
             db,
             lambda: cls._rotate_secret(
@@ -828,6 +861,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 本次是否发生状态变更
         """
+
         return await cls._transaction(
             db, lambda: cls._revoke_secret(db, client_id, secret_id, actor=actor, now=now), after_commit
         )
@@ -854,6 +888,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 新增 URI 的内部标识
         """
+
         return await cls._transaction(
             db, lambda: cls._add_uri(db, client_id, payload, actor=actor, now=now), after_commit
         )
@@ -880,6 +915,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 本次是否发生状态变更
         """
+
         return await cls._transaction(
             db, lambda: cls._remove_uri(db, client_id, uri_id, actor=actor, now=now), after_commit
         )
@@ -903,6 +939,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :return: ClientViewModel 详情
         :raises OAuthClientManagementError: Client DTO 校验失败或公开标识已存在时抛出
         """
+
         if not isinstance(payload, ClientCreateModel) or isinstance(payload, ClientUpdateModel):
             raise OAuthClientManagementError('payload must be ClientCreateModel')
         actor_value, current = cls._actor(actor), cls._now(now)
@@ -922,6 +959,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         await OAuthClientDao.add_client(db, client)
         await cls._replace_bindings(db, client.client_pk, payload, scopes, resources, current)
         await cls._record_audit(db, OidcAuditEvent.CLIENT_CREATED, actor_value, client_id=client.client_id)
+
         return await cls.detail(db, client.client_id)
 
     @classmethod
@@ -943,6 +981,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :return: ClientViewModel 详情
         :raises OAuthClientManagementError: Client 不存在、DTO 校验失败或策略绑定不合法时抛出
         """
+
         if not isinstance(payload, ClientUpdateModel):
             raise OAuthClientManagementError('payload must be ClientUpdateModel')
         actor_value, current = cls._actor(actor), cls._now(now)
@@ -983,6 +1022,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param payload: Client 更新参数
         :return: Client 授权或令牌策略是否发生变化
         """
+
         scalar_fields = (
             'client_type',
             'token_endpoint_auth_method',
@@ -995,7 +1035,13 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         )
         if any(getattr(current, field) != getattr(payload, field) for field in scalar_fields):
             return True
-        unordered_fields = ('grant_types', 'response_types', 'scope_codes', 'pre_authorized_scope_codes')
+        unordered_fields = (
+            'grant_types',
+            'response_types',
+            'scope_codes',
+            'pre_authorized_scope_codes',
+            'allowed_role_keys',
+        )
         if any(set(getattr(current, field)) != set(getattr(payload, field)) for field in unordered_fields):
             return True
         ordered_fields = (
@@ -1005,6 +1051,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
             'backchannel_logout_uris',
             'cors_origins',
         )
+
         return any(tuple(getattr(current, field)) != tuple(getattr(payload, field)) for field in ordered_fields)
 
     @classmethod
@@ -1017,10 +1064,21 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :return: ClientViewModel 详情
         :raises OAuthClientManagementError: Client 不存在时抛出
         """
+
         detail_rows = await OAuthClientDao.get_client_detail_rows(db, client_id)
         if detail_rows is None:
             raise OAuthClientManagementError('client not found')
         client, scope_rows, resource_ids, uri_rows = detail_rows
+        bindings = await OAuthClientDao.list_scope_bindings(db, client.client_pk)
+        allowed_role_keys = sorted(
+            {
+                role
+                for binding in bindings
+                if isinstance(binding.claim_filter, dict)
+                for role in binding.claim_filter.get('allowed_role_keys', [])
+                if isinstance(role, str)
+            }
+        )
         uri_map = {uri_type: [] for uri_type, _ in cls._URI_TYPES}
         for row in uri_rows:
             if row.status != '0':
@@ -1038,6 +1096,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
             'trusted_client': bool(client.trusted_client),
             'scope_codes': [scope.scope_code for scope, _ in scope_rows],
             'pre_authorized_scope_codes': [scope.scope_code for scope, pre in scope_rows if bool(pre)],
+            'allowed_role_keys': allowed_role_keys,
             'resource_ids': list(resource_ids),
             'redirect_uris': uri_map['redirect'],
             'post_logout_redirect_uris': uri_map['post_logout'],
@@ -1055,6 +1114,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
             'create_time': client.create_time,
             'update_time': client.update_time,
         }
+
         return ClientViewModel.model_validate(payload)
 
     @classmethod
@@ -1078,6 +1138,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :return: 新增 URI 的内部主键
         :raises OAuthClientManagementError: Client 不存在或 URI 已注册时抛出
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         client = await OAuthClientDao.get_by_client_id(db, client_id, active_only=False, for_update=True)
         if client is None:
@@ -1108,6 +1169,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
             client_id=client_id,
             detail={'action': 'uri_added'},
         )
+
         return row.uri_id
 
     @classmethod
@@ -1125,6 +1187,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :return: 本次是否停用注册 URI
         :raises OAuthClientManagementError: Client 不存在或注册 URI 不存在
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         client = await OAuthClientDao.get_by_client_id(db, client_id, active_only=False, for_update=True)
         if client is None:
@@ -1147,6 +1210,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
             client_id=client_id,
             detail={'action': 'uri_removed'},
         )
+
         return True
 
     @classmethod
@@ -1158,8 +1222,10 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param query: Client 分页查询参数
         :return: ClientViewModel 列表
         """
+
         page = query or ClientPageQueryModel()
         rows = await OAuthClientDao.list_clients_page(db, page)
+
         return [await cls.detail(db, item.client_id) for item in rows]
 
     @classmethod
@@ -1171,7 +1237,9 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param query: Client 分页统计参数
         :return: Client 数量
         """
+
         page = query or ClientPageQueryModel()
+
         return await OAuthClientDao.count_clients(db, page)
 
     @classmethod
@@ -1188,6 +1256,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :return: ClientViewModel 详情
         :raises OAuthClientManagementError: Client 不存在或状态值不合法时抛出
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         client = await OAuthClientDao.get_by_client_id(db, payload.client_id, active_only=False, for_update=True)
         if client is None:
@@ -1221,6 +1290,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param now: 当前时间
         :return: ClientViewModel 详情
         """
+
         return await cls._change_status(db, ClientStatusModel(client_id=client_id, status='1'), actor=actor, now=now)
 
     @classmethod
@@ -1248,6 +1318,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :return: ClientSecretResponseModel（含一次性明文）
         :raises OAuthClientManagementError: Client 不存在或 Secret 时效不合法时抛出
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         retirement_ttl = retirement_seconds
         if retirement_ttl is None:
@@ -1283,6 +1354,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         client.update_by, client.update_time = actor_value, current
         await OAuthClientDao.persist_client_policy_change(db, client)
         await cls._record_audit(db, OidcAuditEvent.CLIENT_SECRET_ROTATED, actor_value, client_id=client.client_id)
+
         return secret
 
     @classmethod
@@ -1300,6 +1372,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :return: 本次是否撤销 Client Secret
         :raises OAuthClientManagementError: Client Secret 不存在或已经撤销时抛出
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         client = await OAuthClientDao.get_by_client_id(db, client_id, active_only=False, for_update=True)
         if client is None:
@@ -1322,6 +1395,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
             client_id=client.client_id,
             detail={'action': 'secret_revoked'},
         )
+
         return True
 
     @staticmethod
@@ -1332,6 +1406,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         :param db: 异步数据库会话
         :return: 启用的 CORS Origin 元组
         """
+
         return await OAuthClientDao.list_cors_origins(db)
 
 
@@ -1360,6 +1435,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 创建后的 Resource 详情
         """
+
         return await cls._transaction(
             db,
             lambda: cls._create_resource(db, payload, actor=actor, now=now),
@@ -1386,6 +1462,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 更新后的 Resource 详情
         """
+
         return await cls._transaction(
             db,
             lambda: cls._update_resource(db, payload, actor=actor, now=now),
@@ -1417,6 +1494,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
 
             :return: None
             """
+
             for identifier in identifiers:
                 await cls._soft_disable_resource(db, identifier, actor=actor)
 
@@ -1442,6 +1520,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 更新后的 Resource 详情
         """
+
         return await cls._transaction(
             db, lambda: cls._change_resource_status(db, payload, actor=actor, now=now), after_commit
         )
@@ -1466,6 +1545,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 创建后的 Scope 详情
         """
+
         return await cls._transaction(db, lambda: cls._create_scope(db, payload, actor=actor, now=now), after_commit)
 
     @classmethod
@@ -1488,6 +1568,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 更新后的 Scope 详情
         """
+
         return await cls._transaction(db, lambda: cls._update_scope(db, payload, actor=actor, now=now), after_commit)
 
     @classmethod
@@ -1515,6 +1596,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
 
             :return: None
             """
+
             for identifier in identifiers:
                 await cls._soft_disable_scope(db, identifier, actor=actor)
 
@@ -1540,6 +1622,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param after_commit: 事务提交成功后执行的异步回调
         :return: 更新后的 Scope 详情
         """
+
         return await cls._transaction(
             db, lambda: cls._change_scope_status(db, payload, actor=actor, now=now), after_commit
         )
@@ -1563,6 +1646,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: ResourceViewModel 详情
         :raises OAuthClientManagementError: Resource DTO 校验失败或 resource_id/audience 已存在时抛出
         """
+
         if not isinstance(payload, ResourceCreateModel) or isinstance(payload, ResourceUpdateModel):
             raise OAuthClientManagementError('payload must be ResourceCreateModel')
         actor_value, current = cls._actor(actor), cls._now(now)
@@ -1590,6 +1674,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
             resource_id=resource.resource_id,
             detail={'action': 'resource_created'},
         )
+
         return cls._resource_view(resource, payload.introspection_client_id)
 
     @classmethod
@@ -1611,6 +1696,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: ResourceViewModel 详情
         :raises OAuthClientManagementError: Resource 不存在、DTO 校验失败或关联 Client 不存在时抛出
         """
+
         if not isinstance(payload, ResourceUpdateModel):
             raise OAuthClientManagementError('payload must be ResourceUpdateModel')
         actor_value, current = cls._actor(actor), cls._now(now)
@@ -1664,6 +1750,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: ResourceViewModel 详情
         :raises OAuthClientManagementError: Resource 不存在时抛出
         """
+
         resource = await OAuthResourceDao.get_resource(db, resource_id)
         if resource is None:
             raise OAuthClientManagementError('resource not found')
@@ -1671,6 +1758,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         if resource.introspection_client_pk is None:
             return view
         client_id = await OAuthClientDao.id_for_pk(db, resource.introspection_client_pk)
+
         return view.model_copy(update={'introspection_client_id': client_id})
 
     @classmethod
@@ -1684,8 +1772,10 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param query: Resource 分页查询参数
         :return: ResourceViewModel 列表
         """
+
         page = query or ResourcePageQueryModel()
         rows = await OAuthResourceDao.list_resources_page(db, page)
+
         return [await cls.detail_resource(db, row.resource_id) for row in rows]
 
     @classmethod
@@ -1697,7 +1787,9 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param query: Resource 分页统计参数
         :return: Resource 数量
         """
+
         page = query or ResourcePageQueryModel()
+
         return await OAuthResourceDao.count_resources(db, page)
 
     @classmethod
@@ -1714,6 +1806,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: ResourceViewModel 详情
         :raises OAuthClientManagementError: Resource 不存在或状态值不合法时抛出
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         resource = await OAuthResourceDao.get_resource(db, payload.resource_id, for_update=True)
         if resource is None:
@@ -1746,6 +1839,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param now: 当前时间
         :return: ResourceViewModel 详情
         """
+
         return await cls._change_resource_status(
             db, ResourceStatusModel(resource_id=resource_id, status='1'), actor=actor, now=now
         )
@@ -1764,6 +1858,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: ScopeModel 详情
         :raises OAuthClientManagementError: Scope DTO 校验失败、编码重复或关联 Resource 不存在时抛出
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         claims = cls._validate_claims(payload.claims)
         if payload.scope_code == 'openid' and (
@@ -1797,6 +1892,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         await cls._record_audit(
             db, OidcAuditEvent.SCOPE_POLICY_CHANGED, actor_value, detail={'action': 'scope_created'}
         )
+
         return cls._scope_view(scope, resource.resource_id if resource else None)
 
     @classmethod
@@ -1809,6 +1905,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: 启用的 Resource ORM 记录
         :raises OAuthClientManagementError: Resource 标识为空、未知或 Resource 未启用时抛出
         """
+
         if not resource_id:
             raise OAuthClientManagementError('resource scope requires an active resource')
         resource = await OAuthResourceDao.active_resource(db, resource_id)
@@ -1830,6 +1927,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: ScopeModel 详情
         :raises OAuthClientManagementError: Scope 不存在、DTO 校验失败或关联 Resource 不存在时抛出
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         claims = cls._validate_claims(payload.claims)
         scope = await OAuthResourceDao.get_scope(db, payload.scope_code, for_update=True)
@@ -1882,6 +1980,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param scope_pk: Scope 主键
         :return: 已锁定的 Client ORM 记录列表
         """
+
         return list(await OAuthResourceDao.lock_scope_clients(db, scope_pk))
 
     @classmethod
@@ -1894,6 +1993,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: ScopeModel 详情
         :raises OAuthClientManagementError: Scope 不存在时抛出
         """
+
         scope = await OAuthResourceDao.get_scope(db, scope_code)
         if scope is None:
             raise OAuthClientManagementError('scope not found')
@@ -1911,8 +2011,10 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param query: Scope 分页查询参数
         :return: ScopeModel 列表
         """
+
         page = query or ScopePageQueryModel()
         rows = await OAuthResourceDao.list_scopes_page(db, page)
+
         return [await cls.detail_scope(db, row.scope_code) for row in rows]
 
     @classmethod
@@ -1924,7 +2026,9 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param query: Scope 分页统计参数
         :return: Scope 数量
         """
+
         page = query or ScopePageQueryModel()
+
         return await OAuthResourceDao.count_scopes(db, page)
 
     @classmethod
@@ -1941,6 +2045,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: ScopeModel 详情
         :raises OAuthClientManagementError: Scope 不存在或状态值不合法时抛出
         """
+
         actor_value, current = cls._actor(actor), cls._now(now)
         scope = await OAuthResourceDao.get_scope(db, payload.scope_code, for_update=True)
         if scope is None:
@@ -1971,6 +2076,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :param now: 当前时间
         :return: ScopeModel 详情
         """
+
         return await cls._change_scope_status(
             db, ScopeStatusModel(scope_code=scope_code, status='1'), actor=actor, now=now
         )
@@ -1987,6 +2093,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         :return: Resource 失效目标集合
         :raises OAuthClientManagementError: Resource 不存在时抛出
         """
+
         resource = await OAuthResourceDao.get_resource(db, resource_id)
         if resource is None:
             raise OAuthClientManagementError('resource not found')
@@ -2011,4 +2118,5 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
             for token in refresh_tokens
             if resource.resource_id in (token.resources or []) or resource.audience in (token.resources or [])
         )
+
         return ResourceInvalidationTargets(resource.resource_id, client_ids, grant_ids, refresh_ids)

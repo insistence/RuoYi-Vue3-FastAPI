@@ -23,6 +23,7 @@ def _disabled_response() -> Response:
 
     :return: 协议端点关闭时的标准 404 响应
     """
+
     return JSONResponse(
         content={'error': 'not_found'}, status_code=404, headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'}
     )
@@ -36,6 +37,7 @@ def _etag_response(request: Request, payload: dict[str, Any]) -> Response:
     :param payload: 待返回的 JSON 数据
     :return: 标准 JSON 响应或 304 响应
     """
+
     etag = KeyService.compute_etag(payload)
     headers = {'Cache-Control': _CACHE_CONTROL, 'ETag': etag}
     if_none_match = request.headers.get('if-none-match', '')

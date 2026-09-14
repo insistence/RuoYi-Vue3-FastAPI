@@ -1206,9 +1206,9 @@ create table sys_identity_subject (
   subject_id    varchar(36)  not null                 comment 'OIDC Subject',
   auth_version  bigint       not null default 1       comment '认证安全版本',
   create_by     varchar(64)  default null             comment '创建者',
-  create_time   datetime     not null                 comment '创建时间',
+  create_time   datetime(3)     not null                 comment '创建时间',
   update_by     varchar(64)  default null             comment '更新者',
-  update_time   datetime     default null             comment '更新时间',
+  update_time   datetime(3)     default null             comment '更新时间',
   primary key (identity_id),
   unique key uk_identity_subject_user (user_id),
   unique key uk_identity_subject_subject (subject_id),
@@ -1220,7 +1220,7 @@ create table sys_identity_subject (
 -- 初始化-统一认证主体关联表数据
 -- ----------------------------
 insert into sys_identity_subject (user_id, subject_id, auth_version, create_by, create_time)
-select user_id, uuid(), 1, 'initial-sql', sysdate() from sys_user;
+select user_id, uuid(), 1, 'initial-sql', UTC_TIMESTAMP(3) from sys_user;
 
 -- ----------------------------
 -- 35、OAuth客户端表
@@ -1248,9 +1248,9 @@ create table sys_oauth_client (
   backchannel_logout_session_required  smallint      not null default 1         comment '是否要求 Back-Channel Session',
   status                               char(1)       not null default '0'       comment '状态（0正常 1停用）',
   create_by                            varchar(64)   not null default ''        comment '创建者',
-  create_time                          datetime      not null                   comment '创建时间',
+  create_time                          datetime(3)      not null                   comment '创建时间',
   update_by                            varchar(64)   not null default ''        comment '更新者',
-  update_time                          datetime      not null                   comment '更新时间',
+  update_time                          datetime(3)      not null                   comment '更新时间',
   remark                               varchar(500)  default null               comment '备注',
   primary key (client_pk),
   unique key uk_oauth_client_client_id (client_id),
@@ -1266,13 +1266,13 @@ create table sys_oauth_client_secret (
   secret_hash   varchar(100)  not null                   comment 'Secret 强哈希',
   secret_hint   varchar(12)   not null                   comment 'Secret 提示',
   status        varchar(16)   not null default 'active'  comment 'Secret 状态',
-  not_before    datetime      not null                   comment '生效时间',
-  expires_at    datetime      default null               comment '过期时间',
-  last_used_at  datetime      default null               comment '最近使用时间',
+  not_before    datetime(3)      not null                   comment '生效时间',
+  expires_at    datetime(3)      default null               comment '过期时间',
+  last_used_at  datetime(3)      default null               comment '最近使用时间',
   create_by     varchar(64)   not null                   comment '创建者',
-  create_time   datetime      not null                   comment '创建时间',
+  create_time   datetime(3)      not null                   comment '创建时间',
   revoked_by    varchar(64)   default null               comment '撤销者',
-  revoked_at    datetime      default null               comment '撤销时间',
+  revoked_at    datetime(3)      default null               comment '撤销时间',
   primary key (secret_id),
   key idx_oauth_client_secret_client (client_pk, status),
   constraint fk_oauth_client_secret_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
@@ -1289,7 +1289,7 @@ create table sys_oauth_client_uri (
   uri_hash     char(64)       not null                 comment 'URI SHA-256 摘要',
   is_default   smallint       not null default 0       comment '是否默认 URI',
   status       char(1)        not null default '0'     comment '状态（0正常 1停用）',
-  create_time  datetime       not null                 comment '创建时间',
+  create_time  datetime(3)       not null                 comment '创建时间',
   primary key (uri_id),
   unique key uk_oauth_client_uri_hash (client_pk, uri_type, uri_hash),
   key idx_oauth_client_uri_type (client_pk, uri_type, status),
@@ -1311,9 +1311,9 @@ create table sys_oauth_resource (
   allowed_claims            json          not null                  comment '允许的 Claims',
   status                    char(1)       not null default '0'      comment '状态（0正常 1停用）',
   create_by                 varchar(64)   not null                  comment '创建者',
-  create_time               datetime      not null                  comment '创建时间',
+  create_time               datetime(3)      not null                  comment '创建时间',
   update_by                 varchar(64)   not null                  comment '更新者',
-  update_time               datetime      not null                  comment '更新时间',
+  update_time               datetime(3)      not null                  comment '更新时间',
   remark                    varchar(500)  default null              comment '备注',
   primary key (resource_pk),
   unique key uk_oauth_resource_resource_id (resource_id),
@@ -1336,9 +1336,9 @@ create table sys_oauth_scope (
   `sensitive`       smallint      not null default 0       comment '是否敏感',
   status            char(1)       not null default '0'     comment '状态（0正常 1停用）',
   create_by         varchar(64)   not null                 comment '创建者',
-  create_time       datetime      not null                 comment '创建时间',
+  create_time       datetime(3)      not null                 comment '创建时间',
   update_by         varchar(64)   not null                 comment '更新者',
-  update_time       datetime      not null                 comment '更新时间',
+  update_time       datetime(3)      not null                 comment '更新时间',
   remark            varchar(500)  default null             comment '备注',
   primary key (scope_pk),
   unique key uk_oauth_scope_code (scope_code),
@@ -1350,13 +1350,13 @@ create table sys_oauth_scope (
 -- ----------------------------
 -- 初始化-OAuth权限范围表数据
 -- ----------------------------
-insert into sys_oauth_scope values(1, 'openid', 'OpenID', 'identity', null, json_array('sub'), 1, 0, '0', 'system', sysdate(), 'system', sysdate(), 'OIDC 必需身份范围');
-insert into sys_oauth_scope values(2, 'profile', '基础资料', 'identity', null, json_array('name', 'preferred_username', 'picture', 'updated_at'), 1, 0, '0', 'system', sysdate(), 'system', sysdate(), 'OIDC Profile');
-insert into sys_oauth_scope values(3, 'email', '邮箱', 'identity', null, json_array('email', 'email_verified'), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), 'OIDC Email');
-insert into sys_oauth_scope values(4, 'phone', '手机号', 'identity', null, json_array('phone_number', 'phone_number_verified'), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), 'OIDC Phone');
-insert into sys_oauth_scope values(5, 'roles', '角色', 'identity', null, json_array('roles'), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), '外部角色 Claim');
-insert into sys_oauth_scope values(6, 'dept', '部门', 'identity', null, json_array('dept_id', 'dept_name'), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), '外部部门 Claim');
-insert into sys_oauth_scope values(7, 'offline_access', '离线访问', 'identity', null, json_array(), 1, 1, '0', 'system', sysdate(), 'system', sysdate(), '允许签发 Refresh Token');
+insert into sys_oauth_scope values(1, 'openid', 'OpenID', 'identity', null, json_array('sub'), 1, 0, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), 'OIDC 必需身份范围');
+insert into sys_oauth_scope values(2, 'profile', '基础资料', 'identity', null, json_array('name', 'preferred_username', 'picture', 'updated_at'), 1, 0, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), 'OIDC Profile');
+insert into sys_oauth_scope values(3, 'email', '邮箱', 'identity', null, json_array('email', 'email_verified'), 1, 1, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), 'OIDC Email');
+insert into sys_oauth_scope values(4, 'phone', '手机号', 'identity', null, json_array('phone_number', 'phone_number_verified'), 1, 1, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), 'OIDC Phone');
+insert into sys_oauth_scope values(5, 'roles', '角色', 'identity', null, json_array('roles'), 1, 1, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), '外部角色 Claim');
+insert into sys_oauth_scope values(6, 'dept', '部门', 'identity', null, json_array('dept_id', 'dept_name'), 1, 1, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), '外部部门 Claim');
+insert into sys_oauth_scope values(7, 'offline_access', '离线访问', 'identity', null, json_array(), 1, 1, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), '允许签发 Refresh Token');
 
 -- ----------------------------
 -- 40、OAuth客户端和权限范围关联表
@@ -1367,7 +1367,7 @@ create table sys_oauth_client_scope (
   is_default      smallint  not null default 0  comment '是否默认 Scope',
   pre_authorized  smallint  not null default 0  comment '是否预授权',
   claim_filter    json      default null        comment 'Client Claim 过滤策略',
-  create_time     datetime  not null            comment '创建时间',
+  create_time     datetime(3)  not null            comment '创建时间',
   primary key (client_pk, scope_pk),
   key idx_oauth_client_scope_scope (scope_pk),
   constraint fk_oauth_client_scope_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict,
@@ -1381,7 +1381,7 @@ create table sys_oauth_client_resource (
   client_pk    bigint    not null            comment 'Client 主键',
   resource_pk  bigint    not null            comment 'Resource 主键',
   is_default   smallint  not null default 0  comment '是否默认 Resource',
-  create_time  datetime  not null            comment '创建时间',
+  create_time  datetime(3)  not null            comment '创建时间',
   primary key (client_pk, resource_pk),
   key idx_oauth_client_resource_resource (resource_pk),
   constraint fk_oauth_client_resource_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict,
@@ -1398,13 +1398,15 @@ create table sys_oauth_grant (
   client_pk              bigint        not null                   comment 'Client 主键',
   granted_scopes         json          not null                   comment '已同意 Scope',
   granted_resources      json          not null                   comment '已同意 Resource audience',
+  remembered_scopes      json          default null               comment '后续可免确认的 Scope',
+  remembered_resources   json          default null               comment '后续可免确认的 Resource audience',
   client_policy_version  bigint        not null                   comment 'Client Policy Version',
   status                 varchar(16)   not null default 'active'  comment 'Grant 状态',
-  consented_at           datetime      not null                   comment '同意时间',
-  expires_at             datetime      default null               comment '过期时间',
-  revoked_at             datetime      default null               comment '撤销时间',
+  consented_at           datetime(3)      not null                   comment '同意时间',
+  expires_at             datetime(3)      default null               comment '过期时间',
+  revoked_at             datetime(3)      default null               comment '撤销时间',
   revoke_reason          varchar(200)  default null               comment '撤销原因',
-  last_used_at           datetime      default null               comment '最近使用时间',
+  last_used_at           datetime(3)      default null               comment '最近使用时间',
   primary key (grant_id),
   key idx_oauth_grant_user (user_id, status),
   key idx_oauth_grant_client (client_pk, status),
@@ -1422,19 +1424,19 @@ create table sys_sso_session (
   user_id              bigint        not null                   comment '用户ID',
   subject_id           varchar(36)   not null                   comment 'Subject 快照',
   auth_version         bigint        not null                   comment '认证安全版本',
-  auth_time            datetime      not null                   comment '认证时间',
-  last_seen_at         datetime      not null                   comment '最近活动时间',
-  idle_expires_at      datetime      not null                   comment '闲置过期时间',
-  absolute_expires_at  datetime      not null                   comment '绝对过期时间',
+  auth_time            datetime(3)      not null                   comment '认证时间',
+  last_seen_at         datetime(3)      not null                   comment '最近活动时间',
+  idle_expires_at      datetime(3)      not null                   comment '闲置过期时间',
+  absolute_expires_at  datetime(3)      not null                   comment '绝对过期时间',
   acr                  varchar(100)  not null                   comment '认证上下文',
   amr                  json          not null                   comment '认证方式',
   remember_me          smallint      not null default 0         comment '是否长期会话',
   ip_address           varchar(128)  default null               comment '登录 IP',
   user_agent_hash      char(64)      default null               comment 'User-Agent 摘要',
   status               varchar(16)   not null default 'active'  comment 'Session 状态',
-  revoked_at           datetime      default null               comment '撤销时间',
+  revoked_at           datetime(3)      default null               comment '撤销时间',
   revoke_reason        varchar(200)  default null               comment '撤销原因',
-  create_time          datetime      not null                   comment '创建时间',
+  create_time          datetime(3)      not null                   comment '创建时间',
   primary key (sid),
   key idx_sso_session_user (user_id, status),
   key idx_sso_session_idle (status, idle_expires_at),
@@ -1460,13 +1462,13 @@ create table sys_oauth_refresh_token (
   scopes                json          not null                   comment '绑定 Scope',
   resources             json          not null                   comment '绑定 Resource audience',
   status                varchar(24)   not null default 'active'  comment 'Token 状态',
-  issued_at             datetime      not null                   comment '签发时间',
-  last_used_at          datetime      default null               comment '最近使用时间',
-  idle_expires_at       datetime      not null                   comment '闲置过期时间',
-  absolute_expires_at   datetime      not null                   comment '绝对过期时间',
-  revoked_at            datetime      default null               comment '撤销时间',
+  issued_at             datetime(3)      not null                   comment '签发时间',
+  last_used_at          datetime(3)      default null               comment '最近使用时间',
+  idle_expires_at       datetime(3)      not null                   comment '闲置过期时间',
+  absolute_expires_at   datetime(3)      not null                   comment '绝对过期时间',
+  revoked_at            datetime(3)      default null               comment '撤销时间',
   revoke_reason         varchar(200)  default null               comment '撤销原因',
-  reuse_detected_at     datetime      default null               comment '重放检测时间',
+  reuse_detected_at     datetime(3)      default null               comment '重放检测时间',
   primary key (token_id),
   unique key uk_oauth_refresh_token_hash (token_hash),
   key idx_oauth_refresh_family (family_id, status),
@@ -1494,12 +1496,12 @@ create table sys_oidc_signing_key (
   private_key_ref         varchar(1000)  default null              comment 'KMS/HSM/文件引用',
   private_key_ciphertext  text           default null              comment '加密私钥材料',
   status                  varchar(16)    not null                  comment '密钥状态',
-  publish_at              datetime       not null                  comment '发布时间',
-  signing_start_at        datetime       default null              comment '开始签名时间',
-  signing_stop_at         datetime       default null              comment '停止签名时间',
-  remove_from_jwks_at     datetime       default null              comment '移出 JWKS 时间',
+  publish_at              datetime(3)       not null                  comment '发布时间',
+  signing_start_at        datetime(3)       default null              comment '开始签名时间',
+  signing_stop_at         datetime(3)       default null              comment '停止签名时间',
+  remove_from_jwks_at     datetime(3)       default null              comment '移出 JWKS 时间',
   create_by               varchar(64)    not null                  comment '创建者',
-  create_time             datetime       not null                  comment '创建时间',
+  create_time             datetime(3)       not null                  comment '创建时间',
   remark                  varchar(500)   default null              comment '备注',
   primary key (key_pk),
   unique key uk_oidc_signing_key_kid (kid),
@@ -1528,7 +1530,7 @@ create table sys_oauth_audit_log (
   user_agent    varchar(500)  default null               comment '脱敏 User-Agent',
   failure_code  varchar(64)   default null               comment '失败码',
   detail        json          default null               comment '脱敏扩展详情',
-  create_time   datetime      not null                   comment '事件时间',
+  create_time   datetime(3)      not null                   comment '事件时间',
   primary key (event_id),
   key idx_oauth_audit_time (create_time),
   key idx_oauth_audit_client (client_id, create_time),
@@ -1557,8 +1559,8 @@ create table sys_oauth_audit_archive (
   user_agent    varchar(500)  default null  comment '脱敏 User-Agent',
   failure_code  varchar(64)   default null  comment '失败码',
   detail        json          default null  comment '脱敏扩展详情',
-  create_time   datetime      not null      comment '事件时间',
-  archived_at   datetime      not null      comment '归档时间',
+  create_time   datetime(3)      not null      comment '事件时间',
+  archived_at   datetime(3)      not null      comment '归档时间',
   primary key (event_id),
   key idx_oauth_audit_archive_time (create_time),
   key idx_oauth_audit_archive_event (event_type, result, create_time)

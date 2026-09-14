@@ -17,12 +17,14 @@ class DiscoveryService:
         :param db: 异步数据库会话
         :return: 启用 Scope 名称列表
         """
+
         scopes = await OAuthClientDao.list_scope_definitions(db, active_only=True)
         dynamic = tuple(
             value if isinstance(value, str) else value.scope_code
             for value in scopes
             if isinstance(value, str) or isinstance(value.scope_code, str)
         )
+
         return list(
             dict.fromkeys((*('openid', 'profile', 'email', 'phone', 'dept', 'roles', 'offline_access'), *dynamic))
         )
@@ -34,6 +36,7 @@ class DiscoveryService:
 
         :return: OIDC 签发者地址
         """
+
         return OidcConfig.oidc_issuer.rstrip('/')
 
     @classmethod
@@ -43,7 +46,9 @@ class DiscoveryService:
 
         :return: 协议元数据映射
         """
+
         issuer = cls._issuer()
+
         return {
             'issuer': issuer,
             'authorization_endpoint': f'{issuer}/oauth2/authorize',
@@ -90,7 +95,9 @@ class DiscoveryService:
 
         :return: 协议元数据映射
         """
+
         issuer = cls._issuer()
+
         return {
             'issuer': issuer,
             'authorization_endpoint': f'{issuer}/oauth2/authorize',
@@ -115,8 +122,10 @@ class DiscoveryService:
         :param db: 异步数据库会话
         :return: 协议元数据映射
         """
+
         payload = cls.openid_metadata()
         payload['scopes_supported'] = await cls.supported_scopes(db)
+
         return payload
 
     @classmethod
@@ -127,6 +136,8 @@ class DiscoveryService:
         :param db: 异步数据库会话
         :return: 协议元数据映射
         """
+
         payload = cls.oauth_metadata()
         payload['scopes_supported'] = await cls.supported_scopes(db)
+
         return payload

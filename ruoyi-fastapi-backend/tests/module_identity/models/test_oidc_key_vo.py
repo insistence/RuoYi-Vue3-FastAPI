@@ -26,10 +26,13 @@ def test_public_jwk_rejects_private_rsa_parameters() -> None:
         )
 
 
-def test_rotation_request_rejects_timezone_offset() -> None:
-    """管理端轮换时间必须遵循项目的本地无时区契约。"""
-    with pytest.raises(ValidationError, match='must not include a timezone offset'):
-        OidcKeyRotateModel(
-            kid='key-1',
-            publishAt=datetime(2026, 8, 28, 10, 0, tzinfo=timezone.utc),
-        )
+@pytest.mark.parametrize('value', ['2026-08-28 10:00:00', datetime(2026, 8, 28, 10, 0)])
+def test_rotation_request_rejects_missing_timezone(value: object) -> None:
+    with pytest.raises(ValidationError):
+        OidcKeyRotateModel(kid='key-1', publishAt=value)
+
+
+def test_rotation_request_normalizes_offset_to_utc() -> None:
+    model = OidcKeyRotateModel(kid='key-1', publishAt='2026-08-28T10:00:00+08:00')
+    assert model.publish_at == datetime(2026, 8, 28, 2, 0, tzinfo=timezone.utc)
+    assert model.model_dump(mode='json', by_alias=True)['publishAt'] == '2026-08-28T02:00:00.000Z'

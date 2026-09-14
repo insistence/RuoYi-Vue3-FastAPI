@@ -4,7 +4,6 @@ from datetime import datetime
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from module_identity.dao._helpers import escape_like
 from module_identity.entity.do.oauth_client_do import SysOAuthClient
 from module_identity.entity.do.oauth_grant_do import SysOAuthGrant, SysOAuthRefreshToken
 from module_identity.entity.do.oauth_resource_do import (
@@ -30,6 +29,7 @@ class OAuthResourceDao:
         :param resource: OAuth Resource 对象
         :return: None
         """
+
         db.add(resource)
         await db.flush()
 
@@ -42,6 +42,7 @@ class OAuthResourceDao:
         :param scope: OAuth Scope 对象
         :return: None
         """
+
         db.add(scope)
         await db.flush()
 
@@ -54,6 +55,7 @@ class OAuthResourceDao:
         :param resource: OAuth Resource 对象
         :return: None
         """
+
         await db.flush()
 
     @classmethod
@@ -65,6 +67,7 @@ class OAuthResourceDao:
         :param scope: OAuth Scope 对象
         :return: None
         """
+
         await db.flush()
 
     @classmethod
@@ -79,10 +82,12 @@ class OAuthResourceDao:
         :param for_update: 是否锁定查询结果
         :return: OAuth Resource，不存在时返回 None
         """
+
         query = select(SysOAuthResource).where(SysOAuthResource.resource_id == resource_id)
         if for_update:
             query = query.with_for_update()
         result = await db.execute(query)
+
         return result.scalars().first()
 
     @classmethod
@@ -95,11 +100,13 @@ class OAuthResourceDao:
         :param audience: Resource 受众
         :return: 是否存在重复 Resource
         """
+
         result = await db.execute(
             select(SysOAuthResource.resource_pk).where(
                 (SysOAuthResource.resource_id == resource_id) | (SysOAuthResource.audience == audience)
             )
         )
+
         return result.scalar_one_or_none() is not None
 
     @classmethod
@@ -111,9 +118,10 @@ class OAuthResourceDao:
         :param page: 分页查询条件对象
         :return: OAuth Resource 序列
         """
+
         conditions = []
         if page.resource_name:
-            conditions.append(SysOAuthResource.resource_name.like(f'%{escape_like(page.resource_name)}%', escape='\\'))
+            conditions.append(SysOAuthResource.resource_name.contains(page.resource_name, autoescape=True, escape='\\'))
         if page.status:
             conditions.append(SysOAuthResource.status == page.status)
         result = await db.execute(
@@ -123,6 +131,7 @@ class OAuthResourceDao:
             .offset((page.page_num - 1) * page.page_size)
             .limit(page.page_size)
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -134,12 +143,14 @@ class OAuthResourceDao:
         :param page: 分页查询条件对象
         :return: OAuth Resource 数量
         """
+
         conditions = []
         if page.resource_name:
-            conditions.append(SysOAuthResource.resource_name.like(f'%{escape_like(page.resource_name)}%', escape='\\'))
+            conditions.append(SysOAuthResource.resource_name.contains(page.resource_name, autoescape=True, escape='\\'))
         if page.status:
             conditions.append(SysOAuthResource.status == page.status)
         result = await db.execute(select(func.count()).select_from(SysOAuthResource).where(*conditions))
+
         return int(result.scalar_one())
 
     @classmethod
@@ -151,11 +162,13 @@ class OAuthResourceDao:
         :param resource_id: Resource 公开标识
         :return: 启用 OAuth Resource，不存在时返回 None
         """
+
         if not resource_id:
             return None
         result = await db.execute(
             select(SysOAuthResource).where(SysOAuthResource.resource_id == resource_id, SysOAuthResource.status == '0')
         )
+
         return result.scalars().first()
 
     @classmethod
@@ -167,11 +180,13 @@ class OAuthResourceDao:
         :param audiences: Resource 受众序列
         :return: 启用 OAuth Resource 序列
         """
+
         if not audiences:
             return ()
         result = await db.execute(
             select(SysOAuthResource).where(SysOAuthResource.audience.in_(audiences), SysOAuthResource.status == '0')
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -184,10 +199,12 @@ class OAuthResourceDao:
         :param for_update: 是否锁定查询结果
         :return: OAuth Scope，不存在时返回 None
         """
+
         query = select(SysOAuthScope).where(SysOAuthScope.scope_code == scope_code)
         if for_update:
             query = query.with_for_update()
         result = await db.execute(query)
+
         return result.scalars().first()
 
     @classmethod
@@ -199,7 +216,9 @@ class OAuthResourceDao:
         :param scope_code: Scope 编码
         :return: 是否存在重复 Scope
         """
+
         result = await db.execute(select(SysOAuthScope.scope_pk).where(SysOAuthScope.scope_code == scope_code))
+
         return result.scalar_one_or_none() is not None
 
     @classmethod
@@ -211,9 +230,10 @@ class OAuthResourceDao:
         :param page: 分页查询条件对象
         :return: OAuth Scope 序列
         """
+
         conditions = []
         if page.scope_name:
-            conditions.append(SysOAuthScope.scope_name.like(f'%{escape_like(page.scope_name)}%', escape='\\'))
+            conditions.append(SysOAuthScope.scope_name.contains(page.scope_name, autoescape=True, escape='\\'))
         if page.scope_type:
             conditions.append(SysOAuthScope.scope_type == page.scope_type)
         if page.status:
@@ -225,6 +245,7 @@ class OAuthResourceDao:
             .offset((page.page_num - 1) * page.page_size)
             .limit(page.page_size)
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -236,14 +257,16 @@ class OAuthResourceDao:
         :param page: 分页查询条件对象
         :return: OAuth Scope 数量
         """
+
         conditions = []
         if page.scope_name:
-            conditions.append(SysOAuthScope.scope_name.like(f'%{escape_like(page.scope_name)}%', escape='\\'))
+            conditions.append(SysOAuthScope.scope_name.contains(page.scope_name, autoescape=True, escape='\\'))
         if page.scope_type:
             conditions.append(SysOAuthScope.scope_type == page.scope_type)
         if page.status:
             conditions.append(SysOAuthScope.status == page.status)
         result = await db.execute(select(func.count()).select_from(SysOAuthScope).where(*conditions))
+
         return int(result.scalar_one())
 
     @classmethod
@@ -255,9 +278,11 @@ class OAuthResourceDao:
         :param resource_pk: Resource 内部主键
         :return: Resource 公开标识，不存在时返回 None
         """
+
         result = await db.execute(
             select(SysOAuthResource.resource_id).where(SysOAuthResource.resource_pk == resource_pk)
         )
+
         return result.scalar_one_or_none()
 
     @classmethod
@@ -269,12 +294,14 @@ class OAuthResourceDao:
         :param scope_pk: Scope 内部主键
         :return: Scope 关联的 OAuth Client 序列
         """
+
         result = await db.execute(
             select(SysOAuthClient)
             .join(SysOAuthClientScope, SysOAuthClientScope.client_pk == SysOAuthClient.client_pk)
             .where(SysOAuthClientScope.scope_pk == scope_pk)
             .with_for_update()
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -286,12 +313,14 @@ class OAuthResourceDao:
         :param resource_pk: Resource 内部主键
         :return: Client 内部主键和公开标识元组序列
         """
+
         result = await db.execute(
             select(SysOAuthClient.client_pk, SysOAuthClient.client_id)
             .join(SysOAuthClientResource, SysOAuthClientResource.client_pk == SysOAuthClient.client_pk)
             .where(SysOAuthClientResource.resource_pk == resource_pk)
             .order_by(SysOAuthClient.client_id)
         )
+
         return result.all()
 
     @classmethod
@@ -303,6 +332,7 @@ class OAuthResourceDao:
         :param resource_pk: Resource 内部主键
         :return: 通过 Scope 关联的 Client 内部主键和公开标识元组序列
         """
+
         result = await db.execute(
             select(SysOAuthClient.client_pk, SysOAuthClient.client_id)
             .join(SysOAuthClientScope, SysOAuthClientScope.client_pk == SysOAuthClient.client_pk)
@@ -310,6 +340,7 @@ class OAuthResourceDao:
             .where(SysOAuthScope.resource_pk == resource_pk)
             .order_by(SysOAuthClient.client_id)
         )
+
         return result.all()
 
     @classmethod
@@ -321,11 +352,13 @@ class OAuthResourceDao:
         :param client_pks: Client 内部主键序列
         :return: 活跃 OAuth Grant 序列
         """
+
         if not client_pks:
             return ()
         result = await db.execute(
             select(SysOAuthGrant).where(SysOAuthGrant.status == 'active', SysOAuthGrant.client_pk.in_(client_pks))
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -337,6 +370,7 @@ class OAuthResourceDao:
         :param client_pks: Client 内部主键序列
         :return: 活跃 OAuth Refresh Token 序列
         """
+
         if not client_pks:
             return ()
         result = await db.execute(
@@ -344,6 +378,7 @@ class OAuthResourceDao:
                 SysOAuthRefreshToken.status == 'active', SysOAuthRefreshToken.client_pk.in_(client_pks)
             )
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -357,6 +392,7 @@ class OAuthResourceDao:
         :param reason: 撤销或标记原因
         :return: None
         """
+
         if not client_pks:
             return
         await db.execute(

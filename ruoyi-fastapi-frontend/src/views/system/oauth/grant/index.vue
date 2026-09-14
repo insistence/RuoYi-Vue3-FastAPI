@@ -7,80 +7,225 @@
       filter-hint="默认只显示仍然有效的授权"
     >
       <template #actions>
-        <el-button type="danger" plain icon="CircleClose" :disabled="!selected.length" v-hasPermi="['system:oauthGrant:revoke']" @click="openRevoke()">
+        <el-button
+          type="danger"
+          plain
+          icon="CircleClose"
+          :disabled="!selected.length"
+          v-hasPermi="['system:oauthGrant:revoke']"
+          @click="openRevoke()"
+        >
           撤销选中{{ selected.length ? `（${selected.length}）` : '' }}
         </el-button>
       </template>
       <template #filters>
-        <el-form v-show="showSearch" ref="queryRef" :model="queryParams" :inline="true">
-          <el-form-item label="用户" prop="userId">
-            <el-input v-model="queryParams.userId" clearable placeholder="用户编号" style="width: 200px" />
+        <el-form
+          v-show="showSearch"
+          ref="queryRef"
+          :model="queryParams"
+          :inline="true"
+        >
+          <el-form-item
+            label="用户"
+            prop="userId"
+          >
+            <el-input
+              v-model="queryParams.userId"
+              clearable
+              placeholder="用户编号"
+              style="width: 200px"
+            />
           </el-form-item>
-          <el-form-item label="应用" prop="clientId">
-            <el-input v-model="queryParams.clientId" clearable placeholder="应用编号" style="width: 200px" />
+          <el-form-item
+            label="应用"
+            prop="clientId"
+          >
+            <el-input
+              v-model="queryParams.clientId"
+              clearable
+              placeholder="应用编号"
+              style="width: 200px"
+            />
           </el-form-item>
-          <el-form-item label="状态" prop="status">
-            <el-select v-model="queryParams.status" clearable placeholder="全部状态" style="width: 200px">
-              <el-option label="仍然有效" value="active" />
-              <el-option label="已撤销" value="revoked" />
-              <el-option label="已过期" value="expired" />
+          <el-form-item
+            label="状态"
+            prop="status"
+          >
+            <el-select
+              v-model="queryParams.status"
+              clearable
+              placeholder="全部状态"
+              style="width: 200px"
+            >
+              <el-option
+                label="仍然有效"
+                value="active"
+              />
+              <el-option
+                label="已撤销"
+                value="revoked"
+              />
+              <el-option
+                label="已过期"
+                value="expired"
+              />
             </el-select>
           </el-form-item>
           <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">查找</el-button>
-            <el-button icon="Refresh" @click="resetQuery">清空</el-button>
+            <el-button
+              type="primary"
+              icon="Search"
+              @click="handleQuery"
+              >查找</el-button
+            >
+            <el-button
+              icon="Refresh"
+              @click="resetQuery"
+              >清空</el-button
+            >
           </el-form-item>
         </el-form>
       </template>
       <template #toolbar>
-        <span class="result-count">找到 <strong>{{ total }}</strong> 条授权</span>
-        <right-toolbar v-model:showSearch="showSearch" @queryTable="getList" />
+        <span class="result-count"
+          >找到 <strong>{{ total }}</strong> 条授权</span
+        >
+        <right-toolbar
+          v-model:showSearch="showSearch"
+          @queryTable="getList"
+        />
       </template>
 
-      <el-table v-loading="loading" :data="rows" row-key="grantId" @selection-change="selected = $event">
-        <el-table-column type="selection" width="48" :selectable="row => row.status === 'active'" />
-        <el-table-column label="用户" min-width="180">
+      <el-table
+        v-loading="loading"
+        :data="rows"
+        row-key="grantId"
+        @selection-change="selected = $event"
+      >
+        <el-table-column
+          type="selection"
+          width="48"
+          :selectable="(row) => row.status === 'active'"
+        />
+        <el-table-column
+          label="用户"
+          min-width="180"
+        >
           <template #default="scope">
             <div class="person-cell">
-              <span class="person-mark"><el-icon><User /></el-icon></span>
-              <span><strong>{{ scope.row.userName || `用户 ${scope.row.userId}` }}</strong><small>{{ scope.row.userId || short(scope.row.subjectId) }}</small></span>
+              <span class="person-mark"
+                ><el-icon><User /></el-icon
+              ></span>
+              <span
+                ><strong>{{ scope.row.userName || `用户 ${scope.row.userId}` }}</strong
+                ><small>{{ scope.row.userId || short(scope.row.subjectId) }}</small></span
+              >
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="授权给应用" min-width="210">
-          <template #default="scope"><div class="stacked-cell"><strong>{{ scope.row.clientName || scope.row.clientId }}</strong><code>{{ scope.row.clientId }}</code></div></template>
+        <el-table-column
+          label="授权给应用"
+          min-width="210"
+        >
+          <template #default="scope"
+            ><div class="stacked-cell">
+              <strong>{{ scope.row.clientName || scope.row.clientId }}</strong
+              ><code>{{ scope.row.clientId }}</code>
+            </div></template
+          >
         </el-table-column>
-        <el-table-column label="允许的权限" min-width="260">
+        <el-table-column
+          label="允许的权限"
+          min-width="260"
+        >
           <template #default="scope">
             <div class="tag-summary">
-              <el-tag v-for="item in (scope.row.grantedScopes || []).slice(0, 3)" :key="item" size="small" effect="plain">{{ item }}</el-tag>
-              <span v-if="(scope.row.grantedScopes || []).length > 3" class="muted-value">+{{ scope.row.grantedScopes.length - 3 }}</span>
+              <el-tag
+                v-for="item in (scope.row.grantedScopes || []).slice(0, 3)"
+                :key="item"
+                size="small"
+                effect="plain"
+                >{{ item }}</el-tag
+              >
+              <span
+                v-if="(scope.row.grantedScopes || []).length > 3"
+                class="muted-value"
+                >+{{ scope.row.grantedScopes.length - 3 }}</span
+              >
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="可访问服务" min-width="170" show-overflow-tooltip>
-          <template #default="scope">{{ (scope.row.grantedResources || []).join('、') || '仅身份信息' }}</template>
+        <el-table-column
+          label="可访问服务"
+          min-width="170"
+          show-overflow-tooltip
+        >
+          <template #default="scope">{{
+            (scope.row.grantedResources || []).join('、') || '仅身份信息'
+          }}</template>
         </el-table-column>
-        <el-table-column label="最后使用" width="170">
+        <el-table-column
+          label="最后使用"
+          width="170"
+        >
           <template #default="scope">{{ parseTime(scope.row.lastUsedAt) || '尚未使用' }}</template>
         </el-table-column>
-        <el-table-column label="状态" width="105" align="center">
-          <template #default="scope"><el-tag :type="statusType(scope.row.status)">{{ statusText(scope.row.status) }}</el-tag></template>
+        <el-table-column
+          label="状态"
+          width="105"
+          align="center"
+        >
+          <template #default="scope"
+            ><el-tag :type="statusType(scope.row.status)">{{
+              statusText(scope.row.status)
+            }}</el-tag></template
+          >
         </el-table-column>
-        <el-table-column label="操作" fixed="right" width="160" align="center">
+        <el-table-column
+          label="操作"
+          fixed="right"
+          width="160"
+          align="center"
+        >
           <template #default="scope">
             <div class="table-actions">
-              <el-button link type="primary" icon="View" @click="showDetail(scope.row)">查看</el-button>
-              <el-button v-if="scope.row.status === 'active'" link type="danger" icon="CircleClose" v-hasPermi="['system:oauthGrant:revoke']" @click="openRevoke(scope.row)">撤销</el-button>
+              <el-button
+                link
+                type="primary"
+                icon="View"
+                @click="showDetail(scope.row)"
+                >查看</el-button
+              >
+              <el-button
+                v-if="scope.row.status === 'active'"
+                link
+                type="danger"
+                icon="CircleClose"
+                v-hasPermi="['system:oauthGrant:revoke']"
+                @click="openRevoke(scope.row)"
+                >撤销</el-button
+              >
             </div>
           </template>
         </el-table-column>
         <template #empty><el-empty description="没有符合条件的用户授权" /></template>
       </el-table>
-      <pagination v-show="total > 0" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" :total="total" @pagination="getList" />
+      <pagination
+        v-show="total > 0"
+        v-model:page="queryParams.pageNum"
+        v-model:limit="queryParams.pageSize"
+        :total="total"
+        @pagination="getList"
+      />
     </PageFrame>
 
-    <el-dialog v-model="revokeOpen" title="撤销用户授权" width="min(540px, calc(100vw - 32px))" append-to-body :close-on-click-modal="false">
+    <el-dialog
+      v-model="revokeOpen"
+      title="撤销用户授权"
+      width="min(540px, calc(100vw - 32px))"
+      append-to-body
+      :close-on-click-modal="false"
+    >
       <div class="impact-summary">
         <el-icon><WarningFilled /></el-icon>
         <div>
@@ -88,36 +233,90 @@
           <p>应用将不能继续刷新用户的访问凭据；已经发出的短期凭据会在自身有效期结束后失效。</p>
         </div>
       </div>
-      <label class="reason-label" for="grant-revoke-reason">撤销原因</label>
-      <el-input id="grant-revoke-reason" v-model="reason" type="textarea" :rows="3" maxlength="200" show-word-limit placeholder="说明为什么要撤销，便于后续审计" />
+      <label
+        class="reason-label"
+        for="grant-revoke-reason"
+        >撤销原因</label
+      >
+      <el-input
+        id="grant-revoke-reason"
+        v-model="reason"
+        type="textarea"
+        :rows="3"
+        maxlength="200"
+        show-word-limit
+        placeholder="说明为什么要撤销，便于后续审计"
+      />
       <template #footer>
         <el-button @click="revokeOpen = false">取消</el-button>
-        <el-button type="danger" :disabled="!reason.trim()" :loading="revoking" @click="revoke">确认撤销</el-button>
+        <el-button
+          type="danger"
+          :disabled="!reason.trim()"
+          :loading="revoking"
+          @click="revoke"
+          >确认撤销</el-button
+        >
       </template>
     </el-dialog>
 
-    <el-drawer v-model="detailOpen" title="用户授权详情" size="min(640px, 92vw)">
+    <el-drawer
+      v-model="detailOpen"
+      title="用户授权详情"
+      size="min(640px, 92vw)"
+    >
       <div class="detail-hero">
-        <span class="person-mark large"><el-icon><User /></el-icon></span>
-        <div><strong>{{ detail.userName || detail.userId || '用户' }}</strong><p>已授权给 {{ detail.clientName || detail.clientId }}</p></div>
+        <span class="person-mark large"
+          ><el-icon><User /></el-icon
+        ></span>
+        <div>
+          <strong>{{ detail.userName || detail.userId || '用户' }}</strong>
+          <p>已授权给 {{ detail.clientName || detail.clientId }}</p>
+        </div>
         <el-tag :type="statusType(detail.status)">{{ statusText(detail.status) }}</el-tag>
       </div>
       <section class="detail-section">
         <h4>允许的权限</h4>
-        <div class="tag-summary"><el-tag v-for="item in detail.grantedScopes || []" :key="item" effect="plain">{{ item }}</el-tag></div>
+        <div class="tag-summary">
+          <el-tag
+            v-for="item in detail.grantedScopes || []"
+            :key="item"
+            effect="plain"
+            >{{ item }}</el-tag
+          >
+        </div>
       </section>
       <section class="detail-section">
         <h4>可访问服务</h4>
         <p>{{ (detail.grantedResources || []).join('、') || '仅用于获取登录身份信息' }}</p>
       </section>
-      <el-descriptions :column="1" border class="detail-descriptions">
-        <el-descriptions-item label="授权时间">{{ parseTime(detail.consentedAt) || '—' }}</el-descriptions-item>
-        <el-descriptions-item label="最后使用">{{ parseTime(detail.lastUsedAt) || '尚未使用' }}</el-descriptions-item>
-        <el-descriptions-item label="撤销原因">{{ detail.revokeReason || '—' }}</el-descriptions-item>
+      <el-descriptions
+        :column="1"
+        border
+        class="detail-descriptions"
+      >
+        <el-descriptions-item label="授权时间">{{
+          parseTime(detail.consentedAt) || '—'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="最后使用">{{
+          parseTime(detail.lastUsedAt) || '尚未使用'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="撤销原因">{{
+          detail.revokeReason || '—'
+        }}</el-descriptions-item>
       </el-descriptions>
       <el-collapse class="technical-details">
-        <el-collapse-item title="查看技术标识" name="technical">
-          <dl><dt>授权 ID</dt><dd>{{ detail.grantId }}</dd><dt>用户主体</dt><dd>{{ detail.subjectId }}</dd><dt>策略版本</dt><dd>{{ detail.clientPolicyVersion || '—' }}</dd></dl>
+        <el-collapse-item
+          title="查看技术标识"
+          name="technical"
+        >
+          <dl>
+            <dt>授权 ID</dt>
+            <dd>{{ detail.grantId }}</dd>
+            <dt>用户主体</dt>
+            <dd>{{ detail.subjectId }}</dd>
+            <dt>策略版本</dt>
+            <dd>{{ detail.clientPolicyVersion || '—' }}</dd>
+          </dl>
         </el-collapse-item>
       </el-collapse>
     </el-drawer>
@@ -140,21 +339,33 @@ const revokeOpen = ref(false)
 const detailOpen = ref(false)
 const revokeIds = ref([])
 const reason = ref('')
-const queryParams = reactive({ pageNum: 1, pageSize: 10, userId: undefined, clientId: undefined, status: 'active' })
+const queryParams = reactive({
+  pageNum: 1,
+  pageSize: 10,
+  userId: undefined,
+  clientId: undefined,
+  status: 'active',
+})
 
+/** 缩略显示授权标识 */
 function short(value) {
-  if (!value) return '—'
+  if (!value) {
+    return '—'
+  }
   return value.length > 12 ? `${value.slice(0, 12)}…` : value
 }
 
+/** 获取授权状态名称 */
 function statusText(value) {
-  return ({ active: '仍然有效', revoked: '已撤销', expired: '已过期' })[value] || '未知状态'
+  return { active: '仍然有效', revoked: '已撤销', expired: '已过期' }[value] || '未知状态'
 }
 
+/** 获取授权状态标签类型 */
 function statusType(value) {
-  return ({ active: 'success', revoked: 'danger', expired: 'info' })[value] || 'info'
+  return { active: 'success', revoked: 'danger', expired: 'info' }[value] || 'info'
 }
 
+/** 查询用户授权列表 */
 async function getList() {
   loading.value = true
   try {
@@ -166,26 +377,32 @@ async function getList() {
   }
 }
 
+/** 搜索按钮操作 */
 function handleQuery() {
   queryParams.pageNum = 1
   getList()
 }
 
+/** 重置按钮操作 */
 function resetQuery() {
   proxy.resetForm('queryRef')
   handleQuery()
 }
 
+/** 打开授权撤销对话框 */
 function openRevoke(row) {
-  revokeIds.value = row ? [row.grantId] : selected.value.map(item => item.grantId)
+  revokeIds.value = row ? [row.grantId] : selected.value.map((item) => item.grantId)
   reason.value = ''
   revokeOpen.value = true
 }
 
+/** 提交选中授权的撤销原因 */
 async function revoke() {
   revoking.value = true
   try {
-    await revokeOAuthGrants(revokeIds.value.join(','), { reason: reason.value.trim() })
+    await revokeOAuthGrants(revokeIds.value.join(','), {
+      reason: reason.value.trim(),
+    })
     proxy.$modal.msgSuccess('授权已撤销')
     revokeOpen.value = false
     await getList()
@@ -194,6 +411,7 @@ async function revoke() {
   }
 }
 
+/** 查询并展示授权详情 */
 async function showDetail(row) {
   const response = await getOAuthGrant(row.grantId)
   detail.value = response.data
@@ -279,7 +497,7 @@ getList()
   border-radius: 8px;
 }
 
-.impact-summary>.el-icon {
+.impact-summary > .el-icon {
   flex: 0 0 auto;
   margin-top: 2px;
   font-size: 18px;
@@ -308,7 +526,7 @@ getList()
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.detail-hero>div {
+.detail-hero > div {
   flex: 1;
 }
 

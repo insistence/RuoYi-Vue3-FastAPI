@@ -18,8 +18,8 @@ from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException, OidcInteractionException, ServiceException
 from module_admin.service.captcha_service import CaptchaService
 from module_admin.service.user_service import UserService
-from module_identity.dao._helpers import local_datetime
 from module_identity.dao.identity_user_dao import IdentityUserDao
+from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.entity.vo.interaction_vo import (
     CaptchaResponseModel,
     ChangePasswordModel,
@@ -43,9 +43,23 @@ from module_identity.service.infrastructure_service import (
 )
 from module_identity.service.session_service import SsoSessionError, SsoSessionService
 from utils.pwd_util import PwdUtil
+from utils.time_util import TimezoneUtil
 
 if TYPE_CHECKING:
+    from module_identity.entity.do.oauth_client_do import SysOAuthClient
     from module_identity.entity.do.oauth_grant_do import SysSsoSession
+    from module_identity.entity.do.oauth_resource_do import SysOAuthScope
+
+
+_PUBLIC_SCOPE_DESCRIPTIONS = {
+    'openid': '用于确认你的身份并登录应用。',
+    'profile': '允许应用读取昵称、头像等基本资料。',
+    'email': '允许应用读取你的电子邮箱。',
+    'phone': '允许应用读取你的手机号码。',
+    'roles': '允许应用读取已向它开放的角色信息。',
+    'dept': '允许应用读取你的部门信息。',
+    'offline_access': '浏览器关闭或登录到期后，仍允许应用在授权有效期内继续访问；你可以撤销授权。',
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +155,7 @@ return 1
         :raises OidcInteractionException: prompt=none 无法静默完成时抛出
         :raises ValueError: payload、Prompt 或 TTL 不合法时抛出
         """
+
         record = cls._validate_payload(payload)
         prompt = record['prompt']
         authenticated_sid = record.get('authenticatedSid')
@@ -180,18 +195,27 @@ return 1
         return InteractionCreated(interaction_id, csrf_token, initial_status)
 
     @classmethod
-    async def get(cls, redis: Redis, interaction_id: str) -> dict[str, Any]:
+    async def get(cls, redis: Redis, interaction_id: str, db: AsyncSession) -> dict[str, Any]:
         """
-        获取不泄漏协议内部字段的页面投影及剩余 TTL
+        从当前启用的应用及权限定义构建页面，不公开管理备注或协议内部字段
 
         :param redis: 异步 Redis 客户端
         :param interaction_id: Interaction 标识
+        :param db: 默认平台数据库会话
         :return: 页面安全载荷
         :raises OidcInteractionException: Interaction 缺失、过期或状态损坏时抛出
         """
+
         record = await cls._get_record(redis, interaction_id)
+        client = await OAuthClientDao.get_by_pk(db, record['clientPk'])
+        if client is None or client.client_id != record['clientId']:
+            raise OidcInteractionException(message='应用已不可用，请返回应用重新登录', status_code=400)
+        scopes = {scope.scope_code: scope for scope in await OAuthClientDao.list_scopes(db, client.client_pk)}
+        if not set(record['scopes']).issubset(scopes):
+            raise OidcInteractionException(message='应用权限已变更，请返回应用重新登录', status_code=400)
         ttl = await redis.ttl(OidcRedisKey.interaction(interaction_id))
-        return cls._page_projection(record, ttl)
+
+        return cls._page_projection(record, ttl, client, scopes)
 
     @classmethod
     async def get_record(cls, redis: Redis, interaction_id: str) -> dict[str, Any]:
@@ -203,6 +227,7 @@ return 1
         :return: 完整内部记录；调用方不得直接返回给页面
         :raises OidcInteractionException: Interaction 缺失或记录损坏时抛出
         """
+
         return await cls._get_record(redis, interaction_id)
 
     @classmethod
@@ -224,10 +249,11 @@ return 1
         :param target_status: 目标状态
         :param updates: 可更新的后端认证字段
         :param expected_version: 调用方读取状态时的版本号
-        :return: 更新后的页面安全投影
+        :return: 更新后的下一步动作与剩余 TTL；页面元数据由 get 读取
         :raises OidcInteractionException: Interaction 缺失或并发状态已变化时抛出
         :raises ValueError: 状态、字段或流转方向不合法时抛出
         """
+
         if target_status not in cls._ALLOWED_STATUSES:
             raise ValueError('unsupported Interaction target status')
         expected = set(expected_statuses)
@@ -261,7 +287,11 @@ return 1
         )
         if result == 1:
             ttl = await redis.ttl(OidcRedisKey.interaction(interaction_id))
-            return cls._page_projection(next_record, ttl)
+            return {
+                'interactionId': interaction_id,
+                'nextAction': cls._next_action(target_status),
+                'expiresIn': max(0, int(ttl)),
+            }
         if result == -1:
             raise OidcInteractionException(
                 message='Interaction is missing or expired', error='invalid_request', status_code=404
@@ -286,6 +316,7 @@ return 1
         :param pepper: CSRF 摘要 Pepper
         :return: 摘要匹配时为 True
         """
+
         stored = record.get('csrfHash') if isinstance(record, Mapping) else None
         if not isinstance(stored, str) or not isinstance(csrf_token, str) or not csrf_token:
             return False
@@ -305,12 +336,14 @@ return 1
         :param now: 可选当前时间
         :return: 超过 max_age 时为 True
         """
+
         if max_age is None:
             return False
         if not isinstance(max_age, int) or isinstance(max_age, bool) or max_age < 0:
             raise ValueError('max_age must be a non-negative integer')
-        current = local_datetime(now) or datetime.now()
-        auth = local_datetime(auth_time)
+        current = TimezoneUtil.to_utc(now) if now is not None else TimezoneUtil.utc_now()
+        auth = TimezoneUtil.to_utc(auth_time)
+
         return current.timestamp() - auth.timestamp() > max_age
 
     @classmethod
@@ -322,6 +355,7 @@ return 1
         :param interaction_id: 交互流程标识
         :return: 通过校验的完整 Interaction 记录
         """
+
         if (
             not isinstance(interaction_id, str)
             or not interaction_id
@@ -366,6 +400,7 @@ return 1
         :param record: 交互记录
         :return: None
         """
+
         if not isinstance(record, Mapping):
             raise ValueError('interaction record must be a mapping')
         required = {'interactionId', 'requestedAt', 'csrfHash', 'status', 'version'}
@@ -401,6 +436,7 @@ return 1
         :param payload: Interaction 载荷
         :return: 通过校验的交互载荷
         """
+
         if not isinstance(payload, Mapping):
             raise ValueError('interaction payload must be a mapping')
         allowed = {
@@ -571,6 +607,7 @@ return 1
         :param pepper: Token 摘要 Pepper
         :return: CSRF 摘要
         """
+
         if (
             not isinstance(token, str)
             or not isinstance(pepper, str)
@@ -587,38 +624,65 @@ return 1
         :param record: 交互记录
         :return: 序列化 JSON 字符串
         """
+
         try:
             return json.dumps(record, ensure_ascii=False, separators=(',', ':'), sort_keys=True, allow_nan=False)
         except (TypeError, ValueError) as exc:
             raise ValueError('interaction payload must be JSON serializable') from exc
 
     @staticmethod
-    def _page_projection(record: Mapping[str, Any], ttl: int) -> dict[str, Any]:
+    def _next_action(status: str) -> str:
         """
-        构建不含协议内部绑定和 CSRF 摘要的页面投影
+        将内部交互状态转换为页面的下一步动作
 
-        :param record: 交互记录
-        :param ttl: 剩余有效期秒数
-        :return: 交互页面数据
+        :param status: 当前交互状态
+        :return: 页面下一步动作
         """
-        next_action = {
+
+        return {
             'awaiting_login': 'login',
             'awaiting_consent': 'consent',
             'password_change_required': 'changePassword',
             'completed': 'redirect',
             'denied': 'redirect',
             'expired': 'redirect',
-        }[record['status']]
+        }[status]
+
+    @staticmethod
+    def _page_projection(
+        record: Mapping[str, Any],
+        ttl: int,
+        client: 'SysOAuthClient',
+        scopes: Mapping[str, 'SysOAuthScope'],
+    ) -> dict[str, Any]:
+        """
+        构建不含协议内部绑定和 CSRF 摘要的页面投影
+
+        :param record: 交互记录
+        :param ttl: 剩余有效期秒数
+        :param client: 当前启用的应用
+        :param scopes: 当前应用允许的启用权限定义
+        :return: 交互页面数据
+        """
+
+        next_action = InteractionService._next_action(record['status'])
+
         return {
             'interactionId': record['interactionId'],
-            'client': {'clientId': record['clientId'], 'clientName': record['clientId']},
+            'client': {
+                'clientId': client.client_id,
+                'clientName': client.client_name,
+                'logoUri': client.logo_uri,
+                'policyUri': client.policy_uri,
+                'tosUri': client.tos_uri,
+            },
             'requestedScopes': [
                 {
                     'scope': scope,
-                    'name': scope,
-                    'description': None,
-                    'sensitive': False,
-                    'required': scope == 'openid',
+                    'name': scopes[scope].scope_name,
+                    'description': _PUBLIC_SCOPE_DESCRIPTIONS.get(scope),
+                    'sensitive': bool(scopes[scope].sensitive),
+                    'required': scope == 'openid' or not bool(scopes[scope].consent_required),
                 }
                 for scope in record['scopes']
             ],
@@ -667,6 +731,7 @@ class InteractionFlowService:
         :param compensate: 失败时执行的补偿回调
         :return: None
         """
+
         initial = await InteractionService.get_record(redis, interaction_id)
         expected_status = initial['status']
         expected_version = initial['version']
@@ -678,6 +743,7 @@ class InteractionFlowService:
 
             :return: 状态转换结果
             """
+
             try:
                 await InteractionService.transition(
                     redis, interaction_id, {expected_status}, target, updates, expected_version=expected_version
@@ -716,6 +782,7 @@ class InteractionFlowService:
         :param csrf_token: CSRF Token
         :return: 已校验的交互记录
         """
+
         record = await InteractionService.get_record(redis, interaction_id)
         if not InteractionService.verify_csrf(record, csrf_token or '', pepper=OidcConfig.oidc_token_hash_pepper):
             raise OidcInteractionException(
@@ -732,6 +799,7 @@ class InteractionFlowService:
         :param expected: 期望的状态
         :return: None
         """
+
         if record.get('status') != expected:
             raise OidcInteractionException(
                 record.get('interactionId'), 'Interaction state has changed', error='invalid_request', status_code=409
@@ -747,6 +815,7 @@ class InteractionFlowService:
         :param client_ip: 客户端 IP 地址
         :return: 验证码响应结果
         """
+
         try:
             await OidcRateLimiter.enforce(
                 redis,
@@ -782,7 +851,9 @@ class InteractionFlowService:
         :param redis: Redis 客户端
         :return: 是否启用验证码
         """
+
         value = await redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.captchaEnabled')
+
         return value in {'true', b'true', True}
 
     @staticmethod
@@ -794,11 +865,13 @@ class InteractionFlowService:
         :param interaction_id: 交互流程标识
         :return: 完成标记 Key 或 None
         """
+
         ttl = await redis.ttl(OidcRedisKey.interaction(interaction_id))
         if not isinstance(ttl, int) or ttl <= 0:
             return None
         marker = OidcRedisKey.interaction(f'{interaction_id}-completion')
         reserved = await redis.set(marker, 'reserved', ex=ttl, nx=True)
+
         return marker if reserved else None
 
     @staticmethod
@@ -810,6 +883,7 @@ class InteractionFlowService:
         :param next_action: 下一步交互动作
         :return: 交互响应
         """
+
         return InteractionResultModel(
             next_action=next_action,
             interaction_id=interaction_id,
@@ -825,6 +899,7 @@ class InteractionFlowService:
         :param key: Redis Key
         :return: None
         """
+
         try:
             await redis.delete(key)
         except Exception:
@@ -838,6 +913,7 @@ class InteractionFlowService:
         :param db: 异步数据库会话
         :return: None
         """
+
         try:
             await db.rollback()
         except Exception:
@@ -871,6 +947,7 @@ class InteractionLoginService:
         :param auth_version: 认证版本
         :return: 凭据证明摘要
         """
+
         return hmac.new(
             OidcConfig.oidc_token_hash_pepper.encode(),
             f'{interaction_id}:{user_id}:{subject_id}:{auth_version}'.encode(),
@@ -899,6 +976,7 @@ class InteractionLoginService:
         :param user_agent: 客户端 User-Agent
         :return: 下一步交互动作
         """
+
         record = await InteractionFlowService.csrf_record(redis, interaction_id, csrf_token)
         InteractionFlowService.require_status(record, 'awaiting_login')
         try:
@@ -977,6 +1055,7 @@ class InteractionLoginService:
 
             :return: None
             """
+
             if session is None:
                 return
             await InteractionFlowService.best_effort_delete(redis, OidcRedisKey.interaction(interaction_id))
@@ -1015,6 +1094,7 @@ class InteractionLoginService:
             redirect_url=f'/auth/interaction/{interaction_id}/complete' if target_status == 'completed' else None,
             reason=result.password_change_reason if target_status == 'password_change_required' else None,
         )
+
         return InteractionLoginOutcome(result=model, cookie=cookie)
 
     @staticmethod
@@ -1035,6 +1115,7 @@ class InteractionLoginService:
         :param csrf_token: Interaction CSRF 原文
         :return: 下一步交互动作
         """
+
         record = await InteractionFlowService.csrf_record(redis, interaction_id, csrf_token)
         InteractionFlowService.require_status(record, 'password_change_required')
         user = await IdentityUserDao.get_active_user(db, int(record.get('userId') or 0))
@@ -1072,7 +1153,7 @@ class InteractionLoginService:
         try:
             await UserService.validate_password_services(redis, body.new_password)
             user.password = PwdUtil.get_password_hash(body.new_password)
-            user.pwd_update_date = datetime.now()
+            user.pwd_update_date = TimezoneUtil.utc_now()
             await IdentitySubjectService.require_by_user_id(
                 db, user.user_id, audit_writer=AuditService.interaction_subject_writer(db)
             )
@@ -1081,7 +1162,7 @@ class InteractionLoginService:
                 db, redis, user.user_id, reason='password_changed', coordinator=coordinator
             )
             await IdentitySecurityEventService.handle_user_event(
-                db, user.user_id, 'password_changed', now=datetime.now()
+                db, user.user_id, 'password_changed', now=TimezoneUtil.utc_now()
             )
             subject = await IdentitySubjectService.require_by_user_id(
                 db, user.user_id, audit_writer=AuditService.interaction_subject_writer(db)
@@ -1114,6 +1195,7 @@ class InteractionLoginService:
 
                 :return: None
                 """
+
                 await InteractionFlowService.best_effort_delete(redis, OidcRedisKey.interaction(interaction_id))
                 try:
                     cleanup = AfterCommitCoordinator()
@@ -1164,4 +1246,5 @@ class InteractionLoginService:
             interaction_id=interaction_id,
             redirect_url=f'/auth/interaction/{interaction_id}/complete' if target_status == 'completed' else None,
         )
+
         return InteractionLoginOutcome(result=model, cookie=cookie)

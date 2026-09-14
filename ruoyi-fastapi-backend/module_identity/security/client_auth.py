@@ -100,6 +100,7 @@ def _get(client: Any, name: str, default: Any = None) -> Any:
     :param default: 属性不存在时的默认值
     :return: Client 属性值
     """
+
     if isinstance(client, Mapping):
         return client.get(name, default)
     return getattr(client, name, default)
@@ -113,6 +114,7 @@ def _secret_hashes(client: Any, explicit: Iterable[str] | None = None) -> list[s
     :param explicit: 调用方显式提供的 Secret 哈希集合
     :return: 规范化后的 Secret 哈希列表
     """
+
     values = explicit
     if values is None:
         values = _get(client, 'secret_hashes')

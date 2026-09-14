@@ -6,6 +6,7 @@ from starlette.responses import PlainTextResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from config.env import OidcConfig
+from module_identity.service.runtime_service import OidcRuntimeService
 
 
 class OidcCorsMiddleware:
@@ -45,7 +46,7 @@ class OidcCorsMiddleware:
         :return: 是否为认证交互路径
         """
         normalized = path.rstrip('/') or '/'
-        return normalized.startswith(cls._INTERACTION_PREFIX)
+        return normalized.startswith(cls._INTERACTION_PREFIX) or normalized == '/oauth2/logout/confirm'
 
     @staticmethod
     def _issuer_origin() -> str | None:
@@ -178,10 +179,22 @@ class OidcCorsMiddleware:
         origin = Headers(scope=scope).get('origin')
         authorize = oidc_path and self._is_authorize_path(path)
         public_metadata = oidc_path and self._is_public_metadata_path(path)
+        logout_navigation = path.rstrip('/') == '/oauth2/logout' and scope.get('method') in {'GET', 'POST'}
+        if (
+            origin
+            and oidc_path
+            and not interaction_path
+            and not authorize
+            and not public_metadata
+            and not logout_navigation
+        ):
+            await OidcRuntimeService.ensure_cors_snapshot(scope['app'])
         if interaction_path:
             allowed = not origin or origin == self._issuer_origin()
         else:
-            allowed = not authorize and (public_metadata or self._allowed_origin(origin, scope))
+            allowed = (
+                not authorize and not logout_navigation and (public_metadata or self._allowed_origin(origin, scope))
+            )
 
         if authorize and origin:
             response = PlainTextResponse('Authorization Endpoint 不支持 CORS', status_code=403)
@@ -191,7 +204,7 @@ class OidcCorsMiddleware:
             response = PlainTextResponse('认证交互接口仅允许认证中心同源 Origin', status_code=403)
             await response(scope, receive, send)
             return
-        if oidc_path and origin and not public_metadata and not allowed:
+        if oidc_path and origin and not public_metadata and not logout_navigation and not allowed:
             response = PlainTextResponse('Origin 不被认证中心允许', status_code=403)
             await response(scope, receive, send)
             return

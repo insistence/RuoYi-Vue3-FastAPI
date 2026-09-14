@@ -5,6 +5,6 @@ export function listOAuthAudit(query) {
   return request({
     url: '/monitor/oauth/audit/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }

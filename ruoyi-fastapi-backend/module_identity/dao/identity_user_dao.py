@@ -20,9 +20,11 @@ class IdentityUserDao:
         :param user_id: 用户编号
         :return: SysUser，不存在时返回 None
         """
+
         result = await db.execute(
             select(SysUser).where(SysUser.status == '0', SysUser.del_flag == '0', SysUser.user_id == user_id)
         )
+
         return result.scalars().first()
 
     @classmethod
@@ -34,6 +36,7 @@ class IdentityUserDao:
         :param user_id: 用户编号
         :return: SysUser，不存在时返回 None
         """
+
         return await db.scalar(select(SysUser).where(SysUser.user_id == user_id))
 
     @classmethod
@@ -45,9 +48,11 @@ class IdentityUserDao:
         :param role_id: 角色编号
         :return: 用户编号列表
         """
+
         result = await db.execute(
             select(SysUserRole.user_id).where(SysUserRole.role_id == role_id).order_by(SysUserRole.user_id)
         )
+
         return list(result.scalars().all())
 
     @classmethod
@@ -59,6 +64,7 @@ class IdentityUserDao:
         :param user_id: 用户编号
         :return: 声明名称列表和 SysDept，部门不存在时为 None
         """
+
         role_result = await db.execute(
             select(SysRole.role_key)
             .join(SysUserRole, SysUserRole.role_id == SysRole.role_id)
@@ -70,4 +76,5 @@ class IdentityUserDao:
             .join(SysUser, SysUser.dept_id == SysDept.dept_id)
             .where(SysUser.user_id == user_id, SysDept.status == '0', SysDept.del_flag == '0')
         )
+
         return list(role_result.scalars().all()), dept_result.scalars().first()

@@ -12,7 +12,7 @@ export function initDrawingDefaultValue() {
       placeholder: '请输入手机号',
       defaultValue: '',
       span: 24,
-      style: {width: '100%'},
+      style: { width: '100%' },
       clearable: true,
       prepend: '',
       append: '',
@@ -24,10 +24,12 @@ export function initDrawingDefaultValue() {
       disabled: false,
       required: true,
       changeTag: true,
-      regList: [{
-        pattern: '/^1(3|4|5|7|8|9)\\d{9}$/',
-        message: '手机号格式错误'
-      }]
+      regList: [
+        {
+          pattern: '/^1(3|4|5|7|8|9)\\d{9}$/',
+          message: '手机号格式错误',
+        },
+      ],
     })
   }
 }

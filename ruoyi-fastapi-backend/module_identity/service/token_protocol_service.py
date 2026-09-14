@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import hmac
 import math
-from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException
-from module_identity.dao._helpers import local_datetime
 from module_identity.dao.identity_subject_dao import IdentitySubjectDao
 from module_identity.dao.identity_user_dao import IdentityUserDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
@@ -24,9 +22,11 @@ from module_identity.service.audit_service import AuditService
 from module_identity.service.identity_service import ClaimService
 from module_identity.service.infrastructure_service import AfterCommitCoordinator
 from module_identity.service.token_service import TokenService
+from utils.time_util import TimezoneUtil
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
+    from datetime import datetime
 
     from redis.asyncio import Redis
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -78,7 +78,7 @@ class IntrospectionService:
         """
 
         try:
-            current = cls._local_datetime(now) or datetime.now()
+            current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
             client = await cls._resolve_caller(db, caller)
             if client is None or not isinstance(token, str) or not token:
                 return {'active': False}
@@ -127,6 +127,7 @@ class IntrospectionService:
         :param pepper: Refresh Token HMAC Pepper
         :return: OAuth Introspection 响应
         """
+
         try:
             result = await cls.introspect(
                 db,
@@ -174,6 +175,7 @@ class IntrospectionService:
         :return: OAuth Introspection 响应
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         try:
             client_row, principal = await TokenService.authenticate_client(
                 db,
@@ -222,14 +224,15 @@ class IntrospectionService:
         return client
 
     @staticmethod
-    def _local_datetime(value: datetime | None) -> datetime | None:
+    def _utc_datetime(value: datetime | None) -> datetime | None:
         """
         将输入时间统一转换为项目时间
 
         :param value: 可选的待规范化 datetime 时间
-        :return: 本地无时区 datetime；输入为空时返回 None
+        :return: 带时区的 UTC datetime；输入为空时返回 None
         """
-        return local_datetime(value)
+
+        return TimezoneUtil.to_utc(value) if value is not None else None
 
     @staticmethod
     def _json_list(value: Any) -> list[Any]:
@@ -239,6 +242,7 @@ class IntrospectionService:
         :param value: JSON 编码的 Scope 或 Resource 列表值
         :return: Scope 或 Resource 元素列表；输入不是 JSON 数组时返回空列表
         """
+
         return list(value) if isinstance(value, (list, tuple)) else []
 
     @classmethod
@@ -264,6 +268,7 @@ class IntrospectionService:
         :param verification_key: 验证密钥
         :return: 有效 Access Token 的 Introspection 声明，或严格的 ``{'active': False}``
         """
+
         claims = decode_access_token(
             token,
             verification_keys,
@@ -354,7 +359,12 @@ class IntrospectionService:
             or not user.user_name
         ):
             return None
-        session = await SsoSessionDao.get_active(db, sid, now=now)
+        session = await SsoSessionDao.get_for_token(
+            db,
+            sid,
+            now=now,
+            allow_offline=claims.get('gty') == 'refresh_token' or 'offline_access' in scope.split(),
+        )
         if (
             session is None
             or session.user_id != subject.user_id
@@ -364,6 +374,7 @@ class IntrospectionService:
             return None
         scopes = scope.split()
         grant = await cls._find_grant(db, subject.user_id, client, subject_id, scopes, resources, now)
+
         return user if grant is not None else None
 
     @classmethod
@@ -407,6 +418,7 @@ class IntrospectionService:
         """
 
         rows = await OAuthClientDao.list_resources(db, client.client_pk)
+
         return set(resources).issubset({row.audience for row in rows if row.status == '0'})
 
     @classmethod
@@ -428,6 +440,7 @@ class IntrospectionService:
         :param pepper: 摘要 Pepper
         :return: 有效 Refresh Token 的 Introspection 声明，或严格的 ``{'active': False}``
         """
+
         parsed = parse_opaque_token(token, cls._REFRESH_PREFIX)
         secret_pepper = OidcConfig.oidc_token_hash_pepper if pepper is None else pepper
         digest = token_digest(token, secret_pepper)
@@ -437,7 +450,7 @@ class IntrospectionService:
         issuer_client = await OAuthClientDao.get_by_pk(db, row.client_pk, active_only=True)
         if issuer_client is None or issuer_client.status != cls._ACTIVE_CLIENT_STATUS:
             return {'active': False}
-        if cls._local_datetime(row.idle_expires_at) <= now or cls._local_datetime(row.absolute_expires_at) <= now:
+        if cls._utc_datetime(row.idle_expires_at) <= now or cls._utc_datetime(row.absolute_expires_at) <= now:
             return {'active': False}
         if not await cls._refresh_family_active(db, row.family_id):
             return {'active': False}
@@ -452,7 +465,7 @@ class IntrospectionService:
             or subject.auth_version != row.auth_version
         ):
             return {'active': False}
-        session = await SsoSessionDao.get_active(db, row.sid, now=now)
+        session = await SsoSessionDao.get_for_token(db, row.sid, now=now, allow_offline=True)
         if (
             session is None
             or session.subject_id != row.subject_id
@@ -487,6 +500,7 @@ class IntrospectionService:
             'iat': cls._timestamp(row.issued_at),
             'exp': cls._timestamp(row.absolute_expires_at),
         }
+
         return result
 
     @classmethod
@@ -498,6 +512,7 @@ class IntrospectionService:
         :param family_id: Refresh Family 标识
         :return: 仅在存在记录且没有全族终止状态时返回真
         """
+
         return await OAuthTokenDao.family_is_active(db, family_id)
 
     @classmethod
@@ -523,6 +538,7 @@ class IntrospectionService:
         :param now: 当前时间
         :return: Grant 匹配用户、Subject、OAuth Client、Scope、Resource 且未过期时为 True
         """
+
         return bool(
             grant is not None
             and grant.user_id == user_id
@@ -530,7 +546,7 @@ class IntrospectionService:
             and grant.client_pk == client.client_pk
             and grant.status == cls._ACTIVE_GRANT_STATUS
             and grant.client_policy_version == client.policy_version
-            and (grant.expires_at is None or cls._local_datetime(grant.expires_at) > now)
+            and (grant.expires_at is None or cls._utc_datetime(grant.expires_at) > now)
             and set(scopes).issubset(set(cls._json_list(grant.granted_scopes)))
             and set(resources).issubset(set(cls._json_list(grant.granted_resources)))
         )
@@ -545,11 +561,13 @@ class IntrospectionService:
         :param client_pk: 已认证 OAuth Client 的主键
         :return: 所有业务 Resource Audience 均归属于该 OAuth Client 的内省权限时为 True
         """
+
         userinfo = f'{OidcConfig.oidc_issuer.rstrip("/")}{cls._USERINFO_SUFFIX}'
         resource_audiences = [value for value in audiences if value != userinfo]
         if not resource_audiences:
             return False
         rows = {row.audience: row for row in await OAuthResourceDao.active_by_audiences(db, resource_audiences)}
+
         return len(rows) == len(set(resource_audiences)) and all(
             rows[value].introspection_client_pk == client_pk for value in resource_audiences
         )
@@ -564,6 +582,7 @@ class IntrospectionService:
         """
 
         userinfo = f'{OidcConfig.oidc_issuer.rstrip("/")}{cls._USERINFO_SUFFIX}'
+
         return [value for value in audiences if value != userinfo]
 
     @staticmethod
@@ -575,6 +594,7 @@ class IntrospectionService:
         :param key: 待检查的 Redis 撤销键
         :return: 键存在时返回 True
         """
+
         return bool(await redis.exists(key))
 
     @staticmethod
@@ -585,6 +605,7 @@ class IntrospectionService:
         :param value: OAuth Token 的 Audience 声明值
         :return: 去重后的 Audience 列表；格式非法时返回空列表
         """
+
         values = [value] if isinstance(value, str) else value
         if not isinstance(values, list) or not values or any(not isinstance(item, str) or not item for item in values):
             return []
@@ -598,9 +619,11 @@ class IntrospectionService:
         :param value: 可选的 Token 签发时间或过期时间
         :return: 有限的 Unix 时间戳；输入为空或时间戳非有限时返回 None
         """
+
         if value is None:
             return None
         timestamp = value.timestamp()
+
         return int(timestamp) if math.isfinite(timestamp) else None
 
 
@@ -662,7 +685,7 @@ class RevocationService:
         :raises RevocationError: Client 未认证或副作用边界不可用
         """
 
-        current = cls._local_datetime(now) or datetime.now()
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         client = await cls._resolve_caller(db, caller)
         if client is None:
             raise RevocationError('invalid_client', 'Client authentication failed')
@@ -683,6 +706,7 @@ class RevocationService:
             verification_key,
             coordinator,
         )
+
         return
 
     @classmethod
@@ -714,6 +738,7 @@ class RevocationService:
         :return: 提交后副作用全部成功时为 True
         :raises RevocationError: 令牌撤销失败且事务已回滚
         """
+
         coordinator = AfterCommitCoordinator()
         try:
             await cls.revoke(
@@ -762,6 +787,7 @@ class RevocationService:
         :param token_type_hint: Token 类型提示
         :return: 提交后副作用全部成功时为 True
         """
+
         try:
             _, principal = await TokenService.authenticate_client(
                 db,
@@ -860,6 +886,7 @@ class RevocationService:
             grant_id=getattr(row, 'grant_id', None),
             token_id=parsed.token_id,
         )
+
         return
 
     @classmethod
@@ -888,6 +915,7 @@ class RevocationService:
         :return: None
         :raises RevocationError: 令牌撤销操作失败
         """
+
         try:
             claims = decode_access_token(
                 token,
@@ -918,6 +946,7 @@ class RevocationService:
 
             :return: None
             """
+
             await redis.set(key, '1', ex=ttl)
             await AuditService.record_independent(
                 db,
@@ -928,17 +957,19 @@ class RevocationService:
             )
 
         await coordinator.register(write_revocation)
+
         return
 
     @staticmethod
-    def _local_datetime(value: datetime | None) -> datetime | None:
+    def _utc_datetime(value: datetime | None) -> datetime | None:
         """
         将输入时间统一转换为项目时间
 
         :param value: 数据库读取的可选时间
-        :return: 本地无时区时间或 None
+        :return: 带时区的 UTC 时间或 None
         """
-        return local_datetime(value)
+
+        return TimezoneUtil.to_utc(value) if value is not None else None
 
 
 class UserInfoService:
@@ -957,6 +988,7 @@ class UserInfoService:
         :return: 包含协议字段的字典
         :raises ValueError: 输入值不符合约束
         """
+
         client = await OAuthClientDao.get_by_client_id(db, claims['client_id'], active_only=True)
         if client is None or client.status != '0':
             raise ValueError('client is inactive')
@@ -966,7 +998,13 @@ class UserInfoService:
         user = await IdentityUserDao.get_user(db, subject.user_id)
         if user is None or user.status != '0' or user.del_flag != '0':
             raise ValueError('user is inactive')
-        session = await SsoSessionDao.get_active(db, claims['sid'], now=datetime.now())
+        session = await SsoSessionDao.get_for_token(
+            db,
+            claims['sid'],
+            now=TimezoneUtil.utc_now(),
+            allow_offline=claims.get('gty') == 'refresh_token'
+            or 'offline_access' in str(claims.get('scope', '')).split(),
+        )
         if (
             session is None
             or session.user_id != user.user_id
@@ -979,6 +1017,7 @@ class UserInfoService:
         scopes = str(claims.get('scope', '')).split()
         policy, allowed = await ClaimService.resolve_scope_policy(db, client.client_pk, scopes)
         roles, department = await ClaimService.load_roles_and_department(db, user.user_id)
+
         return ClaimService.build_claims(
             user,
             scopes,
@@ -999,6 +1038,7 @@ class UserInfoService:
         :return: None
         :raises ValueError: 输入值不符合约束
         """
+
         if redis is None:
             raise ValueError('token is revoked')
         try:

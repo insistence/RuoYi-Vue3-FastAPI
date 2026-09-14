@@ -7,8 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module_admin.entity.do.user_do import SysUser
-from module_identity.dao._helpers import current_time
 from module_identity.entity.do.identity_subject_do import SysIdentitySubject
+from utils.time_util import TimezoneUtil
 
 
 class IdentitySubjectDao:
@@ -25,7 +25,9 @@ class IdentitySubjectDao:
         :param user_id: 用户编号
         :return: Identity Subject，不存在时返回 None
         """
+
         result = await db.execute(select(SysIdentitySubject).where(SysIdentitySubject.user_id == user_id))
+
         return result.scalars().first()
 
     @classmethod
@@ -37,7 +39,9 @@ class IdentitySubjectDao:
         :param subject_id: 主体标识
         :return: Identity Subject，不存在时返回 None
         """
+
         result = await db.execute(select(SysIdentitySubject).where(SysIdentitySubject.subject_id == subject_id))
+
         return result.scalars().first()
 
     @classmethod
@@ -49,12 +53,14 @@ class IdentitySubjectDao:
         :param user_ids: 用户编号序列
         :return: 按用户编号排序的 Identity Subject 序列
         """
+
         result = await db.execute(
             select(SysIdentitySubject)
             .where(SysIdentitySubject.user_id.in_(user_ids))
             .order_by(SysIdentitySubject.user_id)
             .with_for_update()
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -70,6 +76,7 @@ class IdentitySubjectDao:
         :param subject_id: 主体标识
         :return: 新建或已存在的 Identity Subject
         """
+
         existing = await cls.get_by_user_id(db, user_id)
         if existing is not None:
             return existing
@@ -78,7 +85,7 @@ class IdentitySubjectDao:
             subject_id=subject_id or str(uuid4()),
             auth_version=1,
             create_by=create_by,
-            create_time=current_time(),
+            create_time=TimezoneUtil.utc_now(),
         )
         try:
             async with db.begin_nested():
@@ -103,6 +110,7 @@ class IdentitySubjectDao:
         :param create_by: 创建人标识
         :return: 补齐后的 Identity Subject 序列
         """
+
         ids = list(dict.fromkeys(user_ids))
         if not ids:
             return []
@@ -125,14 +133,16 @@ class IdentitySubjectDao:
         :param expected_version: 期望认证版本
         :return: 是否更新成功
         """
+
         conditions = [SysIdentitySubject.user_id == user_id]
         if expected_version is not None:
             conditions.append(SysIdentitySubject.auth_version == expected_version)
         result = await db.execute(
             update(SysIdentitySubject)
             .where(*conditions)
-            .values(auth_version=SysIdentitySubject.auth_version + 1, update_time=current_time())
+            .values(auth_version=SysIdentitySubject.auth_version + 1, update_time=TimezoneUtil.utc_now())
         )
+
         return bool(result.rowcount)
 
     @classmethod
@@ -148,16 +158,18 @@ class IdentitySubjectDao:
         :param now: 当前时间
         :return: 成功更新的 Identity Subject 数量
         """
+
         result = await db.execute(
             update(SysIdentitySubject)
             .where(SysIdentitySubject.user_id.in_(user_ids))
             .values(
                 auth_version=SysIdentitySubject.auth_version + 1,
                 update_by=update_by,
-                update_time=now or current_time(),
+                update_time=now or TimezoneUtil.utc_now(),
             )
         )
         await db.flush()
+
         return result.rowcount or 0
 
     @classmethod
@@ -169,6 +181,7 @@ class IdentitySubjectDao:
         :param user_ids: 用户编号序列
         :return: 缺少 Identity Subject 的用户编号列表
         """
+
         if user_ids is None:
             result = await db.execute(select(SysUser.user_id).where(SysUser.del_flag == '0'))
             ids = list(result.scalars().all())
@@ -178,4 +191,5 @@ class IdentitySubjectDao:
             return []
         result = await db.execute(select(SysIdentitySubject.user_id).where(SysIdentitySubject.user_id.in_(ids)))
         existing = set(result.scalars().all())
+
         return [user_id for user_id in ids if user_id not in existing]

@@ -58,6 +58,7 @@ async def test_initialize_application_runtime_delegates_plugin_steps() -> None:
         patch('server.RedisUtil.init_sys_config', new_callable=AsyncMock) as init_sys_config,
         patch('server.OidcRuntimeService.refresh_cors_snapshot', new_callable=AsyncMock),
         patch('server.OidcRuntimeService.validate_runtime', new_callable=AsyncMock),
+        patch('server.IdentitySchemaService.validate_before_start', new_callable=AsyncMock),
         patch('server._start_background_tasks', new_callable=AsyncMock) as start_background_tasks,
     ):
         await _initialize_application_runtime(fake_app, application_leader=True)
@@ -111,6 +112,7 @@ async def test_non_leader_plugin_writer_still_runs_global_plugin_sync() -> None:
         patch('server.RedisUtil.init_sys_config', new_callable=AsyncMock),
         patch('server.OidcRuntimeService.refresh_cors_snapshot', new_callable=AsyncMock),
         patch('server.OidcRuntimeService.validate_runtime', new_callable=AsyncMock),
+        patch('server.IdentitySchemaService.validate_before_start', new_callable=AsyncMock),
         patch('server._start_background_tasks', new_callable=AsyncMock),
     ):
         await _initialize_application_runtime(fake_app, application_leader=False)

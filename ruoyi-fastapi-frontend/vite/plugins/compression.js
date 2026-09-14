@@ -10,7 +10,7 @@ export default function createCompression(env) {
       plugin.push(
         compression({
           ext: '.gz',
-          deleteOriginFile: false
+          deleteOriginFile: false,
         })
       )
     }
@@ -19,7 +19,7 @@ export default function createCompression(env) {
         compression({
           ext: '.br',
           algorithm: 'brotliCompress',
-          deleteOriginFile: false
+          deleteOriginFile: false,
         })
       )
     }

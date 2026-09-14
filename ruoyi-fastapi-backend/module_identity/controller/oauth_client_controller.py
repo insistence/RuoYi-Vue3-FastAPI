@@ -43,6 +43,7 @@ def _actor(current_user: CurrentUserModel) -> str:
     :return: 安全截断后的用户名
     :raises ServiceException: 当前用户不可用
     """
+
     value = getattr(getattr(current_user, 'user', None), 'user_name', None)
     if not isinstance(value, str) or not value.strip():
         raise ServiceException(message='当前操作者不可用')
@@ -58,6 +59,7 @@ def _split_batch(value: str, field_name: str) -> list[str]:
     :return: 去除空白后的参数列表
     :raises ServiceException: 参数为空、超出数量限制、包含非法字符或重复值
     """
+
     items = value.split(',') if isinstance(value, str) else []
     if not items or len(items) > _MAX_BATCH_SIZE:
         raise ServiceException(message=f'{field_name} 参数无效')
@@ -86,6 +88,7 @@ async def get_system_oauth_client_list(
     rows = await OAuthClientManagementService.list_clients(query_db, client_query)
     total = await OAuthClientManagementService.count_clients(query_db, client_query)
     logger.info('OAuth Client 列表查询成功')
+
     return ResponseUtil.success(rows=rows, dict_content={'total': total})
 
 
@@ -125,6 +128,7 @@ async def add_system_oauth_client(
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
     logger.info('OAuth Client 创建成功')
+
     return ResponseUtil.success(data=result)
 
 
@@ -149,6 +153,7 @@ async def edit_system_oauth_client(
         _actor(current_user),
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
+
     return ResponseUtil.success(data=result)
 
 
@@ -174,6 +179,7 @@ async def delete_system_oauth_clients(
         actor,
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
+
     return ResponseUtil.success(msg='OAuth Client 已停用')
 
 
@@ -198,6 +204,7 @@ async def change_system_oauth_client_status(
         _actor(current_user),
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
+
     return ResponseUtil.success(data=result)
 
 
@@ -228,6 +235,7 @@ async def rotate_system_oauth_client_secret(
         retirement_seconds=payload.retirement_seconds,
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
+
     return ResponseUtil.success(msg='客户端密钥生成成功，请立即保存', data=result)
 
 
@@ -256,6 +264,7 @@ async def revoke_system_oauth_client_secret(
         _actor(current_user),
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
+
     return ResponseUtil.success(data=result, msg='客户端密钥已撤销')
 
 
@@ -282,6 +291,7 @@ async def add_system_oauth_client_uri(
         _actor(current_user),
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
+
     return ResponseUtil.success(data=result, msg='客户端 URI 已增加')
 
 
@@ -308,4 +318,5 @@ async def delete_system_oauth_client_uri(
         _actor(current_user),
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
+
     return ResponseUtil.success(data=result, msg='客户端 URI 已停用')

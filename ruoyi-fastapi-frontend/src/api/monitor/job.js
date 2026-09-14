@@ -8,7 +8,7 @@ export function previewJob(data, signal) {
     data,
     signal,
     skipErrorMessage: true,
-    headers: { repeatSubmit: false }
+    headers: { repeatSubmit: false },
   })
 }
 
@@ -18,7 +18,7 @@ export function listJob(query, options = {}) {
     url: '/monitor/job/list',
     method: 'get',
     params: query,
-    ...options
+    ...options,
   })
 }
 
@@ -26,7 +26,7 @@ export function listJob(query, options = {}) {
 export function getJob(jobId) {
   return request({
     url: '/monitor/job/' + jobId,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -35,7 +35,7 @@ export function addJob(data) {
   return request({
     url: '/monitor/job',
     method: 'post',
-    data: data
+    data: data,
   })
 }
 
@@ -44,7 +44,7 @@ export function updateJob(data) {
   return request({
     url: '/monitor/job',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -52,7 +52,7 @@ export function updateJob(data) {
 export function delJob(jobId) {
   return request({
     url: '/monitor/job/' + jobId,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -60,25 +60,24 @@ export function delJob(jobId) {
 export function changeJobStatus(jobId, status) {
   const data = {
     jobId,
-    status
+    status,
   }
   return request({
     url: '/monitor/job/changeStatus',
     method: 'put',
-    data: data
+    data: data,
   })
 }
-
 
 // 定时任务立即执行一次
 export function runJob(jobId) {
   const data = {
-    jobId
+    jobId,
   }
   return request({
     url: '/monitor/job/run',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -88,7 +87,7 @@ export function listJobExecutions(query, options = {}) {
     url: '/monitor/job/execution/list',
     method: 'get',
     params: query,
-    ...options
+    ...options,
   })
 }
 
@@ -97,7 +96,7 @@ export function getJobExecution(executionId, options = {}) {
   return request({
     url: '/monitor/job/execution/' + executionId,
     method: 'get',
-    ...options
+    ...options,
   })
 }
 
@@ -107,7 +106,7 @@ export function listJobSync(query, options = {}) {
     url: '/monitor/job/sync/list',
     method: 'get',
     params: query,
-    ...options
+    ...options,
   })
 }
 
@@ -115,6 +114,6 @@ export function listJobSync(query, options = {}) {
 export function retryJobSync(jobId) {
   return request({
     url: '/monitor/job/sync/' + jobId,
-    method: 'post'
+    method: 'post',
   })
 }

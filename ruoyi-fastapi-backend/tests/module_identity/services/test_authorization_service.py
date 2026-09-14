@@ -301,6 +301,8 @@ async def test_prompt_none_preserves_context_and_requires_valid_grant(data_sessi
         subject_id='subject-7001',
         client_pk=_CLIENT_PK,
         granted_scopes=['openid', 'profile'],
+        remembered_scopes=['openid', 'profile'],
+        remembered_resources=[],
         granted_resources=[],
         client_policy_version=3,
         status='active',

@@ -31,6 +31,7 @@ class OAuthSessionManagementService:
         :param row: SSO Session ORM 记录
         :return: Session 管理视图
         """
+
         return SsoSessionModel(
             sid=row.sid,
             user_id=row.user_id,
@@ -59,6 +60,7 @@ class OAuthSessionManagementService:
         :param client_id: 客户端标识
         :return: Grant 管理视图
         """
+
         return GrantModel(
             grant_id=row.grant_id,
             user_id=row.user_id,
@@ -83,6 +85,7 @@ class OAuthSessionManagementService:
         :param query: Session 分页查询参数
         :return: Session 管理视图列表和总数
         """
+
         rows = await SsoSessionDao.list_page(
             db,
             user_id=query.user_id,
@@ -101,6 +104,7 @@ class OAuthSessionManagementService:
             start_time=query.start_time,
             end_time=query.end_time,
         )
+
         return [OAuthSessionManagementService.session_view(row) for row in rows], total
 
     @staticmethod
@@ -112,6 +116,7 @@ class OAuthSessionManagementService:
         :param sid: Session 标识
         :return: Session 管理视图，不存在时返回 None
         """
+
         row = await SsoSessionDao.get_by_sid(db, sid)
         if row is None:
             return None
@@ -128,6 +133,7 @@ class OAuthSessionManagementService:
         :param query: Grant 分页查询参数
         :return: Grant 管理视图列表和总数
         """
+
         rows = await OAuthGrantDao.list_page(
             db,
             user_id=query.user_id,
@@ -139,6 +145,7 @@ class OAuthSessionManagementService:
         total = await OAuthGrantDao.count(db, user_id=query.user_id, client_id=query.client_id, status=query.status)
         keys = {int(row.client_pk) for row in rows}
         mapping = await OAuthClientDao.id_map(db, list(keys))
+
         return [OAuthSessionManagementService.grant_view(row, mapping.get(int(row.client_pk))) for row in rows], total
 
     @staticmethod
@@ -150,10 +157,12 @@ class OAuthSessionManagementService:
         :param grant_id: Grant 标识
         :return: Grant 管理视图，不存在时返回 None
         """
+
         row = await OAuthGrantDao.get_by_grant_id(db, grant_id)
         if row is None:
             return None
         client_id = await OAuthClientDao.id_for_pk(db, row.client_pk)
+
         return OAuthSessionManagementService.grant_view(row, client_id)
 
     @staticmethod
@@ -169,6 +178,7 @@ class OAuthSessionManagementService:
         :return: 实际发生状态变更的 Session 数量
         :raises ServiceException: 撤销用户 Session 事务失败
         """
+
         coordinator = AfterCommitCoordinator()
         try:
             count = await SsoSessionService.revoke_user(db, redis, user_id, reason=reason, coordinator=coordinator)
@@ -198,6 +208,7 @@ class OAuthSessionManagementService:
         :return: 实际发生状态变更的 Session 数量
         :raises ServiceException: 批量撤销指定 Session 事务失败
         """
+
         coordinator, count = AfterCommitCoordinator(), 0
         try:
             for sid in sids:
@@ -229,6 +240,7 @@ class OAuthSessionManagementService:
         :return: 实际撤销的 Grant 数量
         :raises ServiceException: 批量撤销 Grant 事务失败
         """
+
         try:
             count = 0
             for grant_id in grant_ids:

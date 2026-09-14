@@ -1,7 +1,11 @@
 <template>
   <AuthCenterShell :show-progress="false">
     <div class="error-flow">
-      <span class="error-symbol" aria-hidden="true"><el-icon><CloseBold /></el-icon></span>
+      <span
+        class="error-symbol"
+        aria-hidden="true"
+        ><el-icon><CloseBold /></el-icon
+      ></span>
       <p class="panel-kicker">认证未完成</p>
       <h2>这次访问无法继续</h2>
       <p class="panel-lead">{{ safeMessage }}</p>
@@ -14,10 +18,21 @@
         </ol>
       </div>
 
-      <el-button v-if="canGoBack" type="primary" size="large" class="return-action" @click="returnBack">
+      <el-button
+        v-if="canGoBack"
+        type="primary"
+        size="large"
+        class="return-action"
+        @click="returnBack"
+      >
         返回上一页
       </el-button>
-      <p v-else class="close-help">可以安全关闭此页面，再回到应用重新登录。</p>
+      <p
+        v-else
+        class="close-help"
+      >
+        可以安全关闭此页面，再回到应用重新登录。
+      </p>
     </div>
   </AuthCenterShell>
 </template>
@@ -33,7 +48,10 @@ const safeMessage = computed(() => {
   return message.slice(0, 240) || '认证请求可能已经过期、内容不完整，或应用的接入配置已经变更。'
 })
 
-function returnBack() { router.back() }
+/** 返回浏览器历史中的上一页 */
+function returnBack() {
+  router.back()
+}
 </script>
 
 <style scoped>
@@ -62,7 +80,7 @@ function returnBack() { router.back() }
   color: var(--el-color-danger);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
 }
 
 h2 {

@@ -1,12 +1,13 @@
 from sqlalchemy import CHAR, JSON, BigInteger, Column, ForeignKey, Index, SmallInteger, String, UniqueConstraint
 
+from common.types import DbUtcDateTime
 from config.database import Base
-from module_identity.entity.do._base import IDENTITY_DATETIME, current_time
+from utils.time_util import TimezoneUtil
 
 
 class SysOAuthGrant(Base):
     """
-    OAuth 授权 Grant 记录。
+    OAuth授权记录表
     """
 
     __tablename__ = 'sys_oauth_grant'
@@ -33,18 +34,20 @@ class SysOAuthGrant(Base):
     )
     granted_scopes = Column(JSON, nullable=False, comment='已同意 Scope')
     granted_resources = Column(JSON, nullable=False, comment='已同意 Resource audience')
+    remembered_scopes = Column(JSON, nullable=True, comment='后续可免确认的 Scope')
+    remembered_resources = Column(JSON, nullable=True, comment='后续可免确认的 Resource audience')
     client_policy_version = Column(BigInteger, nullable=False, comment='Client Policy Version')
     status = Column(String(16), nullable=False, server_default='active', comment='Grant 状态')
-    consented_at = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='同意时间')
-    expires_at = Column(IDENTITY_DATETIME, nullable=True, comment='过期时间')
-    revoked_at = Column(IDENTITY_DATETIME, nullable=True, comment='撤销时间')
+    consented_at = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='同意时间')
+    expires_at = Column(DbUtcDateTime(), nullable=True, comment='过期时间')
+    revoked_at = Column(DbUtcDateTime(), nullable=True, comment='撤销时间')
     revoke_reason = Column(String(200), nullable=True, comment='撤销原因')
-    last_used_at = Column(IDENTITY_DATETIME, nullable=True, comment='最近使用时间')
+    last_used_at = Column(DbUtcDateTime(), nullable=True, comment='最近使用时间')
 
 
 class SysSsoSession(Base):
     """
-    OIDC SSO 会话。
+    OIDC单点登录会话表
     """
 
     __tablename__ = 'sys_sso_session'
@@ -65,24 +68,24 @@ class SysSsoSession(Base):
     )
     subject_id = Column(String(36), nullable=False, comment='Subject 快照')
     auth_version = Column(BigInteger, nullable=False, comment='认证安全版本')
-    auth_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='认证时间')
-    last_seen_at = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='最近活动时间')
-    idle_expires_at = Column(IDENTITY_DATETIME, nullable=False, comment='闲置过期时间')
-    absolute_expires_at = Column(IDENTITY_DATETIME, nullable=False, comment='绝对过期时间')
+    auth_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='认证时间')
+    last_seen_at = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='最近活动时间')
+    idle_expires_at = Column(DbUtcDateTime(), nullable=False, comment='闲置过期时间')
+    absolute_expires_at = Column(DbUtcDateTime(), nullable=False, comment='绝对过期时间')
     acr = Column(String(100), nullable=False, comment='认证上下文')
     amr = Column(JSON, nullable=False, comment='认证方式')
     remember_me = Column(SmallInteger, nullable=False, server_default='0', comment='是否长期会话')
     ip_address = Column(String(128), nullable=True, comment='登录 IP')
     user_agent_hash = Column(CHAR(64), nullable=True, comment='User-Agent 摘要')
     status = Column(String(16), nullable=False, server_default='active', comment='Session 状态')
-    revoked_at = Column(IDENTITY_DATETIME, nullable=True, comment='撤销时间')
+    revoked_at = Column(DbUtcDateTime(), nullable=True, comment='撤销时间')
     revoke_reason = Column(String(200), nullable=True, comment='撤销原因')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='创建时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')
 
 
 class SysOAuthRefreshToken(Base):
     """
-    OAuth Refresh Token 记录，仅保存 Token 摘要。
+    OAuth刷新令牌表，仅保存令牌摘要
     """
 
     __tablename__ = 'sys_oauth_refresh_token'
@@ -140,10 +143,10 @@ class SysOAuthRefreshToken(Base):
     scopes = Column(JSON, nullable=False, comment='绑定 Scope')
     resources = Column(JSON, nullable=False, comment='绑定 Resource audience')
     status = Column(String(24), nullable=False, server_default='active', comment='Token 状态')
-    issued_at = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='签发时间')
-    last_used_at = Column(IDENTITY_DATETIME, nullable=True, comment='最近使用时间')
-    idle_expires_at = Column(IDENTITY_DATETIME, nullable=False, comment='闲置过期时间')
-    absolute_expires_at = Column(IDENTITY_DATETIME, nullable=False, comment='绝对过期时间')
-    revoked_at = Column(IDENTITY_DATETIME, nullable=True, comment='撤销时间')
+    issued_at = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='签发时间')
+    last_used_at = Column(DbUtcDateTime(), nullable=True, comment='最近使用时间')
+    idle_expires_at = Column(DbUtcDateTime(), nullable=False, comment='闲置过期时间')
+    absolute_expires_at = Column(DbUtcDateTime(), nullable=False, comment='绝对过期时间')
+    revoked_at = Column(DbUtcDateTime(), nullable=True, comment='撤销时间')
     revoke_reason = Column(String(200), nullable=True, comment='撤销原因')
-    reuse_detected_at = Column(IDENTITY_DATETIME, nullable=True, comment='重放检测时间')
+    reuse_detected_at = Column(DbUtcDateTime(), nullable=True, comment='重放检测时间')

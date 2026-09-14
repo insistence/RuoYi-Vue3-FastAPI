@@ -1,11 +1,20 @@
 <template>
   <main class="auth-center">
-    <section class="auth-shell" :class="{ 'is-compact': !showProgress }" aria-label="统一认证中心">
+    <section
+      class="auth-shell"
+      :class="{ 'is-compact': !showProgress }"
+      aria-label="统一认证中心"
+    >
       <aside class="trust-panel">
         <div>
           <div class="brand-row">
-            <span class="brand-mark"><el-icon><Lock /></el-icon></span>
-            <div><strong>{{ productTitle }}</strong><small>统一认证中心</small></div>
+            <span class="brand-mark"
+              ><el-icon><Lock /></el-icon
+            ></span>
+            <div>
+              <strong>{{ productTitle }}</strong
+              ><small>统一认证中心</small>
+            </div>
           </div>
 
           <div class="trust-copy">
@@ -14,32 +23,57 @@
             <p>认证过程在这里完成。你的密码、验证码和登录会话不会交给接入应用。</p>
           </div>
 
-          <div v-if="applicationName || applicationId" class="application-card">
+          <div
+            v-if="applicationName || applicationId"
+            class="application-card"
+          >
             <small>正在请求访问的应用</small>
             <div class="application-identity">
               <span>{{ applicationInitial }}</span>
-              <div><strong>{{ applicationName || '外部应用' }}</strong><code v-if="applicationId">{{ applicationId }}</code></div>
+              <div>
+                <strong>{{ applicationName || '外部应用' }}</strong
+                ><code v-if="applicationId">{{ applicationId }}</code>
+              </div>
             </div>
           </div>
 
           <ul class="trust-points">
-            <li><el-icon><CircleCheck /></el-icon><span>只会分享你明确确认的信息</span></li>
-            <li><el-icon><CircleCheck /></el-icon><span>你可以取消，并返回发起登录的应用</span></li>
+            <li>
+              <el-icon><CircleCheck /></el-icon><span>只会分享你明确确认的信息</span>
+            </li>
+            <li>
+              <el-icon><CircleCheck /></el-icon><span>你可以取消，并返回发起登录的应用</span>
+            </li>
           </ul>
         </div>
 
         <div class="request-status">
-          <span class="status-dot" aria-hidden="true" />
+          <span
+            class="status-dot"
+            aria-hidden="true"
+          />
           <span v-if="hasExpiry">本次请求将在 {{ formatTime(remainingSeconds) }} 后失效</span>
           <span v-else>受保护的认证连接</span>
         </div>
       </aside>
 
       <div class="auth-main">
-        <div v-if="showProgress" class="progress-wrap" aria-label="认证进度">
+        <div
+          v-if="showProgress"
+          class="progress-wrap"
+          aria-label="认证进度"
+        >
           <span>认证进度</span>
-          <el-steps :active="currentStep" finish-status="success" align-center>
-            <el-step v-for="step in steps" :key="step" :title="step" />
+          <el-steps
+            :active="currentStep"
+            finish-status="success"
+            align-center
+          >
+            <el-step
+              v-for="step in steps"
+              :key="step"
+              :title="step"
+            />
           </el-steps>
         </div>
         <div class="auth-content"><slot /></div>
@@ -59,7 +93,7 @@ const props = defineProps({
   expiresIn: { type: Number, default: 0 },
   applicationName: { type: String, default: '' },
   applicationId: { type: String, default: '' },
-  showProgress: { type: Boolean, default: true }
+  showProgress: { type: Boolean, default: true },
 })
 
 const productTitle = import.meta.env.VITE_APP_TITLE
@@ -72,11 +106,13 @@ const applicationInitial = computed(() => {
   return name.slice(0, 1).toUpperCase()
 })
 
+/** 将剩余秒数显示为分秒倒计时 */
 function formatTime(seconds) {
   const value = Math.max(0, Number(seconds) || 0)
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`
 }
 
+/** 同步当前认证请求的剩余有效时间 */
 function resetCountdown(value) {
   remainingSeconds.value = Math.max(0, Math.floor(Number(value) || 0))
   hasExpiry.value = remainingSeconds.value > 0
@@ -86,7 +122,9 @@ watch(() => props.expiresIn, resetCountdown, { immediate: true })
 
 onMounted(() => {
   countdownTimer = window.setInterval(() => {
-    if (remainingSeconds.value > 0) remainingSeconds.value -= 1
+    if (remainingSeconds.value > 0) {
+      remainingSeconds.value -= 1
+    }
   }, 1000)
 })
 
@@ -167,7 +205,7 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
   margin-top: 3px;
   color: rgb(255 255 255 / 66%);
   font-size: 11px;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .trust-copy {
@@ -179,7 +217,7 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
   color: #99c4ee;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 
 .trust-copy h1 {
@@ -190,7 +228,7 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
   line-height: 1.35;
 }
 
-.trust-copy>p:last-child {
+.trust-copy > p:last-child {
   margin: 16px 0 0;
   color: rgb(255 255 255 / 70%);
   font-size: 13px;
@@ -205,7 +243,7 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
   border-radius: 11px;
 }
 
-.application-card>small {
+.application-card > small {
   color: rgb(255 255 255 / 58%);
   font-size: 11px;
 }
@@ -215,7 +253,7 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
   margin-top: 10px;
 }
 
-.application-identity>span {
+.application-identity > span {
   display: grid;
   flex: 0 0 34px;
   width: 34px;
@@ -227,7 +265,7 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
   place-items: center;
 }
 
-.application-identity>div {
+.application-identity > div {
   min-width: 0;
 }
 
@@ -263,7 +301,7 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
   line-height: 1.5;
 }
 
-.trust-points li+li {
+.trust-points li + li {
   margin-top: 10px;
 }
 
@@ -298,13 +336,13 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.progress-wrap>span {
+.progress-wrap > span {
   display: block;
   margin-bottom: 17px;
   color: var(--el-text-color-secondary);
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .progress-wrap :deep(.el-step__title) {
@@ -392,11 +430,10 @@ onBeforeUnmount(() => window.clearInterval(countdownTimer))
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   .auth-center *,
   .auth-center *::before,
   .auth-center *::after {
-    transition-duration: .01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }
 </style>

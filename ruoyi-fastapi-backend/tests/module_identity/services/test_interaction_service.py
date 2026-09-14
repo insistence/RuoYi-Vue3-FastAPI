@@ -1,11 +1,13 @@
 """Interaction Redis 状态机和 CSRF 服务测试。"""
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock
 
 import pytest
 
 from exceptions.exception import OidcInteractionException
+from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.interaction_service import InteractionService
 from tests.module_identity.support.redis_fakes import FakeRedis
@@ -37,6 +39,7 @@ def _payload(**overrides: object) -> dict[str, object]:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('interaction_page_metadata')
 async def test_create_uses_nx_ttl_and_returns_csrf_only_once() -> None:
     """验证 Interaction 创建使用 NX/TTL，Redis 仅存 csrfHash。"""
     redis = FakeRedis()
@@ -50,7 +53,7 @@ async def test_create_uses_nx_ttl_and_returns_csrf_only_once() -> None:
     assert 'csrfHash' in stored
     assert csrf not in stored
     assert redis.set_calls[-1][1] == {'ex': 300, 'nx': True}
-    page = await InteractionService.get(redis, created.interaction_id)
+    page = await InteractionService.get(redis, created.interaction_id, object())
     assert page['expiresIn'] > 0
 
 
@@ -65,11 +68,12 @@ async def test_create_rejects_explicit_invalid_ttl(ttl: object) -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('interaction_page_metadata')
 async def test_page_projection_never_leaks_internal_protocol_fields() -> None:
     """验证页面载荷不包含 Redirect、协议绑定、用户或 CSRF 内部字段。"""
     redis = FakeRedis()
     created = await InteractionService.create(redis, _payload(), pepper=_PEPPER)
-    page = await InteractionService.get(redis, created.interaction_id)
+    page = await InteractionService.get(redis, created.interaction_id, object())
     forbidden = {
         'redirectUri',
         'state',
@@ -87,9 +91,18 @@ async def test_page_projection_never_leaks_internal_protocol_fields() -> None:
     assert forbidden.isdisjoint(page)
     assert set(page) == {'interactionId', 'client', 'requestedScopes', 'nextAction', 'captchaEnabled', 'expiresIn'}
     assert page['nextAction'] == 'login'
+    assert page['client']['clientName'] == '示例门户'
+    assert page['client']['policyUri'] == 'https://portal.example/privacy'
+    assert page['requestedScopes'][1]['name'] == '基本资料'
+    assert page['requestedScopes'][1]['sensitive'] is True
+    assert page['requestedScopes'][1]['required'] is False
+    assert page['requestedScopes'][0]['required'] is True
+    assert page['requestedScopes'][1]['description']
+    assert 'private-' not in json.dumps(page)
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('interaction_page_metadata')
 async def test_csrf_is_constant_time_verified_and_not_rotated_by_read() -> None:
     """验证 CSRF 正确匹配、错误拒绝，读取页面不会重新建立 Token。"""
     redis = FakeRedis()
@@ -98,7 +111,7 @@ async def test_csrf_is_constant_time_verified_and_not_rotated_by_read() -> None:
     csrf = created.csrf_token
     assert InteractionService.verify_csrf(record, csrf, pepper=_PEPPER) is True
     assert InteractionService.verify_csrf(record, csrf + 'x', pepper=_PEPPER) is False
-    await InteractionService.get(redis, created.interaction_id)
+    await InteractionService.get(redis, created.interaction_id, object())
     assert InteractionService.verify_csrf(record, csrf, pepper=_PEPPER) is True
 
 
@@ -164,7 +177,7 @@ async def test_record_validation_and_missing_ttl_fail_closed() -> None:
     corrupted = value.replace('"version":1', '"version":-1')
     redis.values[key] = (corrupted, None)
     with pytest.raises(OidcInteractionException) as raised:
-        await InteractionService.get(redis, created.interaction_id)
+        await InteractionService.get(redis, created.interaction_id, object())
     assert raised.value.error == 'invalid_request'
     assert key not in redis.values
 
@@ -202,7 +215,22 @@ async def test_transition_rejects_duplicate_scope_and_incomplete_identity() -> N
 
 def test_max_age_decision_uses_project_local_time() -> None:
     """验证 max_age 使用项目约定的本地无时区时间。"""
-    now = datetime(2026, 8, 24, 13, 0)
+    now = datetime(2026, 8, 24, 13, 0, tzinfo=timezone.utc)
     assert InteractionService.requires_reauthentication(now - timedelta(seconds=10), 5, now) is True
     assert InteractionService.requires_reauthentication(now - timedelta(seconds=2), 5, now) is False
     assert InteractionService.requires_reauthentication(now, 5, now) is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('interaction_page_metadata')
+@pytest.mark.parametrize('change', ['client_disabled', 'scope_unbound'])
+async def test_page_rejects_removed_application_or_scope(monkeypatch: pytest.MonkeyPatch, change: str) -> None:
+    """请求创建后停用应用或移除权限时，不继续展示陈旧授权选项。"""
+    redis = FakeRedis()
+    created = await InteractionService.create(redis, _payload(), pepper=_PEPPER)
+    if change == 'client_disabled':
+        monkeypatch.setattr(OAuthClientDao, 'get_by_pk', AsyncMock(return_value=None))
+    else:
+        monkeypatch.setattr(OAuthClientDao, 'list_scopes', AsyncMock(return_value=[]))
+    with pytest.raises(OidcInteractionException):
+        await InteractionService.get(redis, created.interaction_id, object())

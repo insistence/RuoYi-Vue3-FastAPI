@@ -2,7 +2,10 @@
   <div class="app-container chat-container">
     <el-container style="height: 100%">
       <!-- 侧边栏：会话历史 -->
-      <el-aside width="260px" class="session-sidebar">
+      <el-aside
+        width="260px"
+        class="session-sidebar"
+      >
         <div class="sidebar-header">
           <el-button
             type="primary"
@@ -12,14 +15,14 @@
             >新建对话</el-button
           >
         </div>
-        <div class="session-list" v-loading="sessionLoading">
+        <div
+          class="session-list"
+          v-loading="sessionLoading"
+        >
           <div
             v-for="session in sessionList"
             :key="session.sessionId"
-            :class="[
-              'session-item',
-              currentSessionId === session.sessionId ? 'active' : '',
-            ]"
+            :class="['session-item', currentSessionId === session.sessionId ? 'active' : '']"
             @click="loadSession(session.sessionId)"
           >
             <div class="session-icon">
@@ -27,7 +30,7 @@
             </div>
             <div class="session-info">
               <div class="session-title">
-                {{ session.sessionTitle || "新对话" }}
+                {{ session.sessionTitle || '新对话' }}
               </div>
               <div class="session-time">
                 {{ formatTime(session.createdAt) }}
@@ -57,7 +60,10 @@
             <span class="header-title">AI 智能助手</span>
           </div>
           <div class="header-right">
-            <el-tooltip content="全局参数配置" placement="bottom">
+            <el-tooltip
+              content="全局参数配置"
+              placement="bottom"
+            >
               <el-button
                 icon="Setting"
                 circle
@@ -81,13 +87,20 @@
           </div>
         </div>
 
-        <div class="chat-history" ref="chatHistoryRef" @scroll="handleScroll">
+        <div
+          class="chat-history"
+          ref="chatHistoryRef"
+          @scroll="handleScroll"
+        >
           <div
             class="chat-content"
             ref="chatContentRef"
             :class="{ 'is-empty': messageList.length === 0 }"
           >
-            <div v-if="messageList.length === 0" class="welcome-screen">
+            <div
+              v-if="messageList.length === 0"
+              class="welcome-screen"
+            >
               <div class="welcome-icon">
                 <el-icon size="60"><Service /></el-icon>
               </div>
@@ -98,10 +111,7 @@
             <div
               v-for="(msg, index) in messageList"
               :key="index"
-              :class="[
-                'message-row',
-                msg.role === 'user' ? 'message-user' : 'message-ai',
-              ]"
+              :class="['message-row', msg.role === 'user' ? 'message-user' : 'message-ai']"
             >
               <div class="message-avatar">
                 <el-avatar
@@ -112,10 +122,12 @@
               </div>
               <div class="message-content-wrapper">
                 <div class="message-sender">
-                  {{ msg.role === "user" ? "我" : "AI 助手" }}
-                  <span class="message-time" v-if="msg.createdAt">{{
-                    formatTime(msg.createdAt)
-                  }}</span>
+                  {{ msg.role === 'user' ? '我' : 'AI 助手' }}
+                  <span
+                    class="message-time"
+                    v-if="msg.createdAt"
+                    >{{ formatTime(msg.createdAt) }}</span
+                  >
                 </div>
                 <div class="message-bubble">
                   <div v-if="msg.role === 'user'">
@@ -143,7 +155,10 @@
                 </div>
                 <div class="message-footer">
                   <div class="footer-actions">
-                    <el-tooltip content="复制" placement="top">
+                    <el-tooltip
+                      content="复制"
+                      placement="top"
+                    >
                       <el-button
                         link
                         type="info"
@@ -153,17 +168,11 @@
                       ></el-button>
                     </el-tooltip>
                     <div
-                      v-if="
-                        userConfig.metricsDefaultVisible == '0' &&
-                        hasMetrics(msg)
-                      "
+                      v-if="userConfig.metricsDefaultVisible == '0' && hasMetrics(msg)"
                       class="message-metrics"
                     >
                       <span
-                        v-if="
-                          msg.metrics?.duration !== null &&
-                          msg.metrics?.duration !== undefined
-                        "
+                        v-if="msg.metrics?.duration !== null && msg.metrics?.duration !== undefined"
                         >耗时 {{ msg.metrics.duration.toFixed(3) }} s</span
                       >
                       <span
@@ -196,7 +205,10 @@
                       >
                     </div>
                   </div>
-                  <div v-if="msg.role === 'assistant'" class="model-info">
+                  <div
+                    v-if="msg.role === 'assistant'"
+                    class="model-info"
+                  >
                     <el-tag
                       size="small"
                       type="info"
@@ -265,10 +277,7 @@
                   />
                 </el-tooltip>
                 <el-button
-                  v-if="
-                    currentModelInfo &&
-                    currentModelInfo.supportReasoning === 'Y'
-                  "
+                  v-if="currentModelInfo && currentModelInfo.supportReasoning === 'Y'"
                   class="toggle-chip"
                   size="small"
                   :type="chatConfig.isReasoning ? 'primary' : ''"
@@ -285,11 +294,9 @@
                 :type="loading ? 'danger' : 'primary'"
                 :icon="loading ? 'VideoPause' : 'Promotion'"
                 @click="handleMainAction"
-                :disabled="
-                  !loading && !inputMessage.trim() && !inputImages.length
-                "
+                :disabled="!loading && !inputMessage.trim() && !inputImages.length"
               >
-                {{ loading ? "停止" : "发送" }}
+                {{ loading ? '停止' : '发送' }}
               </el-button>
             </div>
           </div>
@@ -305,7 +312,10 @@
       append-to-body
       class="chat-config-dialog"
     >
-      <el-form :model="editingUserConfig" label-width="150px">
+      <el-form
+        :model="editingUserConfig"
+        label-width="150px"
+      >
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="默认温度">
@@ -394,7 +404,11 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="showConfigDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleSaveConfig">保存</el-button>
+          <el-button
+            type="primary"
+            @click="handleSaveConfig"
+            >保存</el-button
+          >
         </span>
       </template>
     </el-dialog>
@@ -411,7 +425,7 @@
 </template>
 
 <script setup name="AiChat">
-import { listModelAll } from "../../api/model";
+import { listModelAll } from '../../api/model'
 import {
   listChatSession,
   delChatSession,
@@ -419,484 +433,470 @@ import {
   getUserChatConfig,
   saveUserChatConfig,
   cancelChatRun,
-} from "../../api/chat";
-import { getToken } from "@/utils/auth";
-import AiMessage from "./components/AiMessage.vue";
-import { Picture, DocumentCopy } from "@element-plus/icons-vue";
-import { v4 as uuidv4 } from "uuid";
-import { useResizeObserver } from "@vueuse/core";
+} from '../../api/chat'
+import { getToken } from '@/utils/auth'
+import AiMessage from './components/AiMessage.vue'
+import { Picture, DocumentCopy } from '@element-plus/icons-vue'
+import { v4 as uuidv4 } from 'uuid'
+import { useResizeObserver } from '@vueuse/core'
 import { getUseMonaco } from 'markstream-vue'
 
 getUseMonaco()
 
-const { proxy } = getCurrentInstance();
+const { proxy } = getCurrentInstance()
 
-const modelOptions = ref([]);
-const currentModelId = ref(undefined);
-const messageList = ref([]);
-const inputMessage = ref("");
-const inputImages = ref([]);
-const loading = ref(false);
-const chatHistoryRef = ref(null);
-const chatContentRef = ref(null);
-const currentSessionId = ref(null);
-const showConfigDialog = ref(false);
-const imageInputRef = ref(null);
-const sessionList = ref([]);
-const sessionLoading = ref(false);
-const abortController = ref(null);
-const currentRunId = ref(null);
-const isAutoScroll = ref(true);
-const currentSessionAgentData = ref(null);
-const isProgrammaticScroll = ref(false);
-let scrollTimeout = null;
+const modelOptions = ref([])
+const currentModelId = ref(undefined)
+const messageList = ref([])
+const inputMessage = ref('')
+const inputImages = ref([])
+const loading = ref(false)
+const chatHistoryRef = ref(null)
+const chatContentRef = ref(null)
+const currentSessionId = ref(null)
+const showConfigDialog = ref(false)
+const imageInputRef = ref(null)
+const sessionList = ref([])
+const sessionLoading = ref(false)
+const abortController = ref(null)
+const currentRunId = ref(null)
+const isAutoScroll = ref(true)
+const currentSessionAgentData = ref(null)
+const isProgrammaticScroll = ref(false)
+let scrollTimeout = null
 
 function generateSessionId() {
-  return uuidv4();
+  return uuidv4()
 }
 
 const chatConfig = reactive({
   temperature: undefined,
   isReasoning: true,
-});
+})
 
 const userConfig = reactive({
   chatConfigId: undefined,
   userId: undefined,
   temperature: undefined,
-  addHistoryToContext: "0",
+  addHistoryToContext: '0',
   numHistoryRuns: 3,
-  systemPrompt: "",
-  metricsDefaultVisible: "1",
-  visionEnabled: "0",
+  systemPrompt: '',
+  metricsDefaultVisible: '1',
+  visionEnabled: '0',
   imageMaxSizeMb: 5,
   createTime: undefined,
   updateTime: undefined,
-});
+})
 
 const editingUserConfig = reactive({
   chatConfigId: undefined,
   userId: undefined,
   temperature: undefined,
-  addHistoryToContext: "0",
+  addHistoryToContext: '0',
   numHistoryRuns: 3,
-  systemPrompt: "",
-  metricsDefaultVisible: "1",
-  visionEnabled: "0",
+  systemPrompt: '',
+  metricsDefaultVisible: '1',
+  visionEnabled: '0',
   imageMaxSizeMb: 5,
   createTime: undefined,
   updateTime: undefined,
-});
+})
 
 const currentModelInfo = computed(() => {
-  if (!currentModelId.value) return null;
-  return modelOptions.value.find((m) => m.modelId === currentModelId.value);
-});
+  if (!currentModelId.value) return null
+  return modelOptions.value.find((m) => m.modelId === currentModelId.value)
+})
 
 function loadUserConfig() {
   getUserChatConfig().then((res) => {
     if (res.data) {
-      Object.assign(userConfig, res.data);
-      Object.assign(editingUserConfig, res.data);
+      Object.assign(userConfig, res.data)
+      Object.assign(editingUserConfig, res.data)
     }
-  });
+  })
 }
 
 function openConfigDialog() {
-  Object.assign(editingUserConfig, userConfig);
-  showConfigDialog.value = true;
+  Object.assign(editingUserConfig, userConfig)
+  showConfigDialog.value = true
 }
 
 function handleSaveConfig() {
-  const payload = { ...editingUserConfig };
+  const payload = { ...editingUserConfig }
   saveUserChatConfig(payload).then(() => {
-    proxy.$modal.msgSuccess("配置保存成功");
-    showConfigDialog.value = false;
-    loadUserConfig();
-  });
+    proxy.$modal.msgSuccess('配置保存成功')
+    showConfigDialog.value = false
+    loadUserConfig()
+  })
 }
 
 function hasMetrics(msg) {
-  const m = msg?.metrics;
-  if (!m) return false;
+  const m = msg?.metrics
+  if (!m) return false
   return (
     (m.inputTokens !== null && m.inputTokens !== undefined) ||
     (m.outputTokens !== null && m.outputTokens !== undefined) ||
     (m.totalTokens !== null && m.totalTokens !== undefined) ||
     (m.reasoningTokens !== null && m.reasoningTokens !== undefined) ||
     (m.duration !== null && m.duration !== undefined)
-  );
+  )
 }
 
 function getImageUrl(url) {
-  if (!url) return "";
-  if (
-    url.startsWith("http") ||
-    url.startsWith("https") ||
-    url.startsWith("blob:")
-  ) {
-    return url;
+  if (!url) return ''
+  if (url.startsWith('http') || url.startsWith('https') || url.startsWith('blob:')) {
+    return url
   }
-  return import.meta.env.VITE_APP_BASE_API + url;
+  return import.meta.env.VITE_APP_BASE_API + url
 }
 
 function formatTime(timeStr) {
-  if (!timeStr) return "";
+  if (!timeStr) return ''
   try {
-    const date = new Date(timeStr);
-    return date.toLocaleString();
+    const date = new Date(timeStr)
+    return date.toLocaleString()
   } catch (e) {
-    return timeStr;
+    return timeStr
   }
 }
 
 function getModels() {
   listModelAll().then((res) => {
-    modelOptions.value = res.data;
+    modelOptions.value = res.data
     if (modelOptions.value.length > 0) {
-      currentModelId.value = modelOptions.value[0].modelId;
+      currentModelId.value = modelOptions.value[0].modelId
       // 初始化配置
-      const model = modelOptions.value[0];
-      chatConfig.temperature = model.temperature;
+      const model = modelOptions.value[0]
+      chatConfig.temperature = model.temperature
     }
-  });
+  })
 }
 
 // 监听模型切换，更新默认配置
 watch(currentModelId, (newVal) => {
-  const model = modelOptions.value.find((m) => m.modelId === newVal);
+  const model = modelOptions.value.find((m) => m.modelId === newVal)
   if (model) {
-    chatConfig.temperature = model.temperature;
+    chatConfig.temperature = model.temperature
   }
-});
+})
 
 function getSessions() {
-  sessionLoading.value = true;
+  sessionLoading.value = true
   listChatSession().then((res) => {
-    sessionList.value = res.data;
+    sessionList.value = res.data
     // 按创建时间倒序排序
     if (sessionList.value && sessionList.value.length > 0) {
       sessionList.value.sort((a, b) => {
-        const dateA = new Date(a.createdAt).getTime();
-        const dateB = new Date(b.createdAt).getTime();
-        return dateB - dateA;
-      });
+        const dateA = new Date(a.createdAt).getTime()
+        const dateB = new Date(b.createdAt).getTime()
+        return dateB - dateA
+      })
     }
-    sessionLoading.value = false;
-  });
+    sessionLoading.value = false
+  })
 }
 
 function loadSession(sessionId) {
-  if (currentSessionId.value === sessionId) return;
-  currentSessionId.value = sessionId;
-  messageList.value = [];
-  loading.value = true;
+  if (currentSessionId.value === sessionId) return
+  currentSessionId.value = sessionId
+  messageList.value = []
+  loading.value = true
   getChatSession(sessionId).then((res) => {
-    messageList.value = res.data.messages;
-    currentSessionAgentData.value = res.data.agentData;
-    loading.value = false;
-    isAutoScroll.value = true;
-    scrollToBottom();
-  });
+    messageList.value = res.data.messages
+    currentSessionAgentData.value = res.data.agentData
+    loading.value = false
+    isAutoScroll.value = true
+    scrollToBottom()
+  })
 }
 
 function handleDeleteSession(sessionId) {
   proxy.$modal
-    .confirm("是否确认删除该会话？")
+    .confirm('是否确认删除该会话？')
     .then(function () {
-      return delChatSession(sessionId);
+      return delChatSession(sessionId)
     })
     .then(() => {
-      getSessions();
+      getSessions()
       if (currentSessionId.value === sessionId) {
-        clearChat();
+        clearChat()
       }
-      proxy.$modal.msgSuccess("删除成功");
+      proxy.$modal.msgSuccess('删除成功')
     })
-    .catch(() => {});
+    .catch(() => {})
 }
 
 async function sendRequest(text, images) {
   if (!currentModelId.value) {
-    proxy.$modal.msgError("请先选择模型");
-    return;
+    proxy.$modal.msgError('请先选择模型')
+    return
   }
 
-  loading.value = true;
-  const imageList = images ? images.slice() : [];
+  loading.value = true
+  const imageList = images ? images.slice() : []
 
   const aiMsgIndex =
     messageList.value.push({
-      role: "assistant",
-      content: "",
-      reasoningContent: "",
-    }) - 1;
-  scrollToBottom();
-  isAutoScroll.value = true;
+      role: 'assistant',
+      content: '',
+      reasoningContent: '',
+    }) - 1
+  scrollToBottom()
+  isAutoScroll.value = true
 
-  abortController.value = new AbortController();
+  abortController.value = new AbortController()
 
   try {
-    const response = await fetch(
-      import.meta.env.VITE_APP_BASE_API + "/ai/chat/send",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer " + getToken(),
-        },
-        signal: abortController.value.signal,
-        body: JSON.stringify({
-          modelId: currentModelId.value,
-          message: text,
-          images: imageList,
-          sessionId: currentSessionId.value,
-          stream: true,
-          temperature: chatConfig.temperature,
-          isReasoning: chatConfig.isReasoning,
-        }),
+    const response = await fetch(import.meta.env.VITE_APP_BASE_API + '/ai/chat/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + getToken(),
       },
-    );
+      signal: abortController.value.signal,
+      body: JSON.stringify({
+        modelId: currentModelId.value,
+        message: text,
+        images: imageList,
+        sessionId: currentSessionId.value,
+        stream: true,
+        temperature: chatConfig.temperature,
+        isReasoning: chatConfig.isReasoning,
+      }),
+    })
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let aiContent = "";
-    let aiReasoning = "";
-    let buffer = "";
-    let needRefreshSessions = false;
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let aiContent = ''
+    let aiReasoning = ''
+    let buffer = ''
+    let needRefreshSessions = false
 
     while (true) {
-      if (!abortController.value) break;
-      const { done, value } = await reader.read();
-      if (done) break;
+      if (!abortController.value) break
+      const { done, value } = await reader.read()
+      if (done) break
 
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop(); // 保留最后一个可能不完整的行
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() // 保留最后一个可能不完整的行
 
       for (const line of lines) {
-        if (!line.trim()) continue;
+        if (!line.trim()) continue
         try {
-          const data = JSON.parse(line);
-          if (data.type === "content") {
-            aiContent += data.content;
-            messageList.value[aiMsgIndex].content = aiContent;
-          } else if (data.type === "reasoning") {
-            aiReasoning += data.content;
-            messageList.value[aiMsgIndex].reasoningContent = aiReasoning;
-          } else if (data.type === "meta") {
-            currentSessionId.value = data.session_id;
+          const data = JSON.parse(line)
+          if (data.type === 'content') {
+            aiContent += data.content
+            messageList.value[aiMsgIndex].content = aiContent
+          } else if (data.type === 'reasoning') {
+            aiReasoning += data.content
+            messageList.value[aiMsgIndex].reasoningContent = aiReasoning
+          } else if (data.type === 'meta') {
+            currentSessionId.value = data.session_id
             // 如果是新会话，标记需要刷新列表
-            if (
-              !sessionList.value.find((s) => s.sessionId === data.session_id)
-            ) {
-              needRefreshSessions = true;
+            if (!sessionList.value.find((s) => s.sessionId === data.session_id)) {
+              needRefreshSessions = true
             }
-          } else if (data.type === "run_info") {
-            currentRunId.value = data.run_id;
-          } else if (data.type === "metrics") {
-            messageList.value[aiMsgIndex].metrics = data.metrics;
-          } else if (data.type === "error") {
-            proxy.$modal.msgError(data.error);
+          } else if (data.type === 'run_info') {
+            currentRunId.value = data.run_id
+          } else if (data.type === 'metrics') {
+            messageList.value[aiMsgIndex].metrics = data.metrics
+          } else if (data.type === 'error') {
+            proxy.$modal.msgError(data.error)
           }
         } catch (e) {
-          console.error("Parse error", e);
+          console.error('Parse error', e)
         }
       }
     }
 
     // 整个响应结束后，如果需要则刷新会话列表
     if (needRefreshSessions) {
-      getSessions();
+      getSessions()
     }
   } catch (err) {
-    if (err.name === "AbortError") {
+    if (err.name === 'AbortError') {
       // 用户终止
     } else {
-      proxy.$modal.msgError("请求失败: " + err.message);
+      proxy.$modal.msgError('请求失败: ' + err.message)
     }
   } finally {
-    loading.value = false;
-    abortController.value = null;
+    loading.value = false
+    abortController.value = null
   }
 }
 
 function clearChat() {
-  messageList.value = [];
-  currentSessionId.value = generateSessionId();
-  currentSessionAgentData.value = null;
+  messageList.value = []
+  currentSessionId.value = generateSessionId()
+  currentSessionAgentData.value = null
 }
 
 function copyText(text) {
   if (!text) {
-    proxy.$modal.msgWarning("内容为空，无法复制");
-    return;
+    proxy.$modal.msgWarning('内容为空，无法复制')
+    return
   }
   navigator.clipboard
     .writeText(text)
     .then(() => {
-      proxy.$modal.msgSuccess("复制成功");
+      proxy.$modal.msgSuccess('复制成功')
     })
     .catch(() => {
-      proxy.$modal.msgError("复制失败");
-    });
+      proxy.$modal.msgError('复制失败')
+    })
 }
 
 function triggerImageUpload() {
-  if (!userConfig.visionEnabled || loading.value) return;
-  const input = imageInputRef.value;
+  if (!userConfig.visionEnabled || loading.value) return
+  const input = imageInputRef.value
   if (input) {
-    input.value = "";
-    input.click();
+    input.value = ''
+    input.click()
   }
 }
 
 async function handleImageInputChange(event) {
-  const files = Array.from(event.target.files || []);
-  if (!files.length) return;
+  const files = Array.from(event.target.files || [])
+  if (!files.length) return
   if (files.length + inputImages.value.length > 10) {
-    proxy.$modal.msgError("最多只能上传 10 张图片");
-    return;
+    proxy.$modal.msgError('最多只能上传 10 张图片')
+    return
   }
-  const maxSize = (userConfig.imageMaxSizeMb || 5) * 1024 * 1024;
+  const maxSize = (userConfig.imageMaxSizeMb || 5) * 1024 * 1024
   for (const file of files) {
     if (file.size > maxSize) {
-      proxy.$modal.msgError(
-        `单张图片大小不能超过 ${userConfig.imageMaxSizeMb} MB`,
-      );
-      return;
+      proxy.$modal.msgError(`单张图片大小不能超过 ${userConfig.imageMaxSizeMb} MB`)
+      return
     }
   }
   try {
-    proxy.$modal.loading("正在上传图片，请稍候...");
+    proxy.$modal.loading('正在上传图片，请稍候...')
     for (const file of files) {
-      const form = new FormData();
-      form.append("file", file);
-      const resp = await fetch(
-        import.meta.env.VITE_APP_BASE_API + "/common/upload",
-        {
-          method: "POST",
-          headers: {
-            Authorization: "Bearer " + getToken(),
-          },
-          body: form,
+      const form = new FormData()
+      form.append('file', file)
+      const resp = await fetch(import.meta.env.VITE_APP_BASE_API + '/common/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer ' + getToken(),
         },
-      );
-      const data = await resp.json();
+        body: form,
+      })
+      const data = await resp.json()
       if (data.code === 200 && data.fileName) {
-        inputImages.value.push(data.fileName);
+        inputImages.value.push(data.fileName)
       } else {
-        proxy.$modal.msgError(data.msg || "上传图片失败");
+        proxy.$modal.msgError(data.msg || '上传图片失败')
       }
     }
   } catch (e) {
-    proxy.$modal.msgError("上传图片失败");
+    proxy.$modal.msgError('上传图片失败')
   } finally {
-    proxy.$modal.closeLoading();
+    proxy.$modal.closeLoading()
   }
 }
 
 async function handleSend() {
-  const text = inputMessage.value.trim();
-  const images = inputImages.value;
-  if (!text && !images.length) return;
+  const text = inputMessage.value.trim()
+  const images = inputImages.value
+  if (!text && !images.length) return
   if (!currentModelId.value) {
-    proxy.$modal.msgError("请先选择模型");
-    return;
+    proxy.$modal.msgError('请先选择模型')
+    return
   }
 
-  const imageList = images.slice();
-  messageList.value.push({ role: "user", content: text, images: imageList });
-  inputMessage.value = "";
-  inputImages.value = [];
-  currentRunId.value = null;
+  const imageList = images.slice()
+  messageList.value.push({ role: 'user', content: text, images: imageList })
+  inputMessage.value = ''
+  inputImages.value = []
+  currentRunId.value = null
 
-  await sendRequest(text, imageList);
+  await sendRequest(text, imageList)
 }
 
 function stopGeneration() {
   if (abortController.value) {
-    const controller = abortController.value;
-    abortController.value = null;
-    loading.value = false;
+    const controller = abortController.value
+    abortController.value = null
+    loading.value = false
 
     // Send cancellation signal to backend first
     if (currentRunId.value) {
       cancelChatRun(currentRunId.value)
         .then(() => {})
         .catch((err) => {
-          console.error("Failed to cancel run:", err);
+          console.error('Failed to cancel run:', err)
         })
         .finally(() => {
           // Abort the connection after attempting to cancel on server
           // This ensures the server has time to handle the cancellation and save data
-          controller.abort();
-        });
+          controller.abort()
+        })
     } else {
-      controller.abort();
+      controller.abort()
     }
   }
 }
 
 function handleScroll(e) {
-  if (isProgrammaticScroll.value) return;
+  if (isProgrammaticScroll.value) return
 
-  const { scrollTop, scrollHeight, clientHeight } = e.target;
-  const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+  const { scrollTop, scrollHeight, clientHeight } = e.target
+  const distanceToBottom = scrollHeight - scrollTop - clientHeight
 
   // If user scrolls up (distance from bottom > 100px), disable auto-scroll
   if (distanceToBottom > 100) {
-    isAutoScroll.value = false;
+    isAutoScroll.value = false
   } else if (distanceToBottom < 20) {
     // If user scrolls back to bottom, re-enable auto-scroll
-    isAutoScroll.value = true;
+    isAutoScroll.value = true
   }
 }
 
 function scrollToBottom() {
   if (isAutoScroll.value && chatHistoryRef.value) {
-    isProgrammaticScroll.value = true;
+    isProgrammaticScroll.value = true
 
     // Force scroll to bottom immediately
-    chatHistoryRef.value.scrollTop = chatHistoryRef.value.scrollHeight;
+    chatHistoryRef.value.scrollTop = chatHistoryRef.value.scrollHeight
 
     // Double check in next frames to catch layout shifts (like Mermaid rendering)
     requestAnimationFrame(() => {
       if (chatHistoryRef.value && isAutoScroll.value) {
-        chatHistoryRef.value.scrollTop = chatHistoryRef.value.scrollHeight;
+        chatHistoryRef.value.scrollTop = chatHistoryRef.value.scrollHeight
       }
-    });
+    })
 
     // Reset flag after a short delay, clearing any previous timer
-    if (scrollTimeout) clearTimeout(scrollTimeout);
+    if (scrollTimeout) clearTimeout(scrollTimeout)
 
     scrollTimeout = setTimeout(() => {
-      isProgrammaticScroll.value = false;
-      scrollTimeout = null;
-    }, 100);
+      isProgrammaticScroll.value = false
+      scrollTimeout = null
+    }, 100)
   }
 }
 
 function handleMainAction() {
   if (loading.value) {
-    stopGeneration();
+    stopGeneration()
   } else {
-    handleSend();
+    handleSend()
   }
 }
 
 // 监听内容变化，自动滚动
 useResizeObserver(chatContentRef, () => {
   if (isAutoScroll.value) {
-    scrollToBottom();
+    scrollToBottom()
   }
-});
+})
 
 onMounted(() => {
-  getModels();
-  getSessions();
-  loadUserConfig();
-});
+  getModels()
+  getSessions()
+  loadUserConfig()
+})
 </script>
 
 <style scoped lang="scss">

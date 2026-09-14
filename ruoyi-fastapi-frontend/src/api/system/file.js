@@ -5,7 +5,7 @@ export function listFile(query) {
   return request({
     url: '/system/file/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -14,7 +14,7 @@ export function getFileStats(query) {
   return request({
     url: '/system/file/stats',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -23,7 +23,7 @@ export function listFileReconcileIssue(query) {
   return request({
     url: '/system/file/reconcile/issues/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -32,7 +32,7 @@ export function listFileReconcileRun(query) {
   return request({
     url: '/system/file/reconcile/runs/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -40,7 +40,7 @@ export function listFileReconcileRun(query) {
 export function getFileReconcileStats() {
   return request({
     url: '/system/file/reconcile/stats',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -49,7 +49,7 @@ export function startFileReconcile(data) {
   return request({
     url: '/system/file/reconcile/run',
     method: 'post',
-    data: data
+    data: data,
   })
 }
 
@@ -58,7 +58,7 @@ export function handleFileReconcileIssue(issueId, data) {
   return request({
     url: '/system/file/reconcile/issues/' + issueId,
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -66,7 +66,7 @@ export function handleFileReconcileIssue(issueId, data) {
 export function listFileRetentionPolicy() {
   return request({
     url: '/system/file/retention-policy/list',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -75,7 +75,7 @@ export function addFileRetentionPolicy(data) {
   return request({
     url: '/system/file/retention-policy',
     method: 'post',
-    data: data
+    data: data,
   })
 }
 
@@ -84,7 +84,7 @@ export function updateFileRetentionPolicy(data) {
   return request({
     url: '/system/file/retention-policy',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -92,7 +92,7 @@ export function updateFileRetentionPolicy(data) {
 export function delFileRetentionPolicy(businessType) {
   return request({
     url: '/system/file/retention-policy/' + encodeURIComponent(businessType),
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -101,7 +101,7 @@ export function listFileRetentionReminder(query) {
   return request({
     url: '/system/file/retention-reminder/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -109,7 +109,7 @@ export function listFileRetentionReminder(query) {
 export function scanFileRetentionReminder() {
   return request({
     url: '/system/file/retention-reminder/scan',
-    method: 'post'
+    method: 'post',
   })
 }
 
@@ -117,7 +117,7 @@ export function scanFileRetentionReminder() {
 export function readFileRetentionReminder(noticeIds) {
   return request({
     url: '/system/file/retention-reminder/' + noticeIds + '/read',
-    method: 'put'
+    method: 'put',
   })
 }
 
@@ -126,7 +126,7 @@ export function extendFileRetention(noticeId, data) {
   return request({
     url: '/system/file/retention-reminder/' + noticeId + '/extend',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -135,7 +135,7 @@ export function disposeExpiredFile(noticeId, data) {
   return request({
     url: '/system/file/retention-reminder/' + noticeId + '/dispose',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -143,7 +143,7 @@ export function disposeExpiredFile(noticeId, data) {
 export function getFile(fileId) {
   return request({
     url: '/system/file/' + fileId,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -151,7 +151,7 @@ export function getFile(fileId) {
 export function listFileReference(fileId) {
   return request({
     url: '/system/file/' + fileId + '/reference/list',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -160,7 +160,7 @@ export function listFileAccessLog(fileId, query) {
   return request({
     url: '/system/file/' + fileId + '/access-log/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -168,7 +168,7 @@ export function listFileAccessLog(fileId, query) {
 export function listFileAcl(fileId) {
   return request({
     url: '/system/file/' + fileId + '/acl/list',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -177,7 +177,7 @@ export function searchFileAclSubjects(query) {
   return request({
     url: '/system/file/acl/subjects',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -185,7 +185,7 @@ export function searchFileAclSubjects(query) {
 export function getFileAclDeptTree() {
   return request({
     url: '/system/file/acl/dept-tree',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -194,7 +194,7 @@ export function saveFileAcl(fileId, data) {
   return request({
     url: '/system/file/' + fileId + '/acl',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -203,7 +203,7 @@ export function batchSaveFileAcl(data) {
   return request({
     url: '/system/file/acl/batch',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -212,7 +212,7 @@ export function transferFile(fileIds, data) {
   return request({
     url: '/system/file/' + fileIds + '/transfer',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -220,7 +220,7 @@ export function transferFile(fileIds, data) {
 export function restoreFile(fileIds) {
   return request({
     url: '/system/file/' + fileIds + '/restore',
-    method: 'put'
+    method: 'put',
   })
 }
 
@@ -228,7 +228,7 @@ export function restoreFile(fileIds) {
 export function purgeFile(fileIds) {
   return request({
     url: '/system/file/purge/' + fileIds,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -236,6 +236,6 @@ export function purgeFile(fileIds) {
 export function delFile(fileIds) {
   return request({
     url: '/system/file/' + fileIds,
-    method: 'delete'
+    method: 'delete',
   })
 }

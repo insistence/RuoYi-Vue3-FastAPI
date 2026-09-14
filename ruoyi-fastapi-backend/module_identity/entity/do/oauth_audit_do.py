@@ -1,12 +1,13 @@
-from sqlalchemy import JSON, BigInteger, Column, Index, String
+from sqlalchemy import JSON, BigInteger, Column, Index, Integer, String
 
+from common.types import DbUtcDateTime
 from config.database import Base
-from module_identity.entity.do._base import IDENTITY_DATETIME, current_time, primary_key_type
+from utils.time_util import TimezoneUtil
 
 
 class SysOAuthAuditLog(Base):
     """
-    OAuth/OIDC 安全审计日志。
+    OAuth/OIDC安全审计日志表
     """
 
     __tablename__ = 'sys_oauth_audit_log'
@@ -19,7 +20,13 @@ class SysOAuthAuditLog(Base):
         {'comment': 'OAuth Audit Log'},
     )
 
-    event_id = Column(primary_key_type(), primary_key=True, nullable=False, autoincrement=True, comment='事件ID')
+    event_id = Column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+        comment='事件ID',
+    )
     trace_id = Column(String(64), nullable=True, comment='链路追踪ID')
     event_type = Column(String(64), nullable=False, comment='事件类型')
     result = Column(String(16), nullable=False, comment='结果')
@@ -35,12 +42,12 @@ class SysOAuthAuditLog(Base):
     user_agent = Column(String(500), nullable=True, comment='脱敏 User-Agent')
     failure_code = Column(String(64), nullable=True, comment='失败码')
     detail = Column(JSON, nullable=True, comment='脱敏扩展详情')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='事件时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='事件时间')
 
 
 class SysOAuthAuditArchive(Base):
     """
-    OAuth/OIDC 安全审计归档记录。
+    OAuth/OIDC安全审计归档表
     """
 
     __tablename__ = 'sys_oauth_audit_archive'
@@ -66,5 +73,5 @@ class SysOAuthAuditArchive(Base):
     user_agent = Column(String(500), nullable=True, comment='脱敏 User-Agent')
     failure_code = Column(String(64), nullable=True, comment='失败码')
     detail = Column(JSON, nullable=True, comment='脱敏扩展详情')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, comment='事件时间')
-    archived_at = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='归档时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, comment='事件时间')
+    archived_at = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='归档时间')

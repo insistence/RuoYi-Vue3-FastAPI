@@ -1,14 +1,16 @@
 import request from '@/utils/request'
 
-const encodePathSegment = value => encodeURIComponent(String(value))
-const encodeBatchPath = value => String(value).split(',').map(encodePathSegment).join(',')
+// 编码单个路径标识
+const encodePathSegment = (value) => encodeURIComponent(String(value))
+// 分别编码批量操作中的路径标识
+const encodeBatchPath = (value) => String(value).split(',').map(encodePathSegment).join(',')
 
 // 查询 OAuth 客户端列表
 export function listOAuthClients(query) {
   return request({
     url: '/system/oauth/client/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -16,7 +18,7 @@ export function listOAuthClients(query) {
 export function getOAuthClient(clientId) {
   return request({
     url: `/system/oauth/client/${encodePathSegment(clientId)}`,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -25,7 +27,7 @@ export function addOAuthClient(data) {
   return request({
     url: '/system/oauth/client',
     method: 'post',
-    data
+    data,
   })
 }
 
@@ -34,7 +36,7 @@ export function updateOAuthClient(data) {
   return request({
     url: '/system/oauth/client',
     method: 'put',
-    data
+    data,
   })
 }
 
@@ -42,7 +44,7 @@ export function updateOAuthClient(data) {
 export function deleteOAuthClients(clientIds) {
   return request({
     url: `/system/oauth/client/${encodeBatchPath(clientIds)}`,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -51,7 +53,7 @@ export function changeOAuthClientStatus(data) {
   return request({
     url: '/system/oauth/client/changeStatus',
     method: 'put',
-    data
+    data,
   })
 }
 
@@ -60,7 +62,7 @@ export function rotateOAuthClientSecret(clientId, data = {}) {
   return request({
     url: `/system/oauth/client/${encodePathSegment(clientId)}/secret`,
     method: 'post',
-    data
+    data,
   })
 }
 
@@ -68,7 +70,7 @@ export function rotateOAuthClientSecret(clientId, data = {}) {
 export function revokeOAuthClientSecret(clientId, secretId) {
   return request({
     url: `/system/oauth/client/${encodePathSegment(clientId)}/secret/${encodePathSegment(secretId)}`,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -77,7 +79,7 @@ export function addOAuthClientUri(clientId, data) {
   return request({
     url: `/system/oauth/client/${encodePathSegment(clientId)}/uri`,
     method: 'post',
-    data
+    data,
   })
 }
 
@@ -85,6 +87,6 @@ export function addOAuthClientUri(clientId, data) {
 export function deleteOAuthClientUri(clientId, uriId) {
   return request({
     url: `/system/oauth/client/${encodePathSegment(clientId)}/uri/${encodePathSegment(uriId)}`,
-    method: 'delete'
+    method: 'delete',
   })
 }

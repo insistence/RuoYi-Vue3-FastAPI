@@ -9,7 +9,7 @@ const EXCLUDED_URL_PATTERNS = [
   '/common/download',
   '/common/download/resource',
   '/common/files/',
-  '/system/file/download/'
+  '/system/file/download/',
 ]
 const TRANSPORT_FRONTEND_CONFIG_CACHE_KEY = 'transportCryptoFrontendConfig'
 const TRANSPORT_FRONTEND_CONFIG_URL = '/transport/crypto/frontend-config'
@@ -21,7 +21,7 @@ const DEFAULT_TRANSPORT_MAX_GET_URL_LENGTH = 4096
 
 const transportPolicyClient = axios.create({
   baseURL: TRANSPORT_BASE_URL,
-  timeout: 10000
+  timeout: 10000,
 })
 
 let cachedTransportPolicy = null
@@ -43,7 +43,7 @@ function getNowTimestamp() {
  * @returns {boolean} 是否命中排除规则
  */
 function matchExcludedUrl(url = '') {
-  return EXCLUDED_URL_PATTERNS.some(pattern => url.includes(pattern))
+  return EXCLUDED_URL_PATTERNS.some((pattern) => url.includes(pattern))
 }
 
 /**
@@ -54,7 +54,7 @@ function matchExcludedUrl(url = '') {
  * @returns {boolean} 是否匹配成功
  */
 function matchPathPrefix(path = '', pathPatterns = []) {
-  return pathPatterns.some(pattern => path === pattern || path.startsWith(`${pattern}/`))
+  return pathPatterns.some((pattern) => path === pattern || path.startsWith(`${pattern}/`))
 }
 
 /**
@@ -124,7 +124,7 @@ function normalizePaths(paths) {
   if (!Array.isArray(paths)) {
     return []
   }
-  return paths.map(path => String(path || '').trim()).filter(Boolean)
+  return paths.map((path) => String(path || '').trim()).filter(Boolean)
 }
 
 /**
@@ -140,14 +140,20 @@ function normalizeTransportPolicy(payload) {
     transportCryptoActive: Boolean(payload?.transportCryptoActive),
     envelopeVersion: String(payload?.envelopeVersion || DEFAULT_TRANSPORT_ENVELOPE_VERSION),
     publicKeyUrl: String(payload?.publicKeyUrl || '/transport/crypto/public-key'),
-    requestEnvelopeAlgorithm: String(payload?.requestEnvelopeAlgorithm || DEFAULT_REQUEST_ENVELOPE_ALGORITHM),
-    responseEnvelopeAlgorithm: String(payload?.responseEnvelopeAlgorithm || DEFAULT_RESPONSE_ENVELOPE_ALGORITHM),
+    requestEnvelopeAlgorithm: String(
+      payload?.requestEnvelopeAlgorithm || DEFAULT_REQUEST_ENVELOPE_ALGORITHM
+    ),
+    responseEnvelopeAlgorithm: String(
+      payload?.responseEnvelopeAlgorithm || DEFAULT_RESPONSE_ENVELOPE_ALGORITHM
+    ),
     enabledPaths: normalizePaths(payload?.enabledPaths),
     requiredPaths: normalizePaths(payload?.requiredPaths),
     excludePaths: normalizePaths(payload?.excludePaths),
-    maxEncryptedGetUrlLength: Number(payload?.maxEncryptedGetUrlLength || DEFAULT_TRANSPORT_MAX_GET_URL_LENGTH),
+    maxEncryptedGetUrlLength: Number(
+      payload?.maxEncryptedGetUrlLength || DEFAULT_TRANSPORT_MAX_GET_URL_LENGTH
+    ),
     configExpireAt: Number(payload?.configExpireAt || 0),
-    retryAt: Number(payload?.retryAt || payload?.configExpireAt || 0)
+    retryAt: Number(payload?.retryAt || payload?.configExpireAt || 0),
   }
 }
 
@@ -171,7 +177,7 @@ function buildFallbackTransportPolicy() {
     excludePaths: [...EXCLUDED_URL_PATTERNS],
     maxEncryptedGetUrlLength: DEFAULT_TRANSPORT_MAX_GET_URL_LENGTH,
     configExpireAt: nowTimestamp + TRANSPORT_FRONTEND_CONFIG_FALLBACK_TTL_SECONDS,
-    retryAt: nowTimestamp + TRANSPORT_FRONTEND_CONFIG_FALLBACK_TTL_SECONDS
+    retryAt: nowTimestamp + TRANSPORT_FRONTEND_CONFIG_FALLBACK_TTL_SECONDS,
   }
 }
 
@@ -186,7 +192,7 @@ function buildRetryableTransportPolicy(policy) {
   const retryAt = getNowTimestamp() + TRANSPORT_FRONTEND_CONFIG_FALLBACK_TTL_SECONDS
   return {
     ...normalizedPolicy,
-    retryAt
+    retryAt,
   }
 }
 
@@ -264,26 +270,29 @@ export async function ensureTransportCryptoPolicyLoaded(forceRefresh = false) {
     return inflightTransportPolicyPromise
   }
 
-  inflightTransportPolicyPromise = transportPolicyClient.get(TRANSPORT_FRONTEND_CONFIG_URL).then(response => {
-    const payload = normalizeTransportPolicy(response?.data?.data || {})
-    cachedTransportPolicy = payload
-    cache.session.setJSON(TRANSPORT_FRONTEND_CONFIG_CACHE_KEY, payload)
-    inflightTransportPolicyPromise = null
-    return cachedTransportPolicy
-  }).catch(error => {
-    const staleTransportPolicy = cachedTransportPolicy || loadPersistedTransportPolicy()
-    inflightTransportPolicyPromise = null
-    cachedTransportPolicy = staleTransportPolicy
-      ? buildRetryableTransportPolicy(staleTransportPolicy)
-      : buildFallbackTransportPolicy()
-    cache.session.setJSON(TRANSPORT_FRONTEND_CONFIG_CACHE_KEY, cachedTransportPolicy)
-    if (staleTransportPolicy) {
-      console.warn('加载传输加密前端配置失败，当前继续沿用最近一次后端策略', error)
-    } else {
-      console.warn('加载传输加密前端配置失败，当前回退为明文请求策略', error)
-    }
-    return cachedTransportPolicy
-  })
+  inflightTransportPolicyPromise = transportPolicyClient
+    .get(TRANSPORT_FRONTEND_CONFIG_URL)
+    .then((response) => {
+      const payload = normalizeTransportPolicy(response?.data?.data || {})
+      cachedTransportPolicy = payload
+      cache.session.setJSON(TRANSPORT_FRONTEND_CONFIG_CACHE_KEY, payload)
+      inflightTransportPolicyPromise = null
+      return cachedTransportPolicy
+    })
+    .catch((error) => {
+      const staleTransportPolicy = cachedTransportPolicy || loadPersistedTransportPolicy()
+      inflightTransportPolicyPromise = null
+      cachedTransportPolicy = staleTransportPolicy
+        ? buildRetryableTransportPolicy(staleTransportPolicy)
+        : buildFallbackTransportPolicy()
+      cache.session.setJSON(TRANSPORT_FRONTEND_CONFIG_CACHE_KEY, cachedTransportPolicy)
+      if (staleTransportPolicy) {
+        console.warn('加载传输加密前端配置失败，当前继续沿用最近一次后端策略', error)
+      } else {
+        console.warn('加载传输加密前端配置失败，当前回退为明文请求策略', error)
+      }
+      return cachedTransportPolicy
+    })
 
   return inflightTransportPolicyPromise
 }
@@ -303,7 +312,10 @@ export function shouldEncryptRequest(config, transportPolicy = getTransportCrypt
   if (matchPathPrefix(requestPath, transportPolicy.excludePaths || [])) {
     return false
   }
-  if ((transportPolicy.enabledPaths || []).length && !matchPathPrefix(requestPath, transportPolicy.enabledPaths || [])) {
+  if (
+    (transportPolicy.enabledPaths || []).length &&
+    !matchPathPrefix(requestPath, transportPolicy.enabledPaths || [])
+  ) {
     return false
   }
   if ((config.headers || {}).encrypt === false) {
@@ -334,7 +346,10 @@ export function shouldEncryptResponse(config, transportPolicy = getTransportCryp
   if (matchPathPrefix(requestPath, transportPolicy.excludePaths || [])) {
     return false
   }
-  if ((transportPolicy.enabledPaths || []).length && !matchPathPrefix(requestPath, transportPolicy.enabledPaths || [])) {
+  if (
+    (transportPolicy.enabledPaths || []).length &&
+    !matchPathPrefix(requestPath, transportPolicy.enabledPaths || [])
+  ) {
     return false
   }
   if ((config.headers || {}).encryptResponse === false) {

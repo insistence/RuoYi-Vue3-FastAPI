@@ -48,6 +48,7 @@ def _redis(request: Request) -> Redis:
     :return: 应用 Redis 客户端
     :raises OidcInteractionException: Redis 客户端不可用
     """
+
     value = getattr(request.app.state, 'redis', None)
     if value is None:
         raise OidcInteractionException(error='server_error', status_code=503, message='认证服务不可用')
@@ -61,7 +62,9 @@ def _client_ip(request: Request) -> str | None:
     :param request: 当前 HTTP 请求
     :return: 客户端 IP 地址，不存在时返回 None
     """
+
     client = getattr(request, 'client', None)
+
     return getattr(client, 'host', None)
 
 
@@ -71,6 +74,7 @@ def _not_found() -> Response:
 
     :return: 认证中心未启用的 404 响应
     """
+
     return _failure_response('认证服务未启用', 404)
 
 
@@ -80,6 +84,7 @@ def _invalid_body() -> Response:
 
     :return: 请求无效的 400 响应
     """
+
     return _failure_response('认证交互请求无效', 400)
 
 
@@ -92,8 +97,10 @@ def _failure_response(msg: str, status_code: int, headers: dict[str, str] | None
     :param headers: 可选响应头
     :return: 统一错误响应
     """
+
     response = ResponseUtil.failure(msg=msg, headers=headers or _NO_STORE)
     response.status_code = status_code
+
     return response
 
 
@@ -104,9 +111,10 @@ def _login_response(outcome: InteractionLoginOutcome) -> Response:
     :param outcome: 登录流程结果
     :return: 统一认证响应
     """
+
     if outcome.failure_message is not None:
         return ResponseUtil.failure(msg=outcome.failure_message, headers=_NO_STORE)
-    response = ResponseUtil.success(model_content=outcome.result, headers=_NO_STORE)
+    response = ResponseUtil.success(data=outcome.result, headers=_NO_STORE)
     if outcome.cookie is not None:
         SsoSessionService.parse_cookie(outcome.cookie)
         response.set_cookie(value=outcome.cookie, **SsoSessionService.cookie_parameters())
@@ -121,6 +129,7 @@ def _json_pairs(items: list[tuple[str, object]]) -> dict[str, object]:
     :return: 唯一字段组成的对象
     :raises ValueError: JSON 对象包含重复字段
     """
+
     result: dict[str, object] = {}
     for key, value in items:
         # 拒绝重复字段，避免不同解析器产生歧义
@@ -181,15 +190,17 @@ async def _safe_json_body(request: Request, model: type[_MODEL]) -> _MODEL:
 async def get_interaction(
     request: Request,
     interaction_id: str,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
     csrf_token: str | None = Header(default=None, alias='X-CSRF-Token'),
 ) -> Response:
     if not OidcConfig.oidc_enabled:
         return _not_found()
     redis = _redis(request)
     await InteractionFlowService.csrf_record(redis, interaction_id, csrf_token)
-    page = await InteractionService.get(redis, interaction_id)
+    page = await InteractionService.get(redis, interaction_id, query_db)
     page['captchaEnabled'] = await InteractionFlowService.captcha_enabled(redis)
-    return ResponseUtil.success(model_content=InteractionViewModel.model_validate(page), headers=_NO_STORE)
+
+    return ResponseUtil.success(data=InteractionViewModel.model_validate(page), headers=_NO_STORE)
 
 
 @interaction_controller.get(
@@ -210,7 +221,7 @@ async def captcha(request: Request, interaction_id: str) -> Response:
         )
     if outcome.unavailable:
         return _failure_response('认证服务暂不可用', 503)
-    return ResponseUtil.success(model_content=outcome.result, headers=_NO_STORE)
+    return ResponseUtil.success(data=outcome.result, headers=_NO_STORE)
 
 
 @interaction_controller.post(
@@ -240,6 +251,7 @@ async def login_endpoint(
         _client_ip(request),
         request.headers.get('user-agent'),
     )
+
     return _login_response(outcome)
 
 
@@ -262,6 +274,7 @@ async def change_password_endpoint(
     except OidcInteractionException:
         return _invalid_body()
     outcome = await InteractionLoginService.change_password(_redis(request), interaction_id, body, query_db, csrf_token)
+
     return _login_response(outcome)
 
 
@@ -284,7 +297,8 @@ async def consent_endpoint(
     except OidcInteractionException:
         return _invalid_body()
     result = await InteractionConsentService.consent(_redis(request), interaction_id, body, query_db, csrf_token)
-    return ResponseUtil.success(model_content=result, headers=_NO_STORE)
+
+    return ResponseUtil.success(data=result, headers=_NO_STORE)
 
 
 @interaction_controller.post(
@@ -302,7 +316,8 @@ async def cancel(
     if not OidcConfig.oidc_enabled:
         return _not_found()
     result = await InteractionConsentService.cancel(_redis(request), interaction_id, query_db, csrf_token)
-    return ResponseUtil.success(model_content=result, headers=_NO_STORE)
+
+    return ResponseUtil.success(data=result, headers=_NO_STORE)
 
 
 @interaction_controller.post(
@@ -321,8 +336,9 @@ async def complete(
         return _not_found()
     await InteractionFlowService.csrf_record(_redis(request), interaction_id, csrf_token)
     result = await InteractionCompletionService.complete(_redis(request), interaction_id, query_db)
+
     return ResponseUtil.success(
-        model_content=InteractionResultModel(
+        data=InteractionResultModel(
             next_action='redirect',
             interaction_id=interaction_id,
             redirect_url=result.location,

@@ -4,7 +4,7 @@ from cli.runtime.oidc import OIDC_RUNTIME, OidcRuntimeCliService
 
 class OidcCommandController:
     """
-    OIDC 命令控制器。
+    OIDC 命令控制器
 
     该控制器负责组织 OIDC 命令组的上下文准备、危险操作保护、
     runtime 调用和结果输出。

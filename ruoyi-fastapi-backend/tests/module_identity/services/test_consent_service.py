@@ -1,5 +1,6 @@
 """Authorization Consent 服务测试。"""
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -117,9 +118,15 @@ def test_prompt_consent_disables_grant_based_skip() -> None:
 
 
 @pytest.mark.asyncio
-async def test_remember_consent_merges_grant_without_commit(data_session: AsyncSession) -> None:
+@pytest.mark.parametrize('remembered', [True, False])
+async def test_remember_consent_merges_grant_without_commit(data_session: AsyncSession, remembered: bool) -> None:
     """验证 rememberConsent 使用 Grant DAO 合并，提交事务由调用方控制。"""
-    context = _context()
+    initial = _context()
+    context = replace(
+        initial,
+        scopes=(*initial.scopes, 'offline_access'),
+        scope_models=(*initial.scope_models, ScopeSnapshot(8104, 'offline_access', 'identity', None, True)),
+    )
     data_session.add(
         SysUser(user_id=8001, user_name='consent-user', nick_name='Consent User', status='0', del_flag='0')
     )
@@ -143,16 +150,34 @@ async def test_remember_consent_merges_grant_without_commit(data_session: AsyncS
         data_session,
         context,
         approved=True,
-        scopes=['openid', 'profile', 'server-required'],
-        remember_consent=True,
+        scopes=list(context.scopes),
+        remember_consent=remembered,
         user_id=8001,
         subject_id='subject-8001',
     )
     assert result.approved is True
     assert result.grant is not None
-    assert result.grant.granted_scopes == ['openid', 'profile', 'server-required']
+    assert result.grant.granted_scopes == list(context.scopes)
+    assert ConsentService.consent_is_satisfied(context, result.grant) is remembered
+    assert result.grant.remembered_scopes == (list(context.scopes) if remembered else [])
     assert data_session.in_transaction()
     await data_session.flush()
+
+    # 后续记住更小的权限范围时，不得将此前仅供离线续期的权限一并记住
+    smaller = replace(context, scopes=('openid', 'server-required'))
+    updated = await ConsentService.submit_consent(
+        data_session,
+        smaller,
+        approved=True,
+        scopes=list(smaller.scopes),
+        remember_consent=True,
+        user_id=8001,
+        subject_id='subject-8001',
+    )
+    assert updated.grant.grant_id == result.grant.grant_id
+    assert set(updated.grant.granted_scopes) == set(context.scopes)
+    assert ConsentService.consent_is_satisfied(context, updated.grant) is remembered
+    assert ConsentService.consent_is_satisfied(smaller, updated.grant) is True
 
 
 @pytest.mark.asyncio

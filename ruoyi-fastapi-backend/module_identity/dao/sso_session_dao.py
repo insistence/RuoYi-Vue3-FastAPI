@@ -4,9 +4,9 @@ from datetime import datetime
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from module_identity.dao._helpers import current_time
 from module_identity.entity.do.oauth_client_do import SysOAuthClient
 from module_identity.entity.do.oauth_grant_do import SysOAuthGrant, SysOAuthRefreshToken, SysSsoSession
+from utils.time_util import TimezoneUtil
 
 
 class SsoSessionDao:
@@ -23,8 +23,10 @@ class SsoSessionDao:
         :param row: SSO Session 对象
         :return: 已写入的 SSO Session
         """
+
         db.add(row)
         await db.flush()
+
         return row
 
     @classmethod
@@ -40,7 +42,8 @@ class SsoSessionDao:
         :param now: 当前时间
         :return: 活跃 SSO Session，不存在时返回 None
         """
-        now = now or current_time()
+
+        now = now or TimezoneUtil.utc_now()
         query = select(SysSsoSession).where(
             SysSsoSession.sid == sid,
             SysSsoSession.status == 'active',
@@ -50,6 +53,7 @@ class SsoSessionDao:
         if for_update:
             query = query.with_for_update()
         result = await db.execute(query)
+
         return result.scalars().first()
 
     @classmethod
@@ -62,11 +66,41 @@ class SsoSessionDao:
         :param for_update: 是否锁定查询结果
         :return: SSO Session，不存在时返回 None
         """
+
         query = select(SysSsoSession).where(SysSsoSession.sid == sid)
         if for_update:
             query = query.with_for_update()
         result = await db.execute(query)
+
         return result.scalars().first()
+
+    @classmethod
+    async def get_for_token(
+        cls, db: AsyncSession, sid: str, *, now: datetime, allow_offline: bool = False
+    ) -> SysSsoSession | None:
+        """
+        获取令牌校验所需的 SSO 会话
+
+        自然过期的会话仍可用于离线授权，显式撤销的会话不可继续使用。
+
+        :param db: orm对象
+        :param sid: SSO会话标识
+        :param now: 当前UTC时间
+        :param allow_offline: 是否允许使用自然过期的离线授权会话
+        :return: 可用于令牌校验的会话，校验失败时返回None
+        """
+
+        session = await cls.get_active(db, sid, now=now)
+        if session is not None or not allow_offline:
+            return session
+        session = await cls.get_by_sid(db, sid)
+        if (
+            session is not None
+            and session.status in {'active', 'expired'}
+            and getattr(session, 'revoked_at', None) is None
+        ):
+            return session
+        return None
 
     @classmethod
     async def touch(cls, db: AsyncSession, sid: str, idle_expires_at: datetime, now: datetime | None = None) -> bool:
@@ -79,7 +113,8 @@ class SsoSessionDao:
         :param now: 当前时间
         :return: 是否更新成功
         """
-        current = now or current_time()
+
+        current = now or TimezoneUtil.utc_now()
         result = await db.execute(
             update(SysSsoSession)
             .where(
@@ -92,6 +127,7 @@ class SsoSessionDao:
             .values(last_seen_at=current, idle_expires_at=idle_expires_at)
         )
         await db.flush()
+
         return bool(result.rowcount)
 
     @classmethod
@@ -105,12 +141,14 @@ class SsoSessionDao:
         :param now: 当前时间
         :return: 是否撤销成功
         """
+
         result = await db.execute(
             update(SysSsoSession)
-            .where(SysSsoSession.sid == sid, SysSsoSession.status == 'active')
-            .values(status='revoked', revoked_at=now or current_time(), revoke_reason=reason)
+            .where(SysSsoSession.sid == sid, SysSsoSession.status.in_(('active', 'expired')))
+            .values(status='revoked', revoked_at=now or TimezoneUtil.utc_now(), revoke_reason=reason)
         )
         await db.flush()
+
         return bool(result.rowcount)
 
     @classmethod
@@ -126,12 +164,14 @@ class SsoSessionDao:
         :param now: 当前时间
         :return: 已撤销的 SSO Session 数量
         """
+
         result = await db.execute(
             update(SysSsoSession)
             .where(SysSsoSession.user_id == user_id, SysSsoSession.status == 'active')
-            .values(status='revoked', revoked_at=now or current_time(), revoke_reason=reason)
+            .values(status='revoked', revoked_at=now or TimezoneUtil.utc_now(), revoke_reason=reason)
         )
         await db.flush()
+
         return result.rowcount or 0
 
     @classmethod
@@ -153,15 +193,17 @@ class SsoSessionDao:
         :param exclude_sid: 排除的 SSO Session 标识
         :return: 已撤销的 SSO Session 数量
         """
+
         conditions = [SysSsoSession.user_id.in_(user_ids), SysSsoSession.status == 'active']
         if exclude_sid is not None:
             conditions.append(SysSsoSession.sid != exclude_sid)
         result = await db.execute(
             update(SysSsoSession)
             .where(*conditions)
-            .values(status='revoked', revoked_at=now or current_time(), revoke_reason=reason)
+            .values(status='revoked', revoked_at=now or TimezoneUtil.utc_now(), revoke_reason=reason)
         )
         await db.flush()
+
         return result.rowcount or 0
 
     @classmethod
@@ -173,7 +215,8 @@ class SsoSessionDao:
         :param now: 当前时间
         :return: 已过期的 SSO Session 数量
         """
-        now = now or current_time()
+
+        now = now or TimezoneUtil.utc_now()
         result = await db.execute(
             update(SysSsoSession)
             .where(
@@ -183,6 +226,7 @@ class SsoSessionDao:
             .values(status='expired')
         )
         await db.flush()
+
         return result.rowcount or 0
 
     @classmethod
@@ -197,7 +241,8 @@ class SsoSessionDao:
         :param for_update: 是否锁定查询结果
         :return: 待过期的 SSO Session 序列
         """
-        current = now or current_time()
+
+        current = now or TimezoneUtil.utc_now()
         query = select(SysSsoSession).where(
             SysSsoSession.status == 'active',
             (SysSsoSession.idle_expires_at <= current) | (SysSsoSession.absolute_expires_at <= current),
@@ -205,6 +250,7 @@ class SsoSessionDao:
         if for_update:
             query = query.with_for_update()
         result = await db.execute(query)
+
         return result.scalars().all()
 
     @classmethod
@@ -217,7 +263,8 @@ class SsoSessionDao:
         :param now: 当前时间
         :return: 是否过期成功
         """
-        current = now or current_time()
+
+        current = now or TimezoneUtil.utc_now()
         result = await db.execute(
             update(SysSsoSession)
             .where(
@@ -228,6 +275,7 @@ class SsoSessionDao:
             .values(status='expired')
         )
         await db.flush()
+
         return bool(result.rowcount)
 
     @classmethod
@@ -249,7 +297,8 @@ class SsoSessionDao:
         :param now: 当前时间
         :return: 是否轮换成功
         """
-        current = now or current_time()
+
+        current = now or TimezoneUtil.utc_now()
         result = await db.execute(
             update(SysSsoSession)
             .where(
@@ -262,6 +311,7 @@ class SsoSessionDao:
             .values(session_secret_hash=new_secret_hash, last_seen_at=current)
         )
         await db.flush()
+
         return bool(result.rowcount)
 
     @classmethod
@@ -277,6 +327,7 @@ class SsoSessionDao:
         :param for_update: 是否锁定查询结果
         :return: 用户 SSO Session 序列
         """
+
         query = select(SysSsoSession).where(SysSsoSession.user_id == user_id)
         if active_only:
             query = query.where(SysSsoSession.status == 'active')
@@ -284,6 +335,7 @@ class SsoSessionDao:
         if for_update:
             query = query.with_for_update()
         result = await db.execute(query)
+
         return result.scalars().all()
 
     @classmethod
@@ -312,6 +364,7 @@ class SsoSessionDao:
         :param limit: 分页大小
         :return: SSO Session 序列
         """
+
         conditions = []
         if user_id is not None:
             conditions.append(SysSsoSession.user_id == user_id)
@@ -331,6 +384,7 @@ class SsoSessionDao:
             .limit(min(max(limit, 1), 200))
         )
         result = await db.execute(query)
+
         return result.scalars().all()
 
     @classmethod
@@ -355,6 +409,7 @@ class SsoSessionDao:
         :param end_time: 查询结束时间
         :return: SSO Session 数量
         """
+
         conditions = []
         if user_id is not None:
             conditions.append(SysSsoSession.user_id == user_id)
@@ -367,6 +422,7 @@ class SsoSessionDao:
         if end_time is not None:
             conditions.append(SysSsoSession.create_time <= end_time)
         result = await db.execute(select(func.count()).select_from(SysSsoSession).where(*conditions))
+
         return int(result.scalar_one())
 
     @classmethod
@@ -378,12 +434,14 @@ class SsoSessionDao:
         :param sid: SSO Session 标识
         :return: 关联 Client 公开标识序列
         """
+
         result = await db.execute(
             select(SysOAuthClient.client_id)
             .join(SysOAuthRefreshToken, SysOAuthRefreshToken.client_pk == SysOAuthClient.client_pk)
             .where(SysOAuthRefreshToken.sid == sid)
             .distinct()
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -396,10 +454,12 @@ class SsoSessionDao:
         :param auth_time: 认证时间
         :return: 参与认证的 Client 公开标识序列
         """
+
         result = await db.execute(
             select(SysOAuthClient.client_id)
             .join(SysOAuthGrant, SysOAuthGrant.client_pk == SysOAuthClient.client_pk)
             .where(SysOAuthGrant.user_id == user_id, SysOAuthGrant.last_used_at >= auth_time)
             .distinct()
         )
+
         return result.scalars().all()

@@ -30,6 +30,7 @@ def _key_for_kid(verification_keys: object, kid: str) -> object:
     :return: 匹配的验签密钥
     :raises JwtProfileError: 验签密钥缺失或 Key ID 未知
     """
+
     if verification_keys is None:
         raise JwtProfileError('signing key is required')
     if isinstance(verification_keys, Mapping):
@@ -53,6 +54,7 @@ def _header(token: str) -> dict[str, Any]:
     :return: 通过固定算法与 Header 白名单校验的字段映射
     :raises JwtProfileError: JWT 编码、算法或 Header 字段不合法
     """
+
     try:
         value = jwt.get_unverified_header(token)
     except (PyJWTError, TypeError, ValueError) as exc:
@@ -66,13 +68,14 @@ def _header(token: str) -> dict[str, Any]:
     return value
 
 
-def _numeric_claims(payload: Mapping[str, Any], *, now: float, skew: float) -> None:
+def _numeric_claims(payload: Mapping[str, Any], *, now: float, skew: float, verify_exp: bool = True) -> None:
     """
     校验 JWT NumericDate 类型和时效
 
     :param payload: 已验签的 JWT Claims
     :param now: 当前 UTC 时间戳
     :param skew: 允许的时钟偏差秒数
+    :param verify_exp: 是否校验过期时间，仅退出提示流程可关闭
     :return: None
     :raises JwtProfileError: NumericDate 类型或时效不合法
     """
@@ -89,7 +92,7 @@ def _numeric_claims(payload: Mapping[str, Any], *, now: float, skew: float) -> N
             raise JwtProfileError('JWT issued-at is in the future')
         if name == 'auth_time' and value > now + skew:
             raise JwtProfileError('JWT auth_time is in the future')
-        if name == 'exp' and now - skew >= value:
+        if name == 'exp' and verify_exp and now - skew >= value:
             raise JwtProfileError('JWT is expired')
         if name == 'nbf' and now + skew < value:
             raise JwtProfileError('JWT is not active yet')
@@ -121,12 +124,14 @@ def _audience_matches(actual: object, expected: str | Sequence[str] | None) -> b
     :param expected: 允许的单个或多个 Audience
     :return: Audience 是否匹配
     """
+
     if expected is None:
         return True
     values = [actual] if isinstance(actual, str) else actual
     if not isinstance(values, (list, tuple, set)) or any(not isinstance(item, str) for item in values):
         return False
     wanted = [expected] if isinstance(expected, str) else list(expected)
+
     return any(item in wanted for item in values)
 
 
@@ -140,6 +145,7 @@ def _validate_string_claim(payload: Mapping[str, Any], name: str, required: bool
     :return: None
     :raises JwtProfileError: Claim 缺失或不是非空字符串
     """
+
     value = payload.get(name)
     if value is None and not required:
         return
@@ -157,6 +163,7 @@ def _validate_string_list(payload: Mapping[str, Any], name: str, required: bool 
     :return: None
     :raises JwtProfileError: Claim 缺失或不是非空字符串列表
     """
+
     value = payload.get(name)
     if value is None and not required:
         return
@@ -172,6 +179,7 @@ def _validate_audience_claim(payload: Mapping[str, Any]) -> None:
     :return: None
     :raises JwtProfileError: Audience 结构、内容或唯一性不合法
     """
+
     aud = payload.get('aud')
     if not isinstance(aud, (str, list)):
         raise JwtProfileError('JWT aud claim is invalid')
@@ -191,6 +199,7 @@ def _validate_access_claims(payload: Mapping[str, Any]) -> None:
     :return: None
     :raises JwtProfileError: 必需 Claim 或身份绑定不合法
     """
+
     for name in ('iss', 'sub', 'client_id', 'scope'):
         _validate_string_claim(payload, name)
     _validate_audience_claim(payload)
@@ -229,6 +238,7 @@ def _validate_id_claims(payload: Mapping[str, Any]) -> None:
     :return: None
     :raises JwtProfileError: 必需 Claim 不合法
     """
+
     for name in ('iss', 'sub', 'sid', 'acr', 'nonce'):
         _validate_string_claim(payload, name)
     _validate_audience_claim(payload)
@@ -246,6 +256,7 @@ def _validate_logout_claims(payload: Mapping[str, Any]) -> None:
     :return: None
     :raises JwtProfileError: 必需 Claim、事件或主体绑定不合法
     """
+
     for name in ('iss', 'jti'):
         _validate_string_claim(payload, name)
     _validate_audience_claim(payload)
@@ -271,6 +282,7 @@ def _validate_profile_claims(profile: str, payload: Mapping[str, Any]) -> None:
     :return: None
     :raises JwtProfileError: Profile Claims 不合法
     """
+
     if profile == 'access':
         _validate_access_claims(payload)
     elif profile == 'id':
@@ -290,6 +302,7 @@ def _decode(
     required_claims: set[str],
     clock_skew: float = 60,
     verification_key: object | None = None,
+    allow_expired_hint: bool = False,
 ) -> dict[str, Any]:
     """
     按固定 Profile 验签并校验 JWT
@@ -303,9 +316,11 @@ def _decode(
     :param required_claims: PyJWT 必须检查的 Claim 集合
     :param clock_skew: 允许的时钟偏差秒数
     :param verification_key: 可选的单一验签密钥
+    :param allow_expired_hint: 是否允许退出提示使用过期ID Token
     :return: 已验签并通过 Profile 校验的 Claims
     :raises JwtProfileError: Header、签名、Issuer、Audience 或 Claims 不合法
     """
+
     if clock_skew < 0:
         raise JwtProfileError('clock_skew must not be negative')
     headers = _header(token)
@@ -319,7 +334,12 @@ def _decode(
             key,
             algorithms=[ACCESS_TOKEN_ALGORITHM],
             leeway=clock_skew,
-            options={'require': sorted(required_claims), 'verify_aud': False, 'verify_iss': False},
+            options={
+                'require': sorted(required_claims),
+                'verify_aud': False,
+                'verify_iss': False,
+                'verify_exp': not allow_expired_hint,
+            },
         )
     except PyJWTError as exc:
         raise JwtProfileError('JWT signature or registered claim validation failed') from exc
@@ -327,7 +347,8 @@ def _decode(
         raise JwtProfileError('JWT issuer or audience mismatch')
     _validate_profile_claims(profile, payload)
     now = datetime.now(timezone.utc).timestamp()
-    _numeric_claims(payload, now=now, skew=clock_skew)
+    _numeric_claims(payload, now=now, skew=clock_skew, verify_exp=not allow_expired_hint)
+
     return dict(payload)
 
 
@@ -461,6 +482,41 @@ def decode_id_token(
     if nonce is not None and claims.get('nonce') != nonce:
         raise JwtProfileError('ID token nonce mismatch')
     return claims
+
+
+def decode_id_token_hint(
+    token: str,
+    *,
+    verification_key: RSAPublicKey,
+    issuer: str,
+    audience: str,
+    clock_skew: float = 60,
+) -> dict[str, Any]:
+    """
+    校验退出请求中的ID Token提示
+
+    仅退出流程允许使用过期ID Token，调用方仍需将其绑定到已知会话。
+
+    :param token: ID Token字符串
+    :param verification_key: 签名验证公钥
+    :param issuer: 预期签发方
+    :param audience: 预期接收方
+    :param clock_skew: 允许的时钟偏差，单位为秒
+    :return: 已校验的ID Token声明
+    """
+
+    return _decode(
+        token,
+        None,
+        issuer,
+        audience,
+        profile='id',
+        expected_type=ID_TOKEN_TYPE,
+        required_claims={'iss', 'sub', 'aud', 'exp', 'iat', 'auth_time', 'nonce', 'sid', 'acr', 'amr'},
+        verification_key=verification_key,
+        clock_skew=clock_skew,
+        allow_expired_hint=True,
+    )
 
 
 def encode_logout_token(claims: Mapping[str, Any], signing_key: RSAPrivateKey, kid: str) -> str:

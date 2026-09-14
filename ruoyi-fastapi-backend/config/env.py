@@ -265,7 +265,7 @@ class TransportCryptoSettings(BaseSettings):
 
 class OidcSettings(BaseSettings):
     """
-    OIDC/OAuth2 认证中心配置。
+    OIDC/OAuth2 认证中心配置
 
     OIDC 默认关闭，关闭时只保留可安全解析的默认值，不要求发行者、签名密钥
     或不透明令牌 Pepper，从而保证现有 Legacy JWT 启动路径完全不变。

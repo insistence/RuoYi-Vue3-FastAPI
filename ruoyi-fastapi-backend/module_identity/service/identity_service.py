@@ -12,7 +12,6 @@ from common.enums import RedisInitKeyConfig
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException
 from module_admin.dao.login_dao import login_by_account
-from module_identity.dao._helpers import local_datetime
 from module_identity.dao.identity_subject_dao import IdentitySubjectDao
 from module_identity.dao.identity_user_dao import IdentityUserDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
@@ -21,6 +20,7 @@ from module_identity.dao.sso_session_dao import SsoSessionDao
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.audit_service import AuditService
 from utils.pwd_util import PwdUtil
+from utils.time_util import TimezoneUtil
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
@@ -107,6 +107,7 @@ class CredentialAuthenticationError(Exception):
         :param legacy_message: Legacy 登录错误消息
         :return: None
         """
+
         self.reason = reason
         self.legacy_message = legacy_message
         super().__init__(reason)
@@ -140,6 +141,7 @@ class CredentialAuthenticationService:
         :return: 通过检查的用户和部门行
         :raises CredentialAuthenticationError: 使用 Legacy 中文语义分类失败
         """
+
         await cls._check_ip(client_ip, redis)
         user_name = login_user.user_name
         lock_key = f'{RedisInitKeyConfig.ACCOUNT_LOCK.key}:{user_name}'
@@ -158,6 +160,7 @@ class CredentialAuthenticationService:
         if user[0].status == '1':
             raise CredentialAuthenticationError('user_disabled', '用户已停用')
         await redis.delete(f'{RedisInitKeyConfig.PASSWORD_ERROR_COUNT.key}:{user_name}')
+
         return user
 
     @classmethod
@@ -192,6 +195,7 @@ class CredentialAuthenticationService:
         :return: 凭据成功结果，不含 Token
         :raises CredentialAuthenticationError: 脱敏分类的凭据失败
         """
+
         await cls._check_ip(client_ip, redis)
         username_digest = cls._username_digest(user_name)
         failure_key = OidcRedisKey.login_user_rate_limit(username_digest)
@@ -214,6 +218,7 @@ class CredentialAuthenticationService:
         await redis.delete(lock_key)
         password_change_required, change_reason = await cls._password_policy(redis, user_row[0])
         methods = ('pwd', 'captcha') if captcha_enabled else ('pwd',)
+
         return CredentialAuthenticationResult(
             user=user_row[0],
             dept=user_row[1],
@@ -233,6 +238,7 @@ class CredentialAuthenticationService:
         :param stored_hash: 已存储的密码摘要
         :return: 密码是否匹配
         """
+
         try:
             return bool(PwdUtil.verify_password(password, stored_hash or _DUMMY_PASSWORD_HASH))
         except (TypeError, ValueError):
@@ -247,6 +253,7 @@ class CredentialAuthenticationService:
         :param redis: Redis 客户端
         :return: None
         """
+
         value = await redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.login.blackIPList')
         if client_ip in (value.split(',') if value else []):
             raise CredentialAuthenticationError('ip_blocked', '当前IP禁止登录')
@@ -260,6 +267,7 @@ class CredentialAuthenticationService:
         :param login_user: Legacy 登录请求
         :return: None
         """
+
         value = await redis.get(f'{RedisInitKeyConfig.CAPTCHA_CODES.key}:{login_user.uuid}')
         if not value:
             raise CredentialAuthenticationError('captcha_missing', '验证码已失效')
@@ -276,6 +284,7 @@ class CredentialAuthenticationService:
         :param uuid: 验证码标识
         :return: None
         """
+
         if not uuid:
             raise CredentialAuthenticationError('captcha_missing', 'captcha_missing')
         key = f'{RedisInitKeyConfig.CAPTCHA_CODES.key}:{uuid}'
@@ -295,6 +304,7 @@ class CredentialAuthenticationService:
         :param user_name: 用户名
         :return: None
         """
+
         key = f'{RedisInitKeyConfig.PASSWORD_ERROR_COUNT.key}:{user_name}'
         cached = await redis.get(key)
         count = int(cached or 0) + 1
@@ -317,6 +327,7 @@ class CredentialAuthenticationService:
         :param lock_key: OIDC 锁定 Key
         :return: None
         """
+
         result = await redis.eval(
             _OIDC_FAILURE_SCRIPT,
             2,
@@ -336,6 +347,7 @@ class CredentialAuthenticationService:
         :param user_name: 用户名
         :return: 用户名摘要
         """
+
         return OidcRedisKey.hash_sensitive_identifier(user_name, OidcConfig.oidc_token_hash_pepper)
 
     @classmethod
@@ -347,6 +359,7 @@ class CredentialAuthenticationService:
         :param user: 系统用户对象
         :return: 密码修改要求及原因
         """
+
         init_modify = await redis.get(f'{RedisInitKeyConfig.SYS_CONFIG.key}:sys.account.initPasswordModify')
         update_time = getattr(user, 'pwd_update_date', None)
         if init_modify == '1' and update_time is None:
@@ -359,8 +372,8 @@ class CredentialAuthenticationService:
         if days > 0:
             if update_time is None:
                 return True, 'password_expired'
-            now = datetime.now()
-            update_time = local_datetime(update_time)
+            now = TimezoneUtil.utc_now()
+            update_time = TimezoneUtil.to_utc(update_time)
             if now > update_time + timedelta(days=days):
                 return True, 'password_expired'
         return False, None
@@ -403,6 +416,7 @@ class ClaimService:
         :param scopes: 请求的 Scope 集合
         :return: 规范化 Scope 集合
         """
+
         if scopes is None:
             return set()
         if isinstance(scopes, str):
@@ -417,6 +431,7 @@ class ClaimService:
         :param value: 待规范化的 Claim 名称集合
         :return: 规范化 Claim 集合
         """
+
         if value is True:
             return set(cls.SCOPE_CLAIMS['openid'] | cls.SCOPE_CLAIMS['profile'])
         if isinstance(value, str):
@@ -436,6 +451,7 @@ class ClaimService:
         :param policy: Scope Claim 策略
         :return: Scope 对应 Claim 集合
         """
+
         if isinstance(policy, Mapping):
             if scope in policy:
                 value = policy[scope]
@@ -447,6 +463,7 @@ class ClaimService:
                 return set(cls.SCOPE_CLAIMS.get(scope, ()))
             return set()
         allowed_scopes = cls._scope_set(policy)
+
         return set(cls.SCOPE_CLAIMS.get(scope, ())) if scope in allowed_scopes else set()
 
     @classmethod
@@ -464,9 +481,11 @@ class ClaimService:
         :param resource_allowed_claims: Resource 允许的 Claim 列表
         :return: 可安全生成的 Claim 名称集合
         """
+
         requested = cls._scope_set(requested_scopes)
         client_claims = set().union(*(cls._client_claims_for_scope(scope, client_scope_policy) for scope in requested))
         resource_claims = cls._claim_set(resource_allowed_claims)
+
         return (client_claims & resource_claims) - cls.FORBIDDEN_CLAIMS
 
     @staticmethod
@@ -479,6 +498,7 @@ class ClaimService:
         :param default: 字段缺省值
         :return: 读取的字段值
         """
+
         if isinstance(user, Mapping):
             return user.get(name, default)
         return getattr(user, name, default)
@@ -494,6 +514,7 @@ class ClaimService:
         :param department: 部门对象或部门映射
         :return: 安全 Claim 字段映射
         """
+
         values = {
             'sub': subject_id or cls._read(user, 'subject_id'),
             'name': cls._read(user, 'name', cls._read(user, 'nick_name')),
@@ -525,9 +546,11 @@ class ClaimService:
         :param value: 用户更新时间
         :return: NumericDate 时间戳或 None
         """
+
         if value is None or isinstance(value, (int, float)):
             return value
         timestamp = getattr(value, 'timestamp', None)
+
         return int(timestamp()) if callable(timestamp) else None
 
     @classmethod
@@ -554,6 +577,7 @@ class ClaimService:
         :param department: 已按项目部门 DAO 查询的部门对象或映射
         :return: 最小 OIDC Claim 映射
         """
+
         requested = cls._scope_set(requested_scopes)
         allowed = cls.effective_claims(requested, client_scope_policy, resource_allowed_claims)
         stable_subject = subject_id or cls._read(user, 'subject_id')
@@ -563,6 +587,16 @@ class ClaimService:
             if 'sub' not in allowed:
                 raise OAuthProtocolException('invalid_scope', 'OpenID scope requires the sub claim', 400)
         values = cls._safe_values(user, subject_id, roles, department)
+        role_keys: set[str] = set()
+        if isinstance(client_scope_policy, Mapping):
+            for scope in requested:
+                rule = client_scope_policy.get(scope)
+                if isinstance(rule, Mapping) and isinstance(rule.get('allowed_role_keys'), list):
+                    role_keys.update(
+                        key for key in rule['allowed_role_keys'] if isinstance(key, str) and '*' not in key
+                    )
+        if 'roles' in values:
+            values['roles'] = [role for role in values['roles'] if role in role_keys]
         return {
             key: value
             for key, value in values.items()
@@ -578,6 +612,7 @@ class ClaimService:
         :param user_id: 本地用户 ID，仅用于内部查询，不会进入 Claim
         :return: 角色名称列表和部门对象
         """
+
         return await IdentityUserDao.get_claim_attributes(db, user_id)
 
     @classmethod
@@ -598,6 +633,7 @@ class ClaimService:
         :param resource_allowed_claims: 可选 Resource Claim 白名单
         :return: Scope 策略映射和可用 Claim 集合
         """
+
         requested = set(scopes)
         bindings = await OAuthClientDao.list_scope_bindings(db, client_pk)
         definitions = await OAuthClientDao.list_scope_definitions(db)
@@ -641,6 +677,7 @@ class IdentitySubjectService:
         :return: 已存在的主体关联
         :raises OAuthProtocolException: 主体关联缺失或用户标识无效时抛出
         """
+
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
             await cls._write_missing_audit(db, user_id, audit_db=audit_db, audit_writer=audit_writer)
             raise OAuthProtocolException('server_error', 'User identity mapping is unavailable', 500)
@@ -671,6 +708,7 @@ class IdentitySubjectService:
         :param audit_writer: 外部审计写入器
         :return: None
         """
+
         try:
             if audit_writer is not None:
                 await audit_writer(user_id)
@@ -707,6 +745,7 @@ class IdentitySubjectService:
         :return: 已存在或新建的主体关联
         :raises ValueError: 用户 ID 无效时抛出
         """
+
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
             raise ValueError('identity_user_id must be a positive integer')
         return await IdentitySubjectDao.create_for_user(db, user_id, create_by, subject_id)
@@ -724,6 +763,7 @@ class IdentitySubjectService:
         :return: 已存在或本次创建的主体关联
         :raises ValueError: 用户 ID 无效时抛出
         """
+
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
             raise ValueError('identity_user_id must be a positive integer')
         try:
@@ -749,6 +789,7 @@ class IdentitySubjectService:
         :param create_by: 回填记录的创建者标识
         :return: 本次调用新建的主体记录集合
         """
+
         if user_ids is not None:
             values = list(user_ids)
             if any(not isinstance(item, int) or isinstance(item, bool) or item <= 0 for item in values):
@@ -770,6 +811,7 @@ class IdentitySubjectService:
         :return: 更新后的主体关联
         :raises OAuthProtocolException: 主体不存在或版本竞争失败时抛出
         """
+
         if not await IdentitySubjectDao.increment_auth_version(db, user_id, expected_version):
             raise OAuthProtocolException('server_error', 'User identity version could not be updated', 500)
         subject = await IdentitySubjectDao.get_by_user_id(db, user_id)
@@ -786,6 +828,7 @@ class IdentitySubjectService:
         :param subject_id: 稳定 OIDC Subject
         :return: 主体关联，不存在时返回 None
         """
+
         return await IdentitySubjectDao.get_by_subject_id(db, subject_id)
 
 
@@ -844,18 +887,19 @@ class IdentitySecurityEventService:
     _MAX_SID_LENGTH = 36
 
     @staticmethod
-    def _local_datetime(value: datetime | None) -> datetime:
+    def _utc_datetime(value: datetime | None) -> datetime:
         """
-        返回项目使用的本地无时区时间
+        返回项目使用的带时区的 UTC 时间
 
         :param value: 可选的事件时间
-        :return: 本地无时区当前时间
+        :return: 带时区的 UTC 时间；未提供时返回当前时刻
         """
+
         if value is None:
-            return datetime.now()
+            return TimezoneUtil.utc_now()
         if not isinstance(value, datetime):
             raise IdentitySecurityEventError('now must be a datetime')
-        return local_datetime(value)
+        return TimezoneUtil.to_utc(value)
 
     @classmethod
     def _user_ids(cls, values: Iterable[int]) -> tuple[int, ...]:
@@ -865,6 +909,7 @@ class IdentitySecurityEventService:
         :param values: 待校验的用户 ID 可迭代集合
         :return: 排序去重后的用户 ID 元组
         """
+
         if isinstance(values, (str, bytes)):
             raise IdentitySecurityEventError('user_ids must be integers')
         result = tuple(sorted(set(values)))
@@ -898,6 +943,7 @@ class IdentitySecurityEventService:
         :param now: 可注入的 项目当前时间
         :return: 版本递增及凭据撤销数量
         """
+
         return await cls.handle_users_event(
             db,
             (user_id,),
@@ -933,6 +979,7 @@ class IdentitySecurityEventService:
         :return: 安全事件处理结果
         :raises IdentitySecurityEventError: 事件、用户或主体映射不完整
         """
+
         ids = cls._user_ids(user_ids)
         if event not in cls._EVENTS:
             raise IdentitySecurityEventError('identity security event is invalid')
@@ -940,7 +987,7 @@ class IdentitySecurityEventService:
             raise IdentitySecurityEventError('exclude_sid is invalid for this event')
         if not isinstance(revoke_sso_on_claim_change, bool):
             raise IdentitySecurityEventError('revoke_sso_on_claim_change must be boolean')
-        current = cls._local_datetime(now)
+        current = cls._utc_datetime(now)
         actor_value = actor.strip()[:64] if isinstance(actor, str) and actor.strip() else 'identity-security-event'
 
         subjects = list(await IdentitySubjectDao.list_for_users_for_update(db, ids))
@@ -970,6 +1017,7 @@ class IdentitySecurityEventService:
                 'revoked_refresh_tokens': revoked_refresh_tokens,
             },
         )
+
         return IdentitySecurityEventResult(ids, revoked_sessions, revoked_refresh_tokens)
 
     @classmethod
@@ -994,6 +1042,7 @@ class IdentitySecurityEventService:
         :param now: 当前时间
         :return: 安全事件处理结果
         """
+
         if not isinstance(role_id, int) or isinstance(role_id, bool) or role_id <= 0:
             raise IdentitySecurityEventError('role_id must be a positive integer')
         if event not in {'role_claim_changed', 'role_disabled', 'role_deleted'}:
@@ -1018,6 +1067,7 @@ class IdentitySecurityEventService:
         :param value: 待校验的 Session ID
         :return: Session ID 是否有效
         """
+
         return (
             isinstance(value, str)
             and 1 <= len(value) <= IdentitySecurityEventService._MAX_SID_LENGTH

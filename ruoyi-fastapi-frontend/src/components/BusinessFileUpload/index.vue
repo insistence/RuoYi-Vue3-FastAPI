@@ -12,13 +12,16 @@
     >
       <el-button type="primary">选择文件</el-button>
     </el-upload>
-    <div v-if="showTip && !disabled" class="el-upload__tip">
+    <div
+      v-if="showTip && !disabled"
+      class="el-upload__tip"
+    >
       请上传
       <template v-if="fileSize">
         大小不超过 <b class="upload-tip-emphasis">{{ fileSize }}MB</b>
       </template>
       <template v-if="fileType.length">
-        格式为 <b class="upload-tip-emphasis">{{ fileType.join("/") }}</b>
+        格式为 <b class="upload-tip-emphasis">{{ fileType.join('/') }}</b>
       </template>
       的文件，最多上传 {{ limit }} 个
     </div>
@@ -34,10 +37,16 @@
         class="el-upload-list__item business-file-item"
       >
         <div class="business-file-main">
-          <span class="business-file-name" :title="file.name">{{
-            file.name
-          }}</span>
-          <el-tag size="small" type="success">已上传</el-tag>
+          <span
+            class="business-file-name"
+            :title="file.name"
+            >{{ file.name }}</span
+          >
+          <el-tag
+            size="small"
+            type="success"
+            >已上传</el-tag
+          >
         </div>
         <div class="business-file-actions">
           <el-link
@@ -69,17 +78,32 @@
         class="el-upload-list__item business-file-item"
       >
         <div class="business-file-main">
-          <span class="business-file-name" :title="file.name">{{
-            file.name
-          }}</span>
-          <el-tag v-if="file.status === 'uploading'" size="small"
+          <span
+            class="business-file-name"
+            :title="file.name"
+            >{{ file.name }}</span
+          >
+          <el-tag
+            v-if="file.status === 'uploading'"
+            size="small"
             >上传中</el-tag
           >
-          <el-tooltip v-else :content="file.error" placement="top">
-            <el-tag size="small" type="danger">上传失败</el-tag>
+          <el-tooltip
+            v-else
+            :content="file.error"
+            placement="top"
+          >
+            <el-tag
+              size="small"
+              type="danger"
+              >上传失败</el-tag
+            >
           </el-tooltip>
         </div>
-        <div v-if="file.status === 'failed'" class="business-file-actions">
+        <div
+          v-if="file.status === 'failed'"
+          class="business-file-actions"
+        >
           <el-link
             v-if="!disabled"
             :underline="false"
@@ -103,8 +127,8 @@
 </template>
 
 <script setup>
-import request from "@/utils/request";
-import Sortable from "sortablejs";
+import request from '@/utils/request'
+import Sortable from 'sortablejs'
 
 const props = defineProps({
   modelValue: {
@@ -114,7 +138,7 @@ const props = defineProps({
   // 上传接口必须返回fileId、originalFilename和downloadUrl
   action: {
     type: String,
-    default: "/common/files/upload",
+    default: '/common/files/upload',
   },
   // 上传携带的额外参数
   data: {
@@ -134,7 +158,7 @@ const props = defineProps({
   // 文件类型，例如["doc", "docx", "pdf"]
   fileType: {
     type: Array,
-    default: () => ["doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "pdf"],
+    default: () => ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'pdf'],
   },
   // 是否显示上传提示
   isShowTip: {
@@ -151,28 +175,26 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
-});
+})
 
-const emit = defineEmits(["update:modelValue", "change"]);
-const { proxy } = getCurrentInstance();
-const fileUploadRef = ref();
-const uploadFileListRef = ref();
-const fileList = ref([]);
-const pendingFileList = ref([]);
-let sortable;
+const emit = defineEmits(['update:modelValue', 'change'])
+const { proxy } = getCurrentInstance()
+const fileUploadRef = ref()
+const uploadFileListRef = ref()
+const fileList = ref([])
+const pendingFileList = ref([])
+let sortable
 
-const showTip = computed(
-  () => props.isShowTip && (props.fileType.length > 0 || props.fileSize)
-);
+const showTip = computed(() => props.isShowTip && (props.fileType.length > 0 || props.fileSize))
 
 watch(
   () => props.modelValue,
   (value) => {
-    fileList.value = normalizeFileList(value);
-    nextTick(initSortable);
+    fileList.value = normalizeFileList(value)
+    nextTick(initSortable)
   },
   { deep: true, immediate: true }
-);
+)
 
 /**
  * 校验待上传文件。
@@ -182,33 +204,31 @@ watch(
  */
 function handleBeforeUpload(file) {
   if (fileList.value.length + uploadingCount() >= props.limit) {
-    proxy.$modal.msgError(`上传文件数量不能超过 ${props.limit} 个`);
-    return false;
+    proxy.$modal.msgError(`上传文件数量不能超过 ${props.limit} 个`)
+    return false
   }
-  const extension = getFileExtension(file.name);
-  const allowedTypes = props.fileType.map((type) => String(type).toLowerCase());
+  const extension = getFileExtension(file.name)
+  const allowedTypes = props.fileType.map((type) => String(type).toLowerCase())
   if (allowedTypes.length && !allowedTypes.includes(extension)) {
-    proxy.$modal.msgError(
-      `文件格式不正确，请上传 ${props.fileType.join("/")} 格式文件`
-    );
-    return false;
+    proxy.$modal.msgError(`文件格式不正确，请上传 ${props.fileType.join('/')} 格式文件`)
+    return false
   }
-  if (file.name.includes(",")) {
-    proxy.$modal.msgError("文件名称不能包含英文逗号");
-    return false;
+  if (file.name.includes(',')) {
+    proxy.$modal.msgError('文件名称不能包含英文逗号')
+    return false
   }
   if (props.fileSize && file.size / 1024 / 1024 > props.fileSize) {
-    proxy.$modal.msgError(`上传文件大小不能超过 ${props.fileSize} MB`);
-    return false;
+    proxy.$modal.msgError(`上传文件大小不能超过 ${props.fileSize} MB`)
+    return false
   }
   pendingFileList.value.push({
     uid: file.uid,
     name: file.name,
     raw: file,
-    status: "uploading",
-    error: "",
-  });
-  return true;
+    status: 'uploading',
+    error: '',
+  })
+  return true
 }
 
 /**
@@ -218,7 +238,7 @@ function handleBeforeUpload(file) {
  * @returns {Promise<Object>} 上传响应
  */
 function handleUploadRequest(options) {
-  return uploadFile(options.file, options.onProgress);
+  return uploadFile(options.file, options.onProgress)
 }
 
 /**
@@ -229,28 +249,28 @@ function handleUploadRequest(options) {
  * @returns {Promise<Object>} 上传响应
  */
 async function uploadFile(file, onProgress) {
-  const formData = new FormData();
-  formData.append("file", file);
-  appendUploadData(formData);
+  const formData = new FormData()
+  formData.append('file', file)
+  appendUploadData(formData)
   const response = await request({
     url: props.action,
-    method: "post",
+    method: 'post',
     data: formData,
     timeout: 120000,
     headers: {
-      "Content-Type": "multipart/form-data",
+      'Content-Type': 'multipart/form-data',
       repeatSubmit: false,
     },
     onUploadProgress: (event) => {
       if (onProgress && event.total) {
-        onProgress({ percent: Math.round((event.loaded * 100) / event.total) });
+        onProgress({ percent: Math.round((event.loaded * 100) / event.total) })
       }
     },
-  });
+  })
   if (!response.fileId || !response.downloadUrl) {
-    throw new Error("上传响应缺少文件ID或下载地址");
+    throw new Error('上传响应缺少文件ID或下载地址')
   }
-  return response;
+  return response
 }
 
 /**
@@ -262,14 +282,14 @@ async function uploadFile(file, onProgress) {
 function appendUploadData(formData) {
   Object.entries(props.data).forEach(([key, value]) => {
     if (value === undefined || value === null) {
-      return;
+      return
     }
     if (Array.isArray(value)) {
-      value.forEach((item) => formData.append(key, item));
-      return;
+      value.forEach((item) => formData.append(key, item))
+      return
     }
-    formData.append(key, value);
-  });
+    formData.append(key, value)
+  })
 }
 
 /**
@@ -280,19 +300,14 @@ function appendUploadData(formData) {
  * @returns {void}
  */
 function handleUploadSuccess(response, uploadFile) {
-  pendingFileList.value = pendingFileList.value.filter(
-    (item) => item.uid !== uploadFile.uid
-  );
+  pendingFileList.value = pendingFileList.value.filter((item) => item.uid !== uploadFile.uid)
   const nextFile = {
     fileId: response.fileId,
     name: response.originalFilename || uploadFile.name,
     url: response.downloadUrl,
-  };
-  updateModel([
-    ...fileList.value.filter((item) => item.fileId !== nextFile.fileId),
-    nextFile,
-  ]);
-  clearInternalFiles();
+  }
+  updateModel([...fileList.value.filter((item) => item.fileId !== nextFile.fileId), nextFile])
+  clearInternalFiles()
 }
 
 /**
@@ -303,14 +318,12 @@ function handleUploadSuccess(response, uploadFile) {
  * @returns {void}
  */
 function handleUploadError(error, uploadFile) {
-  const pendingFile = pendingFileList.value.find(
-    (item) => item.uid === uploadFile.uid
-  );
+  const pendingFile = pendingFileList.value.find((item) => item.uid === uploadFile.uid)
   if (pendingFile) {
-    pendingFile.status = "failed";
-    pendingFile.error = getErrorMessage(error);
+    pendingFile.status = 'failed'
+    pendingFile.error = getErrorMessage(error)
   }
-  clearInternalFiles();
+  clearInternalFiles()
 }
 
 /**
@@ -320,13 +333,13 @@ function handleUploadError(error, uploadFile) {
  * @returns {Promise<void>}
  */
 async function handleRetry(file) {
-  file.status = "uploading";
-  file.error = "";
+  file.status = 'uploading'
+  file.error = ''
   try {
-    const response = await uploadFile(file.raw);
-    handleUploadSuccess(response, file);
+    const response = await uploadFile(file.raw)
+    handleUploadSuccess(response, file)
   } catch (error) {
-    handleUploadError(error, file);
+    handleUploadError(error, file)
   }
 }
 
@@ -337,7 +350,7 @@ async function handleRetry(file) {
  * @returns {void}
  */
 function handleDownload(file) {
-  proxy.$download.file(file.url);
+  proxy.$download.file(file.url)
 }
 
 /**
@@ -347,7 +360,7 @@ function handleDownload(file) {
  * @returns {void}
  */
 function handleDelete(fileId) {
-  updateModel(fileList.value.filter((item) => item.fileId !== fileId));
+  updateModel(fileList.value.filter((item) => item.fileId !== fileId))
 }
 
 /**
@@ -357,9 +370,7 @@ function handleDelete(fileId) {
  * @returns {void}
  */
 function handleRemoveFailed(uid) {
-  pendingFileList.value = pendingFileList.value.filter(
-    (item) => item.uid !== uid
-  );
+  pendingFileList.value = pendingFileList.value.filter((item) => item.uid !== uid)
 }
 
 /**
@@ -369,15 +380,15 @@ function handleRemoveFailed(uid) {
  * @returns {void}
  */
 function updateModel(value) {
-  const modelValue = value.map(toModelFile);
-  fileList.value = normalizeFileList(modelValue);
-  emit("update:modelValue", modelValue);
+  const modelValue = value.map(toModelFile)
+  fileList.value = normalizeFileList(modelValue)
+  emit('update:modelValue', modelValue)
   emit(
-    "change",
+    'change',
     modelValue,
     modelValue.map((item) => item.fileId)
-  );
-  nextTick(initSortable);
+  )
+  nextTick(initSortable)
 }
 
 /**
@@ -386,7 +397,7 @@ function updateModel(value) {
  * @returns {Array<string>} 文件ID列表
  */
 function getFileIds() {
-  return fileList.value.map((item) => item.fileId);
+  return fileList.value.map((item) => item.fileId)
 }
 
 /**
@@ -396,21 +407,21 @@ function getFileIds() {
  */
 function initSortable() {
   if (sortable) {
-    sortable.destroy();
-    sortable = undefined;
+    sortable.destroy()
+    sortable = undefined
   }
   if (!props.drag || props.disabled || !uploadFileListRef.value) {
-    return;
+    return
   }
   sortable = Sortable.create(uploadFileListRef.value, {
-    ghostClass: "business-file-drag",
+    ghostClass: 'business-file-drag',
     onEnd: (event) => {
-      const nextList = [...fileList.value];
-      const movedFile = nextList.splice(event.oldIndex, 1)[0];
-      nextList.splice(event.newIndex, 0, movedFile);
-      updateModel(nextList);
+      const nextList = [...fileList.value]
+      const movedFile = nextList.splice(event.oldIndex, 1)[0]
+      nextList.splice(event.newIndex, 0, movedFile)
+      updateModel(nextList)
     },
-  });
+  })
 }
 
 /**
@@ -420,7 +431,7 @@ function initSortable() {
  */
 function clearInternalFiles() {
   if (uploadingCount() === 0) {
-    nextTick(() => fileUploadRef.value?.clearFiles());
+    nextTick(() => fileUploadRef.value?.clearFiles())
   }
 }
 
@@ -430,8 +441,7 @@ function clearInternalFiles() {
  * @returns {number} 正在上传的文件数
  */
 function uploadingCount() {
-  return pendingFileList.value.filter((item) => item.status === "uploading")
-    .length;
+  return pendingFileList.value.filter((item) => item.status === 'uploading').length
 }
 
 /**
@@ -442,19 +452,16 @@ function uploadingCount() {
  */
 function normalizeFileList(value) {
   if (!Array.isArray(value)) {
-    return [];
+    return []
   }
   return value
-    .filter((item) => item && typeof item === "object" && item.fileId)
+    .filter((item) => item && typeof item === 'object' && item.fileId)
     .map((item) => ({
       fileId: item.fileId,
-      name:
-        item.name ||
-        item.originalFilename ||
-        getFileName(item.url || item.downloadUrl || ""),
-      url: item.url || item.downloadUrl || item.fileName || "",
+      name: item.name || item.originalFilename || getFileName(item.url || item.downloadUrl || ''),
+      url: item.url || item.downloadUrl || item.fileName || '',
     }))
-    .filter((item) => item.url);
+    .filter((item) => item.url)
 }
 
 /**
@@ -468,7 +475,7 @@ function toModelFile(file) {
     fileId: file.fileId,
     name: file.name,
     url: file.url,
-  };
+  }
 }
 
 /**
@@ -478,8 +485,8 @@ function toModelFile(file) {
  * @returns {string} 小写扩展名
  */
 function getFileExtension(filename) {
-  const index = filename.lastIndexOf(".");
-  return index > -1 ? filename.slice(index + 1).toLowerCase() : "";
+  const index = filename.lastIndexOf('.')
+  return index > -1 ? filename.slice(index + 1).toLowerCase() : ''
 }
 
 /**
@@ -489,8 +496,8 @@ function getFileExtension(filename) {
  * @returns {string} 文件名称
  */
 function getFileName(value) {
-  const path = value.split("?")[0];
-  return decodeURIComponent(path.slice(path.lastIndexOf("/") + 1));
+  const path = value.split('?')[0]
+  return decodeURIComponent(path.slice(path.lastIndexOf('/') + 1))
 }
 
 /**
@@ -500,16 +507,16 @@ function getFileName(value) {
  * @returns {string} 错误信息
  */
 function getErrorMessage(error) {
-  return error?.message || "上传失败，请重试";
+  return error?.message || '上传失败，请重试'
 }
 
-onMounted(() => nextTick(initSortable));
+onMounted(() => nextTick(initSortable))
 
 onBeforeUnmount(() => {
-  sortable?.destroy();
-});
+  sortable?.destroy()
+})
 
-defineExpose({ getFileIds });
+defineExpose({ getFileIds })
 </script>
 
 <style scoped lang="scss">

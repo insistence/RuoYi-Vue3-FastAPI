@@ -1,66 +1,143 @@
 <template>
-  <div id="tags-view-container" class="tags-view-container" :class="{ 'tags-view-container--chrome': tagsViewStyle === 'chrome' }">
+  <div
+    id="tags-view-container"
+    class="tags-view-container"
+    :class="{ 'tags-view-container--chrome': tagsViewStyle === 'chrome' }"
+  >
     <!-- 左切换箭头 -->
-    <span class="tags-nav-btn tags-nav-btn--left" :class="{ disabled: !canScrollLeft }" @click="scrollLeft">
+    <span
+      class="tags-nav-btn tags-nav-btn--left"
+      :class="{ disabled: !canScrollLeft }"
+      @click="scrollLeft"
+    >
       <el-icon><arrow-left /></el-icon>
     </span>
 
     <!-- 标签滚动区 -->
-    <scroll-pane ref="scrollPaneRef" class="tags-view-wrapper" @scroll="handleScroll" @update-arrows="updateArrowState">
+    <scroll-pane
+      ref="scrollPaneRef"
+      class="tags-view-wrapper"
+      @scroll="handleScroll"
+      @update-arrows="updateArrowState"
+    >
       <router-link
         v-for="tag in visitedViews"
         :key="tag.path"
         :data-path="tag.path"
-        :class="{ 'active': isActive(tag), 'has-icon': tagsIcon }"
+        :class="{ active: isActive(tag), 'has-icon': tagsIcon }"
         :to="{ path: tag.path, query: tag.query, fullPath: tag.fullPath }"
         class="tags-view-item"
         :style="tagActiveStyle(tag)"
         @click.middle="!isAffix(tag) ? closeSelectedTag(tag) : ''"
         @contextmenu.prevent="openMenu(tag, $event)"
       >
-        <svg-icon v-if="tagsIcon && tag.meta && tag.meta.icon && tag.meta.icon !== '#'" :icon-class="tag.meta.icon" style="margin-right: 3px;" />
+        <svg-icon
+          v-if="tagsIcon && tag.meta && tag.meta.icon && tag.meta.icon !== '#'"
+          :icon-class="tag.meta.icon"
+          style="margin-right: 3px"
+        />
         {{ tag.title }}
-        <span v-if="!isAffix(tag)" @click.prevent.stop="closeSelectedTag(tag)" class="tags-close-btn">
+        <span
+          v-if="!isAffix(tag)"
+          @click.prevent.stop="closeSelectedTag(tag)"
+          class="tags-close-btn"
+        >
           <close class="el-icon-close" />
         </span>
       </router-link>
     </scroll-pane>
 
     <!-- 右切换箭头 -->
-    <span class="tags-nav-btn tags-nav-btn--right" :class="{ disabled: !canScrollRight }" @click="scrollRight">
+    <span
+      class="tags-nav-btn tags-nav-btn--right"
+      :class="{ disabled: !canScrollRight }"
+      @click="scrollRight"
+    >
       <el-icon><arrow-right /></el-icon>
     </span>
 
     <!-- 下拉操作菜单 -->
-    <el-dropdown class="tags-action-dropdown" trigger="click" placement="bottom-end" @command="handleDropdownCommand">
+    <el-dropdown
+      class="tags-action-dropdown"
+      trigger="click"
+      placement="bottom-end"
+      @command="handleDropdownCommand"
+    >
       <span class="tags-action-btn">
         <el-icon><arrow-down /></el-icon>
       </span>
       <template #dropdown>
         <el-dropdown-menu class="tags-dropdown-menu">
-          <el-dropdown-item v-if="!isAffix(selectedDropdownTag)" command="close"><close style="width: 1em; height: 1em;" />关闭当前</el-dropdown-item>
-          <el-dropdown-item command="closeOthers"><circle-close style="width: 1em; height: 1em;" />关闭其他</el-dropdown-item>
-          <el-dropdown-item command="closeLeft" :disabled="isFirstView()"><back style="width: 1em; height: 1em;" />关闭左侧</el-dropdown-item>
-          <el-dropdown-item command="closeRight" :disabled="isLastView()"><right style="width: 1em; height: 1em;" />关闭右侧</el-dropdown-item>
-          <el-dropdown-item command="closeAll"><circle-close style="width: 1em; height: 1em;" />全部关闭</el-dropdown-item>
-          <el-dropdown-item command="fullscreen" divided><full-screen style="width: 1em; height: 1em;" />全屏显示</el-dropdown-item>
+          <el-dropdown-item
+            v-if="!isAffix(selectedDropdownTag)"
+            command="close"
+            ><close style="width: 1em; height: 1em" />关闭当前</el-dropdown-item
+          >
+          <el-dropdown-item command="closeOthers"
+            ><circle-close style="width: 1em; height: 1em" />关闭其他</el-dropdown-item
+          >
+          <el-dropdown-item
+            command="closeLeft"
+            :disabled="isFirstView()"
+            ><back style="width: 1em; height: 1em" />关闭左侧</el-dropdown-item
+          >
+          <el-dropdown-item
+            command="closeRight"
+            :disabled="isLastView()"
+            ><right style="width: 1em; height: 1em" />关闭右侧</el-dropdown-item
+          >
+          <el-dropdown-item command="closeAll"
+            ><circle-close style="width: 1em; height: 1em" />全部关闭</el-dropdown-item
+          >
+          <el-dropdown-item
+            command="fullscreen"
+            divided
+            ><full-screen style="width: 1em; height: 1em" />全屏显示</el-dropdown-item
+          >
         </el-dropdown-menu>
       </template>
     </el-dropdown>
 
     <!-- 刷新按钮 -->
-    <span class="tags-action-btn tags-refresh-btn" title="刷新页面" @click="refreshSelectedTag(selectedDropdownTag)">
-      <el-icon><refresh-right/></el-icon> 刷新
+    <span
+      class="tags-action-btn tags-refresh-btn"
+      title="刷新页面"
+      @click="refreshSelectedTag(selectedDropdownTag)"
+    >
+      <el-icon><refresh-right /></el-icon> 刷新
     </span>
 
     <!-- 右键上下文菜单 -->
-    <ul v-show="visible" :style="{ left: left + 'px', top: top + 'px' }" class="contextmenu">
-      <li @click="refreshSelectedTag(selectedTag)"><refresh-right style="width: 1em; height: 1em;" />刷新页面</li>
-      <li v-if="!isAffix(selectedTag)" @click="closeSelectedTag(selectedTag)"><close style="width: 1em; height: 1em;" />关闭当前</li>
-      <li @click="closeOthersTags"><circle-close style="width: 1em; height: 1em;" />关闭其他</li>
-      <li v-if="!isFirstView()" @click="closeLeftTags"><back style="width: 1em; height: 1em;" />关闭左侧</li>
-      <li v-if="!isLastView()" @click="closeRightTags"><right style="width: 1em; height: 1em;" />关闭右侧</li>
-      <li @click="closeAllTags(selectedTag)"><circle-close style="width: 1em; height: 1em;" />全部关闭</li>
+    <ul
+      v-show="visible"
+      :style="{ left: left + 'px', top: top + 'px' }"
+      class="contextmenu"
+    >
+      <li @click="refreshSelectedTag(selectedTag)">
+        <refresh-right style="width: 1em; height: 1em" />刷新页面
+      </li>
+      <li
+        v-if="!isAffix(selectedTag)"
+        @click="closeSelectedTag(selectedTag)"
+      >
+        <close style="width: 1em; height: 1em" />关闭当前
+      </li>
+      <li @click="closeOthersTags"><circle-close style="width: 1em; height: 1em" />关闭其他</li>
+      <li
+        v-if="!isFirstView()"
+        @click="closeLeftTags"
+      >
+        <back style="width: 1em; height: 1em" />关闭左侧
+      </li>
+      <li
+        v-if="!isLastView()"
+        @click="closeRightTags"
+      >
+        <right style="width: 1em; height: 1em" />关闭右侧
+      </li>
+      <li @click="closeAllTags(selectedTag)">
+        <circle-close style="width: 1em; height: 1em" />全部关闭
+      </li>
     </ul>
   </div>
 </template>
@@ -72,30 +149,30 @@ import useTagsViewStore from '@/store/modules/tagsView'
 import useSettingsStore from '@/store/modules/settings'
 import usePermissionStore from '@/store/modules/permission'
 
-const visible = ref(false);
-const top = ref(0);
-const left = ref(0);
-const selectedTag = ref({});
-const affixTags = ref([]);
-const scrollPaneRef = ref(null);
+const visible = ref(false)
+const top = ref(0)
+const left = ref(0)
+const selectedTag = ref({})
+const affixTags = ref([])
+const scrollPaneRef = ref(null)
 const canScrollLeft = ref(false)
 const canScrollRight = ref(false)
 const isFullscreen = ref(false)
 
-const { proxy } = getCurrentInstance();
-const route = useRoute();
-const router = useRouter();
+const { proxy } = getCurrentInstance()
+const route = useRoute()
+const router = useRouter()
 const settingsStore = useSettingsStore()
 
-const visitedViews = computed(() => useTagsViewStore().visitedViews);
-const routes = computed(() => usePermissionStore().routes);
-const theme = computed(() => useSettingsStore().theme);
+const visitedViews = computed(() => useTagsViewStore().visitedViews)
+const routes = computed(() => usePermissionStore().routes)
+const theme = computed(() => useSettingsStore().theme)
 const tagsIcon = computed(() => useSettingsStore().tagsIcon)
 const tagsViewPersist = computed(() => useSettingsStore().tagsViewPersist)
 const tagsViewStyle = computed(() => useSettingsStore().tagsViewStyle)
 
 // 下拉菜单针对当前激活的 tag
-const selectedDropdownTag = computed(() => visitedViews.value.find(v => isActive(v)) || {})
+const selectedDropdownTag = computed(() => visitedViews.value.find((v) => isActive(v)) || {})
 
 watch(route, () => {
   addTags()
@@ -126,18 +203,21 @@ function isActive(r) {
   return r.path === route.path
 }
 function tagActiveStyle(tag) {
-  if (!isActive(tag) || tagsViewStyle.value !== 'card') return {};
+  if (!isActive(tag) || tagsViewStyle.value !== 'card') return {}
   return {
     'background-color': theme.value,
-    'border-color': theme.value
-  };
+    'border-color': theme.value,
+  }
 }
 function isAffix(tag) {
   return tag && tag.meta && tag.meta.affix
 }
 function isFirstView() {
   try {
-    const tag = selectedTag.value && selectedTag.value.fullPath ? selectedTag.value : selectedDropdownTag.value
+    const tag =
+      selectedTag.value && selectedTag.value.fullPath
+        ? selectedTag.value
+        : selectedDropdownTag.value
     return tag.fullPath === '/index' || tag.fullPath === visitedViews.value[1].fullPath
   } catch (err) {
     return false
@@ -145,7 +225,10 @@ function isFirstView() {
 }
 function isLastView() {
   try {
-    const tag = selectedTag.value && selectedTag.value.fullPath ? selectedTag.value : selectedDropdownTag.value
+    const tag =
+      selectedTag.value && selectedTag.value.fullPath
+        ? selectedTag.value
+        : selectedDropdownTag.value
     return tag.fullPath === visitedViews.value[visitedViews.value.length - 1].fullPath
   } catch (err) {
     return false
@@ -153,14 +236,14 @@ function isLastView() {
 }
 function filterAffixTags(routes, basePath = '') {
   let tags = []
-  routes.forEach(route => {
+  routes.forEach((route) => {
     if (route.meta && route.meta.affix) {
       const tagPath = getNormalPath(basePath + '/' + route.path)
       tags.push({
         fullPath: tagPath,
         path: tagPath,
         name: route.name,
-        meta: { ...route.meta }
+        meta: { ...route.meta },
       })
     }
     if (route.children) {
@@ -176,8 +259,8 @@ function initTags() {
   if (tagsViewPersist.value) {
     useTagsViewStore().loadPersistedViews()
   }
-  const res = filterAffixTags(routes.value);
-  affixTags.value = res;
+  const res = filterAffixTags(routes.value)
+  affixTags.value = res
   for (const tag of res) {
     if (tag.name) {
       useTagsViewStore().addAffixView(tag)
@@ -194,7 +277,7 @@ function moveToCurrentTag() {
   nextTick(() => {
     for (const r of visitedViews.value) {
       if (r.path === route.path) {
-        scrollPaneRef.value.moveToTarget(r);
+        scrollPaneRef.value.moveToTarget(r)
         if (r.fullPath !== route.fullPath) {
           useTagsViewStore().updateVisitedView(route)
         }
@@ -241,19 +324,33 @@ function handleDropdownCommand(command) {
   const tag = selectedDropdownTag.value
   selectedTag.value = tag
   switch (command) {
-    case 'refresh':     refreshSelectedTag(tag); break
-    case 'fullscreen':  toggleFullscreen(); break
-    case 'close':       closeSelectedTag(tag); break
-    case 'closeOthers': closeOthersTags(); break
-    case 'closeLeft':   closeLeftTags(); break
-    case 'closeRight':  closeRightTags(); break
-    case 'closeAll':    closeAllTags(tag); break
+    case 'refresh':
+      refreshSelectedTag(tag)
+      break
+    case 'fullscreen':
+      toggleFullscreen()
+      break
+    case 'close':
+      closeSelectedTag(tag)
+      break
+    case 'closeOthers':
+      closeOthersTags()
+      break
+    case 'closeLeft':
+      closeLeftTags()
+      break
+    case 'closeRight':
+      closeRightTags()
+      break
+    case 'closeAll':
+      closeAllTags(tag)
+      break
   }
 }
 function refreshSelectedTag(view) {
-  proxy.$tab.refreshPage(view);
+  proxy.$tab.refreshPage(view)
   if (route.meta.link) {
-    useTagsViewStore().delIframeView(route);
+    useTagsViewStore().delIframeView(route)
   }
 }
 function closeSelectedTag(view) {
@@ -264,28 +361,28 @@ function closeSelectedTag(view) {
   })
 }
 function closeRightTags() {
-  proxy.$tab.closeRightPage(selectedTag.value).then(visitedViews => {
-    if (!visitedViews.find(i => i.fullPath === route.fullPath)) {
+  proxy.$tab.closeRightPage(selectedTag.value).then((visitedViews) => {
+    if (!visitedViews.find((i) => i.fullPath === route.fullPath)) {
       toLastView(visitedViews)
     }
   })
 }
 function closeLeftTags() {
-  proxy.$tab.closeLeftPage(selectedTag.value).then(visitedViews => {
-    if (!visitedViews.find(i => i.fullPath === route.fullPath)) {
+  proxy.$tab.closeLeftPage(selectedTag.value).then((visitedViews) => {
+    if (!visitedViews.find((i) => i.fullPath === route.fullPath)) {
       toLastView(visitedViews)
     }
   })
 }
 function closeOthersTags() {
-  router.push(selectedTag.value).catch(() => { });
+  router.push(selectedTag.value).catch(() => {})
   proxy.$tab.closeOtherPage(selectedTag.value).then(() => {
     moveToCurrentTag()
   })
 }
 function closeAllTags(view) {
   proxy.$tab.closeAllPage().then(({ visitedViews }) => {
-    if (affixTags.value.some(tag => tag.path === route.path)) {
+    if (affixTags.value.some((tag) => tag.path === route.path)) {
       return
     }
     toLastView(visitedViews, view)
@@ -348,7 +445,9 @@ $tags-bar-height: 34px;
     color: $btn-color;
     font-size: 13px;
     user-select: none;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s;
 
     &:hover:not(.disabled) {
       background: $btn-hover-bg;
@@ -360,8 +459,12 @@ $tags-bar-height: 34px;
       cursor: not-allowed;
     }
 
-    &--left  { border-right: $divider; }
-    &--right { border-left: $divider; }
+    &--left {
+      border-right: $divider;
+    }
+    &--right {
+      border-left: $divider;
+    }
   }
 
   .tags-view-wrapper {
@@ -387,8 +490,12 @@ $tags-bar-height: 34px;
       vertical-align: middle;
       padding-top: 2px !important;
 
-      &:first-of-type { margin-left: 6px; }
-      &:last-of-type  { margin-right: 15px; }
+      &:first-of-type {
+        margin-left: 6px;
+      }
+      &:last-of-type {
+        margin-right: 15px;
+      }
     }
   }
 
@@ -430,7 +537,9 @@ $tags-bar-height: 34px;
     font-size: 13px;
     border-left: $divider;
     user-select: none;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background 0.15s,
+      color 0.15s;
 
     &:hover {
       background: $btn-hover-bg;
@@ -453,7 +562,7 @@ $tags-bar-height: 34px;
     font-size: 12px;
     font-weight: 400;
     color: var(--tags-item-text, #333);
-    box-shadow: 2px 2px 3px 0 rgba(0, 0, 0, .3);
+    box-shadow: 2px 2px 3px 0 rgba(0, 0, 0, 0.3);
     border: 1px solid var(--el-border-color-light, #e4e7ed);
 
     li {
@@ -511,7 +620,10 @@ $tags-bar-height: 34px;
         color: var(--chrome-tab-text);
         padding-top: 0 !important;
         box-shadow: none !important;
-        transition: background 0.12s ease, color 0.12s ease, border-radius 0.12s ease;
+        transition:
+          background 0.12s ease,
+          color 0.12s ease,
+          border-radius 0.12s ease;
 
         &::before,
         &::after {
@@ -571,11 +683,13 @@ $tags-bar-height: 34px;
           box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 
           &::before {
-            box-shadow: calc(var(--chrome-wing-r) * 0.5) calc(var(--chrome-wing-r) * 0.5) 0 calc(var(--chrome-wing-r) * 0.5) var(--chrome-tab-active-bg);
+            box-shadow: calc(var(--chrome-wing-r) * 0.5) calc(var(--chrome-wing-r) * 0.5) 0
+              calc(var(--chrome-wing-r) * 0.5) var(--chrome-tab-active-bg);
           }
 
           &::after {
-            box-shadow: calc(var(--chrome-wing-r) * -0.5) calc(var(--chrome-wing-r) * 0.5) 0 calc(var(--chrome-wing-r) * 0.5) var(--chrome-tab-active-bg);
+            box-shadow: calc(var(--chrome-wing-r) * -0.5) calc(var(--chrome-wing-r) * 0.5) 0
+              calc(var(--chrome-wing-r) * 0.5) var(--chrome-tab-active-bg);
           }
         }
       }

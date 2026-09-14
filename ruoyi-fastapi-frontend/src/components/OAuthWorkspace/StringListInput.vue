@@ -1,6 +1,10 @@
 <template>
   <div class="string-list-input">
-    <div v-for="(_item, index) in localItems" :key="index" class="string-list-row">
+    <div
+      v-for="(_item, index) in localItems"
+      :key="index"
+      class="string-list-row"
+    >
       <el-input
         v-model="localItems[index]"
         :placeholder="placeholder"
@@ -15,7 +19,13 @@
         @click="remove(index)"
       />
     </div>
-    <el-button class="add-row" text type="primary" icon="Plus" @click="append">
+    <el-button
+      class="add-row"
+      text
+      type="primary"
+      icon="Plus"
+      @click="append"
+    >
       {{ addText }}
     </el-button>
   </div>
@@ -25,32 +35,41 @@
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   placeholder: { type: String, default: '' },
-  addText: { type: String, default: '添加一项' }
+  addText: { type: String, default: '添加一项' },
 })
 const emit = defineEmits(['update:modelValue'])
 const localItems = ref([])
 
+/** 同步外部列表，空列表保留一个输入行 */
 function syncFromValue(value) {
-  const items = Array.isArray(value) ? value.map(item => String(item ?? '')) : []
+  const items = Array.isArray(value) ? value.map((item) => String(item ?? '')) : []
   localItems.value = items.length ? items : ['']
 }
 
+/** 过滤空值并更新列表绑定 */
 function emitValue() {
-  emit('update:modelValue', localItems.value.map(item => item.trim()).filter(Boolean))
+  emit('update:modelValue', localItems.value.map((item) => item.trim()).filter(Boolean))
 }
 
+/** 新增输入行 */
 function append() {
   localItems.value.push('')
 }
 
+/** 在当前非空输入行后插入一行 */
 function appendAfter(index) {
-  if (!localItems.value[index]?.trim()) return
+  if (!localItems.value[index]?.trim()) {
+    return
+  }
   localItems.value.splice(index + 1, 0, '')
 }
 
+/** 删除输入行并更新列表绑定 */
 function remove(index) {
   localItems.value.splice(index, 1)
-  if (!localItems.value.length) localItems.value.push('')
+  if (!localItems.value.length) {
+    localItems.value.push('')
+  }
   emitValue()
 }
 

@@ -42,10 +42,28 @@ async def test_userinfo_returns_only_minimal_claims(monkeypatch: pytest.MonkeyPa
         SimpleNamespace(scope_pk=4, scope_code='dept', claims=['dept_id', 'dept_name'], status='0'),
     ]
     bindings = [
-        SimpleNamespace(scope_pk=1, claim_filter=None),
+        SimpleNamespace(
+            scope_pk=1,
+            claim_filter={
+                'claims': ['sub', 'name', 'roles', 'dept_id', 'dept_name'],
+                'allowed_role_keys': ['database-role'],
+            },
+        ),
         SimpleNamespace(scope_pk=2, claim_filter=['name']),
-        SimpleNamespace(scope_pk=3, claim_filter=None),
-        SimpleNamespace(scope_pk=4, claim_filter=None),
+        SimpleNamespace(
+            scope_pk=3,
+            claim_filter={
+                'claims': ['sub', 'name', 'roles', 'dept_id', 'dept_name'],
+                'allowed_role_keys': ['database-role'],
+            },
+        ),
+        SimpleNamespace(
+            scope_pk=4,
+            claim_filter={
+                'claims': ['sub', 'name', 'roles', 'dept_id', 'dept_name'],
+                'allowed_role_keys': ['database-role'],
+            },
+        ),
     ]
 
     monkeypatch.setattr(service.OAuthClientDao, 'get_by_client_id', lambda *args, **kwargs: _async(client))
@@ -106,7 +124,22 @@ async def test_userinfo_uses_current_database_claims_not_token_claims(monkeypatc
         SimpleNamespace(scope_pk=1, scope_code='openid', claims=['sub'], status='0'),
         SimpleNamespace(scope_pk=2, scope_code='roles', claims=['roles'], status='0'),
     ]
-    bindings = [SimpleNamespace(scope_pk=1, claim_filter=None), SimpleNamespace(scope_pk=2, claim_filter=None)]
+    bindings = [
+        SimpleNamespace(
+            scope_pk=1,
+            claim_filter={
+                'claims': ['sub', 'name', 'roles', 'dept_id', 'dept_name'],
+                'allowed_role_keys': ['database-role'],
+            },
+        ),
+        SimpleNamespace(
+            scope_pk=2,
+            claim_filter={
+                'claims': ['sub', 'name', 'roles', 'dept_id', 'dept_name'],
+                'allowed_role_keys': ['database-role'],
+            },
+        ),
+    ]
     monkeypatch.setattr(service.OAuthClientDao, 'get_by_client_id', lambda *args, **kwargs: _async(client))
     monkeypatch.setattr(service.IdentitySubjectDao, 'get_by_subject_id', lambda *args, **kwargs: _async(subject))
     monkeypatch.setattr(service.IdentityUserDao, 'get_user', lambda *args, **kwargs: _async(user))

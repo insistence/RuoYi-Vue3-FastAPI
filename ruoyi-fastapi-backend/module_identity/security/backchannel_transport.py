@@ -34,6 +34,7 @@ class _PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
         :param addresses: 已验证的公网 IP 集合
         :return: None
         """
+
         self._hostname = hostname
         self._addresses = addresses
         self._backend = AutoBackend()
@@ -48,6 +49,7 @@ class _PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
         :return: 已建立的异步网络流
         :raises OSError: 主机未验证、地址为空或全部地址连接失败
         """
+
         if host != self._hostname or not self._addresses:
             raise OSError('unverified network destination')
         # 逐个尝试已验证地址，网络库仍以原始 origin 处理 TLS SNI 和 Host
@@ -73,6 +75,7 @@ class PinnedHttpxTransport(httpx.AsyncBaseTransport):
         :param addresses: 已验证的公网 IP 集合
         :return: None
         """
+
         self._pool = httpcore.AsyncConnectionPool(network_backend=_PinnedNetworkBackend(hostname, addresses))
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
@@ -82,6 +85,7 @@ class PinnedHttpxTransport(httpx.AsyncBaseTransport):
         :param request: HTTPX 异步请求
         :return: 限制响应体大小的 HTTPX 响应
         """
+
         request_stream = httpcore.Request(
             method=request.method,
             url=httpcore.URL(
@@ -107,6 +111,7 @@ class PinnedHttpxTransport(httpx.AsyncBaseTransport):
 
                 :return: None
                 """
+
                 self._received = 0
 
             async def __aiter__(self) -> Any:
@@ -116,6 +121,7 @@ class PinnedHttpxTransport(httpx.AsyncBaseTransport):
                 :return: HTTP 响应字节块异步迭代器
                 :raises OSError: 响应体超过大小限制
                 """
+
                 async for chunk in response.stream:
                     self._received += len(chunk)
                     if self._received > _MAX_BACKCHANNEL_RESPONSE_BYTES:
@@ -129,6 +135,7 @@ class PinnedHttpxTransport(httpx.AsyncBaseTransport):
 
                 :return: None
                 """
+
                 await response.aclose()
 
         return httpx.Response(
@@ -145,6 +152,7 @@ class PinnedHttpxTransport(httpx.AsyncBaseTransport):
 
         :return: None
         """
+
         await self._pool.aclose()
 
 
@@ -205,6 +213,7 @@ def _raise_permanent_http_error(exc: httpx.HTTPStatusError) -> None:
     :raises PermanentBackchannelError: 状态码属于不可重试的客户端错误
     :raises httpx.HTTPStatusError: 状态码仍允许调用方重试
     """
+
     status = exc.response.status_code
     if _HTTP_CLIENT_ERROR_MIN <= status < _HTTP_SERVER_ERROR_MIN and status not in {
         _HTTP_REQUEST_TIMEOUT,

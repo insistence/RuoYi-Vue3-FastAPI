@@ -18,7 +18,10 @@ export const resolvePluginViewPath = (view) => {
 
   const pluginId = parts[1]
   const viewSegments = parts.slice(2)
-  if (!PLUGIN_ID_PATTERN.test(pluginId) || !viewSegments.every((segment) => VIEW_SEGMENT_PATTERN.test(segment))) {
+  if (
+    !PLUGIN_ID_PATTERN.test(pluginId) ||
+    !viewSegments.every((segment) => VIEW_SEGMENT_PATTERN.test(segment))
+  ) {
     return ''
   }
 

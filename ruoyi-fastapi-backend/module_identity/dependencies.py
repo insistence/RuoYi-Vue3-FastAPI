@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.aspect.db_session import DBSessionDependency
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException, OidcInteractionException
-from module_identity.dao._helpers import local_datetime
 from module_identity.dao.oidc_key_dao import OidcKeyDao
 from module_identity.security.client_auth import ClientAuthenticationError
 from module_identity.security.jwt_profile import JwtProfileError, decode_access_token
@@ -24,6 +23,7 @@ from module_identity.security.principal import OAuthClientPrincipal
 from module_identity.service.interaction_service import InteractionService
 from module_identity.service.runtime_service import OidcRuntimeService
 from module_identity.service.token_service import TokenService
+from utils.time_util import TimezoneUtil
 
 _MAX_PROTOCOL_FORM_BYTES = 16 * 1024
 _INVALID_PERCENT_ESCAPE = re.compile(r'%(?![0-9A-Fa-f]{2})')
@@ -32,7 +32,7 @@ _INVALID_PERCENT_ESCAPE = re.compile(r'%(?![0-9A-Fa-f]{2})')
 @dataclass(frozen=True, slots=True)
 class AccessTokenContext:
     """
-    已验签且绑定 UserInfo audience 的 Access Token 快照。
+    已验签且绑定 UserInfo audience 的 Access Token 快照
     """
 
     token: str
@@ -49,14 +49,16 @@ async def load_access_verification_key(
     *,
     now: datetime | None = None,
 ) -> RSAPublicKey:
-    """按 Access Token header kid 加载发布窗口内的本地公钥。
-
-    :param token: 待验证的 JWT；仅用于读取 header kid，不信任其中的公钥材料。
-    :param query_db: 异步数据库会话。
-    :param now: 可注入的统一项目当前时间。
-    :return: 数据库记录对应的 RSA 公钥对象。
-    :raises JwtProfileError: Header、kid 或本地公钥不可用。
     """
+    按 Access Token header kid 加载发布窗口内的本地公钥
+
+    :param token: 待验证的 JWT；仅用于读取 header kid，不信任其中的公钥材料
+    :param query_db: 异步数据库会话
+    :param now: 可注入的统一项目当前时间
+    :return: 数据库记录对应的 RSA 公钥对象
+    :raises JwtProfileError: Header、kid 或本地公钥不可用
+    """
+
     try:
         header = jwt.get_unverified_header(token)
     except (PyJWTError, TypeError, ValueError) as exc:
@@ -66,7 +68,7 @@ async def load_access_verification_key(
     kid = header.get('kid')
     if not isinstance(kid, str) or not kid:
         raise JwtProfileError('kid is required')
-    current = _local_datetime(now or datetime.now())
+    current = _utc_datetime(now or TimezoneUtil.utc_now())
     record = await OidcKeyDao.get_verifying(query_db, kid, current)
     if record is None or not isinstance(record.public_jwk, dict):
         raise JwtProfileError('unknown kid')
@@ -78,8 +80,9 @@ async def load_access_verification_key(
 
 def _disabled() -> None:
     """
-    在 OIDC 关闭时返回本地 404，不执行协议认证。
+    在 OIDC 关闭时返回本地 404，不执行协议认证
     """
+
     if not OidcConfig.oidc_enabled:
         raise HTTPException(
             status_code=404,
@@ -93,7 +96,7 @@ async def require_oidc_protocol_ready(
     query_db: AsyncSession = DBSessionDependency(),
 ) -> None:
     """
-    在 OIDC 已启用但签名能力尚未就绪时阻断公共协议端点。
+    在 OIDC 已启用但签名能力尚未就绪时阻断公共协议端点
 
     OIDC 关闭时仍由各控制器维持原有本地 404 行为；启用但缺少有效
     active 密钥时统一返回标准 OAuth 503，不影响后台管理接口。
@@ -103,6 +106,7 @@ async def require_oidc_protocol_ready(
     :return: None
     :raises OAuthProtocolException: OIDC 协议尚未具备签名能力
     """
+
     if not OidcConfig.oidc_enabled:
         return
     readiness = await OidcRuntimeService.cached_readiness(request.app, query_db)
@@ -116,8 +120,12 @@ async def require_oidc_protocol_ready(
 
 def _redis(request: Request) -> Redis:
     """
-    读取应用生命周期创建的 Redis 客户端。
+    读取应用生命周期创建的 Redis 客户端
+
+    :param request: 当前HTTP请求
+    :return: 应用生命周期创建的Redis客户端
     """
+
     value = getattr(request.app.state, 'redis', None)
     if value is None:
         raise HTTPException(status_code=503, detail='Service unavailable')
@@ -125,12 +133,14 @@ def _redis(request: Request) -> Redis:
 
 
 async def read_form(request: Request) -> dict[str, str]:
-    """严格读取 URL encoded 表单并拒绝重复字段。
-
-    :param request: 当前 HTTP 请求。
-    :return: 唯一字段映射。
-    :raises HTTPException: Content-Type 错误或字段重复。
     """
+    严格读取 URL encoded 表单并拒绝重复字段
+
+    :param request: 当前 HTTP 请求
+    :return: 唯一字段映射
+    :raises HTTPException: Content-Type 错误或字段重复
+    """
+
     _disabled()
     content_type = request.headers.get('content-type', '').split(';', 1)[0].strip().lower()
     if content_type != 'application/x-www-form-urlencoded':
@@ -179,12 +189,14 @@ async def get_oidc_client(
     request: Request,
     query_db: AsyncSession = DBSessionDependency(),
 ) -> OAuthClientPrincipal:
-    """验证 Basic 或 Public Client 表单认证。
-
-    :param request: 当前 HTTP 请求。
-    :param query_db: 异步数据库会话。
-    :return: 已完成认证的 Client Principal。
     """
+    验证 Basic 或 Public Client 表单认证
+
+    :param request: 当前 HTTP 请求
+    :param query_db: 异步数据库会话
+    :return: 已完成认证的 Client Principal
+    """
+
     form = await read_form(request)
     authorization = request.headers.get('authorization')
     try:
@@ -205,8 +217,13 @@ async def get_oidc_client(
 
 async def _load_access_context(request: Request, query_db: AsyncSession) -> AccessTokenContext:
     """
-    按 JWT header kid 查询数据库公钥并验证严格 Access Token Profile。
+    按 JWT header kid 查询数据库公钥并验证严格 Access Token Profile
+
+    :param request: 当前HTTP请求
+    :param query_db: orm对象
+    :return: 已校验的访问令牌及声明上下文
     """
+
     _disabled()
     authorization = request.headers.get('authorization', '')
     if not authorization.startswith('Bearer ') or ',' in authorization:
@@ -243,7 +260,11 @@ async def get_oidc_access_token(
     query_db: AsyncSession = DBSessionDependency(),
 ) -> AccessTokenContext:
     """
-    验证 UserInfo 使用的 Bearer Access Token。
+    验证 UserInfo 使用的 Bearer Access Token
+
+    :param request: 当前HTTP请求
+    :param query_db: orm对象
+    :return: UserInfo使用的访问令牌上下文
     """
 
     return await _load_access_context(request, query_db)
@@ -253,12 +274,14 @@ async def get_interaction_csrf(
     request: Request,
     interaction_id: str,
 ) -> dict[str, Any]:
-    """验证 Interaction CSRF Header，并返回内部状态记录。
-
-    :param request: 当前 HTTP 请求。
-    :param interaction_id: 路径中的 Interaction 标识。
-    :return: 已验证的内部 Interaction 记录。
     """
+    验证 Interaction CSRF Header，并返回内部状态记录
+
+    :param request: 当前 HTTP 请求
+    :param interaction_id: 路径中的 Interaction 标识
+    :return: 已验证的内部 Interaction 记录
+    """
+
     _disabled()
     redis = _redis(request)
     csrf_token = request.headers.get('x-csrf-token')
@@ -275,8 +298,9 @@ async def get_interaction_csrf(
 
 def _invalid_token() -> HTTPException:
     """
-    构造不泄露验证细节的 Bearer 401。
+    构造不泄露验证细节的 Bearer 401
     """
+
     return HTTPException(
         status_code=401, detail='Invalid access token', headers={'WWW-Authenticate': 'Bearer error="invalid_token"'}
     )
@@ -284,27 +308,34 @@ def _invalid_token() -> HTTPException:
 
 def OidcClientDependency() -> params.Depends:  # noqa: N802
     """
-    返回 Client Authentication 依赖。
+    返回 Client Authentication 依赖
     """
+
     return Depends(get_oidc_client)
 
 
 def OidcAccessTokenDependency() -> params.Depends:  # noqa: N802
     """
-    返回严格 Access Token 依赖。
+    返回严格 Access Token 依赖
     """
+
     return Depends(get_oidc_access_token)
 
 
 def InteractionCsrfDependency() -> params.Depends:  # noqa: N802
     """
-    返回 Interaction CSRF 依赖。
+    返回 Interaction CSRF 依赖
     """
+
     return Depends(get_interaction_csrf)
 
 
-def _local_datetime(value: datetime) -> datetime:
+def _utc_datetime(value: datetime) -> datetime:
     """
-    规范化数据库时间为项目使用的本地无时区时间。
+    规范化数据库时间为项目使用的带时区的 UTC 时间
+
+    :param value: 待转换的数据库时间
+    :return: 带UTC时区的时间
     """
-    return local_datetime(value)
+
+    return TimezoneUtil.to_utc(value)

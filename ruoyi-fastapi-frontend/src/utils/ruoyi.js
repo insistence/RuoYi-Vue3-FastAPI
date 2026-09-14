@@ -1,5 +1,3 @@
-
-
 /**
  * 通用js方法封装处理
  * Copyright (c) 2019 ruoyi
@@ -15,89 +13,90 @@ export function parseTime(time, pattern) {
 // 表单重置
 export function resetForm(refName) {
   if (this.$refs[refName]) {
-    this.$refs[refName].resetFields();
+    this.$refs[refName].resetFields()
   }
 }
 
 // 添加日期范围
 export function addDateRange(params, dateRange, propName) {
-  let search = params;
-  dateRange = Array.isArray(dateRange) ? dateRange : [];
-  if (typeof (propName) === 'undefined') {
-    search['beginTime'] = normalizeRangeBoundary(dateRange[0]);
-    search['endTime'] = normalizeRangeBoundary(dateRange[1]);
+  let search = params
+  dateRange = Array.isArray(dateRange) ? dateRange : []
+  if (typeof propName === 'undefined') {
+    search['beginTime'] = normalizeRangeBoundary(dateRange[0])
+    search['endTime'] = normalizeRangeBoundary(dateRange[1])
   } else {
-    search['begin' + propName] = normalizeRangeBoundary(dateRange[0]);
-    search['end' + propName] = normalizeRangeBoundary(dateRange[1]);
+    search['begin' + propName] = normalizeRangeBoundary(dateRange[0])
+    search['end' + propName] = normalizeRangeBoundary(dateRange[1])
   }
-  return search;
+  return search
 }
 
 // 回显数据字典
 export function selectDictLabel(datas, value) {
   if (value === undefined) {
-    return "";
+    return ''
   }
-  const actions = [];
+  const actions = []
   Object.keys(datas).some((key) => {
-    if (datas[key].value == ('' + value)) {
-      actions.push(datas[key].label);
-      return true;
+    if (datas[key].value == '' + value) {
+      actions.push(datas[key].label)
+      return true
     }
   })
   if (actions.length === 0) {
-    actions.push(value);
+    actions.push(value)
   }
-  return actions.join('');
+  return actions.join('')
 }
 
 // 回显数据字典（字符串数组）
 export function selectDictLabels(datas, value, separator) {
-  if (value === undefined || value.length ===0) {
-    return "";
+  if (value === undefined || value.length === 0) {
+    return ''
   }
   if (Array.isArray(value)) {
-    value = value.join(",");
+    value = value.join(',')
   }
-  const actions = [];
-  const currentSeparator = undefined === separator ? "," : separator;
-  const temp = value.split(currentSeparator);
+  const actions = []
+  const currentSeparator = undefined === separator ? ',' : separator
+  const temp = value.split(currentSeparator)
   Object.keys(value.split(currentSeparator)).some((val) => {
-    let match = false;
+    let match = false
     Object.keys(datas).some((key) => {
-      if (datas[key].value == ('' + temp[val])) {
-        actions.push(datas[key].label + currentSeparator);
-        match = true;
+      if (datas[key].value == '' + temp[val]) {
+        actions.push(datas[key].label + currentSeparator)
+        match = true
       }
     })
     if (!match) {
-      actions.push(temp[val] + currentSeparator);
+      actions.push(temp[val] + currentSeparator)
     }
   })
-  return actions.join('').substring(0, actions.join('').length - 1);
+  return actions.join('').substring(0, actions.join('').length - 1)
 }
 
 // 字符串格式化(%s )
 export function sprintf(str) {
-  const args = arguments;
-  let flag = true, i = 1;
+  const args = arguments
+  let flag = true,
+    i = 1
   str = str.replace(/%s/g, function () {
-    const arg = args[i++];
+    const arg = args[i++]
     if (typeof arg === 'undefined') {
-      flag = false;
-      return '';
+      flag = false
+      return ''
     }
-    return arg;
-  });
-  return flag ? str : '';
+    return arg
+  })
+  return flag ? str : ''
 }
 
 // 转换字符串，undefined,null等转化为""
 export function parseStrEmpty(str) {
-  if (!str || str == "undefined" || str == "null") {
-    return "";
+  if (!str || str == 'undefined' || str == 'null') {
+    return ''
   }
-  return str;
+  return str
 }
 
 // 数据合并
@@ -105,16 +104,16 @@ export function mergeRecursive(source, target) {
   for (const p in target) {
     try {
       if (target[p].constructor == Object) {
-        source[p] = mergeRecursive(source[p], target[p]);
+        source[p] = mergeRecursive(source[p], target[p])
       } else {
-        source[p] = target[p];
+        source[p] = target[p]
       }
     } catch (e) {
-      source[p] = target[p];
+      source[p] = target[p]
     }
   }
-  return source;
-};
+  return source
+}
 
 /**
  * 构造树型结构数据
@@ -127,89 +126,88 @@ export function handleTree(data, id, parentId, children) {
   let config = {
     id: id || 'id',
     parentId: parentId || 'parentId',
-    childrenList: children || 'children'
-  };
+    childrenList: children || 'children',
+  }
 
-  var childrenListMap = {};
-  var nodeIds = {};
-  var tree = [];
+  var childrenListMap = {}
+  var nodeIds = {}
+  var tree = []
 
   for (let d of data) {
-    let parentId = d[config.parentId];
+    let parentId = d[config.parentId]
     if (childrenListMap[parentId] == null) {
-      childrenListMap[parentId] = [];
+      childrenListMap[parentId] = []
     }
-    nodeIds[d[config.id]] = d;
-    childrenListMap[parentId].push(d);
+    nodeIds[d[config.id]] = d
+    childrenListMap[parentId].push(d)
   }
 
   for (let d of data) {
-    let parentId = d[config.parentId];
+    let parentId = d[config.parentId]
     if (nodeIds[parentId] == null) {
-      tree.push(d);
+      tree.push(d)
     }
   }
 
   for (let t of tree) {
-    adaptToChildrenList(t);
+    adaptToChildrenList(t)
   }
 
   function adaptToChildrenList(o) {
     if (childrenListMap[o[config.id]] !== null) {
-      o[config.childrenList] = childrenListMap[o[config.id]];
+      o[config.childrenList] = childrenListMap[o[config.id]]
     }
     if (o[config.childrenList]) {
       for (let c of o[config.childrenList]) {
-        adaptToChildrenList(c);
+        adaptToChildrenList(c)
       }
     }
   }
-  return tree;
+  return tree
 }
 
 /**
-* 参数处理
-* @param {*} params  参数
-*/
+ * 参数处理
+ * @param {*} params  参数
+ */
 export function tansParams(params) {
   let result = ''
   for (const propName of Object.keys(params)) {
-    const value = params[propName];
-    const part = encodeURIComponent(propName) + "=";
-    if (value !== null && value !== "" && typeof (value) !== "undefined") {
+    const value = params[propName]
+    const part = encodeURIComponent(propName) + '='
+    if (value !== null && value !== '' && typeof value !== 'undefined') {
       if (Array.isArray(value)) {
         for (const item of value) {
-          if (item !== null && item !== "" && typeof (item) !== 'undefined') {
-            result += part + encodeURIComponent(item) + "&";
+          if (item !== null && item !== '' && typeof item !== 'undefined') {
+            result += part + encodeURIComponent(item) + '&'
           }
         }
       } else if (typeof value === 'object') {
         for (const key of Object.keys(value)) {
-          if (value[key] !== null && value[key] !== "" && typeof (value[key]) !== 'undefined') {
-            const params = propName + '[' + key + ']';
-            const subPart = encodeURIComponent(params) + "=";
-            result += subPart + encodeURIComponent(value[key]) + "&";
+          if (value[key] !== null && value[key] !== '' && typeof value[key] !== 'undefined') {
+            const params = propName + '[' + key + ']'
+            const subPart = encodeURIComponent(params) + '='
+            result += subPart + encodeURIComponent(value[key]) + '&'
           }
         }
       } else {
-        result += part + encodeURIComponent(value) + "&";
+        result += part + encodeURIComponent(value) + '&'
       }
     }
   }
   return result
 }
 
-
 // 返回项目路径
 export function getNormalPath(p) {
   if (p.length === 0 || !p || p == 'undefined') {
     return p
-  };
+  }
   let res = p.replace('//', '/')
   if (res[res.length - 1] === '/') {
     return res.slice(0, res.length - 1)
   }
-  return res;
+  return res
 }
 
 // 验证是否为blob格式

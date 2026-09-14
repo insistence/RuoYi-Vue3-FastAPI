@@ -1,5 +1,6 @@
 """认证中心启动密钥校验测试。"""
 
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
@@ -85,8 +86,8 @@ async def test_oidc_runtime_validation_fails_closed_without_usable_key() -> None
 
 
 @pytest.mark.asyncio
-async def test_key_lifecycle_task_starts_only_for_current_application_leader() -> None:
-    """只有仍持有 Application leader 租约的 worker 才启动 OIDC 生命周期任务。"""
+async def test_background_loops_wait_in_both_leader_and_follower() -> None:
+    """Leader 和 Follower 都启动循环，由每轮当前租约决定是否执行业务。"""
     app = SimpleNamespace(state=SimpleNamespace(redis=object(), application_leader=True))
     fake_key_task = object()
     fake_retry_task = object()
@@ -114,39 +115,46 @@ async def test_key_lifecycle_task_starts_only_for_current_application_leader() -
         patch('module_identity.service.runtime_service.asyncio.create_task', side_effect=create_task),
     ):
         await OidcRuntimeService.start_background_tasks(app)
-    assert app.state.oidc_key_lifecycle_task is None
-    assert app.state.oidc_backchannel_retry_task is None
+    assert app.state.oidc_key_lifecycle_task is fake_key_task
+    assert app.state.oidc_backchannel_retry_task is fake_retry_task
 
 
 @pytest.mark.asyncio
-async def test_key_lifecycle_loop_stops_when_leader_lease_is_lost() -> None:
-    """生命周期循环在续租状态丢失后立即停止，不再推进数据库。"""
+@pytest.mark.parametrize('loop', ['key', 'retry'])
+async def test_background_loops_resume_after_lease_reacquisition(loop: str) -> None:
+    db = SimpleNamespace(commit=AsyncMock())
+
+    @asynccontextmanager
+    async def session() -> AsyncIterator[SimpleNamespace]:
+        yield db
+
     with (
-        patch('module_identity.service.runtime_service.SchedulerManager.is_application_leader', side_effect=[True, False]),
-        patch('module_identity.service.runtime_service.asyncio.sleep', new_callable=AsyncMock),
         patch(
-            'module_identity.service.runtime_service.KeyService.activate_due', new_callable=AsyncMock
-        ) as activate_due,
-        patch('module_identity.service.runtime_service.KeyService.retire_due', new_callable=AsyncMock) as retire_due,
-    ):
-        await OidcRuntimeService.key_lifecycle_loop(SimpleNamespace(state=SimpleNamespace(redis=object())))
-    activate_due.assert_not_awaited()
-    retire_due.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_backchannel_retry_loop_stops_when_leader_lease_is_lost() -> None:
-    """Back-Channel worker 丢失 leader 租约后退出且不再消费队列。"""
-    with (
-        patch('module_identity.service.runtime_service.SchedulerManager.is_application_leader', side_effect=[True, False]),
-        patch('module_identity.service.runtime_service.asyncio.sleep', new_callable=AsyncMock),
+            'module_identity.service.runtime_service.SchedulerManager.is_application_leader',
+            side_effect=[False, True, False, True],
+        ),
+        patch(
+            'module_identity.service.runtime_service.asyncio.sleep',
+            new=AsyncMock(side_effect=[None, None, None, None, asyncio.CancelledError()]),
+        ),
+        patch('module_identity.service.runtime_service.DataSourceRegistry.session', side_effect=session),
+        patch(
+            'module_identity.service.runtime_service.KeyService.activate_due', new=AsyncMock(return_value=0)
+        ) as activate,
+        patch('module_identity.service.runtime_service.KeyService.retire_due', new=AsyncMock(return_value=0)),
+        patch('module_identity.service.runtime_service.OAuthAuditDao.archive_before', new=AsyncMock(return_value=0)),
         patch(
             'module_identity.service.runtime_service.LogoutService.consume_backchannel_retry',
-            new_callable=AsyncMock,
+            new=AsyncMock(return_value=0),
         ) as consume,
+        pytest.raises(asyncio.CancelledError),
     ):
-        await OidcRuntimeService.backchannel_retry_loop(object())
-    consume.assert_not_awaited()
+        if loop == 'key':
+            await OidcRuntimeService.key_lifecycle_loop(SimpleNamespace(state=SimpleNamespace(redis=object())))
+        else:
+            await OidcRuntimeService.backchannel_retry_loop(object())
+    expected_leader_periods = 2
+    assert (activate if loop == 'key' else consume).await_count == expected_leader_periods
 
 
 @pytest.mark.asyncio

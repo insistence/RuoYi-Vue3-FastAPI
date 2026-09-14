@@ -1,21 +1,24 @@
 import request from '@/utils/request'
 
-const encodePathSegment = value => encodeURIComponent(String(value))
+// 编码单个路径标识
+const encodePathSegment = (value) => encodeURIComponent(String(value))
 
-const interactionHeaders = csrfToken => ({
+// 构造认证交互请求头
+const interactionHeaders = (csrfToken) => ({
   isToken: false,
   repeatSubmit: false,
-  ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {})
+  ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
 })
 
-const issuerRequest = config => request({ baseURL: '', ...config })
+// 使用认证中心根路径发送协议交互请求
+const issuerRequest = (config) => request({ baseURL: '', ...config })
 
 // 查询认证交互状态
 export function getInteraction(interactionId, csrfToken) {
   return issuerRequest({
     url: `/auth/interaction/${encodePathSegment(interactionId)}`,
     method: 'get',
-    headers: interactionHeaders(csrfToken)
+    headers: interactionHeaders(csrfToken),
   })
 }
 
@@ -24,7 +27,7 @@ export function getInteractionCaptcha(interactionId) {
   return issuerRequest({
     url: `/auth/interaction/${encodePathSegment(interactionId)}/captcha`,
     method: 'get',
-    headers: interactionHeaders()
+    headers: interactionHeaders(),
   })
 }
 
@@ -34,7 +37,7 @@ export function submitInteractionLogin(interactionId, csrfToken, data) {
     url: `/auth/interaction/${encodePathSegment(interactionId)}/login`,
     method: 'post',
     headers: interactionHeaders(csrfToken),
-    data
+    data,
   })
 }
 
@@ -44,7 +47,7 @@ export function submitInteractionPasswordChange(interactionId, csrfToken, data) 
     url: `/auth/interaction/${encodePathSegment(interactionId)}/change-password`,
     method: 'post',
     headers: interactionHeaders(csrfToken),
-    data
+    data,
   })
 }
 
@@ -54,7 +57,7 @@ export function submitInteractionConsent(interactionId, csrfToken, data) {
     url: `/auth/interaction/${encodePathSegment(interactionId)}/consent`,
     method: 'post',
     headers: interactionHeaders(csrfToken),
-    data
+    data,
   })
 }
 
@@ -63,7 +66,7 @@ export function cancelInteraction(interactionId, csrfToken) {
   return issuerRequest({
     url: `/auth/interaction/${encodePathSegment(interactionId)}/cancel`,
     method: 'post',
-    headers: interactionHeaders(csrfToken)
+    headers: interactionHeaders(csrfToken),
   })
 }
 
@@ -72,6 +75,6 @@ export function completeInteraction(interactionId, csrfToken) {
   return issuerRequest({
     url: `/auth/interaction/${encodePathSegment(interactionId)}/complete`,
     method: 'post',
-    headers: interactionHeaders(csrfToken)
+    headers: interactionHeaders(csrfToken),
   })
 }

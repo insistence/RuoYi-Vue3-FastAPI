@@ -1,7 +1,11 @@
 <template>
   <span class="field-label">
     <span>{{ label }}</span>
-    <el-tooltip :content="help" placement="top" :show-after="250">
+    <el-tooltip
+      :content="help"
+      placement="top"
+      :show-after="250"
+    >
       <el-icon
         class="field-help"
         tabindex="0"
@@ -17,7 +21,7 @@
 <script setup>
 defineProps({
   label: { type: String, required: true },
-  help: { type: String, required: true }
+  help: { type: String, required: true },
 })
 </script>
 

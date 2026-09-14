@@ -51,6 +51,7 @@ def _b64url(value: bytes) -> str:
     :param value: 待编码字节
     :return: 无填充的 Base64URL 文本
     """
+
     return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
 
 
@@ -143,6 +144,7 @@ def _pepper_bytes(pepper: str | bytes) -> bytes:
     :return: 长度满足安全约束的 Pepper 字节
     :raises ValueError: Pepper 类型或长度不符合安全约束
     """
+
     value = pepper.encode('utf-8') if isinstance(pepper, str) else pepper
     if not isinstance(value, bytes) or len(value) < _MIN_PEPPER_BYTES:
         raise ValueError('identity token pepper must be at least 256 bits')

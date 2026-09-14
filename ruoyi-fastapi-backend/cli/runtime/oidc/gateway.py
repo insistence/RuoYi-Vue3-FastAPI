@@ -4,7 +4,7 @@ from typing import Any
 
 class OidcInfrastructureGateway:
     """
-    OIDC 基础设施网关。
+    OIDC 基础设施网关
 
     该对象负责延迟加载 OIDC CLI 所需的数据库、Redis、运行时检查
     与签名密钥管理依赖。

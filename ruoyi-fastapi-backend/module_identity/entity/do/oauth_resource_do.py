@@ -12,13 +12,14 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 
+from common.types import DbUtcDateTime
 from config.database import Base
-from module_identity.entity.do._base import IDENTITY_DATETIME, current_time, primary_key_type
+from utils.time_util import TimezoneUtil
 
 
 class SysOAuthResource(Base):
     """
-    OAuth 资源服务器。
+    OAuth资源服务器表
     """
 
     __tablename__ = 'sys_oauth_resource'
@@ -29,7 +30,13 @@ class SysOAuthResource(Base):
         {'comment': 'OAuth Resource'},
     )
 
-    resource_pk = Column(primary_key_type(), primary_key=True, nullable=False, autoincrement=True, comment='内部主键')
+    resource_pk = Column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+        comment='内部主键',
+    )
     resource_id = Column(String(64), nullable=False, comment='Resource ID')
     resource_name = Column(String(100), nullable=False, comment='Resource 名称')
     audience = Column(String(500), nullable=False, comment='Access Token audience')
@@ -45,17 +52,17 @@ class SysOAuthResource(Base):
     allowed_claims = Column(JSON, nullable=False, comment='允许的 Claims')
     status = Column(CHAR(1), nullable=False, server_default='0', comment='状态（0正常 1停用）')
     create_by = Column(String(64), nullable=False, comment='创建者')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='创建时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')
     update_by = Column(String(64), nullable=False, comment='更新者')
     update_time = Column(
-        IDENTITY_DATETIME, nullable=False, default=current_time, onupdate=current_time, comment='更新时间'
+        DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, onupdate=TimezoneUtil.utc_now, comment='更新时间'
     )
     remark = Column(String(500), nullable=True, comment='备注')
 
 
 class SysOAuthScope(Base):
     """
-    OAuth 权限 Scope。
+    OAuth权限表
     """
 
     __tablename__ = 'sys_oauth_scope'
@@ -66,7 +73,13 @@ class SysOAuthScope(Base):
         {'comment': 'OAuth Scope'},
     )
 
-    scope_pk = Column(primary_key_type(), primary_key=True, nullable=False, autoincrement=True, comment='内部主键')
+    scope_pk = Column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+        comment='内部主键',
+    )
     scope_code = Column(String(100), nullable=False, comment='Scope 编码')
     scope_name = Column(String(100), nullable=False, comment='Scope 名称')
     scope_type = Column(String(16), nullable=False, comment='Scope 类型')
@@ -81,17 +94,17 @@ class SysOAuthScope(Base):
     sensitive = Column(SmallInteger, nullable=False, server_default='0', comment='是否敏感')
     status = Column(CHAR(1), nullable=False, server_default='0', comment='状态（0正常 1停用）')
     create_by = Column(String(64), nullable=False, comment='创建者')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='创建时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')
     update_by = Column(String(64), nullable=False, comment='更新者')
     update_time = Column(
-        IDENTITY_DATETIME, nullable=False, default=current_time, onupdate=current_time, comment='更新时间'
+        DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, onupdate=TimezoneUtil.utc_now, comment='更新时间'
     )
     remark = Column(String(500), nullable=True, comment='备注')
 
 
 class SysOAuthClientScope(Base):
     """
-    OAuth Client 与 Scope 关联。
+    OAuth客户端与权限关联表
     """
 
     __tablename__ = 'sys_oauth_client_scope'
@@ -118,12 +131,12 @@ class SysOAuthClientScope(Base):
     is_default = Column(SmallInteger, nullable=False, server_default='0', comment='是否默认 Scope')
     pre_authorized = Column(SmallInteger, nullable=False, server_default='0', comment='是否预授权')
     claim_filter = Column(JSON, nullable=True, comment='Client Claim 过滤策略')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='创建时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')
 
 
 class SysOAuthClientResource(Base):
     """
-    OAuth Client 与 Resource 关联。
+    OAuth客户端与资源关联表
     """
 
     __tablename__ = 'sys_oauth_client_resource'
@@ -148,4 +161,4 @@ class SysOAuthClientResource(Base):
         comment='Resource 主键',
     )
     is_default = Column(SmallInteger, nullable=False, server_default='0', comment='是否默认 Resource')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='创建时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')

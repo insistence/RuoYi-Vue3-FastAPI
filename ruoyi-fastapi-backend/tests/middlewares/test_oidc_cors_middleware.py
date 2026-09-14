@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +8,11 @@ from fastapi.testclient import TestClient
 from config.env import AppConfig, OidcConfig
 from middlewares.handle import handle_middleware
 from middlewares.oidc_cors_middleware import OidcCorsMiddleware
+
+
+@pytest.fixture(autouse=True)
+def _mock_snapshot_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr('middlewares.oidc_cors_middleware.OidcRuntimeService.ensure_cors_snapshot', AsyncMock())
 
 
 def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
@@ -109,7 +116,11 @@ def test_existing_business_cors_remains_unchanged(monkeypatch: pytest.MonkeyPatc
     response = _client(monkeypatch).get('/business', headers={'Origin': 'https://current-web.example'})
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.headers['access-control-allow-origin'] == '*'
+    baseline_client = _client(monkeypatch)
+    monkeypatch.setattr(OidcConfig, 'oidc_enabled', False)
+    baseline = baseline_client.get('/business', headers={'Origin': 'https://current-web.example'})
+    assert response.headers['access-control-allow-origin'] == baseline.headers['access-control-allow-origin']
+    assert response.headers['access-control-allow-credentials'] == baseline.headers['access-control-allow-credentials']
 
 
 def test_runtime_registered_origin_is_exact_and_does_not_allow_similar_hosts(

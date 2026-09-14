@@ -1,8 +1,18 @@
 <template>
   <div class="app-container">
-    <el-row :gutter="16" class="mb16">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="summary-card">
+    <el-row
+      :gutter="16"
+      class="mb16"
+    >
+      <el-col
+        :xs="24"
+        :sm="12"
+        :lg="6"
+      >
+        <el-card
+          shadow="hover"
+          class="summary-card"
+        >
           <div class="summary-header">
             <span class="summary-title">传输加密状态</span>
             <el-tag :type="monitorData.transportCryptoEnabled ? 'success' : 'info'">
@@ -10,56 +20,92 @@
             </el-tag>
           </div>
           <div class="summary-value">{{ modeLabel }}</div>
-          <div class="summary-desc">
-            当前模式：{{ monitorData.transportCryptoMode || '-' }}
-          </div>
+          <div class="summary-desc">当前模式：{{ monitorData.transportCryptoMode || '-' }}</div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="summary-card">
+      <el-col
+        :xs="24"
+        :sm="12"
+        :lg="6"
+      >
+        <el-card
+          shadow="hover"
+          class="summary-card"
+        >
           <div class="summary-header">
             <span class="summary-title">请求总览</span>
             <el-tag type="primary">命中规则</el-tag>
           </div>
           <div class="summary-value">{{ formatCount(monitorData.requestsTotal) }}</div>
           <div class="summary-desc">
-            明文 {{ formatCount(monitorData.plainRequestsTotal) }} / 加密 {{ formatCount(monitorData.encryptedRequestsTotal) }}
+            明文 {{ formatCount(monitorData.plainRequestsTotal) }} / 加密
+            {{ formatCount(monitorData.encryptedRequestsTotal) }}
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="summary-card">
+      <el-col
+        :xs="24"
+        :sm="12"
+        :lg="6"
+      >
+        <el-card
+          shadow="hover"
+          class="summary-card"
+        >
           <div class="summary-header">
             <span class="summary-title">解密成功率</span>
-            <el-tag :type="decryptSuccessRate >= 95 ? 'success' : decryptSuccessRate >= 80 ? 'warning' : 'danger'">
+            <el-tag
+              :type="
+                decryptSuccessRate >= 95
+                  ? 'success'
+                  : decryptSuccessRate >= 80
+                    ? 'warning'
+                    : 'danger'
+              "
+            >
               {{ decryptSuccessRate.toFixed(1) }}%
             </el-tag>
           </div>
           <div class="summary-value">{{ formatCount(monitorData.decryptSuccessTotal) }}</div>
           <div class="summary-desc">
-            失败 {{ formatCount(monitorData.decryptFailureTotal) }} / 强制拒绝 {{ formatCount(monitorData.requiredRejectedTotal) }}
+            失败 {{ formatCount(monitorData.decryptFailureTotal) }} / 强制拒绝
+            {{ formatCount(monitorData.requiredRejectedTotal) }}
           </div>
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card shadow="hover" class="summary-card">
+      <el-col
+        :xs="24"
+        :sm="12"
+        :lg="6"
+      >
+        <el-card
+          shadow="hover"
+          class="summary-card"
+        >
           <div class="summary-header">
             <span class="summary-title">响应加密</span>
             <el-tag type="warning">JSON 响应</el-tag>
           </div>
           <div class="summary-value">{{ formatCount(monitorData.encryptedResponsesTotal) }}</div>
           <div class="summary-desc">
-            明文 {{ formatCount(monitorData.plainResponsesTotal) }} / 错误加密 {{ formatCount(monitorData.encryptedErrorResponsesTotal) }}
+            明文 {{ formatCount(monitorData.plainResponsesTotal) }} / 错误加密
+            {{ formatCount(monitorData.encryptedErrorResponsesTotal) }}
           </div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-row :gutter="16" class="mb16">
-      <el-col :xs="24" :lg="16">
+    <el-row
+      :gutter="16"
+      class="mb16"
+    >
+      <el-col
+        :xs="24"
+        :lg="16"
+      >
         <el-card shadow="never">
           <template #header>
             <div class="card-header">
@@ -71,14 +117,22 @@
                   active-text="自动刷新"
                   inactive-text="手动"
                 />
-                <el-button type="primary" icon="Refresh" :loading="loading" @click="loadMonitorData">
+                <el-button
+                  type="primary"
+                  icon="Refresh"
+                  :loading="loading"
+                  @click="loadMonitorData"
+                >
                   刷新
                 </el-button>
               </div>
             </div>
           </template>
 
-          <el-descriptions :column="2" border>
+          <el-descriptions
+            :column="2"
+            border
+          >
             <el-descriptions-item label="统计范围">
               {{ monitorScopeLabel }}
             </el-descriptions-item>
@@ -93,7 +147,12 @@
             </el-descriptions-item>
             <el-descriptions-item label="支持的密钥版本">
               <div class="tag-list">
-                <el-tag v-for="kid in monitorData.supportedKids || []" :key="kid" class="tag-item" effect="plain">
+                <el-tag
+                  v-for="kid in monitorData.supportedKids || []"
+                  :key="kid"
+                  class="tag-item"
+                  effect="plain"
+                >
                   {{ kid }}
                 </el-tag>
                 <span v-if="!(monitorData.supportedKids || []).length">-</span>
@@ -102,7 +161,10 @@
             <el-descriptions-item label="失败原因种类">
               {{ failureReasonRows.length }}
             </el-descriptions-item>
-            <el-descriptions-item label="聚合说明" :span="2">
+            <el-descriptions-item
+              label="聚合说明"
+              :span="2"
+            >
               {{ monitorScopeDescription }}
             </el-descriptions-item>
             <el-descriptions-item label="启用路径">
@@ -133,7 +195,10 @@
                 <span v-if="!(monitorData.requiredPaths || []).length">-</span>
               </div>
             </el-descriptions-item>
-            <el-descriptions-item label="排除路径" :span="2">
+            <el-descriptions-item
+              label="排除路径"
+              :span="2"
+            >
               <div class="tag-list">
                 <el-tag
                   v-for="path in monitorData.excludePaths || []"
@@ -151,8 +216,14 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :lg="8">
-        <el-card shadow="never" class="health-card">
+      <el-col
+        :xs="24"
+        :lg="8"
+      >
+        <el-card
+          shadow="never"
+          class="health-card"
+        >
           <template #header>
             <div class="card-header">
               <span>运行健康度</span>
@@ -165,7 +236,10 @@
               <span>解密成功率</span>
               <span>{{ decryptSuccessRate.toFixed(1) }}%</span>
             </div>
-            <el-progress :percentage="Number(decryptSuccessRate.toFixed(1))" :status="healthProgressStatus" />
+            <el-progress
+              :percentage="Number(decryptSuccessRate.toFixed(1))"
+              :status="healthProgressStatus"
+            />
           </div>
 
           <div class="health-item">
@@ -173,7 +247,10 @@
               <span>加密请求占比</span>
               <span>{{ encryptedRequestRate.toFixed(1) }}%</span>
             </div>
-            <el-progress :percentage="Number(encryptedRequestRate.toFixed(1))" status="success" />
+            <el-progress
+              :percentage="Number(encryptedRequestRate.toFixed(1))"
+              status="success"
+            />
           </div>
 
           <div class="health-item">
@@ -194,23 +271,44 @@
       </el-col>
     </el-row>
 
-    <el-row :gutter="16" class="mb16">
-      <el-col :xs="24" :lg="10">
+    <el-row
+      :gutter="16"
+      class="mb16"
+    >
+      <el-col
+        :xs="24"
+        :lg="10"
+      >
         <el-card shadow="never">
           <template #header>
             <div class="card-header">
               <span>失败原因统计</span>
               <div class="card-actions compact-actions">
                 <span class="card-subtitle">按 Redis 聚合口径统计</span>
-                <el-tag v-if="selectedFailureReason" type="danger" effect="plain" closable @close="clearFailureReasonSelection">
+                <el-tag
+                  v-if="selectedFailureReason"
+                  type="danger"
+                  effect="plain"
+                  closable
+                  @close="clearFailureReasonSelection"
+                >
                   {{ selectedFailureReason }}
                 </el-tag>
               </div>
             </div>
           </template>
 
-          <div v-if="failureReasonRows.length" ref="failureReasonChartRef" class="chart-panel" />
-          <el-empty v-else description="暂无失败记录" :image-size="88" class="chart-empty" />
+          <div
+            v-if="failureReasonRows.length"
+            ref="failureReasonChartRef"
+            class="chart-panel"
+          />
+          <el-empty
+            v-else
+            description="暂无失败记录"
+            :image-size="88"
+            class="chart-empty"
+          />
 
           <div class="table-title">明细数据</div>
           <el-table
@@ -220,15 +318,31 @@
             :row-class-name="getFailureReasonRowClassName"
             @row-click="handleFailureReasonRowClick"
           >
-            <el-table-column label="失败原因" prop="reason" min-width="180">
+            <el-table-column
+              label="失败原因"
+              prop="reason"
+              min-width="180"
+            >
               <template #default="scope">
-                <el-tag :type="getFailureTagType(scope.row.reason)" effect="plain">
+                <el-tag
+                  :type="getFailureTagType(scope.row.reason)"
+                  effect="plain"
+                >
                   {{ scope.row.reason }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="次数" prop="count" width="100" align="center" />
-            <el-table-column label="占比" width="120" align="center">
+            <el-table-column
+              label="次数"
+              prop="count"
+              width="100"
+              align="center"
+            />
+            <el-table-column
+              label="占比"
+              width="120"
+              align="center"
+            >
               <template #default="scope">
                 {{ formatPercent(scope.row.count, totalFailureReasonCount) }}
               </template>
@@ -237,22 +351,40 @@
         </el-card>
       </el-col>
 
-      <el-col :xs="24" :lg="14">
+      <el-col
+        :xs="24"
+        :lg="14"
+      >
         <el-card shadow="never">
           <template #header>
             <div class="card-header">
               <span>密钥版本统计</span>
               <div class="card-actions compact-actions">
                 <span class="card-subtitle">观察不同 kid 的运行状态</span>
-                <el-tag v-if="selectedKid" type="success" effect="plain" closable @close="clearKidSelection">
+                <el-tag
+                  v-if="selectedKid"
+                  type="success"
+                  effect="plain"
+                  closable
+                  @close="clearKidSelection"
+                >
                   {{ selectedKid }}
                 </el-tag>
               </div>
             </div>
           </template>
 
-          <div v-if="kidStatRows.length" ref="kidStatsChartRef" class="chart-panel" />
-          <el-empty v-else description="暂无密钥统计数据" :image-size="88" class="chart-empty" />
+          <div
+            v-if="kidStatRows.length"
+            ref="kidStatsChartRef"
+            class="chart-panel"
+          />
+          <el-empty
+            v-else
+            description="暂无密钥统计数据"
+            :image-size="88"
+            class="chart-empty"
+          />
 
           <div class="table-title">明细数据</div>
           <el-table
@@ -262,20 +394,53 @@
             :row-class-name="getKidStatRowClassName"
             @row-click="handleKidStatRowClick"
           >
-            <el-table-column label="密钥版本" prop="kid" min-width="140">
+            <el-table-column
+              label="密钥版本"
+              prop="kid"
+              min-width="140"
+            >
               <template #default="scope">
                 <el-tag :type="scope.row.kid === monitorData.currentKid ? 'success' : 'info'">
                   {{ scope.row.kid || '-' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="加密请求" prop="encryptedRequests" min-width="110" align="center" />
-            <el-table-column label="解密成功" prop="decryptSuccess" min-width="110" align="center" />
-            <el-table-column label="解密失败" prop="decryptFailure" min-width="110" align="center" />
-            <el-table-column label="加密响应" prop="encryptedResponses" min-width="110" align="center" />
-            <el-table-column label="成功率" min-width="120" align="center">
+            <el-table-column
+              label="加密请求"
+              prop="encryptedRequests"
+              min-width="110"
+              align="center"
+            />
+            <el-table-column
+              label="解密成功"
+              prop="decryptSuccess"
+              min-width="110"
+              align="center"
+            />
+            <el-table-column
+              label="解密失败"
+              prop="decryptFailure"
+              min-width="110"
+              align="center"
+            />
+            <el-table-column
+              label="加密响应"
+              prop="encryptedResponses"
+              min-width="110"
+              align="center"
+            />
+            <el-table-column
+              label="成功率"
+              min-width="120"
+              align="center"
+            >
               <template #default="scope">
-                {{ formatRate(scope.row.decryptSuccess, scope.row.decryptSuccess + scope.row.decryptFailure) }}
+                {{
+                  formatRate(
+                    scope.row.decryptSuccess,
+                    scope.row.decryptSuccess + scope.row.decryptFailure
+                  )
+                }}
               </template>
             </el-table-column>
           </el-table>
@@ -300,26 +465,53 @@
         </div>
       </template>
 
-      <el-table :data="displayedRecentFailures" empty-text="暂无失败记录">
-        <el-table-column label="时间" min-width="170">
+      <el-table
+        :data="displayedRecentFailures"
+        empty-text="暂无失败记录"
+      >
+        <el-table-column
+          label="时间"
+          min-width="170"
+        >
           <template #default="scope">
             {{ formatMonitorTime(scope.row.time) || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="请求方法" prop="method" width="100" align="center">
+        <el-table-column
+          label="请求方法"
+          prop="method"
+          width="100"
+          align="center"
+        >
           <template #default="scope">
             <el-tag effect="plain">{{ scope.row.method || '-' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="请求路径" prop="path" min-width="260" :show-overflow-tooltip="true" />
-        <el-table-column label="失败原因" prop="reason" min-width="180">
+        <el-table-column
+          label="请求路径"
+          prop="path"
+          min-width="260"
+          :show-overflow-tooltip="true"
+        />
+        <el-table-column
+          label="失败原因"
+          prop="reason"
+          min-width="180"
+        >
           <template #default="scope">
-            <el-tag :type="getFailureTagType(scope.row.reason)" effect="plain">
+            <el-tag
+              :type="getFailureTagType(scope.row.reason)"
+              effect="plain"
+            >
               {{ scope.row.reason || '-' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="密钥版本" prop="kid" min-width="140">
+        <el-table-column
+          label="密钥版本"
+          prop="kid"
+          min-width="140"
+        >
           <template #default="scope">
             {{ scope.row.kid || '-' }}
           </template>
@@ -349,7 +541,7 @@ const monitorData = ref({
   excludePaths: [],
   kidStats: [],
   recentFailures: [],
-  failureReasons: {}
+  failureReasons: {},
 })
 
 let refreshTimer = null
@@ -359,18 +551,21 @@ let kidStatsChartInstance = null
 const modeLabelMap = {
   required: '强制加密',
   optional: '可选加密',
-  off: '已关闭'
+  off: '已关闭',
 }
 
 const monitorScopeLabelMap = {
   'redis-aggregated': 'Redis 聚合',
   'redis-aggregated+local-fallback': 'Redis 聚合 + 本地回退',
-  'process-local-fallback': '本地回退'
+  'process-local-fallback': '本地回退',
 }
 
 const modeLabel = computed(() => modeLabelMap[monitorData.value.transportCryptoMode] || '未配置')
 
-const monitorScopeLabel = computed(() => monitorScopeLabelMap[monitorData.value.monitorScope] || monitorData.value.monitorScope || '-')
+const monitorScopeLabel = computed(
+  () =>
+    monitorScopeLabelMap[monitorData.value.monitorScope] || monitorData.value.monitorScope || '-'
+)
 
 const monitorScopeDescription = computed(() => {
   if (monitorData.value.monitorScope === 'redis-aggregated') {
@@ -388,9 +583,9 @@ const monitorScopeDescription = computed(() => {
 const failureReasonRows = computed(() => {
   const failureReasons = monitorData.value.failureReasons || {}
   return Object.keys(failureReasons)
-    .map(key => ({
+    .map((key) => ({
       reason: key,
-      count: failureReasons[key]
+      count: failureReasons[key],
     }))
     .sort((a, b) => b.count - a.count)
 })
@@ -403,7 +598,7 @@ const displayedFailureReasonRows = computed(() => {
   if (!selectedFailureReason.value) {
     return failureReasonRows.value
   }
-  return failureReasonRows.value.filter(item => item.reason === selectedFailureReason.value)
+  return failureReasonRows.value.filter((item) => item.reason === selectedFailureReason.value)
 })
 
 const kidStatRows = computed(() =>
@@ -415,8 +610,14 @@ const kidStatRows = computed(() =>
     if (b.kid === currentKid && a.kid !== currentKid) {
       return 1
     }
-    const aTotal = Number(a.encryptedRequests || 0) + Number(a.decryptSuccess || 0) + Number(a.decryptFailure || 0)
-    const bTotal = Number(b.encryptedRequests || 0) + Number(b.decryptSuccess || 0) + Number(b.decryptFailure || 0)
+    const aTotal =
+      Number(a.encryptedRequests || 0) +
+      Number(a.decryptSuccess || 0) +
+      Number(a.decryptFailure || 0)
+    const bTotal =
+      Number(b.encryptedRequests || 0) +
+      Number(b.decryptSuccess || 0) +
+      Number(b.decryptFailure || 0)
     return bTotal - aTotal
   })
 )
@@ -425,19 +626,23 @@ const displayedKidStatRows = computed(() => {
   if (!selectedKid.value) {
     return kidStatRows.value
   }
-  return kidStatRows.value.filter(item => item.kid === selectedKid.value)
+  return kidStatRows.value.filter((item) => item.kid === selectedKid.value)
 })
 
 const displayedRecentFailures = computed(() => {
-  return (monitorData.value.recentFailures || []).filter(item => {
-    const matchesReason = !selectedFailureReason.value || item.reason === selectedFailureReason.value
+  return (monitorData.value.recentFailures || []).filter((item) => {
+    const matchesReason =
+      !selectedFailureReason.value || item.reason === selectedFailureReason.value
     const matchesKid = !selectedKid.value || item.kid === selectedKid.value
     return matchesReason && matchesKid
   })
 })
 
 const decryptSuccessRate = computed(() =>
-  getRate(monitorData.value.decryptSuccessTotal, monitorData.value.decryptSuccessTotal + monitorData.value.decryptFailureTotal)
+  getRate(
+    monitorData.value.decryptSuccessTotal,
+    monitorData.value.decryptSuccessTotal + monitorData.value.decryptFailureTotal
+  )
 )
 
 const encryptedRequestRate = computed(() =>
@@ -445,7 +650,10 @@ const encryptedRequestRate = computed(() =>
 )
 
 const encryptedResponseRate = computed(() =>
-  getRate(monitorData.value.encryptedResponsesTotal, monitorData.value.encryptedResponsesTotal + monitorData.value.plainResponsesTotal)
+  getRate(
+    monitorData.value.encryptedResponsesTotal,
+    monitorData.value.encryptedResponsesTotal + monitorData.value.plainResponsesTotal
+  )
 )
 
 const healthLabel = computed(() => {
@@ -474,7 +682,9 @@ const healthTagType = computed(() => {
   return 'error'
 })
 
-const healthTagLabelType = computed(() => healthTagType.value === 'error' ? 'danger' : healthTagType.value)
+const healthTagLabelType = computed(() =>
+  healthTagType.value === 'error' ? 'danger' : healthTagType.value
+)
 
 const healthProgressStatus = computed(() => {
   if (decryptSuccessRate.value >= 95) {
@@ -508,27 +718,29 @@ function loadMonitorData(showLoading = true) {
   if (showLoading) {
     proxy.$modal.loading('正在加载传输加密监控数据，请稍候！')
   }
-  getTransportCryptoMonitor().then(response => {
-    monitorData.value = {
-      supportedKids: [],
-      enabledPaths: [],
-      requiredPaths: [],
-      excludePaths: [],
-      kidStats: [],
-      recentFailures: [],
-      failureReasons: {},
-      ...response.data
-    }
-    nextTick(() => {
-      renderFailureReasonChart()
-      renderKidStatsChart()
+  getTransportCryptoMonitor()
+    .then((response) => {
+      monitorData.value = {
+        supportedKids: [],
+        enabledPaths: [],
+        requiredPaths: [],
+        excludePaths: [],
+        kidStats: [],
+        recentFailures: [],
+        failureReasons: {},
+        ...response.data,
+      }
+      nextTick(() => {
+        renderFailureReasonChart()
+        renderKidStatsChart()
+      })
     })
-  }).finally(() => {
-    loading.value = false
-    if (showLoading) {
-      proxy.$modal.closeLoading()
-    }
-  })
+    .finally(() => {
+      loading.value = false
+      if (showLoading) {
+        proxy.$modal.closeLoading()
+      }
+    })
 }
 
 function resetRefreshTimer() {
@@ -595,14 +807,14 @@ function buildKidChartBarData(item, value, color) {
     value: Number(value || 0),
     itemStyle: {
       color,
-      opacity: isSelected ? 1 : 0.3
-    }
+      opacity: isSelected ? 1 : 0.3,
+    },
   }
 }
 
 function bindFailureReasonChartEvents(chartInstance) {
   chartInstance.off('click')
-  chartInstance.on('click', params => {
+  chartInstance.on('click', (params) => {
     const targetReason = failureReasonRows.value[params?.dataIndex]?.reason
     if (!targetReason) {
       return
@@ -613,7 +825,7 @@ function bindFailureReasonChartEvents(chartInstance) {
 
 function bindKidStatsChartEvents(chartInstance) {
   chartInstance.off('click')
-  chartInstance.on('click', params => {
+  chartInstance.on('click', (params) => {
     const targetKid = kidStatRows.value[params?.dataIndex]?.kid
     if (!targetKid) {
       return
@@ -667,18 +879,18 @@ function renderFailureReasonChart() {
 
   chartInstance.setOption({
     animationDuration: 400,
-    color: failureReasonRows.value.map(item => getFailureChartColor(item.reason)),
+    color: failureReasonRows.value.map((item) => getFailureChartColor(item.reason)),
     grid: {
       top: 16,
       left: 120,
       right: 24,
       bottom: 16,
-      containLabel: true
+      containLabel: true,
     },
     tooltip: {
       trigger: 'axis',
       axisPointer: {
-        type: 'shadow'
+        type: 'shadow',
       },
       formatter(params) {
         const currentItem = params?.[0]
@@ -687,42 +899,45 @@ function renderFailureReasonChart() {
         }
         const currentRow = failureReasonRows.value[currentItem.dataIndex]
         return `${currentRow.reason}<br/>次数：${currentRow.count}<br/>占比：${formatPercent(currentRow.count, totalFailureReasonCount.value)}`
-      }
+      },
     },
     xAxis: {
       type: 'value',
       splitLine: {
         lineStyle: {
-          type: 'dashed'
-        }
-      }
+          type: 'dashed',
+        },
+      },
     },
     yAxis: {
       type: 'category',
-      data: failureReasonRows.value.map(item => item.reason),
+      data: failureReasonRows.value.map((item) => item.reason),
       axisTick: {
-        show: false
-      }
+        show: false,
+      },
     },
     series: [
       {
         name: '失败次数',
         type: 'bar',
         barMaxWidth: 22,
-        data: failureReasonRows.value.map(item => ({
+        data: failureReasonRows.value.map((item) => ({
           value: Number(item.count || 0),
           itemStyle: {
             color: getFailureChartColor(item.reason),
-            opacity: !selectedFailureReason.value || selectedFailureReason.value === item.reason ? 1 : 0.35,
-            borderRadius: [0, 6, 6, 0]
-          }
+            opacity:
+              !selectedFailureReason.value || selectedFailureReason.value === item.reason
+                ? 1
+                : 0.35,
+            borderRadius: [0, 6, 6, 0],
+          },
         })),
         label: {
           show: true,
-          position: 'right'
-        }
-      }
-    ]
+          position: 'right',
+        },
+      },
+    ],
   })
 }
 
@@ -743,63 +958,71 @@ function renderKidStatsChart() {
     animationDuration: 400,
     color: ['#409eff', '#67c23a', '#f56c6c', '#909399'],
     legend: {
-      top: 0
+      top: 0,
     },
     grid: {
       top: 48,
       left: 24,
       right: 24,
       bottom: 32,
-      containLabel: true
+      containLabel: true,
     },
     tooltip: {
       trigger: 'axis',
       axisPointer: {
-        type: 'shadow'
-      }
+        type: 'shadow',
+      },
     },
     xAxis: {
       type: 'category',
       axisLabel: {
         interval: 0,
-        rotate: kidStatRows.value.length > 4 ? 20 : 0
+        rotate: kidStatRows.value.length > 4 ? 20 : 0,
       },
-      data: kidStatRows.value.map(item => item.kid || '-')
+      data: kidStatRows.value.map((item) => item.kid || '-'),
     },
     yAxis: {
       type: 'value',
       splitLine: {
         lineStyle: {
-          type: 'dashed'
-        }
-      }
+          type: 'dashed',
+        },
+      },
     },
     series: [
       {
         name: '加密请求',
         type: 'bar',
         barMaxWidth: 18,
-        data: kidStatRows.value.map(item => buildKidChartBarData(item, item.encryptedRequests, '#409eff'))
+        data: kidStatRows.value.map((item) =>
+          buildKidChartBarData(item, item.encryptedRequests, '#409eff')
+        ),
       },
       {
         name: '解密成功',
         type: 'bar',
         barMaxWidth: 18,
-        data: kidStatRows.value.map(item => buildKidChartBarData(item, item.decryptSuccess, '#67c23a'))
+        data: kidStatRows.value.map((item) =>
+          buildKidChartBarData(item, item.decryptSuccess, '#67c23a')
+        ),
       },
       {
         name: '解密失败',
         type: 'bar',
         barMaxWidth: 18,
-        data: kidStatRows.value.map(item => buildKidChartBarData(item, item.decryptFailure, '#f56c6c'))
+        data: kidStatRows.value.map((item) =>
+          buildKidChartBarData(item, item.decryptFailure, '#f56c6c')
+        ),
       },
       {
         name: '加密响应',
         type: 'bar',
         barMaxWidth: 18,
-        data: kidStatRows.value.map(item => buildKidChartBarData(item, item.encryptedResponses, '#909399'))
-      }
-    ]
+        data: kidStatRows.value.map((item) =>
+          buildKidChartBarData(item, item.encryptedResponses, '#909399')
+        ),
+      },
+    ],
   })
 }
 
@@ -838,7 +1061,9 @@ function handleKidStatRowClick(row) {
 }
 
 function getFailureReasonRowClassName({ row }) {
-  return selectedFailureReason.value && row.reason === selectedFailureReason.value ? 'selected-table-row' : ''
+  return selectedFailureReason.value && row.reason === selectedFailureReason.value
+    ? 'selected-table-row'
+    : ''
 }
 
 function getKidStatRowClassName({ row }) {

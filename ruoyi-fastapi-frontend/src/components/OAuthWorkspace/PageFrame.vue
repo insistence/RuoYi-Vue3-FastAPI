@@ -6,20 +6,35 @@
         <span class="workspace-section">{{ section }}</span>
         <p>{{ description }}</p>
       </div>
-      <div v-if="$slots.actions" class="workspace-actions">
+      <div
+        v-if="$slots.actions"
+        class="workspace-actions"
+      >
         <slot name="actions" />
       </div>
     </header>
 
-    <section v-if="$slots.context" class="workspace-context" aria-label="页面概览">
+    <section
+      v-if="$slots.context"
+      class="workspace-context"
+      aria-label="页面概览"
+    >
       <slot name="context" />
     </section>
 
-    <section v-if="$slots.filters" class="workspace-filters" aria-label="筛选条件">
+    <section
+      v-if="$slots.filters"
+      class="workspace-filters"
+      aria-label="筛选条件"
+    >
       <div class="filter-heading">
         <div>
           <span class="filter-title">筛选条件</span>
-          <span v-if="filterHint" class="filter-hint">{{ filterHint }}</span>
+          <span
+            v-if="filterHint"
+            class="filter-hint"
+            >{{ filterHint }}</span
+          >
         </div>
         <slot name="filter-extra" />
       </div>
@@ -27,7 +42,10 @@
     </section>
 
     <section class="workspace-data">
-      <div v-if="$slots.toolbar" class="data-toolbar">
+      <div
+        v-if="$slots.toolbar"
+        class="data-toolbar"
+      >
         <slot name="toolbar" />
       </div>
       <slot />
@@ -40,7 +58,7 @@ defineProps({
   section: { type: String, default: '统一认证' },
   title: { type: String, required: true },
   description: { type: String, required: true },
-  filterHint: { type: String, default: '' }
+  filterHint: { type: String, default: '' },
 })
 </script>
 
@@ -231,7 +249,6 @@ defineProps({
 }
 
 @media (prefers-reduced-motion: reduce) {
-
   .oauth-workspace *,
   .oauth-workspace *::before,
   .oauth-workspace *::after {

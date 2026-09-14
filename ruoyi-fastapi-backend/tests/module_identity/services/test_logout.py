@@ -16,7 +16,12 @@ from config.env import OidcConfig
 from module_identity.controller import authorization_controller as controller
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.security.backchannel_transport import PinnedHttpxTransport
-from module_identity.security.jwt_profile import decode_logout_token, encode_id_token
+from module_identity.security.jwt_profile import (
+    JwtProfileError,
+    decode_id_token,
+    decode_logout_token,
+    encode_id_token,
+)
 from module_identity.service.infrastructure_service import AfterCommitCoordinator, OidcRateLimiter
 from module_identity.service.session_service import (
     LogoutResult,
@@ -199,6 +204,7 @@ async def test_logout_redirect_and_backchannel_are_after_commit(monkeypatch: pyt
         state='opaque-state',
         now=_NOW,
         coordinator=coordinator,
+        confirmed=True,
     )
 
     assert result.redirect_uri == 'https://portal.example/logged-out'
@@ -216,6 +222,7 @@ async def test_logout_redirect_and_backchannel_are_after_commit(monkeypatch: pyt
         state='opaque-state',
         now=_NOW,
         coordinator=coordinator,
+        confirmed=True,
     )
     await coordinator.commit(db)
     assert result.is_local is False
@@ -234,7 +241,9 @@ async def test_invalid_hint_with_valid_cookie_still_revokes_server_session(
         raise LogoutServiceError('invalid id_token_hint')
 
     monkeypatch.setattr(LogoutService, '_validate_id_token_hint', invalid_hint)
-    monkeypatch.setattr('module_identity.service.session_service.SsoSessionService.validate', _async_return(session))
+    monkeypatch.setattr(
+        'module_identity.service.session_service.SsoSessionService.validate_logout_cookie', _async_return(session)
+    )
     monkeypatch.setattr(LogoutService, '_lock_session_refresh_tokens', _async_return([]))
     revoked = AsyncMock()
     monkeypatch.setattr(LogoutService, '_revoke_session_state', revoked)
@@ -249,6 +258,7 @@ async def test_invalid_hint_with_valid_cookie_still_revokes_server_session(
         state='must-not-echo',
         now=_NOW,
         coordinator=coordinator,
+        confirmed=True,
     )
 
     assert result.session_revoked is True
@@ -286,6 +296,7 @@ async def test_unsafe_or_unregistered_redirect_falls_back_to_local_and_logout_to
         state='do-not-echo',
         now=_NOW,
         coordinator=coordinator,
+        confirmed=True,
     )
 
     assert result.is_local
@@ -586,10 +597,10 @@ async def test_logout_endpoint_disabled_is_local_404_without_legacy_pre_auth(
 
 
 @pytest.mark.asyncio
-async def test_logout_endpoint_clears_only_host_cookie_and_redirects_after_commit(
+async def test_logout_endpoint_prepares_confirmation_without_clearing_sso_cookie(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Controller 仅清理认证中心 Cookie，并在提交后返回 303。"""
+    """初次退出只建立确认，不清理 SSO Cookie 或撤销登录。"""
 
     config = SimpleNamespace(
         oidc_enabled=True,
@@ -605,20 +616,19 @@ async def test_logout_endpoint_clears_only_host_cookie_and_redirects_after_commi
 
     monkeypatch.setattr(controller.LogoutService, 'execute_logout', fake_logout)
     db = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
+    monkeypatch.setattr(controller.LogoutConfirmationService, 'issue', AsyncMock(return_value=('t' * 43, 'n' * 43)))
+    execute = AsyncMock()
+    monkeypatch.setattr(controller.LogoutService, 'execute_logout', execute)
     response = await controller.logout(_request(), db)
 
-    assert response.status_code == _HTTP_SEE_OTHER
-    assert response.headers['location'] == 'https://portal.example/logged-out?state=state-1'
+    assert response.status_code == _HTTP_OK
+    assert controller.LogoutConfirmationService.COOKIE_NAME in response.headers['set-cookie']
+    assert '__Host-ruoyi-sso=' not in response.headers['set-cookie']
+    assert '确认退出'.encode() in response.body
+    execute.assert_not_awaited()
     assert controller._append_state('https://portal.example/logged-out?state=old&next=1', 'state-1') == (
         'https://portal.example/logged-out?next=1&state=state-1'
     )
-    cookie = response.headers['set-cookie']
-    assert '__Host-ruoyi-sso=' in cookie
-    assert 'Path=/' in cookie
-    assert 'Secure' in cookie
-    assert 'HttpOnly' in cookie
-    assert 'SameSite=lax' in cookie
-    assert 'access_token' not in cookie
 
 
 @pytest.mark.asyncio
@@ -639,7 +649,7 @@ async def test_logout_endpoint_unexpected_service_error_returns_503_without_clea
     async def fail(*_args: object, **_kwargs: object) -> LogoutResult:
         raise RuntimeError('unexpected failure')
 
-    monkeypatch.setattr(controller.LogoutService, 'execute_logout', fail)
+    monkeypatch.setattr(controller.LogoutConfirmationService, 'issue', fail)
     request = _request(headers=[(b'cookie', b'__Host-ruoyi-sso=valid-cookie')])
     response = await controller.logout(request, SimpleNamespace())
 
@@ -664,11 +674,11 @@ async def test_logout_endpoint_post_form_forwards_logout_parameters(
     monkeypatch.setattr('module_identity.dependencies.OidcConfig', config)
     captured: dict[str, object] = {}
 
-    async def fake_logout(*_args: object, **kwargs: object) -> LogoutResult:
-        captured.update(kwargs)
-        return LogoutResult(None, None, True)
+    async def prepare(_redis: object, parameters: dict[str, str], _cookie: str | None) -> tuple[str, str]:
+        captured.update(parameters)
+        return 't' * 43, 'n' * 43
 
-    monkeypatch.setattr(controller.LogoutService, 'execute_logout', fake_logout)
+    monkeypatch.setattr(controller.LogoutConfirmationService, 'issue', prepare)
     body = b'id_token_hint=hint-value&post_logout_redirect_uri=https%3A%2F%2Fportal.example%2Fdone&state=state-1'
     request = _request(
         method='POST',
@@ -724,3 +734,52 @@ def _async_return(value: object) -> object:
 
 async def _async_noop(*_args: object, **_kwargs: object) -> None:
     """构造无副作用异步桩。"""
+
+
+@pytest.mark.asyncio
+async def test_expired_id_token_is_accepted_only_as_logout_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    payload = jwt.decode(_id_token(private_key), options={'verify_signature': False})
+    payload.update(iat=int(_NOW.timestamp()) - 1200, exp=int(_NOW.timestamp()) - 600)
+    token = encode_id_token(payload, private_key, 'key-1')
+    monkeypatch.setattr(
+        'module_identity.service.session_service.OAuthClientDao.get_by_client_id',
+        _async_return(SimpleNamespace(client_pk=20, client_id='portal', status='0')),
+    )
+    monkeypatch.setattr(
+        'module_identity.service.session_service.OidcKeyDao.get_verifying',
+        _async_return(_key_record(private_key)),
+    )
+    claims, _ = await LogoutService._validate_id_token_hint(object(), token, _NOW)
+    assert claims['sid'] == 'sid-1'
+    with pytest.raises(JwtProfileError):
+        decode_id_token(token, verification_key=private_key.public_key(), issuer=_ISSUER, audience='portal')
+
+
+@pytest.mark.asyncio
+async def test_confirmed_logout_does_not_revoke_another_accounts_hint_session(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = SimpleNamespace(client_pk=20, client_id='portal', status='0')
+    other = SimpleNamespace(sid='other-sid', subject_id='other-subject', status='active')
+    current = SimpleNamespace(sid='current-sid', subject_id='current-subject', status='active')
+    monkeypatch.setattr(
+        LogoutService, '_validate_id_token_hint', _async_return(({'sid': other.sid, 'sub': other.subject_id}, client))
+    )
+    monkeypatch.setattr('module_identity.service.session_service.SsoSessionDao.get_by_sid', _async_return(other))
+    monkeypatch.setattr(
+        'module_identity.service.session_service.SsoSessionService.validate_logout_cookie', _async_return(current)
+    )
+    monkeypatch.setattr(LogoutService, '_lock_session_refresh_tokens', _async_return([]))
+    revoked = AsyncMock()
+    monkeypatch.setattr(LogoutService, '_revoke_session_state', revoked)
+    monkeypatch.setattr(LogoutService, '_register_backchannel', _async_noop)
+    result = await LogoutService._logout(
+        object(),
+        object(),
+        id_token_hint='signed-other-account',
+        cookie='current-cookie',
+        confirmed=True,
+        coordinator=AfterCommitCoordinator(),
+        now=_NOW,
+    )
+    assert revoked.await_args.args[2] == 'current-sid'
+    assert result.redirect_uri is None

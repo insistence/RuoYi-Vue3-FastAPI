@@ -21,8 +21,10 @@ class OAuthAuditDao:
         :param event: OAuth Audit 日志对象
         :return: 已写入的 OAuth Audit 日志对象
         """
+
         db.add(event)
         await db.flush()
+
         return event
 
     @classmethod
@@ -34,6 +36,7 @@ class OAuthAuditDao:
         :param events: OAuth Audit 日志对象序列
         :return: None
         """
+
         rows = list(events)
         if rows:
             db.add_all(rows)
@@ -64,6 +67,7 @@ class OAuthAuditDao:
         :param before: 归档截止时间
         :return: OAuth Audit 日志序列
         """
+
         conditions = []
         if client_id:
             conditions.append(SysOAuthAuditLog.client_id == client_id)
@@ -78,6 +82,7 @@ class OAuthAuditDao:
         query = select(SysOAuthAuditLog).where(*conditions).order_by(SysOAuthAuditLog.event_id.desc())
         query = query.offset(max(offset, 0)).limit(min(max(limit, 1), 500))
         rows = await db.execute(query)
+
         return rows.scalars().all()
 
     @classmethod
@@ -104,6 +109,7 @@ class OAuthAuditDao:
         :param end_time: 查询结束时间
         :return: SQLAlchemy 条件列表
         """
+
         conditions = []
         if client_id:
             conditions.append(SysOAuthAuditLog.client_id == client_id)
@@ -151,6 +157,7 @@ class OAuthAuditDao:
         :param end_time: 查询结束时间
         :return: 管理端 OAuth Audit 日志序列
         """
+
         query = (
             select(SysOAuthAuditLog)
             .where(
@@ -169,6 +176,7 @@ class OAuthAuditDao:
             .limit(min(max(limit, 1), 5000))
         )
         rows = await db.execute(query)
+
         return rows.scalars().all()
 
     @classmethod
@@ -197,6 +205,7 @@ class OAuthAuditDao:
         :param end_time: 查询结束时间
         :return: 符合条件的 OAuth Audit 日志数量
         """
+
         result = await db.execute(
             select(func.count())
             .select_from(SysOAuthAuditLog)
@@ -212,6 +221,7 @@ class OAuthAuditDao:
                 )
             )
         )
+
         return int(result.scalar_one())
 
     @classmethod
@@ -224,6 +234,7 @@ class OAuthAuditDao:
         :param limit: 单次归档数量上限
         :return: 已归档的 OAuth Audit 日志数量
         """
+
         result = await db.execute(
             select(SysOAuthAuditLog)
             .where(SysOAuthAuditLog.create_time < before)
@@ -239,4 +250,5 @@ class OAuthAuditDao:
         await db.flush()
         event_ids = [row.event_id for row in rows]
         await db.execute(delete(SysOAuthAuditLog).where(SysOAuthAuditLog.event_id.in_(event_ids)))
+
         return len(event_ids)

@@ -14,13 +14,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import validates
 
+from common.types import DbUtcDateTime
 from config.database import Base
-from module_identity.entity.do._base import IDENTITY_DATETIME, current_time, primary_key_type
+from utils.time_util import TimezoneUtil
 
 
 class SysOAuthClient(Base):
     """
-    OAuth 客户端。
+    OAuth客户端表
     """
 
     __tablename__ = 'sys_oauth_client'
@@ -30,7 +31,13 @@ class SysOAuthClient(Base):
         {'comment': 'OAuth Client'},
     )
 
-    client_pk = Column(primary_key_type(), primary_key=True, nullable=False, autoincrement=True, comment='内部主键')
+    client_pk = Column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+        comment='内部主键',
+    )
     client_id = Column(String(64), nullable=False, comment='Client ID')
     client_name = Column(String(100), nullable=False, comment='客户端名称')
     client_type = Column(String(20), nullable=False, comment='Client 类型')
@@ -54,17 +61,17 @@ class SysOAuthClient(Base):
     )
     status = Column(CHAR(1), nullable=False, server_default='0', comment='状态（0正常 1停用）')
     create_by = Column(String(64), nullable=False, server_default='', comment='创建者')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='创建时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')
     update_by = Column(String(64), nullable=False, server_default='', default='', comment='更新者')
     update_time = Column(
-        IDENTITY_DATETIME, nullable=False, default=current_time, onupdate=current_time, comment='更新时间'
+        DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, onupdate=TimezoneUtil.utc_now, comment='更新时间'
     )
     remark = Column(String(500), nullable=True, comment='备注')
 
 
 class SysOAuthClientSecret(Base):
     """
-    OAuth 客户端密钥，仅保存强哈希。
+    OAuth客户端密钥表，仅保存密钥强哈希
     """
 
     __tablename__ = 'sys_oauth_client_secret'
@@ -83,18 +90,18 @@ class SysOAuthClientSecret(Base):
     secret_hash = Column(String(100), nullable=False, comment='Secret 强哈希')
     secret_hint = Column(String(12), nullable=False, comment='Secret 提示')
     status = Column(String(16), nullable=False, server_default='active', comment='Secret 状态')
-    not_before = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='生效时间')
-    expires_at = Column(IDENTITY_DATETIME, nullable=True, comment='过期时间')
-    last_used_at = Column(IDENTITY_DATETIME, nullable=True, comment='最近使用时间')
+    not_before = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='生效时间')
+    expires_at = Column(DbUtcDateTime(), nullable=True, comment='过期时间')
+    last_used_at = Column(DbUtcDateTime(), nullable=True, comment='最近使用时间')
     create_by = Column(String(64), nullable=False, comment='创建者')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='创建时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')
     revoked_by = Column(String(64), nullable=True, comment='撤销者')
-    revoked_at = Column(IDENTITY_DATETIME, nullable=True, comment='撤销时间')
+    revoked_at = Column(DbUtcDateTime(), nullable=True, comment='撤销时间')
 
 
 class SysOAuthClientUri(Base):
     """
-    OAuth 客户端注册 URI。
+    OAuth客户端注册地址表
     """
 
     __tablename__ = 'sys_oauth_client_uri'
@@ -104,7 +111,13 @@ class SysOAuthClientUri(Base):
         {'comment': 'OAuth Client URI'},
     )
 
-    uri_id = Column(primary_key_type(), primary_key=True, nullable=False, autoincrement=True, comment='URI 主键')
+    uri_id = Column(
+        BigInteger().with_variant(Integer, 'sqlite'),
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+        comment='URI 主键',
+    )
     client_pk = Column(
         BigInteger,
         ForeignKey('sys_oauth_client.client_pk', name='fk_oauth_client_uri_client', ondelete='RESTRICT'),
@@ -116,12 +129,18 @@ class SysOAuthClientUri(Base):
     uri_hash = Column(CHAR(64), nullable=False, comment='URI SHA-256 摘要')
     is_default = Column(SmallInteger, nullable=False, server_default='0', comment='是否默认 URI')
     status = Column(CHAR(1), nullable=False, server_default='0', comment='状态（0正常 1停用）')
-    create_time = Column(IDENTITY_DATETIME, nullable=False, default=current_time, comment='创建时间')
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')
 
     @validates('uri')
     def derive_uri_hash(self, key: str, value: str) -> str:
         """
-        根据 URI 更新摘要。
+        根据 URI 更新摘要
+
+        :param key: 触发校验的属性名称
+        :param value: 待写入的注册地址
+        :return: 用于继续写入的原始注册地址
         """
+
         self.uri_hash = hashlib.sha256(value.encode('utf-8')).hexdigest()
+
         return value

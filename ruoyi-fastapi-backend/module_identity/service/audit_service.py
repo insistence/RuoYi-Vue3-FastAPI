@@ -82,6 +82,7 @@ class AuditService:
         :param detail: 待记录的任意可序列化值
         :return: 只包含安全字段的可序列化值
         """
+
         if isinstance(detail, Mapping):
             return {
                 str(key): cls.sanitize_detail(value)
@@ -112,7 +113,9 @@ class AuditService:
         :param value: 待检测的字符串
         :return: 是否符合 JWT 外形
         """
+
         parts = value.split('.')
+
         return len(parts) == AuditService._JWT_PART_COUNT and all(
             AuditService._JWT_PART_MIN_LENGTH <= len(part) <= AuditService._JWT_PART_MAX_LENGTH for part in parts
         )
@@ -126,6 +129,7 @@ class AuditService:
         :param risk_level: 风险等级
         :return: 审计风险等级
         """
+
         if event_type in cls.HIGH_RISK_EVENTS:
             return 'high'
         return risk_level if risk_level in {'normal', 'medium', 'high', 'critical'} else 'normal'
@@ -139,6 +143,7 @@ class AuditService:
         :return: 未提交的审计日志实体
         :raises ValueError: 缺少事件类型或结果时抛出
         """
+
         event_type = fields.get('event_type')
         result = fields.get('result')
         if (
@@ -192,7 +197,9 @@ class AuditService:
         :param fields: 其余白名单审计字段
         :return: 已刷新但尚未提交的审计日志实体
         """
+
         event = cls.build_event(event_type=event_type, result=result, risk_level=risk_level, **fields)
+
         return await OAuthAuditDao.append(db, event)
 
     @classmethod
@@ -215,6 +222,7 @@ class AuditService:
         :param fields: 经过白名单过滤的安全字段
         :return: 已提交的审计日志实体
         """
+
         engine = db.info.get('service_engine') or getattr(db, 'bind', None)
         if engine is not None:
             factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -248,7 +256,9 @@ class AuditService:
         :param event: 审计实体或待构建字段映射
         :return: 已刷新但尚未提交的审计日志实体
         """
+
         row = event if isinstance(event, SysOAuthAuditLog) else cls.build_event(**dict(event))
+
         return await OAuthAuditDao.append(db, row)
 
     @staticmethod
@@ -259,6 +269,7 @@ class AuditService:
         :param query: 管理端审计分页查询条件
         :return: 传给审计 DAO 的筛选条件
         """
+
         return {
             'client_id': query.client_id,
             'user_id': query.user_id,
@@ -277,6 +288,7 @@ class AuditService:
         :param row: 审计日志实体
         :return: 不含详情敏感字段的管理端模型字典
         """
+
         return AuditModel(
             audit_id=row.event_id,
             event_type=row.event_type,
@@ -302,11 +314,13 @@ class AuditService:
         :param query: 管理端审计分页查询条件
         :return: 脱敏审计行列表及总数
         """
+
         params = cls._admin_filters(query)
         rows = await OAuthAuditDao.list_admin_page(
             db, offset=(query.page_num - 1) * query.page_size, limit=query.page_size, **params
         )
         total = await OAuthAuditDao.count_admin(db, **params)
+
         return [cls._admin_model(row) for row in rows], total
 
     @classmethod
@@ -318,7 +332,9 @@ class AuditService:
         :param query: 管理端审计筛选条件
         :return: 脱敏审计 Excel 文件字节
         """
+
         rows = await OAuthAuditDao.list_admin_page(db, offset=0, limit=5000, **cls._admin_filters(query))
+
         return export_list2excel([cls._admin_model(row) for row in rows])
 
     @classmethod
@@ -332,6 +348,7 @@ class AuditService:
         :return: None
         :raises OidcInteractionException: 独立审计提交失败时抛出
         """
+
         await db.rollback()
         try:
             await cls.record_independent(db, event_type, 'failure', risk_level='high', **fields)
@@ -355,6 +372,7 @@ class AuditService:
             :param user_id: 本地用户 ID
             :return: 已提交的审计日志实体
             """
+
             return await AuditService.record_independent(
                 db,
                 OidcAuditEvent.IDENTITY_SUBJECT_MISSING,

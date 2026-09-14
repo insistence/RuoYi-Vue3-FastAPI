@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException, OidcInteractionException
-from module_identity.dao._helpers import local_datetime
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.dao.sso_session_dao import SsoSessionDao
@@ -36,6 +35,7 @@ from module_identity.service.audit_service import AuditService
 from module_identity.service.infrastructure_service import AfterCommitCoordinator
 from module_identity.service.interaction_service import InteractionFlowService, InteractionService
 from module_identity.service.session_service import SsoSessionError, SsoSessionService
+from utils.time_util import TimezoneUtil
 
 _S256_CHALLENGE = re.compile(r'^[A-Za-z0-9_-]{43}$')
 _MAX_STATE_LENGTH = 1024
@@ -63,6 +63,7 @@ class ClientSnapshot:
         :return: None
         :raises TypeError: Grant 或 Response 类型不是不可变元组时抛出
         """
+
         if not isinstance(self.grant_types, tuple) or not isinstance(self.response_types, tuple):
             raise TypeError('ClientSnapshot grant_types and response_types must be tuples')
 
@@ -119,6 +120,7 @@ class AuthorizationContext:
 
         :return: 需要显示同意页时为 True
         """
+
         consentable = set(self.scopes) - set(self.required_scopes)
         if 'consent' in frozenset((self.prompt or '').split()):
             return bool(consentable)
@@ -133,6 +135,7 @@ class AuthorizationContext:
 
         :return: 最多一个 audience 的元组
         """
+
         return (self.resource.audience,) if self.resource is not None else ()
 
     def to_internal_payload(self, interaction_id: str) -> dict[str, Any]:
@@ -142,6 +145,7 @@ class AuthorizationContext:
         :param interaction_id: 服务端生成的 Interaction ID
         :return: 包含后续签码所需绑定字段且不含 ORM 对象的内部载荷
         """
+
         return {
             'interactionId': interaction_id,
             'clientPk': self.client.client_pk,
@@ -166,6 +170,7 @@ class AuthorizationContext:
         :param interaction_id: 服务端生成的 Interaction ID
         :return: 不包含 state、nonce 和 PKCE challenge 的页面载荷
         """
+
         return {
             'interactionId': interaction_id,
             'clientId': self.client.client_id,
@@ -204,6 +209,7 @@ class AuthorizationService:
         :return: 解析后的授权请求及已验证 Redirect URI
         :raises OAuthProtocolException: Client、Redirect 或协议字段无效
         """
+
         client_id = raw.get('client_id')
         redirect_uri = raw.get('redirect_uri')
         if not isinstance(client_id, str) or not isinstance(redirect_uri, str):
@@ -242,6 +248,7 @@ class AuthorizationService:
         :return: 交互页面或 Client 回调的 URL 结果
         :raises OAuthProtocolException: 协议错误，必要时携带已验证 Redirect
         """
+
         request, verified_redirect = await cls._parse_request(db, raw)
         if request.resource and await cls.has_disabled_resource(db, request):
             raise OAuthProtocolException('not_found', 'Resource is unavailable', 404)
@@ -304,6 +311,7 @@ class AuthorizationService:
             if created.initial_status == 'awaiting_consent'
             else OidcConfig.oidc_interaction_login_url
         )
+
         return AuthorizationResult(cls._interaction_url(base, created.interaction_id, created.csrf_token))
 
     @staticmethod
@@ -322,6 +330,7 @@ class AuthorizationService:
         :param coordinator: 提交后副作用协调器
         :return: SSO Session 或 None
         """
+
         if cookie is None:
             return None
         try:
@@ -330,7 +339,7 @@ class AuthorizationService:
                 redis,
                 cookie,
                 pepper=OidcConfig.oidc_token_hash_pepper,
-                now=datetime.now(),
+                now=TimezoneUtil.utc_now(),
                 coordinator=coordinator,
             )
         except SsoSessionError:
@@ -346,6 +355,7 @@ class AuthorizationService:
         :param interaction_id: 交互流程标识
         :return: 授权码重定向结果
         """
+
         record = await InteractionService.get_record(redis, interaction_id)
         if record.get('status') != 'completed':
             raise OidcInteractionException(interaction_id, 'Interaction is not complete', error='interaction_required')
@@ -361,7 +371,7 @@ class AuthorizationService:
             registered_uri = await cls.verified_redirect_for_client(db, client_pk, redirect_uri)
             if registered_uri is None:
                 raise OAuthProtocolException('server_error', 'Validated redirect URI is unavailable', 500)
-            session = await cls.active_session(db, record.get('authenticatedSid', ''), now=datetime.now())
+            session = await cls.active_session(db, record.get('authenticatedSid', ''), now=TimezoneUtil.utc_now())
             if session is None:
                 raise OAuthProtocolException('login_required', 'A current login is required', 400)
             payload = {
@@ -412,11 +422,13 @@ class AuthorizationService:
         :param interaction_id: 交互流程标识
         :return: 完成标记 Key 或 None
         """
+
         ttl = await redis.ttl(OidcRedisKey.interaction(interaction_id))
         if not isinstance(ttl, int) or ttl <= 0:
             return None
         marker = OidcRedisKey.interaction(f'{interaction_id}-completion')
         reserved = await redis.set(marker, 'reserved', ex=ttl, nx=True)
+
         return marker if reserved else None
 
     @staticmethod
@@ -428,6 +440,7 @@ class AuthorizationService:
         :param marker: 完成标记 Key
         :return: None
         """
+
         try:
             await redis.delete(marker)
         except Exception:
@@ -442,10 +455,12 @@ class AuthorizationService:
         :param max_age: 最大认证时效
         :return: 是否需要重新认证
         """
+
         if auth_time is None:
             return True
-        current = local_datetime(auth_time)
-        return (datetime.now() - current).total_seconds() > max_age
+        current = TimezoneUtil.to_utc(auth_time)
+
+        return (TimezoneUtil.utc_now() - current).total_seconds() > max_age
 
     @staticmethod
     def _interaction_url(base: str, interaction_id: str, csrf_token: str) -> str:
@@ -457,9 +472,11 @@ class AuthorizationService:
         :param csrf_token: CSRF Token
         :return: 交互页面 URL
         """
+
         parsed = urlsplit(base)
         query = dict(parse_qsl(parsed.query, keep_blank_values=True))
         query['interaction'] = interaction_id
+
         return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), f'csrf={csrf_token}'))
 
     @staticmethod
@@ -472,6 +489,7 @@ class AuthorizationService:
         :param state: 协议 state 值
         :return: 授权码回调 URL
         """
+
         parsed = urlsplit(redirect_uri)
         if parsed.fragment or not parsed.scheme or not parsed.netloc:
             raise OAuthProtocolException('server_error', 'Validated redirect URI is invalid', 500)
@@ -484,6 +502,7 @@ class AuthorizationService:
         if state is not None:
             fields.append(('state', state))
         fields.append(('iss', OidcConfig.oidc_issuer))
+
         return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(fields), ''))
 
     @staticmethod
@@ -498,6 +517,7 @@ class AuthorizationService:
         :param state: 协议 state 值
         :return: 绑定重定向的协议异常
         """
+
         return OAuthProtocolException(
             exc.error,
             exc.message,
@@ -518,6 +538,7 @@ class AuthorizationService:
         :param fields: 失败审计字段映射
         :return: None
         """
+
         try:
             await AuditService.record_independent(db, event_type, 'failure', risk_level='high', **fields)
         except Exception as exc:
@@ -533,6 +554,7 @@ class AuthorizationService:
         :param redirect_uri: 已验证的重定向 URI
         :return: 已注册的精确重定向 URI
         """
+
         client = await OAuthClientDao.get_by_client_id(db, client_id, active_only=True)
         if client is None:
             raise OAuthProtocolException('unauthorized_client', 'Client is not registered')
@@ -551,7 +573,9 @@ class AuthorizationService:
         :param redirect_uri: 已验证的重定向 URI
         :return: 匹配的重定向 URI 或 None
         """
+
         registered = await OAuthClientDao.find_exact_uri(db, client_pk, 'redirect', redirect_uri)
+
         return registered.uri if registered is not None else None
 
     @staticmethod
@@ -564,6 +588,7 @@ class AuthorizationService:
         :param client_pk: OAuth Client 主键
         :return: 有效 Grant 或 None
         """
+
         return await OAuthGrantDao.get_valid_for_user_client(db, user_id, client_pk)
 
     @staticmethod
@@ -575,6 +600,7 @@ class AuthorizationService:
         :param request: 当前 HTTP 请求
         :return: 是否存在禁用 Resource
         """
+
         return bool(request.resource) and await OAuthClientDao.has_disabled_bound_resource(
             db, request.client_id, request.resource
         )
@@ -589,7 +615,10 @@ class AuthorizationService:
         :param now: 当前时间
         :return: 活动 SSO Session 或 None
         """
-        return await SsoSessionDao.get_active(db, sid, now=local_datetime(now) or datetime.now())
+
+        return await SsoSessionDao.get_active(
+            db, sid, now=TimezoneUtil.to_utc(now) if now is not None else TimezoneUtil.utc_now()
+        )
 
     @classmethod
     async def validate_request(cls, db: AsyncSession, request: AuthorizeRequest) -> AuthorizationContext:  # noqa: PLR0912, PLR0915
@@ -601,6 +630,7 @@ class AuthorizationService:
         :return: 可交给 Interaction 和 Authorization Code 服务的上下文
         :raises OAuthProtocolException: 请求不符合 OAuth/OIDC 协议时抛出
         """
+
         if not OidcConfig.oidc_enabled:
             raise OAuthProtocolException('temporarily_unavailable', 'OIDC provider is disabled', 503)
 
@@ -700,6 +730,7 @@ class AuthorizationService:
         required_scopes = frozenset(
             {'openid'} | {scope.scope_code for scope in requested_scope_models if not bool(scope.consent_required)}
         )
+
         return AuthorizationContext(
             client=ClientSnapshot(
                 client_pk=client.client_pk,
@@ -745,6 +776,7 @@ class AuthorizationService:
         :return: 规范化的 prompt 校验结果
         :raises OAuthProtocolException: prompt 不是受支持的组合时抛出
         """
+
         if prompt is None:
             return
         prompts = prompt.split()
@@ -769,10 +801,12 @@ class AuthorizationService:
         :param bindings: Client-Scope 绑定集合
         :return: Scope 定义列表
         """
+
         scope_ids = {binding.scope_pk for binding in bindings}
         if not scope_ids:
             return []
         definitions = await OAuthClientDao.list_scope_definitions(db, active_only=False)
+
         return [scope for scope in definitions if scope.scope_pk in scope_ids]
 
     @staticmethod
@@ -786,6 +820,7 @@ class AuthorizationService:
         :param bindings: Client-Scope 绑定集合
         :return: Scope 定义列表
         """
+
         return await AuthorizationService._load_scope_models(db, bindings)
 
     @staticmethod
@@ -808,6 +843,7 @@ class AuthorizationService:
         :param state: 原样绑定的客户端 state
         :return: 选中的 Resource，或无 Resource 时返回 None
         """
+
         resource_scopes = [scope for scope in requested_scopes if scope.scope_type == 'resource']
         if requested_resource:
             resource = next((item for item in resources if item.audience == requested_resource), None)
@@ -837,6 +873,7 @@ class AuthorizationService:
         :param state: 客户端原样 state
         :return: 标记为可安全重定向的协议异常
         """
+
         return OAuthProtocolException(
             error,
             description,
@@ -856,6 +893,7 @@ class AuthorizationService:
         :param grant: 当前用户和 Client 的 Grant
         :return: Grant 有效且覆盖全部非预授权 Scope/Resource 时为 True
         """
+
         if not context.requires_consent:
             return True
         prompt_tokens = frozenset((context.prompt or '').split())
@@ -866,13 +904,14 @@ class AuthorizationService:
             or grant.client_policy_version != context.client.policy_version
         ):
             return False
-        expires_at = local_datetime(grant.expires_at)
-        if expires_at is not None and expires_at <= datetime.now():
+        expires_at = TimezoneUtil.to_utc(grant.expires_at) if grant.expires_at is not None else None
+        if expires_at is not None and expires_at <= TimezoneUtil.utc_now():
             return False
         non_pre_authorized = set(context.scopes) - set(context.pre_authorized_scopes) - set(context.required_scopes)
         expected_resources = set(context.resources)
-        return non_pre_authorized.issubset(set(grant.granted_scopes or [])) and expected_resources.issubset(
-            set(grant.granted_resources or [])
+
+        return non_pre_authorized.issubset(set(grant.remembered_scopes or [])) and expected_resources.issubset(
+            set(grant.remembered_resources or [])
         )
 
 
@@ -887,6 +926,7 @@ class AuthorizationCodeReuseError(OAuthProtocolException):
 
         :return: None
         """
+
         super().__init__('invalid_grant', 'Authorization code is invalid or expired', 400)
         self.must_commit = True
 
@@ -965,6 +1005,7 @@ return value
         :raises ValueError: 载荷或 Pepper 不符合安全约束
         :raises OAuthProtocolException: Redis 写入失败时抛出
         """
+
         record = cls._validate_payload(payload)
         code = generate_authorization_code()
         parsed = parse_opaque_token(code, 'ac1')
@@ -997,6 +1038,7 @@ return value
         :return: 去除内部 codeHash/version 后的服务端载荷
         :raises OAuthProtocolException: Code 格式、Secret、状态或 TTL 无效时抛出统一错误
         """
+
         try:
             parsed = parse_opaque_token(code, 'ac1')
             digest = token_digest(code, pepper or OidcConfig.oidc_token_hash_pepper)
@@ -1048,6 +1090,7 @@ return value
         :param pepper: 独立 OIDC Token Hash Pepper
         :return: 与授权码摘要匹配的绑定载荷，不存在或摘要不匹配时返回 None
         """
+
         try:
             parsed = parse_opaque_token(code, 'ac1')
             digest = token_digest(code, pepper or OidcConfig.oidc_token_hash_pepper)
@@ -1080,6 +1123,7 @@ return value
         :param code: 仅用于解析 code_id，不会写入 Redis
         :return: None
         """
+
         try:
             parsed = parse_opaque_token(code, 'ac1')
         except (OpaqueTokenError, TypeError, ValueError):
@@ -1096,6 +1140,7 @@ return value
         :return: 可稳定 JSON 序列化的复制载荷
         :raises ValueError: 存在未知、缺失或类型不安全字段时抛出
         """
+
         if not isinstance(payload, Mapping):
             raise ValueError('authorization code payload must be a mapping')
         keys = set(payload)
@@ -1156,6 +1201,7 @@ return value
         :param field: 字段名称
         :return: 校验后的正整数
         """
+
         if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
             raise ValueError(f'{field} must be a positive integer')
         return value
@@ -1169,6 +1215,7 @@ return value
         :param field: 字段名称
         :return: 校验后的非负整数
         """
+
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
             raise ValueError(f'{field} must be a non-negative integer')
         return value
@@ -1183,6 +1230,7 @@ return value
         :param limit: 字符串的最大长度
         :return: 校验后的字符串
         """
+
         if not isinstance(value, str) or not value or len(value) > limit:
             raise ValueError(f'{field} must be a non-empty string')
         return value
@@ -1197,6 +1245,7 @@ return value
         :param limit: 字符串列表的最大长度
         :return: 校验后的字符串列表
         """
+
         if not isinstance(value, (list, tuple)) or len(value) > limit:
             raise ValueError(f'{field} must be a bounded string list')
         return [cls._string(item, field, 500) for item in value]
@@ -1209,6 +1258,7 @@ return value
         :param record: 交互记录
         :return: 序列化 JSON 字符串
         """
+
         try:
             return json.dumps(record, ensure_ascii=False, separators=(',', ':'), sort_keys=True, allow_nan=False)
         except (TypeError, ValueError) as exc:
@@ -1230,6 +1280,7 @@ class InteractionCompletionService:
         :param db: 异步数据库会话
         :return: 外部 Client 重定向响应
         """
+
         record = await InteractionService.get_record(redis, interaction_id)
         if record.get('status') not in {'completed', 'denied'}:
             raise OidcInteractionException(interaction_id, 'Interaction is not complete', error='interaction_required')
@@ -1267,10 +1318,11 @@ class InteractionCompletionService:
         :param record: 交互记录
         :return: 活动 SSO Session 或 None
         """
+
         sid = record.get('authenticatedSid')
         if not isinstance(sid, str):
             return None
-        session = await SsoSessionDao.get_active(db, sid, now=datetime.now())
+        session = await SsoSessionDao.get_active(db, sid, now=TimezoneUtil.utc_now())
         if session is None:
             return None
         if (
@@ -1295,6 +1347,7 @@ class InteractionCompletionService:
         :param marker: 完成标记 Key
         :return: 授权码
         """
+
         try:
             active = await InteractionCompletionService.active_session(db, record)
         except Exception:
@@ -1360,6 +1413,7 @@ class InteractionCompletionService:
         :param error: 协议错误码
         :return: 重定向结果
         """
+
         parsed = urlsplit(redirect_uri)
         query = [
             (key, value)
@@ -1374,6 +1428,7 @@ class InteractionCompletionService:
             query.append(('state', record['state']))
         query.append(('iss', OidcConfig.oidc_issuer))
         location = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ''))
+
         return InteractionCompletionResult(location=location)
 
 
@@ -1393,6 +1448,7 @@ def _protocol_datetime(value: datetime | None) -> datetime:
     :param value: 可选的数据库时间
     :return: 带时区的协议时间
     """
+
     if value is None:
         return datetime.now(timezone.utc)
-    return value.astimezone(timezone.utc)
+    return TimezoneUtil.to_utc(value)

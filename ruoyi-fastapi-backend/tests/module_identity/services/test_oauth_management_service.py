@@ -157,7 +157,7 @@ async def test_after_commit_failure_does_not_rollback_committed_management_chang
 async def test_create_detail_bindings_secret_and_cors_snapshot(management_session: AsyncSession) -> None:
     """创建应原子写入绑定，创建不自动发放 Secret，轮换时只返回一次明文。"""
     await _seed_definitions(management_session)
-    now = datetime(2026, 1, 1)
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     detail = await OAuthClientManagementService.create_client(
         management_session, _confidential_payload(), actor='admin', now=now
     )
@@ -352,7 +352,7 @@ async def test_secret_rotation_bounds_old_active_secret(management_session: Asyn
     detail = await OAuthClientManagementService.create_client(
         management_session, _confidential_payload(), actor='admin'
     )
-    now = datetime(2026, 1, 1)
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
     first = await OAuthClientManagementService.rotate_secret(
         management_session, detail.client_id, actor='admin', now=now, retirement_seconds=120
     )
@@ -384,7 +384,7 @@ async def test_secret_rotation_respects_original_expiry_and_rejects_a_gap(
 ) -> None:
     """轮换不延长原过期时间，远期过期会被截断，排期断档则原子拒绝。"""
     await _seed_definitions(management_session)
-    now = datetime(2026, 1, 1)
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
     early_client = await OAuthClientManagementService.create_client(
         management_session, _confidential_payload(client_name='原过期较早'), actor='admin'
@@ -521,3 +521,58 @@ async def test_create_failure_can_be_rolled_back_by_caller(management_session: A
     await management_session.rollback()
     result = await management_session.execute(select(SysOAuthClient))
     assert len(result.scalars().all()) == 1
+
+
+@pytest.mark.asyncio
+async def test_role_allowlist_is_persisted_and_changes_client_policy(management_session: AsyncSession) -> None:
+    """仅发布白名单中的角色，修改白名单后旧策略授权失效。"""
+    await _seed_definitions(management_session)
+    management_session.add(
+        SysOAuthScope(
+            scope_code='roles',
+            scope_name='Roles',
+            scope_type='identity',
+            claims=['roles'],
+            status='0',
+            create_by='tester',
+            update_by='tester',
+        )
+    )
+    await management_session.commit()
+    payload = _confidential_payload(
+        scope_codes=['openid', 'roles'],
+        resource_ids=[],
+        allowed_role_keys=['analyst'],
+    )
+    created = await OAuthClientManagementService.create_client(management_session, payload, actor='admin')
+    assert created.allowed_role_keys == ['analyst']
+    values = payload.model_dump()
+    values.update(client_id=created.client_id, allowed_role_keys=['reader'])
+    changed = await OAuthClientManagementService.update_client(
+        management_session,
+        ClientUpdateModel.model_validate(values),
+        actor='admin',
+    )
+    assert changed.policy_version == created.policy_version + 1
+    loaded = await OAuthClientManagementService.detail(management_session, created.client_id)
+    assert loaded.allowed_role_keys == ['reader']
+    filters = (
+        (
+            await management_session.execute(
+                select(SysOAuthClientScope.claim_filter)
+                .join(SysOAuthScope, SysOAuthScope.scope_pk == SysOAuthClientScope.scope_pk)
+                .where(SysOAuthScope.scope_code == 'roles')
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert filters == [{'claims': ['roles'], 'allowed_role_keys': ['reader']}]
+    values['allowed_role_keys'] = []
+    cleared = await OAuthClientManagementService.update_client(
+        management_session,
+        ClientUpdateModel.model_validate(values),
+        actor='admin',
+    )
+    assert cleared.allowed_role_keys == []
+    assert cleared.policy_version == changed.policy_version + 1

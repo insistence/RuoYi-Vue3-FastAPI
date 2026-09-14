@@ -58,6 +58,7 @@ def generate_code_challenge(code_verifier: str) -> str:
     """
 
     verifier = validate_code_verifier(code_verifier)
+
     return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode('ascii')).digest()).rstrip(b'=').decode('ascii')
 
 

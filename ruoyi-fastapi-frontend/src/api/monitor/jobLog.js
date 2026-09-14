@@ -5,7 +5,7 @@ export function listJobLog(query) {
   return request({
     url: '/monitor/jobLog/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -13,7 +13,7 @@ export function listJobLog(query) {
 export function delJobLog(jobLogId) {
   return request({
     url: '/monitor/jobLog/' + jobLogId,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -21,6 +21,6 @@ export function delJobLog(jobLogId) {
 export function cleanJobLog() {
   return request({
     url: '/monitor/jobLog/clean',
-    method: 'delete'
+    method: 'delete',
   })
 }

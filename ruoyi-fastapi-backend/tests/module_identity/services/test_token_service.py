@@ -141,12 +141,15 @@ def _code_payload(**overrides: object) -> dict[str, object]:
 
 
 @pytest.mark.asyncio
-async def test_authorization_code_binds_client_redirect_and_pkce(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize('remembered', [True, False])
+async def test_authorization_code_binds_client_redirect_and_pkce(
+    monkeypatch: pytest.MonkeyPatch, remembered: bool
+) -> None:
     """验证 Code 兑换严格绑定 Client、Redirect URI 和 S256 verifier。"""
     monkeypatch.setattr(AuditService, 'record', AsyncMock())
     monkeypatch.setattr(AuditService, 'record_independent', AsyncMock())
     client = _client()
-    payload = _code_payload()
+    payload = _code_payload(grantId='grant-2001' if remembered else None)
     monkeypatch.setattr(
         'module_identity.service.token_service.OAuthClientDao.get_by_client_id',
         lambda db, client_id, active_only=True: _async_value(client),
@@ -171,7 +174,9 @@ async def test_authorization_code_binds_client_redirect_and_pkce(monkeypatch: py
 
     monkeypatch.setattr(TokenService, '_require_user_identity', identity)
     monkeypatch.setattr(TokenService, '_require_session', session)
-    monkeypatch.setattr(TokenService, '_require_grant', lambda *args, **kwargs: _async_value(SimpleNamespace()))
+    monkeypatch.setattr(
+        TokenService, '_require_grant', lambda *args, **kwargs: _async_value(SimpleNamespace() if remembered else None)
+    )
     monkeypatch.setattr(
         TokenService,
         '_validate_client_scope_resource',
@@ -199,7 +204,8 @@ async def test_authorization_code_binds_client_redirect_and_pkce(monkeypatch: py
         OAuthClientPrincipal('portal-client', 'public', 'none'),
     )
     assert isinstance(result, TokenResult)
-    assert result.access_token == 'access'
+    assert result.access_token == 'access' and result.id_token == 'id'
+    assert result.refresh_token is None
     assert await redis.get(f'oidc:authorization_code:{code.split(".")[1]}') is None
 
     with pytest.raises(OAuthProtocolException) as raised:
@@ -491,7 +497,14 @@ async def test_user_claims_load_real_roles_and_department_rows(monkeypatch: pyte
             SimpleNamespace(scope_pk=1, scope_code='roles', claims=['roles'], status='0'),
             SimpleNamespace(scope_pk=2, scope_code='dept', claims=['dept_id', 'dept_name'], status='0'),
         ]
-        bindings = [SimpleNamespace(scope_pk=1, claim_filter=None), SimpleNamespace(scope_pk=2, claim_filter=None)]
+        bindings = [
+            SimpleNamespace(
+                scope_pk=1, claim_filter={'claims': ['roles', 'dept_id', 'dept_name'], 'allowed_role_keys': ['admin']}
+            ),
+            SimpleNamespace(
+                scope_pk=2, claim_filter={'claims': ['roles', 'dept_id', 'dept_name'], 'allowed_role_keys': ['admin']}
+            ),
+        ]
         monkeypatch.setattr(
             'module_identity.service.token_service.OAuthClientDao.list_scope_bindings',
             lambda *args, **kwargs: _async_value(bindings),
@@ -708,7 +721,7 @@ async def test_refresh_concurrent_rotation_has_one_success_and_reuse_revoke(monk
     assert sum(isinstance(item, RefreshTokenReuseDetected) for item in results) == 1
     assert state['reuse'] == 1
     assert isinstance(state['mark_now'], datetime)
-    assert state['mark_now'].tzinfo is None
+    assert state['mark_now'].tzinfo is timezone.utc
 
 
 def _async_value(value: object) -> Any:

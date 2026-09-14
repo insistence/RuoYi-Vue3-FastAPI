@@ -1,6 +1,6 @@
 """OIDC Claim 服务行为测试。"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -33,7 +33,13 @@ def test_claim_builder_does_not_leak_local_identity_or_unapproved_contact() -> N
     claims = ClaimService.build_claims(
         user,
         {'openid', 'profile', 'email', 'phone', 'roles'},
-        {'openid': True, 'profile': ['name'], 'email': ['email'], 'phone': ['phone_number'], 'roles': ['roles']},
+        {
+            'openid': True,
+            'profile': ['name'],
+            'email': ['email'],
+            'phone': ['phone_number'],
+            'roles': {'claims': ['roles'], 'allowed_role_keys': ['admin', 'admin_key']},
+        },
         {'allowed_claims': ['sub', 'name', 'email', 'roles']},
     )
     assert claims == {'sub': 'stable-sub', 'name': 'Alice', 'email': 'alice@example.com', 'roles': ['admin']}
@@ -59,13 +65,17 @@ def test_openid_fails_closed_when_subject_or_sub_policy_is_missing(
 
 def test_updated_at_is_numeric_date_and_roles_are_role_keys() -> None:
     """本地更新时间输出 NumericDate，角色查询语句使用 role_key。"""
-    user = {'subject_id': 'stable-sub', 'update_time': datetime(1970, 1, 1, 0, 0, 1)}
+    user = {'subject_id': 'stable-sub', 'update_time': datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc)}
     claims = ClaimService.build_claims(
         user,
         {'openid', 'profile', 'roles'},
-        {'openid': True, 'profile': ['updated_at'], 'roles': ['roles']},
+        {
+            'openid': True,
+            'profile': ['updated_at'],
+            'roles': {'claims': ['roles'], 'allowed_role_keys': ['admin', 'admin_key']},
+        },
         ['sub', 'updated_at', 'roles'],
         roles=['admin_key'],
     )
-    assert claims['updated_at'] == int(datetime(1970, 1, 1, 0, 0, 1).timestamp())
+    assert claims['updated_at'] == int(datetime(1970, 1, 1, 0, 0, 1, tzinfo=timezone.utc).timestamp())
     assert claims['roles'] == ['admin_key']

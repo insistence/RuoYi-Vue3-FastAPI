@@ -4,8 +4,8 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from module_identity.dao._helpers import current_time
 from module_identity.entity.do.oauth_grant_do import SysOAuthRefreshToken
+from utils.time_util import TimezoneUtil
 
 
 class OAuthTokenDao:
@@ -22,8 +22,10 @@ class OAuthTokenDao:
         :param row: OAuth Refresh Token 对象
         :return: 已写入的 OAuth Refresh Token
         """
+
         db.add(row)
         await db.flush()
+
         return row
 
     @classmethod
@@ -38,10 +40,12 @@ class OAuthTokenDao:
         :param for_update: 是否锁定查询结果
         :return: OAuth Refresh Token，不存在时返回 None
         """
+
         query = select(SysOAuthRefreshToken).where(SysOAuthRefreshToken.token_id == token_id)
         if for_update:
             query = query.with_for_update()
         result = await db.execute(query)
+
         return result.scalars().first()
 
     @classmethod
@@ -56,10 +60,12 @@ class OAuthTokenDao:
         :param for_update: 是否锁定查询结果
         :return: OAuth Refresh Token，不存在时返回 None
         """
+
         query = select(SysOAuthRefreshToken).where(SysOAuthRefreshToken.token_hash == token_hash)
         if for_update:
             query = query.with_for_update()
         result = await db.execute(query)
+
         return result.scalars().first()
 
     @classmethod
@@ -71,12 +77,14 @@ class OAuthTokenDao:
         :param family_id: Token 家族标识
         :return: OAuth Refresh Token 序列
         """
+
         result = await db.execute(
             select(SysOAuthRefreshToken)
             .where(SysOAuthRefreshToken.family_id == family_id)
             .order_by(SysOAuthRefreshToken.issued_at)
             .with_for_update()
         )
+
         return result.scalars().all()
 
     @classmethod
@@ -88,7 +96,9 @@ class OAuthTokenDao:
         :param family_id: Token 家族标识
         :return: OAuth Refresh Token 家族是否活跃
         """
+
         rows = await cls.lock_family(db, family_id)
+
         return bool(rows) and not any(row.status in {'revoked', 'reuse_detected', 'family_revoked'} for row in rows)
 
     @classmethod
@@ -100,7 +110,9 @@ class OAuthTokenDao:
         :param sid: SSO Session 标识
         :return: SSO Session 关联的 Refresh Token 序列
         """
+
         result = await db.execute(select(SysOAuthRefreshToken).where(SysOAuthRefreshToken.sid == sid).with_for_update())
+
         return result.scalars().all()
 
     @classmethod
@@ -121,7 +133,8 @@ class OAuthTokenDao:
         :param now: 当前时间
         :return: 是否更新成功
         """
-        values: dict[str, object] = {'status': 'used', 'last_used_at': now or current_time()}
+
+        values: dict[str, object] = {'status': 'used', 'last_used_at': now or TimezoneUtil.utc_now()}
         if replaced_by_token_id is not None:
             values['replaced_by_token_id'] = replaced_by_token_id
         result = await db.execute(
@@ -129,6 +142,7 @@ class OAuthTokenDao:
             .where(SysOAuthRefreshToken.token_id == token_id, SysOAuthRefreshToken.status == 'active')
             .values(**values)
         )
+
         return bool(result.rowcount)
 
     @classmethod
@@ -141,12 +155,14 @@ class OAuthTokenDao:
         :param reason: 撤销或标记原因
         :return: 是否更新成功
         """
-        now = current_time()
+
+        now = TimezoneUtil.utc_now()
         result = await db.execute(
             update(SysOAuthRefreshToken)
             .where(SysOAuthRefreshToken.token_id == token_id)
             .values(status='reuse_detected', reuse_detected_at=now, revoked_at=now, revoke_reason=reason)
         )
+
         return bool(result.rowcount)
 
     @classmethod
@@ -169,8 +185,9 @@ class OAuthTokenDao:
         :param now: 当前时间
         :return: 已撤销的 OAuth Refresh Token 数量
         """
+
         await cls.lock_family(db, family_id)
-        current = now or current_time()
+        current = now or TimezoneUtil.utc_now()
         other_result = await db.execute(
             update(SysOAuthRefreshToken)
             .where(
@@ -185,6 +202,7 @@ class OAuthTokenDao:
             .where(SysOAuthRefreshToken.family_id == family_id, SysOAuthRefreshToken.token_id == offending_token_id)
             .values(status='reuse_detected', reuse_detected_at=current, revoked_at=current, revoke_reason=reason)
         )
+
         return (other_result.rowcount or 0) + (offending_result.rowcount or 0)
 
     @classmethod
@@ -197,14 +215,16 @@ class OAuthTokenDao:
         :param reason: 撤销或标记原因
         :return: 已撤销的 OAuth Refresh Token 数量
         """
+
         result = await db.execute(
             update(SysOAuthRefreshToken)
             .where(
                 SysOAuthRefreshToken.family_id == family_id, SysOAuthRefreshToken.status.not_in(['revoked', 'expired'])
             )
-            .values(status='revoked', revoked_at=current_time(), revoke_reason=reason)
+            .values(status='revoked', revoked_at=TimezoneUtil.utc_now(), revoke_reason=reason)
         )
         await db.flush()
+
         return result.rowcount or 0
 
     @classmethod
@@ -217,11 +237,13 @@ class OAuthTokenDao:
         :param reason: 撤销或标记原因
         :return: 已撤销的 OAuth Refresh Token 数量
         """
+
         result = await db.execute(
             update(SysOAuthRefreshToken)
             .where(SysOAuthRefreshToken.user_id == user_id, SysOAuthRefreshToken.status.not_in(['revoked', 'expired']))
-            .values(status='revoked', revoked_at=current_time(), revoke_reason=reason)
+            .values(status='revoked', revoked_at=TimezoneUtil.utc_now(), revoke_reason=reason)
         )
+
         return result.rowcount or 0
 
     @classmethod
@@ -237,15 +259,17 @@ class OAuthTokenDao:
         :param now: 当前时间
         :return: 已撤销的 OAuth Refresh Token 数量
         """
+
         result = await db.execute(
             update(SysOAuthRefreshToken)
             .where(
                 SysOAuthRefreshToken.user_id.in_(user_ids),
                 SysOAuthRefreshToken.status.not_in(['revoked', 'expired', 'reuse_detected']),
             )
-            .values(status='revoked', revoked_at=now or current_time(), revoke_reason=reason)
+            .values(status='revoked', revoked_at=now or TimezoneUtil.utc_now(), revoke_reason=reason)
         )
         await db.flush()
+
         return result.rowcount or 0
 
     @classmethod
@@ -256,13 +280,15 @@ class OAuthTokenDao:
         :param db: orm对象
         :return: 已过期的 OAuth Refresh Token 数量
         """
+
         result = await db.execute(
             update(SysOAuthRefreshToken)
             .where(
                 SysOAuthRefreshToken.status == 'active',
-                (SysOAuthRefreshToken.idle_expires_at <= current_time())
-                | (SysOAuthRefreshToken.absolute_expires_at <= current_time()),
+                (SysOAuthRefreshToken.idle_expires_at <= TimezoneUtil.utc_now())
+                | (SysOAuthRefreshToken.absolute_expires_at <= TimezoneUtil.utc_now()),
             )
             .values(status='expired')
         )
+
         return result.rowcount or 0

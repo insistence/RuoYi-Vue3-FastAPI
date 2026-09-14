@@ -32,6 +32,7 @@ def _actor(current_user: CurrentUserModel) -> str:
     :return: 安全截断后的用户名
     :raises ServiceException: 当前用户不可用
     """
+
     value = getattr(getattr(current_user, 'user', None), 'user_name', None)
     if not isinstance(value, str) or not value.strip():
         raise ServiceException(message='当前操作者不可用')
@@ -53,6 +54,7 @@ async def list_oidc_keys(
 ) -> Response:
     rows, total = await OidcKeyManagementService.list_page(query_db, status, page_num, page_size)
     readiness = await OidcRuntimeService.inspect_readiness(query_db)
+
     return ResponseUtil.success(rows=rows, dict_content={'total': total, **readiness.as_dict()})
 
 
@@ -72,6 +74,7 @@ async def rotate_oidc_key(
     request: Request,
 ) -> Response:
     result = await OidcKeyManagementService.rotate(query_db, payload, _actor(current_user))
+
     return ResponseUtil.success(msg='OIDC 签名密钥创建成功', data=result)
 
 
@@ -94,6 +97,7 @@ async def activate_oidc_key(
         query_db, kid, _actor(current_user), getattr(request.app.state, 'redis', None)
     )
     await OidcRuntimeService.refresh_readiness(request.app, query_db)
+
     return ResponseUtil.success(msg='OIDC 签名密钥已激活', data={'changed': result})
 
 
@@ -113,6 +117,7 @@ async def retire_oidc_key(
     request: Request,
 ) -> Response:
     result = await OidcKeyManagementService.retire(query_db, kid, _actor(current_user))
+
     return ResponseUtil.success(msg='OIDC 签名密钥已退役', data={'changed': result})
 
 
@@ -132,4 +137,5 @@ async def delete_oidc_key(
     request: Request,
 ) -> Response:
     result = await OidcKeyManagementService.delete(query_db, kid, _actor(current_user))
+
     return ResponseUtil.success(msg='OIDC 签名密钥已删除', data={'changed': result})

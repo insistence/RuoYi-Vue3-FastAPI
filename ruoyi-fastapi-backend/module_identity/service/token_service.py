@@ -15,7 +15,6 @@ from redis.exceptions import RedisError
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException
-from module_identity.dao._helpers import local_datetime
 from module_identity.dao.identity_user_dao import IdentityUserDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao
@@ -42,6 +41,7 @@ from module_identity.service.audit_service import AuditService
 from module_identity.service.authorization_service import AuthorizationCodeReuseError, AuthorizationCodeService
 from module_identity.service.identity_service import ClaimService, IdentitySubjectService
 from module_identity.service.key_service import KeyService, KeyServiceError
+from utils.time_util import TimezoneUtil
 
 if TYPE_CHECKING:
     from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
@@ -74,6 +74,7 @@ class TokenResult:
 
         :return: 固定为 OAuth 2.0 Bearer token 类型的字符串
         """
+
         return 'Bearer'
 
     def as_dict(self) -> dict[str, Any]:
@@ -82,6 +83,7 @@ class TokenResult:
 
         :return: 包含协议字段的字典
         """
+
         result: dict[str, Any] = {
             'access_token': self.access_token,
             'token_type': 'Bearer',
@@ -102,6 +104,7 @@ class TokenResult:
         :param key: 要读取的 Token Endpoint 响应字段名
         :return: 对应字段的 Access Token、有效期或可选令牌值
         """
+
         return self.as_dict()[key]
 
 
@@ -118,6 +121,7 @@ class RefreshTokenReuseDetected(OAuthProtocolException):
 
         :return: None
         """
+
         super().__init__('invalid_grant', 'The authorization grant is invalid or expired', 400)
 
 
@@ -153,6 +157,7 @@ class TokenService:
         :return: 已启用 Client 行和不可伪造的 Client Principal
         :raises OAuthProtocolException: Client 凭据无效时抛出 invalid_client
         """
+
         if authorization is not None and client_secret is not None:
             cls._invalid_client()
         lookup_id = client_id
@@ -176,6 +181,7 @@ class TokenService:
             :param secret_hash: 已匹配的持久化 Secret 哈希
             :return: None
             """
+
             nonlocal matched_secret_hash
             matched_secret_hash = secret_hash
 
@@ -223,6 +229,7 @@ class TokenService:
         :return: None
         :raises OAuthProtocolException: 撤销或审计无法安全持久化时抛出
         """
+
         try:
             consumed_payload = await AuthorizationCodeService.consumed_payload(redis, code, pepper=pepper)
             grant_id = consumed_payload.get('grantId') if consumed_payload else None
@@ -240,7 +247,7 @@ class TokenService:
             raise OAuthProtocolException('server_error', 'Token endpoint is unavailable', 500) from None
 
     @classmethod
-    async def authorization_code(
+    async def authorization_code(  # noqa: PLR0912
         cls,
         db: AsyncSession,
         redis: Redis,
@@ -266,7 +273,8 @@ class TokenService:
         :return: 标准 Token 结果
         :raises OAuthProtocolException: 任一授权绑定或安全状态无效时抛出统一错误
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         parsed = cls._request(request)
         if parsed.get('grant_type') != 'authorization_code':
             cls._invalid_request()
@@ -326,7 +334,8 @@ class TokenService:
             list(code_payload['resources']),
             current,
         )
-        grant.last_used_at = current
+        if grant is not None:
+            grant.last_used_at = current
         scopes, resources, resource = await cls._validate_client_scope_resource(
             db, client_row, list(code_payload['scopes']), list(code_payload['resources'])
         )
@@ -386,6 +395,7 @@ class TokenService:
             sid=session.sid,
             grant_id=getattr(grant, 'grant_id', None),
         )
+
         return TokenResult(access_token, expires_in, refresh_token, ' '.join(scopes), id_token)
 
     @classmethod
@@ -414,7 +424,8 @@ class TokenService:
         :raises OAuthProtocolException: Token 无效、过期、重放或绑定状态失效
         :raises RefreshTokenReuseDetected: 检测到 Refresh Token 重放
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         parsed = cls._request(request)
         if parsed.get('grant_type') != 'refresh_token' or not isinstance(parsed.get('refresh_token'), str):
             cls._invalid_request()
@@ -451,13 +462,15 @@ class TokenService:
                 )
                 raise RefreshTokenReuseDetected
             cls._invalid_grant()
-        idle_expires = cls._local_datetime(row.idle_expires_at)
-        absolute_expires = cls._local_datetime(row.absolute_expires_at)
+        idle_expires = cls._utc_datetime(row.idle_expires_at)
+        absolute_expires = cls._utc_datetime(row.absolute_expires_at)
         if idle_expires is None or absolute_expires is None or idle_expires <= current or absolute_expires <= current:
             row.status = 'expired'
             cls._invalid_grant()
         user, subject = await cls._require_user_identity(db, row.user_id, row.subject_id, row.auth_version)
-        session = await cls._require_session(db, row.sid, row.user_id, row.subject_id, row.auth_version, current)
+        session = await cls._require_session(
+            db, row.sid, row.user_id, row.subject_id, row.auth_version, current, allow_offline=True
+        )
         grant = await cls._require_grant(
             db, row.grant_id, row.user_id, row.client_pk, row.scopes, row.resources, current
         )
@@ -473,19 +486,7 @@ class TokenService:
         )
         new_token = generate_refresh_token()
         new_opaque = parse_opaque_token(new_token, 'rt1')
-        if not await OAuthTokenDao.mark_used(db, row.token_id, new_opaque.token_id, now=current):
-            await OAuthTokenDao.refresh_token_family_reuse(db, row.family_id, row.token_id, now=current)
-            await AuditService.record(
-                db,
-                OidcAuditEvent.REFRESH_REUSE_DETECTED,
-                'failure',
-                risk_level='high',
-                client_id=client_row.client_id,
-                subject_id=row.subject_id,
-                sid=row.sid,
-                token_id=row.token_id,
-            )
-            raise RefreshTokenReuseDetected
+        # 先写入后继令牌，再更新即时校验的自引用外键
         new_refresh = await cls._create_refresh_token(
             db,
             client_row,
@@ -502,6 +503,19 @@ class TokenService:
             parent_token_id=row.token_id,
             absolute_expires_at=absolute_expires,
         )
+        if not await OAuthTokenDao.mark_used(db, row.token_id, new_opaque.token_id, now=current):
+            await OAuthTokenDao.refresh_token_family_reuse(db, row.family_id, row.token_id, now=current)
+            await AuditService.record(
+                db,
+                OidcAuditEvent.REFRESH_REUSE_DETECTED,
+                'failure',
+                risk_level='high',
+                client_id=client_row.client_id,
+                subject_id=row.subject_id,
+                sid=row.sid,
+                token_id=row.token_id,
+            )
+            raise RefreshTokenReuseDetected
         access_token, expires_in = await cls._issue_access_token(
             db,
             client_row,
@@ -525,6 +539,7 @@ class TokenService:
             sid=session.sid,
             grant_id=grant.grant_id,
         )
+
         return TokenResult(access_token, expires_in, new_refresh, ' '.join(scopes))
 
     @classmethod
@@ -550,7 +565,8 @@ class TokenService:
         :return: 不包含 Refresh/ID Token 的机器 Token 结果
         :raises OAuthProtocolException: Client、Scope 或 Resource 策略无效时抛出
         """
-        current = cls._local_datetime(now) or datetime.now()
+
+        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         parsed = cls._request(request)
         if parsed.get('grant_type') != 'client_credentials':
             cls._invalid_request()
@@ -614,6 +630,7 @@ class TokenService:
         :return: 包含 Access Token 及有效期的 Token Endpoint 响应对象
         :raises AssertionError: 内部令牌状态不满足签发条件
         """
+
         if not isinstance(client, OAuthClientPrincipal):
             cls._invalid_client()
         grant_type = request.grant_type if isinstance(request, TokenRequest) else request.get('grant_type')
@@ -647,10 +664,11 @@ class TokenService:
         :raises RefreshTokenReuseDetected: Family 撤销已写入但需映射为 invalid_grant
         :raises OAuthProtocolException: 业务失败且事务已回滚
         """
+
         try:
             result = await cls.issue_token(db, redis, request, client, **kwargs)
         except (RefreshTokenReuseDetected, AuthorizationCodeReuseError):
-            # Token replay is a security event: revocation and audit state must be durable
+            # 令牌重放属于安全事件，撤销状态和审计记录必须持久化
             try:
                 await db.commit()
             except Exception:
@@ -664,6 +682,7 @@ class TokenService:
             await db.rollback()
             raise
         await db.commit()
+
         return result
 
     @classmethod
@@ -690,6 +709,7 @@ class TokenService:
         :param kwargs: 传给令牌签发流程的可选参数
         :return: 标准 Token 领域结果
         """
+
         try:
             _, principal = await cls.authenticate_client(
                 db,
@@ -736,6 +756,7 @@ class TokenService:
         :param now: 生成 JWT 的 项目当前时间
         :return: 签名后的 JWT Access Token 文本及其有效秒数
         """
+
         ttl = cls._access_ttl(client, resource)
         claims = await cls._user_claims(db, client, user, subject, scopes, resource)
         auth_time = cls._numeric_time(session.auth_time)
@@ -797,6 +818,7 @@ class TokenService:
         :param now: 生成 JWT 的 项目当前时间
         :return: 签名后的 OIDC ID Token JWT 文本
         """
+
         ttl = cls._id_ttl(client)
         resource = None
         claims = await cls._user_claims(db, client, user, subject, scopes, resource)
@@ -842,6 +864,7 @@ class TokenService:
         :param resource: 目标 OAuth Resource ORM，或 None（ID Token 不绑定资源）
         :return: 按 Scope 策略生成的 OIDC 用户声明字典
         """
+
         policy, allowed = await ClaimService.resolve_scope_policy(
             db,
             client.client_pk,
@@ -858,6 +881,7 @@ class TokenService:
             roles=roles,
             department=department,
         )
+
         return claims
 
     @classmethod
@@ -898,6 +922,7 @@ class TokenService:
         :param absolute_expires_at: 轮换族已有的绝对过期时间，或 None
         :return: 新建 opaque Refresh Token 文本
         """
+
         raw = token or generate_refresh_token()
         parsed = parse_opaque_token(raw, 'rt1')
         pepper = cls._token_pepper(token_pepper)
@@ -923,6 +948,7 @@ class TokenService:
             absolute_expires_at=absolute,
         )
         await OAuthTokenDao.create(db, row)
+
         return raw
 
     @classmethod
@@ -945,6 +971,7 @@ class TokenService:
         :param machine_only: 是否限制为 resource 类型的机器 Scope
         :return: 去重后的 Scope code 列表、Resource audience 列表及匹配的 Resource ORM
         """
+
         if len(resources) > cls._MAX_RESOURCE_COUNT or len(set(scopes)) != len(scopes):
             cls._invalid_scope()
         bindings = await OAuthClientDao.list_scope_bindings(db, client.client_pk)
@@ -997,6 +1024,7 @@ class TokenService:
         :param now: 检查 Grant 过期状态的 项目当前时间
         :return: 匹配请求范围的授权 Grant，未找到时返回 None
         """
+
         if grant_id is None:
             return None
         if not isinstance(grant_id, str):
@@ -1010,7 +1038,7 @@ class TokenService:
             or grant.client_pk != client_pk
             or grant.status != cls._ACTIVE_GRANT_STATUS
             or grant.client_policy_version != client.policy_version
-            or (grant.expires_at is not None and cls._local_datetime(grant.expires_at) <= now)
+            or (grant.expires_at is not None and cls._utc_datetime(grant.expires_at) <= now)
             or not set(scopes).issubset(set(grant.granted_scopes or []))
             or not set(resources).issubset(set(grant.granted_resources or []))
         ):
@@ -1030,6 +1058,7 @@ class TokenService:
         :param auth_version: 必须与用户 Subject 和 SSO Session 一致的认证版本
         :return: 通过状态、删除标记及认证版本校验的系统用户 ORM 与 Subject ORM
         """
+
         user = await IdentityUserDao.get_user(db, user_id)
         try:
             subject = await IdentitySubjectService.require_by_user_id(
@@ -1058,7 +1087,15 @@ class TokenService:
 
     @classmethod
     async def _require_session(
-        cls, db: AsyncSession, sid: str, user_id: int, subject_id: str, auth_version: int, now: datetime
+        cls,
+        db: AsyncSession,
+        sid: str,
+        user_id: int,
+        subject_id: str,
+        auth_version: int,
+        now: datetime,
+        *,
+        allow_offline: bool = False,
     ) -> SysSsoSession:
         """
         加载并验证关联的 SSO Session
@@ -1069,12 +1106,14 @@ class TokenService:
         :param subject_id: 必须与 Session 绑定一致的身份 Subject 标识
         :param auth_version: 必须与 Session 绑定一致的认证版本
         :param now: 检查 Session active 和过期状态的 项目当前时间
+        :param allow_offline: 是否允许自然过期但未撤销的SSO会话继续离线续期
         :return: 与用户身份和 Token 绑定一致的 SSO Session
         """
-        session = await SsoSessionDao.get_active(db, sid, for_update=False, now=now)
+
+        session = await SsoSessionDao.get_for_token(db, sid, now=now, allow_offline=allow_offline)
         if (
             session is None
-            or session.status != cls._ACTIVE_SESSION_STATUS
+            or session.status not in ({'active', 'expired'} if allow_offline else {'active'})
             or session.user_id != user_id
             or session.subject_id != subject_id
             or session.auth_version != auth_version
@@ -1091,6 +1130,7 @@ class TokenService:
         :param client: 已认证的 OAuthClientPrincipal 主体
         :return: 通过 active 状态、Client 类型及认证方式校验的 OAuth Client ORM
         """
+
         if not isinstance(client, OAuthClientPrincipal):
             cls._invalid_client()
         row = await OAuthClientDao.get_by_client_id(db, client.client_id, active_only=True)
@@ -1120,6 +1160,7 @@ class TokenService:
         :param now: 读取 active OIDC 签名密钥的 项目当前时间
         :return: 用于 JWT 签名的 RSA 私钥及其 Key ID
         """
+
         if signing_key is not None:
             if not isinstance(kid, str) or not kid:
                 cls._server_error()
@@ -1146,6 +1187,7 @@ class TokenService:
         :param resource: 目标 OAuth Resource ORM，或 None
         :return: Access Token 有效秒数（取 Client、Resource 与 OIDC 上限的最小值）
         """
+
         values: list[int] = []
         if client.access_token_ttl_seconds is not None:
             values.append(client.access_token_ttl_seconds)
@@ -1169,6 +1211,7 @@ class TokenService:
         :return: OIDC ID Token 的有效秒数
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         value = OidcConfig.oidc_id_token_ttl_seconds
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise OAuthProtocolException('server_error', 'Token policy is unavailable', 500)
@@ -1183,6 +1226,7 @@ class TokenService:
         :return: Refresh Token 空闲有效秒数（不超过 OIDC 配置上限）
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         value = client.refresh_token_idle_seconds
         if value is None:
             value = OidcConfig.oidc_refresh_token_idle_seconds
@@ -1202,6 +1246,7 @@ class TokenService:
         :return: Refresh Token 绝对有效秒数（不超过 OIDC 配置上限）
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         value = client.refresh_token_absolute_seconds
         if value is None:
             value = OidcConfig.oidc_refresh_token_absolute_seconds
@@ -1220,6 +1265,7 @@ class TokenService:
         :param request: TokenRequest 实例或包含 Token Endpoint 字段的映射
         :return: 用于 Grant Type 分派的已验证 Token Endpoint 字段字典
         """
+
         if isinstance(request, TokenRequest):
             return request.model_dump()
         if isinstance(request, Mapping):
@@ -1228,6 +1274,7 @@ class TokenService:
             except ValidationError:
                 cls._invalid_request()
         cls._invalid_request()
+
         return {}
 
     @staticmethod
@@ -1238,6 +1285,7 @@ class TokenService:
         :param value: DAO 返回的 JSON Scope 或 Resource 字段值
         :return: 当值为 list/tuple 时复制出的列表，否则为空列表
         """
+
         return list(value) if isinstance(value, (list, tuple)) else []
 
     @staticmethod
@@ -1248,6 +1296,7 @@ class TokenService:
         :param override: 覆盖配置
         :return: 用于令牌摘要计算的 Pepper 文本或字节串
         """
+
         value = OidcConfig.oidc_token_hash_pepper if override is None else override
         if not isinstance(value, (str, bytes)):
             TokenService._server_error()
@@ -1265,6 +1314,7 @@ class TokenService:
         :param fallback: 请求未提供 scope 时使用的已持久化 Scope code 序列
         :return: 去重校验后的 Scope code 字符串列表
         """
+
         raw = fallback if value is None else value.split() if isinstance(value, str) else value
         if not isinstance(raw, (list, tuple)) or not raw or any(not isinstance(item, str) or not item for item in raw):
             cls._invalid_scope()
@@ -1281,6 +1331,7 @@ class TokenService:
         :param fallback: 请求未提供 resource 时使用的已持久化 audience 序列
         :return: 通过单 Resource 限制校验的 audience 字符串列表
         """
+
         raw = fallback if value is None else [value] if isinstance(value, str) else value
         if not isinstance(raw, (list, tuple)) or len(raw) > cls._MAX_RESOURCE_COUNT:
             cls._invalid_scope()
@@ -1289,14 +1340,15 @@ class TokenService:
         return list(raw)
 
     @staticmethod
-    def _local_datetime(value: datetime | None) -> datetime | None:
+    def _utc_datetime(value: datetime | None) -> datetime | None:
         """
         将输入时间统一转换为项目时间
 
-        :param value: 可能为 naive 或带时区的 datetime 输入
-        :return: 本地无时区 datetime；输入为 None 时返回 None
+        :param value: 携带时区的 datetime 输入
+        :return: 带时区的 UTC datetime；输入为 None 时返回 None
         """
-        return local_datetime(value)
+
+        return TimezoneUtil.to_utc(value) if value is not None else None
 
     @staticmethod
     def _numeric_time(value: datetime | None) -> int:
@@ -1306,7 +1358,8 @@ class TokenService:
         :param value: 认证时间等需要编码进 JWT claim 的 datetime，或 None
         :return: Unix 整数时间戳
         """
-        current = TokenService._local_datetime(value)
+
+        current = TokenService._utc_datetime(value)
         if current is None:
             TokenService._server_error()
         return int(current.timestamp())
@@ -1320,8 +1373,10 @@ class TokenService:
         :param resources: 已校验的 Resource audience 字符串序列
         :return: 包含 userinfo audience 和 Resource audience 的去重列表
         """
+
         result = [f'{issuer.rstrip("/")}{TokenService._USERINFO_AUDIENCE_SUFFIX}']
         result.extend(resources)
+
         return list(dict.fromkeys(result))
 
     @staticmethod
@@ -1332,7 +1387,9 @@ class TokenService:
         :param access_token: 待计算 OIDC at_hash 的 ASCII JWT Access Token 文本
         :return: SHA-256 前 128 bit 摘要的无填充 Base64URL 字符串
         """
+
         digest = hashlib.sha256(access_token.encode('ascii')).digest()[:16]
+
         return base64.urlsafe_b64encode(digest).rstrip(b'=').decode('ascii')
 
     @staticmethod
@@ -1345,6 +1402,7 @@ class TokenService:
         :return: None
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         if isinstance(error, OAuthProtocolException):
             raise OAuthProtocolException(error.error, 'The authorization grant is invalid or expired', 400) from None
         raise OAuthProtocolException(fallback, 'The authorization grant is invalid or expired', 400) from None
@@ -1357,6 +1415,7 @@ class TokenService:
         :return: None
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         raise OAuthProtocolException('invalid_request', 'Invalid token request', 400)
 
     @staticmethod
@@ -1367,6 +1426,7 @@ class TokenService:
         :return: None
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         raise OAuthProtocolException('invalid_client', 'Client authentication failed', 401)
 
     @staticmethod
@@ -1377,6 +1437,7 @@ class TokenService:
         :return: None
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         raise OAuthProtocolException('invalid_grant', 'The authorization grant is invalid or expired', 400)
 
     @staticmethod
@@ -1387,6 +1448,7 @@ class TokenService:
         :return: None
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         raise OAuthProtocolException('invalid_scope', 'Requested scope is not authorized', 400)
 
     @staticmethod
@@ -1397,4 +1459,5 @@ class TokenService:
         :return: None
         :raises OAuthProtocolException: 请求不符合 OAuth 协议约束
         """
+
         raise OAuthProtocolException('server_error', 'Token issuance is unavailable', 500)
