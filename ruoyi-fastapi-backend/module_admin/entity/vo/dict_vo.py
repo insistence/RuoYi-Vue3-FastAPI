@@ -40,9 +40,14 @@ class DictTypeModel(BaseModel):
     def get_dict_type(self) -> str | None:
         return self.dict_type
 
+    @Size(field_name='remark', min_length=0, max_length=500, message='备注长度不能超过500个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_dict_name()
         self.get_dict_type()
+        self.get_remark()
 
 
 class DictDataModel(BaseModel):
@@ -86,11 +91,16 @@ class DictDataModel(BaseModel):
     def get_css_class(self) -> str | None:
         return self.css_class
 
+    @Size(field_name='remark', min_length=0, max_length=500, message='备注长度不能超过500个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_dict_label()
         self.get_dict_value()
         self.get_dict_type()
         self.get_css_class()
+        self.get_remark()
 
 
 class DictTypeQueryModel(DateRangeQueryMixin, DictTypeModel):

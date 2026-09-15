@@ -61,6 +61,10 @@ class MenuModel(BaseModel):
     def get_perms(self) -> str | None:
         return self.perms
 
+    @Size(field_name='remark', min_length=0, max_length=500, message='备注长度不能超过500个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_menu_name()
         self.get_order_num()
@@ -68,6 +72,7 @@ class MenuModel(BaseModel):
         self.get_component()
         self.get_menu_type()
         self.get_perms()
+        self.get_remark()
 
 
 class MenuQueryModel(DateRangeQueryMixin, MenuModel):
