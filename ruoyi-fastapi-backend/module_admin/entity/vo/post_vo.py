@@ -40,10 +40,15 @@ class PostModel(BaseModel):
     def get_post_sort(self) -> int | None:
         return self.post_sort
 
+    @Size(field_name='remark', min_length=0, max_length=500, message='备注长度不能超过500个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_post_code()
         self.get_post_name()
         self.get_post_sort()
+        self.get_remark()
 
 
 class PostQueryModel(DateRangeQueryMixin, PostModel):

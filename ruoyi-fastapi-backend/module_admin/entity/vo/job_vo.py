@@ -112,9 +112,14 @@ class JobModel(BaseModel):
     def get_cron_expression(self) -> str | None:
         return self.cron_expression
 
+    @Size(field_name='remark', min_length=0, max_length=500, message='备注长度不能超过500个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_invoke_target()
         self.get_cron_expression()
+        self.get_remark()
 
 
 class JobPreviewRequest(BaseModel):

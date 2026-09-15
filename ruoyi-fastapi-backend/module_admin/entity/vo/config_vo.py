@@ -41,10 +41,15 @@ class ConfigModel(BaseModel):
     def get_config_value(self) -> str | None:
         return self.config_value
 
+    @Size(field_name='remark', min_length=0, max_length=500, message='备注长度不能超过500个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_config_key()
         self.get_config_name()
         self.get_config_value()
+        self.get_remark()
 
 
 class ConfigQueryModel(DateRangeQueryMixin, ConfigModel):
