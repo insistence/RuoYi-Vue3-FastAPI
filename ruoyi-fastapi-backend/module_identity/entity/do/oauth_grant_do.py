@@ -5,6 +5,34 @@ from config.database import Base
 from utils.time_util import TimezoneUtil
 
 
+class SysOAuthAccessPolicy(Base):
+    """
+    用户与 OAuth Client 的访问控制表
+    """
+
+    __tablename__ = 'sys_oauth_access_policy'
+    __table_args__ = ({'comment': 'OAuth 用户应用访问控制'},)
+
+    user_id = Column(
+        BigInteger,
+        ForeignKey('sys_user.user_id', name='fk_oauth_access_user', ondelete='RESTRICT'),
+        primary_key=True,
+        nullable=False,
+        comment='用户ID',
+    )
+    client_pk = Column(
+        BigInteger,
+        ForeignKey('sys_oauth_client.client_pk', name='fk_oauth_access_client', ondelete='RESTRICT'),
+        primary_key=True,
+        nullable=False,
+        comment='Client 主键',
+    )
+    access_status = Column(String(16), nullable=False, server_default='allowed', comment='allowed允许 blocked禁止')
+    reason = Column(String(200), nullable=True, comment='访问控制原因')
+    update_by = Column(String(64), nullable=False, comment='操作人')
+    update_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='操作时间')
+
+
 class SysOAuthGrant(Base):
     """
     OAuth授权记录表

@@ -6,6 +6,8 @@ from types import SimpleNamespace
 import pytest
 
 from config.env import OidcConfig
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
+from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.security.opaque_token import token_digest
 from module_identity.security.principal import OAuthClientPrincipal
 from module_identity.service.token_protocol_service import IntrospectionService
@@ -250,16 +252,14 @@ async def test_access_user_state_rejects_each_real_time_failure(
     )
     monkeypatch.setattr('module_identity.service.token_protocol_service.IdentityUserDao.get_user', _lookup(user))
     monkeypatch.setattr('module_identity.service.token_protocol_service.SsoSessionDao.get_active', _lookup(session))
-    monkeypatch.setattr(
-        IntrospectionService,
-        '_find_grant',
-        lambda *_args, **_kwargs: _lookup(None)() if invalid_state == 'grant' else _lookup(object())(),
-    )
+    monkeypatch.setattr(OAuthAccessPolicyDao, 'is_blocked', _lookup(False))
+    monkeypatch.setattr(OAuthGrantDao, 'get_by_grant_id', _lookup(None))
     claims = {
         'sub': 'subject-a',
         'ver': 3,
         'sid': 'sid-a',
         'scope': 'api.read',
+        'grant_id': 'grant-a',
     }
 
     assert not await IntrospectionService._access_user_state(
@@ -328,6 +328,7 @@ async def test_refresh_introspection_rechecks_identity_session_grant_and_resourc
     monkeypatch: pytest.MonkeyPatch, session_auth_version: int
 ) -> None:
     """Refresh 内省成功前重新检查用户版本、Session、Grant 和 Resource。"""
+    monkeypatch.setattr(OAuthAccessPolicyDao, 'is_blocked', _lookup(False))
 
     caller = _client()
     client = _client()

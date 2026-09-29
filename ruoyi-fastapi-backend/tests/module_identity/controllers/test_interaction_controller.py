@@ -192,6 +192,10 @@ async def test_login_and_complete_real_interaction_lifecycle(monkeypatch: pytest
         auth_time=None,
         remember_me=False,
     )
+    monkeypatch.setattr(
+        'module_identity.service.authorization_service.AuthorizationService._completion_grant',
+        AsyncMock(return_value=SimpleNamespace(grant_id='grant-1')),
+    )
 
     async def authenticate(*args: object, **kwargs: object) -> CredentialAuthenticationResult:
         return result
@@ -527,6 +531,7 @@ async def test_consent_commit_then_redis_cas_failure_compensates_persisted_grant
         grant_id=grant.grant_id,
         user_id=grant.user_id,
         subject_id=grant.subject_id,
+        client_pk=1,
         granted_scopes=('openid', 'profile'),
         granted_resources=(),
         client_policy_version=1,
@@ -791,6 +796,10 @@ async def test_code_audit_failure_invalidates_code_and_marker(monkeypatch: pytes
         'active_session',
         lambda *_args, **_kwargs: _async(session),
     )
+    monkeypatch.setattr(
+        'module_identity.service.authorization_service.AuthorizationService._completion_grant',
+        AsyncMock(return_value=SimpleNamespace(grant_id='grant-1')),
+    )
 
     async def audit_failure(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError('audit unavailable')
@@ -839,6 +848,10 @@ async def test_code_invalidate_failure_still_cleans_marker_and_rolls_back(monkey
     assert raised.value.error == 'server_error'
     assert await redis.get(marker) is None
     assert db.rollbacks == 1
+    monkeypatch.setattr(
+        'module_identity.service.authorization_service.AuthorizationService._completion_grant',
+        AsyncMock(return_value=SimpleNamespace(grant_id='grant-1')),
+    )
 
 
 def _async(value: object) -> Any:

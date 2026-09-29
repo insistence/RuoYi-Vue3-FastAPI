@@ -3,10 +3,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import OidcAuditEvent
 from exceptions.exception import ServiceException
+from module_identity.dao.identity_user_dao import IdentityUserDao
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.dao.sso_session_dao import SsoSessionDao
-from module_identity.entity.do.oauth_grant_do import SysOAuthGrant, SysSsoSession
+from module_identity.entity.do.oauth_grant_do import SysOAuthAccessPolicy, SysOAuthGrant, SysSsoSession
 from module_identity.entity.vo.oauth_session_vo import (
     GrantModel,
     GrantPageQueryModel,
@@ -52,12 +54,13 @@ class OAuthSessionManagementService:
         )
 
     @staticmethod
-    def grant_view(row: SysOAuthGrant, client_id: str | None) -> GrantModel:
+    def grant_view(row: SysOAuthGrant, client_id: str | None, policy: SysOAuthAccessPolicy | None = None) -> GrantModel:
         """
         将 OAuth Grant ORM 记录转换为 GrantModel
 
         :param row: OAuth Grant ORM 记录
         :param client_id: 客户端标识
+        :param policy: 当前用户对应用的独立访问策略
         :return: Grant 管理视图
         """
 
@@ -68,6 +71,10 @@ class OAuthSessionManagementService:
             client_id=client_id or '',
             granted_scopes=list(row.granted_scopes or []),
             granted_resources=list(row.granted_resources or []),
+            remembered_scopes=list(getattr(row, 'remembered_scopes', None) or []),
+            remembered_resources=list(getattr(row, 'remembered_resources', None) or []),
+            access_status=policy.access_status if policy else 'allowed',
+            access_reason=policy.reason if policy else None,
             status=row.status,
             client_policy_version=getattr(row, 'client_policy_version', None),
             consented_at=row.consented_at,
@@ -139,14 +146,26 @@ class OAuthSessionManagementService:
             user_id=query.user_id,
             client_id=query.client_id,
             status=query.status,
+            access_status=query.access_status,
             offset=(query.page_num - 1) * query.page_size,
             limit=query.page_size,
         )
-        total = await OAuthGrantDao.count(db, user_id=query.user_id, client_id=query.client_id, status=query.status)
+        total = await OAuthGrantDao.count(
+            db, user_id=query.user_id, client_id=query.client_id, status=query.status, access_status=query.access_status
+        )
         keys = {int(row.client_pk) for row in rows}
         mapping = await OAuthClientDao.id_map(db, list(keys))
 
-        return [OAuthSessionManagementService.grant_view(row, mapping.get(int(row.client_pk))) for row in rows], total
+        policies = {
+            (row.user_id, row.client_pk): row
+            for row in await OAuthAccessPolicyDao.list_for_grants(db, [(row.user_id, row.client_pk) for row in rows])
+        }
+        return [
+            OAuthSessionManagementService.grant_view(
+                row, mapping.get(int(row.client_pk)), policies.get((row.user_id, row.client_pk))
+            )
+            for row in rows
+        ], total
 
     @staticmethod
     async def get_grant(db: AsyncSession, grant_id: str) -> GrantModel | None:
@@ -163,7 +182,8 @@ class OAuthSessionManagementService:
             return None
         client_id = await OAuthClientDao.id_for_pk(db, row.client_pk)
 
-        return OAuthSessionManagementService.grant_view(row, client_id)
+        policy = await OAuthAccessPolicyDao.get(db, row.user_id, row.client_pk)
+        return OAuthSessionManagementService.grant_view(row, client_id, policy)
 
     @staticmethod
     async def revoke_user(db: AsyncSession, redis: Redis, user_id: int, actor: str, reason: str) -> int:
@@ -231,10 +251,10 @@ class OAuthSessionManagementService:
     @staticmethod
     async def revoke_grants(db: AsyncSession, grant_ids: list[str], actor: str, reason: str) -> int:
         """
-        按 grant_id 集合撤销 OAuth Grant
+        撤销选中记录所属用户对应用的全部现有授权
 
         :param db: 异步数据库会话
-        :param grant_ids: 待撤销的 Grant 标识集合
+        :param grant_ids: 用于确定用户和应用的 Grant 标识集合
         :param actor: 操作人标识
         :param reason: 撤销原因
         :return: 实际撤销的 Grant 数量
@@ -243,17 +263,75 @@ class OAuthSessionManagementService:
 
         try:
             count = 0
-            for grant_id in grant_ids:
-                count += int(await OAuthGrantDao.revoke(db, grant_id, reason=reason))
-                await AuditService.record(
-                    db,
-                    OidcAuditEvent.GRANT_REVOKED,
-                    'success',
-                    grant_id=grant_id,
-                    detail={'actor': actor, 'reason': reason},
-                )
+            for client_pk, user_id in await OAuthGrantDao.targets(db, grant_ids):
+                await OAuthAccessPolicyDao.lock_client(db, client_pk)
+                revoked = await OAuthGrantDao.revoke_for_user_client(db, user_id, client_pk, reason)
+                client_id = await OAuthClientDao.id_for_pk(db, client_pk)
+                for grant_id in revoked:
+                    await AuditService.record(
+                        db,
+                        OidcAuditEvent.GRANT_REVOKED,
+                        'success',
+                        client_id=client_id,
+                        user_id=user_id,
+                        grant_id=grant_id,
+                        detail={'actor': actor, 'reason': reason},
+                    )
+                count += len(revoked)
             await db.commit()
             return count
         except Exception as exc:
             await db.rollback()
             raise ServiceException(message='批量撤销 Grant 失败') from exc
+
+    @staticmethod
+    async def set_access(db: AsyncSession, user_id: int, client_id: str, blocked: bool, actor: str, reason: str) -> int:
+        """
+        更新用户对应用的访问策略，禁止时撤销全部授权，解除时保留撤销状态
+
+        :param db: 异步数据库会话
+        :param user_id: 用户编号
+        :param client_id: Client 公开标识
+        :param blocked: 是否禁止访问
+        :param actor: 操作人标识
+        :param reason: 操作原因
+        :return: 本次撤销的授权数量
+        :raises ServiceException: 用户或应用不存在，或事务失败
+        """
+
+        try:
+            client = await OAuthClientDao.get_by_client_id(db, client_id)
+            user = await IdentityUserDao.get_user(db, user_id)
+            if client is None or user is None or user.del_flag != '0':
+                raise ServiceException(message='用户或应用不存在')
+            await OAuthAccessPolicyDao.lock_client(db, client.client_pk)
+            await OAuthAccessPolicyDao.set_status(db, user_id, client.client_pk, blocked, actor, reason)
+            revoked = (
+                await OAuthGrantDao.revoke_for_user_client(db, user_id, client.client_pk, reason) if blocked else []
+            )
+            for grant_id in revoked:
+                await AuditService.record(
+                    db,
+                    OidcAuditEvent.GRANT_REVOKED,
+                    'success',
+                    client_id=client_id,
+                    user_id=user_id,
+                    grant_id=grant_id,
+                    detail={'actor': actor, 'reason': reason},
+                )
+            await AuditService.record(
+                db,
+                OidcAuditEvent.CLIENT_ACCESS_BLOCKED if blocked else OidcAuditEvent.CLIENT_ACCESS_ALLOWED,
+                'success',
+                client_id=client_id,
+                user_id=user_id,
+                detail={'actor': actor, 'reason': reason},
+            )
+            await db.commit()
+            return len(revoked)
+        except ServiceException:
+            await db.rollback()
+            raise
+        except Exception as exc:
+            await db.rollback()
+            raise ServiceException(message='更新用户应用访问策略失败') from exc

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException, OidcInteractionException
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao, OAuthGrantSnapshot
 from module_identity.entity.do.oauth_grant_do import SysOAuthGrant
@@ -30,7 +31,7 @@ class ConsentResult:
 
     :ivar approved: 是否批准授权
     :ivar scopes: 服务端从原请求范围内收敛后的 Scope
-    :ivar grant: 记住同意或离线访问创建的可撤销 Grant
+    :ivar grant: 本次同意关联的可撤销 Grant
     """
 
     approved: bool
@@ -45,7 +46,7 @@ class ConsentService:
     授权同意模块服务层
 
     用户提交只能取消原始请求中的可选 Scope，不能增加 Scope，也不能取消服务端必需 Scope
-    Grant 撤销只更新 Grant 本身，Token/Session 联动由后续 Logout/Token 服务负责
+    每次同意均保存可撤销 Grant，记住同意仅控制后续是否需要再次确认
     """
 
     @staticmethod
@@ -118,13 +119,13 @@ class ConsentService:
         subject_id: str | None = None,
     ) -> ConsentResult:
         """
-        处理授权确认并按需写入 Persistent Grant
+        处理授权确认并写入可撤销 Grant
 
         :param db: 异步数据库会话
         :param context: 已完成协议校验的授权上下文
         :param approved: 用户是否批准授权
         :param scopes: 用户提交的 Scope 集合
-        :param remember_consent: 是否在后续请求复用本次同意；offline_access 总是保存可撤销授权
+        :param remember_consent: 是否在后续请求复用本次同意，不影响授权记录的保存
         :param user_id: 持久化 Grant 所需的本地用户 ID
         :param subject_id: 持久化 Grant 所需的稳定 Subject
         :return: 授权处理结果
@@ -133,25 +134,23 @@ class ConsentService:
         """
 
         selected_scopes = cls.validate_submission(context, approved, scopes)
-        grant = None
-        previous_grant = None
-        if remember_consent or 'offline_access' in selected_scopes:
-            if user_id is None or subject_id is None:
-                raise ValueError('user_id and subject_id are required for a persisted grant')
-            current = await OAuthGrantDao.get_active_for_user_client(
-                db, user_id, context.client.client_pk, for_update=True
-            )
-            previous_grant = OAuthGrantDao.snapshot(current) if current is not None else None
-            grant = await OAuthGrantDao.merge_active_grant(
-                db=db,
-                user_id=user_id,
-                subject_id=subject_id,
-                client_pk=context.client.client_pk,
-                granted_scopes=list(selected_scopes),
-                granted_resources=list(context.resources),
-                client_policy_version=context.client.policy_version,
-                remember_consent=remember_consent,
-            )
+        if user_id is None or subject_id is None:
+            raise ValueError('user_id and subject_id are required for an authorization grant')
+        await OAuthAccessPolicyDao.lock_client(db, context.client.client_pk)
+        if await OAuthAccessPolicyDao.is_blocked(db, user_id, context.client.client_pk, for_update=True):
+            raise OAuthProtocolException('access_denied', 'Access to this application is blocked')
+        current = await OAuthGrantDao.get_active_for_user_client(db, user_id, context.client.client_pk, for_update=True)
+        previous_grant = OAuthGrantDao.snapshot(current) if current is not None else None
+        grant = await OAuthGrantDao.merge_active_grant(
+            db=db,
+            user_id=user_id,
+            subject_id=subject_id,
+            client_pk=context.client.client_pk,
+            granted_scopes=list(selected_scopes),
+            granted_resources=list(context.resources),
+            client_policy_version=context.client.policy_version,
+            remember_consent=remember_consent,
+        )
         return ConsentResult(
             approved=True,
             scopes=selected_scopes,

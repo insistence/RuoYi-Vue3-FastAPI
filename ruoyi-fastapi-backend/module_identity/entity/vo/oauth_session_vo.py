@@ -18,7 +18,7 @@ class SessionModel(BaseModel):
 
 class GrantModel(SessionModel):
     """
-    用户对 OAuth Client 的持久授权详情模型
+    用户对 OAuth Client 的授权详情模型
     """
 
     grant_id: str = Field(description='授权记录标识')
@@ -28,6 +28,10 @@ class GrantModel(SessionModel):
     client_name: str | None = Field(default=None, description='客户端名称')
     granted_scopes: list[str] = Field(default_factory=list, description='已同意的权限列表')
     granted_resources: list[str] = Field(default_factory=list, description='已同意的资源受众列表')
+    remembered_scopes: list[str] = Field(default_factory=list, description='后续可免确认的权限列表')
+    remembered_resources: list[str] = Field(default_factory=list, description='后续可免确认的资源列表')
+    access_status: Literal['allowed', 'blocked'] = Field(default='allowed', description='用户对应用的访问策略')
+    access_reason: str | None = Field(default=None, description='访问策略的操作原因')
     status: Literal['active', 'revoked', 'expired'] = Field(
         default='active', description='状态（active有效 revoked已撤销 expired已过期）'
     )
@@ -72,6 +76,14 @@ class SessionRevokeModel(SessionModel):
     reason: str = Field(min_length=1, max_length=200, description='会话或授权的撤销原因')
 
 
+class GrantAccessModel(SessionRevokeModel):
+    """
+    用户对应用的访问控制请求模型
+    """
+
+    blocked: bool = Field(strict=True, description='是否禁止用户访问应用')
+
+
 class SessionPageQueryModel(SessionModel):
     """
     SSO Session 分页查询模型
@@ -100,7 +112,7 @@ class SessionPageQueryModel(SessionModel):
 
 class GrantPageQueryModel(SessionModel):
     """
-    Persistent Grant 分页查询模型
+    OAuth Grant 分页查询模型
     """
 
     user_id: int | None = Field(default=None, description='用户ID')
@@ -108,6 +120,7 @@ class GrantPageQueryModel(SessionModel):
     status: Literal['active', 'revoked', 'expired'] | None = Field(
         default=None, description='状态（active有效 revoked已撤销 expired已过期）'
     )
+    access_status: Literal['allowed', 'blocked'] | None = Field(default=None, description='用户对应用的访问策略')
     page_num: int = Field(default=1, ge=1, description='当前页码')
     page_size: int = Field(default=10, ge=1, le=200, description='每页记录数')
 

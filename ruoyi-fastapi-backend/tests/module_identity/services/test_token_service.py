@@ -16,6 +16,7 @@ from exceptions.exception import OAuthProtocolException
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.role_do import SysRole
 from module_admin.entity.do.user_do import SysUser, SysUserRole
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.entity.do.oauth_client_do import SysOAuthClient
 from module_identity.entity.do.oauth_resource_do import (
     SysOAuthClientResource,
@@ -146,10 +147,11 @@ async def test_authorization_code_binds_client_redirect_and_pkce(
     monkeypatch: pytest.MonkeyPatch, remembered: bool
 ) -> None:
     """验证 Code 兑换严格绑定 Client、Redirect URI 和 S256 verifier。"""
+    monkeypatch.setattr(OAuthAccessPolicyDao, 'lock_client', AsyncMock())
     monkeypatch.setattr(AuditService, 'record', AsyncMock())
     monkeypatch.setattr(AuditService, 'record_independent', AsyncMock())
     client = _client()
-    payload = _code_payload(grantId='grant-2001' if remembered else None)
+    payload = _code_payload()
     monkeypatch.setattr(
         'module_identity.service.token_service.OAuthClientDao.get_by_client_id',
         lambda db, client_id, active_only=True: _async_value(client),
@@ -175,7 +177,11 @@ async def test_authorization_code_binds_client_redirect_and_pkce(
     monkeypatch.setattr(TokenService, '_require_user_identity', identity)
     monkeypatch.setattr(TokenService, '_require_session', session)
     monkeypatch.setattr(
-        TokenService, '_require_grant', lambda *args, **kwargs: _async_value(SimpleNamespace() if remembered else None)
+        TokenService,
+        '_require_grant',
+        lambda *args, **kwargs: _async_value(
+            SimpleNamespace(grant_id='grant-2001', remembered_scopes=['openid'] if remembered else [])
+        ),
     )
     monkeypatch.setattr(
         TokenService,
@@ -573,6 +579,7 @@ async def test_signer_loads_private_key_from_same_active_record(monkeypatch: pyt
 @pytest.mark.asyncio
 async def test_refresh_scope_expansion_is_rejected_before_rotation(monkeypatch: pytest.MonkeyPatch) -> None:
     """验证 Refresh 请求不能扩大原 Token Scope。"""
+    monkeypatch.setattr(OAuthAccessPolicyDao, 'lock_client', AsyncMock())
     client = _client(grant_types=['authorization_code', 'refresh_token'])
     row = SimpleNamespace(
         token_id='token-1',
@@ -634,6 +641,7 @@ async def test_refresh_scope_expansion_is_rejected_before_rotation(monkeypatch: 
 @pytest.mark.asyncio
 async def test_refresh_concurrent_rotation_has_one_success_and_reuse_revoke(monkeypatch: pytest.MonkeyPatch) -> None:
     """验证并发轮换只有一个成功，失败请求触发 Family 重放处理。"""
+    monkeypatch.setattr(OAuthAccessPolicyDao, 'lock_client', AsyncMock())
     monkeypatch.setattr(AuditService, 'record', AsyncMock())
     client = _client(grant_types=['authorization_code', 'refresh_token'])
     row = SimpleNamespace(

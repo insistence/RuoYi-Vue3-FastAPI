@@ -15,6 +15,7 @@ from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_identity.entity.vo.oauth_session_vo import (
+    GrantAccessModel,
     GrantModel,
     GrantPageQueryModel,
     SessionPageQueryModel,
@@ -187,7 +188,7 @@ async def get_oauth_grant(
 @oauth_grant_controller.delete(
     '/{grant_ids}',
     summary='批量撤销 OAuth 授权接口',
-    description='用于批量撤销 OAuth 授权',
+    description='撤销选中记录所属用户对应用的全部现有授权，重新同意后可再次访问',
     response_model=ResponseBaseModel,
     dependencies=[UserInterfaceAuthDependency('system:oauthGrant:revoke')],
 )
@@ -205,3 +206,29 @@ async def revoke_oauth_grants(
     )
 
     return ResponseUtil.success(msg='OAuth Grant 已撤销', data={'count': count})
+
+
+@oauth_grant_controller.put(
+    '/user/{user_id}/client/{client_id}/access',
+    summary='更新用户应用访问策略接口',
+    description='用于禁止用户访问应用或解除禁止，解除后仍需重新授权',
+    response_model=ResponseBaseModel,
+    dependencies=[UserInterfaceAuthDependency('system:oauthGrant:revoke')],
+)
+@ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_GRANT_ACCESS, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
+@Log(title='OAuth Grant管理', business_type=BusinessType.UPDATE)
+async def set_oauth_client_access(
+    request: Request,
+    user_id: Annotated[int, Path(gt=0)],
+    client_id: Annotated[str, Path(min_length=1, max_length=128)],
+    payload: GrantAccessModel,
+    query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
+) -> Response:
+    count = await OAuthSessionManagementService.set_access(
+        query_db, user_id, client_id, payload.blocked, _actor(current_user), payload.reason
+    )
+    return ResponseUtil.success(
+        msg='已禁止用户访问该应用' if payload.blocked else '已解除禁止，请重新授权',
+        data={'count': count, 'accessStatus': 'blocked' if payload.blocked else 'allowed'},
+    )

@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException, OidcInteractionException
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.dao.sso_session_dao import SsoSessionDao
@@ -264,6 +265,10 @@ class AuthorizationService:
                 session = None
             grant = None
             if session is not None:
+                if await OAuthAccessPolicyDao.is_blocked(db, session.user_id, context.client.client_pk):
+                    raise OidcInteractionException(
+                        'pending', 'Access to this application is blocked', error='access_denied'
+                    )
                 grant = await cls.valid_grant(db, session.user_id, context.client.client_pk)
             consent_required = context.requires_consent and not cls.consent_is_satisfied(context, grant)
             payload = context.to_internal_payload('pending')
@@ -376,6 +381,7 @@ class AuthorizationService:
             session = await cls.active_session(db, record.get('authenticatedSid', ''), now=TimezoneUtil.utc_now())
             if session is None:
                 raise OAuthProtocolException('login_required', 'A current login is required', 400)
+            grant = await cls._completion_grant(db, record, session)
             payload = {
                 'clientPk': client_pk,
                 'redirectUri': redirect_uri,
@@ -383,7 +389,7 @@ class AuthorizationService:
                 'subjectId': session.subject_id,
                 'authVersion': session.auth_version,
                 'sid': session.sid,
-                'grantId': record.get('grantId'),
+                'grantId': grant.grant_id,
                 'scopes': record['scopes'],
                 'resources': record['resources'],
                 'nonce': record['nonce'],
@@ -400,6 +406,7 @@ class AuthorizationService:
                 user_id=session.user_id,
                 subject_id=str(session.subject_id),
                 sid=session.sid,
+                grant_id=grant.grant_id,
             )
             await db.commit()
             return AuthorizationResult(cls._success_url(registered_uri, code, record.get('state')))
@@ -414,6 +421,63 @@ class AuthorizationService:
             if isinstance(exc, OAuthProtocolException):
                 raise
             raise OAuthProtocolException('server_error', 'Authorization code could not be completed', 500) from exc
+
+    @classmethod
+    async def _completion_grant(cls, db: AsyncSession, record: dict[str, Any], session: SysSsoSession) -> SysOAuthGrant:
+        """
+        重新检查访问策略并为免确认流程补齐授权记录
+
+        :param db: 异步数据库会话
+        :param record: 已完成的交互记录
+        :param session: 当前有效 SSO Session
+        :return: 本次授权码绑定的有效 Grant
+        """
+
+        client_pk = record['clientPk']
+        await OAuthAccessPolicyDao.lock_client(db, client_pk)
+        if await OAuthAccessPolicyDao.is_blocked(db, session.user_id, client_pk, for_update=True):
+            raise OAuthProtocolException('access_denied', 'Access to this application is blocked')
+        context = await cls.validate_request(
+            db,
+            AuthorizeRequest(
+                response_type='code',
+                client_id=record['clientId'],
+                redirect_uri=record['redirectUri'],
+                scope=' '.join(record['scopes']),
+                resource=record['resources'][0] if record['resources'] else None,
+                nonce=record['nonce'],
+                code_challenge=record['codeChallenge'],
+                code_challenge_method=record['codeChallengeMethod'],
+            ),
+        )
+        grant_id = record.get('grantId')
+        if grant_id is not None:
+            grant = await OAuthGrantDao.get_by_grant_id_for_update(db, grant_id, refresh=True)
+            if (
+                grant is None
+                or grant.status != 'active'
+                or grant.user_id != session.user_id
+                or grant.subject_id != session.subject_id
+                or grant.client_pk != client_pk
+                or grant.client_policy_version != context.client.policy_version
+                or (grant.expires_at is not None and _protocol_datetime(grant.expires_at) <= TimezoneUtil.utc_now())
+                or not set(context.scopes).issubset(set(grant.granted_scopes or []))
+                or not set(context.resources).issubset(set(grant.granted_resources or []))
+            ):
+                raise OAuthProtocolException('access_denied', 'The authorization grant is no longer valid')
+            return grant
+        if record.get('consentRequired') or context.requires_consent:
+            raise OAuthProtocolException('consent_required', 'A new authorization decision is required')
+        return await OAuthGrantDao.merge_active_grant(
+            db,
+            session.user_id,
+            session.subject_id,
+            client_pk,
+            list(context.scopes),
+            list(context.resources),
+            context.client.policy_version,
+            remember_consent=False,
+        )
 
     @staticmethod
     async def _reserve_completion(redis: Any, interaction_id: str) -> str | None:
@@ -1376,6 +1440,8 @@ class InteractionCompletionService:
         }
         code: str | None = None
         try:
+            grant = await AuthorizationService._completion_grant(db, record, active)
+            payload['grantId'] = grant.grant_id
             code = await AuthorizationCodeService.issue(redis, payload, pepper=OidcConfig.oidc_token_hash_pepper)
             await AuditService.record(
                 db,
@@ -1385,9 +1451,10 @@ class InteractionCompletionService:
                 user_id=active.user_id,
                 subject_id=str(active.subject_id),
                 sid=active.sid,
+                grant_id=grant.grant_id,
             )
             await db.commit()
-        except Exception:
+        except Exception as exc:
             if code is not None:
                 try:
                     await AuthorizationCodeService.invalidate(redis, code)
@@ -1395,6 +1462,8 @@ class InteractionCompletionService:
                     pass
             await InteractionFlowService.best_effort_delete(redis, marker)
             await InteractionFlowService.rollback(db)
+            if isinstance(exc, OAuthProtocolException):
+                raise
             raise OAuthProtocolException('server_error', 'Authorization code could not be completed', 500) from None
         return InteractionCompletionService._redirect(redirect_uri, record, code=code)
 

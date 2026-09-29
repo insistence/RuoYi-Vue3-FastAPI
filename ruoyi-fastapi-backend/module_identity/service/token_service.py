@@ -16,6 +16,7 @@ from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException
 from module_identity.dao.identity_user_dao import IdentityUserDao
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.dao.oauth_token_dao import OAuthTokenDao
@@ -247,7 +248,7 @@ class TokenService:
             raise OAuthProtocolException('server_error', 'Token endpoint is unavailable', 500) from None
 
     @classmethod
-    async def authorization_code(  # noqa: PLR0912
+    async def authorization_code(
         cls,
         db: AsyncSession,
         redis: Redis,
@@ -279,6 +280,7 @@ class TokenService:
         if parsed.get('grant_type') != 'authorization_code':
             cls._invalid_request()
         client_row = await cls._resolve_client(db, client)
+        await OAuthAccessPolicyDao.lock_client(db, client_row.client_pk)
         if parsed.get('client_id') not in (None, client_row.client_id) or (
             client_row.client_type == 'public' and parsed.get('client_id') != client_row.client_id
         ):
@@ -334,8 +336,7 @@ class TokenService:
             list(code_payload['resources']),
             current,
         )
-        if grant is not None:
-            grant.last_used_at = current
+        grant.last_used_at = current
         scopes, resources, resource = await cls._validate_client_scope_resource(
             db, client_row, list(code_payload['scopes']), list(code_payload['resources'])
         )
@@ -349,17 +350,13 @@ class TokenService:
             resources,
             resource,
             grant_type='authorization_code',
-            grant_id=code_payload.get('grantId'),
+            grant_id=grant.grant_id,
             signing_key=signing_key,
             kid=kid,
             now=current,
         )
         refresh_token = None
-        if (
-            'offline_access' in scopes
-            and 'refresh_token' in cls._json_list(client_row.grant_types)
-            and grant is not None
-        ):
+        if 'offline_access' in scopes and 'refresh_token' in cls._json_list(client_row.grant_types):
             refresh_token = await cls._create_refresh_token(
                 db,
                 client_row,
@@ -431,6 +428,7 @@ class TokenService:
         if parsed.get('grant_type') != 'refresh_token' or not isinstance(parsed.get('refresh_token'), str):
             cls._invalid_request()
         client_row = await cls._resolve_client(db, client)
+        await OAuthAccessPolicyDao.lock_client(db, client_row.client_pk)
         if parsed.get('client_id') not in (None, client_row.client_id) or (
             client_row.client_type == 'public' and parsed.get('client_id') != client_row.client_id
         ):
@@ -1018,25 +1016,26 @@ class TokenService:
         scopes: list[str],
         resources: list[str],
         now: datetime,
-    ) -> SysOAuthGrant | None:
+    ) -> SysOAuthGrant:
         """
         加载并验证用户授权 Grant
 
         :param db: 异步数据库会话
-        :param grant_id: 授权记录的 grant_id 字符串，或 None
+        :param grant_id: 授权记录的非空 grant_id 字符串
         :param user_id: 系统用户主键
         :param client_pk: OAuth Client ORM 主键
         :param scopes: 需要包含在 Grant 授权范围内的 Scope code 列表
         :param resources: 需要包含在 Grant 授权范围内的 Resource audience 列表
         :param now: 检查 Grant 过期状态的 项目当前时间
-        :return: 匹配请求范围的授权 Grant，未找到时返回 None
+        :return: 匹配请求范围的有效授权 Grant
+        :raises OAuthProtocolException: 授权记录或用户访问策略无效
         """
 
-        if grant_id is None:
-            return None
-        if not isinstance(grant_id, str):
+        if not isinstance(grant_id, str) or not grant_id:
             cls._invalid_grant()
-        grant = await OAuthGrantDao.get_by_grant_id_for_update(db, grant_id)
+        if await OAuthAccessPolicyDao.is_blocked(db, user_id, client_pk, for_update=True):
+            cls._invalid_grant()
+        grant = await OAuthGrantDao.get_by_grant_id_for_update(db, grant_id, refresh=True)
         client = await OAuthClientDao.get_by_pk(db, client_pk, active_only=True)
         if (
             grant is None

@@ -220,6 +220,8 @@ class OidcAuditEvent:
     REFRESH_REUSE_DETECTED: 检测到刷新令牌重复使用
     TOKEN_REVOKED: 令牌已撤销
     SESSION_REVOKED: 会话已撤销
+    CLIENT_ACCESS_BLOCKED: 用户应用访问已禁止
+    CLIENT_ACCESS_ALLOWED: 用户应用访问已允许
     GRANT_REVOKED: 授权授予已撤销
     RESOURCE_POLICY_CHANGED: 资源策略已变更
     SCOPE_POLICY_CHANGED: Scope 策略已变更
@@ -249,6 +251,8 @@ class OidcAuditEvent:
     TOKEN_REVOKED = 'token_revoked'
     SESSION_REVOKED = 'session_revoked'
     GRANT_REVOKED = 'grant_revoked'
+    CLIENT_ACCESS_BLOCKED = 'client_access_blocked'
+    CLIENT_ACCESS_ALLOWED = 'client_access_allowed'
     RESOURCE_POLICY_CHANGED = 'resource_policy_changed'
     SCOPE_POLICY_CHANGED = 'scope_policy_changed'
     CLIENT_CREATED = 'client_created'
@@ -322,6 +326,7 @@ class ApiNamespace:
     SYSTEM_OAUTH_SCOPE_STATUS: OAuth Scope 状态接口命名空间
     SYSTEM_OAUTH_SESSION_REVOKE: OAuth 会话撤销接口命名空间
     SYSTEM_OAUTH_SESSION_USER_REVOKE: OAuth 用户会话批量撤销接口命名空间
+    SYSTEM_OAUTH_GRANT_ACCESS: 用户应用访问控制
     SYSTEM_OAUTH_GRANT_REVOKE: OAuth 授权授予撤销接口命名空间
     SYSTEM_OAUTH_KEY_ROTATE: OAuth 签名密钥轮换接口命名空间
     SYSTEM_OAUTH_KEY_ACTIVATE: OAuth 签名密钥激活接口命名空间
@@ -459,6 +464,7 @@ class ApiNamespace:
     SYSTEM_OAUTH_SESSION_REVOKE = 'system:oauth-session:revoke'
     SYSTEM_OAUTH_SESSION_USER_REVOKE = 'system:oauth-session:user-revoke'
     SYSTEM_OAUTH_GRANT_REVOKE = 'system:oauth-grant:revoke'
+    SYSTEM_OAUTH_GRANT_ACCESS = 'system:oauth:grant:access'
     SYSTEM_OAUTH_KEY_ROTATE = 'system:oauth-key:rotate'
     SYSTEM_OAUTH_KEY_ACTIVATE = 'system:oauth-key:activate'
     SYSTEM_OAUTH_KEY_RETIRE = 'system:oauth-key:retire'

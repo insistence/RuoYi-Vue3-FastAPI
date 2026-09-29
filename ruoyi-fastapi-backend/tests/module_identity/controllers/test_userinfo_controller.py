@@ -27,11 +27,30 @@ class _ActiveRedis:
         return False
 
 
+@pytest.fixture(autouse=True)
+def _active_authorization(monkeypatch: pytest.MonkeyPatch) -> None:
+    """为 Claims 输出测试提供明确有效的授权，撤销链路由真实数据库回归覆盖。"""
+
+    grant = SimpleNamespace(
+        user_id=2,
+        subject_id='subject-1',
+        client_pk=1,
+        status='active',
+        client_policy_version=1,
+        expires_at=None,
+        granted_scopes=['openid', 'profile', 'roles', 'dept'],
+        granted_resources=[],
+    )
+    monkeypatch.setattr(service.OAuthGrantDao, 'get_by_grant_id', lambda *args, **kwargs: _async(grant))
+    monkeypatch.setattr(service.OAuthAccessPolicyDao, 'is_blocked', lambda *args, **kwargs: _async(False))
+    monkeypatch.setattr(service.IntrospectionService, '_client_allows_access', lambda *args, **kwargs: _async(True))
+
+
 @pytest.mark.asyncio
 async def test_userinfo_returns_only_minimal_claims(monkeypatch: pytest.MonkeyPatch) -> None:
     """UserInfo 按当前数据库 Scope、角色和部门生成最小 Claims。"""
     monkeypatch.setattr(controller.OidcConfig, 'oidc_enabled', True)
-    client = SimpleNamespace(client_pk=1, client_id='client-1', status='0')
+    client = SimpleNamespace(client_pk=1, client_id='client-1', status='0', policy_version=1)
     user = SysUser(user_id=2, user_name='alice', nick_name='数据库用户', status='0', del_flag='0')
     subject = SimpleNamespace(subject_id='subject-1', user_id=2, auth_version=3)
     session = SimpleNamespace(user_id=2, subject_id='subject-1', auth_version=3)
@@ -94,6 +113,7 @@ async def test_userinfo_returns_only_minimal_claims(monkeypatch: pytest.MonkeyPa
             'roles': ['伪造角色'],
             'user_id': 123,
             'sid': 'sid-1',
+            'grant_id': 'grant-1',
             'client_id': 'client-1',
             'jti': 'jti-1',
             'ver': 3,
@@ -116,7 +136,7 @@ async def test_userinfo_returns_only_minimal_claims(monkeypatch: pytest.MonkeyPa
 async def test_userinfo_uses_current_database_claims_not_token_claims(monkeypatch: pytest.MonkeyPatch) -> None:
     """Token 中篡改 name/roles 不得污染按当前数据库策略重建的 UserInfo。"""
     monkeypatch.setattr(controller.OidcConfig, 'oidc_enabled', True)
-    client = SimpleNamespace(client_pk=1, status='0')
+    client = SimpleNamespace(client_pk=1, status='0', policy_version=1)
     user = SimpleNamespace(user_id=2, user_name='alice', nick_name='当前用户', status='0', del_flag='0')
     subject = SimpleNamespace(subject_id='subject-1', user_id=2, auth_version=3)
     session = SimpleNamespace(user_id=2, subject_id='subject-1', auth_version=3)
@@ -160,6 +180,7 @@ async def test_userinfo_uses_current_database_claims_not_token_claims(monkeypatc
             'roles': ['forged-role'],
             'client_id': 'client-1',
             'sid': 'sid-1',
+            'grant_id': 'grant-1',
             'jti': 'jti-1',
             'ver': 3,
         },

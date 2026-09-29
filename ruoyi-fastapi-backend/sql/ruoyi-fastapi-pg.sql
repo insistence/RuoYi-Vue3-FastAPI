@@ -1654,6 +1654,7 @@ drop table if exists sys_oauth_audit_log;
 drop table if exists sys_oidc_signing_key;
 drop table if exists sys_oauth_refresh_token;
 drop table if exists sys_sso_session;
+drop table if exists sys_oauth_access_policy;
 drop table if exists sys_oauth_grant;
 drop table if exists sys_oauth_client_resource;
 drop table if exists sys_oauth_client_scope;
@@ -1665,7 +1666,7 @@ drop table if exists sys_oauth_client;
 drop table if exists sys_identity_subject;
 
 -- ----------------------------
--- 34、统一认证主体关联表
+-- 36、统一认证主体关联表
 -- ----------------------------
 create table sys_identity_subject (
   identity_id   bigserial    not null,
@@ -1715,7 +1716,7 @@ select user_id,
 from seeded_users;
 
 -- ----------------------------
--- 35、OAuth客户端表
+-- 37、OAuth客户端表
 -- ----------------------------
 create table sys_oauth_client (
   client_pk                            bigserial     not null,
@@ -1777,7 +1778,7 @@ comment on column sys_oauth_client.update_time is '更新时间';
 comment on column sys_oauth_client.remark is '备注';
 
 -- ----------------------------
--- 36、OAuth客户端密钥表
+-- 38、OAuth客户端密钥表
 -- ----------------------------
 create table sys_oauth_client_secret (
   secret_id     varchar(36)   not null,
@@ -1811,7 +1812,7 @@ comment on column sys_oauth_client_secret.revoked_by is '撤销者';
 comment on column sys_oauth_client_secret.revoked_at is '撤销时间';
 
 -- ----------------------------
--- 37、OAuth客户端URI表
+-- 39、OAuth客户端URI表
 -- ----------------------------
 create table sys_oauth_client_uri (
   uri_id       bigserial      not null,
@@ -1838,7 +1839,7 @@ comment on column sys_oauth_client_uri.status is '状态（0正常 1停用）';
 comment on column sys_oauth_client_uri.create_time is '创建时间';
 
 -- ----------------------------
--- 38、OAuth资源服务器表
+-- 40、OAuth资源服务器表
 -- ----------------------------
 create table sys_oauth_resource (
   resource_pk               bigserial     not null,
@@ -1880,7 +1881,7 @@ comment on column sys_oauth_resource.update_time is '更新时间';
 comment on column sys_oauth_resource.remark is '备注';
 
 -- ----------------------------
--- 39、OAuth权限范围表
+-- 41、OAuth权限范围表
 -- ----------------------------
 create table sys_oauth_scope (
   scope_pk          bigserial     not null,
@@ -1932,7 +1933,7 @@ insert into sys_oauth_scope values(6, 'dept', '部门', 'identity', null, '["dep
 insert into sys_oauth_scope values(7, 'offline_access', '离线访问', 'identity', null, '[]'::jsonb, 1, 1, '0', 'system', current_timestamp, 'system', current_timestamp, '允许签发 Refresh Token');
 
 -- ----------------------------
--- 40、OAuth客户端和权限范围关联表
+-- 42、OAuth客户端和权限范围关联表
 -- ----------------------------
 create table sys_oauth_client_scope (
   client_pk       bigint       not null,
@@ -1955,7 +1956,7 @@ comment on column sys_oauth_client_scope.claim_filter is 'Client Claim 过滤策
 comment on column sys_oauth_client_scope.create_time is '创建时间';
 
 -- ----------------------------
--- 41、OAuth客户端和资源服务器关联表
+-- 43、OAuth客户端和资源服务器关联表
 -- ----------------------------
 create table sys_oauth_client_resource (
   client_pk    bigint       not null,
@@ -1974,7 +1975,29 @@ comment on column sys_oauth_client_resource.is_default is '是否默认 Resource
 comment on column sys_oauth_client_resource.create_time is '创建时间';
 
 -- ----------------------------
--- 42、OAuth授权记录表
+-- 44、用户应用访问控制表
+-- ----------------------------
+create table sys_oauth_access_policy (
+  user_id       bigint        not null,
+  client_pk     bigint        not null,
+  access_status varchar(16)   not null default 'allowed',
+  reason        varchar(200),
+  update_by     varchar(64)   not null,
+  update_time   timestamp(3) with time zone not null,
+  primary key (user_id, client_pk),
+  constraint fk_oauth_access_user foreign key (user_id) references sys_user (user_id) on delete restrict,
+  constraint fk_oauth_access_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+);
+comment on table sys_oauth_access_policy is 'OAuth用户应用访问控制表';
+comment on column sys_oauth_access_policy.user_id is '用户ID';
+comment on column sys_oauth_access_policy.client_pk is 'Client 主键';
+comment on column sys_oauth_access_policy.access_status is 'allowed允许 blocked禁止';
+comment on column sys_oauth_access_policy.reason is '访问控制原因';
+comment on column sys_oauth_access_policy.update_by is '操作人';
+comment on column sys_oauth_access_policy.update_time is '操作时间';
+
+-- ----------------------------
+-- 45、OAuth授权记录表
 -- ----------------------------
 create table sys_oauth_grant (
   grant_id               varchar(36)   not null,
@@ -2015,7 +2038,7 @@ comment on column sys_oauth_grant.revoke_reason is '撤销原因';
 comment on column sys_oauth_grant.last_used_at is '最近使用时间';
 
 -- ----------------------------
--- 43、OIDC单点登录会话表
+-- 46、OIDC单点登录会话表
 -- ----------------------------
 create table sys_sso_session (
   sid                  varchar(36)   not null,
@@ -2063,7 +2086,7 @@ comment on column sys_sso_session.revoke_reason is '撤销原因';
 comment on column sys_sso_session.create_time is '创建时间';
 
 -- ----------------------------
--- 44、OAuth刷新令牌表
+-- 47、OAuth刷新令牌表
 -- ----------------------------
 create table sys_oauth_refresh_token (
   token_id              varchar(36)   not null,
@@ -2125,7 +2148,7 @@ comment on column sys_oauth_refresh_token.revoke_reason is '撤销原因';
 comment on column sys_oauth_refresh_token.reuse_detected_at is '重放检测时间';
 
 -- ----------------------------
--- 45、OIDC签名密钥表
+-- 48、OIDC签名密钥表
 -- ----------------------------
 create table sys_oidc_signing_key (
   key_pk                  bigserial      not null,
@@ -2167,7 +2190,7 @@ comment on column sys_oidc_signing_key.create_time is '创建时间';
 comment on column sys_oidc_signing_key.remark is '备注';
 
 -- ----------------------------
--- 46、OAuth审计日志表
+-- 49、OAuth审计日志表
 -- ----------------------------
 create table sys_oauth_audit_log (
   event_id      bigserial     not null,
@@ -2214,7 +2237,7 @@ comment on column sys_oauth_audit_log.detail is '脱敏扩展详情';
 comment on column sys_oauth_audit_log.create_time is '事件时间';
 
 -- ----------------------------
--- 47、OAuth审计归档表
+-- 50、OAuth审计归档表
 -- ----------------------------
 create table sys_oauth_audit_archive (
   event_id      bigint        not null,

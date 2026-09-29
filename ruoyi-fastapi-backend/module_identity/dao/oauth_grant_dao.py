@@ -6,8 +6,9 @@ from uuid import uuid4
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.entity.do.oauth_client_do import SysOAuthClient
-from module_identity.entity.do.oauth_grant_do import SysOAuthGrant, SysOAuthRefreshToken
+from module_identity.entity.do.oauth_grant_do import SysOAuthAccessPolicy, SysOAuthGrant, SysOAuthRefreshToken
 from utils.time_util import TimezoneUtil
 
 
@@ -20,6 +21,7 @@ class OAuthGrantSnapshot:
     grant_id: str
     user_id: int
     subject_id: str
+    client_pk: int
     granted_scopes: tuple[str, ...]
     granted_resources: tuple[str, ...]
     client_policy_version: int
@@ -47,7 +49,7 @@ class OAuthGrantDao:
 
         :param db: orm对象
         :param grant_id: Grant 公开标识
-        :param refresh: 是否加载 Refresh Token 关联数据
+        :param refresh: 是否使用数据库当前值刷新已有对象
         :return: OAuth Grant，不存在时返回 None
         """
 
@@ -76,9 +78,10 @@ class OAuthGrantDao:
             SysOAuthGrant.user_id == user_id,
             SysOAuthGrant.client_pk == client_pk,
             SysOAuthGrant.status == 'active',
+            (SysOAuthGrant.expires_at.is_(None) | (SysOAuthGrant.expires_at > TimezoneUtil.utc_now())),
         )
         if for_update:
-            query = query.with_for_update()
+            query = query.with_for_update().execution_options(populate_existing=True)
         result = await db.execute(query.order_by(SysOAuthGrant.consented_at.desc()))
 
         return result.scalars().first()
@@ -135,12 +138,7 @@ class OAuthGrantDao:
         :return: 新增或更新后的 OAuth Grant
         """
 
-        await db.execute(
-            update(SysOAuthClient)
-            .where(SysOAuthClient.client_pk == client_pk)
-            .values(policy_version=SysOAuthClient.policy_version)
-        )
-        await db.execute(select(SysOAuthClient).where(SysOAuthClient.client_pk == client_pk).with_for_update())
+        await OAuthAccessPolicyDao.lock_client(db, client_pk)
         grant = await cls.get_active_for_user_client(db, user_id, client_pk, for_update=True)
         now = TimezoneUtil.utc_now()
         if grant is None:
@@ -193,6 +191,7 @@ class OAuthGrantDao:
             grant_id=grant.grant_id,
             user_id=grant.user_id,
             subject_id=grant.subject_id,
+            client_pk=grant.client_pk,
             granted_scopes=tuple(grant.granted_scopes or ()),
             granted_resources=tuple(grant.granted_resources or ()),
             client_policy_version=grant.client_policy_version,
@@ -220,9 +219,9 @@ class OAuthGrantDao:
         :param snapshot: OAuth Grant 快照
         :param expected: 期望状态
         :return: 是否恢复成功
-        :raises sqlalchemy.exc.NoResultFound: Client 不存在时由外层约束处理
         """
 
+        await OAuthAccessPolicyDao.lock_client(db, snapshot.client_pk)
         grant = await cls.get_by_grant_id_for_update(db, snapshot.grant_id, refresh=True)
         if grant is None or cls.snapshot(grant) != expected:
             return False
@@ -253,6 +252,7 @@ class OAuthGrantDao:
         :return: 是否撤销成功
         """
 
+        await OAuthAccessPolicyDao.lock_client(db, snapshot.client_pk)
         grant = await cls.get_by_grant_id_for_update(db, snapshot.grant_id, refresh=True)
         if grant is None or cls.snapshot(grant) != snapshot:
             return False
@@ -264,7 +264,7 @@ class OAuthGrantDao:
             update(SysOAuthRefreshToken)
             .where(
                 SysOAuthRefreshToken.grant_id == snapshot.grant_id,
-                SysOAuthRefreshToken.status.in_(['active', 'rotated']),
+                SysOAuthRefreshToken.status.in_(['active', 'used', 'rotated']),
             )
             .values(status='revoked', revoked_at=current, revoke_reason=reason)
         )
@@ -299,7 +299,7 @@ class OAuthGrantDao:
             .order_by(SysOAuthGrant.consented_at.desc())
         )
         if for_update:
-            query = query.with_for_update()
+            query = query.with_for_update().execution_options(populate_existing=True)
         result = await db.execute(query)
 
         return result.scalars().first()
@@ -321,16 +321,70 @@ class OAuthGrantDao:
             return False
         await db.execute(
             update(SysOAuthRefreshToken)
-            .where(SysOAuthRefreshToken.grant_id == grant_id, SysOAuthRefreshToken.status.in_(['active', 'rotated']))
+            .where(
+                SysOAuthRefreshToken.grant_id == grant_id,
+                SysOAuthRefreshToken.status.in_(['active', 'used', 'rotated']),
+            )
             .values(status='revoked', revoked_at=TimezoneUtil.utc_now(), revoke_reason=reason)
         )
         result = await db.execute(
             update(SysOAuthGrant)
             .where(SysOAuthGrant.grant_id == grant_id, SysOAuthGrant.status == 'active')
-            .values(status='revoked', revoked_at=TimezoneUtil.utc_now(), revoke_reason=reason)
+            .values(
+                status='revoked',
+                revoked_at=TimezoneUtil.utc_now(),
+                revoke_reason=reason,
+                remembered_scopes=[],
+                remembered_resources=[],
+            )
         )
 
         return bool(result.rowcount)
+
+    @staticmethod
+    async def targets(db: AsyncSession, grant_ids: list[str]) -> list[tuple[int, int]]:
+        """
+        将选中授权归并为用户和 Client，按 Client 排序以统一批量锁序
+
+        :param db: orm对象
+        :param grant_ids: 选中的授权标识
+        :return: 去重后的 Client 主键和用户编号列表
+        """
+
+        result = await db.execute(
+            select(SysOAuthGrant.client_pk, SysOAuthGrant.user_id)
+            .where(SysOAuthGrant.grant_id.in_(grant_ids))
+            .distinct()
+            .order_by(SysOAuthGrant.client_pk, SysOAuthGrant.user_id)
+        )
+        return [(row.client_pk, row.user_id) for row in result]
+
+    @classmethod
+    async def revoke_for_user_client(cls, db: AsyncSession, user_id: int, client_pk: int, reason: str) -> list[str]:
+        """
+        撤销用户对 Client 的全部现有授权；调用方须先锁定 Client
+
+        :param db: orm对象
+        :param user_id: 用户编号
+        :param client_pk: Client 内部主键
+        :param reason: 撤销原因
+        :return: 实际撤销的授权标识列表
+        """
+
+        result = await db.execute(
+            select(SysOAuthGrant.grant_id)
+            .where(
+                SysOAuthGrant.user_id == user_id,
+                SysOAuthGrant.client_pk == client_pk,
+                SysOAuthGrant.status == 'active',
+            )
+            .order_by(SysOAuthGrant.grant_id)
+            .with_for_update()
+        )
+        grant_ids = list(result.scalars().all())
+        for grant_id in grant_ids:
+            await cls.revoke(db, grant_id, reason)
+        return grant_ids
 
     @classmethod
     async def revoke_for_user(cls, db: AsyncSession, user_id: int, reason: str | None = None) -> int:
@@ -382,7 +436,7 @@ class OAuthGrantDao:
 
         query = select(SysOAuthGrant).where(SysOAuthGrant.grant_id == grant_id)
         if for_update:
-            query = query.with_for_update()
+            query = query.with_for_update().execution_options(populate_existing=True)
         if not for_update:
             return await db.scalar(query)
         result = await db.execute(query)
@@ -397,6 +451,7 @@ class OAuthGrantDao:
         user_id: int | None = None,
         client_id: str | None = None,
         status: str | None = None,
+        access_status: str | None = None,
         offset: int = 0,
         limit: int = 200,
     ) -> Sequence[SysOAuthGrant]:
@@ -407,6 +462,7 @@ class OAuthGrantDao:
         :param user_id: 用户编号
         :param client_id: Client 公开标识
         :param status: 状态过滤值
+        :param access_status: 用户对应用的访问策略
         :param offset: 分页偏移量
         :param limit: 分页大小
         :return: OAuth Grant 序列
@@ -419,6 +475,17 @@ class OAuthGrantDao:
             conditions.append(SysOAuthClient.client_id == client_id)
         if status:
             conditions.append(SysOAuthGrant.status == status)
+        if access_status:
+            blocked = (
+                select(SysOAuthAccessPolicy.user_id)
+                .where(
+                    SysOAuthAccessPolicy.user_id == SysOAuthGrant.user_id,
+                    SysOAuthAccessPolicy.client_pk == SysOAuthGrant.client_pk,
+                    SysOAuthAccessPolicy.access_status == 'blocked',
+                )
+                .exists()
+            )
+            conditions.append(blocked if access_status == 'blocked' else ~blocked)
         query = (
             select(SysOAuthGrant)
             .join(SysOAuthClient, SysOAuthClient.client_pk == SysOAuthGrant.client_pk)
@@ -433,7 +500,13 @@ class OAuthGrantDao:
 
     @classmethod
     async def count(
-        cls, db: AsyncSession, *, user_id: int | None = None, client_id: str | None = None, status: str | None = None
+        cls,
+        db: AsyncSession,
+        *,
+        user_id: int | None = None,
+        client_id: str | None = None,
+        status: str | None = None,
+        access_status: str | None = None,
     ) -> int:
         """
         统计 OAuth Grant 数量
@@ -442,6 +515,7 @@ class OAuthGrantDao:
         :param user_id: 用户编号
         :param client_id: Client 公开标识
         :param status: 状态过滤值
+        :param access_status: 用户对应用的访问策略
         :return: OAuth Grant 数量
         """
 
@@ -452,6 +526,17 @@ class OAuthGrantDao:
             conditions.append(SysOAuthClient.client_id == client_id)
         if status:
             conditions.append(SysOAuthGrant.status == status)
+        if access_status:
+            blocked = (
+                select(SysOAuthAccessPolicy.user_id)
+                .where(
+                    SysOAuthAccessPolicy.user_id == SysOAuthGrant.user_id,
+                    SysOAuthAccessPolicy.client_pk == SysOAuthGrant.client_pk,
+                    SysOAuthAccessPolicy.access_status == 'blocked',
+                )
+                .exists()
+            )
+            conditions.append(blocked if access_status == 'blocked' else ~blocked)
         result = await db.execute(
             select(func.count())
             .select_from(SysOAuthGrant)

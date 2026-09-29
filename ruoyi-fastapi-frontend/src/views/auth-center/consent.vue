@@ -130,9 +130,9 @@
         <el-checkbox v-model="rememberConsent" />
         <span>
           <strong>记住本次选择</strong>
-          <small>下次访问该应用时不再重复询问；你仍可以在用户授权页面撤销。</small>
+          <small>记住后可在已同意的范围内免于重复确认；不勾选也会保存可撤销的授权记录。</small>
           <small v-if="selectedScopes.includes('offline_access')"
-            >离线访问授权会单独保存并可撤销；不勾选时，下次仍会询问权限。</small
+            >持续访问允许应用在你不在线时续期，与是否记住本次选择无关。</small
           >
         </span>
       </label>

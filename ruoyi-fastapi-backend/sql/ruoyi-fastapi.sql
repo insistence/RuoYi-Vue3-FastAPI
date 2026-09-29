@@ -1187,6 +1187,7 @@ drop table if exists sys_oauth_audit_log;
 drop table if exists sys_oidc_signing_key;
 drop table if exists sys_oauth_refresh_token;
 drop table if exists sys_sso_session;
+drop table if exists sys_oauth_access_policy;
 drop table if exists sys_oauth_grant;
 drop table if exists sys_oauth_client_resource;
 drop table if exists sys_oauth_client_scope;
@@ -1198,7 +1199,7 @@ drop table if exists sys_oauth_client;
 drop table if exists sys_identity_subject;
 
 -- ----------------------------
--- 34、统一认证主体关联表
+-- 36、统一认证主体关联表
 -- ----------------------------
 create table sys_identity_subject (
   identity_id   bigint       not null auto_increment  comment '内部主键',
@@ -1223,7 +1224,7 @@ insert into sys_identity_subject (user_id, subject_id, auth_version, create_by, 
 select user_id, uuid(), 1, 'initial-sql', UTC_TIMESTAMP(3) from sys_user;
 
 -- ----------------------------
--- 35、OAuth客户端表
+-- 37、OAuth客户端表
 -- ----------------------------
 create table sys_oauth_client (
   client_pk                            bigint        not null auto_increment    comment '内部主键',
@@ -1258,7 +1259,7 @@ create table sys_oauth_client (
 ) engine=innodb comment = 'OAuth客户端表';
 
 -- ----------------------------
--- 36、OAuth客户端密钥表
+-- 38、OAuth客户端密钥表
 -- ----------------------------
 create table sys_oauth_client_secret (
   secret_id     varchar(36)   not null                   comment 'Secret ID',
@@ -1279,7 +1280,7 @@ create table sys_oauth_client_secret (
 ) engine=innodb comment = 'OAuth客户端密钥表';
 
 -- ----------------------------
--- 37、OAuth客户端URI表
+-- 39、OAuth客户端URI表
 -- ----------------------------
 create table sys_oauth_client_uri (
   uri_id       bigint         not null auto_increment  comment 'URI 主键',
@@ -1297,7 +1298,7 @@ create table sys_oauth_client_uri (
 ) engine=innodb comment = 'OAuth客户端URI表';
 
 -- ----------------------------
--- 38、OAuth资源服务器表
+-- 40、OAuth资源服务器表
 -- ----------------------------
 create table sys_oauth_resource (
   resource_pk               bigint        not null auto_increment   comment '内部主键',
@@ -1323,7 +1324,7 @@ create table sys_oauth_resource (
 ) engine=innodb comment = 'OAuth资源服务器表';
 
 -- ----------------------------
--- 39、OAuth权限范围表
+-- 41、OAuth权限范围表
 -- ----------------------------
 create table sys_oauth_scope (
   scope_pk          bigint        not null auto_increment  comment '内部主键',
@@ -1359,7 +1360,7 @@ insert into sys_oauth_scope values(6, 'dept', '部门', 'identity', null, json_a
 insert into sys_oauth_scope values(7, 'offline_access', '离线访问', 'identity', null, json_array(), 1, 1, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), '允许签发 Refresh Token');
 
 -- ----------------------------
--- 40、OAuth客户端和权限范围关联表
+-- 42、OAuth客户端和权限范围关联表
 -- ----------------------------
 create table sys_oauth_client_scope (
   client_pk       bigint    not null            comment 'Client 主键',
@@ -1375,7 +1376,7 @@ create table sys_oauth_client_scope (
 ) engine=innodb comment = 'OAuth客户端和权限范围关联表';
 
 -- ----------------------------
--- 41、OAuth客户端和资源服务器关联表
+-- 43、OAuth客户端和资源服务器关联表
 -- ----------------------------
 create table sys_oauth_client_resource (
   client_pk    bigint    not null            comment 'Client 主键',
@@ -1389,7 +1390,22 @@ create table sys_oauth_client_resource (
 ) engine=innodb comment = 'OAuth客户端和资源服务器关联表';
 
 -- ----------------------------
--- 42、OAuth授权记录表
+-- 44、用户应用访问控制表
+-- ----------------------------
+create table sys_oauth_access_policy (
+  user_id       bigint        not null                  comment '用户ID',
+  client_pk     bigint        not null                  comment 'Client 主键',
+  access_status varchar(16)   not null default 'allowed' comment 'allowed允许 blocked禁止',
+  reason        varchar(200)  default null              comment '访问控制原因',
+  update_by     varchar(64)   not null                  comment '操作人',
+  update_time   datetime(3)   not null                  comment '操作时间',
+  primary key (user_id, client_pk),
+  constraint fk_oauth_access_user foreign key (user_id) references sys_user (user_id) on delete restrict,
+  constraint fk_oauth_access_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+) engine=innodb comment = 'OAuth用户应用访问控制表';
+
+-- ----------------------------
+-- 45、OAuth授权记录表
 -- ----------------------------
 create table sys_oauth_grant (
   grant_id               varchar(36)   not null                   comment 'Grant ID',
@@ -1416,7 +1432,7 @@ create table sys_oauth_grant (
 ) engine=innodb comment = 'OAuth授权记录表';
 
 -- ----------------------------
--- 43、OIDC单点登录会话表
+-- 46、OIDC单点登录会话表
 -- ----------------------------
 create table sys_sso_session (
   sid                  varchar(36)   not null                   comment 'OIDC Session ID',
@@ -1445,7 +1461,7 @@ create table sys_sso_session (
 ) engine=innodb comment = 'OIDC单点登录会话表';
 
 -- ----------------------------
--- 44、OAuth刷新令牌表
+-- 47、OAuth刷新令牌表
 -- ----------------------------
 create table sys_oauth_refresh_token (
   token_id              varchar(36)   not null                   comment 'Token ID',
@@ -1485,7 +1501,7 @@ create table sys_oauth_refresh_token (
 ) engine=innodb comment = 'OAuth刷新令牌表';
 
 -- ----------------------------
--- 45、OIDC签名密钥表
+-- 48、OIDC签名密钥表
 -- ----------------------------
 create table sys_oidc_signing_key (
   key_pk                  bigint         not null auto_increment   comment '内部主键',
@@ -1511,7 +1527,7 @@ create table sys_oidc_signing_key (
 ) engine=innodb comment = 'OIDC签名密钥表';
 
 -- ----------------------------
--- 46、OAuth审计日志表
+-- 49、OAuth审计日志表
 -- ----------------------------
 create table sys_oauth_audit_log (
   event_id      bigint        not null auto_increment    comment '事件ID',
@@ -1540,7 +1556,7 @@ create table sys_oauth_audit_log (
 ) engine=innodb comment = 'OAuth审计日志表';
 
 -- ----------------------------
--- 47、OAuth审计归档表
+-- 50、OAuth审计归档表
 -- ----------------------------
 create table sys_oauth_audit_archive (
   event_id      bigint        not null      comment '原事件ID',

@@ -66,6 +66,15 @@ export function revokeOAuthGrants(grantIds, data) {
   })
 }
 
+// 禁止用户访问应用或解除禁止
+export function setOAuthClientAccess(userId, clientId, data) {
+  return request({
+    url: `/system/oauth/grant/user/${encodePathSegment(userId)}/client/${encodePathSegment(clientId)}/access`,
+    method: 'put',
+    data,
+  })
+}
+
 // 查询 OIDC 签名密钥列表
 export function listOidcKeys(query) {
   return request({

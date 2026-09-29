@@ -20,6 +20,7 @@ from module_identity.controller.oauth_session_controller import (
     revoke_oauth_grants,
     revoke_oauth_sessions,
 )
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.service.audit_service import AuditService
@@ -84,6 +85,7 @@ def test_session_and_grant_routes_have_pre_auth_and_exact_permissions() -> None:
         ('/system/oauth/grant/list', 'GET'): 'system:oauthGrant:list',
         ('/system/oauth/grant/{grant_id}', 'GET'): 'system:oauthGrant:list',
         ('/system/oauth/grant/{grant_ids}', 'DELETE'): 'system:oauthGrant:revoke',
+        ('/system/oauth/grant/user/{user_id}/client/{client_id}/access', 'PUT'): 'system:oauthGrant:revoke',
     }
     routes = _route_map(oauth_grant_controller)
     for key, perm in expected_grants.items():
@@ -125,7 +127,10 @@ async def test_batch_revoke_is_atomic_and_reason_does_not_leak(monkeypatch: pyte
     async def grant_revoke(*args: object, **kwargs: object) -> bool:
         return True
 
-    monkeypatch.setattr(OAuthGrantDao, 'revoke', grant_revoke)
+    monkeypatch.setattr(OAuthGrantDao, 'targets', AsyncMock(return_value=[(2, 1)]))
+    monkeypatch.setattr(OAuthAccessPolicyDao, 'lock_client', AsyncMock())
+    monkeypatch.setattr(OAuthClientDao, 'id_for_pk', AsyncMock(return_value='client-2'))
+    monkeypatch.setattr(OAuthGrantDao, 'revoke_for_user_client', AsyncMock(return_value=['grant-1']))
     token = RequestContext.set_current_user(_user())
     try:
         response = await revoke_oauth_grants.__wrapped__(
@@ -189,7 +194,7 @@ async def test_grant_detail_never_returns_refresh_hash(monkeypatch: pytest.Monke
         return row
 
     async def execute(*args: object, **kwargs: object) -> object:
-        return SimpleNamespace(all=list, scalars=lambda: SimpleNamespace(all=list))
+        return SimpleNamespace(all=list, scalars=lambda: SimpleNamespace(all=list, first=lambda: None))
 
     monkeypatch.setattr(OAuthGrantDao, 'get_by_grant_id', get_grant)
 
@@ -223,11 +228,15 @@ async def test_grant_revoke_runs_rate_limit_and_operation_log(monkeypatch: pytes
         else:
             app.dependency_overrides[dependency.call] = lambda: None
     rate_limit = AsyncMock(return_value={'allowed': True, 'remaining': 9, 'reset_at': 60})
-    revoke = AsyncMock(return_value=True)
+    expected_ids = grant_ids.split(',')
+    revoke = AsyncMock(return_value=expected_ids)
     audit = AsyncMock()
     operation_log = AsyncMock()
     monkeypatch.setattr(ApiRateLimit, '_acquire_rate_limit', rate_limit)
-    monkeypatch.setattr(OAuthGrantDao, 'revoke', revoke)
+    monkeypatch.setattr(OAuthGrantDao, 'targets', AsyncMock(return_value=[(2, 1)]))
+    monkeypatch.setattr(OAuthAccessPolicyDao, 'lock_client', AsyncMock())
+    monkeypatch.setattr(OAuthClientDao, 'id_for_pk', AsyncMock(return_value='client-2'))
+    monkeypatch.setattr(OAuthGrantDao, 'revoke_for_user_client', revoke)
     monkeypatch.setattr(AuditService, 'record', audit)
     monkeypatch.setattr(LogQueueService, 'enqueue_operation_log', operation_log)
     token = RequestContext.set_current_user(user)
@@ -241,7 +250,7 @@ async def test_grant_revoke_runs_rate_limit_and_operation_log(monkeypatch: pytes
     assert response.status_code == HTTPStatus.OK
     assert result['success'] is True
     assert result['data']['count'] == len(expected_ids)
-    assert [call.args[1] for call in revoke.await_args_list] == expected_ids
+    revoke.assert_awaited_once_with(db, 1, 2, '管理员撤销')
     assert audit.await_count == len(expected_ids)
     assert db.commits == 1 and db.rollbacks == 0
     rate_limit.assert_awaited_once()
@@ -251,3 +260,40 @@ async def test_grant_revoke_runs_rate_limit_and_operation_log(monkeypatch: pytes
     assert logged_request is rate_limit.call_args.args[-1]
     assert logged_operation.oper_url == path
     assert json.loads(logged_operation.json_result)['data']['count'] == len(expected_ids)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('blocked', [True, False])
+async def test_access_policy_runs_rate_limit_and_operation_log(monkeypatch: pytest.MonkeyPatch, blocked: bool) -> None:
+    """禁止及解除访问通过真实 HTTP 装饰器链，准确传递用户、应用和原因。"""
+
+    db, user = _Session(), _user()
+    path = '/system/oauth/grant/user/7/client/business-app/access'
+    route = _route_map(oauth_grant_controller)[('/system/oauth/grant/user/{user_id}/client/{client_id}/access', 'PUT')]
+    app = FastAPI()
+    app.state.redis = SimpleNamespace()
+    app.include_router(oauth_grant_controller)
+    for dependency in route.dependant.dependencies:
+        if dependency.name == 'query_db':
+            app.dependency_overrides[dependency.call] = lambda: db
+        elif dependency.name == 'current_user':
+            app.dependency_overrides[dependency.call] = lambda: user
+        else:
+            app.dependency_overrides[dependency.call] = lambda: None
+    rate_limit = AsyncMock(return_value={'allowed': True, 'remaining': 9, 'reset_at': 60})
+    save = AsyncMock(return_value=1 if blocked else 0)
+    operation_log = AsyncMock()
+    monkeypatch.setattr(ApiRateLimit, '_acquire_rate_limit', rate_limit)
+    monkeypatch.setattr(OAuthSessionManagementService, 'set_access', save)
+    monkeypatch.setattr(LogQueueService, 'enqueue_operation_log', operation_log)
+    token = RequestContext.set_current_user(user)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url='http://testserver') as client:
+            response = await client.put(path, json={'blocked': blocked, 'reason': '管理员操作'})
+    finally:
+        RequestContext.reset_current_user(token)
+    assert response.status_code == HTTPStatus.OK and response.json()['success'] is True
+    assert response.json()['data']['accessStatus'] == ('blocked' if blocked else 'allowed')
+    save.assert_awaited_once_with(db, 7, 'business-app', blocked, 'admin', '管理员操作')
+    operation_log.assert_awaited_once()
+    assert operation_log.call_args.args[0] is rate_limit.call_args.args[-1]

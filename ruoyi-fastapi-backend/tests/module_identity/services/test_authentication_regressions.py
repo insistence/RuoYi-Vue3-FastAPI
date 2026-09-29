@@ -4,6 +4,7 @@ from datetime import timedelta
 from http.cookies import SimpleCookie
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
+from urllib.parse import parse_qs, urlsplit
 from uuid import uuid4
 
 import jwt
@@ -14,12 +15,14 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config.env import OidcConfig
-from exceptions.exception import OAuthProtocolException
+from exceptions.exception import OAuthProtocolException, ServiceException
 from module_admin.entity.do.dept_do import SysDept
 from module_admin.entity.do.role_do import SysRole
 from module_admin.entity.do.user_do import SysUser, SysUserRole
 from module_admin.service.user_service import UserService
 from module_identity.controller.interaction_controller import _login_response
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
+from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.entity.do.identity_subject_do import SysIdentitySubject
 from module_identity.entity.do.oauth_client_do import SysOAuthClient, SysOAuthClientUri
 from module_identity.entity.do.oauth_grant_do import SysOAuthGrant, SysSsoSession
@@ -29,21 +32,28 @@ from module_identity.entity.do.oauth_resource_do import (
     SysOAuthResource,
     SysOAuthScope,
 )
-from module_identity.entity.vo.interaction_vo import ChangePasswordModel, InteractionLoginModel
+from module_identity.entity.vo.interaction_vo import ChangePasswordModel, InteractionConsentModel, InteractionLoginModel
 from module_identity.entity.vo.oauth_resource_vo import ScopeStatusModel
+from module_identity.entity.vo.oauth_session_vo import GrantPageQueryModel
 from module_identity.entity.vo.protocol_vo import AuthorizeRequest
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.security.jwt_profile import decode_access_token
 from module_identity.security.pkce import generate_code_challenge
 from module_identity.security.principal import OAuthClientPrincipal
-from module_identity.service.authorization_service import AuthorizationCodeService, AuthorizationService
-from module_identity.service.consent_service import ConsentService
+from module_identity.service.audit_service import AuditService
+from module_identity.service.authorization_service import (
+    AuthorizationCodeService,
+    AuthorizationService,
+    InteractionCompletionService,
+)
+from module_identity.service.consent_service import ConsentService, InteractionConsentService
 from module_identity.service.identity_service import CredentialAuthenticationResult, CredentialAuthenticationService
 from module_identity.service.infrastructure_service import AfterCommitCoordinator
 from module_identity.service.interaction_service import InteractionLoginService, InteractionService
 from module_identity.service.oauth_management_service import OAuthResourceManagementService
+from module_identity.service.oauth_session_management_service import OAuthSessionManagementService
 from module_identity.service.session_service import SsoSessionService
-from module_identity.service.token_protocol_service import IntrospectionService
+from module_identity.service.token_protocol_service import IntrospectionService, UserInfoService
 from module_identity.service.token_service import TokenResult, TokenService
 from tests.module_identity.support.redis_fakes import FakeRedis
 from utils.pwd_util import PwdUtil
@@ -323,12 +333,18 @@ def _sign(flow: SimpleNamespace, claims: dict[str, object]) -> str:
 
 
 @pytest.mark.asyncio
-async def test_one_time_consent_is_active_without_creating_a_saved_grant(auth_flow: SimpleNamespace) -> None:
-    """一次性同意不创建持久 Grant，签发的 Access Token 仍可正常内省。"""
+async def test_one_time_consent_has_revocable_grant_without_remembering_consent(auth_flow: SimpleNamespace) -> None:
+    """一次性同意有可撤销记录，但不授予离线续期和后续免确认资格。"""
 
     token, grant = await _user_token(auth_flow)
-    assert grant is None and token.refresh_token is None
-    assert await auth_flow.db.scalar(select(func.count()).select_from(SysOAuthGrant)) == 0
+    assert grant is not None and token.refresh_token is None
+    assert grant.remembered_scopes == [] and grant.remembered_resources == []
+    assert _claims(auth_flow, token.access_token)['grant_id'] == grant.grant_id
+    assert await auth_flow.db.scalar(select(func.count()).select_from(SysOAuthGrant)) == 1
+    context = await AuthorizationService.validate_request(
+        auth_flow.db, AuthorizeRequest(**_authorize_request(auth_flow))
+    )
+    assert not ConsentService.consent_is_satisfied(context, grant)
     result = await _introspect(auth_flow, token.access_token)
     assert result['active'] is True
     assert result['username'] == 'alice'
@@ -361,14 +377,15 @@ async def test_one_time_consent_still_checks_current_security_state(
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('offline', [False, True])
+@pytest.mark.parametrize(('remember', 'offline'), [(False, False), (True, False), (False, True)])
 async def test_saved_grant_revocation_cannot_be_bypassed_by_a_later_grant(
     auth_flow: SimpleNamespace,
+    remember: bool,
     offline: bool,
 ) -> None:
-    """持久 Grant 撤销后，再次同意不能恢复旧 Access Token。"""
+    """管理端撤销各类授权后，新授权不能恢复旧令牌，其他用户会话不受影响。"""
 
-    token, grant = await _user_token(auth_flow, remember=not offline, offline=offline)
+    token, grant = await _user_token(auth_flow, remember=remember, offline=offline)
     assert grant is not None
     if offline:
         assert token.refresh_token is not None
@@ -385,9 +402,31 @@ async def test_saved_grant_revocation_cannot_be_bypassed_by_a_later_grant(
             kid='regression-key',
         )
     assert (await _introspect(auth_flow, token.access_token))['active'] is True
-    grant.status = 'revoked'
-    await auth_flow.db.commit()
+    assert await UserInfoService.build(auth_flow.db, _claims(auth_flow, token.access_token), auth_flow.redis)
+    assert (
+        await OAuthSessionManagementService.revoke_grants(auth_flow.db, [grant.grant_id], 'admin', '撤销应用授权') == 1
+    )
     assert await _introspect(auth_flow, token.access_token) == {'active': False}
+    with pytest.raises(ValueError, match='authorization is inactive'):
+        await UserInfoService.build(auth_flow.db, _claims(auth_flow, token.access_token), auth_flow.redis)
+    if offline:
+        assert await _introspect(auth_flow, token.refresh_token) == {'active': False}
+        with pytest.raises(OAuthProtocolException) as error:
+            await TokenService.refresh_token(
+                auth_flow.db,
+                {
+                    'grant_type': 'refresh_token',
+                    'client_id': auth_flow.app.client_id,
+                    'refresh_token': token.refresh_token,
+                },
+                OAuthClientPrincipal(auth_flow.app.client_id, 'public', 'none'),
+                signing_key=auth_flow.signer,
+                kid='regression-key',
+                now=auth_flow.now,
+            )
+        assert error.value.error == 'invalid_grant'
+    await auth_flow.db.refresh(auth_flow.session)
+    assert auth_flow.session.status == 'active'
     new_token, new_grant = await _user_token(auth_flow, remember=True, offline=offline)
     assert new_grant.grant_id != grant.grant_id
     assert (await _introspect(auth_flow, new_token.access_token))['active'] is True
@@ -396,14 +435,16 @@ async def test_saved_grant_revocation_cannot_be_bypassed_by_a_later_grant(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('remember', [False, True])
-async def test_legacy_user_tokens_require_a_persisted_grant(auth_flow: SimpleNamespace, remember: bool) -> None:
-    """没有授权来源 Claims 的存量用户令牌仍要求存在有效的持久 Grant。"""
+async def test_legacy_user_tokens_without_grant_binding_require_reauthorization(
+    auth_flow: SimpleNamespace, remember: bool
+) -> None:
+    """旧令牌没有具体 Grant 绑定时拒绝访问，即使用户有其他有效授权。"""
 
     token, _ = await _user_token(auth_flow, remember=remember)
     claims = _claims(auth_flow, token.access_token)
     claims.pop('grant_id', None)
     claims.pop('client_policy_version', None)
-    assert (await _introspect(auth_flow, _sign(auth_flow, claims)))['active'] is remember
+    assert await _introspect(auth_flow, _sign(auth_flow, claims)) == {'active': False}
 
 
 @pytest.mark.asyncio
@@ -604,3 +645,266 @@ async def test_login_cookie_persistence_survives_forced_password_change(
         assert int(cookie['max-age']) == remaining == _REMEMBER_SECONDS
     else:
         assert not cookie['max-age'] and not cookie['expires']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('offline', [False, True])
+async def test_block_and_unblock_require_new_authorization(auth_flow: SimpleNamespace, offline: bool) -> None:
+    """禁止访问阻断当前令牌和授权确认，解除后只有新授权可以访问。"""
+
+    flow = auth_flow
+    token, grant = await _user_token(flow, offline=offline)
+    client_id, user_id, grant_id = flow.app.client_id, flow.user.user_id, grant.grant_id
+    context = await AuthorizationService.validate_request(flow.db, AuthorizeRequest(**_authorize_request(flow)))
+    code_payload = {
+        'clientPk': flow.app.client_pk,
+        'redirectUri': context.redirect_uri,
+        'userId': user_id,
+        'subjectId': flow.subject.subject_id,
+        'authVersion': flow.subject.auth_version,
+        'sid': flow.session.sid,
+        'grantId': grant_id,
+        'scopes': list(context.scopes),
+        'resources': list(context.resources),
+        'nonce': context.nonce,
+        'codeChallenge': context.code_challenge,
+        'codeChallengeMethod': context.code_challenge_method,
+        'authTime': flow.now.isoformat(),
+    }
+    pending_code = await AuthorizationCodeService.issue(flow.redis, code_payload, pepper=_PEPPER)
+    count = await OAuthSessionManagementService.set_access(flow.db, user_id, client_id, True, 'admin', '禁止访问')
+    assert count == 1
+    assert await _introspect(flow, token.access_token) == {'active': False}
+    with pytest.raises(ValueError):
+        await UserInfoService.build(flow.db, _claims(flow, token.access_token), flow.redis)
+    with pytest.raises(OAuthProtocolException) as error:
+        await ConsentService.submit_consent(
+            flow.db,
+            context,
+            True,
+            context.scopes,
+            True,
+            user_id=user_id,
+            subject_id=flow.subject.subject_id,
+        )
+    assert error.value.error == 'access_denied'
+    with pytest.raises(OAuthProtocolException) as error:
+        await TokenService.authorization_code(
+            flow.db,
+            flow.redis,
+            {
+                'grant_type': 'authorization_code',
+                'client_id': client_id,
+                'code': pending_code,
+                'redirect_uri': context.redirect_uri,
+                'code_verifier': _VERIFIER,
+            },
+            OAuthClientPrincipal(client_id, 'public', 'none'),
+            signing_key=flow.signer,
+            kid='regression-key',
+            now=flow.now,
+        )
+    assert error.value.error == 'invalid_grant'
+    if offline:
+        assert await _introspect(flow, token.refresh_token) == {'active': False}
+    rows, total = await OAuthSessionManagementService.list_grants(flow.db, GrantPageQueryModel(accessStatus='blocked'))
+    assert total == 1 and rows[0].access_status == 'blocked' and rows[0].access_reason == '禁止访问'
+    assert await OAuthSessionManagementService.set_access(flow.db, user_id, client_id, False, 'admin', '解除禁止') == 0
+    assert await _introspect(flow, token.access_token) == {'active': False}
+    await flow.db.refresh(grant)
+    assert grant.status == 'revoked'
+    assert grant.remembered_scopes == [] and grant.remembered_resources == []
+    fresh, fresh_grant = await _user_token(flow, offline=offline)
+    assert fresh_grant.grant_id != grant_id
+    assert (await _introspect(flow, fresh.access_token))['active'] is True
+    assert await _introspect(flow, token.access_token) == {'active': False}
+    await flow.db.refresh(flow.session)
+    assert flow.session.status == 'active'
+
+
+@pytest.mark.asyncio
+async def test_block_rejects_authorize_before_showing_consent(auth_flow: SimpleNamespace) -> None:
+    """已有 SSO 时，禁止访问在授权入口直接拒绝，不依赖同意页或令牌端点兜底。"""
+
+    flow = auth_flow
+    raw, cookie = _authorize_request(flow), flow.cookie
+    await OAuthSessionManagementService.set_access(
+        flow.db, flow.user.user_id, flow.app.client_id, True, 'admin', '禁止'
+    )
+    with pytest.raises(OAuthProtocolException) as error:
+        await AuthorizationService.process_authorization_request(flow.db, flow.redis, raw, sso_cookie=cookie)
+    assert error.value.error == 'access_denied' and error.value.can_redirect
+
+
+@pytest.mark.asyncio
+async def test_pre_authorized_flow_also_creates_revocable_grant(auth_flow: SimpleNamespace) -> None:
+    """可信应用跳过确认页面时，授权码仍绑定后台可撤销的具体 Grant。"""
+
+    flow = auth_flow
+    flow.app.require_consent = 0
+    await flow.db.commit()
+    result = await AuthorizationService.process_authorization_request(
+        flow.db,
+        flow.redis,
+        _authorize_request(flow),
+        sso_cookie=flow.cookie,
+    )
+    code = parse_qs(urlsplit(result.location).query)['code'][0]
+    payload = await AuthorizationCodeService.consume(flow.redis, code, pepper=_PEPPER)
+    grant = await OAuthGrantDao.get_by_grant_id(flow.db, payload['grantId'])
+    assert grant is not None and grant.user_id == flow.user.user_id and not grant.remembered_scopes
+    assert await OAuthSessionManagementService.revoke_grants(flow.db, [grant.grant_id], 'admin', '撤销') == 1
+
+
+@pytest.mark.asyncio
+async def test_batch_revoke_covers_all_grants_for_selected_user_client(auth_flow: SimpleNamespace) -> None:
+    """同一用户应用的重复历史有效记录一并撤销，其他用户及机器访问不受影响。"""
+
+    flow = auth_flow
+    token, grant = await _user_token(flow, remember=True)
+    duplicate = SysOAuthGrant(
+        grant_id=str(uuid4()),
+        user_id=flow.user.user_id,
+        subject_id=flow.subject.subject_id,
+        client_pk=flow.app.client_pk,
+        granted_scopes=list(grant.granted_scopes),
+        granted_resources=list(grant.granted_resources),
+        client_policy_version=flow.app.policy_version,
+        remembered_scopes=list(grant.remembered_scopes),
+        status='active',
+    )
+    other_user = SysUser(user_id=2002, user_name='bob', nick_name='Bob', status='0', del_flag='0')
+    other_grant = SysOAuthGrant(
+        grant_id=str(uuid4()),
+        user_id=other_user.user_id,
+        subject_id=str(uuid4()),
+        client_pk=flow.app.client_pk,
+        granted_scopes=list(grant.granted_scopes),
+        granted_resources=list(grant.granted_resources),
+        client_policy_version=flow.app.policy_version,
+        status='active',
+    )
+    flow.db.add_all([duplicate, other_user, other_grant])
+    await flow.db.commit()
+    machine = await _machine_token(flow)
+    assert await OAuthSessionManagementService.revoke_grants(
+        flow.db, [grant.grant_id, duplicate.grant_id], 'admin', '撤销'
+    ) == len([grant, duplicate])
+    assert await _introspect(flow, token.access_token) == {'active': False}
+    assert (await _introspect(flow, machine.access_token))['active'] is True
+    for row in (grant, duplicate, other_grant, flow.session):
+        await flow.db.refresh(row)
+    assert grant.status == duplicate.status == 'revoked'
+    assert other_grant.status == flow.session.status == 'active'
+
+
+@pytest.mark.asyncio
+async def test_failed_access_policy_audit_rolls_back_revocation(
+    auth_flow: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """禁止操作的审计失败时，访问策略与令牌撤销必须同时回滚。"""
+
+    flow = auth_flow
+    token, grant = await _user_token(flow)
+    user_id, client_pk, client_id = flow.user.user_id, flow.app.client_pk, flow.app.client_id
+
+    monkeypatch.setattr(AuditService, 'record', AsyncMock(side_effect=RuntimeError('audit unavailable')))
+    with pytest.raises(ServiceException):
+        await OAuthSessionManagementService.set_access(flow.db, user_id, client_id, True, 'admin', '禁止')
+    assert not await OAuthAccessPolicyDao.is_blocked(flow.db, user_id, client_pk)
+    await flow.db.refresh(grant)
+    assert grant.status == 'active'
+    assert (await _introspect(flow, token.access_token))['active'] is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('confirm', [False, True])
+async def test_interactive_completion_binds_a_grant(auth_flow: SimpleNamespace, confirm: bool) -> None:
+    """登录后直接完成与确认后完成两条交互路径都绑定可撤销授权。"""
+
+    flow = auth_flow
+    flow.app.require_consent = int(confirm)
+    await flow.db.commit()
+    context = await AuthorizationService.validate_request(flow.db, AuthorizeRequest(**_authorize_request(flow)))
+    payload = context.to_internal_payload('pending')
+    payload.update(
+        {
+            'authenticatedSid': flow.session.sid,
+            'userId': flow.user.user_id,
+            'subjectId': flow.subject.subject_id,
+            'authVersion': flow.subject.auth_version,
+        }
+    )
+    created = await InteractionService.create(flow.redis, payload, pepper=_PEPPER)
+    if confirm:
+        await InteractionConsentService.consent(
+            flow.redis,
+            created.interaction_id,
+            InteractionConsentModel(approved=True, scopes=list(context.scopes), rememberConsent=False),
+            flow.db,
+            created.csrf_token,
+        )
+    result = await InteractionCompletionService.complete(flow.redis, created.interaction_id, flow.db)
+    code = parse_qs(urlsplit(result.location).query)['code'][0]
+    payload = await AuthorizationCodeService.consume(flow.redis, code, pepper=_PEPPER)
+    grant = await OAuthGrantDao.get_by_grant_id(flow.db, payload['grantId'])
+    assert grant is not None and grant.status == 'active' and grant.remembered_scopes == []
+
+
+@pytest.mark.asyncio
+async def test_expired_grant_is_not_reactivated_by_new_consent(auth_flow: SimpleNamespace) -> None:
+    """授权先于 Access Token 过期后，再次同意也不能恢复旧令牌。"""
+
+    flow = auth_flow
+    old_token, old_grant = await _user_token(flow)
+    old_grant.expires_at = flow.now - timedelta(seconds=1)
+    await flow.db.commit()
+    assert await _introspect(flow, old_token.access_token) == {'active': False}
+    token, grant = await _user_token(flow)
+    assert grant.grant_id != old_grant.grant_id
+    assert (await _introspect(flow, token.access_token))['active'] is True
+    assert await _introspect(flow, old_token.access_token) == {'active': False}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('blocked', [False, True])
+async def test_revocation_between_consent_and_completion_prevents_code(
+    auth_flow: SimpleNamespace,
+    monkeypatch: pytest.MonkeyPatch,
+    blocked: bool,
+) -> None:
+    """同意后、签码前发生撤销或禁止，不得继续发码或复用授权记录。"""
+
+    flow = auth_flow
+    context = await AuthorizationService.validate_request(flow.db, AuthorizeRequest(**_authorize_request(flow)))
+    payload = context.to_internal_payload('pending')
+    payload.update(
+        {
+            'authenticatedSid': flow.session.sid,
+            'userId': flow.user.user_id,
+            'subjectId': flow.subject.subject_id,
+            'authVersion': flow.subject.auth_version,
+        }
+    )
+    created = await InteractionService.create(flow.redis, payload, pepper=_PEPPER)
+    await InteractionConsentService.consent(
+        flow.redis,
+        created.interaction_id,
+        InteractionConsentModel(approved=True, scopes=list(context.scopes), rememberConsent=False),
+        flow.db,
+        created.csrf_token,
+    )
+    record = await InteractionService.get_record(flow.redis, created.interaction_id)
+    if blocked:
+        await OAuthSessionManagementService.set_access(
+            flow.db, flow.user.user_id, flow.app.client_id, True, 'admin', '禁止'
+        )
+    else:
+        await OAuthSessionManagementService.revoke_grants(flow.db, [record['grantId']], 'admin', '撤销')
+    issue = AsyncMock()
+    monkeypatch.setattr(AuthorizationCodeService, 'issue', issue)
+    with pytest.raises(OAuthProtocolException) as error:
+        await InteractionCompletionService.complete(flow.redis, created.interaction_id, flow.db)
+    assert error.value.error == 'access_denied'
+    issue.assert_not_awaited()

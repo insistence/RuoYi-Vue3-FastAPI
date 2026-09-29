@@ -9,6 +9,7 @@ from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException
 from module_identity.dao.identity_subject_dao import IdentitySubjectDao
 from module_identity.dao.identity_user_dao import IdentityUserDao
+from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.dao.oauth_resource_dao import OAuthResourceDao
@@ -373,55 +374,16 @@ class IntrospectionService:
         ):
             return None
         scopes = scope.split()
-        if 'grant_id' in claims:
-            grant_id = claims['grant_id']
-            if grant_id is None:
-                # 签名声明中的空 Grant ID 表示一次性在线授权
-                if (
-                    claims.get('gty') != 'authorization_code'
-                    or 'offline_access' in scopes
-                    or claims.get('client_policy_version') != client.policy_version
-                ):
-                    return None
-                return user
-            # 按 Grant ID 校验持久授权，避免重新同意后恢复旧令牌
-            grant = await OAuthGrantDao.get_by_grant_id(db, grant_id)
-            if not cls._grant_active(grant, subject.user_id, subject_id, client, scopes, resources, now):
-                return None
-            return user
-        # 存量令牌仍通过持久 Grant 校验授权状态
-        grant = await cls._find_grant(db, subject.user_id, client, subject_id, scopes, resources, now)
-
-        return user if grant is not None else None
-
-    @classmethod
-    async def _find_grant(
-        cls,
-        db: AsyncSession,
-        user_id: int,
-        client: Any,
-        subject_id: str,
-        scopes: list[str],
-        resources: list[str],
-        now: datetime,
-    ) -> Any:
-        """
-        查找匹配用户和资源范围的有效 Grant
-
-        :param db: 异步数据库会话
-        :param user_id: 用户标识
-        :param client: 签发该 Access Token 的 OAuth Client ORM
-        :param subject_id: Subject 标识
-        :param scopes: Access Token 声明中的 Scope 列表
-        :param resources: Access Token 声明中的 Resource Audience 列表
-        :param now: 当前时间
-        :return: 匹配用户、Subject、OAuth Client、Scope 和 Resource 且未过期的 Grant ORM，不存在时返回 None
-        """
-
-        for grant in await OAuthGrantDao.list_active_for_user_client(db, user_id, client.client_pk):
-            if cls._grant_active(grant, user_id, subject_id, client, scopes, resources, now):
-                return grant
-        return None
+        grant_id = claims.get('grant_id')
+        if not isinstance(grant_id, str) or not grant_id:
+            # 升级前未绑定具体授权的用户令牌须重新授权，避免撤销范围不明确。
+            return None
+        if await OAuthAccessPolicyDao.is_blocked(db, subject.user_id, client.client_pk):
+            return None
+        grant = await OAuthGrantDao.get_by_grant_id(db, grant_id)
+        if not cls._grant_active(grant, subject.user_id, subject_id, client, scopes, resources, now):
+            return None
+        return user
 
     @classmethod
     async def _client_allows_access(
@@ -503,6 +465,8 @@ class IntrospectionService:
             or session.user_id != row.user_id
             or session.auth_version != row.auth_version
         ):
+            return {'active': False}
+        if await OAuthAccessPolicyDao.is_blocked(db, row.user_id, row.client_pk):
             return {'active': False}
         grant = await OAuthGrantDao.get_by_grant_id(db, row.grant_id)
         if not cls._grant_active(
@@ -1023,26 +987,12 @@ class UserInfoService:
         client = await OAuthClientDao.get_by_client_id(db, claims['client_id'], active_only=True)
         if client is None or client.status != '0':
             raise ValueError('client is inactive')
-        subject = await IdentitySubjectDao.get_by_subject_id(db, claims['sub'])
-        if subject is None or subject.auth_version != claims['ver']:
-            raise ValueError('subject version is stale')
-        user = await IdentityUserDao.get_user(db, subject.user_id)
-        if user is None or user.status != '0' or user.del_flag != '0':
-            raise ValueError('user is inactive')
-        session = await SsoSessionDao.get_for_token(
-            db,
-            claims['sid'],
-            now=TimezoneUtil.utc_now(),
-            allow_offline=claims.get('gty') == 'refresh_token'
-            or 'offline_access' in str(claims.get('scope', '')).split(),
-        )
-        if (
-            session is None
-            or session.user_id != user.user_id
-            or session.subject_id != subject.subject_id
-            or session.auth_version != subject.auth_version
-        ):
-            raise ValueError('session is inactive')
+        resources = IntrospectionService._resource_audiences(IntrospectionService._audiences(claims.get('aud')))
+        if not await IntrospectionService._client_allows_access(db, client, claims, resources):
+            raise ValueError('client policy is inactive')
+        user = await IntrospectionService._access_user_state(db, claims, client, resources, TimezoneUtil.utc_now())
+        if user is None:
+            raise ValueError('authorization is inactive')
         await cls._check_revocation(redis, claims['jti'])
 
         scopes = str(claims.get('scope', '')).split()
@@ -1054,7 +1004,7 @@ class UserInfoService:
             scopes,
             policy,
             allowed,
-            subject_id=subject.subject_id,
+            subject_id=claims['sub'],
             roles=roles,
             department=department,
         )

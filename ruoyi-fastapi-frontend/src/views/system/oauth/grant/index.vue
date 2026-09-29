@@ -3,8 +3,8 @@
     <PageFrame
       section="访问控制"
       title="用户授权"
-      description="查看用户允许哪些应用访问哪些信息，并在需要时撤销持续访问。"
-      filter-hint="默认只显示仍然有效的授权"
+      description="管理用户对应用的访问授权，撤销当前访问或禁止后续授权。"
+      filter-hint="授权状态与应用访问策略分别管理；解除禁止后仍需重新授权"
     >
       <template #actions>
         <el-button
@@ -68,6 +68,26 @@
               <el-option
                 label="已过期"
                 value="expired"
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item
+            label="应用访问"
+            prop="accessStatus"
+          >
+            <el-select
+              v-model="queryParams.accessStatus"
+              clearable
+              placeholder="全部策略"
+              style="width: 200px"
+            >
+              <el-option
+                label="允许授权"
+                value="allowed"
+              />
+              <el-option
+                label="禁止访问"
+                value="blocked"
               />
             </el-select>
           </el-form-item>
@@ -182,9 +202,23 @@
           >
         </el-table-column>
         <el-table-column
+          label="应用访问"
+          width="110"
+          align="center"
+        >
+          <template #default="scope">
+            <el-tag
+              :type="scope.row.accessStatus === 'blocked' ? 'danger' : 'info'"
+              effect="plain"
+            >
+              {{ scope.row.accessStatus === 'blocked' ? '禁止访问' : '允许授权' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column
           label="操作"
           fixed="right"
-          width="160"
+          width="260"
           align="center"
         >
           <template #default="scope">
@@ -204,6 +238,14 @@
                 v-hasPermi="['system:oauthGrant:revoke']"
                 @click="openRevoke(scope.row)"
                 >撤销</el-button
+              >
+              <el-button
+                link
+                :type="scope.row.accessStatus === 'blocked' ? 'primary' : 'danger'"
+                :icon="scope.row.accessStatus === 'blocked' ? 'Unlock' : 'Lock'"
+                v-hasPermi="['system:oauthGrant:revoke']"
+                @click="openAccess(scope.row)"
+                >{{ scope.row.accessStatus === 'blocked' ? '解除禁止' : '禁止访问' }}</el-button
               >
             </div>
           </template>
@@ -229,8 +271,10 @@
       <div class="impact-summary">
         <el-icon><WarningFilled /></el-icon>
         <div>
-          <strong>将撤销 {{ revokeIds.length }} 条授权</strong>
-          <p>应用将不能继续刷新用户的访问凭据；已经发出的短期凭据会在自身有效期结束后失效。</p>
+          <strong>将撤销 {{ revokeTargetCount }} 组用户与应用的现有授权</strong>
+          <p>
+            包括一次性授权、已记住的授权和持续访问权限。在线校验的资源将在下次检查时拒绝旧凭据；仅本地验签或缓存校验结果的资源可能延迟生效。用户重新同意后可以再次访问。
+          </p>
         </div>
       </div>
       <label
@@ -255,6 +299,52 @@
           :loading="revoking"
           @click="revoke"
           >确认撤销</el-button
+        >
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="accessOpen"
+      :title="accessBlocked ? '禁止用户访问应用' : '解除应用访问禁止'"
+      width="min(540px, calc(100vw - 32px))"
+      append-to-body
+      :close-on-click-modal="false"
+    >
+      <div class="impact-summary">
+        <el-icon><WarningFilled /></el-icon>
+        <div>
+          <strong
+            >{{ accessTarget.userName || `用户 ${accessTarget.userId}` }} ·
+            {{ accessTarget.clientName || accessTarget.clientId }}</strong
+          >
+          <p v-if="accessBlocked">
+            将撤销该用户对应用的全部现有授权，并禁止再次授权。只有管理员解除禁止后，用户才能重新授权；其他应用不受影响。
+          </p>
+          <p v-else>解除后用户可以重新授权。已撤销的授权和旧凭据保持失效。</p>
+        </div>
+      </div>
+      <label
+        class="reason-label"
+        for="grant-access-reason"
+        >操作原因</label
+      >
+      <el-input
+        id="grant-access-reason"
+        v-model="accessReason"
+        type="textarea"
+        :rows="3"
+        maxlength="200"
+        show-word-limit
+        placeholder="说明操作原因，便于后续审计"
+      />
+      <template #footer>
+        <el-button @click="accessOpen = false">取消</el-button>
+        <el-button
+          :type="accessBlocked ? 'danger' : 'primary'"
+          :disabled="!accessReason.trim()"
+          :loading="savingAccess"
+          @click="saveAccess"
+          >{{ accessBlocked ? '确认禁止' : '确认解除' }}</el-button
         >
       </template>
     </el-dialog>
@@ -300,6 +390,15 @@
         <el-descriptions-item label="最后使用">{{
           parseTime(detail.lastUsedAt) || '尚未使用'
         }}</el-descriptions-item>
+        <el-descriptions-item label="后续免确认">{{
+          (detail.rememberedScopes || []).join('、') || '未记住，下次仍需按策略确认'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="应用访问">{{
+          detail.accessStatus === 'blocked' ? '禁止访问，需管理员解除' : '允许重新授权'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="访问策略原因">{{
+          detail.accessReason || '—'
+        }}</el-descriptions-item>
         <el-descriptions-item label="撤销原因">{{
           detail.revokeReason || '—'
         }}</el-descriptions-item>
@@ -324,7 +423,12 @@
 </template>
 
 <script setup name="OAuthGrant">
-import { getOAuthGrant, listOAuthGrants, revokeOAuthGrants } from '@/api/system/oauthSession'
+import {
+  getOAuthGrant,
+  listOAuthGrants,
+  revokeOAuthGrants,
+  setOAuthClientAccess,
+} from '@/api/system/oauthSession'
 import PageFrame from '@/components/OAuthWorkspace/PageFrame.vue'
 
 const { proxy } = getCurrentInstance()
@@ -339,12 +443,19 @@ const revokeOpen = ref(false)
 const detailOpen = ref(false)
 const revokeIds = ref([])
 const reason = ref('')
+const revokeTargetCount = ref(0)
+const accessOpen = ref(false)
+const accessTarget = ref({})
+const accessBlocked = ref(true)
+const accessReason = ref('')
+const savingAccess = ref(false)
 const queryParams = reactive({
   pageNum: 1,
   pageSize: 10,
   userId: undefined,
   clientId: undefined,
-  status: 'active',
+  status: undefined,
+  accessStatus: undefined,
 })
 
 /** 缩略显示授权标识 */
@@ -370,6 +481,7 @@ async function getList() {
   loading.value = true
   try {
     const response = await listOAuthGrants(queryParams)
+    selected.value = []
     rows.value = response.rows || []
     total.value = response.total || 0
   } finally {
@@ -391,7 +503,9 @@ function resetQuery() {
 
 /** 打开授权撤销对话框 */
 function openRevoke(row) {
-  revokeIds.value = row ? [row.grantId] : selected.value.map((item) => item.grantId)
+  const targets = row ? [row] : selected.value
+  revokeIds.value = targets.map((item) => item.grantId)
+  revokeTargetCount.value = new Set(targets.map((item) => `${item.userId}:${item.clientId}`)).size
   reason.value = ''
   revokeOpen.value = true
 }
@@ -408,6 +522,30 @@ async function revoke() {
     await getList()
   } finally {
     revoking.value = false
+  }
+}
+
+/** 打开用户应用访问控制对话框 */
+function openAccess(row) {
+  accessTarget.value = row
+  accessBlocked.value = row.accessStatus !== 'blocked'
+  accessReason.value = ''
+  accessOpen.value = true
+}
+
+/** 保存访问策略并刷新授权状态 */
+async function saveAccess() {
+  savingAccess.value = true
+  try {
+    await setOAuthClientAccess(accessTarget.value.userId, accessTarget.value.clientId, {
+      blocked: accessBlocked.value,
+      reason: accessReason.value.trim(),
+    })
+    proxy.$modal.msgSuccess(accessBlocked.value ? '已禁止访问该应用' : '已解除禁止，请重新授权')
+    accessOpen.value = false
+    await getList()
+  } finally {
+    savingAccess.value = false
   }
 }
 
