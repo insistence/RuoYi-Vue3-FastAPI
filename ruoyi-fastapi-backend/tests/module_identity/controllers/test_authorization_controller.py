@@ -45,6 +45,7 @@ class _Request:
     """构造不携带 Legacy 会话的认证请求。"""
 
     def __init__(self, values: list[tuple[str, str]], redis: FakeRedis | None = None) -> None:
+        self.method = 'GET'
         self.query_params = _QueryParams(values)
         self.cookies: dict[str, str] = {}
         self.headers: dict[str, str] = {}

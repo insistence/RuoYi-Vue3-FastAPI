@@ -216,6 +216,11 @@ class AuthorizationService:
         if not isinstance(client_id, str) or not isinstance(redirect_uri, str):
             raise OAuthProtocolException('invalid_request', 'client_id and redirect_uri are required')
         verified_redirect = await cls.verified_redirect(db, client_id, redirect_uri)
+        if raw.get('response_mode', 'query') != 'query':
+            state = raw.get('state') if len(raw.get('state', '')) <= _MAX_STATE_LENGTH else None
+            raise cls._redirect_error(
+                'unsupported_response_mode', 'Response mode is not supported', verified_redirect, state
+            )
         try:
             return AuthorizeRequest.model_validate(raw), verified_redirect
         except ValidationError as exc:

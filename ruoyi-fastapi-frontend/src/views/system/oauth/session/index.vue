@@ -105,7 +105,7 @@
         <el-table-column
           type="selection"
           width="48"
-          :selectable="(row) => row.status === 'active'"
+          :selectable="(row) => row.status !== 'revoked'"
         />
         <el-table-column
           label="用户"
@@ -203,7 +203,7 @@
                 >查看</el-button
               >
               <el-button
-                v-if="scope.row.status === 'active'"
+                v-if="scope.row.status !== 'revoked'"
                 link
                 type="danger"
                 icon="SwitchButton"
@@ -238,7 +238,9 @@
         <el-icon><WarningFilled /></el-icon>
         <div>
           <strong>将结束 {{ revokeIds.length }} 个外部登录会话</strong>
-          <p>用户需要在相关外部应用中重新登录。当前管理后台的登录状态不会受到影响。</p>
+          <p>
+            将终止这些会话的登录状态及离线访问凭据。资源服务通过在线校验感知失效；应用本地登录状态由应用负责清理。
+          </p>
         </div>
       </div>
       <label
@@ -400,6 +402,7 @@ async function getList() {
   loading.value = true
   try {
     const response = await listOAuthSessions(queryParams)
+    selected.value = []
     rows.value = response.rows || []
     total.value = response.total || 0
   } finally {

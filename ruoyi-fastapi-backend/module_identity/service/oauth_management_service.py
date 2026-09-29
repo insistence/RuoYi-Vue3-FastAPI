@@ -812,7 +812,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         after_commit: Callable[[], Awaitable[None]] | None = None,
     ) -> ClientSecretResponseModel:
         """
-        轮换 OAuth Client Secret 并撤销旧凭据
+        轮换 OAuth Client Secret 并安排旧凭据退役
 
         :param db: 异步数据库会话
         :param client_id: Client 公开标识
@@ -1350,7 +1350,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
             if old_expiry is None or old_expiry > retirement_end:
                 old_secret.expires_at = retirement_end
         secret = await cls._new_secret(db, client, actor_value, current, not_before=effective, expires_at=expiry)
-        client.policy_version = int(client.policy_version or 0) + 1
+        # 凭据轮换只影响客户端认证，保留现有用户授权。
         client.update_by, client.update_time = actor_value, current
         await OAuthClientDao.persist_client_policy_change(db, client)
         await cls._record_audit(db, OidcAuditEvent.CLIENT_SECRET_ROTATED, actor_value, client_id=client.client_id)
@@ -1385,7 +1385,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         if secret.status == 'revoked':
             return False
         secret.status, secret.revoked_by, secret.revoked_at = 'revoked', actor_value, current
-        client.policy_version = int(client.policy_version or 0) + 1
+        # 撤销单个凭据不改变用户授权策略版本。
         client.update_by, client.update_time = actor_value, current
         await OAuthClientDao.persist_client_policy_change(db, client)
         await cls._record_audit(

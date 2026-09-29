@@ -10,6 +10,8 @@ from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.dao.sso_session_dao import SsoSessionDao
 from module_identity.entity.do.oauth_grant_do import SysOAuthAccessPolicy, SysOAuthGrant, SysSsoSession
 from module_identity.entity.vo.oauth_session_vo import (
+    AccessPolicyModel,
+    AccessPolicyPageQueryModel,
     GrantModel,
     GrantPageQueryModel,
     SessionPageQueryModel,
@@ -18,6 +20,7 @@ from module_identity.entity.vo.oauth_session_vo import (
 from module_identity.service.audit_service import AuditService
 from module_identity.service.infrastructure_service import AfterCommitCoordinator
 from module_identity.service.session_service import SsoSessionService
+from utils.time_util import TimezoneUtil
 
 
 class OAuthSessionManagementService:
@@ -34,6 +37,13 @@ class OAuthSessionManagementService:
         :return: Session 管理视图
         """
 
+        status = row.status
+        if (
+            status == 'active'
+            and min(TimezoneUtil.to_utc(row.idle_expires_at), TimezoneUtil.to_utc(row.absolute_expires_at))
+            <= TimezoneUtil.utc_now()
+        ):
+            status = 'expired'
         return SsoSessionModel(
             sid=row.sid,
             user_id=row.user_id,
@@ -47,7 +57,7 @@ class OAuthSessionManagementService:
             amr=list(row.amr or []),
             remember_me=bool(getattr(row, 'remember_me', False)),
             ip_address=getattr(row, 'ip_address', None),
-            status=row.status,
+            status=status,
             revoked_at=getattr(row, 'revoked_at', None),
             revoke_reason=getattr(row, 'revoke_reason', None),
             create_time=getattr(row, 'create_time', None),
@@ -64,6 +74,13 @@ class OAuthSessionManagementService:
         :return: Grant 管理视图
         """
 
+        status = row.status
+        if (
+            status == 'active'
+            and row.expires_at is not None
+            and TimezoneUtil.to_utc(row.expires_at) <= TimezoneUtil.utc_now()
+        ):
+            status = 'expired'
         return GrantModel(
             grant_id=row.grant_id,
             user_id=row.user_id,
@@ -75,7 +92,7 @@ class OAuthSessionManagementService:
             remembered_resources=list(getattr(row, 'remembered_resources', None) or []),
             access_status=policy.access_status if policy else 'allowed',
             access_reason=policy.reason if policy else None,
-            status=row.status,
+            status=status,
             client_policy_version=getattr(row, 'client_policy_version', None),
             consented_at=row.consented_at,
             last_used_at=getattr(row, 'last_used_at', None),
@@ -112,7 +129,13 @@ class OAuthSessionManagementService:
             end_time=query.end_time,
         )
 
-        return [OAuthSessionManagementService.session_view(row) for row in rows], total
+        client_ids = await SsoSessionDao.client_ids_for_sids(db, [row.sid for row in rows])
+        return [
+            OAuthSessionManagementService.session_view(row).model_copy(
+                update={'client_ids': client_ids.get(row.sid, [])}
+            )
+            for row in rows
+        ], total
 
     @staticmethod
     async def get_session(db: AsyncSession, sid: str) -> SsoSessionModel | None:
@@ -168,6 +191,34 @@ class OAuthSessionManagementService:
         ], total
 
     @staticmethod
+    async def list_access_policies(
+        db: AsyncSession, query: AccessPolicyPageQueryModel
+    ) -> tuple[list[AccessPolicyModel], int]:
+        """
+        查询独立访问策略，包含尚未授权过的用户与应用
+
+        :param db: 异步数据库会话
+        :param query: 访问策略分页查询参数
+        :return: 访问策略管理视图列表和总数
+        """
+
+        rows = await OAuthAccessPolicyDao.list_page(db, query)
+        total = await OAuthAccessPolicyDao.count(db, query)
+        return [
+            AccessPolicyModel(
+                user_id=row.user_id,
+                user_name=user_name,
+                client_id=client_id,
+                client_name=client_name,
+                access_status=row.access_status,
+                reason=row.reason,
+                update_by=row.update_by,
+                update_time=row.update_time,
+            )
+            for row, user_name, client_id, client_name in rows
+        ], total
+
+    @staticmethod
     async def get_grant(db: AsyncSession, grant_id: str) -> GrantModel | None:
         """
         按 grant_id 查询 OAuth Grant
@@ -188,7 +239,7 @@ class OAuthSessionManagementService:
     @staticmethod
     async def revoke_user(db: AsyncSession, redis: Redis, user_id: int, actor: str, reason: str) -> int:
         """
-        撤销用户全部有效 SSO Session
+        撤销用户全部在线及自然过期的 SSO Session
 
         :param db: 异步数据库会话
         :param redis: SSO Session 热缓存客户端

@@ -125,6 +125,33 @@ class GrantPageQueryModel(SessionModel):
     page_size: int = Field(default=10, ge=1, le=200, description='每页记录数')
 
 
+class AccessPolicyModel(SessionModel):
+    """
+    用户应用访问策略管理模型
+    """
+
+    user_id: int = Field(description='用户ID')
+    user_name: str = Field(description='用户名称')
+    client_id: str = Field(description='客户端标识')
+    client_name: str = Field(description='客户端名称')
+    access_status: Literal['allowed', 'blocked'] = Field(description='用户对应用的访问策略')
+    reason: str | None = Field(default=None, description='操作原因')
+    update_by: str | None = Field(default=None, description='操作人')
+    update_time: ApiUtcDateTime = Field(description='最近操作时间')
+
+
+class AccessPolicyPageQueryModel(SessionModel):
+    """
+    用户应用访问策略分页查询模型
+    """
+
+    user_id: int | None = Field(default=None, gt=0, description='用户ID')
+    client_id: str | None = Field(default=None, max_length=128, description='客户端标识')
+    access_status: Literal['allowed', 'blocked'] | None = Field(default=None, description='访问策略')
+    page_num: int = Field(default=1, ge=1, description='当前页码')
+    page_size: int = Field(default=10, ge=1, le=200, description='每页记录数')
+
+
 class AuditPageQueryModel(SessionModel):
     """
     OAuth 审计分页查询模型

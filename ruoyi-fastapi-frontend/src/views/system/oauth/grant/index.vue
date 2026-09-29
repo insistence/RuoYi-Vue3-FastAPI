@@ -8,6 +8,13 @@
     >
       <template #actions>
         <el-button
+          type="primary"
+          plain
+          icon="Lock"
+          @click="policyOpen = true"
+          >访问策略</el-button
+        >
+        <el-button
           type="danger"
           plain
           icon="CircleClose"
@@ -261,6 +268,11 @@
       />
     </PageFrame>
 
+    <AccessPolicyDrawer
+      v-model="policyOpen"
+      @changed="getList"
+    />
+
     <el-dialog
       v-model="revokeOpen"
       title="撤销用户授权"
@@ -430,6 +442,7 @@ import {
   setOAuthClientAccess,
 } from '@/api/system/oauthSession'
 import PageFrame from '@/components/OAuthWorkspace/PageFrame.vue'
+import AccessPolicyDrawer from './AccessPolicyDrawer.vue'
 
 const { proxy } = getCurrentInstance()
 const rows = ref([])
@@ -444,6 +457,7 @@ const detailOpen = ref(false)
 const revokeIds = ref([])
 const reason = ref('')
 const revokeTargetCount = ref(0)
+const policyOpen = ref(false)
 const accessOpen = ref(false)
 const accessTarget = ref({})
 const accessBlocked = ref(true)

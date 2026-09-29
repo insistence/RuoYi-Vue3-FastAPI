@@ -384,6 +384,7 @@ class TokenService:
                 kid=kid,
                 now=current,
             )
+        await SsoSessionDao.record_client(db, session.sid, client_row.client_pk, current)
         await AuditService.record(
             db,
             OidcAuditEvent.TOKEN_ISSUED,

@@ -1186,6 +1186,7 @@ drop table if exists sys_oauth_audit_archive;
 drop table if exists sys_oauth_audit_log;
 drop table if exists sys_oidc_signing_key;
 drop table if exists sys_oauth_refresh_token;
+drop table if exists sys_sso_session_client;
 drop table if exists sys_sso_session;
 drop table if exists sys_oauth_access_policy;
 drop table if exists sys_oauth_grant;
@@ -1461,7 +1462,21 @@ create table sys_sso_session (
 ) engine=innodb comment = 'OIDC单点登录会话表';
 
 -- ----------------------------
--- 47、OAuth刷新令牌表
+-- 47、SSO会话与参与应用关联表
+-- ----------------------------
+create table sys_sso_session_client (
+  sid           varchar(36)  not null  comment 'SSO Session ID',
+  client_pk     bigint       not null  comment 'Client 主键',
+  create_time   datetime(3)  not null  comment '首次授权时间',
+  last_used_at  datetime(3)  not null  comment '最近授权时间',
+  primary key (sid, client_pk),
+  key idx_sso_session_client_client (client_pk),
+  constraint fk_sso_session_client_sid foreign key (sid) references sys_sso_session (sid) on delete restrict,
+  constraint fk_sso_session_client_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+) engine=innodb comment = 'SSO会话参与应用';
+
+-- ----------------------------
+-- 48、OAuth刷新令牌表
 -- ----------------------------
 create table sys_oauth_refresh_token (
   token_id              varchar(36)   not null                   comment 'Token ID',
@@ -1501,7 +1516,7 @@ create table sys_oauth_refresh_token (
 ) engine=innodb comment = 'OAuth刷新令牌表';
 
 -- ----------------------------
--- 48、OIDC签名密钥表
+-- 49、OIDC签名密钥表
 -- ----------------------------
 create table sys_oidc_signing_key (
   key_pk                  bigint         not null auto_increment   comment '内部主键',
@@ -1527,7 +1542,7 @@ create table sys_oidc_signing_key (
 ) engine=innodb comment = 'OIDC签名密钥表';
 
 -- ----------------------------
--- 49、OAuth审计日志表
+-- 50、OAuth审计日志表
 -- ----------------------------
 create table sys_oauth_audit_log (
   event_id      bigint        not null auto_increment    comment '事件ID',
@@ -1556,7 +1571,7 @@ create table sys_oauth_audit_log (
 ) engine=innodb comment = 'OAuth审计日志表';
 
 -- ----------------------------
--- 50、OAuth审计归档表
+-- 51、OAuth审计归档表
 -- ----------------------------
 create table sys_oauth_audit_archive (
   event_id      bigint        not null      comment '原事件ID',

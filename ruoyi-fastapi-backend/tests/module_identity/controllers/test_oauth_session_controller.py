@@ -83,6 +83,7 @@ def test_session_and_grant_routes_have_pre_auth_and_exact_permissions() -> None:
     assert oauth_session_controller.dependencies[0].dependency.__class__.__name__ == 'PreAuth'
     expected_grants = {
         ('/system/oauth/grant/list', 'GET'): 'system:oauthGrant:list',
+        ('/system/oauth/grant/access/list', 'GET'): 'system:oauthGrant:list',
         ('/system/oauth/grant/{grant_id}', 'GET'): 'system:oauthGrant:list',
         ('/system/oauth/grant/{grant_ids}', 'DELETE'): 'system:oauthGrant:revoke',
         ('/system/oauth/grant/user/{user_id}/client/{client_id}/access', 'PUT'): 'system:oauthGrant:revoke',

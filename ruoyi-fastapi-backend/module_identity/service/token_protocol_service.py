@@ -83,10 +83,9 @@ class IntrospectionService:
             client = await cls._resolve_caller(db, caller)
             if client is None or not isinstance(token, str) or not token:
                 return {'active': False}
-            if token_type_hint == 'refresh_token' or token.startswith('rt1.'):
+            # 本系统可按令牌格式识别类型，忽略提示以避免错误提示改变有效性。
+            if token.startswith('rt1.'):
                 return await cls._introspect_refresh(db, token, client, current, pepper)
-            if token_type_hint not in (None, 'access_token'):
-                return {'active': False}
             return await cls._introspect_access(
                 db,
                 redis,
@@ -686,9 +685,8 @@ class RevocationService:
             raise RevocationError('invalid_client', 'Client authentication failed')
         if not isinstance(token, str) or not token:
             return
-        if token_type_hint not in (None, 'refresh_token', 'access_token'):
-            return
-        if token_type_hint == 'refresh_token' or token.startswith('rt1.'):
+        # 类型提示只用于优化查询，未知或错误提示不得阻止实际撤销。
+        if token.startswith('rt1.'):
             await cls._revoke_refresh(db, token, client, current, pepper)
             return
         await cls._revoke_access(

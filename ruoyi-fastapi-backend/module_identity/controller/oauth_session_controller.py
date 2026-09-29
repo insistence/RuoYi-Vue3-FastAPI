@@ -15,6 +15,8 @@ from common.vo import DataResponseModel, PageResponseModel, ResponseBaseModel
 from exceptions.exception import ServiceException
 from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_identity.entity.vo.oauth_session_vo import (
+    AccessPolicyModel,
+    AccessPolicyPageQueryModel,
     GrantAccessModel,
     GrantModel,
     GrantPageQueryModel,
@@ -164,6 +166,21 @@ async def list_oauth_grants(
     query: Annotated[GrantPageQueryModel, Query()], query_db: Annotated[AsyncSession, DBSessionDependency()]
 ) -> Response:
     rows, total = await OAuthSessionManagementService.list_grants(query_db, query)
+
+    return ResponseUtil.success(rows=rows, dict_content={'total': total})
+
+
+@oauth_grant_controller.get(
+    '/access/list',
+    summary='获取用户应用访问策略分页列表接口',
+    description='用于查询独立访问策略，包含尚未授权过的用户与应用',
+    response_model=PageResponseModel[AccessPolicyModel],
+    dependencies=[UserInterfaceAuthDependency('system:oauthGrant:list')],
+)
+async def list_oauth_access_policies(
+    query: Annotated[AccessPolicyPageQueryModel, Query()], query_db: Annotated[AsyncSession, DBSessionDependency()]
+) -> Response:
+    rows, total = await OAuthSessionManagementService.list_access_policies(query_db, query)
 
     return ResponseUtil.success(rows=rows, dict_content={'total': total})
 

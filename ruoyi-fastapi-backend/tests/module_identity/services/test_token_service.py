@@ -174,6 +174,7 @@ async def test_authorization_code_binds_client_redirect_and_pkce(
             amr=['pwd'],
         )
 
+    monkeypatch.setattr('module_identity.service.token_service.SsoSessionDao.record_client', AsyncMock())
     monkeypatch.setattr(TokenService, '_require_user_identity', identity)
     monkeypatch.setattr(TokenService, '_require_session', session)
     monkeypatch.setattr(

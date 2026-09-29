@@ -196,6 +196,9 @@ async def test_logout_redirect_and_backchannel_are_after_commit(monkeypatch: pyt
     db = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
     coordinator = AfterCommitCoordinator()
 
+    monkeypatch.setattr(
+        'module_identity.service.session_service.SsoSessionDao.client_ids_for_sid', AsyncMock(return_value=[])
+    )
     result = await LogoutService._logout(
         db,
         object(),
@@ -249,6 +252,9 @@ async def test_invalid_hint_with_valid_cookie_still_revokes_server_session(
     monkeypatch.setattr(LogoutService, '_revoke_session_state', revoked)
     monkeypatch.setattr(LogoutService, '_register_backchannel', _async_noop)
     coordinator = AfterCommitCoordinator()
+    monkeypatch.setattr(
+        'module_identity.service.session_service.SsoSessionDao.client_ids_for_sid', AsyncMock(return_value=[])
+    )
     result = await LogoutService._logout(
         SimpleNamespace(),
         object(),
@@ -288,6 +294,9 @@ async def test_unsafe_or_unregistered_redirect_falls_back_to_local_and_logout_to
     db = SimpleNamespace(commit=AsyncMock(), rollback=AsyncMock())
     coordinator = AfterCommitCoordinator()
 
+    monkeypatch.setattr(
+        'module_identity.service.session_service.SsoSessionDao.client_ids_for_sid', AsyncMock(return_value=[])
+    )
     result = await LogoutService._logout(
         db,
         object(),
@@ -772,6 +781,9 @@ async def test_confirmed_logout_does_not_revoke_another_accounts_hint_session(mo
     revoked = AsyncMock()
     monkeypatch.setattr(LogoutService, '_revoke_session_state', revoked)
     monkeypatch.setattr(LogoutService, '_register_backchannel', _async_noop)
+    monkeypatch.setattr(
+        'module_identity.service.session_service.SsoSessionDao.client_ids_for_sid', AsyncMock(return_value=[])
+    )
     result = await LogoutService._logout(
         object(),
         object(),

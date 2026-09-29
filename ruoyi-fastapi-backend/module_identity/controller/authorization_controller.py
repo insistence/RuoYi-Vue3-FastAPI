@@ -273,8 +273,9 @@ def _logout_rate_scope(request: Request) -> str:
     return hmac.new(raw_pepper, str(address).encode(), hashlib.sha256).hexdigest()
 
 
-@authorization_controller.get(
+@authorization_controller.api_route(
     '/oauth2/authorize',
+    methods=['GET', 'POST'],
     summary='OAuth 授权接口',
     description='用于处理 OAuth 授权请求并返回认证交互或客户端回调',
     include_in_schema=False,
@@ -285,7 +286,15 @@ async def authorize(
 ) -> Response:
     if not OidcConfig.oidc_enabled:
         return _oidc_not_found_response()
-    raw = _read_authorization_query(request)
+    if request.method == 'POST':
+        if request.query_params:
+            raise OAuthProtocolException('invalid_request', 'Authorization parameters must be in the form body')
+        try:
+            raw = await read_form(request)
+        except HTTPException as exc:
+            raise OAuthProtocolException('invalid_request', 'Invalid authorization form', exc.status_code) from exc
+    else:
+        raw = _read_authorization_query(request)
     redis = _authorization_redis(request)
     try:
         await _enforce_authorization_rate_limit(request, redis)

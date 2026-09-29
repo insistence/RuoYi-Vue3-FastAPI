@@ -22,6 +22,7 @@ class AuthorizeRequest(ProtocolModel):
     """
 
     response_type: str = Field(min_length=1, max_length=100, description='授权响应类型')
+    response_mode: Literal['query'] = Field(default='query', description='授权响应参数传递方式')
     client_id: str = Field(min_length=1, max_length=64, description='客户端标识')
     redirect_uri: str = Field(min_length=1, max_length=1000, description='已注册的授权回调地址')
     scope: str = Field(min_length=1, max_length=2000, description='空格分隔的权限范围')

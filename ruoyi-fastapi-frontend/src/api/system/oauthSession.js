@@ -49,6 +49,15 @@ export function listOAuthGrants(query) {
   })
 }
 
+// 查询用户应用独立访问策略
+export function listOAuthAccessPolicies(query) {
+  return request({
+    url: '/system/oauth/grant/access/list',
+    method: 'get',
+    params: query,
+  })
+}
+
 // 查询 OAuth 授权详情
 export function getOAuthGrant(grantId) {
   return request({

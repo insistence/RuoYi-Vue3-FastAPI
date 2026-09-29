@@ -1653,6 +1653,7 @@ drop table if exists sys_oauth_audit_archive;
 drop table if exists sys_oauth_audit_log;
 drop table if exists sys_oidc_signing_key;
 drop table if exists sys_oauth_refresh_token;
+drop table if exists sys_sso_session_client;
 drop table if exists sys_sso_session;
 drop table if exists sys_oauth_access_policy;
 drop table if exists sys_oauth_grant;
@@ -2086,7 +2087,26 @@ comment on column sys_sso_session.revoke_reason is '撤销原因';
 comment on column sys_sso_session.create_time is '创建时间';
 
 -- ----------------------------
--- 47、OAuth刷新令牌表
+-- 47、SSO会话与参与应用关联表
+-- ----------------------------
+create table sys_sso_session_client (
+  sid           varchar(36)                  not null,
+  client_pk     bigint                       not null,
+  create_time   timestamp(3) with time zone  not null,
+  last_used_at  timestamp(3) with time zone  not null,
+  primary key (sid, client_pk),
+  constraint fk_sso_session_client_sid foreign key (sid) references sys_sso_session (sid) on delete restrict,
+  constraint fk_sso_session_client_client foreign key (client_pk) references sys_oauth_client (client_pk) on delete restrict
+);
+create index idx_sso_session_client_client on sys_sso_session_client (client_pk);
+comment on table sys_sso_session_client is 'SSO会话参与应用';
+comment on column sys_sso_session_client.sid is 'SSO Session ID';
+comment on column sys_sso_session_client.client_pk is 'Client 主键';
+comment on column sys_sso_session_client.create_time is '首次授权时间';
+comment on column sys_sso_session_client.last_used_at is '最近授权时间';
+
+-- ----------------------------
+-- 48、OAuth刷新令牌表
 -- ----------------------------
 create table sys_oauth_refresh_token (
   token_id              varchar(36)   not null,
@@ -2148,7 +2168,7 @@ comment on column sys_oauth_refresh_token.revoke_reason is '撤销原因';
 comment on column sys_oauth_refresh_token.reuse_detected_at is '重放检测时间';
 
 -- ----------------------------
--- 48、OIDC签名密钥表
+-- 49、OIDC签名密钥表
 -- ----------------------------
 create table sys_oidc_signing_key (
   key_pk                  bigserial      not null,
@@ -2190,7 +2210,7 @@ comment on column sys_oidc_signing_key.create_time is '创建时间';
 comment on column sys_oidc_signing_key.remark is '备注';
 
 -- ----------------------------
--- 49、OAuth审计日志表
+-- 50、OAuth审计日志表
 -- ----------------------------
 create table sys_oauth_audit_log (
   event_id      bigserial     not null,
@@ -2237,7 +2257,7 @@ comment on column sys_oauth_audit_log.detail is '脱敏扩展详情';
 comment on column sys_oauth_audit_log.create_time is '事件时间';
 
 -- ----------------------------
--- 50、OAuth审计归档表
+-- 51、OAuth审计归档表
 -- ----------------------------
 create table sys_oauth_audit_archive (
   event_id      bigint        not null,

@@ -111,6 +111,32 @@ class SysSsoSession(Base):
     create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='创建时间')
 
 
+class SysSsoSessionClient(Base):
+    """
+    SSO 会话与参与应用关联表
+    """
+
+    __tablename__ = 'sys_sso_session_client'
+    __table_args__ = (Index('idx_sso_session_client_client', 'client_pk'), {'comment': 'SSO 会话参与应用'})
+
+    sid = Column(
+        String(36),
+        ForeignKey('sys_sso_session.sid', name='fk_sso_session_client_sid', ondelete='RESTRICT'),
+        primary_key=True,
+        nullable=False,
+        comment='SSO Session ID',
+    )
+    client_pk = Column(
+        BigInteger,
+        ForeignKey('sys_oauth_client.client_pk', name='fk_sso_session_client_client', ondelete='RESTRICT'),
+        primary_key=True,
+        nullable=False,
+        comment='Client 主键',
+    )
+    create_time = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='首次授权时间')
+    last_used_at = Column(DbUtcDateTime(), nullable=False, default=TimezoneUtil.utc_now, comment='最近授权时间')
+
+
 class SysOAuthRefreshToken(Base):
     """
     OAuth刷新令牌表，仅保存令牌摘要

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
@@ -474,7 +474,11 @@ class OAuthGrantDao:
         if client_id is not None:
             conditions.append(SysOAuthClient.client_id == client_id)
         if status:
-            conditions.append(SysOAuthGrant.status == status)
+            effective_status = case(
+                ((SysOAuthGrant.status == 'active') & (SysOAuthGrant.expires_at <= TimezoneUtil.utc_now()), 'expired'),
+                else_=SysOAuthGrant.status,
+            )
+            conditions.append(effective_status == status)
         if access_status:
             blocked = (
                 select(SysOAuthAccessPolicy.user_id)
@@ -525,7 +529,11 @@ class OAuthGrantDao:
         if client_id is not None:
             conditions.append(SysOAuthClient.client_id == client_id)
         if status:
-            conditions.append(SysOAuthGrant.status == status)
+            effective_status = case(
+                ((SysOAuthGrant.status == 'active') & (SysOAuthGrant.expires_at <= TimezoneUtil.utc_now()), 'expired'),
+                else_=SysOAuthGrant.status,
+            )
+            conditions.append(effective_status == status)
         if access_status:
             blocked = (
                 select(SysOAuthAccessPolicy.user_id)

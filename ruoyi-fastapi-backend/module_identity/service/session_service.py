@@ -882,7 +882,7 @@ class SsoSessionService:
         coordinator: AfterCommitCoordinator | None = None,
     ) -> int:
         """
-        撤销指定用户的全部活动 Session
+        撤销指定用户全部在线及自然过期的 Session，终止其离线访问
 
         :param db: 异步数据库会话
         :param redis: Redis 热缓存客户端
@@ -895,7 +895,7 @@ class SsoSessionService:
 
         current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
         coordinator = cls._require_coordinator(coordinator)
-        rows = list(await SsoSessionDao.list_for_user(db, user_id, active_only=True, for_update=True))
+        rows = list(await SsoSessionDao.list_for_user(db, user_id, for_update=True, revocable_only=True))
         changed_snapshots: list[SsoSessionSnapshot] = []
         for row in rows:
             if await SsoSessionDao.revoke(db, row.sid, reason=reason, now=current):
@@ -1229,13 +1229,10 @@ class LogoutService:
         client_ids = {row.client_pk for row in refresh_rows}
         if client is not None:
             client_ids.add(client.client_pk)
-        auth_time = cls._utc_datetime(getattr(session, 'auth_time', None))
-        if auth_time is not None:
-            participant_ids = await SsoSessionDao.client_ids_for_participation(db, session.user_id, auth_time)
-            for participant_id in participant_ids:
-                participant = await OAuthClientDao.get_by_client_id(db, participant_id, active_only=True)
-                if participant is not None:
-                    client_ids.add(participant.client_pk)
+        for participant_id in await SsoSessionDao.client_ids_for_sid(db, session.sid):
+            participant = await OAuthClientDao.get_by_client_id(db, participant_id, active_only=True)
+            if participant is not None:
+                client_ids.add(participant.client_pk)
         await cls._revoke_session_state(db, redis, session.sid, refresh_rows, current, commit_coordinator)
         await cls._register_backchannel(
             db,
