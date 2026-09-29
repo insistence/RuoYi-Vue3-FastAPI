@@ -1020,6 +1020,7 @@ _VERIFYING_KEY_STATUSES = ('active', 'retiring')
 _URI_BACKCHANNEL = 'backchannel_logout'
 _URI_POST_LOGOUT = 'post_logout'
 _MAX_STATE_LENGTH = 2048
+_LOGOUT_TOKEN_TTL_SECONDS = 120
 _BACKCHANNEL_TIMEOUT_SECONDS = 5.0
 _MAX_BACKCHANNEL_TIMEOUT_SECONDS = 30.0
 _BACKCHANNEL_MAX_ATTEMPTS = 3
@@ -1724,6 +1725,7 @@ class LogoutService:
                     'iss': OidcConfig.oidc_issuer.rstrip('/'),
                     'aud': client_id,
                     'iat': int(now.timestamp()),
+                    'exp': int(now.timestamp()) + _LOGOUT_TOKEN_TTL_SECONDS,
                     'events': {BACKCHANNEL_LOGOUT_EVENT: {}},
                     'jti': event_jti or str(uuid4()),
                     **({'sid': sid} if include_sid else {'sub': subject_id}),

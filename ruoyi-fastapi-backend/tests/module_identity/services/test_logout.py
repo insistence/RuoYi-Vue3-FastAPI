@@ -321,6 +321,7 @@ async def test_unsafe_or_unregistered_redirect_falls_back_to_local_and_logout_to
     )
     claims = decode_logout_token(token, verification_key=private_key.public_key(), issuer=_ISSUER, audience='portal')
     assert claims['sid'] == 'sid-1'
+    assert claims['exp'] == claims['iat'] + 120
     assert claims['events']['http://schemas.openid.net/event/backchannel-logout'] == {}
     assert 'nonce' not in claims
     subject_token = await LogoutService._make_logout_token(

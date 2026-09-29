@@ -197,6 +197,7 @@ def test_logout_profile_requires_event_and_non_empty_sid_or_sub(key_pair: tuple[
         'iss': 'https://issuer.example',
         'aud': 'client',
         'iat': now,
+        'exp': now + 120,
         'jti': 'logout-id',
         'sid': 'sid',
         'events': {BACKCHANNEL_LOGOUT_EVENT: {}},
@@ -213,3 +214,26 @@ def test_logout_profile_requires_event_and_non_empty_sid_or_sub(key_pair: tuple[
         )
     with pytest.raises(JwtProfileError):
         encode_logout_token({**claims, 'aud': []}, signing_key=private, kid='key-1')
+
+
+@pytest.mark.parametrize('expiry', [None, 'future', True, 0, -1])
+def test_logout_profile_rejects_missing_invalid_or_expired_exp(key_pair: tuple[object, object], expiry: object) -> None:
+    """接收方拒绝缺失、类型错误或过期的退出令牌。"""
+
+    private, public = key_pair
+    claims = {
+        'iss': 'https://issuer.example',
+        'aud': 'client',
+        'iat': _now() - 1,
+        'jti': 'logout-expiry',
+        'sid': 'sid',
+        'events': {BACKCHANNEL_LOGOUT_EVENT: {}},
+    }
+    if expiry is not None:
+        claims['exp'] = expiry
+    token = jwt.encode(claims, private, algorithm='RS256', headers={'kid': 'key-1', 'typ': 'logout+jwt'})
+    with pytest.raises(JwtProfileError):
+        decode_logout_token(token, verification_key=public, issuer=claims['iss'], audience='client', clock_skew=0)
+    if expiry is None:
+        with pytest.raises(JwtProfileError):
+            encode_logout_token(claims, private, 'key-1')

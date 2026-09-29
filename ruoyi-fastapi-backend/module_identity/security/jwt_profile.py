@@ -293,8 +293,9 @@ def _validate_logout_claims(payload: Mapping[str, Any]) -> None:
     _validate_audience_claim(payload)
     for name in ('sid', 'sub'):
         _validate_string_claim(payload, name, required=False)
-    if 'iat' not in payload:
-        raise JwtProfileError('logout token required claim is missing: iat')
+    for name in ('iat', 'exp'):
+        if name not in payload:
+            raise JwtProfileError(f'logout token required claim is missing: {name}')
     if not payload.get('sid') and not payload.get('sub'):
         raise JwtProfileError('logout token requires sid or sub')
     events = payload.get('events')
@@ -595,7 +596,7 @@ def decode_logout_token(
         audience,
         profile='logout',
         expected_type=LOGOUT_TOKEN_TYPE,
-        required_claims={'iss', 'aud', 'iat', 'jti', 'events'},
+        required_claims={'iss', 'aud', 'iat', 'exp', 'jti', 'events'},
         clock_skew=clock_skew,
         verification_key=verification_key,
     )
