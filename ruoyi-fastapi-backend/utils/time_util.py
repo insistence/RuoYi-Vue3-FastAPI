@@ -158,6 +158,16 @@ class TimezoneUtil:
         return cls.ensure_aware(value).astimezone(timezone.utc)
 
     @classmethod
+    def to_optional_utc(cls, value: datetime | None) -> datetime | None:
+        """
+        将可选的带时区时刻转换为 UTC，空值原样保留。
+
+        :param value: 可选的带时区时刻
+        :return: UTC 时刻或 None
+        """
+        return cls.to_utc(value) if value is not None else None
+
+    @classmethod
     def to_utc_milliseconds(cls, value: datetime) -> datetime:
         """
         将带时区的时刻转换为毫秒精度UTC

@@ -25,6 +25,14 @@ def test_datetime_is_normalized_to_utc_and_business_timezone() -> None:
     assert TimezoneUtil.to_business_time(TimezoneUtil.to_utc(shanghai_time), 'Asia/Shanghai') == shanghai_time
 
 
+def test_optional_utc_preserves_none_and_rejects_naive_datetime() -> None:
+    assert TimezoneUtil.to_optional_utc(None) is None
+    value = datetime.fromisoformat('2026-08-28T10:30:00+08:00')
+    assert TimezoneUtil.to_optional_utc(value) == datetime(2026, 8, 28, 2, 30, tzinfo=timezone.utc)
+    with pytest.raises(ValueError, match='必须携带时区信息'):
+        TimezoneUtil.to_optional_utc(datetime(2026, 8, 28, 10, 30))
+
+
 def test_to_utc_milliseconds_truncates_sub_millisecond_precision() -> None:
     value = datetime.fromisoformat('2026-08-28T10:30:00.123999+08:00')
 

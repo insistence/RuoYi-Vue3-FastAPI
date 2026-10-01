@@ -584,7 +584,9 @@ async def update_system_role_user(
         await UserService.check_user_data_scope_services(query_db, user_id, user_data_scope_sql)
         await RoleService.check_role_data_scope_services(query_db, role_ids, role_data_scope_sql)
     add_user_role_result = await UserService.add_user_role_services(
-        query_db, CrudUserRoleModel(userId=user_id, roleIds=role_ids)
+        query_db,
+        CrudUserRoleModel(userId=user_id, roleIds=role_ids),
+        current_user.user.user_name,
     )
     logger.info(add_user_role_result.message)
 

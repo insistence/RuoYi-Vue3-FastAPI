@@ -7,7 +7,8 @@ dayjs.extend(utc)
 
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
 const WALL_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/
-const RFC3339_PATTERN = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/
+const RFC3339_PATTERN =
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(\.\d+)?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 const MILLISECONDS_PER_SECOND = 1000
 const MILLISECONDS_PER_MINUTE = 60 * MILLISECONDS_PER_SECOND
@@ -59,7 +60,7 @@ function getFormatter(timezoneName) {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        hourCycle: 'h23'
+        hourCycle: 'h23',
       })
       timezoneFormatters.set(name, formatter)
     } catch {
@@ -148,7 +149,9 @@ export function getDeviceTimezone() {
  * @returns {string} IANA 时区名称
  */
 export function getDisplayTimezone() {
-  return userTimezone.value === 'auto' ? deviceTimezone.value || businessTimezone.value : userTimezone.value
+  return userTimezone.value === 'auto'
+    ? deviceTimezone.value || businessTimezone.value
+    : userTimezone.value
 }
 
 /**
@@ -169,7 +172,7 @@ export function getTimeFieldsTimezone(record) {
  */
 export function getSupportedTimezones(names = []) {
   return [...new Set([...names, getDisplayTimezone(), getBusinessTimezone(), 'UTC'])]
-    .filter(name => {
+    .filter((name) => {
       try {
         getFormatter(name)
         return true
@@ -188,7 +191,8 @@ export function getSupportedTimezones(names = []) {
  * @returns {number|null} 用于日历计算的毫秒值，非法输入返回 null
  */
 function parseWallTimeMilliseconds(value, dateOnly = false) {
-  const match = typeof value === 'string' && value.match(dateOnly ? DATE_ONLY_PATTERN : WALL_TIME_PATTERN)
+  const match =
+    typeof value === 'string' && value.match(dateOnly ? DATE_ONLY_PATTERN : WALL_TIME_PATTERN)
   if (!match) {
     return null
   }
@@ -245,7 +249,7 @@ function getTimezoneOffsetMinutes(epoch, timezoneName) {
   const parts = Object.fromEntries(
     getFormatter(timezoneName)
       .formatToParts(epoch)
-      .map(part => [part.type, part.value])
+      .map((part) => [part.type, part.value])
   )
   const wallTime = `${parts.year.padStart(4, '0')}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`
   const instantMilliseconds = Math.floor(epoch / MILLISECONDS_PER_SECOND) * MILLISECONDS_PER_SECOND
@@ -292,7 +296,11 @@ function formatEpoch(epoch, pattern, timezoneName) {
  * @param {string} timezoneName 目标时区，默认使用当前用户展示时区
  * @returns {string|null} 展示文本，非法输入返回 null
  */
-export function formatBusinessTime(value, pattern = 'YYYY-MM-DD HH:mm:ss', timezoneName = getDisplayTimezone()) {
+export function formatBusinessTime(
+  value,
+  pattern = 'YYYY-MM-DD HH:mm:ss',
+  timezoneName = getDisplayTimezone()
+) {
   const epoch = parseInstantMilliseconds(value)
   return epoch === null ? null : formatEpoch(epoch, pattern, timezoneName)
 }
@@ -305,8 +313,16 @@ export function formatBusinessTime(value, pattern = 'YYYY-MM-DD HH:mm:ss', timez
  * @param {string} timezoneName 目标时区，默认使用当前用户展示时区
  * @returns {string|null} 展示文本，非法输入返回 null
  */
-export function formatEpochMilliseconds(value, pattern = 'YYYY-MM-DD HH:mm:ss', timezoneName = getDisplayTimezone()) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isFinite(new Date(value).getTime())) {
+export function formatEpochMilliseconds(
+  value,
+  pattern = 'YYYY-MM-DD HH:mm:ss',
+  timezoneName = getDisplayTimezone()
+) {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    !Number.isFinite(new Date(value).getTime())
+  ) {
     return null
   }
   return formatEpoch(value, pattern, timezoneName)
@@ -342,17 +358,21 @@ export function getWallTimeCandidates(value, timezoneName = getDisplayTimezone()
   const offsets = new Set()
   // 采样跳转前后的偏移，覆盖半小时夏令时和跨日期变更。
   for (let hours = -48; hours <= 48; hours += 6) {
-    offsets.add(getTimezoneOffsetMinutes(wallMilliseconds + hours * MILLISECONDS_PER_HOUR, timezoneName))
+    offsets.add(
+      getTimezoneOffsetMinutes(wallMilliseconds + hours * MILLISECONDS_PER_HOUR, timezoneName)
+    )
   }
 
   return [...offsets]
-    .map(offset => ({ offset, epoch: wallMilliseconds - offset * MILLISECONDS_PER_MINUTE }))
-    .filter(candidate => getTimezoneOffsetMinutes(candidate.epoch, timezoneName) === candidate.offset)
+    .map((offset) => ({ offset, epoch: wallMilliseconds - offset * MILLISECONDS_PER_MINUTE }))
+    .filter(
+      (candidate) => getTimezoneOffsetMinutes(candidate.epoch, timezoneName) === candidate.offset
+    )
     .sort((first, second) => first.epoch - second.epoch)
-    .map(candidate => ({
+    .map((candidate) => ({
       epoch: candidate.epoch,
       offset: createZonedDateTime(candidate.epoch, timezoneName).format('Z'),
-      value: createZonedDateTime(candidate.epoch, timezoneName).format('YYYY-MM-DDTHH:mm:ss.SSSZ')
+      value: createZonedDateTime(candidate.epoch, timezoneName).format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
     }))
 }
 
@@ -382,17 +402,24 @@ export function toRfc3339(value, { timezoneName = getDisplayTimezone(), offset }
 
   const candidates = getWallTimeCandidates(value, timezoneName)
   if (!candidates.length) {
-    throw new TimeInputError(`${value} 在 ${timezoneName} 不存在，请选择夏令时跳转后的有效时间`, 'DST_GAP')
+    throw new TimeInputError(
+      `${value} 在 ${timezoneName} 不存在，请选择夏令时跳转后的有效时间`,
+      'DST_GAP'
+    )
   }
   if (candidates.length === 1) {
     return candidates[0].value
   }
 
-  const selected = candidates.find(candidate => candidate.offset === offset)
+  const selected = candidates.find((candidate) => candidate.offset === offset)
   if (selected) {
     return selected.value
   }
-  throw new TimeInputError(`${value} 在 ${timezoneName} 出现两次，请选择 UTC 偏移`, 'DST_FOLD', candidates)
+  throw new TimeInputError(
+    `${value} 在 ${timezoneName} 出现两次，请选择 UTC 偏移`,
+    'DST_FOLD',
+    candidates
+  )
 }
 
 /**
@@ -442,7 +469,10 @@ export function prepareTimeFields(record, fields, timezoneName = getDisplayTimez
     }
 
     const original = record[field]
-    const input = original == null || original === '' ? original : toBusinessDateTimeInput(original, timezoneName)
+    const input =
+      original == null || original === ''
+        ? original
+        : toBusinessDateTimeInput(original, timezoneName)
     if (input === null && original != null) {
       throw new TimeInputError(`字段 ${field} 包含无效的 RFC 3339 时间`, 'INVALID_TIME')
     }
@@ -483,7 +513,7 @@ export function serializeTimeFields(record, fields, offsets = {}) {
       try {
         result[field] = toRfc3339(value, {
           timezoneName: state?.timezoneName || getDisplayTimezone(),
-          offset: offsets[field]
+          offset: offsets[field],
         })
       } catch (error) {
         error.field = field
@@ -512,7 +542,7 @@ export async function resolveTimeFields(record, fields, chooseOffset) {
         throw error
       }
       const offset = await chooseOffset(error)
-      if (!error.candidates.some(candidate => candidate.offset === offset)) {
+      if (!error.candidates.some((candidate) => candidate.offset === offset)) {
         throw error
       }
       offsets[error.field] = offset
@@ -530,15 +560,15 @@ refreshDeviceTimezone()
  * @returns {Promise<string>} 用户选定的 UTC 偏移
  */
 async function chooseTimeOffset(error) {
-  const offsets = error.candidates.map(candidate => candidate.offset)
+  const offsets = error.candidates.map((candidate) => candidate.offset)
   const { value } = await ElMessageBox.prompt(
     `${error.message}。第一次：${offsets[0]}；第二次：${offsets[1]}。`,
     '选择重复时间',
     {
       inputPlaceholder: `请输入 ${offsets.join(' 或 ')}`,
-      inputValidator: value => offsets.includes(value) || '请输入上述 UTC 偏移之一',
+      inputValidator: (value) => offsets.includes(value) || '请输入上述 UTC 偏移之一',
       confirmButtonText: '使用所选时间',
-      cancelButtonText: '返回修改'
+      cancelButtonText: '返回修改',
     }
   )
   return value

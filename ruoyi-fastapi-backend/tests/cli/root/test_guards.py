@@ -30,6 +30,7 @@ def test_dangerous_command_rules_cover_expected_commands() -> None:
         'config set',
         'config sync-cache',
         'crypto rotate',
+        'oidc key bootstrap',
         'job run-once',
         'job pause',
         'job resume',

@@ -1,11 +1,28 @@
 <template>
-  <div class="popup-result" :aria-busy="loading">
+  <div
+    class="popup-result"
+    :aria-busy="loading"
+  >
     <p class="title">最近 5 次运行时间（{{ resultTimeZone }}）</p>
-    <p v-if="errorMessage" role="alert" class="preview-error">{{ errorMessage }}</p>
-    <ul v-else class="popup-result-scroll" aria-live="polite">
+    <p
+      v-if="errorMessage"
+      role="alert"
+      class="preview-error"
+    >
+      {{ errorMessage }}
+    </p>
+    <ul
+      v-else
+      class="popup-result-scroll"
+      aria-live="polite"
+    >
       <li v-if="loading">正在获取运行时间…</li>
       <li v-else-if="!resultList.length">没有未来执行时间</li>
-      <li v-for="item in resultList" v-else :key="item">
+      <li
+        v-for="item in resultList"
+        v-else
+        :key="item"
+      >
         {{ formatBusinessTime(item, 'YYYY-MM-DD HH:mm:ss Z', resultTimeZone) }}
       </li>
     </ul>
@@ -19,12 +36,12 @@ import { formatBusinessTime } from '@/utils/time'
 const props = defineProps({
   ex: {
     type: String,
-    default: ''
+    default: '',
   },
   timeZone: {
     type: String,
-    required: true
-  }
+    required: true,
+  },
 })
 const resultList = ref([])
 const resultTimeZone = ref(props.timeZone)
@@ -43,7 +60,10 @@ watch(
     resultTimeZone.value = timeZone
     const timer = setTimeout(async () => {
       try {
-        const response = await previewJob({ cronExpression: expression, timeZone, count: 5 }, controller.signal)
+        const response = await previewJob(
+          { cronExpression: expression, timeZone, count: 5 },
+          controller.signal
+        )
         if (requestId !== previewRequestSequence) {
           return
         }

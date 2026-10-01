@@ -1,9 +1,10 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.support import (
     PluginEnablePayloadBuilder,
     PluginLifecyclePayloadBuilder,
@@ -12,18 +13,12 @@ from plugins.core.runtime.support import (
     PluginRuntimePayloadBuilder,
 )
 
+from ..context import PluginRuntimeContextService
+from ..dependency_container import PluginRuntimeDependencies
+from ..responses import PluginLifecycleResponse
 from .common import PluginLifecycleUseCaseSupport
+from .operations import PluginLifecycleRuntimeOperations
 from .runner import PluginLifecycleStep, PluginLifecycleStepFailed, PluginLifecycleStepRunner
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from plugins.core.discovery.scanner import DiscoveredPlugin
-
-    from ..context import PluginRuntimeContextService
-    from ..dependency_container import PluginRuntimeDependencies
-    from ..responses import PluginLifecycleResponse
-    from .operations import PluginLifecycleRuntimeOperations
 
 
 @dataclass(slots=True)

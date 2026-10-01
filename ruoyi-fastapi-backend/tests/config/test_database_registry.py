@@ -1,20 +1,16 @@
-from __future__ import annotations
-
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 from sqlalchemy import URL
 from sqlalchemy.exc import OperationalError
+from typing_extensions import Self
 
 from common.aspect.db_session import DBSessionDependency, get_db_session_provider
 from config import database
 from exceptions.exception import DataSourceInitializationException, DataSourceUnavailableException
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 EXPECTED_CONNECT_TIMEOUT = 7
 
@@ -108,7 +104,7 @@ class _Begin:
         self.should_fail = should_fail
         self.session_timezone = session_timezone
 
-    async def __aenter__(self) -> _Begin:
+    async def __aenter__(self) -> Self:
         if self.should_fail:
             raise RuntimeError('password=secret')
         return self
@@ -483,7 +479,6 @@ async def test_dispose_all_attempts_every_engine_when_disposal_fails(monkeypatch
 
 
 def test_dependency_provider_is_cached_per_source() -> None:
-    get_db_session_provider.cache_clear()
     assert get_db_session_provider('reporting') is get_db_session_provider('reporting')
     assert get_db_session_provider('reporting') is not get_db_session_provider('archive')
     assert DBSessionDependency('reporting').dependency is get_db_session_provider('reporting')

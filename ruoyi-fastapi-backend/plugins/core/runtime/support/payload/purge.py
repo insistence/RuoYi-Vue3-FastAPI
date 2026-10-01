@@ -1,14 +1,11 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TypeAlias
 
 from pydantic import Field
 
+from plugins.core.lifecycle.purge import PluginPurgePlan
+
 from . import PluginPayloadBuilder
 from .base import PluginPayloadModel
-
-if TYPE_CHECKING:
-    from plugins.core.lifecycle.purge import PluginPurgePlan
 
 
 class PluginPurgeStatePayload(PluginPayloadModel):

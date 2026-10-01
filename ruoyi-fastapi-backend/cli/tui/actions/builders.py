@@ -1,7 +1,4 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from cli.tui.actions.models import (
     ActionParameterBuilder,
@@ -9,10 +6,8 @@ from cli.tui.actions.models import (
     ActionTextBuilder,
     TuiActionSpec,
 )
+from cli.tui.adapters.models import BrowserRecordSnapshot
 from cli.tui.copy import TUI_COPY
-
-if TYPE_CHECKING:
-    from cli.tui.adapters.models import BrowserRecordSnapshot
 
 
 @dataclass(frozen=True)

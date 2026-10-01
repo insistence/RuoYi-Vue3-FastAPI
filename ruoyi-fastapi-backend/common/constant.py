@@ -135,6 +135,17 @@ class JobConstant:
 class LockConstant:
     """
     分布式锁常量
+
+    APP_STARTUP_LOCK_KEY: 应用启动分布式锁键
+    LOCK_EXPIRE_SECONDS: 通用分布式锁过期时间（秒）
+    LOCK_RENEWAL_INTERVAL: 分布式锁续期间隔（秒）
+    PLUGIN_STARTUP_READY_KEY: 插件启动就绪状态键
+    PLUGIN_STARTUP_READY_EXPIRE_SECONDS: 插件启动就绪状态过期时间（秒）
+    PLUGIN_STARTUP_FAILED_EXPIRE_SECONDS: 插件启动失败状态过期时间（秒）
+    PLUGIN_STARTUP_READY_WAIT_TIMEOUT_SECONDS: 等待插件启动就绪的超时时间（秒）
+    PLUGIN_STARTUP_READY_WAIT_INTERVAL_SECONDS: 等待插件启动就绪的轮询间隔（秒）
+    PLUGIN_LIFECYCLE_LOCK_PREFIX: 插件生命周期锁键前缀
+    PLUGIN_LIFECYCLE_LOCK_EXPIRE_SECONDS: 插件生命周期锁过期时间（秒）
     """
 
     APP_STARTUP_LOCK_KEY = 'app:startup:lock'
@@ -149,9 +160,118 @@ class LockConstant:
     PLUGIN_LIFECYCLE_LOCK_EXPIRE_SECONDS = 1800
 
 
+class OidcConstant:
+    """
+    统一认证中心命名空间常量。
+
+    OIDC 状态与现有 ``access_token:*`` Legacy 会话严格隔离；Redis 具体键由
+    ``module_identity.redis_keys.OidcRedisKey`` 生成，这里只保存稳定的命名空间。
+
+    REDIS_PREFIX: OIDC Redis 键前缀
+    INTERACTION_NAMESPACE: 认证交互状态命名空间
+    AUTHORIZATION_CODE_NAMESPACE: 授权码命名空间
+    SSO_SESSION_NAMESPACE: 单点登录会话命名空间
+    USER_SESSIONS_NAMESPACE: 用户会话集合命名空间
+    SSO_COOKIE_NAMESPACE: 单点登录 Cookie 命名空间
+    REVOKED_JTI_NAMESPACE: 已撤销令牌 JTI 命名空间
+    RATE_LIMIT_NAMESPACE: OIDC 限流命名空间
+    EVENT_NAMESPACE: OIDC 审计事件命名空间
+    CACHE_NAMESPACE: OIDC 缓存命名空间
+    AUTHORIZE_RATE_LIMIT: 授权端点限流命名空间
+    LOGIN_RATE_LIMIT: 登录端点限流命名空间
+    TOKEN_RATE_LIMIT: 令牌端点限流命名空间
+    INTROSPECT_RATE_LIMIT: 令牌自省端点限流命名空间
+    """
+
+    REDIS_PREFIX = 'oidc'
+    INTERACTION_NAMESPACE = 'oidc:interaction'
+    AUTHORIZATION_CODE_NAMESPACE = 'oidc:authorization_code'
+    SSO_SESSION_NAMESPACE = 'oidc:sso_session'
+    USER_SESSIONS_NAMESPACE = 'oidc:user_sessions'
+    SSO_COOKIE_NAMESPACE = 'oidc:sso_cookie'
+    REVOKED_JTI_NAMESPACE = 'oidc:revoked_jti'
+    RATE_LIMIT_NAMESPACE = 'oidc:rate_limit'
+    EVENT_NAMESPACE = 'oidc:event'
+    CACHE_NAMESPACE = 'oidc:cache'
+
+    AUTHORIZE_RATE_LIMIT = 'oidc:rate_limit:authorize'
+    LOGIN_RATE_LIMIT = 'oidc:rate_limit:login'
+    TOKEN_RATE_LIMIT = 'oidc:rate_limit:token'
+    INTROSPECT_RATE_LIMIT = 'oidc:rate_limit:introspect'
+
+
+class OidcAuditEvent:
+    """
+    统一认证中心首批审计事件名称。
+
+    事件值用于审计持久化和风险检索，禁止写入 Token、Secret 或 Cookie 明文。
+
+    AUTHORIZE_REQUESTED: 收到授权请求
+    AUTHORIZE_SUCCEEDED: 授权请求成功
+    AUTHORIZE_DENIED: 授权请求被拒绝
+    LOGIN_SUCCEEDED: 登录成功
+    LOGIN_FAILED: 登录失败
+    CONSENT_GRANTED: 用户授予同意
+    CONSENT_REVOKED: 用户撤销同意
+    AUTHORIZATION_CODE_REUSED: 授权码重复使用
+    TOKEN_ISSUED: 令牌签发成功
+    TOKEN_FAILED: 令牌处理失败
+    REFRESH_ROTATED: 刷新令牌轮换成功
+    REFRESH_REUSE_DETECTED: 检测到刷新令牌重复使用
+    TOKEN_REVOKED: 令牌已撤销
+    SESSION_REVOKED: 会话已撤销
+    CLIENT_ACCESS_BLOCKED: 用户应用访问已禁止
+    CLIENT_ACCESS_ALLOWED: 用户应用访问已允许
+    GRANT_REVOKED: 授权授予已撤销
+    RESOURCE_POLICY_CHANGED: 资源策略已变更
+    SCOPE_POLICY_CHANGED: Scope 策略已变更
+    CLIENT_CREATED: OAuth 客户端已创建
+    CLIENT_DISABLED: OAuth 客户端已停用
+    CLIENT_SECRET_ROTATED: OAuth 客户端密钥已轮换
+    SIGNING_KEY_ROTATED: OIDC 签名密钥已轮换
+    BACKCHANNEL_LOGOUT_SUCCEEDED: Back-Channel Logout 成功
+    BACKCHANNEL_LOGOUT_FAILED: Back-Channel Logout 失败
+    IDENTITY_SUBJECT_MISSING: 身份 Subject 缺失
+    SECURITY_VERSION_CHANGED: 安全版本已变更
+    INVALID_CLIENT: 无效客户端请求
+    """
+
+    AUTHORIZE_REQUESTED = 'authorize_requested'
+    AUTHORIZE_SUCCEEDED = 'authorize_succeeded'
+    AUTHORIZE_DENIED = 'authorize_denied'
+    LOGIN_SUCCEEDED = 'login_succeeded'
+    LOGIN_FAILED = 'login_failed'
+    CONSENT_GRANTED = 'consent_granted'
+    CONSENT_REVOKED = 'consent_revoked'
+    AUTHORIZATION_CODE_REUSED = 'authorization_code_reused'
+    TOKEN_ISSUED = 'token_issued'
+    TOKEN_FAILED = 'token_failed'
+    REFRESH_ROTATED = 'refresh_rotated'
+    REFRESH_REUSE_DETECTED = 'refresh_reuse_detected'
+    TOKEN_REVOKED = 'token_revoked'
+    SESSION_REVOKED = 'session_revoked'
+    GRANT_REVOKED = 'grant_revoked'
+    CLIENT_ACCESS_BLOCKED = 'client_access_blocked'
+    CLIENT_ACCESS_ALLOWED = 'client_access_allowed'
+    RESOURCE_POLICY_CHANGED = 'resource_policy_changed'
+    SCOPE_POLICY_CHANGED = 'scope_policy_changed'
+    CLIENT_CREATED = 'client_created'
+    CLIENT_DISABLED = 'client_disabled'
+    CLIENT_SECRET_ROTATED = 'client_secret_rotated'
+    SIGNING_KEY_ROTATED = 'signing_key_rotated'
+    BACKCHANNEL_LOGOUT_SUCCEEDED = 'backchannel_logout_succeeded'
+    BACKCHANNEL_LOGOUT_FAILED = 'backchannel_logout_failed'
+    IDENTITY_SUBJECT_MISSING = 'identity_subject_missing'
+    SECURITY_VERSION_CHANGED = 'security_version_changed'
+    INVALID_CLIENT = 'invalid_client'
+
+
 class PluginRuntimeConstant:
     """
     插件运行时常量。
+
+    PLUGIN_HOOK_TIMEOUT_SECONDS: 插件钩子执行超时时间（秒）
+    PLUGIN_HEALTH_TIMEOUT_SECONDS: 插件健康检查超时时间（秒）
     """
 
     PLUGIN_HOOK_TIMEOUT_SECONDS = 30
@@ -172,8 +292,48 @@ class ApiNamespace:
     LOGIN_USER_ROUTERS: 登录用户路由接口命名空间
     CAPTCHA_IMAGE: 图片验证码接口命名空间
     COMMON_UPLOAD: 通用上传接口命名空间
+    COMMON_PRIVATE_UPLOAD: 通用私有文件上传接口命名空间
+    COMMON_FILE_DOWNLOAD: 通用文件下载接口命名空间
     TRANSPORT_CRYPTO_PUBLIC_KEY: 传输层加密公钥接口命名空间
     TRANSPORT_CRYPTO_FRONTEND_CONFIG: 传输层加密前端配置接口命名空间
+
+    OIDC_AUTHORIZE: OIDC 授权接口命名空间
+    OIDC_LOGIN: OIDC 登录接口命名空间
+    OIDC_TOKEN: OIDC 令牌接口命名空间
+    OIDC_USERINFO: OIDC 用户信息接口命名空间
+    OIDC_INTROSPECT: OIDC 令牌自省接口命名空间
+    OIDC_REVOKE: OIDC 令牌撤销接口命名空间
+    OIDC_LOGOUT: OIDC 登出接口命名空间
+    OIDC_INTERACTION: OIDC 认证交互接口命名空间
+    OIDC_INTERACTION_LOGIN: OIDC 认证交互登录接口命名空间
+    OIDC_INTERACTION_CONSENT: OIDC 认证交互同意接口命名空间
+
+    SYSTEM_OAUTH_CLIENT_CREATE: OAuth 客户端创建接口命名空间
+    SYSTEM_OAUTH_CLIENT_DISABLE: OAuth 客户端停用接口命名空间
+    SYSTEM_OAUTH_CLIENT_STATUS: OAuth 客户端状态接口命名空间
+    SYSTEM_OAUTH_CLIENT_UPDATE: OAuth 客户端更新接口命名空间
+    SYSTEM_OAUTH_CLIENT_SECRET_ROTATE: OAuth 客户端密钥轮换接口命名空间
+    SYSTEM_OAUTH_CLIENT_SECRET_REVOKE: OAuth 客户端密钥撤销接口命名空间
+    SYSTEM_OAUTH_CLIENT_URI_ADD: OAuth 客户端回调地址新增接口命名空间
+    SYSTEM_OAUTH_CLIENT_URI_REMOVE: OAuth 客户端回调地址移除接口命名空间
+    SYSTEM_OAUTH_RESOURCE_CREATE: OAuth 资源创建接口命名空间
+    SYSTEM_OAUTH_RESOURCE_UPDATE: OAuth 资源更新接口命名空间
+    SYSTEM_OAUTH_RESOURCE_DISABLE: OAuth 资源停用接口命名空间
+    SYSTEM_OAUTH_RESOURCE_STATUS: OAuth 资源状态接口命名空间
+    SYSTEM_OAUTH_SCOPE_CREATE: OAuth Scope 创建接口命名空间
+    SYSTEM_OAUTH_SCOPE_UPDATE: OAuth Scope 更新接口命名空间
+    SYSTEM_OAUTH_SCOPE_DISABLE: OAuth Scope 停用接口命名空间
+    SYSTEM_OAUTH_SCOPE_STATUS: OAuth Scope 状态接口命名空间
+    SYSTEM_OAUTH_SESSION_REVOKE: OAuth 会话撤销接口命名空间
+    SYSTEM_OAUTH_SESSION_USER_REVOKE: OAuth 用户会话批量撤销接口命名空间
+    SYSTEM_OAUTH_GRANT_ACCESS: 用户应用访问控制
+    SYSTEM_OAUTH_GRANT_REVOKE: OAuth 授权授予撤销接口命名空间
+    SYSTEM_OAUTH_KEY_ROTATE: OAuth 签名密钥轮换接口命名空间
+    SYSTEM_OAUTH_KEY_ACTIVATE: OAuth 签名密钥激活接口命名空间
+    SYSTEM_OAUTH_KEY_RETIRE: OAuth 签名密钥退役接口命名空间
+    SYSTEM_OAUTH_KEY_DELETE: OAuth 签名密钥删除接口命名空间
+    MONITOR_OAUTH_AUDIT_EXPORT: OAuth 审计日志导出接口命名空间
+    MONITOR_OAUTH_AUDIT_CLEANUP: OAuth 审计日志清理接口命名空间
 
     MONITOR_SERVER_INFO: 服务监控信息接口命名空间
     MONITOR_CACHE_CLEAR_NAME: 缓存名称清理接口命名空间
@@ -219,6 +379,7 @@ class ApiNamespace:
     SYSTEM_NOTICE_DETAIL: 通知公告详情接口命名空间
     SYSTEM_FILE_DOWNLOAD: 文件管理下载接口命名空间
     SYSTEM_FILE_DELETE: 文件管理删除接口命名空间
+    SYSTEM_FILE_ACL: 文件访问控制接口命名空间
     SYSTEM_FILE_RETENTION_POLICY: 文件业务保留策略接口命名空间
     SYSTEM_FILE_RECONCILE: 文件存储对账接口命名空间
     SYSTEM_FILE_TRANSFER: 文件管理转移接口命名空间
@@ -272,6 +433,44 @@ class ApiNamespace:
     COMMON_FILE_DOWNLOAD = 'common:file-download'
     TRANSPORT_CRYPTO_PUBLIC_KEY = 'transport-crypto:public-key'
     TRANSPORT_CRYPTO_FRONTEND_CONFIG = 'transport-crypto:frontend-config'
+
+    OIDC_AUTHORIZE = 'oidc:authorize'
+    OIDC_LOGIN = 'oidc:login'
+    OIDC_TOKEN = 'oidc:token'
+    OIDC_USERINFO = 'oidc:userinfo'
+    OIDC_INTROSPECT = 'oidc:introspect'
+    OIDC_REVOKE = 'oidc:revoke'
+    OIDC_LOGOUT = 'oidc:logout'
+    OIDC_INTERACTION = 'oidc:interaction'
+    OIDC_INTERACTION_LOGIN = 'oidc:interaction:login'
+    OIDC_INTERACTION_CONSENT = 'oidc:interaction:consent'
+
+    SYSTEM_OAUTH_CLIENT_CREATE = 'system:oauth-client:create'
+    SYSTEM_OAUTH_CLIENT_DISABLE = 'system:oauth-client:disable'
+    SYSTEM_OAUTH_CLIENT_STATUS = 'system:oauth-client:status'
+    SYSTEM_OAUTH_CLIENT_UPDATE = 'system:oauth-client:update'
+    SYSTEM_OAUTH_CLIENT_SECRET_ROTATE = 'system:oauth-client:secret-rotate'
+    SYSTEM_OAUTH_CLIENT_SECRET_REVOKE = 'system:oauth-client:secret-revoke'
+    SYSTEM_OAUTH_CLIENT_URI_ADD = 'system:oauth-client:uri-add'
+    SYSTEM_OAUTH_CLIENT_URI_REMOVE = 'system:oauth-client:uri-remove'
+    SYSTEM_OAUTH_RESOURCE_CREATE = 'system:oauth-resource:create'
+    SYSTEM_OAUTH_RESOURCE_UPDATE = 'system:oauth-resource:update'
+    SYSTEM_OAUTH_RESOURCE_DISABLE = 'system:oauth-resource:disable'
+    SYSTEM_OAUTH_RESOURCE_STATUS = 'system:oauth-resource:status'
+    SYSTEM_OAUTH_SCOPE_CREATE = 'system:oauth-scope:create'
+    SYSTEM_OAUTH_SCOPE_UPDATE = 'system:oauth-scope:update'
+    SYSTEM_OAUTH_SCOPE_DISABLE = 'system:oauth-scope:disable'
+    SYSTEM_OAUTH_SCOPE_STATUS = 'system:oauth-scope:status'
+    SYSTEM_OAUTH_SESSION_REVOKE = 'system:oauth-session:revoke'
+    SYSTEM_OAUTH_SESSION_USER_REVOKE = 'system:oauth-session:user-revoke'
+    SYSTEM_OAUTH_GRANT_REVOKE = 'system:oauth-grant:revoke'
+    SYSTEM_OAUTH_GRANT_ACCESS = 'system:oauth:grant:access'
+    SYSTEM_OAUTH_KEY_ROTATE = 'system:oauth-key:rotate'
+    SYSTEM_OAUTH_KEY_ACTIVATE = 'system:oauth-key:activate'
+    SYSTEM_OAUTH_KEY_RETIRE = 'system:oauth-key:retire'
+    SYSTEM_OAUTH_KEY_DELETE = 'system:oauth-key:delete'
+    MONITOR_OAUTH_AUDIT_EXPORT = 'monitor:oauth-audit:export'
+    MONITOR_OAUTH_AUDIT_CLEANUP = 'monitor:oauth-audit:cleanup'
 
     MONITOR_SERVER_INFO = 'monitor:server:info'
     MONITOR_CACHE_CLEAR_NAME = 'monitor:cache:clear-name'
@@ -598,6 +797,8 @@ class GenConstant:
     QUERY_LIKE: 模糊查询
     QUERY_EQ: 相等查询
     REQUIRE: 需要
+    COLUMNNAME_NOT_ADD_SHOW: 页面新增时不显示字段
+    COLUMNNAME_NOT_EDIT_SHOW: 页面编辑时不显示字段
     DB_TO_SQLALCHEMY_TYPE_MAPPING: 数据库类型与sqlalchemy类型映射
     DB_TO_PYTHON_TYPE_MAPPING: 数据库类型与python类型映射
     """

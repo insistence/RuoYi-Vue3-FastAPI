@@ -1,26 +1,23 @@
-from __future__ import annotations
-
+from subprocess import CompletedProcess
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 from pydantic import Field
 
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.lifecycle.purge import PluginPurgePlan, PluginPurgePlanItem
 from plugins.core.manifest.menu_tree import PluginMenuTree
+from plugins.core.validation.dependencies import DependencyCheckResult, DependencyInstallPlanItem
+from plugins.core.validation.plugin_deps import (
+    PluginDependencyCheckResult,
+    PluginDependencyPlan,
+    PluginDependencyPlanBlocker,
+    PluginDependencyPlanItem,
+)
 from plugins.core.validation.versioning import PluginVersionComparator
 
 from .base import PluginPayloadModel
 
 if TYPE_CHECKING:
-    from subprocess import CompletedProcess
-
-    from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.lifecycle.purge import PluginPurgePlan, PluginPurgePlanItem
-    from plugins.core.validation.dependencies import DependencyCheckResult, DependencyInstallPlanItem
-    from plugins.core.validation.plugin_deps import (
-        PluginDependencyCheckResult,
-        PluginDependencyPlan,
-        PluginDependencyPlanBlocker,
-        PluginDependencyPlanItem,
-    )
     from plugins.core.validation.structure import PluginStructureCheckResult
 
 

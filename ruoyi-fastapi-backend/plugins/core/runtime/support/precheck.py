@@ -1,9 +1,8 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TypeAlias
 
 from pydantic import Field
+from typing_extensions import Self
 
 from plugins.core.runtime.support.payload.validation import (
     DependencyItemPayload,
@@ -12,17 +11,14 @@ from plugins.core.runtime.support.payload.validation import (
     StructureItemPayload,
     ValidationIssuePayload,
 )
+from plugins.core.validation.dependencies import DependencyCheckResult
+from plugins.core.validation.manifest import PluginManifestCheckResult
+from plugins.core.validation.menus import PluginMenuConflictResult
+from plugins.core.validation.plugin_deps import PluginDependencyCheckResult
+from plugins.core.validation.structure import PluginStructureCheckResult
 
 from .payload import PluginPayloadBuilder
 from .payload.base import PluginPayloadModel
-
-if TYPE_CHECKING:
-    from plugins.core.validation.dependencies import DependencyCheckResult
-    from plugins.core.validation.manifest import PluginManifestCheckResult
-    from plugins.core.validation.menus import PluginMenuConflictResult
-    from plugins.core.validation.plugin_deps import PluginDependencyCheckResult
-    from plugins.core.validation.structure import PluginStructureCheckResult
-
 
 PrecheckOperationPayloadDict: TypeAlias = dict[
     str,
@@ -123,7 +119,7 @@ class PluginPrecheckContext:
         plugin_dependency_result: PluginDependencyCheckResult,
         structure_result: PluginStructureCheckResult,
         menu_conflict_result: PluginMenuConflictResult,
-    ) -> PluginPrecheckContext:
+    ) -> Self:
         """
         从各类检查结果构建预检上下文。
 

@@ -4,6 +4,6 @@ import request from '@/utils/request'
 export function getTransportCryptoMonitor() {
   return request({
     url: '/transport/crypto/monitor',
-    method: 'get'
+    method: 'get',
   })
 }

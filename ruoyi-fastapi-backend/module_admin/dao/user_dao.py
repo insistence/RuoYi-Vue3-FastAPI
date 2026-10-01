@@ -52,6 +52,18 @@ class UserDao:
         return query_user_info
 
     @classmethod
+    async def get_role_ids(cls, db: AsyncSession, user_id: int) -> set[int]:
+        """
+        查询用户当前关联的角色ID
+
+        :param db: orm对象
+        :param user_id: 用户id
+        :return: 角色ID集合
+        """
+        result = await db.execute(select(SysUserRole.role_id).where(SysUserRole.user_id == user_id))
+        return set(result.scalars().all())
+
+    @classmethod
     async def get_user_by_info(cls, db: AsyncSession, user: UserModel) -> SysUser | None:
         """
         根据用户参数获取用户信息

@@ -13,7 +13,9 @@
             <div class="file-stat-title">文件总数</div>
             <div class="file-stat-value">{{ stats.totalCount }}</div>
           </div>
-          <div class="file-stat-icon"><el-icon><Files /></el-icon></div>
+          <div class="file-stat-icon">
+            <el-icon><Files /></el-icon>
+          </div>
         </div>
         <div class="file-stat-extra">
           <span>正常 {{ stats.activeCount }}</span>
@@ -27,7 +29,9 @@
             <div class="file-stat-title">占用空间</div>
             <div class="file-stat-value">{{ formatFileSize(stats.totalSize) }}</div>
           </div>
-          <div class="file-stat-icon"><el-icon><DataLine /></el-icon></div>
+          <div class="file-stat-icon">
+            <el-icon><DataLine /></el-icon>
+          </div>
         </div>
         <div class="file-stat-extra">
           <span>全部文件累计占用</span>
@@ -40,7 +44,9 @@
             <div class="file-stat-title">公开文件空间</div>
             <div class="file-stat-value">{{ formatFileSize(stats.publicSize) }}</div>
           </div>
-          <div class="file-stat-icon"><el-icon><FolderOpened /></el-icon></div>
+          <div class="file-stat-icon">
+            <el-icon><FolderOpened /></el-icon>
+          </div>
         </div>
         <div class="file-stat-extra">
           <span>占总空间 {{ formatPercentage(stats.publicSize) }}</span>
@@ -53,7 +59,9 @@
             <div class="file-stat-title">受保护文件空间</div>
             <div class="file-stat-value">{{ formatFileSize(stats.privateSize) }}</div>
           </div>
-          <div class="file-stat-icon"><el-icon><Lock /></el-icon></div>
+          <div class="file-stat-icon">
+            <el-icon><Lock /></el-icon>
+          </div>
         </div>
         <div class="file-stat-extra">
           <span>占总空间 {{ formatPercentage(stats.privateSize) }}</span>
@@ -66,7 +74,9 @@
             <div class="file-stat-title">已过期文件</div>
             <div class="file-stat-value">{{ stats.expiredCount }}</div>
           </div>
-          <div class="file-stat-icon"><el-icon><Timer /></el-icon></div>
+          <div class="file-stat-icon">
+            <el-icon><Timer /></el-icon>
+          </div>
         </div>
         <div class="file-stat-extra">
           <span>7天内到期 {{ stats.retentionExpiringCount }}</span>
@@ -79,7 +89,9 @@
             <div class="file-stat-title">即将过期授权</div>
             <div class="file-stat-value">{{ stats.aclExpiringCount }}</div>
           </div>
-          <div class="file-stat-icon"><el-icon><Key /></el-icon></div>
+          <div class="file-stat-icon">
+            <el-icon><Key /></el-icon>
+          </div>
         </div>
         <div class="file-stat-extra">
           <span>7天内失效的 ACL 项</span>
@@ -90,28 +102,21 @@
 </template>
 
 <script setup>
-import {
-  DataLine,
-  Files,
-  FolderOpened,
-  Key,
-  Lock,
-  Timer
-} from "@element-plus/icons-vue";
-import { formatFileSize } from "./fileFormatters";
+import { DataLine, Files, FolderOpened, Key, Lock, Timer } from '@element-plus/icons-vue'
+import { formatFileSize } from './fileFormatters'
 
 const props = defineProps({
   stats: {
     type: Object,
-    required: true
-  }
-});
+    required: true,
+  },
+})
 
 function formatPercentage(size) {
-  const totalSize = Number(props.stats.totalSize || 0);
-  if (!totalSize) return "0%";
-  const percentage = (Number(size || 0) / totalSize) * 100;
-  return `${percentage >= 10 ? percentage.toFixed(0) : percentage.toFixed(1)}%`;
+  const totalSize = Number(props.stats.totalSize || 0)
+  if (!totalSize) return '0%'
+  const percentage = (Number(size || 0) / totalSize) * 100
+  return `${percentage >= 10 ? percentage.toFixed(0) : percentage.toFixed(1)}%`
 }
 </script>
 
@@ -156,12 +161,11 @@ function formatPercentage(size) {
   min-height: 118px;
   padding: 16px;
   overflow: hidden;
-  background:
-    linear-gradient(
-      145deg,
-      color-mix(in srgb, var(--stat-color) 9%, var(--el-bg-color)) 0%,
-      var(--el-bg-color) 58%
-    );
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--stat-color) 9%, var(--el-bg-color)) 0%,
+    var(--el-bg-color) 58%
+  );
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 10px;
   box-shadow: 0 4px 14px rgb(31 45 61 / 5%);
@@ -179,7 +183,7 @@ function formatPercentage(size) {
   background-color: var(--stat-color);
   border-radius: 50%;
   opacity: 0.05;
-  content: "";
+  content: '';
 }
 
 .file-stat-item:hover {

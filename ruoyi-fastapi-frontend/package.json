@@ -10,7 +10,11 @@
     "build:prod": "vite build",
     "build:docker": "vite build --mode docker",
     "build:stage": "vite build --mode staging",
-    "test:plugin": "node tests/plugins/run-plugin-tests.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node tests/run-tests.js",
+    "test:plugin": "node tests/run-tests.js plugins",
+    "test:auth-center": "node tests/run-tests.js auth-center",
     "test:time": "node --test tests/time/time.test.js",
     "preview": "vite preview"
   },
@@ -56,6 +60,7 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "5.2.4",
     "less": "^4.2.0",
+    "prettier": "3.6.2",
     "sass-embedded": "1.97.2",
     "unplugin-auto-import": "0.18.6",
     "unplugin-vue-setup-extend-plus": "1.0.1",

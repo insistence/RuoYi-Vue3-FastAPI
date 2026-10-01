@@ -4,7 +4,7 @@ import request from '@/utils/request'
 export function getCache() {
   return request({
     url: '/monitor/cache',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -12,7 +12,7 @@ export function getCache() {
 export function listCacheName() {
   return request({
     url: '/monitor/cache/getNames',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -20,7 +20,7 @@ export function listCacheName() {
 export function listCacheKey(cacheName) {
   return request({
     url: '/monitor/cache/getKeys/' + cacheName,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -28,7 +28,7 @@ export function listCacheKey(cacheName) {
 export function getCacheValue(cacheName, cacheKey) {
   return request({
     url: '/monitor/cache/getValue/' + cacheName + '/' + cacheKey,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -36,7 +36,7 @@ export function getCacheValue(cacheName, cacheKey) {
 export function clearCacheName(cacheName) {
   return request({
     url: '/monitor/cache/clearCacheName/' + cacheName,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -44,7 +44,7 @@ export function clearCacheName(cacheName) {
 export function clearCacheKey(cacheKey) {
   return request({
     url: '/monitor/cache/clearCacheKey/' + cacheKey,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -52,6 +52,6 @@ export function clearCacheKey(cacheKey) {
 export function clearCacheAll() {
   return request({
     url: '/monitor/cache/clearCacheAll',
-    method: 'delete'
+    method: 'delete',
   })
 }

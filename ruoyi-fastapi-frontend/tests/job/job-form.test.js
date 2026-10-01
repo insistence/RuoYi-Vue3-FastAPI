@@ -10,7 +10,7 @@ test('JSON参数保持嵌套值类型和字符串内逗号，提交时转换为�
     coalesce: true,
     maxInstances: 2,
     jobGroup: '报表',
-    jobStore: 'redis'
+    jobStore: 'redis',
   }
   const payload = buildJobPayload(form)
   assert.deepEqual(payload.jobArgs, ['tenant,a', 3, true, { nested: [null, 2] }])
@@ -22,7 +22,10 @@ test('JSON参数保持嵌套值类型和字符串内逗号，提交时转换为�
 })
 
 test('无参数使用空数组和空对象', () => {
-  assert.deepEqual(buildJobPayload({ jobArgs: '[]', jobKwargs: '{}' }), { jobArgs: [], jobKwargs: {} })
+  assert.deepEqual(buildJobPayload({ jobArgs: '[]', jobKwargs: '{}' }), {
+    jobArgs: [],
+    jobKwargs: {},
+  })
 })
 
 test('错误的JSON格式和参数结构返回对应字段提示', () => {

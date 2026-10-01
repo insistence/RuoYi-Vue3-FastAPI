@@ -1,14 +1,20 @@
 /** 校验并解析任务参数，保留JSON值类型 */
 export function parseJobParameter(value, field) {
   const isArgs = field === 'jobArgs'
-  const message = isArgs ? '位置参数必须是JSON数组，例如 ["test", 1]' : '关键字参数必须是JSON对象，例如 {"enabled": true}'
+  const message = isArgs
+    ? '位置参数必须是JSON数组，例如 ["test", 1]'
+    : '关键字参数必须是JSON对象，例如 {"enabled": true}'
   let result
   try {
     result = JSON.parse(value)
   } catch {
     throw new Error(message)
   }
-  if (isArgs ? !Array.isArray(result) : result === null || Array.isArray(result) || typeof result !== 'object') {
+  if (
+    isArgs
+      ? !Array.isArray(result)
+      : result === null || Array.isArray(result) || typeof result !== 'object'
+  ) {
     throw new Error(message)
   }
   JSON.stringify(result, (_key, item) => {
@@ -25,7 +31,7 @@ export function buildJobPayload(form) {
   return {
     ...form,
     jobArgs: parseJobParameter(form.jobArgs, 'jobArgs'),
-    jobKwargs: parseJobParameter(form.jobKwargs, 'jobKwargs')
+    jobKwargs: parseJobParameter(form.jobKwargs, 'jobKwargs'),
   }
 }
 
@@ -33,7 +39,7 @@ export function buildJobPayload(form) {
 export const syncStates = {
   pending: { label: '待同步', type: 'warning' },
   applied: { label: '已生效', type: 'success' },
-  failed: { label: '同步失败', type: 'danger' }
+  failed: { label: '同步失败', type: 'danger' },
 }
 
 // 任务执行状态
@@ -46,7 +52,7 @@ export const executionStates = {
   rejected: { label: '达到并发上限', type: 'warning' },
   missed: { label: '已过期', type: 'warning' },
   cancelled: { label: '已取消', type: 'info' },
-  unknown: { label: '结果待确认', type: 'warning' }
+  unknown: { label: '结果待确认', type: 'warning' },
 }
 
 /** 显示任务变更的提交及同步结果 */

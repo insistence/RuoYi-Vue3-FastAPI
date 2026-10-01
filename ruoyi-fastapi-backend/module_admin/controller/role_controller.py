@@ -346,7 +346,9 @@ async def add_system_role_user(
 ) -> Response:
     if not current_user.user.admin:
         await RoleService.check_role_data_scope_services(query_db, str(add_role_user.role_id), data_scope_sql)
-    add_role_user_result = await UserService.add_user_role_services(query_db, add_role_user)
+    add_role_user_result = await UserService.add_user_role_services(
+        query_db, add_role_user, current_user.user.user_name
+    )
     logger.info(add_role_user_result.message)
 
     return ResponseUtil.success(msg=add_role_user_result.message)
@@ -366,8 +368,11 @@ async def cancel_system_role_user(
     request: Request,
     cancel_user_role: CrudUserRoleModel,
     query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    cancel_user_role_result = await UserService.delete_user_role_services(query_db, cancel_user_role)
+    cancel_user_role_result = await UserService.delete_user_role_services(
+        query_db, cancel_user_role, current_user.user.user_name
+    )
     logger.info(cancel_user_role_result.message)
 
     return ResponseUtil.success(msg=cancel_user_role_result.message)
@@ -387,8 +392,11 @@ async def batch_cancel_system_role_user(
     request: Request,
     batch_cancel_user_role: Annotated[CrudUserRoleModel, Query()],
     query_db: Annotated[AsyncSession, DBSessionDependency()],
+    current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    batch_cancel_user_role_result = await UserService.delete_user_role_services(query_db, batch_cancel_user_role)
+    batch_cancel_user_role_result = await UserService.delete_user_role_services(
+        query_db, batch_cancel_user_role, current_user.user.user_name
+    )
     logger.info(batch_cancel_user_role_result.message)
 
     return ResponseUtil.success(msg=batch_cancel_user_role_result.message)

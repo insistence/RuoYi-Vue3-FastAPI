@@ -1,14 +1,14 @@
 <template>
-   <div>
-      <div>我是数据监控</div>
-      <!-- <i-frame v-model:src="url"></i-frame> -->
-   </div>
+  <div>
+    <div>我是数据监控</div>
+    <!-- <i-frame v-model:src="url"></i-frame> -->
+  </div>
 </template>
 
 <script setup>
 import iFrame from '@/components/iFrame'
 
-import { ref } from 'vue';
+import { ref } from 'vue'
 
-const url = ref(import.meta.env.VITE_APP_BASE_API + '/druid/login.html');
+const url = ref(import.meta.env.VITE_APP_BASE_API + '/druid/login.html')
 </script>

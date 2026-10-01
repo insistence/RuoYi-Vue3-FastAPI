@@ -22,6 +22,20 @@ class TransportCryptoMiddleware:
     传输层请求解密与响应加密中间件
     """
 
+    # 标准 OAuth/OIDC 客户端无法理解项目自定义传输信封，协议路径始终旁路，
+    # 即使运行时通过环境变量覆盖普通排除列表也不得重新启用加密。
+    _STANDARD_OIDC_PATHS = (
+        '/.well-known/openid-configuration',
+        '/.well-known/oauth-authorization-server',
+        '/oauth2/authorize',
+        '/oauth2/token',
+        '/oauth2/userinfo',
+        '/oauth2/jwks',
+        '/oauth2/revoke',
+        '/oauth2/introspect',
+        '/oauth2/logout',
+    )
+
     _ENCRYPT_REQUEST_HEADER = 'x-transport-encrypt'
     _ENCRYPT_RESPONSE_HEADER = 'x-body-encrypted'
     _ENCRYPT_ALG_HEADER = 'x-encrypt-alg'
@@ -710,6 +724,7 @@ class TransportCryptoMiddleware:
             for excluded_path in TransportCryptoConfig.transport_crypto_exclude_paths.split(',')
             if excluded_path.strip()
         ]
+        excluded_paths.extend(cls._STANDARD_OIDC_PATHS)
         return any(path == excluded_path or path.startswith(f'{excluded_path}/') for excluded_path in excluded_paths)
 
     @classmethod

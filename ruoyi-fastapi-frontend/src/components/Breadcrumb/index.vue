@@ -1,9 +1,23 @@
 <template>
-  <el-breadcrumb class="app-breadcrumb" separator="/">
+  <el-breadcrumb
+    class="app-breadcrumb"
+    separator="/"
+  >
     <transition-group name="breadcrumb">
-      <el-breadcrumb-item v-for="(item, index) in levelList" :key="item.path">
-        <span v-if="item.redirect === 'noRedirect' || index == levelList.length - 1" class="no-redirect">{{ item.meta.title }}</span>
-        <a v-else @click.prevent="handleLink(item)">{{ item.meta.title }}</a>
+      <el-breadcrumb-item
+        v-for="(item, index) in levelList"
+        :key="item.path"
+      >
+        <span
+          v-if="item.redirect === 'noRedirect' || index == levelList.length - 1"
+          class="no-redirect"
+          >{{ item.meta.title }}</span
+        >
+        <a
+          v-else
+          @click.prevent="handleLink(item)"
+          >{{ item.meta.title }}</a
+        >
       </el-breadcrumb-item>
     </transition-group>
   </el-breadcrumb>
@@ -34,11 +48,13 @@ function getBreadcrumb() {
   }
   // 判断是否为首页
   if (!isDashboard(matched[0])) {
-    matched = [{ path: "/index", meta: { title: "首页" } }].concat(matched)
+    matched = [{ path: '/index', meta: { title: '首页' } }].concat(matched)
   }
-  levelList.value = matched.filter(item => item.meta && item.meta.title && item.meta.breadcrumb !== false)
+  levelList.value = matched.filter(
+    (item) => item.meta && item.meta.title && item.meta.breadcrumb !== false
+  )
 }
-function findPathNum(str, char = "/") {
+function findPathNum(str, char = '/') {
   let index = str.indexOf(char)
   let num = 0
   while (index !== -1) {
@@ -48,7 +64,9 @@ function findPathNum(str, char = "/") {
   return num
 }
 function getMatched(pathList, routeList, matched) {
-  let data = routeList.find(item => item.path == pathList[0] || (item.name += '').toLowerCase() == pathList[0])
+  let data = routeList.find(
+    (item) => item.path == pathList[0] || (item.name += '').toLowerCase() == pathList[0]
+  )
   if (data) {
     matched.push(data)
     if (data.children && pathList.length) {
@@ -83,7 +101,7 @@ watchEffect(() => {
 getBreadcrumb()
 </script>
 
-<style lang='scss' scoped>
+<style lang="scss" scoped>
 .app-breadcrumb.el-breadcrumb {
   display: inline-block;
   font-size: 14px;

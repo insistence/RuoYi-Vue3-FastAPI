@@ -1,22 +1,17 @@
-from __future__ import annotations
-
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol
 from uuid import uuid4
 
+from redis import asyncio as aioredis
 from redis.exceptions import RedisError
 
 from common.constant import LockConstant
 from config.get_redis import RedisUtil
 from exceptions.exception import ServiceException
 from utils.log_util import logger
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncIterator
-
-    from redis import asyncio as aioredis
 
 
 @dataclass(frozen=True)

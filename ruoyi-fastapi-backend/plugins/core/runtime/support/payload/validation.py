@@ -1,21 +1,15 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Protocol, TypeAlias
+from collections.abc import Mapping
+from typing import Protocol, TypeAlias
 
 from pydantic import Field
 
-from plugins.core.validation.result import PluginValidationLevelResolver, ValidationLevel
+from plugins.core.validation.dependencies import DependencyCheckItem, DependencyCheckResult
+from plugins.core.validation.menus import PluginMenuConflictItem
+from plugins.core.validation.plugin_deps import PluginDependencyCheckItem
+from plugins.core.validation.result import PluginValidationIssue, PluginValidationLevelResolver, ValidationLevel
+from plugins.core.validation.structure import PluginStructureCheckItem
 
 from .base import PluginPayloadModel
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from plugins.core.validation.dependencies import DependencyCheckItem, DependencyCheckResult
-    from plugins.core.validation.menus import PluginMenuConflictItem
-    from plugins.core.validation.plugin_deps import PluginDependencyCheckItem
-    from plugins.core.validation.result import PluginValidationIssue
-    from plugins.core.validation.structure import PluginStructureCheckItem
 
 
 class DependencyItemPayload(PluginPayloadModel):

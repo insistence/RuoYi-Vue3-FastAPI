@@ -1,20 +1,53 @@
 <template>
-  <div class="tree-sidebar" :class="{ collapsed: collapsed, resizing: isResizing, 'no-initial-transition': isLoadingFromStorage}" :style="{ width: sidebarWidth + 'px' }">
+  <div
+    class="tree-sidebar"
+    :class="{
+      collapsed: collapsed,
+      resizing: isResizing,
+      'no-initial-transition': isLoadingFromStorage,
+    }"
+    :style="{ width: sidebarWidth + 'px' }"
+  >
     <!-- 右侧拖动条 -->
-    <div v-if="!collapsed" class="resize-handle" @mousedown="startResize" @touchstart="startResize" :class="{ active: isResizing }" />
+    <div
+      v-if="!collapsed"
+      class="resize-handle"
+      @mousedown="startResize"
+      @touchstart="startResize"
+      :class="{ active: isResizing }"
+    />
     <div class="tree-header">
-      <span class="tree-title" v-show="!collapsed">
+      <span
+        class="tree-title"
+        v-show="!collapsed"
+      >
         <el-icon><component :is="titleIcon" /></el-icon> {{ title }}
       </span>
-      <div class="tree-actions" v-show="!collapsed">
-        <el-tooltip :content="isExpandedAll ? '收起全部' : '展开全部'" placement="right">
-          <el-icon class="tree-action-icon" @click="toggleExpandAll">
+      <div
+        class="tree-actions"
+        v-show="!collapsed"
+      >
+        <el-tooltip
+          :content="isExpandedAll ? '收起全部' : '展开全部'"
+          placement="right"
+        >
+          <el-icon
+            class="tree-action-icon"
+            @click="toggleExpandAll"
+          >
             <ArrowDown v-if="isExpandedAll" />
             <ArrowUp v-else />
           </el-icon>
         </el-tooltip>
-        <el-tooltip content="刷新" placement="right">
-          <el-icon class="tree-action-icon" @click="handleRefresh"><Refresh /></el-icon>
+        <el-tooltip
+          content="刷新"
+          placement="right"
+        >
+          <el-icon
+            class="tree-action-icon"
+            @click="handleRefresh"
+            ><Refresh
+          /></el-icon>
         </el-tooltip>
         <slot name="actions"></slot>
       </div>
@@ -22,23 +55,40 @@
 
     <!-- 侧边栏展开/收起按钮 -->
     <div class="collapse-button-container">
-      <el-tooltip :content="collapsed ? '展开' : '收起'" placement="right">
-        <el-icon class="collapse-button" @click="toggleCollapsed">
+      <el-tooltip
+        :content="collapsed ? '展开' : '收起'"
+        placement="right"
+      >
+        <el-icon
+          class="collapse-button"
+          @click="toggleCollapsed"
+        >
           <DArrowRight v-if="collapsed" />
           <DArrowLeft v-else />
         </el-icon>
       </el-tooltip>
     </div>
 
-    <div class="tree-search" v-show="!collapsed" v-if="showSearch">
-      <el-input v-model="searchKeyword" :placeholder="searchPlaceholder" clearable>
+    <div
+      class="tree-search"
+      v-show="!collapsed"
+      v-if="showSearch"
+    >
+      <el-input
+        v-model="searchKeyword"
+        :placeholder="searchPlaceholder"
+        clearable
+      >
         <template #prefix>
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
     </div>
 
-    <div class="tree-wrap" v-show="!collapsed">
+    <div
+      class="tree-wrap"
+      v-show="!collapsed"
+    >
       <el-tree
         ref="treeRef"
         :data="treeData"
@@ -56,13 +106,21 @@
         @node-collapse="onNodeCollapse"
       >
         <template #default="{ node, data }">
-          <slot name="node" :node="node" :data="data">
+          <slot
+            name="node"
+            :node="node"
+            :data="data"
+          >
             <span class="tree-node">
               <el-icon class="node-icon">
                 <Folder v-if="data.children && data.children.length" />
                 <Document v-else />
               </el-icon>
-              <span class="node-label" :title="node.label">{{ node.label }}</span>
+              <span
+                class="node-label"
+                :title="node.label"
+                >{{ node.label }}</span
+              >
             </span>
           </slot>
         </template>
@@ -76,106 +134,106 @@ const props = defineProps({
   // 树形数据
   treeData: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   // 标题
   title: {
     type: String,
-    default: '树形结构'
+    default: '树形结构',
   },
   // 标题图标
   titleIcon: {
     type: [String, Object],
-    default: 'OfficeBuilding'
+    default: 'OfficeBuilding',
   },
   // 是否显示搜索框
   showSearch: {
     type: Boolean,
-    default: true
+    default: true,
   },
   // 搜索框占位符
   searchPlaceholder: {
     type: String,
-    default: '请输入名称'
+    default: '请输入名称',
   },
   // 是否默认收起侧边栏
   defaultCollapsed: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 树配置项
   treeProps: {
     type: Object,
     default: () => ({
-      children: "children",
-      label: "label"
-    })
+      children: 'children',
+      label: 'label',
+    }),
   },
   // 节点唯一标识字段
   nodeKey: {
     type: String,
-    default: 'id'
+    default: 'id',
   },
   // 是否在点击节点时展开或收起
   expandOnClickNode: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 是否显示复选框
   showCheckbox: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 是否严格的遵循父子不互相关联
   checkStrictly: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 是否默认展开所有节点
   defaultExpandAll: {
     type: Boolean,
-    default: false
+    default: false,
   },
   // 默认展开的节点的key数组
   defaultExpandedKeys: {
     type: Array,
-    default: () => []
+    default: () => [],
   },
   // 默认宽度
   defaultWidth: {
     type: Number,
-    default: 220
+    default: 220,
   },
   // 收起时的宽度
   collapsedWidth: {
     type: Number,
-    default: 20
+    default: 20,
   },
   // 最小宽度
   minWidth: {
     type: Number,
-    default: 180
+    default: 180,
   },
   // 最大宽度
   maxWidth: {
     type: Number,
-    default: 400
+    default: 400,
   },
   // 本地存储的宽度key
   storageKey: {
     type: String,
-    default: 'tree-sidebar-width'
+    default: 'tree-sidebar-width',
   },
   // 是否启用本地存储宽度
   enableStorage: {
     type: Boolean,
-    default: true
+    default: true,
   },
   // 自定义过滤方法
   filterMethod: {
     type: Function,
-    default: null
-  }
+    default: null,
+  },
 })
 
 const emit = defineEmits([
@@ -186,7 +244,7 @@ const emit = defineEmits([
   'check',
   'node-expand',
   'node-collapse',
-  'search'
+  'search',
 ])
 
 const treeRef = ref(null)
@@ -208,7 +266,7 @@ const isExpandedAll = computed({
   get: () => expandedAll.value,
   set: (val) => {
     expandedAll.value = val
-  }
+  },
 })
 
 // 节点过滤方法
@@ -314,7 +372,7 @@ const toggleExpandAll = () => {
 const expandAllNodes = () => {
   if (!treeRef.value) return
   const allNodes = getAllNodes(treeRef.value.root)
-  allNodes.forEach(node => {
+  allNodes.forEach((node) => {
     if (node.expanded !== undefined && !node.expanded) {
       node.expanded = true
     }
@@ -328,7 +386,7 @@ const getAllNodes = (rootNode) => {
     if (!node) return
     nodes.push(node)
     if (node.childNodes && node.childNodes.length) {
-      node.childNodes.forEach(child => traverse(child))
+      node.childNodes.forEach((child) => traverse(child))
     }
   }
   traverse(rootNode)
@@ -339,7 +397,7 @@ const getAllNodes = (rootNode) => {
 const collapseAllNodes = () => {
   if (!treeRef.value) return
   const allNodes = getAllNodes(treeRef.value.root)
-  allNodes.forEach(node => {
+  allNodes.forEach((node) => {
     if (node.expanded !== undefined && node.expanded) {
       node.expanded = false
     }
@@ -412,9 +470,9 @@ const getCheckedNodes = () => {
 }
 
 const clearSearch = () => {
-  searchKeyword.value = ""
+  searchKeyword.value = ''
   if (treeRef.value) {
-    treeRef.value.filter("")
+    treeRef.value.filter('')
   }
 }
 
@@ -521,7 +579,7 @@ defineExpose({
   expandAllNodes,
   collapseAllNodes,
   toggleCollapsed,
-  treeRef
+  treeRef,
 })
 
 onMounted(() => {

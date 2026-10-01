@@ -5,7 +5,7 @@ import {
   getTransportCryptoPolicy,
   shouldEncryptQuery,
   shouldEncryptRequest,
-  shouldEncryptResponse
+  shouldEncryptResponse,
 } from '@/utils/transportCryptoPolicy'
 import cache from '@/plugins/cache'
 
@@ -17,7 +17,7 @@ const DEFAULT_TRANSPORT_ENVELOPE_VERSION = '1'
 
 const transportClient = axios.create({
   baseURL: TRANSPORT_BASE_URL,
-  timeout: 10000
+  timeout: 10000,
 })
 
 let cachedKeyMeta = null
@@ -84,7 +84,7 @@ function setHeaderValue(headers, name, value) {
  */
 function toBase64Url(bytes) {
   let binary = ''
-  bytes.forEach(byte => {
+  bytes.forEach((byte) => {
     binary += String.fromCharCode(byte)
   })
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
@@ -100,7 +100,7 @@ function fromBase64Url(text) {
   const normalizedText = text.replace(/-/g, '+').replace(/_/g, '/')
   const paddingLength = (4 - (normalizedText.length % 4 || 4)) % 4
   const binary = atob(normalizedText + '='.repeat(paddingLength))
-  return Uint8Array.from(binary, char => char.charCodeAt(0))
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0))
 }
 
 /**
@@ -110,9 +110,12 @@ function fromBase64Url(text) {
  * @returns {ArrayBuffer} DER 二进制内容
  */
 function pemToArrayBuffer(pem) {
-  const normalizedPem = pem.replace(/-----BEGIN PUBLIC KEY-----/g, '').replace(/-----END PUBLIC KEY-----/g, '').replace(/\s+/g, '')
+  const normalizedPem = pem
+    .replace(/-----BEGIN PUBLIC KEY-----/g, '')
+    .replace(/-----END PUBLIC KEY-----/g, '')
+    .replace(/\s+/g, '')
   const binary = atob(normalizedPem)
-  return Uint8Array.from(binary, char => char.charCodeAt(0)).buffer
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0)).buffer
 }
 
 /**
@@ -192,7 +195,7 @@ function getRequestPath(url = '') {
 function buildRequestAad(config) {
   return {
     method: (config.method || 'get').toUpperCase(),
-    path: getRequestPath(config.url)
+    path: getRequestPath(config.url),
   }
 }
 
@@ -206,7 +209,7 @@ function buildResponseAad(config) {
   return {
     method: (config?.method || 'get').toUpperCase(),
     path: getRequestPath(config?.url),
-    direction: 'response'
+    direction: 'response',
   }
 }
 
@@ -302,7 +305,11 @@ function parseJsonObject(payload, errorMessage) {
  * @returns {void}
  */
 function validateTransportPublicKeyResponse(responsePayload) {
-  if (responsePayload?.code !== 200 || !responsePayload?.data || typeof responsePayload.data !== 'object') {
+  if (
+    responsePayload?.code !== 200 ||
+    !responsePayload?.data ||
+    typeof responsePayload.data !== 'object'
+  ) {
     throw new Error(responsePayload?.msg || '获取传输层公钥失败')
   }
 }
@@ -318,7 +325,10 @@ function validateTransportPublicKeyPayload(payload, transportPolicy) {
   if (!payload?.publicKey || !payload?.kid) {
     throw new Error('获取传输层公钥失败')
   }
-  if (String(payload.envelopeVersion || DEFAULT_TRANSPORT_ENVELOPE_VERSION) !== transportPolicy.envelopeVersion) {
+  if (
+    String(payload.envelopeVersion || DEFAULT_TRANSPORT_ENVELOPE_VERSION) !==
+    transportPolicy.envelopeVersion
+  ) {
     throw new Error('传输层公钥协议版本不受支持')
   }
   if (payload.alg !== transportPolicy.requestEnvelopeAlgorithm) {
@@ -355,7 +365,10 @@ function validateResponseEnvelope(envelope, response, transportContext, transpor
   if (!aad || typeof aad !== 'object' || Array.isArray(aad)) {
     throw new Error('传输层响应AAD不合法')
   }
-  if (String(aad.method || '').toUpperCase() !== expectedAad.method || String(aad.path || '') !== expectedAad.path) {
+  if (
+    String(aad.method || '').toUpperCase() !== expectedAad.method ||
+    String(aad.path || '') !== expectedAad.path
+  ) {
     throw new Error('传输层响应的method/path与当前请求不匹配')
   }
   if (String(aad.direction || '') !== expectedAad.direction) {
@@ -377,7 +390,7 @@ function rememberOriginalRequestSnapshot(config) {
     url: config.url,
     params: cloneRequestValue(config.params),
     data: cloneRequestValue(config.data),
-    contentType: getHeaderValue(config.headers, 'Content-Type')
+    contentType: getHeaderValue(config.headers, 'Content-Type'),
   }
 }
 
@@ -422,7 +435,9 @@ function isUsableKeyMeta(keyMeta, nowTimestamp = getNowTimestamp()) {
   if (!keyMeta?.publicKeyPem || !keyMeta?.kid || !keyMeta?.expireAt) {
     return false
   }
-  const refreshAt = Number(keyMeta.refreshAt || buildKeyRefreshAt(keyMeta.expireAt, keyMeta.fetchedAt || nowTimestamp))
+  const refreshAt = Number(
+    keyMeta.refreshAt || buildKeyRefreshAt(keyMeta.expireAt, keyMeta.fetchedAt || nowTimestamp)
+  )
   return refreshAt > nowTimestamp
 }
 
@@ -454,7 +469,9 @@ async function getTransportKeyMeta(forceRefresh = false) {
         publicKeyPem: persistedKeyMeta.publicKeyPem,
         expireAt: persistedKeyMeta.expireAt,
         fetchedAt: persistedKeyMeta.fetchedAt || nowTimestamp,
-        refreshAt: persistedKeyMeta.refreshAt || buildKeyRefreshAt(persistedKeyMeta.expireAt, persistedKeyMeta.fetchedAt || nowTimestamp)
+        refreshAt:
+          persistedKeyMeta.refreshAt ||
+          buildKeyRefreshAt(persistedKeyMeta.expireAt, persistedKeyMeta.fetchedAt || nowTimestamp),
       }
     }
   }
@@ -464,45 +481,48 @@ async function getTransportKeyMeta(forceRefresh = false) {
   if (inflightKeyMetaPromise) {
     return inflightKeyMetaPromise
   }
-  inflightKeyMetaPromise = transportClient.get(transportPolicy.publicKeyUrl || '/transport/crypto/public-key').then(async response => {
-    const responsePayload = response.data || {}
-    const payload = responsePayload.data || {}
-    const fetchedAt = getNowTimestamp()
-    validateTransportPublicKeyResponse(responsePayload)
-    validateTransportPublicKeyPayload(payload, transportPolicy)
-    const browserCrypto = getBrowserCrypto()
-    const cryptoKey = await browserCrypto.subtle.importKey(
-      'spki',
-      pemToArrayBuffer(payload.publicKey),
-      { name: 'RSA-OAEP', hash: 'SHA-256' },
-      false,
-      ['encrypt']
-    )
-    cachedKeyMeta = {
-      kid: payload.kid,
-      alg: payload.alg,
-      envelopeVersion: String(payload.envelopeVersion || transportPolicy.envelopeVersion),
-      publicKey: cryptoKey,
-      publicKeyPem: payload.publicKey,
-      expireAt: payload.expireAt,
-      fetchedAt,
-      refreshAt: buildKeyRefreshAt(payload.expireAt, fetchedAt)
-    }
-    cache.session.setJSON(TRANSPORT_KEY_META_CACHE_KEY, {
-      kid: payload.kid,
-      alg: payload.alg,
-      envelopeVersion: String(payload.envelopeVersion || transportPolicy.envelopeVersion),
-      publicKeyPem: payload.publicKey,
-      expireAt: payload.expireAt,
-      fetchedAt,
-      refreshAt: buildKeyRefreshAt(payload.expireAt, fetchedAt)
+  inflightKeyMetaPromise = transportClient
+    .get(transportPolicy.publicKeyUrl || '/transport/crypto/public-key')
+    .then(async (response) => {
+      const responsePayload = response.data || {}
+      const payload = responsePayload.data || {}
+      const fetchedAt = getNowTimestamp()
+      validateTransportPublicKeyResponse(responsePayload)
+      validateTransportPublicKeyPayload(payload, transportPolicy)
+      const browserCrypto = getBrowserCrypto()
+      const cryptoKey = await browserCrypto.subtle.importKey(
+        'spki',
+        pemToArrayBuffer(payload.publicKey),
+        { name: 'RSA-OAEP', hash: 'SHA-256' },
+        false,
+        ['encrypt']
+      )
+      cachedKeyMeta = {
+        kid: payload.kid,
+        alg: payload.alg,
+        envelopeVersion: String(payload.envelopeVersion || transportPolicy.envelopeVersion),
+        publicKey: cryptoKey,
+        publicKeyPem: payload.publicKey,
+        expireAt: payload.expireAt,
+        fetchedAt,
+        refreshAt: buildKeyRefreshAt(payload.expireAt, fetchedAt),
+      }
+      cache.session.setJSON(TRANSPORT_KEY_META_CACHE_KEY, {
+        kid: payload.kid,
+        alg: payload.alg,
+        envelopeVersion: String(payload.envelopeVersion || transportPolicy.envelopeVersion),
+        publicKeyPem: payload.publicKey,
+        expireAt: payload.expireAt,
+        fetchedAt,
+        refreshAt: buildKeyRefreshAt(payload.expireAt, fetchedAt),
+      })
+      inflightKeyMetaPromise = null
+      return cachedKeyMeta
     })
-    inflightKeyMetaPromise = null
-    return cachedKeyMeta
-  }).catch(error => {
-    inflightKeyMetaPromise = null
-    throw error
-  })
+    .catch((error) => {
+      inflightKeyMetaPromise = null
+      throw error
+    })
   return inflightKeyMetaPromise
 }
 
@@ -514,7 +534,10 @@ async function getTransportKeyMeta(forceRefresh = false) {
 async function buildTransportContext() {
   const browserCrypto = getBrowserCrypto()
   const keyMeta = await getTransportKeyMeta()
-  const aesKey = await browserCrypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
+  const aesKey = await browserCrypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, [
+    'encrypt',
+    'decrypt',
+  ])
   const rawAesKey = new Uint8Array(await browserCrypto.subtle.exportKey('raw', aesKey))
   const encryptedAesKey = new Uint8Array(
     await browserCrypto.subtle.encrypt({ name: 'RSA-OAEP' }, keyMeta.publicKey, rawAesKey)
@@ -524,7 +547,7 @@ async function buildTransportContext() {
     alg: keyMeta.alg,
     envelopeVersion: keyMeta.envelopeVersion || DEFAULT_TRANSPORT_ENVELOPE_VERSION,
     aesKey,
-    ek: toBase64Url(encryptedAesKey)
+    ek: toBase64Url(encryptedAesKey),
   }
 }
 
@@ -555,7 +578,7 @@ async function encryptPayloadText(context, plainText, aad) {
     ek: context.ek,
     aad,
     iv: toBase64Url(iv),
-    ct: toBase64Url(ciphertext)
+    ct: toBase64Url(ciphertext),
   }
 }
 
@@ -572,7 +595,7 @@ async function decryptEnvelope(envelope, context) {
     {
       name: 'AES-GCM',
       iv: fromBase64Url(envelope.iv),
-      additionalData: new TextEncoder().encode(JSON.stringify(envelope.aad || {}))
+      additionalData: new TextEncoder().encode(JSON.stringify(envelope.aad || {})),
     },
     context.aesKey,
     fromBase64Url(envelope.ct)
@@ -609,18 +632,26 @@ export async function encryptTransportRequest(config) {
 
   rememberOriginalRequestSnapshot(config)
   const transportContext = await getOrCreateTransportContext(config)
-  const contentType = (getHeaderValue(config.headers, 'Content-Type') || 'application/json').toLowerCase()
+  const contentType = (
+    getHeaderValue(config.headers, 'Content-Type') || 'application/json'
+  ).toLowerCase()
   const method = (config.method || 'get').toLowerCase()
   const requestAad = buildRequestAad(config)
 
-  if (shouldEncryptQuery(config, transportPolicy) && (config.params || method === 'get' || method === 'delete')) {
+  if (
+    shouldEncryptQuery(config, transportPolicy) &&
+    (config.params || method === 'get' || method === 'delete')
+  ) {
     const queryEnvelope = await encryptPayloadText(
       transportContext,
       JSON.stringify(normalizePlainPayload(config.params)),
       requestAad
     )
     config.params = { __enc: encodeQueryEnvelope(queryEnvelope) }
-    if (buildQueryUrlLength(config.url, config.params) > Number(transportPolicy.maxEncryptedGetUrlLength || 4096)) {
+    if (
+      buildQueryUrlLength(config.url, config.params) >
+      Number(transportPolicy.maxEncryptedGetUrlLength || 4096)
+    ) {
       throw new Error('当前GET/DELETE请求参数加密后长度超限，请改用POST请求或精简查询条件')
     }
   }
@@ -687,7 +718,10 @@ export function resetTransportRequestConfig(config) {
 export function shouldRetryTransportWithFreshKey(error) {
   const responseMsg = error?.response?.data?.msg
   const errorMessage = error?.message
-  return TRANSPORT_RETRYABLE_ERROR_MESSAGES.has(responseMsg) || TRANSPORT_RETRYABLE_ERROR_MESSAGES.has(errorMessage)
+  return (
+    TRANSPORT_RETRYABLE_ERROR_MESSAGES.has(responseMsg) ||
+    TRANSPORT_RETRYABLE_ERROR_MESSAGES.has(errorMessage)
+  )
 }
 
 /**

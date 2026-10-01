@@ -6,17 +6,17 @@ export function login(username, password, code, uuid) {
     username,
     password,
     code,
-    uuid
+    uuid,
   }
   return request({
     url: '/login',
     headers: {
       isToken: false,
       repeatSubmit: false,
-      'Content-Type': 'application/x-www-form-urlencoded'
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
     method: 'post',
-    data: data
+    data: data,
   })
 }
 
@@ -25,10 +25,10 @@ export function register(data) {
   return request({
     url: '/register',
     headers: {
-      isToken: false
+      isToken: false,
     },
     method: 'post',
-    data: data
+    data: data,
   })
 }
 
@@ -36,7 +36,7 @@ export function register(data) {
 export function getInfo() {
   return request({
     url: '/getInfo',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -45,7 +45,7 @@ export function unlockScreen(password) {
   return request({
     url: '/unlockscreen',
     method: 'post',
-    data: { password }
+    data: { password },
   })
 }
 
@@ -53,7 +53,7 @@ export function unlockScreen(password) {
 export function logout() {
   return request({
     url: '/logout',
-    method: 'post'
+    method: 'post',
   })
 }
 
@@ -62,9 +62,9 @@ export function getCodeImg() {
   return request({
     url: '/captchaImage',
     headers: {
-      isToken: false
+      isToken: false,
     },
     method: 'get',
-    timeout: 20000
+    timeout: 20000,
   })
 }

@@ -1,10 +1,7 @@
-from __future__ import annotations
-
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from collections.abc import Mapping
+from typing_extensions import Self
 
 
 @dataclass(frozen=True)
@@ -23,7 +20,7 @@ class PluginOperationResult:
         payload: Mapping[str, object],
         *,
         default_message: str = '插件操作完成',
-    ) -> PluginOperationResult:
+    ) -> Self:
         """
         从插件运行时 payload 构建结果视图。
 

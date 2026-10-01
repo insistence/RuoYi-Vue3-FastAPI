@@ -3,12 +3,14 @@ export function normalizePluginPlanResponse(result) {
   const plan = payload.plan || {}
   const items = Array.isArray(plan.items) ? plan.items : []
   const blockers = Array.isArray(plan.blockers) ? plan.blockers : []
-  const capabilityBlockers = Array.isArray(payload.capabilityBlockers) ? payload.capabilityBlockers : []
+  const capabilityBlockers = Array.isArray(payload.capabilityBlockers)
+    ? payload.capabilityBlockers
+    : []
   const requestedPluginIds = Array.isArray(plan.requestedPluginIds) ? plan.requestedPluginIds : []
   const orderedPluginIds = Array.isArray(plan.orderedPluginIds) ? plan.orderedPluginIds : []
   const requestedPluginIdSet = new Set(requestedPluginIds)
   const executablePluginIds = requestedPluginIds.length
-    ? orderedPluginIds.filter(pluginId => requestedPluginIdSet.has(pluginId))
+    ? orderedPluginIds.filter((pluginId) => requestedPluginIdSet.has(pluginId))
     : orderedPluginIds
 
   return {
@@ -21,7 +23,9 @@ export function normalizePluginPlanResponse(result) {
     items,
     blockers,
     capabilityBlockers,
-    blockerCount: Number.isInteger(plan.blockerCount) ? plan.blockerCount + capabilityBlockers.length : blockers.length + capabilityBlockers.length
+    blockerCount: Number.isInteger(plan.blockerCount)
+      ? plan.blockerCount + capabilityBlockers.length
+      : blockers.length + capabilityBlockers.length,
   }
 }
 
@@ -40,8 +44,8 @@ export function normalizePluginBatchResponse(result) {
       total: Number.isInteger(summary.total) ? summary.total : 0,
       succeeded: Number.isInteger(summary.succeeded) ? summary.succeeded : 0,
       failed: Number.isInteger(summary.failed) ? summary.failed : 0,
-      skipped: Number.isInteger(summary.skipped) ? summary.skipped : 0
-    }
+      skipped: Number.isInteger(summary.skipped) ? summary.skipped : 0,
+    },
   }
 }
 
@@ -50,7 +54,7 @@ export function getPlanOperationLabel(operation, operationOptions = []) {
     return '-'
   }
 
-  const matched = operationOptions.find(item => String(item.value) === String(operation))
+  const matched = operationOptions.find((item) => String(item.value) === String(operation))
   return matched?.label || operation
 }
 
@@ -66,7 +70,7 @@ export function getPlanBlockerStatusLabel(status) {
     version_unsatisfied: '版本不满足',
     source_version_unsatisfied: '源码版本不满足',
     cycle: '循环依赖',
-    unknown_operation: '未知操作'
+    unknown_operation: '未知操作',
   }
 
   return statusMap[status] || status || '-'
@@ -76,7 +80,7 @@ export function getValidationLevelLabel(level) {
   const levelMap = {
     error: '错误',
     warning: '警告',
-    info: '提示'
+    info: '提示',
   }
 
   return levelMap[level] || level || '-'
@@ -86,7 +90,7 @@ export function getValidationLevelTagType(level) {
   const typeMap = {
     error: 'danger',
     warning: 'warning',
-    info: 'info'
+    info: 'info',
   }
 
   return typeMap[level] || 'info'
@@ -99,7 +103,9 @@ export function normalizePluginActionResult(result) {
     return {
       ...normalized,
       manifestIssues: Array.isArray(normalized.manifestIssues) ? normalized.manifestIssues : [],
-      manifestWarnings: Array.isArray(normalized.manifestWarnings) ? normalized.manifestWarnings : []
+      manifestWarnings: Array.isArray(normalized.manifestWarnings)
+        ? normalized.manifestWarnings
+        : [],
     }
   }
 
@@ -115,7 +121,7 @@ export function normalizePluginActionResult(result) {
     manifestIssues: firstCheck.manifestIssues || [],
     manifestWarnings: firstCheck.manifestWarnings || [],
     structureErrors: firstCheck.structureErrors || [],
-    menuConflicts: firstCheck.menuConflicts || []
+    menuConflicts: firstCheck.menuConflicts || [],
   }
 }
 
@@ -133,7 +139,7 @@ export function normalizePluginOperationLogDetail(detail) {
     planItems: Array.isArray(result.plan?.items) ? result.plan.items : [],
     validationItems: buildOperationValidationItems(result),
     configChanges: buildOperationConfigChanges(result, summary),
-    failedSuggestion: buildOperationFailedSuggestion(result)
+    failedSuggestion: buildOperationFailedSuggestion(result),
   }
 }
 
@@ -145,17 +151,17 @@ function buildOperationValidationItems(result) {
     ['Manifest 警告', result.manifestWarnings || firstCheck.manifestWarnings],
     ['插件依赖', result.pluginDependencyErrors || firstCheck.pluginDependencyErrors],
     ['结构', result.structureErrors || firstCheck.structureErrors],
-    ['菜单冲突', result.menuConflicts || firstCheck.menuConflicts]
+    ['菜单冲突', result.menuConflicts || firstCheck.menuConflicts],
   ]
 
   return validationGroups.flatMap(([category, items]) =>
     Array.isArray(items)
-      ? items.map(item => ({
+      ? items.map((item) => ({
           category,
           level: item.level || (category.includes('警告') ? 'warning' : 'error'),
           kind: item.kind || item.name || item.status || '-',
           value: item.value || item.requirement || item.path || item.pluginId || item.perms || '-',
-          message: item.message || item.suggestion || item.reason || ''
+          message: item.message || item.suggestion || item.reason || '',
         }))
       : []
   )
@@ -170,12 +176,12 @@ function buildOperationConfigChanges(result, summary) {
   }
   const changedKeys = Array.isArray(summary.changedKeys) ? summary.changedKeys : []
 
-  return changedKeys.map(key => ({
+  return changedKeys.map((key) => ({
     key,
     label: key,
     before: '-',
     after: '-',
-    secret: false
+    secret: false,
   }))
 }
 

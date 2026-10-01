@@ -5,7 +5,7 @@ export function listNotice(query) {
   return request({
     url: '/system/notice/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }
 
@@ -13,7 +13,7 @@ export function listNotice(query) {
 export function getNotice(noticeId) {
   return request({
     url: '/system/notice/' + noticeId,
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -22,7 +22,7 @@ export function addNotice(data) {
   return request({
     url: '/system/notice',
     method: 'post',
-    data: data
+    data: data,
   })
 }
 
@@ -31,7 +31,7 @@ export function updateNotice(data) {
   return request({
     url: '/system/notice',
     method: 'put',
-    data: data
+    data: data,
   })
 }
 
@@ -39,7 +39,7 @@ export function updateNotice(data) {
 export function delNotice(noticeId) {
   return request({
     url: '/system/notice/' + noticeId,
-    method: 'delete'
+    method: 'delete',
   })
 }
 
@@ -47,7 +47,7 @@ export function delNotice(noticeId) {
 export function listNoticeTop() {
   return request({
     url: '/system/notice/listTop',
-    method: 'get'
+    method: 'get',
   })
 }
 
@@ -56,7 +56,7 @@ export function markNoticeRead(noticeId) {
   return request({
     url: '/system/notice/markRead',
     method: 'post',
-    params: { noticeId }
+    params: { noticeId },
   })
 }
 
@@ -65,7 +65,7 @@ export function markNoticeReadAll(ids) {
   return request({
     url: '/system/notice/markReadAll',
     method: 'post',
-    params: { ids }
+    params: { ids },
   })
 }
 
@@ -74,6 +74,6 @@ export function listNoticeReadUsers(query) {
   return request({
     url: '/system/notice/readUsers/list',
     method: 'get',
-    params: query
+    params: query,
   })
 }

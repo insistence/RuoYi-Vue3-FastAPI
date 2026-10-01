@@ -18,6 +18,7 @@ from module_admin.entity.vo.role_vo import (
     RolePageQueryModel,
 )
 from module_admin.entity.vo.user_vo import UserInfoModel, UserRolePageQueryModel
+from module_identity.service.identity_service import IdentitySecurityEventService
 from utils.common_util import CamelCaseUtil
 from utils.excel_util import ExcelUtil
 
@@ -166,6 +167,60 @@ class RoleService:
             await query_db.rollback()
             raise e
 
+    @staticmethod
+    async def _role_menu_changed(
+        query_db: AsyncSession,
+        page_object: AddRoleModel,
+        role_info: RoleModel,
+    ) -> bool:
+        """
+        比较角色保存前后的菜单授权集合
+
+        :param query_db: 角色变更使用的异步数据库会话
+        :param page_object: 本次角色编辑请求
+        :param role_info: 编辑前的角色信息
+        :return: 菜单集合发生变化时为 True
+        """
+        if 'menu_ids' not in page_object.model_fields_set:
+            return False
+        current_ids = set(await RoleDao.list_role_menu_ids(query_db, int(role_info.role_id)))
+        requested_ids = {int(menu_id) for menu_id in (page_object.menu_ids or [])}
+        return current_ids != requested_ids
+
+    @staticmethod
+    async def _handle_edit_identity_event(
+        query_db: AsyncSession,
+        page_object: AddRoleModel,
+        role_info: RoleModel,
+    ) -> None:
+        """
+        在角色安全属性变化时同步失效统一认证身份状态
+
+        :param query_db: orm对象
+        :param page_object: 编辑角色对象
+        :param role_info: 当前角色信息
+        :return: None
+        """
+        if page_object.type == 'status':
+            if page_object.status == '1' and role_info.status != '1':
+                await IdentitySecurityEventService.handle_role_event(
+                    query_db,
+                    page_object.role_id,
+                    'role_disabled',
+                    actor=page_object.update_by,
+                )
+            return
+        role_menu_changed = await RoleService._role_menu_changed(query_db, page_object, role_info)
+        if (
+            'role_key' in page_object.model_fields_set and page_object.role_key != role_info.role_key
+        ) or role_menu_changed:
+            await IdentitySecurityEventService.handle_role_event(
+                query_db,
+                page_object.role_id,
+                'role_claim_changed',
+                actor=page_object.update_by,
+            )
+
     @classmethod
     async def edit_role_services(cls, query_db: AsyncSession, page_object: AddRoleModel) -> CrudResponseModel:
         """
@@ -191,6 +246,7 @@ class RoleService:
                 if not await cls.check_role_key_unique_services(query_db, page_object):
                     raise ServiceException(message=f'修改角色{page_object.role_name}失败，角色权限已存在')
             try:
+                await cls._handle_edit_identity_event(query_db, page_object, role_info)
                 await RoleDao.edit_role_dao(query_db, edit_role)
                 if page_object.type != 'status':
                     await RoleDao.delete_role_menu_dao(query_db, RoleMenuModel(roleId=page_object.role_id))
@@ -254,6 +310,12 @@ class RoleService:
                     role = await cls.role_detail_services(query_db, int(role_id))
                     if (await RoleDao.count_user_role_dao(query_db, int(role_id))) > 0:
                         raise ServiceException(message=f'角色{role.role_name}已分配,不能删除')
+                    await IdentitySecurityEventService.handle_role_event(
+                        query_db,
+                        int(role_id),
+                        'role_deleted',
+                        actor=page_object.update_by,
+                    )
                     role_id_dict = {
                         'roleId': role_id,
                         'updateBy': page_object.update_by,

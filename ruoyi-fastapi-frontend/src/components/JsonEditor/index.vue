@@ -1,27 +1,81 @@
 <template>
-  <div class="json-editor" :class="{ 'has-error': !validation.valid }">
+  <div
+    class="json-editor"
+    :class="{ 'has-error': !validation.valid }"
+  >
     <div class="json-editor__toolbar">
-      <span class="json-editor__type">{{ valueType === 'array' ? 'JSON 数组 [ ]' : 'JSON 对象 { }' }}</span>
+      <span class="json-editor__type">{{
+        valueType === 'array' ? 'JSON 数组 [ ]' : 'JSON 对象 { }'
+      }}</span>
       <div class="json-editor__actions">
-        <el-button link type="primary" icon="Operation" :disabled="!editorReady || !validation.valid"
-          :aria-label="`格式化${label}`" @click="formatDocument">格式化</el-button>
-        <el-button link icon="FullScreen" :aria-label="`${expanded ? '收起' : '展开'}${label}编辑器`"
-          :aria-expanded="expanded" @click="expanded = !expanded">{{ expanded ? '收起' : '展开' }}</el-button>
+        <el-button
+          link
+          type="primary"
+          icon="Operation"
+          :disabled="!editorReady || !validation.valid"
+          :aria-label="`格式化${label}`"
+          @click="formatDocument"
+          >格式化</el-button
+        >
+        <el-button
+          link
+          icon="FullScreen"
+          :aria-label="`${expanded ? '收起' : '展开'}${label}编辑器`"
+          :aria-expanded="expanded"
+          @click="expanded = !expanded"
+          >{{ expanded ? '收起' : '展开' }}</el-button
+        >
       </div>
     </div>
-    <div class="json-editor__body" :style="{ height: expanded ? '360px' : '160px' }">
-      <div v-if="!loadFailed" ref="editorRef" class="json-editor__canvas" />
-      <div v-if="!editorReady && !loadFailed" class="json-editor__loading" role="status">正在加载编辑器…</div>
-      <el-input v-if="loadFailed" :model-value="modelValue" type="textarea" :rows="expanded ? 16 : 7"
-        :aria-label="label" @update:model-value="updateValue" @blur="validateForm" />
+    <div
+      class="json-editor__body"
+      :style="{ height: expanded ? '360px' : '160px' }"
+    >
+      <div
+        v-if="!loadFailed"
+        ref="editorRef"
+        class="json-editor__canvas"
+      />
+      <div
+        v-if="!editorReady && !loadFailed"
+        class="json-editor__loading"
+        role="status"
+      >
+        正在加载编辑器…
+      </div>
+      <el-input
+        v-if="loadFailed"
+        :model-value="modelValue"
+        type="textarea"
+        :rows="expanded ? 16 : 7"
+        :aria-label="label"
+        @update:model-value="updateValue"
+        @blur="validateForm"
+      />
     </div>
     <div class="json-editor__footer">
-      <span v-if="validation.valid" class="json-editor__valid" role="status">格式正确</span>
-      <button v-else type="button" class="json-editor__error" @click="revealError">
+      <span
+        v-if="validation.valid"
+        class="json-editor__valid"
+        role="status"
+        >格式正确</span
+      >
+      <button
+        v-else
+        type="button"
+        class="json-editor__error"
+        @click="revealError"
+      >
         <el-icon><WarningFilled /></el-icon>
         <span>{{ errorLocation }}{{ validation.message }}</span>
       </button>
-      <span v-if="validation.valid" class="json-editor__hint">{{ loadFailed ? '编辑器加载失败，已切换文本输入' : 'Tab 切换焦点 · Alt+Shift+F 格式化' }}</span>
+      <span
+        v-if="validation.valid"
+        class="json-editor__hint"
+        >{{
+          loadFailed ? '编辑器加载失败，已切换文本输入' : 'Tab 切换焦点 · Alt+Shift+F 格式化'
+        }}</span
+      >
     </div>
   </div>
 </template>
@@ -33,7 +87,7 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   label: { type: String, default: 'JSON参数' },
   valueType: { type: String, default: 'object' },
-  validate: { type: Function, default: (value) => JSON.parse(value) }
+  validate: { type: Function, default: (value) => JSON.parse(value) },
 })
 const emit = defineEmits(['update:modelValue'])
 const { formItem } = useFormItem()
@@ -50,9 +104,11 @@ const validation = computed(() => {
     return { valid: false, message: error.message }
   }
 })
-const errorLocation = computed(() => firstMarker.value
-  ? `第 ${firstMarker.value.startLineNumber} 行，第 ${firstMarker.value.startColumn} 列：`
-  : '')
+const errorLocation = computed(() =>
+  firstMarker.value
+    ? `第 ${firstMarker.value.startLineNumber} 行，第 ${firstMarker.value.startColumn} 列：`
+    : ''
+)
 
 let editor
 let model
@@ -91,20 +147,25 @@ function revealError() {
 
 /** 跟随页面亮暗主题切换 */
 function updateTheme() {
-  editor?.updateOptions({ theme: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs' })
+  editor?.updateOptions({
+    theme: document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs',
+  })
 }
 
-watch(() => props.modelValue, (value) => {
-  if (model && model.getValue() !== value) {
-    model.setValue(value)
+watch(
+  () => props.modelValue,
+  (value) => {
+    if (model && model.getValue() !== value) {
+      model.setValue(value)
+    }
   }
-})
+)
 
 onMounted(async () => {
   try {
     const [monaco] = await Promise.all([
       import('monaco-editor/esm/vs/editor/editor.api'),
-      import('monaco-editor/esm/vs/language/json/monaco.contribution')
+      import('monaco-editor/esm/vs/language/json/monaco.contribution'),
     ])
     if (disposed) return
     model = monaco.editor.createModel(props.modelValue, 'json')
@@ -125,20 +186,29 @@ onMounted(async () => {
       stickyScroll: { enabled: false },
       formatOnPaste: true,
       suggest: { showWords: false },
-      scrollbar: { alwaysConsumeMouseWheel: false }
+      scrollbar: { alwaysConsumeMouseWheel: false },
     })
     listeners.push(editor.onDidChangeModelContent(() => updateValue(model.getValue())))
     listeners.push(editor.onDidBlurEditorText(validateForm))
-    listeners.push(monaco.editor.onDidChangeMarkers((resources) => {
-      if (resources.some(resource => resource.toString() === model.uri.toString())) {
-        firstMarker.value = monaco.editor.getModelMarkers({ resource: model.uri })
-          .filter(marker => marker.severity === monaco.MarkerSeverity.Error)
-          .sort((left, right) => left.startLineNumber - right.startLineNumber || left.startColumn - right.startColumn)[0]
-      }
-    }))
+    listeners.push(
+      monaco.editor.onDidChangeMarkers((resources) => {
+        if (resources.some((resource) => resource.toString() === model.uri.toString())) {
+          firstMarker.value = monaco.editor
+            .getModelMarkers({ resource: model.uri })
+            .filter((marker) => marker.severity === monaco.MarkerSeverity.Error)
+            .sort(
+              (left, right) =>
+                left.startLineNumber - right.startLineNumber || left.startColumn - right.startColumn
+            )[0]
+        }
+      })
+    )
     updateTheme()
     themeObserver = new MutationObserver(updateTheme)
-    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
     editorReady.value = true
   } catch {
     if (!disposed) loadFailed.value = true
@@ -148,7 +218,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   disposed = true
   themeObserver?.disconnect()
-  listeners.forEach(listener => listener.dispose())
+  listeners.forEach((listener) => listener.dispose())
   editor?.dispose()
   model?.dispose()
 })

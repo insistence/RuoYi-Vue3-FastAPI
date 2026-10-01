@@ -1,4 +1,6 @@
 import router from './router'
+import { getAuthCenterStatus } from '@/api/authCenter'
+import { checkAuthCenterAccess } from '@/utils/authCenterAccess'
 import { ElMessage } from 'element-plus'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
@@ -12,14 +14,26 @@ import usePermissionStore from '@/store/modules/permission'
 
 NProgress.configure({ showSpinner: false })
 
-const whiteList = ['/login', '/register']
+const whiteList = [
+  '/login',
+  '/register',
+  '/auth-center/login',
+  '/auth-center/consent',
+  '/auth-center/change-password',
+  '/auth-center/error',
+]
 
 const isWhiteList = (path) => {
-  return whiteList.some(pattern => isPathMatch(pattern, path))
+  return whiteList.some((pattern) => isPathMatch(pattern, path))
 }
 
 router.beforeEach(async (to, from) => {
   NProgress.start()
+  const authCenterRedirect = await checkAuthCenterAccess(to, getAuthCenterStatus)
+  if (authCenterRedirect) {
+    NProgress.done()
+    return authCenterRedirect
+  }
   if (getToken()) {
     to.meta.title && useSettingsStore().setTitle(to.meta.title)
     const isLock = useLockStore().isLock
@@ -46,7 +60,7 @@ router.beforeEach(async (to, from) => {
         isRelogin.show = false
         // 根据roles权限生成可访问的路由
         const accessRoutes = await usePermissionStore().generateRoutes()
-        accessRoutes.forEach(route => {
+        accessRoutes.forEach((route) => {
           if (!isHttp(route.path)) {
             router.addRoute(route)
           }

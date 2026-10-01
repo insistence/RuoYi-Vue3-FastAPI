@@ -1,16 +1,25 @@
 <template>
   <div class="ai-message-container">
-    <div v-if="reasoningContent" class="reasoning-section">
-      <div class="reasoning-header" @click="toggleReasoning">
-        <el-icon :class="{ 'is-expanded': isReasoningExpanded }"
-          ><ArrowRight
-        /></el-icon>
+    <div
+      v-if="reasoningContent"
+      class="reasoning-section"
+    >
+      <div
+        class="reasoning-header"
+        @click="toggleReasoning"
+      >
+        <el-icon :class="{ 'is-expanded': isReasoningExpanded }"><ArrowRight /></el-icon>
         <span>深度思考过程</span>
-        <span class="reasoning-status" v-if="!isThinkingComplete"
+        <span
+          class="reasoning-status"
+          v-if="!isThinkingComplete"
           >思考中...</span
         >
       </div>
-      <div v-show="isReasoningExpanded" class="reasoning-content">
+      <div
+        v-show="isReasoningExpanded"
+        class="reasoning-content"
+      >
         <MarkdownRender
           :content="reasoningContent"
           :is-dark="isDark"
@@ -41,41 +50,41 @@
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
-import { MarkdownRender } from "markstream-vue";
-import { useDark } from "@vueuse/core";
-import { enableKatex, enableMermaid } from "markstream-vue";
-import "markstream-vue/index.css";
-import "katex/dist/katex.min.css";
+import { computed, ref } from 'vue'
+import { MarkdownRender } from 'markstream-vue'
+import { useDark } from '@vueuse/core'
+import { enableKatex, enableMermaid } from 'markstream-vue'
+import 'markstream-vue/index.css'
+import 'katex/dist/katex.min.css'
 
-enableMermaid();
-enableKatex();
+enableMermaid()
+enableKatex()
 
-const isDark = useDark();
+const isDark = useDark()
 
 const props = defineProps({
   content: {
     type: String,
-    default: "",
+    default: '',
   },
   reasoningContent: {
     type: String,
-    default: "",
+    default: '',
   },
   loading: {
     type: Boolean,
     default: false,
   },
-});
+})
 
-const isReasoningExpanded = ref(true);
+const isReasoningExpanded = ref(true)
 
 const isThinkingComplete = computed(() => {
-  return !!props.content;
-});
+  return !!props.content
+})
 
 function toggleReasoning() {
-  isReasoningExpanded.value = !isReasoningExpanded.value;
+  isReasoningExpanded.value = !isReasoningExpanded.value
 }
 </script>
 

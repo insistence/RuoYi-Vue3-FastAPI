@@ -26,23 +26,30 @@ import elementIcons from '@/components/SvgIcon/svgicon'
 import './permission' // permission control
 
 import { useDict } from '@/utils/dict'
-import { getConfigKey } from "@/api/system/config"
-import { parseTime, resetForm, addDateRange, handleTree, selectDictLabel, selectDictLabels } from '@/utils/ruoyi'
+import { getConfigKey } from '@/api/system/config'
+import {
+  parseTime,
+  resetForm,
+  addDateRange,
+  handleTree,
+  selectDictLabel,
+  selectDictLabels,
+} from '@/utils/ruoyi'
 
 // 分页组件
 import Pagination from '@/components/Pagination'
 // 自定义表格工具组件
 import RightToolbar from '@/components/RightToolbar'
 // 富文本组件
-import Editor from "@/components/Editor"
+import Editor from '@/components/Editor'
 // 文件上传组件
-import FileUpload from "@/components/FileUpload"
+import FileUpload from '@/components/FileUpload'
 // 业务附件上传组件
-import BusinessFileUpload from "@/components/BusinessFileUpload"
+import BusinessFileUpload from '@/components/BusinessFileUpload'
 // 图片上传组件
-import ImageUpload from "@/components/ImageUpload"
+import ImageUpload from '@/components/ImageUpload'
 // 图片预览组件
-import ImagePreview from "@/components/ImagePreview"
+import ImagePreview from '@/components/ImagePreview'
 // 字典标签组件
 import DictTag from '@/components/DictTag'
 
@@ -81,7 +88,7 @@ directive(app)
 app.use(ElementPlus, {
   locale: locale,
   // 支持 large、default、small
-  size: Cookies.get('size') || 'default'
+  size: Cookies.get('size') || 'default',
 })
 
 app.mount('#app')

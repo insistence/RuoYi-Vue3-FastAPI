@@ -7,10 +7,7 @@ def add_cors_middleware(app: FastAPI) -> None:
     添加跨域中间件
 
     :param app: FastAPI对象
-    :return:
     """
-    # 前端页面url
-    origins = ['*']
     expose_headers = [
         'x-body-encrypted',
         'x-key-id',
@@ -21,11 +18,9 @@ def add_cors_middleware(app: FastAPI) -> None:
         'content-range',
         'content-length',
     ]
-
-    # 后台api允许跨域
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=origins,
+        allow_origins=['*'],
         allow_credentials=True,
         allow_methods=['*'],
         allow_headers=['*'],
