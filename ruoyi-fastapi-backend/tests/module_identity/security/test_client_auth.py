@@ -14,9 +14,10 @@ from module_identity.security.client_auth import (
 )
 
 
-def test_basic_credentials_decode_both_form_sides_and_colon() -> None:
+@pytest.mark.parametrize('scheme', ['Basic', 'basic', 'BASIC', 'bAsIc'])
+def test_basic_credentials_decode_both_form_sides_and_colon(scheme: str) -> None:
     raw = 'client+id:secret%2Bvalue%3A2'
-    header = 'Basic ' + base64.b64encode(raw.encode()).decode()
+    header = scheme + ' ' + base64.b64encode(raw.encode()).decode()
 
     assert parse_client_secret_basic(header) == ('client id', 'secret+value:2')
 
@@ -24,6 +25,13 @@ def test_basic_credentials_decode_both_form_sides_and_colon() -> None:
 def test_basic_requires_strict_standard_base64() -> None:
     with pytest.raises(ClientAuthenticationError):
         parse_client_secret_basic('Basic !!!not-base64!!!')
+
+
+@pytest.mark.parametrize('prefix', ['', 'Bearer ', 'BasicX ', ' Basic ', 'Basic\t'])
+def test_basic_rejects_other_schemes_and_missing_space(prefix: str) -> None:
+    header = prefix + base64.b64encode(b'client:SecretCase').decode()
+    with pytest.raises(ClientAuthenticationError):
+        parse_client_secret_basic(header)
 
 
 def test_public_and_confidential_client_policy() -> None:

@@ -1,5 +1,6 @@
 """认证中心协议依赖测试。"""
 
+import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -107,6 +108,68 @@ async def test_access_key_helper_rejects_remote_key_header(monkeypatch: pytest.M
     )
     with pytest.raises(dependencies.JwtProfileError):
         await dependencies.load_access_verification_key(token, object())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('scheme', ['Bearer', 'bearer', 'BEARER', 'bEaReR'])
+async def test_userinfo_accepts_case_insensitive_scheme_without_changing_token(
+    monkeypatch: pytest.MonkeyPatch, scheme: str
+) -> None:
+    """方案名大小写不影响真实签名令牌，凭据原文必须保持不变。"""
+    issuer = 'https://issuer.example'
+    monkeypatch.setattr(dependencies.OidcConfig, 'oidc_enabled', True)
+    monkeypatch.setattr(dependencies.OidcConfig, 'oidc_issuer', issuer)
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    now = int(time.time())
+    claims = {
+        'iss': issuer,
+        'sub': 'subject-1',
+        'aud': f'{issuer}/oauth2/userinfo',
+        'iat': now,
+        'nbf': now,
+        'exp': now + 600,
+        'jti': 'jti-1',
+        'client_id': 'client-1',
+        'sid': 'session-1',
+        'scope': 'openid',
+        'ver': 1,
+        'gty': 'authorization_code',
+        'grant_id': 'grant-1',
+        'client_policy_version': 1,
+        'auth_time': now,
+        'acr': 'pwd',
+        'amr': ['pwd'],
+    }
+    token = jwt.encode(claims, key, algorithm='RS256', headers={'kid': 'kid-1', 'typ': 'at+jwt'})
+    monkeypatch.setattr(dependencies, 'load_access_verification_key', lambda *args: _async(key.public_key()))
+    request = Request(
+        {
+            'type': 'http',
+            'method': 'GET',
+            'path': '/oauth2/userinfo',
+            'headers': [(b'authorization', f'{scheme} {token}'.encode())],
+        }
+    )
+    context = await dependencies.get_oidc_access_token(request, object())
+    assert context.token == token
+    assert context.claims['sub'] == 'subject-1'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('prefix', ['', 'Basic ', 'BearerX ', ' Bearer ', 'Bearer\t'])
+async def test_userinfo_rejects_other_schemes_and_missing_space(monkeypatch: pytest.MonkeyPatch, prefix: str) -> None:
+    monkeypatch.setattr(dependencies.OidcConfig, 'oidc_enabled', True)
+    request = Request(
+        {
+            'type': 'http',
+            'method': 'GET',
+            'path': '/oauth2/userinfo',
+            'headers': [(b'authorization', f'{prefix}header.payload.signature'.encode())],
+        }
+    )
+    with pytest.raises(HTTPException) as raised:
+        await dependencies.get_oidc_access_token(request, object())
+    assert raised.value.status_code == _UNAUTHORIZED
 
 
 @pytest.mark.asyncio

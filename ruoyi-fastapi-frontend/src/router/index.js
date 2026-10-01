@@ -51,19 +51,19 @@ export const constantRoutes = [
     path: '/auth-center/login',
     component: () => import('@/views/auth-center/login.vue'),
     hidden: true,
-    meta: { title: '统一认证' },
+    meta: { title: '统一认证', requiresAuthCenter: true },
   },
   {
     path: '/auth-center/consent',
     component: () => import('@/views/auth-center/consent.vue'),
     hidden: true,
-    meta: { title: '授权确认' },
+    meta: { title: '授权确认', requiresAuthCenter: true },
   },
   {
     path: '/auth-center/change-password',
     component: () => import('@/views/auth-center/changePassword.vue'),
     hidden: true,
-    meta: { title: '更新密码' },
+    meta: { title: '更新密码', requiresAuthCenter: true },
   },
   {
     path: '/auth-center/error',

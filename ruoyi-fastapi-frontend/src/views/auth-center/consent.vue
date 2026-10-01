@@ -216,7 +216,7 @@ async function initialize() {
     const response = await getInteraction(interactionId.value, csrfToken())
     interaction.value = response.data || {}
     if (interaction.value.nextAction !== 'consent') {
-      return goToAction(interaction.value.nextAction)
+      return await goToAction(interaction.value.nextAction)
     }
     selectedScopes.value = requiredScopes.value.map((item) => item.scope)
   } catch (error) {

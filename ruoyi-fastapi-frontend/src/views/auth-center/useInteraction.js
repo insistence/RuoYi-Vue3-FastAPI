@@ -63,6 +63,11 @@ export function useInteractionContext() {
    * @returns {Promise|undefined} 路由跳转结果，无有效目标时返回undefined
    */
   function goToAction(action) {
+    if (action === 'redirect') {
+      return followServerRedirect(
+        `/auth/interaction/${encodeURIComponent(interactionId.value)}/complete`
+      )
+    }
     const path = ACTION_ROUTES[action]
     if (!path || action === 'error') {
       return

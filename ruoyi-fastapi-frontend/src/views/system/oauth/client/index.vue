@@ -836,7 +836,7 @@ function payload() {
     clientType: form.clientType,
     tokenEndpointAuthMethod: form.tokenEndpointAuthMethod,
     grantTypes: [...form.grantTypes],
-    responseTypes: [...form.responseTypes],
+    responseTypes: form.grantTypes.includes('authorization_code') ? ['code'] : [],
     requirePkce: form.requirePkce,
     requireConsent: form.requireConsent,
     trustedClient: form.trustedClient,
@@ -858,9 +858,6 @@ function payload() {
   }
   if (!values.clientId) {
     delete values.clientId
-  }
-  if (!values.grantTypes.includes('authorization_code')) {
-    values.responseTypes = []
   }
   return values
 }

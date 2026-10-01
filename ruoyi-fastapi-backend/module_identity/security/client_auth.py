@@ -68,7 +68,7 @@ def parse_client_secret_basic(authorization: str) -> tuple[str, str]:
     :raises ClientAuthenticationError: Header、Base64 或凭据格式不合法
     """
 
-    if not isinstance(authorization, str) or not authorization.startswith('Basic '):
+    if not isinstance(authorization, str) or authorization[:6].lower() != 'basic ':
         raise ClientAuthenticationError('invalid client authentication')
     encoded = authorization[6:].strip()
     if not encoded:

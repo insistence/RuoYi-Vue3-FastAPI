@@ -1,4 +1,6 @@
 import router from './router'
+import { getAuthCenterStatus } from '@/api/authCenter'
+import { checkAuthCenterAccess } from '@/utils/authCenterAccess'
 import { ElMessage } from 'element-plus'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
@@ -27,6 +29,11 @@ const isWhiteList = (path) => {
 
 router.beforeEach(async (to, from) => {
   NProgress.start()
+  const authCenterRedirect = await checkAuthCenterAccess(to, getAuthCenterStatus)
+  if (authCenterRedirect) {
+    NProgress.done()
+    return authCenterRedirect
+  }
   if (getToken()) {
     to.meta.title && useSettingsStore().setTitle(to.meta.title)
     const isLock = useLockStore().isLock

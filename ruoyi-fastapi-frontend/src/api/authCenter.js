@@ -13,6 +13,17 @@ const interactionHeaders = (csrfToken) => ({
 // 使用认证中心根路径发送协议交互请求
 const issuerRequest = (config) => request({ baseURL: '', ...config })
 
+// 通过常规 API 前缀读取公开功能状态，不需要交互或管理后台凭据。
+export function getAuthCenterStatus() {
+  return request({
+    url: '/auth/status',
+    method: 'get',
+    headers: interactionHeaders(),
+    timeout: 5000,
+    skipErrorMessage: true,
+  })
+}
+
 // 查询认证交互状态
 export function getInteraction(interactionId, csrfToken) {
   return issuerRequest({

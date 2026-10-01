@@ -226,7 +226,7 @@ async def _load_access_context(request: Request, query_db: AsyncSession) -> Acce
 
     _disabled()
     authorization = request.headers.get('authorization', '')
-    if not authorization.startswith('Bearer ') or ',' in authorization:
+    if authorization[:7].lower() != 'bearer ' or ',' in authorization:
         raise _invalid_token()
     token = authorization[7:].strip()
     if not token or token.count('.') != _JWT_DOT_COUNT:
