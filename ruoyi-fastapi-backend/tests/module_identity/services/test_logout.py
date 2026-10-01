@@ -30,13 +30,18 @@ from tests.module_identity.support.redis_fakes import FakeRedis
 from utils.oidc_util import OidcUtil
 
 _ISSUER = 'https://auth.example.com'
-_NOW = datetime.now(timezone.utc)
 _PEPPER = 'logout-test-pepper-' + 'x' * 32
 _MAX_ATTEMPTS = 3
 _HTTP_OK = 200
 _HTTP_SERVICE_UNAVAILABLE = 503
 _HTTP_NOT_FOUND = 404
 _HTTP_SEE_OTHER = 303
+
+
+@pytest.fixture
+def now() -> datetime:
+    """每个用例执行时获取时间，避免等待前序测试期间令牌过期。"""
+    return datetime.now(timezone.utc)
 
 
 @pytest.fixture(autouse=True)
@@ -70,7 +75,7 @@ def _configure_oidc(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(OidcConfig, 'oidc_token_hash_pepper', _PEPPER)
 
 
-def _key_record(private_key: object, kid: str = 'key-1') -> SimpleNamespace:
+def _key_record(private_key: object, now: datetime, kid: str = 'key-1') -> SimpleNamespace:
     """构造本地数据库公开 JWK 记录。"""
 
     numbers = private_key.public_key().public_numbers()
@@ -88,12 +93,12 @@ def _key_record(private_key: object, kid: str = 'key-1') -> SimpleNamespace:
         alg='RS256',
         public_jwk=public_jwk,
         status='active',
-        publish_at=_NOW,
+        publish_at=now,
         remove_from_jwks_at=None,
     )
 
 
-def _id_token(private_key: object, *, kid: str = 'key-1', aud: str = 'portal') -> str:
+def _id_token(private_key: object, *, now: datetime, kid: str = 'key-1', aud: str = 'portal') -> str:
     """签发用于测试的真实 ID Token。"""
 
     return encode_id_token(
@@ -101,9 +106,9 @@ def _id_token(private_key: object, *, kid: str = 'key-1', aud: str = 'portal') -
             'iss': _ISSUER,
             'sub': 'subject-1',
             'aud': aud,
-            'exp': int(_NOW.timestamp()) + 300,
-            'iat': int(_NOW.timestamp()),
-            'auth_time': int(_NOW.timestamp()),
+            'exp': int(now.timestamp()) + 300,
+            'iat': int(now.timestamp()),
+            'auth_time': int(now.timestamp()),
             'nonce': 'nonce-1',
             'sid': 'sid-1',
             'acr': 'urn:test',
@@ -116,7 +121,7 @@ def _id_token(private_key: object, *, kid: str = 'key-1', aud: str = 'portal') -
 
 @pytest.mark.asyncio
 async def test_id_token_hint_uses_local_rsa_kid_and_rejects_remote_header(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, now: datetime
 ) -> None:
     """ID Token Hint 仅使用本地 DB JWK，远程 header 参数直接拒绝。"""
 
@@ -127,12 +132,12 @@ async def test_id_token_hint_uses_local_rsa_kid_and_rejects_remote_header(
     )
     monkeypatch.setattr(
         'module_identity.service.session_service.OidcKeyDao.get_verifying',
-        _async_return(_key_record(private_key)),
+        _async_return(_key_record(private_key, now)),
     )
     db = SimpleNamespace()
-    token = _id_token(private_key, aud='portal')
+    token = _id_token(private_key, now=now, aud='portal')
 
-    claims, resolved = await LogoutService._validate_id_token_hint(db, token, _NOW)
+    claims, resolved = await LogoutService._validate_id_token_hint(db, token, now)
 
     assert claims['sid'] == 'sid-1'
     assert resolved.client_id == 'portal'
@@ -143,11 +148,13 @@ async def test_id_token_hint_uses_local_rsa_kid_and_rejects_remote_header(
         headers={'kid': 'key-1', 'typ': 'JWT', 'jku': 'https://evil.example/jwks'},
     )
     with pytest.raises(ValueError):
-        await LogoutService._validate_id_token_hint(db, unsafe, _NOW)
+        await LogoutService._validate_id_token_hint(db, unsafe, now)
 
 
 @pytest.mark.asyncio
-async def test_pending_signing_key_cannot_validate_id_token_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_pending_signing_key_cannot_validate_id_token_hint(
+    monkeypatch: pytest.MonkeyPatch, now: datetime
+) -> None:
     """待激活签名密钥只能发布，不能用于验证 ID Token Hint。"""
 
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -155,18 +162,18 @@ async def test_pending_signing_key_cannot_validate_id_token_hint(monkeypatch: py
     monkeypatch.setattr(
         'module_identity.service.session_service.OAuthClientDao.get_by_client_id', _async_return(client)
     )
-    key = _key_record(private_key)
+    key = _key_record(private_key, now)
     key.status = 'pending'
     monkeypatch.setattr('module_identity.service.session_service.OidcKeyDao.get_verifying', _async_return(key))
     db = SimpleNamespace()
-    token = _id_token(private_key, aud='portal')
+    token = _id_token(private_key, now=now, aud='portal')
 
     with pytest.raises(LogoutServiceError):
-        await LogoutService._validate_id_token_hint(db, token, _NOW)
+        await LogoutService._validate_id_token_hint(db, token, now)
 
 
 @pytest.mark.asyncio
-async def test_logout_redirect_and_backchannel_are_after_commit(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_logout_redirect_and_backchannel_are_after_commit(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:
     """已注册 Redirect 安全附加 state，通知只在 commit 后执行。"""
 
     client = SimpleNamespace(client_pk=20, client_id='portal', status='0')
@@ -204,7 +211,7 @@ async def test_logout_redirect_and_backchannel_are_after_commit(monkeypatch: pyt
         id_token_hint='opaque-input-not-logged',
         post_logout_redirect_uri='https://portal.example/logged-out',
         state='opaque-state',
-        now=_NOW,
+        now=now,
         coordinator=coordinator,
         confirmed=True,
     )
@@ -222,7 +229,7 @@ async def test_logout_redirect_and_backchannel_are_after_commit(monkeypatch: pyt
         id_token_hint='opaque-input-not-logged',
         post_logout_redirect_uri='https://portal.example/logged-out',
         state='opaque-state',
-        now=_NOW,
+        now=now,
         coordinator=coordinator,
         confirmed=True,
     )
@@ -233,7 +240,7 @@ async def test_logout_redirect_and_backchannel_are_after_commit(monkeypatch: pyt
 
 @pytest.mark.asyncio
 async def test_invalid_hint_with_valid_cookie_still_revokes_server_session(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, now: datetime
 ) -> None:
     """无效 Hint 不得重定向，但有效 Cookie 仍必须撤销服务端 Session。"""
 
@@ -261,7 +268,7 @@ async def test_invalid_hint_with_valid_cookie_still_revokes_server_session(
         cookie='ss1.valid-cookie',
         post_logout_redirect_uri='https://portal.example/logged-out',
         state='must-not-echo',
-        now=_NOW,
+        now=now,
         coordinator=coordinator,
         confirmed=True,
     )
@@ -273,7 +280,7 @@ async def test_invalid_hint_with_valid_cookie_still_revokes_server_session(
 
 @pytest.mark.asyncio
 async def test_unsafe_or_unregistered_redirect_falls_back_to_local_and_logout_token_is_strict(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, now: datetime
 ) -> None:
     """未注册 URI 不开放重定向；生成的 Logout Token 使用专用 Profile。"""
 
@@ -302,7 +309,7 @@ async def test_unsafe_or_unregistered_redirect_falls_back_to_local_and_logout_to
         id_token_hint='hint',
         post_logout_redirect_uri='https://evil.example/redirect#fragment',
         state='do-not-echo',
-        now=_NOW,
+        now=now,
         coordinator=coordinator,
         confirmed=True,
     )
@@ -313,7 +320,7 @@ async def test_unsafe_or_unregistered_redirect_falls_back_to_local_and_logout_to
     token = await LogoutService._make_logout_token(
         'portal',
         'sid-1',
-        now=_NOW,
+        now=now,
         signing_key=private_key,
         signing_kid='key-1',
         db=db,
@@ -329,7 +336,7 @@ async def test_unsafe_or_unregistered_redirect_falls_back_to_local_and_logout_to
         subject_id='subject-1',
         include_sid=False,
         event_jti='event-constant',
-        now=_NOW,
+        now=now,
         signing_key=private_key,
         signing_kid='key-1',
         db=db,
@@ -746,10 +753,10 @@ async def _async_noop(*_args: object, **_kwargs: object) -> None:
 
 
 @pytest.mark.asyncio
-async def test_expired_id_token_is_accepted_only_as_logout_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_expired_id_token_is_accepted_only_as_logout_hint(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    payload = jwt.decode(_id_token(private_key), options={'verify_signature': False})
-    payload.update(iat=int(_NOW.timestamp()) - 1200, exp=int(_NOW.timestamp()) - 600)
+    payload = jwt.decode(_id_token(private_key, now=now), options={'verify_signature': False})
+    payload.update(iat=int(now.timestamp()) - 1200, exp=int(now.timestamp()) - 600)
     token = encode_id_token(payload, private_key, 'key-1')
     monkeypatch.setattr(
         'module_identity.service.session_service.OAuthClientDao.get_by_client_id',
@@ -757,16 +764,18 @@ async def test_expired_id_token_is_accepted_only_as_logout_hint(monkeypatch: pyt
     )
     monkeypatch.setattr(
         'module_identity.service.session_service.OidcKeyDao.get_verifying',
-        _async_return(_key_record(private_key)),
+        _async_return(_key_record(private_key, now)),
     )
-    claims, _ = await LogoutService._validate_id_token_hint(object(), token, _NOW)
+    claims, _ = await LogoutService._validate_id_token_hint(object(), token, now)
     assert claims['sid'] == 'sid-1'
     with pytest.raises(JwtProfileError):
         decode_id_token(token, verification_key=private_key.public_key(), issuer=_ISSUER, audience='portal')
 
 
 @pytest.mark.asyncio
-async def test_confirmed_logout_does_not_revoke_another_accounts_hint_session(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_confirmed_logout_does_not_revoke_another_accounts_hint_session(
+    monkeypatch: pytest.MonkeyPatch, now: datetime
+) -> None:
     client = SimpleNamespace(client_pk=20, client_id='portal', status='0')
     other = SimpleNamespace(sid='other-sid', subject_id='other-subject', status='active')
     current = SimpleNamespace(sid='current-sid', subject_id='current-subject', status='active')
@@ -791,7 +800,7 @@ async def test_confirmed_logout_does_not_revoke_another_accounts_hint_session(mo
         cookie='current-cookie',
         confirmed=True,
         coordinator=AfterCommitCoordinator(),
-        now=_NOW,
+        now=now,
     )
     assert revoked.await_args.args[2] == 'current-sid'
     assert result.redirect_uri is None

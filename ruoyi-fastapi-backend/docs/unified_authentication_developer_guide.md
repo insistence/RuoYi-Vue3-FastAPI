@@ -302,36 +302,34 @@ import secrets
 import time
 from urllib.parse import urlencode
 
-ISSUER = "https://auth.example.com"
-CLIENT_ID = "cli_REPLACE_WITH_REGISTERED_ID"
-REDIRECT_URI = "https://app.example.com/oidc/callback"
-RESOURCE = "https://api.example.com/orders"
+ISSUER = 'https://auth.example.com'
+CLIENT_ID = 'cli_REPLACE_WITH_REGISTERED_ID'
+REDIRECT_URI = 'https://app.example.com/oidc/callback'
+RESOURCE = 'https://api.example.com/orders'
 
 
 def begin_login():
     verifier = secrets.token_urlsafe(48)
-    challenge = base64.urlsafe_b64encode(
-        hashlib.sha256(verifier.encode("ascii")).digest()
-    ).rstrip(b"=").decode("ascii")
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode('ascii')).digest()).rstrip(b'=').decode('ascii')
     transaction = {
-        "state": secrets.token_urlsafe(32),
-        "nonce": secrets.token_urlsafe(32),
-        "verifier": verifier,
-        "expires_at": time.time() + 300,
+        'state': secrets.token_urlsafe(32),
+        'nonce': secrets.token_urlsafe(32),
+        'verifier': verifier,
+        'expires_at': time.time() + 300,
     }
     parameters = {
-        "client_id": CLIENT_ID,
-        "response_type": "code",
-        "response_mode": "query",
-        "redirect_uri": REDIRECT_URI,
-        "scope": "openid profile offline_access orders.read",
-        "resource": RESOURCE,
-        "state": transaction["state"],
-        "nonce": transaction["nonce"],
-        "code_challenge": challenge,
-        "code_challenge_method": "S256",
+        'client_id': CLIENT_ID,
+        'response_type': 'code',
+        'response_mode': 'query',
+        'redirect_uri': REDIRECT_URI,
+        'scope': 'openid profile offline_access orders.read',
+        'resource': RESOURCE,
+        'state': transaction['state'],
+        'nonce': transaction['nonce'],
+        'code_challenge': challenge,
+        'code_challenge_method': 'S256',
     }
-    return f"{ISSUER}/oauth2/authorize?{urlencode(parameters)}", transaction
+    return f'{ISSUER}/oauth2/authorize?{urlencode(parameters)}', transaction
 ```
 
 把 `transaction` 保存在与当前浏览器会话绑定的短期服务端存储中，并按 `state` 区分并发登录。回调处理时原子取出并删除，防止重复使用；不要把 verifier 或 Secret 放到授权 URL、前端日志或可被其他浏览器重放的共享状态中。公开 SPA 可由 OIDC 库在浏览器中维护对应短期状态。
@@ -359,30 +357,30 @@ import httpx
 
 
 async def exchange_code(query, transaction, client_secret=None):
-    if not transaction or time.time() >= transaction["expires_at"]:
-        raise ValueError("登录事务不存在或已过期，请重新登录")
-    if not secrets.compare_digest(query.get("state", ""), transaction["state"]):
-        raise ValueError("state 不匹配")
-    if query.get("iss") != ISSUER:
-        raise ValueError("授权响应 issuer 不匹配")
-    if query.get("error"):
-        raise ValueError(f"授权未完成：{query['error']}")
-    if not query.get("code"):
-        raise ValueError("回调缺少授权码")
+    if not transaction or time.time() >= transaction['expires_at']:
+        raise ValueError('登录事务不存在或已过期，请重新登录')
+    if not secrets.compare_digest(query.get('state', ''), transaction['state']):
+        raise ValueError('state 不匹配')
+    if query.get('iss') != ISSUER:
+        raise ValueError('授权响应 issuer 不匹配')
+    if query.get('error'):
+        raise ValueError(f'授权未完成：{query["error"]}')
+    if not query.get('code'):
+        raise ValueError('回调缺少授权码')
 
     form = {
-        "grant_type": "authorization_code",
-        "code": query["code"],
-        "redirect_uri": REDIRECT_URI,
-        "code_verifier": transaction["verifier"],
+        'grant_type': 'authorization_code',
+        'code': query['code'],
+        'redirect_uri': REDIRECT_URI,
+        'code_verifier': transaction['verifier'],
     }
     auth = None
     if client_secret is None:
-        form["client_id"] = CLIENT_ID
+        form['client_id'] = CLIENT_ID
     else:
         auth = httpx.BasicAuth(CLIENT_ID, client_secret)
     async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
-        response = await client.post(f"{ISSUER}/oauth2/token", data=form, auth=auth)
+        response = await client.post(f'{ISSUER}/oauth2/token', data=form, auth=auth)
         response.raise_for_status()
         return response.json()
 ```
@@ -415,44 +413,42 @@ ID Token 用于登录身份，Access Token 用于资源访问，Refresh Token �
 ```python
 import jwt
 
-jwks_client = jwt.PyJWKClient(f"{ISSUER}/oauth2/jwks", timeout=5)
+jwks_client = jwt.PyJWKClient(f'{ISSUER}/oauth2/jwks', timeout=5)
 
 
 def verify_identity(tokens, expected_nonce):
-    id_token = tokens["id_token"]
+    id_token = tokens['id_token']
     header = jwt.get_unverified_header(id_token)
-    if header.get("alg") != "RS256" or header.get("typ") != "JWT":
-        raise ValueError("ID Token 类型或算法不正确")
-    if not isinstance(header.get("kid"), str) or not header["kid"].strip():
-        raise ValueError("ID Token 缺少 kid")
-    if any(name in header for name in ("crit", "jku", "jwk", "x5u", "x5c")):
-        raise ValueError("不支持的 JWT Header")
+    if header.get('alg') != 'RS256' or header.get('typ') != 'JWT':
+        raise ValueError('ID Token 类型或算法不正确')
+    if not isinstance(header.get('kid'), str) or not header['kid'].strip():
+        raise ValueError('ID Token 缺少 kid')
+    if any(name in header for name in ('crit', 'jku', 'jwk', 'x5u', 'x5c')):
+        raise ValueError('不支持的 JWT Header')
     key = jwks_client.get_signing_key_from_jwt(id_token).key
     claims = jwt.decode(
         id_token,
         key,
-        algorithms=["RS256"],
+        algorithms=['RS256'],
         issuer=ISSUER,
         audience=CLIENT_ID,
         leeway=60,
-        options={"require": ["iss", "sub", "aud", "exp", "iat", "nonce", "sid"]},
+        options={'require': ['iss', 'sub', 'aud', 'exp', 'iat', 'nonce', 'sid']},
     )
-    if not isinstance(claims.get("sub"), str) or not claims["sub"]:
-        raise ValueError("ID Token 缺少有效 sub")
-    nonce = claims.get("nonce")
+    if not isinstance(claims.get('sub'), str) or not claims['sub']:
+        raise ValueError('ID Token 缺少有效 sub')
+    nonce = claims.get('nonce')
     if not isinstance(nonce, str) or not secrets.compare_digest(nonce, expected_nonce):
-        raise ValueError("nonce 不匹配")
-    audiences = claims["aud"] if isinstance(claims["aud"], list) else [claims["aud"]]
-    if len(audiences) > 1 or "azp" in claims:
-        if claims.get("azp") != CLIENT_ID:
-            raise ValueError("azp 不匹配")
-    if "at_hash" in claims:
-        digest = hashlib.sha256(tokens["access_token"].encode("ascii")).digest()
-        expected_hash = base64.urlsafe_b64encode(digest[:16]).rstrip(b"=").decode("ascii")
-        if not isinstance(claims["at_hash"], str) or not secrets.compare_digest(
-            claims["at_hash"], expected_hash
-        ):
-            raise ValueError("at_hash 不匹配")
+        raise ValueError('nonce 不匹配')
+    audiences = claims['aud'] if isinstance(claims['aud'], list) else [claims['aud']]
+    if len(audiences) > 1 or 'azp' in claims:
+        if claims.get('azp') != CLIENT_ID:
+            raise ValueError('azp 不匹配')
+    if 'at_hash' in claims:
+        digest = hashlib.sha256(tokens['access_token'].encode('ascii')).digest()
+        expected_hash = base64.urlsafe_b64encode(digest[:16]).rstrip(b'=').decode('ascii')
+        if not isinstance(claims['at_hash'], str) or not secrets.compare_digest(claims['at_hash'], expected_hash):
+            raise ValueError('at_hash 不匹配')
     return claims
 ```
 

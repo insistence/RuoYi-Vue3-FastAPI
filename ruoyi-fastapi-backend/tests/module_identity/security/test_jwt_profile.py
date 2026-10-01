@@ -202,6 +202,10 @@ def test_logout_profile_requires_event_and_non_empty_sid_or_sub(key_pair: tuple[
     }
     token = encode_logout_token(claims, signing_key=private, kid='key-1')
     assert decode_logout_token(token, verification_key=public, issuer=claims['iss'], audience='client')['sid'] == 'sid'
+    forged_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    forged_token = encode_logout_token(claims, signing_key=forged_key, kid='key-1')
+    with pytest.raises(JwtProfileError):
+        decode_logout_token(forged_token, verification_key=public, issuer=claims['iss'], audience='client')
     with pytest.raises(JwtProfileError):
         encode_logout_token({**claims, 'sid': ''}, signing_key=private, kid='key-1')
     with pytest.raises(JwtProfileError):
@@ -212,6 +216,39 @@ def test_logout_profile_requires_event_and_non_empty_sid_or_sub(key_pair: tuple[
         )
     with pytest.raises(JwtProfileError):
         encode_logout_token({**claims, 'aud': []}, signing_key=private, kid='key-1')
+
+
+@pytest.mark.parametrize(
+    'changes',
+    [
+        {'iss': 'https://other.example'},
+        {'aud': 'other'},
+        {'nonce': 'not-allowed'},
+        {'events': {}},
+        {'events': {BACKCHANNEL_LOGOUT_EVENT: []}},
+        {'sid': ''},
+        {'jti': ''},
+        {'iat': _now() + 3600},
+    ],
+)
+def test_logout_profile_rejects_invalid_signed_claims(
+    key_pair: tuple[object, object], changes: dict[str, object]
+) -> None:
+    """即使 RSA 签名有效，也必须拒绝错误的退出事件、身份绑定和时效声明。"""
+    private, public = key_pair
+    now = _now()
+    claims = {
+        'iss': 'https://issuer.example',
+        'aud': 'client',
+        'iat': now,
+        'exp': now + 120,
+        'jti': 'logout-id',
+        'sid': 'sid',
+        'events': {BACKCHANNEL_LOGOUT_EVENT: {}},
+    }
+    token = jwt.encode({**claims, **changes}, private, algorithm='RS256', headers={'kid': 'key-1', 'typ': 'logout+jwt'})
+    with pytest.raises(JwtProfileError):
+        decode_logout_token(token, verification_key=public, issuer=claims['iss'], audience='client', clock_skew=0)
 
 
 @pytest.mark.parametrize('expiry', [None, 'future', True, 0, -1])
