@@ -1,4 +1,3 @@
-import re
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
@@ -11,6 +10,7 @@ from module_identity.dao.oauth_audit_dao import OAuthAuditDao
 from module_identity.entity.do.oauth_audit_do import SysOAuthAuditLog
 from module_identity.entity.vo.oauth_session_vo import AuditModel, AuditPageQueryModel
 from utils.common_util import export_list2excel
+from utils.oidc_util import OidcUtil
 
 
 class AuditService:
@@ -54,71 +54,7 @@ class AuditService:
             OidcAuditEvent.SCOPE_POLICY_CHANGED,
         }
     )
-    _SENSITIVE_KEY = re.compile(
-        r'(?:token|code|secret|cookie|password|passwd|credential|authorization|private[_-]?key|'
-        r'pkce|verifier|nonce|client[_-]?assertion|assertion|access[_-]?token|refresh[_-]?token|'
-        r'id[_-]?token|state)',
-        re.IGNORECASE,
-    )
-    _SENSITIVE_VALUE = re.compile(
-        r'(?i)(?:bearer\s+|basic\s+|(?:access|refresh|id)?[_-]?(?:token|secret|code|cookie|password|verifier)\s*[=:])'
-    )
-    _OPAQUE_CAPABILITY = re.compile(
-        r'(?i)(?<![A-Za-z0-9_-])(?:'
-        r'(?:rt1|ac1|ss1)\.[^.\s]{1,256}\.[^.\s]{1,4096}|'
-        r'cs1\.[^.\s]{16,4096}(?:\.[^.\s]{1,256})?'
-        r')(?![A-Za-z0-9_-])'
-    )
-    _JWT_PART_COUNT = 3
-    _JWT_PART_MIN_LENGTH = 16
-    _JWT_PART_MAX_LENGTH = 4096
     _EVENT_TYPE_MAX_LENGTH = 64
-
-    @classmethod
-    def sanitize_detail(cls, detail: Any) -> Any:
-        """
-        递归删除审计详情中的敏感字段
-
-        :param detail: 待记录的任意可序列化值
-        :return: 只包含安全字段的可序列化值
-        """
-
-        if isinstance(detail, Mapping):
-            return {
-                str(key): cls.sanitize_detail(value)
-                for key, value in detail.items()
-                if not cls._SENSITIVE_KEY.search(str(key))
-            }
-        if isinstance(detail, list):
-            return [cls.sanitize_detail(value) for value in detail]
-        if isinstance(detail, tuple):
-            return [cls.sanitize_detail(value) for value in detail]
-        if isinstance(detail, str):
-            if (
-                cls._SENSITIVE_VALUE.search(detail)
-                or cls._looks_like_jwt(detail)
-                or cls._OPAQUE_CAPABILITY.search(detail)
-            ):
-                return '[REDACTED]'
-            return detail[:1024]
-        if isinstance(detail, (int, float, bool)) or detail is None:
-            return detail
-        return None
-
-    @staticmethod
-    def _looks_like_jwt(value: str) -> bool:
-        """
-        判断字符串是否具有 JWT 三段式秘密外观
-
-        :param value: 待检测的字符串
-        :return: 是否符合 JWT 外形
-        """
-
-        parts = value.split('.')
-
-        return len(parts) == AuditService._JWT_PART_COUNT and all(
-            AuditService._JWT_PART_MIN_LENGTH <= len(part) <= AuditService._JWT_PART_MAX_LENGTH for part in parts
-        )
 
     @classmethod
     def _risk_level(cls, event_type: str, risk_level: str | None) -> str:
@@ -151,15 +87,15 @@ class AuditService:
             or not event_type.strip()
             or len(event_type.strip()) > cls._EVENT_TYPE_MAX_LENGTH
         ):
-            raise ValueError('event_type must be 1-64 characters')
+            raise ValueError('审计事件类型长度必须为 1 至 64 个字符')
         if result not in {'success', 'failure'}:
-            raise ValueError('result is required')
+            raise ValueError('审计处理结果不能为空')
         values = {key: value for key, value in fields.items() if key in cls.EVENT_FIELDS}
         values['event_type'] = event_type.strip()
         values['result'] = result.strip()
         values['risk_level'] = cls._risk_level(values['event_type'], values.get('risk_level'))
         if 'detail' in values:
-            values['detail'] = cls.sanitize_detail(values['detail'])
+            values['detail'] = OidcUtil.sanitize_audit_detail(values['detail'])
         for field, limit in (
             ('trace_id', 64),
             ('client_id', 64),
@@ -173,7 +109,7 @@ class AuditService:
             ('failure_code', 64),
         ):
             if isinstance(values.get(field), str):
-                safe_value = cls.sanitize_detail(values[field]) if field == 'user_agent' else values[field]
+                safe_value = OidcUtil.sanitize_audit_detail(values[field]) if field == 'user_agent' else values[field]
                 values[field] = safe_value[:limit] if isinstance(safe_value, str) else None
         return SysOAuthAuditLog(**values)
 

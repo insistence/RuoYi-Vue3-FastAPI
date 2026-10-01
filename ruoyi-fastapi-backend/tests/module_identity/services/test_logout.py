@@ -1,5 +1,3 @@
-"""OIDC RP-Initiated Logout 与 Back-Channel Logout 高价值测试。"""
-
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
@@ -29,6 +27,7 @@ from module_identity.service.session_service import (
     LogoutServiceError,
 )
 from tests.module_identity.support.redis_fakes import FakeRedis
+from utils.oidc_util import OidcUtil
 
 _ISSUER = 'https://auth.example.com'
 _NOW = datetime.now(timezone.utc)
@@ -553,7 +552,7 @@ async def test_pinned_transport_stops_oversized_response_stream() -> None:
     transport = PinnedHttpxTransport('client.example', {'203.0.113.7'})
     transport._pool.handle_async_request = AsyncMock(return_value=response)
     result = await transport.handle_async_request(httpx.Request('POST', 'https://client.example/logout'))
-    with pytest.raises(OSError, match='exceeded limit'):
+    with pytest.raises(OSError, match='响应大小超过限制'):
         async for _chunk in result.aiter_bytes():
             pass
     response.aclose.assert_awaited_once()
@@ -636,7 +635,7 @@ async def test_logout_endpoint_prepares_confirmation_without_clearing_sso_cookie
     assert '__Host-ruoyi-sso=' not in response.headers['set-cookie']
     assert '确认退出'.encode() in response.body
     execute.assert_not_awaited()
-    assert controller._append_state('https://portal.example/logged-out?state=old&next=1', 'state-1') == (
+    assert OidcUtil.append_state('https://portal.example/logged-out?state=old&next=1', 'state-1') == (
         'https://portal.example/logged-out?next=1&state=state-1'
     )
 

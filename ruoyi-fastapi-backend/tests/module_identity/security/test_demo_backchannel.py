@@ -1,5 +1,3 @@
-"""独立演示 RP 的退出通知校验及会话隔离回归。"""
-
 import copy
 import time
 from typing import Any

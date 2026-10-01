@@ -1,5 +1,3 @@
-"""不透明令牌摘要与类型隔离测试。"""
-
 from collections.abc import Callable
 
 import pytest

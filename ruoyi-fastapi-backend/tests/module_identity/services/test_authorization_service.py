@@ -1,5 +1,3 @@
-"""Authorization Endpoint 服务测试。"""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest

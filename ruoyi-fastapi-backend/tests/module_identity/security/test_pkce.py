@@ -1,5 +1,3 @@
-"""PKCE S256 单元测试。"""
-
 import pytest
 
 from module_identity.security.pkce import (

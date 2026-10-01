@@ -1,5 +1,3 @@
-"""OAuth Client 管理服务的事务、安全边界和密钥测试。"""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -211,7 +209,7 @@ async def test_status_soft_disable_and_secret_revoke_are_safe(management_session
     )
     first_secret = await OAuthClientManagementService.rotate_secret(management_session, first.client_id, actor='a')
     second_secret = await OAuthClientManagementService.rotate_secret(management_session, second.client_id, actor='a')
-    with pytest.raises(OAuthClientManagementError, match='does not belong'):
+    with pytest.raises(OAuthClientManagementError, match='不属于当前客户端'):
         await OAuthClientManagementService.revoke_secret(
             management_session, first.client_id, second_secret.secret_id, actor='admin'
         )
@@ -295,25 +293,25 @@ async def test_client_ttl_limits_and_scope_default_are_fail_closed(
     monkeypatch.setattr(OidcConfig, 'oidc_access_token_ttl_seconds', 30)
     monkeypatch.setattr(OidcConfig, 'oidc_refresh_token_idle_seconds', 100)
     monkeypatch.setattr(OidcConfig, 'oidc_refresh_token_absolute_seconds', 200)
-    with pytest.raises(OAuthClientManagementError, match='access token TTL'):
+    with pytest.raises(OAuthClientManagementError, match='访问令牌有效期'):
         await OAuthClientManagementService.create_client(
             management_session,
             _confidential_payload(access_token_ttl_seconds=61),
             actor='admin',
         )
-    with pytest.raises(OAuthClientManagementError, match='platform idle'):
+    with pytest.raises(OAuthClientManagementError, match='闲置有效期超过平台上限'):
         await OAuthClientManagementService.create_client(
             management_session,
             _confidential_payload(refresh_token_idle_seconds=150, refresh_token_absolute_seconds=200),
             actor='admin',
         )
-    with pytest.raises(OAuthClientManagementError, match='idle TTL exceeds absolute'):
+    with pytest.raises(OAuthClientManagementError, match='闲置有效期不能超过绝对有效期'):
         await OAuthClientManagementService.create_client(
             management_session,
             _confidential_payload(refresh_token_idle_seconds=100, refresh_token_absolute_seconds=50),
             actor='admin',
         )
-    with pytest.raises(OAuthClientManagementError, match='absolute TTL exceeds platform'):
+    with pytest.raises(OAuthClientManagementError, match='绝对有效期超过平台上限'):
         await OAuthClientManagementService.create_client(
             management_session,
             _confidential_payload(refresh_token_idle_seconds=100, refresh_token_absolute_seconds=201),
@@ -435,7 +433,7 @@ async def test_secret_rotation_respects_original_expiry_and_rejects_a_gap(
         now=now,
         expires_at=now + timedelta(seconds=60),
     )
-    with pytest.raises(OAuthClientManagementError, match='no active secret overlap'):
+    with pytest.raises(OAuthClientManagementError, match='新旧密钥的重叠有效期'):
         await OAuthClientManagementService.rotate_secret(
             management_session,
             reject_client.client_id,
@@ -496,16 +494,16 @@ async def test_public_client_has_no_secret_and_uri_policy_is_fail_closed(managem
         }
     )
     detail = await OAuthClientManagementService.create_client(management_session, public, actor='admin')
-    with pytest.raises(OAuthClientManagementError, match='public'):
+    with pytest.raises(OAuthClientManagementError, match='公开客户端'):
         await OAuthClientManagementService.rotate_secret(management_session, detail.client_id, actor='admin')
     await _seed_definitions(management_session)
-    with pytest.raises(OAuthClientManagementError, match='reserved'):
+    with pytest.raises(OAuthClientManagementError, match='保留参数'):
         await OAuthClientManagementService.create_client(
             management_session,
             _confidential_payload(redirect_uris=['https://client.example/callback?state=bad']),
             actor='admin',
         )
-    with pytest.raises(OAuthClientManagementError, match='resource scope'):
+    with pytest.raises(OAuthClientManagementError, match='资源权限'):
         await OAuthClientManagementService.create_client(
             management_session,
             _confidential_payload(resource_ids=[]),

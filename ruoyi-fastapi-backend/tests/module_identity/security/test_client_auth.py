@@ -1,5 +1,3 @@
-"""OAuth Client Authentication 单元测试。"""
-
 import base64
 
 import pytest
@@ -8,10 +6,9 @@ from module_identity.entity.vo.oauth_client_vo import ClientCreateModel, ClientU
 from module_identity.security.client_auth import (
     ClientAuthenticationError,
     authenticate_client,
-    generate_client_secret,
     hash_client_secret,
-    parse_client_secret_basic,
 )
+from utils.oidc_util import OidcUtil
 
 
 @pytest.mark.parametrize('scheme', ['Basic', 'basic', 'BASIC', 'bAsIc'])
@@ -19,19 +16,27 @@ def test_basic_credentials_decode_both_form_sides_and_colon(scheme: str) -> None
     raw = 'client+id:secret%2Bvalue%3A2'
     header = scheme + ' ' + base64.b64encode(raw.encode()).decode()
 
-    assert parse_client_secret_basic(header) == ('client id', 'secret+value:2')
+    assert OidcUtil.parse_basic_credentials(header) == ('client id', 'secret+value:2')
 
 
 def test_basic_requires_strict_standard_base64() -> None:
-    with pytest.raises(ClientAuthenticationError):
-        parse_client_secret_basic('Basic !!!not-base64!!!')
+    with pytest.raises(ValueError):
+        OidcUtil.parse_basic_credentials('Basic !!!not-base64!!!')
 
 
 @pytest.mark.parametrize('prefix', ['', 'Bearer ', 'BasicX ', ' Basic ', 'Basic\t'])
 def test_basic_rejects_other_schemes_and_missing_space(prefix: str) -> None:
     header = prefix + base64.b64encode(b'client:SecretCase').decode()
-    with pytest.raises(ClientAuthenticationError):
-        parse_client_secret_basic(header)
+    with pytest.raises(ValueError):
+        OidcUtil.parse_basic_credentials(header)
+
+
+@pytest.mark.parametrize('authorization', ['Basic !!!!', 'Bearer abc', 'Basic Y2xpZW50'])
+def test_authentication_preserves_domain_error_for_malformed_basic(authorization: str) -> None:
+    """工具解析失败仍由认证入口转换为客户端认证失败。"""
+    client = {'client_id': 'client', 'client_type': 'confidential', 'status': '0'}
+    with pytest.raises(ClientAuthenticationError, match='客户端认证信息无效'):
+        authenticate_client(client, authorization)
 
 
 def test_public_and_confidential_client_policy() -> None:
@@ -45,7 +50,7 @@ def test_public_and_confidential_client_policy() -> None:
     with pytest.raises(ClientAuthenticationError):
         authenticate_client(public, client_id='public-app', client_secret='unexpected')
 
-    secret = generate_client_secret()
+    secret = OidcUtil.generate_client_secret()
     confidential = {
         'client_id': 'server-app',
         'client_type': 'confidential',

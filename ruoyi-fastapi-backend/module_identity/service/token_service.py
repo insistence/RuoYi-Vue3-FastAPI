@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import base64
-import hashlib
 import hmac
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -24,11 +22,7 @@ from module_identity.dao.oidc_key_dao import OidcKeyDao
 from module_identity.dao.sso_session_dao import SsoSessionDao
 from module_identity.entity.do.oauth_grant_do import SysOAuthGrant, SysOAuthRefreshToken
 from module_identity.entity.vo.protocol_vo import TokenRequest
-from module_identity.security.client_auth import (
-    ClientAuthenticationError,
-    authenticate_client,
-    parse_client_secret_basic,
-)
+from module_identity.security.client_auth import ClientAuthenticationError, authenticate_client
 from module_identity.security.jwt_profile import JwtProfileError, encode_access_token, encode_id_token
 from module_identity.security.opaque_token import (
     OpaqueTokenError,
@@ -42,6 +36,7 @@ from module_identity.service.audit_service import AuditService
 from module_identity.service.authorization_service import AuthorizationCodeReuseError, AuthorizationCodeService
 from module_identity.service.identity_service import ClaimService, IdentitySubjectService
 from module_identity.service.key_service import KeyService, KeyServiceError
+from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
 
 if TYPE_CHECKING:
@@ -164,7 +159,7 @@ class TokenService:
         lookup_id = client_id
         if authorization is not None:
             try:
-                lookup_id, _ = parse_client_secret_basic(authorization)
+                lookup_id, _ = OidcUtil.parse_basic_credentials(authorization)
             except (ClientAuthenticationError, TypeError, ValueError):
                 cls._invalid_client()
         if not isinstance(lookup_id, str) or not lookup_id:
@@ -275,7 +270,7 @@ class TokenService:
         :raises OAuthProtocolException: 任一授权绑定或安全状态无效时抛出统一错误
         """
 
-        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
+        current = TimezoneUtil.to_optional_utc(now) or TimezoneUtil.utc_now()
         parsed = cls._request(request)
         if parsed.get('grant_type') != 'authorization_code':
             cls._invalid_request()
@@ -285,7 +280,7 @@ class TokenService:
             client_row.client_type == 'public' and parsed.get('client_id') != client_row.client_id
         ):
             cls._invalid_client()
-        if 'authorization_code' not in cls._json_list(client_row.grant_types):
+        if 'authorization_code' not in OidcUtil.json_list(client_row.grant_types):
             cls._invalid_grant()
         code = parsed.get('code')
         if not isinstance(code, str):
@@ -356,7 +351,7 @@ class TokenService:
             now=current,
         )
         refresh_token = None
-        if 'offline_access' in scopes and 'refresh_token' in cls._json_list(client_row.grant_types):
+        if 'offline_access' in scopes and 'refresh_token' in OidcUtil.json_list(client_row.grant_types):
             refresh_token = await cls._create_refresh_token(
                 db,
                 client_row,
@@ -424,7 +419,7 @@ class TokenService:
         :raises RefreshTokenReuseDetected: 检测到 Refresh Token 重放
         """
 
-        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
+        current = TimezoneUtil.to_optional_utc(now) or TimezoneUtil.utc_now()
         parsed = cls._request(request)
         if parsed.get('grant_type') != 'refresh_token' or not isinstance(parsed.get('refresh_token'), str):
             cls._invalid_request()
@@ -434,7 +429,7 @@ class TokenService:
             client_row.client_type == 'public' and parsed.get('client_id') != client_row.client_id
         ):
             cls._invalid_client()
-        if 'refresh_token' not in cls._json_list(client_row.grant_types):
+        if 'refresh_token' not in OidcUtil.json_list(client_row.grant_types):
             cls._invalid_grant()
         pepper = cls._token_pepper(token_pepper)
         try:
@@ -462,8 +457,8 @@ class TokenService:
                 )
                 raise RefreshTokenReuseDetected
             cls._invalid_grant()
-        idle_expires = cls._utc_datetime(row.idle_expires_at)
-        absolute_expires = cls._utc_datetime(row.absolute_expires_at)
+        idle_expires = TimezoneUtil.to_optional_utc(row.idle_expires_at)
+        absolute_expires = TimezoneUtil.to_optional_utc(row.absolute_expires_at)
         if idle_expires is None or absolute_expires is None or idle_expires <= current or absolute_expires <= current:
             row.status = 'expired'
             cls._invalid_grant()
@@ -567,7 +562,7 @@ class TokenService:
         :raises OAuthProtocolException: Client、Scope 或 Resource 策略无效时抛出
         """
 
-        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
+        current = TimezoneUtil.to_optional_utc(now) or TimezoneUtil.utc_now()
         parsed = cls._request(request)
         if parsed.get('grant_type') != 'client_credentials':
             cls._invalid_request()
@@ -576,7 +571,7 @@ class TokenService:
             client_row.client_type == 'public' and parsed.get('client_id') != client_row.client_id
         ):
             cls._invalid_client()
-        if client_row.client_type != 'confidential' or 'client_credentials' not in cls._json_list(
+        if client_row.client_type != 'confidential' or 'client_credentials' not in OidcUtil.json_list(
             client_row.grant_types
         ):
             cls._invalid_client()
@@ -643,7 +638,7 @@ class TokenService:
         if grant_type == 'client_credentials':
             return await cls.client_credentials(db, request, client, **kwargs)
         cls._invalid_request()
-        raise AssertionError('unreachable')
+        raise AssertionError('程序进入了不可达分支')
 
     @classmethod
     async def _issue_token_transaction(
@@ -764,12 +759,12 @@ class TokenService:
         ttl = cls._access_ttl(client, resource)
         claims = await cls._user_claims(db, client, user, subject, scopes, resource)
         auth_time = cls._numeric_time(session.auth_time)
-        session_amr = cls._json_list(session.amr)
+        session_amr = OidcUtil.json_list(session.amr)
         claims.update(
             {
                 'iss': OidcConfig.oidc_issuer,
                 'sub': subject.subject_id,
-                'aud': cls._audiences(OidcConfig.oidc_issuer, resources),
+                'aud': OidcUtil.token_audiences(OidcConfig.oidc_issuer, resources),
                 'exp': int((now + timedelta(seconds=ttl)).timestamp()),
                 'iat': int(now.timestamp()),
                 'nbf': int(now.timestamp()),
@@ -839,8 +834,8 @@ class TokenService:
                 'nonce': nonce,
                 'sid': session.sid,
                 'acr': session.acr,
-                'amr': cls._json_list(session.amr),
-                'at_hash': cls._at_hash(access_token),
+                'amr': OidcUtil.json_list(session.amr),
+                'at_hash': OidcUtil.access_token_hash(access_token),
             }
         )
         signer, signing_kid = await cls._resolve_signer(db, signing_key, kid, now)
@@ -1045,7 +1040,7 @@ class TokenService:
             or grant.client_pk != client_pk
             or grant.status != cls._ACTIVE_GRANT_STATUS
             or grant.client_policy_version != client.policy_version
-            or (grant.expires_at is not None and cls._utc_datetime(grant.expires_at) <= now)
+            or (grant.expires_at is not None and TimezoneUtil.to_optional_utc(grant.expires_at) <= now)
             or not set(scopes).issubset(set(grant.granted_scopes or []))
             or not set(resources).issubset(set(grant.granted_resources or []))
         ):
@@ -1285,17 +1280,6 @@ class TokenService:
         return {}
 
     @staticmethod
-    def _json_list(value: Any) -> list[Any]:
-        """
-        将 Scope 或 Resource 字段规范化为列表
-
-        :param value: DAO 返回的 JSON Scope 或 Resource 字段值
-        :return: 当值为 list/tuple 时复制出的列表，否则为空列表
-        """
-
-        return list(value) if isinstance(value, (list, tuple)) else []
-
-    @staticmethod
     def _token_pepper(override: str | bytes | None) -> str | bytes:
         """
         选择 Token HMAC Pepper 配置
@@ -1347,17 +1331,6 @@ class TokenService:
         return list(raw)
 
     @staticmethod
-    def _utc_datetime(value: datetime | None) -> datetime | None:
-        """
-        将输入时间统一转换为项目时间
-
-        :param value: 携带时区的 datetime 输入
-        :return: 带时区的 UTC datetime；输入为 None 时返回 None
-        """
-
-        return TimezoneUtil.to_utc(value) if value is not None else None
-
-    @staticmethod
     def _numeric_time(value: datetime | None) -> int:
         """
         将时间值转换为整数时间戳
@@ -1366,38 +1339,10 @@ class TokenService:
         :return: Unix 整数时间戳
         """
 
-        current = TokenService._utc_datetime(value)
+        current = TimezoneUtil.to_optional_utc(value)
         if current is None:
             TokenService._server_error()
         return int(current.timestamp())
-
-    @staticmethod
-    def _audiences(issuer: str, resources: Sequence[str]) -> list[str]:
-        """
-        将 aud 声明规范化为去重列表
-
-        :param issuer: OIDC issuer URL
-        :param resources: 已校验的 Resource audience 字符串序列
-        :return: 包含 userinfo audience 和 Resource audience 的去重列表
-        """
-
-        result = [f'{issuer.rstrip("/")}{TokenService._USERINFO_AUDIENCE_SUFFIX}']
-        result.extend(resources)
-
-        return list(dict.fromkeys(result))
-
-    @staticmethod
-    def _at_hash(access_token: str) -> str:
-        """
-        计算 OIDC at_hash 值
-
-        :param access_token: 待计算 OIDC at_hash 的 ASCII JWT Access Token 文本
-        :return: SHA-256 前 128 bit 摘要的无填充 Base64URL 字符串
-        """
-
-        digest = hashlib.sha256(access_token.encode('ascii')).digest()[:16]
-
-        return base64.urlsafe_b64encode(digest).rstrip(b'=').decode('ascii')
 
     @staticmethod
     def _map_oauth_failure(error: Exception, fallback: str) -> None:

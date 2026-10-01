@@ -1,5 +1,3 @@
-"""统一认证审计服务行为测试。"""
-
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -14,6 +12,7 @@ from module_identity.dao.oauth_audit_dao import OAuthAuditDao
 from module_identity.entity.do.oauth_audit_do import SysOAuthAuditArchive, SysOAuthAuditLog
 from module_identity.entity.vo.oauth_session_vo import AuditPageQueryModel
 from module_identity.service.audit_service import AuditService
+from utils.oidc_util import OidcUtil
 
 _ADMIN_EVENT_ID = 7
 _ADMIN_PAGE_SIZE = 5
@@ -42,7 +41,7 @@ async def audit_session() -> AsyncSession:
 
 def test_audit_redacts_nested_protocol_secrets_and_keeps_safe_fields() -> None:
     """嵌套字典和列表中的协议秘密不得落入审计详情。"""
-    result = AuditService.sanitize_detail(
+    result = OidcUtil.sanitize_audit_detail(
         {
             'attempt': 2,
             'client': {'name': 'web', 'client_secret': 'hidden'},

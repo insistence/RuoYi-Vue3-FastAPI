@@ -20,6 +20,12 @@ class PermanentBackchannelError(ValueError):
     表示 Back-Channel 请求永久失败且不应继续重试
     """
 
+    def __init__(self, failure_code: str, message: str | None = None) -> None:
+        """分别保存稳定的审计错误码和中文异常说明。"""
+        self.failure_code = failure_code
+        self.message = message or '后端退出通知永久失败'
+        super().__init__(self.message)
+
 
 class _PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
     """
@@ -51,7 +57,7 @@ class _PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
         """
 
         if host != self._hostname or not self._addresses:
-            raise OSError('unverified network destination')
+            raise OSError('网络目标未通过安全校验')
         # 逐个尝试已验证地址，网络库仍以原始 origin 处理 TLS SNI 和 Host
         last_error: OSError | None = None
         for address in sorted(self._addresses):
@@ -59,7 +65,7 @@ class _PinnedNetworkBackend(httpcore.AsyncNetworkBackend):
                 return await self._backend.connect_tcp(address, port, **kwargs)
             except OSError as exc:  # noqa: PERF203
                 last_error = exc
-        raise last_error or OSError('no verified network destination')
+        raise last_error or OSError('没有通过安全校验的网络目标')
 
 
 class PinnedHttpxTransport(httpx.AsyncBaseTransport):
@@ -126,7 +132,7 @@ class PinnedHttpxTransport(httpx.AsyncBaseTransport):
                     self._received += len(chunk)
                     if self._received > _MAX_BACKCHANNEL_RESPONSE_BYTES:
                         await response.aclose()
-                        raise OSError('backchannel response exceeded limit')
+                        raise OSError('后端退出通知响应大小超过限制')
                     yield chunk
 
             async def aclose(self) -> None:
@@ -190,7 +196,7 @@ async def send_backchannel_once(
     parsed = urlsplit(uri)
     hostname = parsed.hostname or ''
     if not addresses:
-        raise OSError('backchannel host is not public')
+        raise OSError('后端退出通知目标不是公网地址')
     transport = PinnedHttpxTransport(hostname, addresses)
     async with httpx.AsyncClient(
         timeout=timeout_seconds,
@@ -219,5 +225,5 @@ def _raise_permanent_http_error(exc: httpx.HTTPStatusError) -> None:
         _HTTP_REQUEST_TIMEOUT,
         _HTTP_TOO_MANY_REQUESTS,
     }:
-        raise PermanentBackchannelError(f'http_{status}') from None
+        raise PermanentBackchannelError(f'http_{status}', f'后端退出通知被接收方拒绝（HTTP {status}）') from None
     raise exc

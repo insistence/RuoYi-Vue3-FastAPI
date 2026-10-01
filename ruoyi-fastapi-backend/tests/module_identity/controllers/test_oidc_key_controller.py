@@ -1,5 +1,3 @@
-"""OIDC 签名密钥管理路由测试。"""
-
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
@@ -97,7 +95,7 @@ async def test_key_activation_returns_clear_message_before_publication(monkeypat
     db = _Session()
 
     async def unpublished(*args: object, **kwargs: object) -> bool:
-        raise KeyServiceError('target key is not published')
+        raise KeyServiceError('目标签名密钥尚未发布')
 
     monkeypatch.setattr(KeyService, 'activate_key', unpublished)
     with pytest.raises(ServiceException) as exc_info:

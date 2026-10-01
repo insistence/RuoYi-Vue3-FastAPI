@@ -1,5 +1,3 @@
-"""身份安全事件到 OIDC 状态失效的事务测试。"""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -162,7 +160,7 @@ async def test_claim_change_keeps_sso_by_default_and_transaction_can_rollback(
 async def test_missing_subject_fails_before_revocation(security_session: AsyncSession) -> None:
     """主体映射缺失必须 fail closed，且不能先撤销部分凭据。"""
     await _seed_user(security_session, 9, with_subject=False)
-    with pytest.raises(IdentitySecurityEventError, match='mapping is missing'):
+    with pytest.raises(IdentitySecurityEventError, match='缺少用户主体映射'):
         await IdentitySecurityEventService.handle_user_event(security_session, 9, 'user_disabled', now=_NOW)
     assert all(
         row.status == 'active' for row in (await security_session.execute(select(SysSsoSession))).scalars().all()

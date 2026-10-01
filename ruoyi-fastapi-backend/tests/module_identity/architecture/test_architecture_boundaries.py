@@ -1,5 +1,3 @@
-"""统一认证模块分层边界测试。"""
-
 import ast
 from pathlib import Path
 
@@ -233,6 +231,7 @@ def test_removed_facades_and_merged_modules_do_not_return() -> None:
         _IDENTITY_ROOT / 'service' / 'sso_session_service.py',
         _IDENTITY_ROOT / 'service' / 'transaction_coordinator.py',
         _IDENTITY_ROOT / 'service' / 'userinfo_service.py',
+        _BACKEND_ROOT / 'exceptions' / 'oidc_messages.py',
     ]
     assert not [str(path.relative_to(_BACKEND_ROOT)) for path in removed_paths if path.exists()]
 
@@ -242,6 +241,23 @@ def test_removed_facades_and_merged_modules_do_not_return() -> None:
         for node in authorization_tree.body
         if isinstance(node, ast.ClassDef) and node.name == 'AuthorizationRequestService'
     ]
+
+
+def test_oidc_utility_does_not_depend_on_application_or_protocol_services() -> None:
+    """公共工具只处理传入的数据，不能反向加载配置、持久化、HTTP 或业务异常。"""
+    path = _BACKEND_ROOT / 'utils' / 'oidc_util.py'
+    modules = _imported_modules(_parse(path))
+    forbidden = {
+        'config',
+        'exceptions',
+        'module_identity',
+        'module_admin',
+        'redis',
+        'sqlalchemy',
+        'fastapi',
+        'starlette',
+    }
+    assert not sorted(module for module in modules if module.split('.')[0] in forbidden)
 
 
 def test_protocol_and_interaction_services_do_not_import_fastapi_http_types() -> None:

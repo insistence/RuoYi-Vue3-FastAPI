@@ -106,7 +106,7 @@ class SessionPageQueryModel(SessionModel):
         """
 
         if self.start_time and self.end_time and self.end_time < self.start_time:
-            raise ValueError('end_time must not be earlier than start_time')
+            raise ValueError('结束时间不得早于开始时间')
         return self
 
 
@@ -183,7 +183,7 @@ class AuditPageQueryModel(SessionModel):
         """
 
         if self.start_time and self.end_time and self.end_time < self.start_time:
-            raise ValueError('end_time must not be earlier than start_time')
+            raise ValueError('结束时间不得早于开始时间')
         return self
 
 

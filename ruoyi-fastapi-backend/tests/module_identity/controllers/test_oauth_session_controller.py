@@ -1,5 +1,3 @@
-"""SSO Session 与 Grant 管理端路由和事务测试。"""
-
 import json
 from http import HTTPStatus
 from types import SimpleNamespace

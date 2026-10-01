@@ -19,7 +19,6 @@ from module_identity.dependencies import (
     require_oidc_protocol_ready,
 )
 from module_identity.redis_keys import OidcRedisKey
-from module_identity.security.client_auth import ClientAuthenticationError, parse_client_secret_basic
 from module_identity.security.jwt_profile import JwtProfileError
 from module_identity.service.audit_service import AuditService
 from module_identity.service.infrastructure_service import OidcRateLimiter, RateLimitExceeded, RateLimitUnavailable
@@ -30,6 +29,7 @@ from module_identity.service.token_protocol_service import (
     UserInfoService,
 )
 from module_identity.service.token_service import RefreshTokenReuseDetected, TokenService
+from utils.oidc_util import OidcUtil
 
 token_controller = APIRouterPro(tags=['认证中心协议'], order_num=2, dependencies=[Depends(require_oidc_protocol_ready)])
 _NO_STORE = {'Cache-Control': 'no-store', 'Pragma': 'no-cache'}
@@ -98,8 +98,8 @@ async def _pre_auth_rate_limit(request: Request, redis: Redis, form: dict[str, s
     authorization = request.headers.get('authorization')
     if authorization:
         try:
-            client_id, _ = parse_client_secret_basic(authorization)
-        except ClientAuthenticationError:
+            client_id, _ = OidcUtil.parse_basic_credentials(authorization)
+        except ValueError:
             client_id = None
     if not isinstance(client_id, str) or not client_id:
         client_id = 'anonymous'

@@ -1,5 +1,3 @@
-"""OAuth 审计分页与导出脱敏测试。"""
-
 from datetime import datetime, timezone
 from http import HTTPStatus
 from types import SimpleNamespace

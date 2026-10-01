@@ -1,5 +1,3 @@
-"""认证中心 Redis 服务测试共用的可并发内存 FakeRedis。"""
-
 import asyncio
 import json
 import time

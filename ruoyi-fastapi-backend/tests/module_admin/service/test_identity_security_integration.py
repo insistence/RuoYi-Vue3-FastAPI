@@ -1,5 +1,3 @@
-"""现有用户、角色服务接入 OIDC 安全事件的回归测试。"""
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 

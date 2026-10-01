@@ -47,9 +47,9 @@ class InteractionConsentModel(InteractionModel):
             not isinstance(scope, str) or not scope or len(scope) > _MAX_INTERACTION_SCOPE_LENGTH
             for scope in self.scopes
         ):
-            raise ValueError('scopes must contain non-empty values of at most 100 characters')
+            raise ValueError('权限范围标识不能为空，且每项不得超过 100 个字符')
         if len(set(self.scopes)) != len(self.scopes):
-            raise ValueError('scopes must not contain duplicates')
+            raise ValueError('权限范围不得重复')
         return self
 
 
@@ -71,7 +71,7 @@ class ChangePasswordModel(InteractionModel):
         """
 
         if self.new_password != self.confirm_password:
-            raise ValueError('new_password and confirm_password must match')
+            raise ValueError('新密码与确认密码必须一致')
         return self
 
 

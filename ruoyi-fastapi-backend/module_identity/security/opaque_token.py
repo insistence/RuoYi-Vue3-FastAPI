@@ -1,10 +1,11 @@
 import base64
-import hashlib
 import hmac
 import re
 import secrets
 import uuid
 from dataclasses import dataclass
+
+from utils.oidc_util import OidcUtil
 
 
 class OpaqueTokenError(ValueError):
@@ -44,17 +45,6 @@ _MIN_PEPPER_BYTES = 32
 _OPAQUE_PART_COUNT = 3
 
 
-def _b64url(value: bytes) -> str:
-    """
-    将字节编码为无填充的 Base64URL 文本
-
-    :param value: 待编码字节
-    :return: 无填充的 Base64URL 文本
-    """
-
-    return base64.urlsafe_b64encode(value).rstrip(b'=').decode('ascii')
-
-
 def generate_opaque_token(prefix: str, token_id: str | None = None) -> str:
     """
     生成带类型前缀和 256 bit 随机 Secret 的不透明令牌
@@ -65,11 +55,11 @@ def generate_opaque_token(prefix: str, token_id: str | None = None) -> str:
     """
 
     if prefix not in _PREFIXES:
-        raise OpaqueTokenError(f'unsupported opaque token prefix: {prefix}')
+        raise OpaqueTokenError(f'不支持的不透明令牌前缀：{prefix}')
     identifier = token_id or str(uuid.uuid4())
     if not _TOKEN_ID_RE.fullmatch(identifier):
-        raise OpaqueTokenError('invalid opaque token id')
-    return f'{prefix}.{identifier}.{_b64url(secrets.token_bytes(_SECRET_BYTES))}'
+        raise OpaqueTokenError('不透明令牌标识无效')
+    return f'{prefix}.{identifier}.{OidcUtil.base64url_encode(secrets.token_bytes(_SECRET_BYTES))}'
 
 
 def generate_authorization_code(code_id: str | None = None) -> str:
@@ -116,23 +106,23 @@ def parse_opaque_token(token: str, expected_prefix: str | None = None) -> Parsed
     """
 
     if not isinstance(token, str):
-        raise OpaqueTokenError('opaque token must be a string')
+        raise OpaqueTokenError('不透明令牌必须为字符串')
     parts = token.split('.')
     if len(parts) != _OPAQUE_PART_COUNT:
-        raise OpaqueTokenError('invalid opaque token format')
+        raise OpaqueTokenError('不透明令牌格式无效')
     prefix, token_id, secret = parts
     if prefix not in _PREFIXES or (expected_prefix is not None and prefix != expected_prefix):
-        raise OpaqueTokenError('unexpected opaque token type')
+        raise OpaqueTokenError('不透明令牌类型不匹配')
     if not _TOKEN_ID_RE.fullmatch(token_id):
-        raise OpaqueTokenError('invalid opaque token id')
+        raise OpaqueTokenError('不透明令牌标识无效')
     if not _SECRET_RE.fullmatch(secret):
-        raise OpaqueTokenError('invalid opaque token secret')
+        raise OpaqueTokenError('不透明令牌密钥无效')
     try:
         decoded = base64.urlsafe_b64decode(secret + '=' * (-len(secret) % 4))
     except (ValueError, UnicodeError):
-        raise OpaqueTokenError('invalid opaque token secret') from None
+        raise OpaqueTokenError('不透明令牌密钥无效') from None
     if len(decoded) != _SECRET_BYTES:
-        raise OpaqueTokenError('opaque token secret must be 256 bits')
+        raise OpaqueTokenError('不透明令牌密钥必须为 256 位')
     return ParsedOpaqueToken(prefix, token_id, secret)
 
 
@@ -147,7 +137,7 @@ def _pepper_bytes(pepper: str | bytes) -> bytes:
 
     value = pepper.encode('utf-8') if isinstance(pepper, str) else pepper
     if not isinstance(value, bytes) or len(value) < _MIN_PEPPER_BYTES:
-        raise ValueError('identity token pepper must be at least 256 bits')
+        raise ValueError('身份令牌摘要密钥至少需要 256 位')
     return value
 
 
@@ -160,7 +150,7 @@ def token_digest(token: str, pepper: str | bytes) -> str:
     :return: 64 位十六进制摘要
     """
 
-    return hmac.new(_pepper_bytes(pepper), token.encode('utf-8'), hashlib.sha256).hexdigest()
+    return OidcUtil.hmac_sha256(token.encode('utf-8'), _pepper_bytes(pepper))
 
 
 def verify_token_digest(token: str, expected_digest: str, pepper: str | bytes) -> bool:

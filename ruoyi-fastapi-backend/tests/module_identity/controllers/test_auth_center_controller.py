@@ -1,5 +1,3 @@
-"""认证中心公共启用状态接口测试。"""
-
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient

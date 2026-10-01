@@ -1,5 +1,3 @@
-"""Token Endpoint 服务的授权绑定、JWT Profile 和 Refresh 轮换测试。"""
-
 import asyncio
 import base64
 from datetime import datetime, timedelta, timezone
@@ -33,6 +31,7 @@ from module_identity.service.audit_service import AuditService
 from module_identity.service.authorization_service import AuthorizationCodeReuseError, AuthorizationCodeService
 from module_identity.service.token_service import RefreshTokenReuseDetected, TokenResult, TokenService
 from tests.module_identity.support.redis_fakes import FakeRedis
+from utils.oidc_util import OidcUtil
 
 _PEPPER = 'token-service-test-pepper-' + 'x' * 32
 _VERIFIER = 'v' * 64
@@ -468,7 +467,7 @@ async def test_user_access_and_id_profiles_have_fixed_claims_and_ttl(monkeypatch
         nonce='nonce-2001',
     )
     assert id_claims['nonce'] == 'nonce-2001'
-    assert id_claims['at_hash'] == TokenService._at_hash(access)
+    assert id_claims['at_hash'] == OidcUtil.access_token_hash(access)
 
 
 @pytest.mark.asyncio

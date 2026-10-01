@@ -1,5 +1,3 @@
-"""Grant Policy Version 数据层测试。"""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest

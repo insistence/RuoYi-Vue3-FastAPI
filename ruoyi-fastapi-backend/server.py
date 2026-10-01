@@ -85,7 +85,7 @@ async def _initialize_application_runtime(app: FastAPI, application_leader: bool
         await OidcRuntimeService.refresh_cors_snapshot(app)
     except Exception:
         app.state.oidc_registered_cors_origins = ()
-        logger.error('OIDC registered CORS snapshot load failed')
+        logger.error('OIDC 已注册跨域来源快照加载失败')
     await OidcRuntimeService.validate_runtime(app)
 
     async def create_plugin_entity_tables() -> None:

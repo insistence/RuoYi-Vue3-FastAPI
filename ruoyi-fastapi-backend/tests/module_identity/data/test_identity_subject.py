@@ -1,5 +1,3 @@
-"""统一认证主体关联 DAO 测试。"""
-
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 

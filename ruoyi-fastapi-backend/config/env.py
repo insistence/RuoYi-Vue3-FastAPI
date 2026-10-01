@@ -335,7 +335,7 @@ class OidcSettings(BaseSettings):
         if parsed.username or parsed.password:
             raise ValueError(f'{field_name} 不得包含用户信息')
         if parsed.query or parsed.fragment:
-            raise ValueError(f'{field_name} 不得包含 query 或 fragment')
+            raise ValueError(f'{field_name} 不得包含查询参数或片段标识')
         path = parsed.path.rstrip('/')
         return urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), path, '', ''))
 
@@ -386,7 +386,7 @@ class OidcSettings(BaseSettings):
         ):
             raise ValueError('OIDC_ISSUER 生产环境必须使用 HTTPS')
         if urlsplit(self.oidc_public_base_url).scheme != parsed.scheme:
-            raise ValueError('OIDC_PUBLIC_BASE_URL 必须与 issuer 使用相同 scheme')
+            raise ValueError('OIDC_PUBLIC_BASE_URL 必须与签发者地址使用相同协议')
 
     def _validate_protocol_options(self) -> None:
         """
@@ -399,11 +399,11 @@ class OidcSettings(BaseSettings):
         if self.pkce_method_list != ('S256',):
             raise ValueError('OIDC_PKCE_METHODS 目前只能配置为 S256')
         if self.oidc_access_token_ttl_seconds > self.oidc_max_access_token_ttl_seconds:
-            raise ValueError('OIDC_MAX_ACCESS_TOKEN_TTL_SECONDS 不能小于默认 Access Token TTL')
+            raise ValueError('OIDC_MAX_ACCESS_TOKEN_TTL_SECONDS 不能小于默认访问令牌有效期')
         if self.oidc_refresh_token_idle_seconds > self.oidc_refresh_token_absolute_seconds:
-            raise ValueError('Refresh Token 闲置 TTL 不能大于绝对 TTL')
+            raise ValueError('刷新令牌闲置有效期不能大于绝对有效期')
         if self.oidc_sso_absolute_seconds > self.oidc_sso_remember_absolute_seconds:
-            raise ValueError('SSO remember-me TTL 不能小于普通 SSO 绝对 TTL')
+            raise ValueError('单点登录保持登录期限不能小于普通会话的绝对有效期')
 
     def _validate_secret_material(self) -> None:
         """
@@ -415,7 +415,7 @@ class OidcSettings(BaseSettings):
             raise ValueError('OIDC_LEGACY_AUTH_ISOLATION_ENABLED 启用认证中心时必须为 true')
         pepper = self.oidc_token_hash_pepper.strip()
         if len(pepper.encode('utf-8')) < self.OIDC_PEPPER_MIN_BYTES:
-            raise ValueError('OIDC_TOKEN_HASH_PEPPER 至少需要 32 bytes')
+            raise ValueError('OIDC_TOKEN_HASH_PEPPER 至少需要 32 字节')
         secret_values = {
             os.getenv('JWT_SECRET_KEY', '').strip(),
             os.getenv('TRANSPORT_CRYPTO_PRIVATE_KEY', '').strip(),
@@ -430,7 +430,7 @@ class OidcSettings(BaseSettings):
             secret_values.add(str(getattr(transport_config, 'transport_crypto_public_key', '')).strip())
         secret_values.add(self.oidc_signing_key_encryption_key.strip())
         if pepper in secret_values:
-            raise ValueError('OIDC_TOKEN_HASH_PEPPER 不得复用 Legacy JWT 或传输加密密钥')
+            raise ValueError('OIDC_TOKEN_HASH_PEPPER 不得复用原有 JWT 密钥或传输加密密钥')
         # 运行时以数据库 active 密钥为唯一事实；密钥可来自数据库加密密文，
         # 因此不能在配置层强制 OIDC_ACTIVE_KID 或文件路径。
 
@@ -464,7 +464,7 @@ class OidcSettings(BaseSettings):
             normalised = self._normalise_url(value, field_name)
             parsed = urlsplit(normalised)
             if (parsed.scheme, parsed.hostname, parsed.port) != (issuer.scheme, issuer.hostname, issuer.port):
-                raise ValueError(f'{field_name} 必须与 OIDC_ISSUER 同 scheme、host、port')
+                raise ValueError(f'{field_name} 的协议、主机名和端口必须与 OIDC_ISSUER 一致')
             setattr(self, field_name.lower(), normalised)
 
     def _validate_cors_origins(self, app_env: str) -> None:
@@ -485,7 +485,7 @@ class OidcSettings(BaseSettings):
                 or parsed.query
                 or parsed.fragment
             ):
-                raise ValueError('OIDC_CORS_ALLOWED_ORIGINS 必须为 scheme + host + port Origin')
+                raise ValueError('OIDC_CORS_ALLOWED_ORIGINS 只能包含协议、主机名和可选端口')
             if parsed.scheme != 'https' and not (app_env in {'dev', 'test', 'local'} and self._is_local_http(origin)):
                 raise ValueError('生产环境 OIDC_CORS_ALLOWED_ORIGINS 必须使用 HTTPS')
 

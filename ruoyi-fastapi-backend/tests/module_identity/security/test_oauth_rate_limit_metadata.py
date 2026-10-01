@@ -1,5 +1,3 @@
-"""统一认证管理高风险路由的限流元数据测试。"""
-
 from collections.abc import Callable
 from typing import Any
 

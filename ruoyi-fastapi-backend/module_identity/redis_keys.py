@@ -1,7 +1,6 @@
-import hashlib
-import hmac
-import re
 from typing import Final
+
+from utils.oidc_util import OidcUtil
 
 
 class OidcRedisKey:
@@ -12,71 +11,6 @@ class OidcRedisKey:
     PREFIX: Final[str] = 'oidc'
     SESSION_REVOKED_CHANNEL: Final[str] = 'oidc:event:session_revoked'
     USER_SECURITY_CHANGED_CHANNEL: Final[str] = 'oidc:event:user_security_changed'
-    _COMPONENT_PATTERN: Final[re.Pattern[str]] = re.compile(r'^[A-Za-z0-9._-]{1,128}$')
-    _SHA256_HEX_LENGTH: Final[int] = 64
-    _PEPPER_MIN_BYTES: Final[int] = 32
-
-    @classmethod
-    def _safe_component(cls, value: str | int, *, name: str = 'Redis Key 组件') -> str:
-        """
-        校验可作为 Key 路径组件的标识符
-
-        :param value: 待校验的标识符
-        :param name: 错误信息中的字段名称
-        :return: 原样返回的安全组件
-        :raises ValueError: 组件为空或包含路径/控制字符
-        """
-
-        component = str(value)
-        if not cls._COMPONENT_PATTERN.fullmatch(component):
-            raise ValueError(f'{name} 包含不允许的字符')
-        return component
-
-    @staticmethod
-    def _safe_hex_digest(value: str | bytes) -> str:
-        """
-        校验已生成的 SHA-256 十六进制摘要
-
-        :param value: 摘要文本或 ASCII 字节
-        :return: 小写十六进制摘要
-        :raises TypeError: 输入不是 str 或 bytes
-        :raises ValueError: 摘要长度或字符集不正确
-        """
-
-        if not isinstance(value, (str, bytes)):
-            raise TypeError('摘要必须是 str 或 bytes')
-        if isinstance(value, bytes):
-            try:
-                value = value.decode('ascii')
-            except UnicodeDecodeError as exc:
-                raise ValueError('摘要必须是 SHA-256 十六进制字符串') from exc
-        if len(value) != OidcRedisKey._SHA256_HEX_LENGTH:
-            raise ValueError('摘要必须是 SHA-256 十六进制字符串')
-        try:
-            bytes.fromhex(value)
-        except ValueError as exc:
-            raise ValueError('摘要必须是 SHA-256 十六进制字符串') from exc
-        return value.lower()
-
-    @classmethod
-    def hash_sensitive_identifier(cls, value: str | bytes, pepper: str | bytes) -> str:
-        """
-        使用独立 Pepper 对敏感标识生成 HMAC-SHA256 摘要
-
-        :param value: 用户名、IP 等敏感标识
-        :param pepper: 独立于 JWT/传输加密密钥的 Pepper，至少 32 bytes
-        :return: 64 位小写 HMAC-SHA256 摘要
-        :raises TypeError: 标识或 Pepper 类型错误
-        :raises ValueError: Pepper 为空或长度不足
-        """
-
-        if not isinstance(value, (str, bytes)) or not isinstance(pepper, (str, bytes)):
-            raise TypeError('敏感标识和 Pepper 必须是 str 或 bytes')
-        raw_value = value.encode('utf-8') if isinstance(value, str) else value
-        raw_pepper = pepper.encode('utf-8') if isinstance(pepper, str) else pepper
-        if len(raw_pepper) < cls._PEPPER_MIN_BYTES:
-            raise ValueError('敏感标识摘要 Pepper 至少需要 32 bytes')
-        return hmac.new(raw_pepper, raw_value, hashlib.sha256).hexdigest()
 
     @classmethod
     def interaction(cls, interaction_id: str) -> str:
@@ -87,7 +21,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:interaction:{cls._safe_component(interaction_id, name="interaction_id")}'
+        return f'{cls.PREFIX}:interaction:{OidcUtil.redis_key_component(interaction_id, name="interaction_id")}'
 
     @classmethod
     def authorization_code(cls, code_id: str) -> str:
@@ -98,7 +32,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:authorization_code:{cls._safe_component(code_id, name="code_id")}'
+        return f'{cls.PREFIX}:authorization_code:{OidcUtil.redis_key_component(code_id, name="code_id")}'
 
     @classmethod
     def authorization_code_consumed(cls, code_id: str) -> str:
@@ -109,7 +43,7 @@ class OidcRedisKey:
         :return: 不含授权码 Secret 的消费状态键
         """
 
-        return f'{cls.PREFIX}:authorization_code_consumed:{cls._safe_component(code_id, name="code_id")}'
+        return f'{cls.PREFIX}:authorization_code_consumed:{OidcUtil.redis_key_component(code_id, name="code_id")}'
 
     @classmethod
     def authorization_code_consumed_payload(cls, code_id: str) -> str:
@@ -120,7 +54,9 @@ class OidcRedisKey:
         :return: 不含授权码 Secret 的消费绑定载荷键
         """
 
-        return f'{cls.PREFIX}:authorization_code_consumed_payload:{cls._safe_component(code_id, name="code_id")}'
+        return (
+            f'{cls.PREFIX}:authorization_code_consumed_payload:{OidcUtil.redis_key_component(code_id, name="code_id")}'
+        )
 
     @classmethod
     def sso_session(cls, sid: str) -> str:
@@ -131,7 +67,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:sso_session:{cls._safe_component(sid, name="sid")}'
+        return f'{cls.PREFIX}:sso_session:{OidcUtil.redis_key_component(sid, name="sid")}'
 
     @classmethod
     def user_sessions(cls, user_id: str | int) -> str:
@@ -142,7 +78,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:user_sessions:{cls._safe_component(user_id, name="user_id")}'
+        return f'{cls.PREFIX}:user_sessions:{OidcUtil.redis_key_component(user_id, name="user_id")}'
 
     @classmethod
     def sso_cookie(cls, session_hash: str) -> str:
@@ -153,7 +89,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:sso_cookie:{cls._safe_hex_digest(session_hash)}'
+        return f'{cls.PREFIX}:sso_cookie:{OidcUtil.sha256_hex_digest(session_hash)}'
 
     @classmethod
     def revoked_jti(cls, jti: str) -> str:
@@ -164,7 +100,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:revoked_jti:{cls._safe_component(jti, name="jti")}'
+        return f'{cls.PREFIX}:revoked_jti:{OidcUtil.redis_key_component(jti, name="jti")}'
 
     @classmethod
     def backchannel_retry_queue(cls) -> str:
@@ -193,7 +129,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:rate_limit:authorize:ip:{cls._safe_hex_digest(ip_hash)}'
+        return f'{cls.PREFIX}:rate_limit:authorize:ip:{OidcUtil.sha256_hex_digest(ip_hash)}'
 
     @classmethod
     def login_user_rate_limit(cls, user_name_hash: str) -> str:
@@ -204,7 +140,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:rate_limit:login:user:{cls._safe_hex_digest(user_name_hash)}'
+        return f'{cls.PREFIX}:rate_limit:login:user:{OidcUtil.sha256_hex_digest(user_name_hash)}'
 
     @classmethod
     def interaction_captcha_rate_limit(cls, subject_hash: str) -> str:
@@ -215,7 +151,7 @@ class OidcRedisKey:
         :return: 验证码端点独立 Redis Key
         """
 
-        return f'{cls.PREFIX}:rate_limit:interaction:captcha:{cls._safe_hex_digest(subject_hash)}'
+        return f'{cls.PREFIX}:rate_limit:interaction:captcha:{OidcUtil.sha256_hex_digest(subject_hash)}'
 
     @classmethod
     def token_client_rate_limit(cls, client_id: str) -> str:
@@ -226,7 +162,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:rate_limit:token:client:{cls._safe_component(client_id, name="client_id")}'
+        return f'{cls.PREFIX}:rate_limit:token:client:{OidcUtil.redis_key_component(client_id, name="client_id")}'
 
     @classmethod
     def introspect_client_rate_limit(cls, client_id: str) -> str:
@@ -237,7 +173,7 @@ class OidcRedisKey:
         :return: Redis Key
         """
 
-        return f'{cls.PREFIX}:rate_limit:introspect:client:{cls._safe_component(client_id, name="client_id")}'
+        return f'{cls.PREFIX}:rate_limit:introspect:client:{OidcUtil.redis_key_component(client_id, name="client_id")}'
 
     @classmethod
     def revoke_client_rate_limit(cls, client_id: str) -> str:
@@ -248,7 +184,7 @@ class OidcRedisKey:
         :return: 撤销端点专用 Redis Key
         """
 
-        return f'{cls.PREFIX}:rate_limit:revoke:client:{cls._safe_component(client_id, name="client_id")}'
+        return f'{cls.PREFIX}:rate_limit:revoke:client:{OidcUtil.redis_key_component(client_id, name="client_id")}'
 
     @classmethod
     def logout_rate_limit(cls, scope: str = 'anonymous') -> str:
@@ -259,7 +195,7 @@ class OidcRedisKey:
         :return: Logout Endpoint 专用 Redis Key
         """
 
-        return f'{cls.PREFIX}:rate_limit:logout:{cls._safe_component(scope, name="logout_scope")}'
+        return f'{cls.PREFIX}:rate_limit:logout:{OidcUtil.redis_key_component(scope, name="logout_scope")}'
 
     @classmethod
     def event_session_revoked(cls) -> str:

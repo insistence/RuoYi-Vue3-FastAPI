@@ -1,3 +1,6 @@
+from utils.oidc_util import OidcUtil
+
+
 class LoginException(Exception):
     """
     自定义登录异常LoginException
@@ -22,8 +25,8 @@ class OAuthProtocolException(Exception):
     """
     OAuth/OIDC 协议异常。
 
-    异常对象只携带标准协议字段和经过验证的重定向状态。统一异常处理器据此
-    选择标准 JSON 或安全的授权端点 Redirect，不会把内部异常详情返回给客户端。
+    异常 message 和字符串表示使用中文，error_description 保持 OAuth 要求的 ASCII 格式。
+    统一异常处理器仅返回标准协议字段和经过验证的重定向状态，不回传内部诊断详情。
     """
 
     _DEFAULT_BAD_REQUEST_STATUS = 400
@@ -41,7 +44,8 @@ class OAuthProtocolException(Exception):
         headers: dict[str, str] | None = None,
     ) -> None:
         self.error = error
-        self.error_description = error_description
+        self.error_description = OidcUtil.protocol_error_description(error, error_description)
+        self.message = OidcUtil.localized_oauth_message(error, error_description)
         self.status_code = (
             401 if error == 'invalid_client' and status_code == self._DEFAULT_BAD_REQUEST_STATUS else status_code
         )
@@ -50,7 +54,7 @@ class OAuthProtocolException(Exception):
         self.redirect_uri_verified = redirect_uri_verified
         self.issuer = issuer
         self.headers = dict(headers or {})
-        super().__init__(error_description or error)
+        super().__init__(self.message)
 
     @property
     def can_redirect(self) -> bool:

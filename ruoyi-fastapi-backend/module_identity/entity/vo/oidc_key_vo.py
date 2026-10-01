@@ -5,6 +5,7 @@ from pydantic.alias_generators import to_camel
 
 from common.types import ApiUtcDateTime
 from module_identity.entity.vo.protocol_vo import Jwk
+from utils.oidc_util import OidcUtil
 
 
 class OidcKeyModel(BaseModel):
@@ -36,13 +37,7 @@ class OidcKeyRotateModel(OidcKeyModel):
         :return: 校验通过的签名密钥标识
         """
 
-        if (
-            not value
-            or not value[0].isalnum()
-            or any(not (char.isascii() and (char.isalnum() or char in '._:-')) for char in value)
-        ):
-            raise ValueError('kid must be a safe path identifier')
-        return value
+        return OidcUtil.validate_path_identifier(value, '签名密钥标识 kid')
 
 
 class OidcKeyViewModel(OidcKeyModel):

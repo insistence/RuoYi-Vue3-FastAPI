@@ -2,9 +2,9 @@ import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from pydantic import ValidationError
 from redis.asyncio import Redis
@@ -36,6 +36,7 @@ from module_identity.service.audit_service import AuditService
 from module_identity.service.infrastructure_service import AfterCommitCoordinator
 from module_identity.service.interaction_service import InteractionFlowService, InteractionService
 from module_identity.service.session_service import SsoSessionError, SsoSessionService
+from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
 
 _S256_CHALLENGE = re.compile(r'^[A-Za-z0-9_-]{43}$')
@@ -66,7 +67,7 @@ class ClientSnapshot:
         """
 
         if not isinstance(self.grant_types, tuple) or not isinstance(self.response_types, tuple):
-            raise TypeError('ClientSnapshot grant_types and response_types must be tuples')
+            raise TypeError('客户端快照的 grant_types 和 response_types 必须为元组')
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,9 +272,7 @@ class AuthorizationService:
             grant = None
             if session is not None:
                 if await OAuthAccessPolicyDao.is_blocked(db, session.user_id, context.client.client_pk):
-                    raise OidcInteractionException(
-                        'pending', 'Access to this application is blocked', error='access_denied'
-                    )
+                    raise OidcInteractionException('pending', '当前用户已被禁止访问此应用', error='access_denied')
                 grant = await cls.valid_grant(db, session.user_id, context.client.client_pk)
             consent_required = context.requires_consent and not cls.consent_is_satisfied(context, grant)
             payload = context.to_internal_payload('pending')
@@ -322,7 +321,7 @@ class AuthorizationService:
             else OidcConfig.oidc_interaction_login_url
         )
 
-        return AuthorizationResult(cls._interaction_url(base, created.interaction_id, created.csrf_token))
+        return AuthorizationResult(OidcUtil.interaction_url(base, created.interaction_id, created.csrf_token))
 
     @staticmethod
     async def _load_sso_session(
@@ -370,11 +369,11 @@ class AuthorizationService:
 
         record = await InteractionService.get_record(redis, interaction_id)
         if record.get('status') != 'completed':
-            raise OidcInteractionException(interaction_id, 'Interaction is not complete', error='interaction_required')
+            raise OidcInteractionException(interaction_id, '认证交互尚未完成', error='interaction_required')
         marker = await cls._reserve_completion(redis, interaction_id)
         if marker is None:
             raise OidcInteractionException(
-                interaction_id, 'Interaction has already completed', error='invalid_request', status_code=409
+                interaction_id, '认证交互已完成，请勿重复提交', error='invalid_request', status_code=409
             )
         code: str | None = None
         try:
@@ -400,7 +399,7 @@ class AuthorizationService:
                 'nonce': record['nonce'],
                 'codeChallenge': record['codeChallenge'],
                 'codeChallengeMethod': record['codeChallengeMethod'],
-                'authTime': _protocol_datetime(session.auth_time).isoformat(),
+                'authTime': (TimezoneUtil.to_optional_utc(session.auth_time) or TimezoneUtil.utc_now()).isoformat(),
             }
             code = await AuthorizationCodeService.issue(redis, payload, pepper=OidcConfig.oidc_token_hash_pepper)
             await AuditService.record(
@@ -465,7 +464,11 @@ class AuthorizationService:
                 or grant.subject_id != session.subject_id
                 or grant.client_pk != client_pk
                 or grant.client_policy_version != context.client.policy_version
-                or (grant.expires_at is not None and _protocol_datetime(grant.expires_at) <= TimezoneUtil.utc_now())
+                or (
+                    grant.expires_at is not None
+                    and (TimezoneUtil.to_optional_utc(grant.expires_at) or TimezoneUtil.utc_now())
+                    <= TimezoneUtil.utc_now()
+                )
                 or not set(context.scopes).issubset(set(grant.granted_scopes or []))
                 or not set(context.resources).issubset(set(grant.granted_resources or []))
             ):
@@ -534,23 +537,6 @@ class AuthorizationService:
         return (TimezoneUtil.utc_now() - current).total_seconds() > max_age
 
     @staticmethod
-    def _interaction_url(base: str, interaction_id: str, csrf_token: str) -> str:
-        """
-        构建只把原始 CSRF 放入 URL Fragment 的交互地址
-
-        :param base: 交互地址基址
-        :param interaction_id: 交互流程标识
-        :param csrf_token: CSRF Token
-        :return: 交互页面 URL
-        """
-
-        parsed = urlsplit(base)
-        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-        query['interaction'] = interaction_id
-
-        return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), f'csrf={csrf_token}'))
-
-    @staticmethod
     def _success_url(redirect_uri: str, code: str, state: str | None) -> str:
         """
         构建已验证 Client Redirect 的授权码回调地址
@@ -564,17 +550,13 @@ class AuthorizationService:
         parsed = urlsplit(redirect_uri)
         if parsed.fragment or not parsed.scheme or not parsed.netloc:
             raise OAuthProtocolException('server_error', 'Validated redirect URI is invalid', 500)
-        fields = [
-            (key, value)
-            for key, value in parse_qsl(parsed.query, keep_blank_values=True)
-            if key not in {'code', 'error', 'error_description', 'error_uri', 'iss', 'state'}
-        ]
-        fields.append(('code', code))
+        fields = [('code', code)]
         if state is not None:
             fields.append(('state', state))
         fields.append(('iss', OidcConfig.oidc_issuer))
-
-        return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(fields), ''))
+        return OidcUtil.replace_query_parameters(
+            redirect_uri, fields, {'code', 'error', 'error_description', 'error_uri', 'iss', 'state'}, fragment=''
+        )
 
     @staticmethod
     def _with_verified_redirect(
@@ -735,7 +717,12 @@ class AuthorizationService:
             raise cls._redirect_error(
                 'invalid_request', 'Client PKCE policy is weaker than provider policy', redirect_uri, state
             )
-        cls._validate_prompt(request.prompt, redirect_uri, state)
+        try:
+            OidcUtil.normalize_prompt(request.prompt)
+        except ValueError:
+            raise cls._redirect_error(
+                'invalid_request', 'prompt contains an unsupported combination', redirect_uri, state
+            ) from None
         if request.max_age is not None and request.max_age < 0:
             raise cls._redirect_error('invalid_request', 'max_age must be non-negative', redirect_uri, state)
 
@@ -835,31 +822,6 @@ class AuthorizationService:
             max_age=request.max_age,
             required_scopes=required_scopes,
         )
-
-    @staticmethod
-    def _validate_prompt(prompt: str | None, redirect_uri: str, state: str | None) -> None:
-        """
-        校验服务端实际支持的 prompt 组合
-
-        :param prompt: 空格分隔的 prompt 值
-        :param redirect_uri: 已精确验证的 Redirect URI
-        :param state: 客户端原样 state
-        :return: 规范化的 prompt 校验结果
-        :raises OAuthProtocolException: prompt 不是受支持的组合时抛出
-        """
-
-        if prompt is None:
-            return
-        prompts = prompt.split()
-        if (
-            not prompts
-            or len(set(prompts)) != len(prompts)
-            or any(item not in {'login', 'consent', 'none'} for item in prompts)
-            or ('none' in prompts and len(prompts) > 1)
-        ):
-            raise AuthorizationService._redirect_error(
-                'invalid_request', 'prompt contains an unsupported combination', redirect_uri, state
-            )
 
     @staticmethod
     async def _load_scope_models(
@@ -1033,7 +995,6 @@ redis.call('SET', KEYS[2], ARGV[3], 'EX', ARGV[4])
 redis.call('SET', KEYS[3], value, 'EX', ARGV[4])
 return value
 """
-    _CODE_CHALLENGE = re.compile(r'^[A-Za-z0-9_-]{43}$')
     _REQUIRED_FIELDS = frozenset(
         {
             'clientPk',
@@ -1083,10 +1044,10 @@ return value
         digest = token_digest(code, pepper or OidcConfig.oidc_token_hash_pepper)
         record['codeHash'] = digest
         record['version'] = 1
-        serialized = cls._serialize(record)
+        serialized = OidcUtil.serialize_json(record, error_message='授权码载荷必须支持 JSON 序列化')
         ttl = OidcConfig.oidc_authorization_code_ttl_seconds if ttl_seconds is None else ttl_seconds
         if not isinstance(ttl, int) or isinstance(ttl, bool) or ttl <= 0:
-            raise ValueError('authorization code ttl must be a positive integer')
+            raise ValueError('授权码有效期必须为正整数')
         created = await redis.set(OidcRedisKey.authorization_code(parsed.token_id), serialized, ex=ttl, nx=True)
         if not created:
             raise OAuthProtocolException('server_error', 'Authorization code could not be created', 500)
@@ -1213,40 +1174,40 @@ return value
         """
 
         if not isinstance(payload, Mapping):
-            raise ValueError('authorization code payload must be a mapping')
+            raise ValueError('授权码载荷必须为映射对象')
         keys = set(payload)
         if keys != cls._REQUIRED_FIELDS:
-            raise ValueError('authorization code payload fields are not allowed')
-        cls._positive_int(payload['clientPk'], 'clientPk')
-        cls._positive_int(payload['userId'], 'userId')
-        cls._nonnegative_int(payload['authVersion'], 'authVersion')
-        cls._string(payload['redirectUri'], 'redirectUri', 1000)
-        cls._string(payload['subjectId'], 'subjectId', 36)
-        cls._string(payload['sid'], 'sid', 36)
+            raise ValueError('授权码载荷包含不允许的字段')
+        OidcUtil.positive_int(payload['clientPk'], 'clientPk')
+        OidcUtil.positive_int(payload['userId'], 'userId')
+        OidcUtil.nonnegative_int(payload['authVersion'], 'authVersion')
+        OidcUtil.nonempty_string(payload['redirectUri'], 'redirectUri', 1000)
+        OidcUtil.nonempty_string(payload['subjectId'], 'subjectId', 36)
+        OidcUtil.nonempty_string(payload['sid'], 'sid', 36)
         grant_id = payload['grantId']
         if grant_id is not None:
-            cls._string(grant_id, 'grantId', 36)
-        cls._string(payload['nonce'], 'nonce', 1024)
-        challenge = cls._string(payload['codeChallenge'], 'codeChallenge', 128)
-        if not cls._CODE_CHALLENGE.fullmatch(challenge):
-            raise ValueError('codeChallenge must be an unpadded base64url SHA-256 value')
+            OidcUtil.nonempty_string(grant_id, 'grantId', 36)
+        OidcUtil.nonempty_string(payload['nonce'], 'nonce', 1024)
+        challenge = OidcUtil.nonempty_string(payload['codeChallenge'], 'codeChallenge', 128)
+        if not OidcUtil.is_s256_challenge(challenge):
+            raise ValueError('codeChallenge 必须为不带填充的 Base64URL 编码 SHA-256 摘要')
         if payload['codeChallengeMethod'] != 'S256':
-            raise ValueError('codeChallengeMethod must be S256')
-        auth_time = cls._string(payload['authTime'], 'authTime', 64)
+            raise ValueError('codeChallengeMethod 必须为 S256')
+        auth_time = OidcUtil.nonempty_string(payload['authTime'], 'authTime', 64)
         try:
             parsed_auth_time = datetime.fromisoformat(auth_time.replace('Z', '+00:00'))
         except ValueError as exc:
-            raise ValueError('authTime must be an ISO-8601 timestamp') from exc
+            raise ValueError('认证时间 authTime 必须为 ISO-8601 格式') from exc
         if parsed_auth_time.tzinfo is None or parsed_auth_time.utcoffset() != timedelta(0):
-            raise ValueError('authTime must be a timezone-aware UTC timestamp')
-        scopes = cls._string_list(payload['scopes'], 'scopes', cls._MAX_SCOPES)
-        resources = cls._string_list(payload['resources'], 'resources', cls._MAX_RESOURCES)
+            raise ValueError('认证时间 authTime 必须为带时区的 UTC 时间戳')
+        scopes = OidcUtil.string_list(payload['scopes'], 'scopes', cls._MAX_SCOPES)
+        resources = OidcUtil.string_list(payload['resources'], 'resources', cls._MAX_RESOURCES)
         if 'openid' not in scopes or len(set(scopes)) != len(scopes):
-            raise ValueError('scopes must include openid and contain no duplicates')
+            raise ValueError('权限范围必须包含 openid，且不得重复')
         if len(set(resources)) != len(resources):
-            raise ValueError('resources must not contain duplicates')
+            raise ValueError('资源列表不得包含重复项')
         if len(resources) > cls._MAX_RESOURCES:
-            raise ValueError('only one resource is supported')
+            raise ValueError('一次请求只支持一个业务资源')
         return {
             'clientPk': payload['clientPk'],
             'redirectUri': payload['redirectUri'],
@@ -1262,78 +1223,6 @@ return value
             'codeChallengeMethod': 'S256',
             'authTime': payload['authTime'],
         }
-
-    @staticmethod
-    def _positive_int(value: Any, field: str) -> int:
-        """
-        校验正整数标量
-
-        :param value: 待校验的正整数
-        :param field: 字段名称
-        :return: 校验后的正整数
-        """
-
-        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
-            raise ValueError(f'{field} must be a positive integer')
-        return value
-
-    @staticmethod
-    def _nonnegative_int(value: Any, field: str) -> int:
-        """
-        校验非负整数标量
-
-        :param value: 待校验的非负整数
-        :param field: 字段名称
-        :return: 校验后的非负整数
-        """
-
-        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-            raise ValueError(f'{field} must be a non-negative integer')
-        return value
-
-    @staticmethod
-    def _string(value: Any, field: str, limit: int) -> str:
-        """
-        校验非空字符串及长度
-
-        :param value: 待校验的字符串
-        :param field: 字段名称
-        :param limit: 字符串的最大长度
-        :return: 校验后的字符串
-        """
-
-        if not isinstance(value, str) or not value or len(value) > limit:
-            raise ValueError(f'{field} must be a non-empty string')
-        return value
-
-    @classmethod
-    def _string_list(cls, value: Any, field: str, limit: int) -> list[str]:
-        """
-        校验字符串列表并复制为 JSON 安全列表
-
-        :param value: 待校验的字符串列表
-        :param field: 字段名称
-        :param limit: 字符串列表的最大长度
-        :return: 校验后的字符串列表
-        """
-
-        if not isinstance(value, (list, tuple)) or len(value) > limit:
-            raise ValueError(f'{field} must be a bounded string list')
-        return [cls._string(item, field, 500) for item in value]
-
-    @staticmethod
-    def _serialize(record: Mapping[str, Any]) -> str:
-        """
-        生成稳定、无空白的 Redis JSON
-
-        :param record: 交互记录
-        :return: 序列化 JSON 字符串
-        """
-
-        try:
-            return json.dumps(record, ensure_ascii=False, separators=(',', ':'), sort_keys=True, allow_nan=False)
-        except (TypeError, ValueError) as exc:
-            raise ValueError('authorization code payload must be JSON serializable') from exc
 
 
 class InteractionCompletionService:
@@ -1354,11 +1243,11 @@ class InteractionCompletionService:
 
         record = await InteractionService.get_record(redis, interaction_id)
         if record.get('status') not in {'completed', 'denied'}:
-            raise OidcInteractionException(interaction_id, 'Interaction is not complete', error='interaction_required')
+            raise OidcInteractionException(interaction_id, '认证交互尚未完成', error='interaction_required')
         marker = await InteractionFlowService.reserve_completion(redis, interaction_id)
         if marker is None:
             raise OidcInteractionException(
-                interaction_id, 'Interaction has already completed', error='invalid_request', status_code=409
+                interaction_id, '认证交互已完成，请勿重复提交', error='invalid_request', status_code=409
             )
         redirect_uri = record.get('redirectUri')
         try:
@@ -1441,7 +1330,7 @@ class InteractionCompletionService:
             'nonce': record['nonce'],
             'codeChallenge': record['codeChallenge'],
             'codeChallengeMethod': record['codeChallengeMethod'],
-            'authTime': _protocol_datetime(active.auth_time).isoformat(),
+            'authTime': (TimezoneUtil.to_optional_utc(active.auth_time) or TimezoneUtil.utc_now()).isoformat(),
         }
         code: str | None = None
         try:
@@ -1490,12 +1379,7 @@ class InteractionCompletionService:
         :return: 重定向结果
         """
 
-        parsed = urlsplit(redirect_uri)
-        query = [
-            (key, value)
-            for key, value in parse_qsl(parsed.query, keep_blank_values=True)
-            if key not in {'code', 'error', 'state', 'iss'}
-        ]
+        query = []
         if code is not None:
             query.append(('code', code))
         if error is not None:
@@ -1503,8 +1387,9 @@ class InteractionCompletionService:
         if record.get('state') is not None:
             query.append(('state', record['state']))
         query.append(('iss', OidcConfig.oidc_issuer))
-        location = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), ''))
-
+        location = OidcUtil.replace_query_parameters(
+            redirect_uri, query, {'code', 'error', 'state', 'iss'}, fragment=''
+        )
         return InteractionCompletionResult(location=location)
 
 
@@ -1515,16 +1400,3 @@ class InteractionCompletionResult:
     """
 
     location: str
-
-
-def _protocol_datetime(value: datetime | None) -> datetime:
-    """
-    将项目时间转换为协议时间
-
-    :param value: 可选的数据库时间
-    :return: 带时区的协议时间
-    """
-
-    if value is None:
-        return datetime.now(timezone.utc)
-    return TimezoneUtil.to_utc(value)

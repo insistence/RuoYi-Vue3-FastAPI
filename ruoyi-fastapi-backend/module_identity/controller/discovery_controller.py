@@ -10,6 +10,7 @@ from config.env import OidcConfig
 from module_identity.dependencies import require_oidc_protocol_ready
 from module_identity.service.discovery_service import DiscoveryService
 from module_identity.service.key_service import KeyService, KeyServiceError
+from utils.oidc_util import OidcUtil
 
 discovery_controller = APIRouterPro(
     tags=['认证中心发现'], order_num=1, dependencies=[Depends(require_oidc_protocol_ready)]
@@ -38,7 +39,7 @@ def _etag_response(request: Request, payload: dict[str, Any]) -> Response:
     :return: 标准 JSON 响应或 304 响应
     """
 
-    etag = KeyService.compute_etag(payload)
+    etag = OidcUtil.json_etag(payload)
     headers = {'Cache-Control': _CACHE_CONTROL, 'ETag': etag}
     if_none_match = request.headers.get('if-none-match', '')
     if '*' in {item.strip() for item in if_none_match.split(',')} or etag in {

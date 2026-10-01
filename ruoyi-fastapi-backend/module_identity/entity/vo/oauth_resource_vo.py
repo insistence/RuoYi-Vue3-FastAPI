@@ -3,6 +3,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
+from utils.oidc_util import OidcUtil
+
 
 class ResourceModel(BaseModel):
     """
@@ -10,25 +12,6 @@ class ResourceModel(BaseModel):
     """
 
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True, from_attributes=True, extra='forbid')
-
-
-def _validate_path_identifier(value: str, field_name: str) -> str:
-    """
-    校验可安全放入单一路径段的管理标识
-
-    :param value: 待校验的资源或权限标识
-    :param field_name: 校验失败时展示的字段名称
-    :return: 校验通过的管理标识
-    """
-
-    if (
-        not isinstance(value, str)
-        or not value
-        or not value[0].isalnum()
-        or any(not (char.isascii() and (char.isalnum() or char in '._:-')) for char in value)
-    ):
-        raise ValueError(f'{field_name} must be a safe path identifier')
-    return value
 
 
 class ScopeModel(ResourceModel):
@@ -46,7 +29,7 @@ class ScopeModel(ResourceModel):
     status: Literal['0', '1'] = Field(default='0', description='状态（0正常 1停用）')
     remark: str | None = Field(default=None, max_length=500, description='备注')
 
-    _validate_code = field_validator('scope_code')(lambda value: _validate_path_identifier(value, 'scope_code'))
+    _validate_code = field_validator('scope_code')(lambda value: OidcUtil.validate_path_identifier(value, 'scope_code'))
 
     @model_validator(mode='after')
     def validate_scope_resource(self) -> 'ScopeModel':
@@ -57,9 +40,9 @@ class ScopeModel(ResourceModel):
         """
 
         if self.scope_type == 'resource' and not self.resource_id:
-            raise ValueError('resource scope requires resource_id')
+            raise ValueError('资源权限必须提供 resource_id')
         if self.scope_type == 'identity' and self.resource_id:
-            raise ValueError('identity scope cannot be bound to a resource')
+            raise ValueError('身份权限范围不能绑定业务资源')
         return self
 
 
@@ -79,7 +62,7 @@ class ResourceCreateModel(ResourceModel):
     remark: str | None = Field(default=None, max_length=500, description='备注')
 
     _validate_resource_id = field_validator('resource_id')(
-        lambda value: _validate_path_identifier(value, 'resource_id')
+        lambda value: OidcUtil.validate_path_identifier(value, 'resource_id')
     )
 
 
@@ -144,7 +127,7 @@ class ResourceStatusModel(ResourceModel):
     status: Literal['0', '1'] = Field(description='状态（0正常 1停用）')
 
     _validate_resource_id = field_validator('resource_id')(
-        lambda value: _validate_path_identifier(value, 'resource_id')
+        lambda value: OidcUtil.validate_path_identifier(value, 'resource_id')
     )
 
 
@@ -156,4 +139,6 @@ class ScopeStatusModel(ResourceModel):
     scope_code: str = Field(description='权限标识')
     status: Literal['0', '1'] = Field(description='状态（0正常 1停用）')
 
-    _validate_scope_code = field_validator('scope_code')(lambda value: _validate_path_identifier(value, 'scope_code'))
+    _validate_scope_code = field_validator('scope_code')(
+        lambda value: OidcUtil.validate_path_identifier(value, 'scope_code')
+    )

@@ -1,4 +1,4 @@
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import HTTPException
@@ -18,6 +18,7 @@ from exceptions.exception import (
     ServiceWarning,
 )
 from utils.log_util import logger
+from utils.oidc_util import OidcUtil
 from utils.response_util import JSONResponse, ResponseUtil, jsonable_encoder
 
 _OAUTH_RESPONSE_PARAMETER_NAMES = frozenset({'code', 'error', 'error_description', 'error_uri', 'iss', 'state'})
@@ -141,19 +142,16 @@ def _build_oauth_redirect(exc: OAuthProtocolException) -> Response:
             status_code=400,
             headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'},
         )
-    params = [
-        (name, value)
-        for name, value in parse_qsl(parsed.query, keep_blank_values=True)
-        if name not in _OAUTH_RESPONSE_PARAMETER_NAMES
-    ]
-    params.append(('error', exc.error))
+    params = [('error', exc.error)]
     if exc.error_description:
         params.append(('error_description', exc.error_description))
     if exc.state:
         params.append(('state', exc.state))
     if exc.issuer:
         params.append(('iss', exc.issuer))
-    location = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(params, doseq=True), ''))
+    location = OidcUtil.replace_query_parameters(
+        exc.redirect_uri or '', params, _OAUTH_RESPONSE_PARAMETER_NAMES, fragment='', doseq=True
+    )
     return RedirectResponse(
         url=location,
         status_code=303,

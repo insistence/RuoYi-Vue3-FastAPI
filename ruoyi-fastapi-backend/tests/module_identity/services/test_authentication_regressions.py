@@ -1,5 +1,3 @@
-"""统一认证的授权绑定、令牌有效期和 SSO 会话回归测试。"""
-
 from datetime import timedelta
 from http.cookies import SimpleCookie
 from types import SimpleNamespace
@@ -56,6 +54,7 @@ from module_identity.service.session_service import SsoSessionService
 from module_identity.service.token_protocol_service import IntrospectionService, UserInfoService
 from module_identity.service.token_service import TokenResult, TokenService
 from tests.module_identity.support.redis_fakes import FakeRedis
+from utils.oidc_util import OidcUtil
 from utils.pwd_util import PwdUtil
 from utils.time_util import TimezoneUtil
 
@@ -407,7 +406,7 @@ async def test_saved_grant_revocation_cannot_be_bypassed_by_a_later_grant(
         await OAuthSessionManagementService.revoke_grants(auth_flow.db, [grant.grant_id], 'admin', '撤销应用授权') == 1
     )
     assert await _introspect(auth_flow, token.access_token) == {'active': False}
-    with pytest.raises(ValueError, match='authorization is inactive'):
+    with pytest.raises(ValueError, match='授权已失效'):
         await UserInfoService.build(auth_flow.db, _claims(auth_flow, token.access_token), auth_flow.redis)
     if offline:
         assert await _introspect(auth_flow, token.refresh_token) == {'active': False}
@@ -637,7 +636,7 @@ async def test_login_cookie_persistence_survives_forced_password_change(
     cookie = cookies[OidcConfig.oidc_sso_cookie_name]
     assert cookie['secure'] and cookie['httponly'] and cookie['samesite'] == 'lax' and cookie['path'] == '/'
     assert not cookie['domain']
-    sid, _ = SsoSessionService.parse_cookie(cookie.value)
+    sid, _ = OidcUtil.parse_sso_cookie(cookie.value)
     session = await flow.db.get(SysSsoSession, sid)
     assert bool(session.remember_me) is remember
     if remember:

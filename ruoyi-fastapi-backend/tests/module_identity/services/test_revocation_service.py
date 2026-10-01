@@ -1,5 +1,3 @@
-"""RFC 7009 Token Revocation 服务的所有权和提交边界测试。"""
-
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock

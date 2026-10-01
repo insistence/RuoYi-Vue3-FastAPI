@@ -1,5 +1,3 @@
-"""Authorization Endpoint 控制器测试。"""
-
 import asyncio
 import time
 from datetime import datetime, timedelta, timezone

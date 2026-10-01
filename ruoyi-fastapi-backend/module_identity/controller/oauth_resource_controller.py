@@ -27,6 +27,7 @@ from module_identity.entity.vo.oauth_resource_vo import (
 from module_identity.service.oauth_management_service import OAuthResourceManagementService
 from module_identity.service.runtime_service import OidcRuntimeService
 from utils.log_util import logger
+from utils.oidc_util import OidcUtil
 from utils.response_util import ResponseUtil
 
 oauth_resource_controller = APIRouterPro(
@@ -47,34 +48,12 @@ def _actor(current_user: CurrentUserModel) -> str:
     :raises ServiceException: 当前用户不可用
     """
 
-    value = getattr(getattr(current_user, 'user', None), 'user_name', None)
-    if not isinstance(value, str) or not value.strip():
-        raise ServiceException(message='当前操作者不可用')
-    return value[:64]
-
-
-def _split_batch(value: str, field_name: str) -> list[str]:
-    """
-    校验并拆分批量操作参数
-
-    :param value: 逗号分隔的批量参数
-    :param field_name: 参数字段名称
-    :return: 去除空白后的参数列表
-    :raises ServiceException: 参数为空、超出数量限制、包含非法字符或重复值
-    """
-
-    items = value.split(',') if isinstance(value, str) else []
-    if not items or len(items) > _MAX_BATCH_SIZE:
-        raise ServiceException(message=f'{field_name} 参数无效')
-    result: list[str] = []
-    for raw_item in items:
-        item = raw_item.strip()
-        if not item or '%' in item or '/' in item or '\\' in item or any(char.isspace() for char in item):
-            raise ServiceException(message=f'{field_name} 参数无效')
-        if item in result:
-            raise ServiceException(message=f'{field_name} 参数重复')
-        result.append(item)
-    return result
+    try:
+        return OidcUtil.actor_name(
+            getattr(getattr(current_user, 'user', None), 'user_name', None), error_message='当前操作者不可用'
+        )
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
 
 
 @oauth_resource_controller.get(
@@ -89,7 +68,7 @@ async def get_system_oauth_resource_list(
 ) -> Response:
     rows = await OAuthResourceManagementService.list_resources(query_db, resource_query)
     total = await OAuthResourceManagementService.count_resources(query_db, resource_query)
-    logger.info('OAuth Resource 列表查询成功')
+    logger.info('OAuth 资源列表查询成功')
 
     return ResponseUtil.success(rows=rows, dict_content={'total': total})
 
@@ -116,7 +95,7 @@ async def query_system_oauth_resource(
     dependencies=[UserInterfaceAuthDependency('system:oauthResource:add')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_RESOURCE_CREATE, preset=ApiRateLimitPreset.USER_COMMON_MUTATION)
-@Log(title='OAuth Resource管理', business_type=BusinessType.INSERT)
+@Log(title='OAuth 资源管理', business_type=BusinessType.INSERT)
 async def add_system_oauth_resource(
     request: Request,
     payload: ResourceCreateModel,
@@ -138,7 +117,7 @@ async def add_system_oauth_resource(
     dependencies=[UserInterfaceAuthDependency('system:oauthResource:edit')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_RESOURCE_UPDATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
-@Log(title='OAuth Resource管理', business_type=BusinessType.UPDATE)
+@Log(title='OAuth 资源管理', business_type=BusinessType.UPDATE)
 async def edit_system_oauth_resource(
     request: Request,
     payload: ResourceUpdateModel,
@@ -160,7 +139,7 @@ async def edit_system_oauth_resource(
     dependencies=[UserInterfaceAuthDependency('system:oauthResource:remove')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_RESOURCE_DISABLE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
-@Log(title='OAuth Resource管理', business_type=BusinessType.DELETE)
+@Log(title='OAuth 资源管理', business_type=BusinessType.DELETE)
 async def delete_system_oauth_resources(
     request: Request,
     resource_ids: Annotated[str, Path(min_length=1, max_length=6500)],
@@ -168,14 +147,18 @@ async def delete_system_oauth_resources(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     actor = _actor(current_user)
+    try:
+        batch_ids = OidcUtil.split_batch(resource_ids, 'resource_ids', max_size=_MAX_BATCH_SIZE)
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
     await OAuthResourceManagementService.disable_resources(
         query_db,
-        _split_batch(resource_ids, 'resource_ids'),
+        batch_ids,
         actor,
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
 
-    return ResponseUtil.success(msg='OAuth Resource 已停用')
+    return ResponseUtil.success(msg='OAuth 资源已停用')
 
 
 @oauth_resource_controller.put(
@@ -186,7 +169,7 @@ async def delete_system_oauth_resources(
     dependencies=[UserInterfaceAuthDependency('system:oauthResource:edit')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_RESOURCE_STATUS, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
-@Log(title='OAuth Resource管理', business_type=BusinessType.UPDATE)
+@Log(title='OAuth 资源管理', business_type=BusinessType.UPDATE)
 async def change_system_oauth_resource_status(
     request: Request,
     payload: ResourceStatusModel,
@@ -238,7 +221,7 @@ async def query_system_oauth_scope(
     dependencies=[UserInterfaceAuthDependency('system:oauthScope:add')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SCOPE_CREATE, preset=ApiRateLimitPreset.USER_COMMON_MUTATION)
-@Log(title='OAuth Scope管理', business_type=BusinessType.INSERT)
+@Log(title='OAuth 权限范围管理', business_type=BusinessType.INSERT)
 async def add_system_oauth_scope(
     request: Request,
     payload: ScopeModel,
@@ -260,7 +243,7 @@ async def add_system_oauth_scope(
     dependencies=[UserInterfaceAuthDependency('system:oauthScope:edit')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SCOPE_UPDATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
-@Log(title='OAuth Scope管理', business_type=BusinessType.UPDATE)
+@Log(title='OAuth 权限范围管理', business_type=BusinessType.UPDATE)
 async def edit_system_oauth_scope(
     request: Request,
     payload: ScopeModel,
@@ -282,7 +265,7 @@ async def edit_system_oauth_scope(
     dependencies=[UserInterfaceAuthDependency('system:oauthScope:remove')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SCOPE_DISABLE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
-@Log(title='OAuth Scope管理', business_type=BusinessType.DELETE)
+@Log(title='OAuth 权限范围管理', business_type=BusinessType.DELETE)
 async def delete_system_oauth_scopes(
     request: Request,
     scope_codes: Annotated[str, Path(min_length=1, max_length=10000)],
@@ -290,14 +273,18 @@ async def delete_system_oauth_scopes(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     actor = _actor(current_user)
+    try:
+        batch_ids = OidcUtil.split_batch(scope_codes, 'scope_codes', max_size=_MAX_BATCH_SIZE)
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
     await OAuthResourceManagementService.disable_scopes(
         query_db,
-        _split_batch(scope_codes, 'scope_codes'),
+        batch_ids,
         actor,
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
 
-    return ResponseUtil.success(msg='OAuth Scope 已停用')
+    return ResponseUtil.success(msg='OAuth 权限范围已停用')
 
 
 @oauth_scope_controller.put(
@@ -308,7 +295,7 @@ async def delete_system_oauth_scopes(
     dependencies=[UserInterfaceAuthDependency('system:oauthScope:edit')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SCOPE_STATUS, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
-@Log(title='OAuth Scope管理', business_type=BusinessType.UPDATE)
+@Log(title='OAuth 权限范围管理', business_type=BusinessType.UPDATE)
 async def change_system_oauth_scope_status(
     request: Request,
     payload: ScopeStatusModel,

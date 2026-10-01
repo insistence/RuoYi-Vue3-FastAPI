@@ -1,5 +1,3 @@
-"""认证中心 Interaction Controller 测试。"""
-
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -62,6 +60,7 @@ from module_identity.service.interaction_service import (
 )
 from module_identity.service.session_service import SsoSessionDao, SsoSessionService
 from tests.module_identity.support.redis_fakes import FakeRedis
+from utils.oidc_util import OidcUtil
 from utils.pwd_util import PwdUtil
 
 _PEPPER = 'interaction-controller-pepper-' + 'x' * 32
@@ -589,13 +588,17 @@ async def test_password_change_cas_failure_runs_full_security_saga(monkeypatch: 
         userId=2,
         subjectId=subject_id,
         authVersion=1,
-        credentialProofHash=InteractionLoginService.credential_proof('interaction-controller-id', 2, subject_id, 1),
+        credentialProofHash=OidcUtil.credential_proof(
+            'interaction-controller-id', 2, subject_id, 1, pepper=OidcConfig.oidc_token_hash_pepper
+        ),
     )
     redis = FakeRedis()
     created = await InteractionService.create(redis, payload, pepper=_PEPPER)
     stored = await InteractionService.get_record(redis, created.interaction_id)
     stored['status'] = 'password_change_required'
-    stored['credentialProofHash'] = InteractionLoginService.credential_proof(created.interaction_id, 2, subject_id, 1)
+    stored['credentialProofHash'] = OidcUtil.credential_proof(
+        created.interaction_id, 2, subject_id, 1, pepper=OidcConfig.oidc_token_hash_pepper
+    )
     await redis.set(
         OidcRedisKey.interaction(created.interaction_id),
         json.dumps(stored, separators=(',', ':')),
@@ -674,7 +677,9 @@ async def test_password_change_saga_continues_when_interaction_delete_fails(
             'userId': 2,
             'subjectId': subject_id,
             'authVersion': 1,
-            'credentialProofHash': InteractionLoginService.credential_proof(created.interaction_id, 2, subject_id, 1),
+            'credentialProofHash': OidcUtil.credential_proof(
+                created.interaction_id, 2, subject_id, 1, pepper=OidcConfig.oidc_token_hash_pepper
+            ),
         }
     )
     await redis.set(OidcRedisKey.interaction(created.interaction_id), json.dumps(stored), ex=60)

@@ -1,47 +1,12 @@
 from typing import Any, Literal
-from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 
 from common.types import ApiUtcDateTime
+from utils.oidc_util import OidcUtil
 
-_DEVELOPMENT_HTTP_HOSTS = {'localhost', '127.0.0.1', '::1'}
 _MAX_ROLE_KEY_LENGTH = 100
-
-
-def _validate_registered_uri(uri_type: str, value: str) -> str:
-    """
-    校验注册 URI
-
-    :param uri_type: 注册地址类型
-    :param value: 待校验的完整注册地址
-    :return: 校验通过的原始注册地址
-    """
-
-    if '*' in value:
-        raise ValueError('URI must not contain wildcard')
-    parsed = urlsplit(value)
-    if parsed.scheme not in {'http', 'https'} or not parsed.netloc:
-        raise ValueError('URI must use HTTP or HTTPS and contain a host')
-    if parsed.username is not None or parsed.password is not None:
-        raise ValueError('URI must not contain userinfo')
-    if parsed.fragment:
-        raise ValueError('URI must not contain fragment')
-    if uri_type == 'backchannel_logout' and parsed.query:
-        raise ValueError('backchannel_logout URI must not contain query')
-    try:
-        hostname = parsed.hostname
-        _ = parsed.port
-    except ValueError as exc:
-        raise ValueError('URI host or port is invalid') from exc
-    if not hostname:
-        raise ValueError('URI must contain a host')
-    if parsed.scheme == 'http' and hostname.lower() not in _DEVELOPMENT_HTTP_HOSTS:
-        raise ValueError('HTTP URI is only allowed for localhost development')
-    if uri_type == 'cors_origin' and (parsed.path or parsed.query):
-        raise ValueError('cors_origin must contain only scheme, host and optional port')
-    return value
 
 
 class ClientModel(BaseModel):
@@ -118,30 +83,30 @@ class ClientCreateModel(ClientModel):
             not role or len(role) > _MAX_ROLE_KEY_LENGTH or '*' in role or any(char.isspace() for char in role)
             for role in self.allowed_role_keys
         ):
-            raise ValueError('allowed_role_keys must be distinct role identifiers without wildcards or whitespace')
+            raise ValueError('允许发布的角色标识不得重复，也不得包含通配符或空白字符')
         expected = 'none' if self.client_type == 'public' else 'client_secret_basic'
         if self.token_endpoint_auth_method != expected:
-            raise ValueError('token endpoint authentication method does not match client type')
+            raise ValueError('令牌端点认证方式与客户端类型不匹配')
         if self.client_type == 'public' and not self.require_pkce:
-            raise ValueError('public clients must require PKCE')
+            raise ValueError('公开客户端必须启用 PKCE')
         allowed_grants = {'authorization_code', 'refresh_token', 'client_credentials'}
         if not self.grant_types or any(grant not in allowed_grants for grant in self.grant_types):
-            raise ValueError('grant_types contains an unsupported grant')
+            raise ValueError('grant_types 包含不支持的授权类型')
         if len(set(self.grant_types)) != len(self.grant_types):
-            raise ValueError('grant_types must not contain duplicates')
+            raise ValueError('grant_types 不得包含重复的授权类型')
         if 'refresh_token' in self.grant_types and 'authorization_code' not in self.grant_types:
-            raise ValueError('refresh_token requires authorization_code')
+            raise ValueError('启用刷新令牌必须同时启用授权码模式')
         if self.client_type == 'public' and 'client_credentials' in self.grant_types:
-            raise ValueError('public clients cannot use client_credentials')
+            raise ValueError('公开客户端不能使用 client_credentials 授权模式')
         if 'authorization_code' in self.grant_types and not self.require_pkce:
-            raise ValueError('authorization_code clients must require PKCE')
+            raise ValueError('授权码客户端必须启用 PKCE')
         if 'authorization_code' in self.grant_types:
             if self.response_types != ['code']:
-                raise ValueError('authorization_code clients require response_types [code]')
+                raise ValueError('授权码客户端的 response_types 必须为 [code]')
             if not self.redirect_uris:
-                raise ValueError('authorization_code clients require a redirect URI')
+                raise ValueError('授权码客户端必须配置登录回调地址')
         elif self.response_types:
-            raise ValueError('non-authorization-code clients must not declare response types')
+            raise ValueError('未启用授权码模式的客户端不得配置响应类型')
         for uri_type, uris in (
             ('redirect', self.redirect_uris),
             ('post_logout', self.post_logout_redirect_uris),
@@ -149,7 +114,7 @@ class ClientCreateModel(ClientModel):
             ('cors_origin', self.cors_origins),
         ):
             for uri in uris:
-                _validate_registered_uri(uri_type, uri)
+                OidcUtil.validate_registered_uri(uri_type, uri)
         return self
 
 
@@ -216,18 +181,6 @@ class ClientUriModel(ClientModel):
     is_default: bool = Field(default=False, description='是否为默认地址')
     status: Literal['0', '1'] = Field(default='0', description='状态（0正常 1停用）')
 
-    @staticmethod
-    def _validate_uri_value(uri_type: str, value: str) -> str:
-        """
-        复用 Client 注册 URI 的统一安全校验
-
-        :param uri_type: URI 类型
-        :param value: 待校验 URI
-        :return: 原样返回已验证 URI
-        """
-
-        return _validate_registered_uri(uri_type, value)
-
     @model_validator(mode='after')
     def validate_uri(self) -> 'ClientUriModel':
         """
@@ -236,7 +189,7 @@ class ClientUriModel(ClientModel):
         :return: 当前已校验 URI 模型
         """
 
-        self.uri = self._validate_uri_value(self.uri_type, self.uri)
+        self.uri = OidcUtil.validate_registered_uri(self.uri_type, self.uri)
 
         return self
 

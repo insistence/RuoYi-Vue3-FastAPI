@@ -1,5 +1,3 @@
-"""认证中心复审问题的真实数据与协议流程回归测试。"""
-
 import base64
 from datetime import timedelta
 from http import HTTPStatus

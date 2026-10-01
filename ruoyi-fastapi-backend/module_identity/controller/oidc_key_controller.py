@@ -17,6 +17,7 @@ from module_admin.entity.vo.user_vo import CurrentUserModel
 from module_identity.entity.vo.oidc_key_vo import OidcKeyRotateModel, OidcKeyViewModel
 from module_identity.service.key_service import OidcKeyManagementService
 from module_identity.service.runtime_service import OidcRuntimeService
+from utils.oidc_util import OidcUtil
 from utils.response_util import ResponseUtil
 
 oidc_key_controller = APIRouterPro(
@@ -33,10 +34,12 @@ def _actor(current_user: CurrentUserModel) -> str:
     :raises ServiceException: 当前用户不可用
     """
 
-    value = getattr(getattr(current_user, 'user', None), 'user_name', None)
-    if not isinstance(value, str) or not value.strip():
-        raise ServiceException(message='当前操作者不可用')
-    return value[:64]
+    try:
+        return OidcUtil.actor_name(
+            getattr(getattr(current_user, 'user', None), 'user_name', None), error_message='当前操作者不可用'
+        )
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
 
 
 @oidc_key_controller.get(

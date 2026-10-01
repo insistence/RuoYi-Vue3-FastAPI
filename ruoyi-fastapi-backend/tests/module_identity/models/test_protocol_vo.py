@@ -1,5 +1,3 @@
-"""标准协议 DTO 约束测试。"""
-
 import pytest
 from pydantic import ValidationError
 

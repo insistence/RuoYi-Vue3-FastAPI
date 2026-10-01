@@ -21,7 +21,7 @@ class RateLimitExceeded(ValueError):
         :return: None
         """
 
-        super().__init__('rate limit exceeded')
+        super().__init__('请求过于频繁，请稍后重试')
         self.retry_after = max(1, retry_after)
 
 
@@ -61,7 +61,7 @@ return {value, ttl}
             result = await redis.eval(cls._SCRIPT, 1, key, window_seconds)
             count, ttl = int(result[0]), max(1, int(result[1]))
         except Exception as exc:
-            raise RateLimitUnavailable('rate limit backend unavailable') from exc
+            raise RateLimitUnavailable('认证限流服务暂不可用') from exc
         if count > limit:
             raise RateLimitExceeded(ttl)
 
@@ -117,7 +117,7 @@ class AfterCommitCoordinator:
         """
 
         if not callable(callback):
-            raise TypeError('after-commit callback must be callable')
+            raise TypeError('事务提交后回调必须为可调用对象')
         self._callbacks.append(callback)
 
     async def commit(self, db: AsyncSession) -> None:

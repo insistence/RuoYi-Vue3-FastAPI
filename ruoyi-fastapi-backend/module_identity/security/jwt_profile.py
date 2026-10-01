@@ -32,16 +32,16 @@ def _key_for_kid(verification_keys: object, kid: str) -> object:
     """
 
     if verification_keys is None:
-        raise JwtProfileError('signing key is required')
+        raise JwtProfileError('签名密钥不能为空')
     if isinstance(verification_keys, Mapping):
         try:
             return verification_keys[kid]
         except KeyError:
-            raise JwtProfileError('unknown signing key') from None
+            raise JwtProfileError('签名密钥不存在或不可用') from None
     if callable(verification_keys):
         value = verification_keys(kid)
         if value is None:
-            raise JwtProfileError('unknown signing key')
+            raise JwtProfileError('签名密钥不存在或不可用')
         return value
     return verification_keys
 
@@ -58,13 +58,13 @@ def _header(token: str) -> dict[str, Any]:
     try:
         value = jwt.get_unverified_header(token)
     except (PyJWTError, TypeError, ValueError) as exc:
-        raise JwtProfileError('invalid JWT encoding') from exc
+        raise JwtProfileError('JWT 编码格式无效') from exc
     if value.get('alg') not in ALLOWED_SIGNING_ALGORITHMS:
-        raise JwtProfileError('unsupported JWT algorithm')
+        raise JwtProfileError('不支持当前 JWT 签名算法')
     if any(name in value for name in ('crit', 'jku', 'jwk', 'x5u', 'x5c')):
-        raise JwtProfileError('unsupported JWT header parameter')
+        raise JwtProfileError('不支持当前 JWT 头部参数')
     if not isinstance(value.get('kid'), str) or not value['kid'].strip():
-        raise JwtProfileError('JWT kid is required')
+        raise JwtProfileError('JWT 缺少签名密钥标识 kid')
     return value
 
 
@@ -83,19 +83,19 @@ def _numeric_claims(payload: Mapping[str, Any], *, now: float, skew: float, veri
     for name in ('iat', 'exp', 'nbf', 'auth_time'):
         if name not in payload:
             if name == 'iat':
-                raise JwtProfileError('JWT iat claim is required')
+                raise JwtProfileError('JWT 缺少签发时间 iat')
             continue
         value = payload[name]
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-            raise JwtProfileError(f'JWT {name} claim is invalid')
+            raise JwtProfileError(f'JWT 声明 {name} 无效')
         if name == 'iat' and value > now + skew:
-            raise JwtProfileError('JWT issued-at is in the future')
+            raise JwtProfileError('JWT 签发时间晚于当前时间')
         if name == 'auth_time' and value > now + skew:
-            raise JwtProfileError('JWT auth_time is in the future')
+            raise JwtProfileError('JWT 认证时间 auth_time 晚于当前时间')
         if name == 'exp' and verify_exp and now - skew >= value:
-            raise JwtProfileError('JWT is expired')
+            raise JwtProfileError('JWT 已过期')
         if name == 'nbf' and now + skew < value:
-            raise JwtProfileError('JWT is not active yet')
+            raise JwtProfileError('JWT 尚未生效')
 
 
 def _validate_numeric_types(payload: Mapping[str, Any]) -> None:
@@ -113,7 +113,7 @@ def _validate_numeric_types(payload: Mapping[str, Any]) -> None:
             or not isinstance(payload[name], (int, float))
             or not math.isfinite(payload[name])
         ):
-            raise JwtProfileError(f'JWT {name} claim is invalid')
+            raise JwtProfileError(f'JWT 声明 {name} 无效')
 
 
 def _audience_matches(actual: object, expected: str | Sequence[str] | None) -> bool:
@@ -150,7 +150,7 @@ def _validate_string_claim(payload: Mapping[str, Any], name: str, required: bool
     if value is None and not required:
         return
     if not isinstance(value, str) or not value.strip():
-        raise JwtProfileError(f'JWT {name} claim is invalid')
+        raise JwtProfileError(f'JWT 声明 {name} 无效')
 
 
 def _validate_string_list(payload: Mapping[str, Any], name: str, required: bool = True) -> None:
@@ -168,7 +168,7 @@ def _validate_string_list(payload: Mapping[str, Any], name: str, required: bool 
     if value is None and not required:
         return
     if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
-        raise JwtProfileError(f'JWT {name} claim is invalid')
+        raise JwtProfileError(f'JWT 声明 {name} 无效')
 
 
 def _validate_audience_claim(payload: Mapping[str, Any]) -> None:
@@ -182,13 +182,13 @@ def _validate_audience_claim(payload: Mapping[str, Any]) -> None:
 
     aud = payload.get('aud')
     if not isinstance(aud, (str, list)):
-        raise JwtProfileError('JWT aud claim is invalid')
+        raise JwtProfileError('JWT 受众声明 aud 无效')
     if isinstance(aud, list) and (not aud or any(not isinstance(item, str) or not item for item in aud)):
-        raise JwtProfileError('JWT aud claim is invalid')
+        raise JwtProfileError('JWT 受众声明 aud 无效')
     if isinstance(aud, list) and len(set(aud)) != len(aud):
-        raise JwtProfileError('JWT aud claim is invalid')
+        raise JwtProfileError('JWT 受众声明 aud 无效')
     if isinstance(aud, str) and not aud:
-        raise JwtProfileError('JWT aud claim is invalid')
+        raise JwtProfileError('JWT 受众声明 aud 无效')
 
 
 def _validate_access_claims(payload: Mapping[str, Any]) -> None:
@@ -205,17 +205,17 @@ def _validate_access_claims(payload: Mapping[str, Any]) -> None:
     _validate_audience_claim(payload)
     _validate_string_claim(payload, 'gty')
     if payload.get('gty') not in {'authorization_code', 'refresh_token', 'client_credentials'}:
-        raise JwtProfileError('access token grant type is invalid')
+        raise JwtProfileError('访问令牌的授权类型无效')
     for name in ('exp', 'iat', 'nbf', 'jti'):
         if name not in payload:
-            raise JwtProfileError(f'access token required claim is missing: {name}')
+            raise JwtProfileError(f'访问令牌缺少必需声明：{name}')
     _validate_string_claim(payload, 'jti')
     _validate_access_authorization_context(payload)
     if payload['gty'] == 'client_credentials':
         if payload.get('sub') != f'client:{payload["client_id"]}' or any(
             name in payload for name in ('sid', 'ver', 'auth_time', 'acr', 'amr')
         ):
-            raise JwtProfileError('machine access token identity binding is invalid')
+            raise JwtProfileError('机器访问令牌的客户端身份绑定无效')
         return
     for name in ('sid', 'acr'):
         _validate_string_claim(payload, name)
@@ -226,9 +226,9 @@ def _validate_access_claims(payload: Mapping[str, Any]) -> None:
         or not isinstance(payload['ver'], int)
         or payload['ver'] < 1
     ):
-        raise JwtProfileError('access token version is invalid')
+        raise JwtProfileError('访问令牌的安全版本无效')
     if 'auth_time' not in payload:
-        raise JwtProfileError('access token auth_time is required')
+        raise JwtProfileError('访问令牌缺少认证时间 auth_time')
 
 
 def _validate_access_authorization_context(payload: Mapping[str, Any]) -> None:
@@ -242,23 +242,23 @@ def _validate_access_authorization_context(payload: Mapping[str, Any]) -> None:
 
     if 'client_policy_version' not in payload:
         if 'grant_id' in payload:
-            raise JwtProfileError('access token client policy version is required')
+            raise JwtProfileError('访问令牌缺少客户端策略版本')
         return
     version = payload['client_policy_version']
     if isinstance(version, bool) or not isinstance(version, int) or version < 1:
-        raise JwtProfileError('access token client policy version is invalid')
+        raise JwtProfileError('访问令牌的客户端策略版本无效')
     if payload['gty'] == 'client_credentials':
         if 'grant_id' in payload:
-            raise JwtProfileError('machine access token cannot carry a user grant')
+            raise JwtProfileError('机器访问令牌不得携带用户授权记录')
         return
     if 'grant_id' not in payload:
-        raise JwtProfileError('access token grant binding is required')
+        raise JwtProfileError('访问令牌缺少授权记录绑定')
     grant_id = payload['grant_id']
     if grant_id is None:
         if payload['gty'] != 'authorization_code' or 'offline_access' in payload['scope'].split():
-            raise JwtProfileError('offline access token requires a persisted grant')
+            raise JwtProfileError('离线访问令牌必须绑定已持久化的授权记录')
     elif not isinstance(grant_id, str) or not grant_id.strip():
-        raise JwtProfileError('access token grant binding is invalid')
+        raise JwtProfileError('访问令牌的授权记录绑定无效')
 
 
 def _validate_id_claims(payload: Mapping[str, Any]) -> None:
@@ -276,7 +276,7 @@ def _validate_id_claims(payload: Mapping[str, Any]) -> None:
     _validate_string_list(payload, 'amr')
     for name in ('exp', 'iat', 'auth_time'):
         if name not in payload:
-            raise JwtProfileError(f'ID token required claim is missing: {name}')
+            raise JwtProfileError(f'身份令牌缺少必需声明：{name}')
 
 
 def _validate_logout_claims(payload: Mapping[str, Any]) -> None:
@@ -295,14 +295,14 @@ def _validate_logout_claims(payload: Mapping[str, Any]) -> None:
         _validate_string_claim(payload, name, required=False)
     for name in ('iat', 'exp'):
         if name not in payload:
-            raise JwtProfileError(f'logout token required claim is missing: {name}')
+            raise JwtProfileError(f'退出通知令牌缺少必需声明：{name}')
     if not payload.get('sid') and not payload.get('sub'):
-        raise JwtProfileError('logout token requires sid or sub')
+        raise JwtProfileError('退出通知令牌必须包含 sid 或 sub')
     events = payload.get('events')
     if not isinstance(events, dict) or BACKCHANNEL_LOGOUT_EVENT not in events or events[BACKCHANNEL_LOGOUT_EVENT] != {}:
-        raise JwtProfileError('logout token events claim is invalid')
+        raise JwtProfileError('退出通知令牌的事件声明无效')
     if 'nonce' in payload:
-        raise JwtProfileError('Logout Token must not contain nonce')
+        raise JwtProfileError('退出通知令牌不得包含 nonce')
 
 
 def _validate_profile_claims(profile: str, payload: Mapping[str, Any]) -> None:
@@ -354,10 +354,10 @@ def _decode(
     """
 
     if clock_skew < 0:
-        raise JwtProfileError('clock_skew must not be negative')
+        raise JwtProfileError('时钟容差不得为负数')
     headers = _header(token)
     if headers.get('typ') != expected_type:
-        raise JwtProfileError('unexpected JWT type')
+        raise JwtProfileError('JWT 用途类型不匹配')
     key_source = verification_key if verification_key is not None else verification_keys
     key = _key_for_kid(key_source, str(headers['kid']))
     try:
@@ -374,9 +374,9 @@ def _decode(
             },
         )
     except PyJWTError as exc:
-        raise JwtProfileError('JWT signature or registered claim validation failed') from exc
+        raise JwtProfileError('JWT 签名或标准声明校验失败') from exc
     if payload.get('iss') != issuer or not _audience_matches(payload.get('aud'), audience):
-        raise JwtProfileError('JWT issuer or audience mismatch')
+        raise JwtProfileError('JWT 签发者或受众不匹配')
     _validate_profile_claims(profile, payload)
     now = datetime.now(timezone.utc).timestamp()
     _numeric_claims(payload, now=now, skew=clock_skew, verify_exp=not allow_expired_hint)
@@ -399,14 +399,14 @@ def _encode(claims: Mapping[str, Any], signing_key: RSAPrivateKey, kid: str, exp
 
     payload = dict(claims)
     if not isinstance(kid, str) or not kid.strip():
-        raise JwtProfileError('JWT kid is required')
+        raise JwtProfileError('JWT 缺少签名密钥标识 kid')
     _validate_profile_claims(profile, payload)
     _validate_numeric_types(payload)
     headers = {'alg': ACCESS_TOKEN_ALGORITHM, 'kid': kid, 'typ': expected_type}
     try:
         return jwt.encode(payload, signing_key, algorithm=ACCESS_TOKEN_ALGORITHM, headers=headers)
     except PyJWTError as exc:
-        raise JwtProfileError('JWT encoding failed') from exc
+        raise JwtProfileError('JWT 签发编码失败') from exc
 
 
 def encode_access_token(claims: Mapping[str, Any], signing_key: RSAPrivateKey, kid: str) -> str:
@@ -446,7 +446,7 @@ def decode_access_token(
     """
 
     if issuer is None:
-        raise JwtProfileError('issuer is required')
+        raise JwtProfileError('签发者地址 issuer 不能为空')
     return _decode(
         token,
         verification_keys,
@@ -499,7 +499,7 @@ def decode_id_token(
     """
 
     if issuer is None:
-        raise JwtProfileError('issuer is required')
+        raise JwtProfileError('签发者地址 issuer 不能为空')
     claims = _decode(
         token,
         verification_keys,
@@ -512,7 +512,7 @@ def decode_id_token(
         verification_key=verification_key,
     )
     if nonce is not None and claims.get('nonce') != nonce:
-        raise JwtProfileError('ID token nonce mismatch')
+        raise JwtProfileError('身份令牌的 nonce 与认证请求不匹配')
     return claims
 
 
@@ -588,7 +588,7 @@ def decode_logout_token(
     """
 
     if issuer is None:
-        raise JwtProfileError('issuer is required')
+        raise JwtProfileError('签发者地址 issuer 不能为空')
     return _decode(
         token,
         verification_keys,

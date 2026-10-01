@@ -1,5 +1,3 @@
-"""OIDC UserInfo Controller 测试。"""
-
 from types import SimpleNamespace
 from typing import Any
 

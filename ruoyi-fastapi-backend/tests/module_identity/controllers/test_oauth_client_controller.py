@@ -1,5 +1,3 @@
-"""OAuth Client 管理端 Controller 路由、权限和事务测试。"""
-
 from types import SimpleNamespace
 
 import pytest

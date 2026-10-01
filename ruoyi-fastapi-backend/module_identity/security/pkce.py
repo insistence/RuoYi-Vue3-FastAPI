@@ -1,8 +1,9 @@
-import base64
 import hashlib
 import hmac
 import re
 import secrets
+
+from utils.oidc_util import OidcUtil
 
 
 class PkceError(ValueError):
@@ -14,7 +15,6 @@ class PkceError(ValueError):
 _MIN_VERIFIER_LENGTH = 43
 _MAX_VERIFIER_LENGTH = 128
 _VERIFIER_RE = re.compile(r'^[A-Za-z0-9._~-]+$')
-_CHALLENGE_RE = re.compile(r'^[A-Za-z0-9_-]{43}$')
 
 
 def validate_code_verifier(code_verifier: str) -> str:
@@ -27,11 +27,11 @@ def validate_code_verifier(code_verifier: str) -> str:
     """
 
     if not isinstance(code_verifier, str):
-        raise PkceError('code_verifier must be a string')
+        raise PkceError('code_verifier 必须为字符串')
     if not _MIN_VERIFIER_LENGTH <= len(code_verifier) <= _MAX_VERIFIER_LENGTH:
-        raise PkceError('code_verifier must contain 43 to 128 characters')
+        raise PkceError('code_verifier 必须包含 43 至 128 个字符')
     if not _VERIFIER_RE.fullmatch(code_verifier):
-        raise PkceError('code_verifier contains characters outside the RFC 7636 set')
+        raise PkceError('code_verifier 包含 RFC 7636 不允许的字符')
     return code_verifier
 
 
@@ -44,7 +44,7 @@ def generate_code_verifier(length: int = 64) -> str:
     """
 
     if not _MIN_VERIFIER_LENGTH <= length <= _MAX_VERIFIER_LENGTH:
-        raise ValueError('code_verifier length must be between 43 and 128')
+        raise ValueError('code_verifier 长度必须为 43 至 128 个字符')
     # token_urlsafe 的结果可能略长；截断仍保留足够熵且满足 RFC 字符集
     return validate_code_verifier(secrets.token_urlsafe(length)[:length])
 
@@ -59,7 +59,7 @@ def generate_code_challenge(code_verifier: str) -> str:
 
     verifier = validate_code_verifier(code_verifier)
 
-    return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode('ascii')).digest()).rstrip(b'=').decode('ascii')
+    return OidcUtil.base64url_encode(hashlib.sha256(verifier.encode('ascii')).digest())
 
 
 def verify_code_challenge(code_verifier: str, code_challenge: str, method: str = 'S256') -> bool:
@@ -74,9 +74,9 @@ def verify_code_challenge(code_verifier: str, code_challenge: str, method: str =
     """
 
     if method != 'S256':
-        raise PkceError('only PKCE S256 is supported')
+        raise PkceError('仅支持 PKCE S256 算法')
     try:
-        if not isinstance(code_challenge, str) or not _CHALLENGE_RE.fullmatch(code_challenge):
+        if not OidcUtil.is_s256_challenge(code_challenge):
             return False
         expected = generate_code_challenge(code_verifier)
     except (PkceError, TypeError, UnicodeError):

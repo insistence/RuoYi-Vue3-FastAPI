@@ -1,5 +1,3 @@
-"""认证中心协议依赖测试。"""
-
 import time
 from types import SimpleNamespace
 from typing import Any

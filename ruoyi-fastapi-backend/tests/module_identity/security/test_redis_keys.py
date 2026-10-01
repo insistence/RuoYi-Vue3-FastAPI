@@ -1,6 +1,7 @@
 import pytest
 
 from module_identity.redis_keys import OidcRedisKey
+from utils.oidc_util import OidcUtil
 
 _SHA256_HEX_LENGTH = 64
 
@@ -19,16 +20,16 @@ def test_oidc_keys_are_isolated_from_legacy_access_token_namespace() -> None:
 
 def test_sensitive_identifiers_use_independent_32_byte_pepper() -> None:
     pepper = 'independent-pepper-value-' + 'x' * 8
-    digest = OidcRedisKey.hash_sensitive_identifier('user@example.com', pepper)
+    digest = OidcUtil.hash_sensitive_identifier('user@example.com', pepper)
 
     assert len(digest) == _SHA256_HEX_LENGTH
     assert digest in OidcRedisKey.login_user_rate_limit(digest)
     assert digest in OidcRedisKey.sso_cookie(digest)
 
     with pytest.raises(ValueError):
-        OidcRedisKey.hash_sensitive_identifier('user@example.com', 'short')
+        OidcUtil.hash_sensitive_identifier('user@example.com', 'short')
     with pytest.raises(TypeError):
-        OidcRedisKey.hash_sensitive_identifier('user@example.com', 123)  # type: ignore[arg-type]
+        OidcUtil.hash_sensitive_identifier('user@example.com', 123)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize('value', ['../escape', 'space value', 'a' * 129])

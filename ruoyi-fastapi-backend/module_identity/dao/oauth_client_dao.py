@@ -1,4 +1,3 @@
-import hashlib
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 
@@ -14,6 +13,7 @@ from module_identity.entity.do.oauth_resource_do import (
     SysOAuthScope,
 )
 from module_identity.entity.vo.oauth_client_vo import ClientPageQueryModel
+from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
 
 
@@ -270,7 +270,7 @@ class OAuthClientDao:
             select(SysOAuthClientUri).where(
                 SysOAuthClientUri.client_pk == client_pk,
                 SysOAuthClientUri.uri_type == uri_type,
-                SysOAuthClientUri.uri_hash == hashlib.sha256(uri.encode('utf-8')).hexdigest(),
+                SysOAuthClientUri.uri_hash == OidcUtil.sha256_digest(uri),
                 SysOAuthClientUri.uri == uri,
                 SysOAuthClientUri.status == '0',
             )
@@ -503,7 +503,7 @@ class OAuthClientDao:
                     client_pk=client_pk,
                     uri_type=uri_type,
                     uri=uri,
-                    uri_hash=hashlib.sha256(uri.encode('utf-8')).hexdigest(),
+                    uri_hash=OidcUtil.sha256_digest(uri),
                     is_default=int(index == 0),
                     status='0',
                     create_time=now,

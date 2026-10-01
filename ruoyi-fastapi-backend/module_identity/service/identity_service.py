@@ -19,6 +19,7 @@ from module_identity.dao.oauth_token_dao import OAuthTokenDao
 from module_identity.dao.sso_session_dao import SsoSessionDao
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.audit_service import AuditService
+from utils.oidc_util import OidcUtil
 from utils.pwd_util import PwdUtil
 from utils.time_util import TimezoneUtil
 
@@ -110,7 +111,7 @@ class CredentialAuthenticationError(Exception):
 
         self.reason = reason
         self.legacy_message = legacy_message
-        super().__init__(reason)
+        super().__init__(legacy_message)
 
 
 class CredentialAuthenticationService:
@@ -197,11 +198,11 @@ class CredentialAuthenticationService:
         """
 
         await cls._check_ip(client_ip, redis)
-        username_digest = cls._username_digest(user_name)
+        username_digest = OidcUtil.hash_sensitive_identifier(user_name, OidcConfig.oidc_token_hash_pepper)
         failure_key = OidcRedisKey.login_user_rate_limit(username_digest)
         lock_key = f'{failure_key}:lock'
         if await redis.get(lock_key):
-            raise CredentialAuthenticationError('account_locked', 'account_locked')
+            raise CredentialAuthenticationError('account_locked', '账号已锁定，请稍后再试')
         if captcha_enabled:
             await cls._check_oidc_captcha(redis, code, uuid)
 
@@ -210,9 +211,9 @@ class CredentialAuthenticationService:
         password_valid = cls._verify(password, stored_hash)
         if user_row is None or not password_valid:
             await cls._record_oidc_password_error(redis, failure_key, lock_key)
-            raise CredentialAuthenticationError('invalid_credentials', 'invalid_credentials')
+            raise CredentialAuthenticationError('invalid_credentials', '账号或密码错误')
         if user_row[0].status == '1':
-            raise CredentialAuthenticationError('user_disabled', 'user_disabled')
+            raise CredentialAuthenticationError('user_disabled', '用户已停用')
 
         await redis.delete(failure_key)
         await redis.delete(lock_key)
@@ -286,14 +287,14 @@ class CredentialAuthenticationService:
         """
 
         if not uuid:
-            raise CredentialAuthenticationError('captcha_missing', 'captcha_missing')
+            raise CredentialAuthenticationError('captcha_missing', '验证码已失效或不存在')
         key = f'{RedisInitKeyConfig.CAPTCHA_CODES.key}:{uuid}'
         value = await redis.eval(_CAPTCHA_CONSUME_SCRIPT, 1, key)
         if not value:
-            raise CredentialAuthenticationError('captcha_missing', 'captcha_missing')
+            raise CredentialAuthenticationError('captcha_missing', '验证码已失效或不存在')
         expected = value.decode('utf-8') if isinstance(value, bytes) else str(value)
         if code != expected:
-            raise CredentialAuthenticationError('captcha_invalid', 'captcha_invalid')
+            raise CredentialAuthenticationError('captcha_invalid', '验证码错误')
 
     @classmethod
     async def _record_legacy_password_error(cls, redis: Redis, user_name: str) -> None:
@@ -337,18 +338,7 @@ class CredentialAuthenticationService:
             str(int(_LOGIN_FAILURE_TTL.total_seconds())),
         )
         if int(result or 0) < 0:
-            raise CredentialAuthenticationError('account_locked', 'account_locked')
-
-    @staticmethod
-    def _username_digest(user_name: str) -> str:
-        """
-        使用 OIDC Token Pepper 摘要用户名
-
-        :param user_name: 用户名
-        :return: 用户名摘要
-        """
-
-        return OidcRedisKey.hash_sensitive_identifier(user_name, OidcConfig.oidc_token_hash_pepper)
+            raise CredentialAuthenticationError('account_locked', '账号已锁定，请稍后再试')
 
     @classmethod
     async def _password_policy(cls, redis: Redis, user: SysUser) -> tuple[bool, str | None]:
@@ -408,21 +398,6 @@ class ClaimService:
         }
     )
 
-    @staticmethod
-    def _scope_set(scopes: str | Iterable[str] | None) -> set[str]:
-        """
-        将空格分隔或集合形式的 Scope 规范化
-
-        :param scopes: 请求的 Scope 集合
-        :return: 规范化 Scope 集合
-        """
-
-        if scopes is None:
-            return set()
-        if isinstance(scopes, str):
-            return {item for item in scopes.split() if item}
-        return {item for item in scopes if isinstance(item, str) and item}
-
     @classmethod
     def _claim_set(cls, value: Any) -> set[str]:
         """
@@ -435,7 +410,7 @@ class ClaimService:
         if value is True:
             return set(cls.SCOPE_CLAIMS['openid'] | cls.SCOPE_CLAIMS['profile'])
         if isinstance(value, str):
-            return cls._scope_set(value)
+            return OidcUtil.scope_set(value)
         if isinstance(value, Mapping):
             value = value.get('claims', value.get('allowed_claims', []))
         if isinstance(value, Iterable) and not isinstance(value, (bytes, str, Mapping)):
@@ -457,12 +432,12 @@ class ClaimService:
                 value = policy[scope]
                 return set(cls.SCOPE_CLAIMS.get(scope, ())) if value is True else cls._claim_set(value)
             scopes = policy.get('scopes')
-            if scopes is not None and scope not in cls._scope_set(scopes):
+            if scopes is not None and scope not in OidcUtil.scope_set(scopes):
                 return set()
             if scopes is not None:
                 return set(cls.SCOPE_CLAIMS.get(scope, ()))
             return set()
-        allowed_scopes = cls._scope_set(policy)
+        allowed_scopes = OidcUtil.scope_set(policy)
 
         return set(cls.SCOPE_CLAIMS.get(scope, ())) if scope in allowed_scopes else set()
 
@@ -482,26 +457,11 @@ class ClaimService:
         :return: 可安全生成的 Claim 名称集合
         """
 
-        requested = cls._scope_set(requested_scopes)
+        requested = OidcUtil.scope_set(requested_scopes)
         client_claims = set().union(*(cls._client_claims_for_scope(scope, client_scope_policy) for scope in requested))
         resource_claims = cls._claim_set(resource_allowed_claims)
 
         return (client_claims & resource_claims) - cls.FORBIDDEN_CLAIMS
-
-    @staticmethod
-    def _read(user: Any, name: str, default: Any = None) -> Any:
-        """
-        从 ORM 用户对象或字典读取字段
-
-        :param user: SysUser ORM 记录或用户 Claim 字段映射
-        :param name: 字段名称
-        :param default: 字段缺省值
-        :return: 读取的字段值
-        """
-
-        if isinstance(user, Mapping):
-            return user.get(name, default)
-        return getattr(user, name, default)
 
     @classmethod
     def _safe_values(cls, user: Any, subject_id: str | None, roles: Any, department: Any) -> dict[str, Any]:
@@ -516,20 +476,27 @@ class ClaimService:
         """
 
         values = {
-            'sub': subject_id or cls._read(user, 'subject_id'),
-            'name': cls._read(user, 'name', cls._read(user, 'nick_name')),
-            'preferred_username': cls._read(user, 'preferred_username', cls._read(user, 'user_name')),
-            'picture': cls._read(user, 'picture', cls._read(user, 'avatar')),
-            'updated_at': cls._numeric_updated_at(cls._read(user, 'updated_at', cls._read(user, 'update_time'))),
-            'email': cls._read(user, 'email'),
-            'email_verified': cls._read(user, 'email_verified'),
-            'phone_number': cls._read(user, 'phone_number', cls._read(user, 'phonenumber')),
-            'phone_number_verified': cls._read(user, 'phone_number_verified'),
-            'roles': roles if roles is not None else cls._read(user, 'roles'),
+            'sub': subject_id or OidcUtil.read_field(user, 'subject_id'),
+            'name': OidcUtil.read_field(user, 'name', OidcUtil.read_field(user, 'nick_name')),
+            'preferred_username': OidcUtil.read_field(
+                user, 'preferred_username', OidcUtil.read_field(user, 'user_name')
+            ),
+            'picture': OidcUtil.read_field(user, 'picture', OidcUtil.read_field(user, 'avatar')),
+            'updated_at': OidcUtil.claim_numeric_date(
+                OidcUtil.read_field(user, 'updated_at', OidcUtil.read_field(user, 'update_time'))
+            ),
+            'email': OidcUtil.read_field(user, 'email'),
+            'email_verified': OidcUtil.read_field(user, 'email_verified'),
+            'phone_number': OidcUtil.read_field(user, 'phone_number', OidcUtil.read_field(user, 'phonenumber')),
+            'phone_number_verified': OidcUtil.read_field(user, 'phone_number_verified'),
+            'roles': roles if roles is not None else OidcUtil.read_field(user, 'roles'),
         }
-        dept = department if department is not None else cls._read(user, 'dept')
+        dept = department if department is not None else OidcUtil.read_field(user, 'dept')
         if dept is None:
-            dept = {'dept_id': cls._read(user, 'dept_id'), 'dept_name': cls._read(user, 'dept_name')}
+            dept = {
+                'dept_id': OidcUtil.read_field(user, 'dept_id'),
+                'dept_name': OidcUtil.read_field(user, 'dept_name'),
+            }
         if isinstance(dept, Mapping):
             values['dept_id'] = dept.get('dept_id')
             values['dept_name'] = dept.get('dept_name')
@@ -537,21 +504,6 @@ class ClaimService:
             values['dept_id'] = getattr(dept, 'dept_id', None)
             values['dept_name'] = getattr(dept, 'dept_name', None)
         return values
-
-    @staticmethod
-    def _numeric_updated_at(value: Any) -> int | float | None:
-        """
-        将用户更新时间转换为 NumericDate
-
-        :param value: 用户更新时间
-        :return: NumericDate 时间戳或 None
-        """
-
-        if value is None or isinstance(value, (int, float)):
-            return value
-        timestamp = getattr(value, 'timestamp', None)
-
-        return int(timestamp()) if callable(timestamp) else None
 
     @classmethod
     def build_claims(
@@ -578,9 +530,9 @@ class ClaimService:
         :return: 最小 OIDC Claim 映射
         """
 
-        requested = cls._scope_set(requested_scopes)
+        requested = OidcUtil.scope_set(requested_scopes)
         allowed = cls.effective_claims(requested, client_scope_policy, resource_allowed_claims)
-        stable_subject = subject_id or cls._read(user, 'subject_id')
+        stable_subject = subject_id or OidcUtil.read_field(user, 'subject_id')
         if 'openid' in requested:
             if not isinstance(stable_subject, str) or not stable_subject.strip():
                 raise OAuthProtocolException('server_error', 'User identity mapping is unavailable', 500)
@@ -747,7 +699,7 @@ class IdentitySubjectService:
         """
 
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
-            raise ValueError('identity_user_id must be a positive integer')
+            raise ValueError('身份用户编号 identity_user_id 必须为正整数')
         return await IdentitySubjectDao.create_for_user(db, user_id, create_by, subject_id)
 
     @classmethod
@@ -765,7 +717,7 @@ class IdentitySubjectService:
         """
 
         if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id <= 0:
-            raise ValueError('identity_user_id must be a positive integer')
+            raise ValueError('身份用户编号 identity_user_id 必须为正整数')
         try:
             return await IdentitySubjectDao.create_for_user(db, user_id, create_by=create_by)
         except IntegrityError:
@@ -793,7 +745,7 @@ class IdentitySubjectService:
         if user_ids is not None:
             values = list(user_ids)
             if any(not isinstance(item, int) or isinstance(item, bool) or item <= 0 for item in values):
-                raise ValueError('identity_user_id must be a positive integer')
+                raise ValueError('身份用户编号 identity_user_id 必须为正整数')
         return await IdentitySubjectDao.backfill_for_users(
             db, await IdentitySubjectDao.list_missing_user_ids(db, user_ids), create_by
         )
@@ -886,39 +838,6 @@ class IdentitySecurityEventService:
     _MAX_BATCH_USERS = 10_000
     _MAX_SID_LENGTH = 36
 
-    @staticmethod
-    def _utc_datetime(value: datetime | None) -> datetime:
-        """
-        返回项目使用的带时区的 UTC 时间
-
-        :param value: 可选的事件时间
-        :return: 带时区的 UTC 时间；未提供时返回当前时刻
-        """
-
-        if value is None:
-            return TimezoneUtil.utc_now()
-        if not isinstance(value, datetime):
-            raise IdentitySecurityEventError('now must be a datetime')
-        return TimezoneUtil.to_utc(value)
-
-    @classmethod
-    def _user_ids(cls, values: Iterable[int]) -> tuple[int, ...]:
-        """
-        校验、去重并排序用户 ID，确保批量锁顺序稳定
-
-        :param values: 待校验的用户 ID 可迭代集合
-        :return: 排序去重后的用户 ID 元组
-        """
-
-        if isinstance(values, (str, bytes)):
-            raise IdentitySecurityEventError('user_ids must be integers')
-        result = tuple(sorted(set(values)))
-        if not result or len(result) > cls._MAX_BATCH_USERS:
-            raise IdentitySecurityEventError('user_ids count is invalid')
-        if any(not isinstance(item, int) or isinstance(item, bool) or item <= 0 for item in result):
-            raise IdentitySecurityEventError('user_ids must be positive integers')
-        return result
-
     @classmethod
     async def handle_user_event(
         cls,
@@ -980,19 +899,27 @@ class IdentitySecurityEventService:
         :raises IdentitySecurityEventError: 事件、用户或主体映射不完整
         """
 
-        ids = cls._user_ids(user_ids)
+        try:
+            ids = OidcUtil.normalize_user_ids(user_ids, max_size=cls._MAX_BATCH_USERS)
+        except ValueError as exc:
+            raise IdentitySecurityEventError(str(exc)) from exc
         if event not in cls._EVENTS:
-            raise IdentitySecurityEventError('identity security event is invalid')
-        if exclude_sid is not None and (event != 'password_changed' or not cls._valid_sid(exclude_sid)):
-            raise IdentitySecurityEventError('exclude_sid is invalid for this event')
+            raise IdentitySecurityEventError('身份安全事件无效')
+        if exclude_sid is not None and (
+            event != 'password_changed'
+            or not OidcUtil.is_trimmed_identifier(exclude_sid, max_length=cls._MAX_SID_LENGTH)
+        ):
+            raise IdentitySecurityEventError('当前安全事件不允许指定保留会话 exclude_sid')
         if not isinstance(revoke_sso_on_claim_change, bool):
-            raise IdentitySecurityEventError('revoke_sso_on_claim_change must be boolean')
-        current = cls._utc_datetime(now)
+            raise IdentitySecurityEventError('身份声明变更时撤销会话的配置必须为布尔值')
+        if now is not None and not isinstance(now, datetime):
+            raise IdentitySecurityEventError('当前时间必须为 datetime 对象')
+        current = TimezoneUtil.to_optional_utc(now) or TimezoneUtil.utc_now()
         actor_value = actor.strip()[:64] if isinstance(actor, str) and actor.strip() else 'identity-security-event'
 
         subjects = list(await IdentitySubjectDao.list_for_users_for_update(db, ids))
         if {row.user_id for row in subjects} != set(ids):
-            raise IdentitySecurityEventError('identity subject mapping is missing')
+            raise IdentitySecurityEventError('缺少用户主体映射')
         await IdentitySubjectDao.increment_auth_versions(db, ids, actor_value, current)
         revoked_refresh_tokens = await OAuthTokenDao.revoke_for_users(db, ids, reason=event, now=current)
 
@@ -1044,9 +971,9 @@ class IdentitySecurityEventService:
         """
 
         if not isinstance(role_id, int) or isinstance(role_id, bool) or role_id <= 0:
-            raise IdentitySecurityEventError('role_id must be a positive integer')
+            raise IdentitySecurityEventError('角色编号 role_id 必须为正整数')
         if event not in {'role_claim_changed', 'role_disabled', 'role_deleted'}:
-            raise IdentitySecurityEventError('role security event is invalid')
+            raise IdentitySecurityEventError('角色安全事件无效')
         user_ids = tuple(sorted(set(await IdentityUserDao.list_user_ids_by_role_id(db, role_id))))
         if not user_ids:
             return IdentitySecurityEventResult((), 0, 0)
@@ -1057,19 +984,4 @@ class IdentitySecurityEventService:
             actor=actor,
             revoke_sso_on_claim_change=revoke_sso_on_claim_change,
             now=now,
-        )
-
-    @staticmethod
-    def _valid_sid(value: str) -> bool:
-        """
-        校验可安全写入查询条件的 Session ID
-
-        :param value: 待校验的 Session ID
-        :return: Session ID 是否有效
-        """
-
-        return (
-            isinstance(value, str)
-            and 1 <= len(value) <= IdentitySecurityEventService._MAX_SID_LENGTH
-            and value.strip() == value
         )

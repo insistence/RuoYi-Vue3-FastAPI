@@ -27,6 +27,7 @@ from module_identity.entity.vo.oauth_client_vo import (
 from module_identity.service.oauth_management_service import OAuthClientManagementService
 from module_identity.service.runtime_service import OidcRuntimeService
 from utils.log_util import logger
+from utils.oidc_util import OidcUtil
 from utils.response_util import ResponseUtil
 
 oauth_client_controller = APIRouterPro(
@@ -44,34 +45,12 @@ def _actor(current_user: CurrentUserModel) -> str:
     :raises ServiceException: 当前用户不可用
     """
 
-    value = getattr(getattr(current_user, 'user', None), 'user_name', None)
-    if not isinstance(value, str) or not value.strip():
-        raise ServiceException(message='当前操作者不可用')
-    return value[:64]
-
-
-def _split_batch(value: str, field_name: str) -> list[str]:
-    """
-    校验并拆分批量操作参数
-
-    :param value: 逗号分隔的批量参数
-    :param field_name: 参数字段名称
-    :return: 去除空白后的参数列表
-    :raises ServiceException: 参数为空、超出数量限制、包含非法字符或重复值
-    """
-
-    items = value.split(',') if isinstance(value, str) else []
-    if not items or len(items) > _MAX_BATCH_SIZE:
-        raise ServiceException(message=f'{field_name} 参数无效')
-    result: list[str] = []
-    for raw_item in items:
-        item = raw_item.strip()
-        if not item or '%' in item or '/' in item or '\\' in item or any(char.isspace() for char in item):
-            raise ServiceException(message=f'{field_name} 参数无效')
-        if item in result:
-            raise ServiceException(message=f'{field_name} 参数重复')
-        result.append(item)
-    return result
+    try:
+        return OidcUtil.actor_name(
+            getattr(getattr(current_user, 'user', None), 'user_name', None), error_message='当前操作者不可用'
+        )
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
 
 
 @oauth_client_controller.get(
@@ -87,7 +66,7 @@ async def get_system_oauth_client_list(
 ) -> Response:
     rows = await OAuthClientManagementService.list_clients(query_db, client_query)
     total = await OAuthClientManagementService.count_clients(query_db, client_query)
-    logger.info('OAuth Client 列表查询成功')
+    logger.info('OAuth 客户端列表查询成功')
 
     return ResponseUtil.success(rows=rows, dict_content={'total': total})
 
@@ -114,7 +93,7 @@ async def query_system_oauth_client(
     dependencies=[UserInterfaceAuthDependency('system:oauthClient:add')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_CREATE, preset=ApiRateLimitPreset.USER_COMMON_MUTATION)
-@Log(title='OAuth Client管理', business_type=BusinessType.INSERT)
+@Log(title='OAuth 客户端管理', business_type=BusinessType.INSERT)
 async def add_system_oauth_client(
     request: Request,
     payload: ClientCreateModel,
@@ -127,7 +106,7 @@ async def add_system_oauth_client(
         _actor(current_user),
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
-    logger.info('OAuth Client 创建成功')
+    logger.info('OAuth 客户端创建成功')
 
     return ResponseUtil.success(data=result)
 
@@ -140,7 +119,7 @@ async def add_system_oauth_client(
     dependencies=[UserInterfaceAuthDependency('system:oauthClient:edit')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_UPDATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
-@Log(title='OAuth Client管理', business_type=BusinessType.UPDATE)
+@Log(title='OAuth 客户端管理', business_type=BusinessType.UPDATE)
 async def edit_system_oauth_client(
     request: Request,
     payload: ClientUpdateModel,
@@ -165,7 +144,7 @@ async def edit_system_oauth_client(
     dependencies=[UserInterfaceAuthDependency('system:oauthClient:remove')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_DISABLE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
-@Log(title='OAuth Client管理', business_type=BusinessType.DELETE)
+@Log(title='OAuth 客户端管理', business_type=BusinessType.DELETE)
 async def delete_system_oauth_clients(
     request: Request,
     client_ids: Annotated[str, Path(min_length=1, max_length=6500)],
@@ -173,14 +152,18 @@ async def delete_system_oauth_clients(
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
     actor = _actor(current_user)
+    try:
+        batch_ids = OidcUtil.split_batch(client_ids, 'client_ids', max_size=_MAX_BATCH_SIZE)
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
     await OAuthClientManagementService.disable_clients(
         query_db,
-        _split_batch(client_ids, 'client_ids'),
+        batch_ids,
         actor,
         after_commit=OidcRuntimeService.cors_snapshot_callback(request.app),
     )
 
-    return ResponseUtil.success(msg='OAuth Client 已停用')
+    return ResponseUtil.success(msg='OAuth 客户端已停用')
 
 
 @oauth_client_controller.put(
@@ -191,7 +174,7 @@ async def delete_system_oauth_clients(
     dependencies=[UserInterfaceAuthDependency('system:oauthClient:edit')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_STATUS, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
-@Log(title='OAuth Client管理', business_type=BusinessType.UPDATE)
+@Log(title='OAuth 客户端管理', business_type=BusinessType.UPDATE)
 async def change_system_oauth_client_status(
     request: Request,
     payload: ClientStatusModel,
@@ -218,7 +201,7 @@ async def change_system_oauth_client_status(
 @ApiRateLimit(
     namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_SECRET_ROTATE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION
 )
-@Log(title='OAuth Client密钥管理', business_type=BusinessType.UPDATE)
+@Log(title='OAuth 客户端密钥管理', business_type=BusinessType.UPDATE)
 async def rotate_system_oauth_client_secret(
     request: Request,
     client_id: Annotated[str, Path(min_length=1, max_length=64)],
@@ -249,7 +232,7 @@ async def rotate_system_oauth_client_secret(
 @ApiRateLimit(
     namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_SECRET_REVOKE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION
 )
-@Log(title='OAuth Client密钥管理', business_type=BusinessType.DELETE)
+@Log(title='OAuth 客户端密钥管理', business_type=BusinessType.DELETE)
 async def revoke_system_oauth_client_secret(
     request: Request,
     client_id: Annotated[str, Path(min_length=1, max_length=64)],
@@ -276,7 +259,7 @@ async def revoke_system_oauth_client_secret(
     dependencies=[UserInterfaceAuthDependency('system:oauthClient:edit')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_URI_ADD, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
-@Log(title='OAuth Client管理', business_type=BusinessType.INSERT)
+@Log(title='OAuth 客户端管理', business_type=BusinessType.INSERT)
 async def add_system_oauth_client_uri(
     request: Request,
     client_id: Annotated[str, Path(min_length=1, max_length=64)],
@@ -303,7 +286,7 @@ async def add_system_oauth_client_uri(
     dependencies=[UserInterfaceAuthDependency('system:oauthClient:edit')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_CLIENT_URI_REMOVE, preset=ApiRateLimitPreset.USER_SECURITY_MUTATION)
-@Log(title='OAuth Client管理', business_type=BusinessType.DELETE)
+@Log(title='OAuth 客户端管理', business_type=BusinessType.DELETE)
 async def delete_system_oauth_client_uri(
     request: Request,
     client_id: Annotated[str, Path(min_length=1, max_length=64)],

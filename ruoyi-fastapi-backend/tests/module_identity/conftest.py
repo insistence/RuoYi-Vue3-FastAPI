@@ -1,5 +1,3 @@
-"""统一认证数据层测试的最小数据库环境。"""
-
 import json
 import os
 from unittest.mock import AsyncMock

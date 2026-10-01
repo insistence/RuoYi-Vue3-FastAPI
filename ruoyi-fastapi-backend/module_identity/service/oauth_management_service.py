@@ -1,6 +1,4 @@
-import hashlib
 import ipaddress
-import secrets
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -37,9 +35,10 @@ from module_identity.entity.vo.oauth_resource_vo import (
     ScopePageQueryModel,
     ScopeStatusModel,
 )
-from module_identity.security.client_auth import generate_client_secret, hash_client_secret
+from module_identity.security.client_auth import hash_client_secret
 from module_identity.security.uri_validator import is_safe_backchannel_uri
 from module_identity.service.audit_service import AuditService
+from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
 
 T = TypeVar('T')
@@ -102,7 +101,7 @@ class OAuthManagementBaseService:
         except Exception as error:
             await db.rollback()
             if isinstance(error, IntegrityError):
-                raise OAuthClientManagementError('OAuth resource or binding already exists') from error
+                raise OAuthClientManagementError('OAuth 资源或绑定关系已存在') from error
             if isinstance(error, ServiceException) and any(
                 field in str(error).lower() for field in ('secret_hash', 'secret_key', 'token_hash', 'client_secret')
             ):
@@ -196,7 +195,7 @@ class OAuthManagementBaseService:
         if value is None:
             return TimezoneUtil.utc_now()
         if not isinstance(value, datetime):
-            raise OAuthClientManagementError('now must be a datetime')
+            raise OAuthClientManagementError('当前时间必须为 datetime 对象')
         return TimezoneUtil.to_utc(value)
 
     @staticmethod
@@ -209,9 +208,10 @@ class OAuthManagementBaseService:
         :raises OAuthClientManagementError: actor 为空或不是字符串时抛出
         """
 
-        if not isinstance(actor, str) or not actor.strip():
-            raise OAuthClientManagementError('actor is required')
-        return actor[:64]
+        try:
+            return OidcUtil.actor_name(actor)
+        except ValueError as exc:
+            raise OAuthClientManagementError(str(exc)) from exc
 
     @classmethod
     def _validate_client_ttls(cls, payload: ClientCreateModel) -> None:
@@ -228,15 +228,15 @@ class OAuthManagementBaseService:
         refresh_absolute = payload.refresh_token_absolute_seconds or OidcConfig.oidc_refresh_token_absolute_seconds
         values = (access, refresh_idle, refresh_absolute, OidcConfig.oidc_max_access_token_ttl_seconds)
         if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in values):
-            raise OAuthClientManagementError('Client token TTL policy is invalid')
+            raise OAuthClientManagementError('客户端令牌有效期配置无效')
         if access > OidcConfig.oidc_max_access_token_ttl_seconds:
-            raise OAuthClientManagementError('Client access token TTL exceeds platform maximum')
+            raise OAuthClientManagementError('客户端访问令牌有效期超过平台上限')
         if refresh_idle > OidcConfig.oidc_refresh_token_idle_seconds:
-            raise OAuthClientManagementError('Client refresh idle TTL exceeds platform idle maximum')
+            raise OAuthClientManagementError('客户端刷新令牌闲置有效期超过平台上限')
         if refresh_absolute > OidcConfig.oidc_refresh_token_absolute_seconds:
-            raise OAuthClientManagementError('Client refresh absolute TTL exceeds platform maximum')
+            raise OAuthClientManagementError('客户端刷新令牌绝对有效期超过平台上限')
         if refresh_idle > refresh_absolute:
-            raise OAuthClientManagementError('Client refresh idle TTL exceeds absolute TTL')
+            raise OAuthClientManagementError('客户端刷新令牌闲置有效期不能超过绝对有效期')
 
     @classmethod
     def _validate_resource_ttls(cls, payload: ResourceCreateModel) -> None:
@@ -250,19 +250,9 @@ class OAuthManagementBaseService:
 
         value = payload.access_token_ttl_seconds or OidcConfig.oidc_access_token_ttl_seconds
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-            raise OAuthClientManagementError('Resource access token TTL policy is invalid')
+            raise OAuthClientManagementError('资源访问令牌有效期配置无效')
         if value > OidcConfig.oidc_max_access_token_ttl_seconds:
-            raise OAuthClientManagementError('Resource access token TTL exceeds platform maximum')
-
-    @staticmethod
-    def _client_id() -> str:
-        """
-        生成客户端标识
-
-        :return: 带 cli_ 前缀的随机 Client 标识
-        """
-
-        return f'cli_{secrets.token_urlsafe(24)}'
+            raise OAuthClientManagementError('资源访问令牌有效期超过平台上限')
 
     @classmethod
     def _validate_uri(cls, uri_type: str, uri: str) -> str:
@@ -282,27 +272,18 @@ class OAuthManagementBaseService:
         if uri_type == 'backchannel_logout':
             parsed = urlsplit(value)
             if parsed.scheme != 'https':
-                raise OAuthClientManagementError('backchannel_logout URI must use HTTPS')
+                raise OAuthClientManagementError('后端退出通知地址必须使用 HTTPS')
             try:
                 address = ipaddress.ip_address(parsed.hostname or '')
             except ValueError:
                 address = None
-            if address is not None and (
-                address.is_loopback
-                or address.is_private
-                or address.is_link_local
-                or address.is_multicast
-                or address.is_unspecified
-                or address.is_reserved
-            ):
-                raise OAuthClientManagementError(
-                    'backchannel_logout URI must not use loopback/private/reserved IP literal'
-                )
+            if address is not None and not OidcUtil.is_public_ip(parsed.hostname or ''):
+                raise OAuthClientManagementError('后端退出通知地址不得使用回环、私网或保留 IP 地址')
         if uri_type == 'redirect':
             query_keys = {key for key, _ in parse_qsl(urlsplit(value).query, keep_blank_values=True)}
             forbidden = query_keys & cls._OAUTH_RESPONSE_QUERY_KEYS
             if forbidden:
-                raise OAuthClientManagementError('redirect URI contains reserved OAuth response parameter')
+                raise OAuthClientManagementError('回调地址包含 OAuth 响应保留参数')
         return value
 
     @classmethod
@@ -319,7 +300,7 @@ class OAuthManagementBaseService:
         for uri_type, field_name in cls._URI_TYPES:
             uris = list(getattr(payload, field_name))
             if len(set(uris)) != len(uris):
-                raise OAuthClientManagementError(f'{field_name} must not contain duplicates')
+                raise OAuthClientManagementError(f'{field_name} 不得包含重复项')
             values[uri_type] = [cls._validate_uri(uri_type, uri) for uri in uris]
         return values
 
@@ -337,28 +318,8 @@ class OAuthManagementBaseService:
         backchannels = values.get('backchannel_logout', [])
         for uri in backchannels:
             if not await is_safe_backchannel_uri(uri):
-                raise OAuthClientManagementError('backchannel_logout URI DNS target is not public')
+                raise OAuthClientManagementError('后端退出通知地址的 DNS 解析结果不是公网地址')
         return values
-
-    @staticmethod
-    def _unique_codes(values: Iterable[str], field_name: str) -> list[str]:
-        """
-        校验 Scope 或 Resource 编码并去重
-
-        :param values: Scope 或 Resource 编码列表
-        :param field_name: 字段名称
-        :return: 去重后的编码列表
-        :raises OAuthClientManagementError: 编码为空、包含空白或重复时抛出
-        """
-
-        result: list[str] = []
-        for value in values:
-            if not isinstance(value, str) or not value.strip() or value.strip() != value:
-                raise OAuthClientManagementError(f'{field_name} contains invalid code')
-            if value in result:
-                raise OAuthClientManagementError(f'{field_name} must not contain duplicates')
-            result.append(value)
-        return result
 
     @classmethod
     async def _load_bindings(
@@ -373,27 +334,32 @@ class OAuthManagementBaseService:
         :raises OAuthClientManagementError: Scope 或 Resource 不存在、未启用或绑定关系不合法时抛出
         """
 
-        scope_codes = cls._unique_codes(payload.scope_codes, 'scope_codes')
-        resource_ids = cls._unique_codes(payload.resource_ids, 'resource_ids')
-        pre_authorized = set(cls._unique_codes(payload.pre_authorized_scope_codes, 'pre_authorized_scope_codes'))
+        try:
+            scope_codes = OidcUtil.unique_codes(payload.scope_codes, 'scope_codes')
+            resource_ids = OidcUtil.unique_codes(payload.resource_ids, 'resource_ids')
+            pre_authorized = set(
+                OidcUtil.unique_codes(payload.pre_authorized_scope_codes, 'pre_authorized_scope_codes')
+            )
+        except ValueError as exc:
+            raise OAuthClientManagementError(str(exc)) from exc
         if not pre_authorized.issubset(scope_codes):
-            raise OAuthClientManagementError('pre_authorized_scope_codes must be a subset of scope_codes')
+            raise OAuthClientManagementError('预授权权限必须包含在客户端允许申请的权限范围内')
 
         scopes: list[SysOAuthScope] = []
         if scope_codes:
             scopes = list(await OAuthClientDao.get_active_scopes_by_codes(db, scope_codes))
             if {scope.scope_code for scope in scopes} != set(scope_codes):
-                raise OAuthClientManagementError('scope_codes contains an inactive or unknown scope')
+                raise OAuthClientManagementError('权限列表包含未启用或不存在的权限范围')
 
         resources: list[SysOAuthResource] = []
         if resource_ids:
             resources = list(await OAuthClientDao.get_active_resources_by_ids(db, resource_ids))
             if {resource.resource_id for resource in resources} != set(resource_ids):
-                raise OAuthClientManagementError('resource_ids contains an inactive or unknown resource')
+                raise OAuthClientManagementError('资源列表包含未启用或不存在的资源')
 
         resource_pks = {resource.resource_pk for resource in resources}
         if any(scope.scope_type == 'resource' and scope.resource_pk not in resource_pks for scope in scopes):
-            raise OAuthClientManagementError('resource scope must bind an authorized resource')
+            raise OAuthClientManagementError('资源权限必须绑定客户端已获准访问的资源')
         return scopes, resources
 
     @classmethod
@@ -500,7 +466,7 @@ class OAuthManagementBaseService:
         :return: 已 flush 的 ClientSecretResponseModel
         """
 
-        plaintext = generate_client_secret()
+        plaintext = OidcUtil.generate_client_secret()
         secret = SysOAuthClientSecret(
             secret_id=str(uuid4()),
             client_pk=client.client_pk,
@@ -517,32 +483,6 @@ class OAuthManagementBaseService:
         return cls._secret_response(client.client_id, secret, plaintext)
 
     @classmethod
-    def _validate_audience(cls, audience: str) -> str:
-        """
-        校验 Resource audience URI
-
-        :param audience: Resource audience
-        :return: 校验后的 Resource audience URI
-        :raises OAuthClientManagementError: audience 不是无用户信息的绝对 HTTPS URI 时抛出
-        """
-
-        if not isinstance(audience, str) or not audience or len(audience) > cls._MAX_AUDIENCE_LENGTH:
-            raise OAuthClientManagementError('audience must be a non-empty URI')
-        parsed = urlsplit(audience)
-        if parsed.scheme != 'https' or not parsed.netloc or parsed.fragment:
-            raise OAuthClientManagementError('audience must be an absolute HTTPS URI without fragment')
-        if parsed.username is not None or parsed.password is not None:
-            raise OAuthClientManagementError('audience must not contain userinfo')
-        try:
-            hostname = parsed.hostname
-            _ = parsed.port
-        except ValueError as exc:
-            raise OAuthClientManagementError('audience host or port is invalid') from exc
-        if not hostname:
-            raise OAuthClientManagementError('audience must contain a host')
-        return audience
-
-    @classmethod
     def _validate_claims(cls, values: Iterable[str], field_name: str = 'claims') -> list[str]:
         """
         校验 Resource Claim 白名单
@@ -554,15 +494,15 @@ class OAuthManagementBaseService:
         """
 
         if not isinstance(values, list) or len(values) > cls._MAX_CLAIMS:
-            raise OAuthClientManagementError(f'{field_name} must be a list with at most 64 items')
+            raise OAuthClientManagementError(f'{field_name} 必须为列表，且最多包含 64 项')
         result: list[str] = []
         for value in values:
             if not isinstance(value, str) or not value or len(value) > cls._MAX_CLAIM_NAME_LENGTH:
-                raise OAuthClientManagementError(f'{field_name} contains an invalid claim')
+                raise OAuthClientManagementError(f'{field_name} 包含无效的声明')
             if value not in cls._ALLOWED_CLAIMS:
-                raise OAuthClientManagementError(f'{field_name} contains a disallowed claim')
+                raise OAuthClientManagementError(f'{field_name} 包含不允许发布的声明')
             if value in result:
-                raise OAuthClientManagementError(f'{field_name} must not contain duplicates')
+                raise OAuthClientManagementError(f'{field_name} 不得包含重复项')
             result.append(value)
         return result
 
@@ -599,10 +539,10 @@ class OAuthManagementBaseService:
         if client_id is None:
             return None
         if not isinstance(client_id, str) or not client_id or len(client_id) > cls._MAX_CLIENT_ID_LENGTH:
-            raise OAuthClientManagementError('introspection_client_id is invalid')
+            raise OAuthClientManagementError('内省客户端标识 introspection_client_id 无效')
         client = await OAuthClientDao.find_active_introspection_client(db, client_id)
         if client is None:
-            raise OAuthClientManagementError('introspection client must be an active confidential client')
+            raise OAuthClientManagementError('内省客户端必须是已启用的机密客户端')
         return client
 
     @staticmethod
@@ -941,12 +881,12 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         """
 
         if not isinstance(payload, ClientCreateModel) or isinstance(payload, ClientUpdateModel):
-            raise OAuthClientManagementError('payload must be ClientCreateModel')
+            raise OAuthClientManagementError('客户端创建参数必须为 ClientCreateModel')
         actor_value, current = cls._actor(actor), cls._now(now)
         cls._validate_client_ttls(payload)
         scopes, resources = await cls._load_bindings(db, payload)
         client = SysOAuthClient(
-            client_id=cls._client_id(),
+            client_id=OidcUtil.generate_client_id(),
             subject_type='public',
             policy_version=1,
             status='0',
@@ -983,16 +923,16 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         """
 
         if not isinstance(payload, ClientUpdateModel):
-            raise OAuthClientManagementError('payload must be ClientUpdateModel')
+            raise OAuthClientManagementError('客户端更新参数必须为 ClientUpdateModel')
         actor_value, current = cls._actor(actor), cls._now(now)
         cls._validate_client_ttls(payload)
         client = await OAuthClientDao.get_by_client_id(db, payload.client_id, active_only=False, for_update=True)
         if client is None:
-            raise OAuthClientManagementError('client not found')
+            raise OAuthClientManagementError('客户端不存在')
         if client.client_type != payload.client_type:
-            raise OAuthClientManagementError('client_type is immutable')
+            raise OAuthClientManagementError('客户端类型不可修改')
         if client.client_type == 'public' and payload.token_endpoint_auth_method != 'none':
-            raise OAuthClientManagementError('public client cannot use a secret authentication method')
+            raise OAuthClientManagementError('公开客户端不能使用客户端密钥认证')
         current_view = await cls.detail(db, client.client_id)
         policy_changed = cls._client_policy_changed(current_view, payload)
         scopes, resources = await cls._load_bindings(db, payload)
@@ -1067,7 +1007,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
 
         detail_rows = await OAuthClientDao.get_client_detail_rows(db, client_id)
         if detail_rows is None:
-            raise OAuthClientManagementError('client not found')
+            raise OAuthClientManagementError('客户端不存在')
         client, scope_rows, resource_ids, uri_rows = detail_rows
         bindings = await OAuthClientDao.list_scope_bindings(db, client.client_pk)
         allowed_role_keys = sorted(
@@ -1142,13 +1082,13 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         actor_value, current = cls._actor(actor), cls._now(now)
         client = await OAuthClientDao.get_by_client_id(db, client_id, active_only=False, for_update=True)
         if client is None:
-            raise OAuthClientManagementError('client not found')
+            raise OAuthClientManagementError('客户端不存在')
         uri = cls._validate_uri(payload.uri_type, payload.uri)
         if payload.uri_type == 'backchannel_logout' and not await is_safe_backchannel_uri(uri):
-            raise OAuthClientManagementError('backchannel_logout URI DNS target is not public')
-        uri_hash = hashlib.sha256(uri.encode('utf-8')).hexdigest()
+            raise OAuthClientManagementError('后端退出通知地址的 DNS 解析结果不是公网地址')
+        uri_hash = OidcUtil.sha256_digest(uri)
         if await OAuthClientDao.find_uri(db, client.client_pk, payload.uri_type, uri_hash, uri) is not None:
-            raise OAuthClientManagementError('URI is already registered')
+            raise OAuthClientManagementError('该地址已注册')
         row = SysOAuthClientUri(
             client_pk=client.client_pk,
             uri_type=payload.uri_type,
@@ -1191,12 +1131,12 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         actor_value, current = cls._actor(actor), cls._now(now)
         client = await OAuthClientDao.get_by_client_id(db, client_id, active_only=False, for_update=True)
         if client is None:
-            raise OAuthClientManagementError('client not found')
+            raise OAuthClientManagementError('客户端不存在')
         row = await OAuthClientDao.get_uri_for_update(db, uri_id)
         if row is None:
-            raise OAuthClientManagementError('URI not found')
+            raise OAuthClientManagementError('注册地址不存在')
         if row.client_pk != client.client_pk:
-            raise OAuthClientManagementError('URI does not belong to client')
+            raise OAuthClientManagementError('该地址不属于当前客户端')
         if row.status == '1':
             return False
         row.status = '1'
@@ -1260,7 +1200,7 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         actor_value, current = cls._actor(actor), cls._now(now)
         client = await OAuthClientDao.get_by_client_id(db, payload.client_id, active_only=False, for_update=True)
         if client is None:
-            raise OAuthClientManagementError('client not found')
+            raise OAuthClientManagementError('客户端不存在')
         if client.status != payload.status:
             if payload.status == '1':
                 await OAuthClientDao.revoke_client_credentials(db, client.client_pk, current)
@@ -1328,21 +1268,21 @@ class OAuthClientManagementService(OAuthManagementBaseService):
                 OidcConfig.oidc_key_rotation_overlap_seconds,
             )
         if isinstance(retirement_ttl, bool) or not isinstance(retirement_ttl, int) or retirement_ttl <= 0:
-            raise OAuthClientManagementError('secret retirement TTL must be a positive integer')
+            raise OAuthClientManagementError('客户端旧密钥退役过渡期必须为正整数')
         effective = cls._now(not_before) if not_before is not None else current
         expiry = cls._now(expires_at) if expires_at is not None else None
         if expiry is not None and expiry <= effective:
-            raise OAuthClientManagementError('expires_at must be after not_before')
+            raise OAuthClientManagementError('过期时间必须晚于生效时间')
         client = await OAuthClientDao.get_by_client_id(db, client_id, active_only=False, for_update=True)
         if client is None:
-            raise OAuthClientManagementError('client not found')
+            raise OAuthClientManagementError('客户端不存在')
         if client.client_type != 'confidential' or client.token_endpoint_auth_method != 'client_secret_basic':
-            raise OAuthClientManagementError('public clients cannot rotate a secret')
+            raise OAuthClientManagementError('公开客户端不能生成或轮换客户端密钥')
         old_secrets = await OAuthClientDao.list_secrets(db, client.client_pk, active_only=False, for_update=True)
         old_secrets = [secret for secret in old_secrets if secret.status == 'active']
         for old_secret in old_secrets:
             if old_secret.expires_at is not None and effective >= cls._now(old_secret.expires_at):
-                raise OAuthClientManagementError('not_before leaves no active secret overlap')
+                raise OAuthClientManagementError('密钥生效时间会造成认证凭据空档，请保留新旧密钥的重叠有效期')
         retirement_end = max(current, effective) + timedelta(seconds=retirement_ttl)
         for old_secret in old_secrets:
             old_secret.status = 'retiring'
@@ -1376,12 +1316,12 @@ class OAuthClientManagementService(OAuthManagementBaseService):
         actor_value, current = cls._actor(actor), cls._now(now)
         client = await OAuthClientDao.get_by_client_id(db, client_id, active_only=False, for_update=True)
         if client is None:
-            raise OAuthClientManagementError('client not found')
+            raise OAuthClientManagementError('客户端不存在')
         secret = await OAuthClientDao.get_secret_for_update(db, secret_id)
         if secret is None:
-            raise OAuthClientManagementError('secret not found')
+            raise OAuthClientManagementError('客户端密钥不存在')
         if secret.client_pk != client.client_pk:
-            raise OAuthClientManagementError('secret does not belong to client')
+            raise OAuthClientManagementError('该密钥不属于当前客户端')
         if secret.status == 'revoked':
             return False
         secret.status, secret.revoked_by, secret.revoked_at = 'revoked', actor_value, current
@@ -1648,13 +1588,16 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         """
 
         if not isinstance(payload, ResourceCreateModel) or isinstance(payload, ResourceUpdateModel):
-            raise OAuthClientManagementError('payload must be ResourceCreateModel')
+            raise OAuthClientManagementError('资源创建参数必须为 ResourceCreateModel')
         actor_value, current = cls._actor(actor), cls._now(now)
         cls._validate_resource_ttls(payload)
-        cls._validate_audience(payload.audience)
+        try:
+            OidcUtil.validate_resource_audience(payload.audience, max_length=cls._MAX_AUDIENCE_LENGTH)
+        except ValueError as exc:
+            raise OAuthClientManagementError(str(exc)) from exc
         allowed_claims = cls._validate_claims(payload.allowed_claims, 'allowed_claims')
         if await OAuthResourceDao.find_resource_duplicate(db, payload.resource_id, payload.audience):
-            raise OAuthClientManagementError('resource_id or audience is already registered')
+            raise OAuthClientManagementError('资源标识或资源受众已注册')
         client = await cls._resolve_introspection_client(db, payload.introspection_client_id)
         resource = SysOAuthResource(
             resource_id=payload.resource_id,
@@ -1698,16 +1641,19 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         """
 
         if not isinstance(payload, ResourceUpdateModel):
-            raise OAuthClientManagementError('payload must be ResourceUpdateModel')
+            raise OAuthClientManagementError('资源更新参数必须为 ResourceUpdateModel')
         actor_value, current = cls._actor(actor), cls._now(now)
         cls._validate_resource_ttls(payload)
-        cls._validate_audience(payload.audience)
+        try:
+            OidcUtil.validate_resource_audience(payload.audience, max_length=cls._MAX_AUDIENCE_LENGTH)
+        except ValueError as exc:
+            raise OAuthClientManagementError(str(exc)) from exc
         allowed_claims = cls._validate_claims(payload.allowed_claims, 'allowed_claims')
         resource = await OAuthResourceDao.get_resource(db, payload.resource_id, for_update=True)
         if resource is None:
-            raise OAuthClientManagementError('resource not found')
+            raise OAuthClientManagementError('资源不存在')
         if resource.audience != payload.audience:
-            raise OAuthClientManagementError('audience is immutable; create a new resource')
+            raise OAuthClientManagementError('资源受众不可修改，请创建新资源')
         client = await cls._resolve_introspection_client(db, payload.introspection_client_id)
         policy_changed = (
             resource.token_format != payload.token_format
@@ -1753,7 +1699,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
 
         resource = await OAuthResourceDao.get_resource(db, resource_id)
         if resource is None:
-            raise OAuthClientManagementError('resource not found')
+            raise OAuthClientManagementError('资源不存在')
         view = cls._resource_view(resource)
         if resource.introspection_client_pk is None:
             return view
@@ -1810,7 +1756,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         actor_value, current = cls._actor(actor), cls._now(now)
         resource = await OAuthResourceDao.get_resource(db, payload.resource_id, for_update=True)
         if resource is None:
-            raise OAuthClientManagementError('resource not found')
+            raise OAuthClientManagementError('资源不存在')
         if resource.status != payload.status:
             clients = await cls._lock_resource_clients(db, resource.resource_pk)
             resource.status = payload.status
@@ -1867,9 +1813,9 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
             or payload.status != '0'
             or claims != ['sub']
         ):
-            raise OAuthClientManagementError('openid scope has a fixed identity policy')
+            raise OAuthClientManagementError('openid 权限范围使用固定的身份声明策略')
         if await OAuthResourceDao.find_scope_duplicate(db, payload.scope_code):
-            raise OAuthClientManagementError('scope_code is already registered')
+            raise OAuthClientManagementError('权限标识 scope_code 已注册')
         resource = None
         if payload.scope_type == 'resource':
             resource = await cls._get_active_resource(db, payload.resource_id)
@@ -1907,10 +1853,10 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         """
 
         if not resource_id:
-            raise OAuthClientManagementError('resource scope requires an active resource')
+            raise OAuthClientManagementError('资源权限必须绑定已启用的资源')
         resource = await OAuthResourceDao.active_resource(db, resource_id)
         if resource is None:
-            raise OAuthClientManagementError('scope resource does not exist or is inactive')
+            raise OAuthClientManagementError('权限范围关联的资源不存在或已停用')
         return resource
 
     @classmethod
@@ -1932,14 +1878,14 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         claims = cls._validate_claims(payload.claims)
         scope = await OAuthResourceDao.get_scope(db, payload.scope_code, for_update=True)
         if scope is None:
-            raise OAuthClientManagementError('scope not found')
+            raise OAuthClientManagementError('权限范围不存在')
         if scope.scope_code == 'openid' and (
             payload.scope_type != 'identity'
             or payload.resource_id is not None
             or payload.status != '0'
             or claims != ['sub']
         ):
-            raise OAuthClientManagementError('openid scope cannot be disabled or moved')
+            raise OAuthClientManagementError('openid 权限范围不能停用或更改归属')
         resource = None
         if payload.scope_type == 'resource':
             resource = await cls._get_active_resource(db, payload.resource_id)
@@ -1996,7 +1942,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
 
         scope = await OAuthResourceDao.get_scope(db, scope_code)
         if scope is None:
-            raise OAuthClientManagementError('scope not found')
+            raise OAuthClientManagementError('权限范围不存在')
         resource_id = None
         if scope.resource_pk is not None:
             resource_id = await OAuthResourceDao.resource_id_for_scope(db, scope.resource_pk)
@@ -2049,9 +1995,9 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
         actor_value, current = cls._actor(actor), cls._now(now)
         scope = await OAuthResourceDao.get_scope(db, payload.scope_code, for_update=True)
         if scope is None:
-            raise OAuthClientManagementError('scope not found')
+            raise OAuthClientManagementError('权限范围不存在')
         if scope.scope_code == 'openid' and payload.status != '0':
-            raise OAuthClientManagementError('openid scope cannot be disabled')
+            raise OAuthClientManagementError('openid 权限范围不能停用')
         if scope.status != payload.status:
             clients = await cls._lock_scope_clients(db, scope.scope_pk)
             scope.status = payload.status
@@ -2096,7 +2042,7 @@ class OAuthResourceManagementService(OAuthManagementBaseService):
 
         resource = await OAuthResourceDao.get_resource(db, resource_id)
         if resource is None:
-            raise OAuthClientManagementError('resource not found')
+            raise OAuthClientManagementError('资源不存在')
         client_rows = [
             *await OAuthResourceDao.client_ids_for_resource(db, resource.resource_pk),
             *await OAuthResourceDao.client_ids_for_resource_scope(db, resource.resource_pk),

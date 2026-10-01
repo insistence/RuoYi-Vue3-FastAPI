@@ -1,5 +1,3 @@
-"""OIDC 公钥 DTO 防私钥泄漏测试。"""
-
 from datetime import datetime, timezone
 
 import pytest

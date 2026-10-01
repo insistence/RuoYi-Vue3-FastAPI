@@ -135,7 +135,7 @@ class ConsentService:
 
         selected_scopes = cls.validate_submission(context, approved, scopes)
         if user_id is None or subject_id is None:
-            raise ValueError('user_id and subject_id are required for an authorization grant')
+            raise ValueError('创建授权记录必须提供用户编号和主体标识')
         await OAuthAccessPolicyDao.lock_client(db, context.client.client_pk)
         if await OAuthAccessPolicyDao.is_blocked(db, user_id, context.client.client_pk, for_update=True):
             raise OAuthProtocolException('access_denied', 'Access to this application is blocked')
@@ -255,20 +255,22 @@ class InteractionConsentService:
         client = await OAuthClientDao.get_by_pk(db, record['clientPk'], active_only=True)
         if client is None:
             raise OidcInteractionException(
-                record['interactionId'], 'Client is inactive', error='invalid_request', status_code=409
+                record['interactionId'], '客户端已停用或不可用', error='invalid_request', status_code=409
             )
         bindings = await OAuthClientDao.list_scope_bindings(db, client.client_pk)
         scopes = await AuthorizationService.load_scope_models(db, bindings)
         by_code = {scope.scope_code: scope for scope in scopes if scope.status == '0'}
         requested = tuple(record['scopes'])
         if any(scope not in by_code for scope in requested):
-            raise OidcInteractionException(record['interactionId'], 'Scope policy has changed', error='invalid_scope')
+            raise OidcInteractionException(
+                record['interactionId'], '权限范围策略已变更，请重新授权', error='invalid_scope'
+            )
         requested_resources = tuple(record['resources'])
         resource_rows = await OAuthClientDao.list_resources(db, client.client_pk)
         resource = next((item for item in resource_rows if item.audience in requested_resources), None)
         if requested_resources and resource is None:
             raise OidcInteractionException(
-                record['interactionId'], 'Resource policy has changed', error='invalid_scope', status_code=409
+                record['interactionId'], '资源访问策略已变更，请重新授权', error='invalid_scope', status_code=409
             )
         required = frozenset({'openid'} | {code for code in requested if not bool(by_code[code].consent_required)})
         pre_authorized = frozenset(
@@ -420,7 +422,7 @@ class InteractionConsentService:
         record = await InteractionFlowService.csrf_record(redis, interaction_id, csrf_token)
         if record.get('status') not in {'awaiting_login', 'awaiting_consent', 'password_change_required'}:
             raise OidcInteractionException(
-                interaction_id, 'Interaction is no longer active', error='invalid_request', status_code=409
+                interaction_id, '认证交互已失效，请重新发起认证', error='invalid_request', status_code=409
             )
         await AuditService.record(
             db,

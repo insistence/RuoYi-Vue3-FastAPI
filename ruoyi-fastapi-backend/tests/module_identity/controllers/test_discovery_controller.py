@@ -1,5 +1,3 @@
-"""Discovery 与 JWKS 原始 HTTP 响应测试。"""
-
 from types import SimpleNamespace
 
 import pytest

@@ -1,5 +1,3 @@
-"""统一认证数据模型结构契约测试。"""
-
 import hashlib
 
 import pytest

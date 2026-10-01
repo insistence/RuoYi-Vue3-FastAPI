@@ -1,5 +1,3 @@
-import hashlib
-
 from sqlalchemy import (
     CHAR,
     JSON,
@@ -16,6 +14,7 @@ from sqlalchemy.orm import validates
 
 from common.types import DbUtcDateTime
 from config.database import Base
+from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
 
 
@@ -141,6 +140,6 @@ class SysOAuthClientUri(Base):
         :return: 用于继续写入的原始注册地址
         """
 
-        self.uri_hash = hashlib.sha256(value.encode('utf-8')).hexdigest()
+        self.uri_hash = OidcUtil.sha256_digest(value)
 
         return value

@@ -1,4 +1,3 @@
-import hashlib
 import hmac
 import json
 import re
@@ -42,6 +41,7 @@ from module_identity.service.infrastructure_service import (
     RateLimitUnavailable,
 )
 from module_identity.service.session_service import SsoSessionError, SsoSessionService
+from utils.oidc_util import OidcUtil
 from utils.pwd_util import PwdUtil
 from utils.time_util import TimezoneUtil
 
@@ -109,7 +109,6 @@ class InteractionService:
         }
     )
     _PROMPT_VALUES = frozenset({'none', 'login', 'consent'})
-    _MIN_PEPPER_BYTES = 32
     _MAX_STATE_LENGTH = 1024
     _MAX_SCOPE_LENGTH = 500
     _MAX_SCOPES = 100
@@ -162,9 +161,9 @@ return 1
         authenticated_sid = record.get('authenticatedSid')
         has_sso = bool(authenticated_sid)
         if 'none' in prompt and not has_sso:
-            raise OidcInteractionException(message='Login is required', error='login_required', status_code=400)
+            raise OidcInteractionException(message='需要登录后继续', error='login_required', status_code=400)
         if 'none' in prompt and bool(record['consentRequired']):
-            raise OidcInteractionException(message='Consent is required', error='consent_required', status_code=400)
+            raise OidcInteractionException(message='需要用户确认授权', error='consent_required', status_code=400)
 
         if 'login' in prompt or not has_sso:
             initial_status = 'awaiting_login'
@@ -175,7 +174,7 @@ return 1
 
         interaction_id = str(uuid4())
         csrf_token = secrets.token_urlsafe(32)
-        csrf_hash = cls._csrf_digest(csrf_token, pepper or OidcConfig.oidc_token_hash_pepper)
+        csrf_hash = OidcUtil.csrf_digest(csrf_token, pepper or OidcConfig.oidc_token_hash_pepper)
         record.update(
             {
                 'interactionId': interaction_id,
@@ -187,12 +186,15 @@ return 1
         )
         ttl = OidcConfig.oidc_interaction_ttl_seconds if ttl_seconds is None else ttl_seconds
         if not isinstance(ttl, int) or isinstance(ttl, bool) or ttl <= 0:
-            raise ValueError('interaction ttl must be a positive integer')
-        created = await redis.set(OidcRedisKey.interaction(interaction_id), cls._serialize(record), ex=ttl, nx=True)
+            raise ValueError('认证交互有效期必须为正整数')
+        created = await redis.set(
+            OidcRedisKey.interaction(interaction_id),
+            OidcUtil.serialize_json(record, error_message='认证交互载荷必须支持 JSON 序列化'),
+            ex=ttl,
+            nx=True,
+        )
         if not created:
-            raise OidcInteractionException(
-                message='Interaction could not be created', error='server_error', status_code=500
-            )
+            raise OidcInteractionException(message='认证交互创建失败', error='server_error', status_code=500)
         return InteractionCreated(interaction_id, csrf_token, initial_status)
 
     @classmethod
@@ -256,28 +258,28 @@ return 1
         """
 
         if target_status not in cls._ALLOWED_STATUSES:
-            raise ValueError('unsupported Interaction target status')
+            raise ValueError('认证交互的目标状态不受支持')
         expected = set(expected_statuses)
         if not expected or not expected.issubset(cls._ALLOWED_STATUSES):
-            raise ValueError('Interaction source statuses are invalid')
+            raise ValueError('认证交互的来源状态无效')
         if any(target_status not in cls._TRANSITIONS.get(status, frozenset()) for status in expected):
-            raise ValueError('Interaction state transition is not allowed')
+            raise ValueError('不允许执行此认证交互状态变更')
         changes = dict(updates or {})
         unsafe = cls._PROTECTED_FIELDS.intersection(changes)
         if unsafe:
-            raise ValueError(f'Interaction protected fields cannot be updated: {sorted(unsafe)}')
+            raise ValueError(f'认证交互的受保护字段不可修改：{sorted(unsafe)}')
         if not set(changes).issubset(cls._UPDATABLE_FIELDS):
-            raise ValueError('Interaction update fields are not allowed')
+            raise ValueError('认证交互包含不允许更新的字段')
         current = await cls._get_record(redis, interaction_id)
         compare_version = current.get('version') if expected_version is None else expected_version
         if not isinstance(compare_version, int) or isinstance(compare_version, bool) or compare_version <= 0:
-            raise ValueError('Interaction expected version is invalid')
+            raise ValueError('认证交互的预期版本无效')
         next_record = dict(current)
         next_record.update(changes)
         next_record['status'] = target_status
         next_record['version'] = int(current.get('version', 0)) + 1
         cls._validate_record(next_record)
-        serialized = cls._serialize(next_record)
+        serialized = OidcUtil.serialize_json(next_record, error_message='认证交互载荷必须支持 JSON 序列化')
         result = await redis.eval(
             cls._TRANSITION_SCRIPT,
             1,
@@ -294,18 +296,14 @@ return 1
                 'expiresIn': max(0, int(ttl)),
             }
         if result == -1:
-            raise OidcInteractionException(
-                message='Interaction is missing or expired', error='invalid_request', status_code=404
-            )
+            raise OidcInteractionException(message='认证交互不存在或已过期', error='invalid_request', status_code=404)
         if result in {-2, -3}:
             raise OidcInteractionException(
-                message='Interaction state has changed', error='invalid_request', status_code=409
+                message='认证交互状态已变更，请刷新后重试', error='invalid_request', status_code=409
             )
         if result == cls._NO_TTL_RESULT:
-            raise OidcInteractionException(
-                message='Interaction TTL is invalid', error='invalid_request', status_code=404
-            )
-        raise OidcInteractionException(message='Interaction transition failed', error='server_error', status_code=500)
+            raise OidcInteractionException(message='认证交互有效期无效', error='invalid_request', status_code=404)
+        raise OidcInteractionException(message='认证交互状态更新失败', error='server_error', status_code=500)
 
     @classmethod
     def verify_csrf(cls, record: Mapping[str, Any], csrf_token: str, *, pepper: str | None = None) -> bool:
@@ -322,30 +320,10 @@ return 1
         if not isinstance(stored, str) or not isinstance(csrf_token, str) or not csrf_token:
             return False
         try:
-            actual = cls._csrf_digest(csrf_token, pepper or OidcConfig.oidc_token_hash_pepper)
+            actual = OidcUtil.csrf_digest(csrf_token, pepper or OidcConfig.oidc_token_hash_pepper)
         except (TypeError, ValueError):
             return False
         return hmac.compare_digest(actual, stored)
-
-    @staticmethod
-    def requires_reauthentication(auth_time: datetime, max_age: int | None, now: datetime | None = None) -> bool:
-        """
-        纯函数判断 SSO 认证是否超过 max_age
-
-        :param auth_time: SSO 认证时间
-        :param max_age: 请求的最大认证年龄
-        :param now: 可选当前时间
-        :return: 超过 max_age 时为 True
-        """
-
-        if max_age is None:
-            return False
-        if not isinstance(max_age, int) or isinstance(max_age, bool) or max_age < 0:
-            raise ValueError('max_age must be a non-negative integer')
-        current = TimezoneUtil.to_utc(now) if now is not None else TimezoneUtil.utc_now()
-        auth = TimezoneUtil.to_utc(auth_time)
-
-        return current.timestamp() - auth.timestamp() > max_age
 
     @classmethod
     async def _get_record(cls, redis: Redis, interaction_id: str) -> dict[str, Any]:
@@ -362,35 +340,25 @@ return 1
             or not interaction_id
             or len(interaction_id) > cls._MAX_INTERACTION_ID_LENGTH
         ):
-            raise OidcInteractionException(
-                message='Interaction is missing or expired', error='invalid_request', status_code=404
-            )
+            raise OidcInteractionException(message='认证交互不存在或已过期', error='invalid_request', status_code=404)
         key = OidcRedisKey.interaction(interaction_id)
         value = await redis.get(key)
         if value is None:
-            raise OidcInteractionException(
-                message='Interaction is missing or expired', error='invalid_request', status_code=404
-            )
+            raise OidcInteractionException(message='认证交互不存在或已过期', error='invalid_request', status_code=404)
         try:
             if isinstance(value, bytes):
                 value = value.decode('utf-8')
             record = json.loads(value)
         except (TypeError, UnicodeDecodeError, json.JSONDecodeError):
-            raise OidcInteractionException(
-                message='Interaction state is invalid', error='server_error', status_code=500
-            ) from None
+            raise OidcInteractionException(message='认证交互状态无效', error='server_error', status_code=500) from None
         ttl = await redis.ttl(key)
         if ttl <= 0:
             await redis.delete(key)
-            raise OidcInteractionException(
-                message='Interaction is missing or expired', error='invalid_request', status_code=404
-            )
+            raise OidcInteractionException(message='认证交互不存在或已过期', error='invalid_request', status_code=404)
         try:
             cls._validate_record(record)
         except ValueError as exc:
-            raise OidcInteractionException(
-                message='Interaction state is invalid', error='server_error', status_code=500
-            ) from exc
+            raise OidcInteractionException(message='认证交互状态无效', error='server_error', status_code=500) from exc
         return record
 
     @classmethod
@@ -403,31 +371,31 @@ return 1
         """
 
         if not isinstance(record, Mapping):
-            raise ValueError('interaction record must be a mapping')
+            raise ValueError('认证交互记录必须为映射对象')
         required = {'interactionId', 'requestedAt', 'csrfHash', 'status', 'version'}
         if not required.issubset(record):
-            raise ValueError('interaction record is incomplete')
+            raise ValueError('认证交互记录不完整')
         if not isinstance(record['status'], str) or record['status'] not in cls._ALLOWED_STATUSES:
-            raise ValueError('interaction status is invalid')
+            raise ValueError('认证交互状态标识无效')
         if not isinstance(record['version'], int) or isinstance(record['version'], bool) or record['version'] <= 0:
-            raise ValueError('interaction version is invalid')
+            raise ValueError('认证交互版本无效')
         if not isinstance(record['csrfHash'], str) or not re.fullmatch(r'[0-9a-f]{64}', record['csrfHash']):
-            raise ValueError('interaction csrfHash is invalid')
+            raise ValueError('认证交互的 CSRF 摘要无效')
         requested_at = record['requestedAt']
         if not isinstance(requested_at, str):
-            raise ValueError('interaction requestedAt is invalid')
+            raise ValueError('认证交互的请求时间 requestedAt 无效')
         try:
             parsed = datetime.fromisoformat(requested_at.replace('Z', '+00:00'))
         except ValueError as exc:
-            raise ValueError('interaction requestedAt is invalid') from exc
+            raise ValueError('认证交互的请求时间 requestedAt 无效') from exc
         if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
-            raise ValueError('interaction requestedAt must be UTC')
+            raise ValueError('认证交互的请求时间 requestedAt 必须使用 UTC')
         cls._validate_payload(record)
         identity_values = [record.get('userId'), record.get('subjectId'), record.get('authVersion')]
         if any(value is not None for value in identity_values) and not all(
             value is not None for value in identity_values
         ):
-            raise ValueError('interaction identity fields must be complete')
+            raise ValueError('认证交互的用户身份字段必须完整')
 
     @classmethod
     def _validate_payload(cls, payload: Mapping[str, Any]) -> dict[str, Any]:  # noqa: PLR0912, PLR0915
@@ -439,7 +407,7 @@ return 1
         """
 
         if not isinstance(payload, Mapping):
-            raise ValueError('interaction payload must be a mapping')
+            raise ValueError('认证交互载荷必须为映射对象')
         allowed = {
             'interactionId',
             'requestedAt',
@@ -468,13 +436,13 @@ return 1
             'rememberMe',
         }
         if not set(payload).issubset(allowed):
-            raise ValueError('interaction payload contains unknown fields')
+            raise ValueError('认证交互载荷包含未知字段')
         if 'interactionId' in payload and (
             not isinstance(payload['interactionId'], str)
             or not payload['interactionId']
             or len(payload['interactionId']) > cls._MAX_INTERACTION_ID_LENGTH
         ):
-            raise ValueError('interactionId is invalid')
+            raise ValueError('认证交互标识 interactionId 无效')
         required = {
             'clientPk',
             'clientId',
@@ -491,36 +459,34 @@ return 1
             'consentRequired',
         }
         if not required.issubset(payload):
-            raise ValueError('interaction payload is missing required fields')
+            raise ValueError('认证交互载荷缺少必填字段')
         if (
             not isinstance(payload['clientPk'], int)
             or isinstance(payload['clientPk'], bool)
             or payload['clientPk'] <= 0
         ):
-            raise ValueError('clientPk must be a positive integer')
+            raise ValueError('客户端主键 clientPk 必须为正整数')
         for field, limit in (('clientId', 64), ('redirectUri', 1000), ('nonce', 1024), ('codeChallenge', 128)):
             if not isinstance(payload[field], str) or not payload[field] or len(payload[field]) > limit:
-                raise ValueError(f'{field} is invalid')
+                raise ValueError(f'{field} 无效')
         if payload['responseType'] != 'code' or payload['codeChallengeMethod'] != 'S256':
-            raise ValueError('unsupported Interaction protocol fields')
-        if not isinstance(payload['codeChallenge'], str) or not re.fullmatch(
-            r'[A-Za-z0-9_-]{43}', payload['codeChallenge']
-        ):
-            raise ValueError('codeChallenge is invalid')
+            raise ValueError('认证交互包含不支持的协议字段')
+        if not OidcUtil.is_s256_challenge(payload['codeChallenge']):
+            raise ValueError('PKCE 挑战值 codeChallenge 无效')
         if (
             not isinstance(payload['scopes'], (list, tuple))
             or len(payload['scopes']) > cls._MAX_SCOPES
             or not all(isinstance(item, str) for item in payload['scopes'])
         ):
-            raise ValueError('scopes must be a string list')
+            raise ValueError('权限范围必须为字符串列表')
         if 'openid' not in payload['scopes'] or len(set(payload['scopes'])) != len(payload['scopes']):
-            raise ValueError('scopes must include openid and contain no duplicates')
+            raise ValueError('权限范围必须包含 openid，且不得重复')
         if (
             not isinstance(payload['resources'], (list, tuple))
             or len(payload['resources']) > 1
             or not all(isinstance(item, str) for item in payload['resources'])
         ):
-            raise ValueError('resources must contain at most one string')
+            raise ValueError('资源列表最多只能包含一个字符串')
         if (
             'grantId' in payload
             and payload['grantId'] is not None
@@ -530,28 +496,28 @@ return 1
                 or len(payload['grantId']) > cls._MAX_GRANT_ID_LENGTH
             )
         ):
-            raise ValueError('grantId is invalid')
+            raise ValueError('授权记录标识 grantId 无效')
         if any(not item or len(item) > cls._MAX_SCOPE_LENGTH for item in (*payload['scopes'], *payload['resources'])):
-            raise ValueError('scope or resource value is invalid')
+            raise ValueError('权限范围或资源值无效')
         if payload['state'] is not None and (
             not isinstance(payload['state'], str) or len(payload['state']) > cls._MAX_STATE_LENGTH
         ):
-            raise ValueError('state is invalid')
+            raise ValueError('授权请求状态 state 无效')
         if payload['maxAge'] is not None and (
             not isinstance(payload['maxAge'], int) or isinstance(payload['maxAge'], bool) or payload['maxAge'] < 0
         ):
-            raise ValueError('maxAge is invalid')
+            raise ValueError('认证新鲜度参数 maxAge 无效')
         if 'rememberMe' in payload and not isinstance(payload['rememberMe'], bool):
-            raise ValueError('rememberMe is invalid')
+            raise ValueError('保持登录标识 rememberMe 无效')
         if not isinstance(payload['consentRequired'], bool):
-            raise ValueError('consentRequired is invalid')
+            raise ValueError('授权确认标识 consentRequired 无效')
         for field, limit in (('authenticatedSid', 36), ('subjectId', 36)):
             if (
                 field in payload
                 and payload[field] is not None
                 and (not isinstance(payload[field], str) or not payload[field] or len(payload[field]) > limit)
             ):
-                raise ValueError(f'{field} is invalid')
+                raise ValueError(f'{field} 无效')
         if (
             'userId' in payload
             and payload['userId'] is not None
@@ -559,7 +525,7 @@ return 1
                 not isinstance(payload['userId'], int) or isinstance(payload['userId'], bool) or payload['userId'] <= 0
             )
         ):
-            raise ValueError('userId is invalid')
+            raise ValueError('用户编号 userId 无效')
         if (
             'authVersion' in payload
             and payload['authVersion'] is not None
@@ -569,7 +535,7 @@ return 1
                 or payload['authVersion'] < 0
             )
         ):
-            raise ValueError('authVersion is invalid')
+            raise ValueError('身份安全版本 authVersion 无效')
         if (
             'credentialProofHash' in payload
             and payload['credentialProofHash'] is not None
@@ -578,7 +544,7 @@ return 1
                 or not re.fullmatch(r'[0-9a-f]{64}', payload['credentialProofHash'])
             )
         ):
-            raise ValueError('credentialProofHash is invalid')
+            raise ValueError('凭据证明摘要 credentialProofHash 无效')
         prompt = payload['prompt']
         if prompt is None:
             prompts: list[str] = []
@@ -587,13 +553,13 @@ return 1
         elif isinstance(prompt, (list, tuple)) and all(isinstance(item, str) for item in prompt):
             prompts = list(prompt)
         else:
-            raise ValueError('prompt is invalid')
+            raise ValueError('prompt 参数无效')
         if (
             len(set(prompts)) != len(prompts)
             or any(item not in cls._PROMPT_VALUES for item in prompts)
             or ('none' in prompts and len(prompts) > 1)
         ):
-            raise ValueError('prompt combination is invalid')
+            raise ValueError('prompt 参数组合无效')
         result = dict(payload)
         result['scopes'] = list(payload['scopes'])
         result['resources'] = list(payload['resources'])
@@ -601,38 +567,6 @@ return 1
         if 'authenticatedSid' not in result:
             result['authenticatedSid'] = None
         return result
-
-    @staticmethod
-    def _csrf_digest(token: str, pepper: str) -> str:
-        """
-        使用独立 Pepper 生成 CSRF HMAC 摘要
-
-        :param token: 原始 CSRF Token
-        :param pepper: Token 摘要 Pepper
-        :return: CSRF 摘要
-        """
-
-        if (
-            not isinstance(token, str)
-            or not isinstance(pepper, str)
-            or len(pepper.encode()) < InteractionService._MIN_PEPPER_BYTES
-        ):
-            raise ValueError('CSRF Pepper must contain at least 32 bytes')
-        return hmac.new(pepper.encode(), token.encode(), hashlib.sha256).hexdigest()
-
-    @staticmethod
-    def _serialize(record: Mapping[str, Any]) -> str:
-        """
-        生成稳定 JSON，拒绝 ORM 或任意不可序列化对象
-
-        :param record: 交互记录
-        :return: 序列化 JSON 字符串
-        """
-
-        try:
-            return json.dumps(record, ensure_ascii=False, separators=(',', ':'), sort_keys=True, allow_nan=False)
-        except (TypeError, ValueError) as exc:
-            raise ValueError('interaction payload must be JSON serializable') from exc
 
     @staticmethod
     def _next_action(status: str) -> str:
@@ -769,11 +703,11 @@ class InteractionFlowService:
                 except Exception:
                     pass
             raise OidcInteractionException(
-                interaction_id, 'Interaction transition failed', error='server_error', status_code=500
+                interaction_id, '认证交互状态更新失败', error='server_error', status_code=500
             )
         if coordinator.callback_errors:
             raise OidcInteractionException(
-                interaction_id, 'Interaction cache callback failed', error='server_error', status_code=500
+                interaction_id, '认证交互缓存更新回调执行失败', error='server_error', status_code=500
             )
 
     @staticmethod
@@ -790,7 +724,7 @@ class InteractionFlowService:
         record = await InteractionService.get_record(redis, interaction_id)
         if not InteractionService.verify_csrf(record, csrf_token or '', pepper=OidcConfig.oidc_token_hash_pepper):
             raise OidcInteractionException(
-                interaction_id, 'CSRF validation failed', error='invalid_request', status_code=403
+                interaction_id, 'CSRF 校验失败，请重新发起认证', error='invalid_request', status_code=403
             )
         return record
 
@@ -806,7 +740,10 @@ class InteractionFlowService:
 
         if record.get('status') != expected:
             raise OidcInteractionException(
-                record.get('interactionId'), 'Interaction state has changed', error='invalid_request', status_code=409
+                record.get('interactionId'),
+                '认证交互状态已变更，请刷新后重试',
+                error='invalid_request',
+                status_code=409,
             )
 
     @staticmethod
@@ -824,7 +761,7 @@ class InteractionFlowService:
             await OidcRateLimiter.enforce(
                 redis,
                 OidcRedisKey.interaction_captcha_rate_limit(
-                    OidcRedisKey.hash_sensitive_identifier(
+                    OidcUtil.hash_sensitive_identifier(
                         f'{interaction_id}:{client_ip or ""}',
                         OidcConfig.oidc_token_hash_pepper,
                     )
@@ -942,24 +879,6 @@ class InteractionLoginService:
     """
 
     @staticmethod
-    def credential_proof(interaction_id: str, user_id: int, subject_id: str, auth_version: int) -> str:
-        """
-        构建凭据证明摘要
-
-        :param interaction_id: 交互流程标识
-        :param user_id: 本地用户 ID
-        :param subject_id: 稳定身份主体 ID
-        :param auth_version: 认证版本
-        :return: 凭据证明摘要
-        """
-
-        return hmac.new(
-            OidcConfig.oidc_token_hash_pepper.encode(),
-            f'{interaction_id}:{user_id}:{subject_id}:{auth_version}'.encode(),
-            hashlib.sha256,
-        ).hexdigest()
-
-    @staticmethod
     async def login(
         redis: Redis,
         interaction_id: str,
@@ -1026,8 +945,12 @@ class InteractionLoginService:
             'rememberMe': result.remember_me,
         }
         if result.password_change_required:
-            updates['credentialProofHash'] = InteractionLoginService.credential_proof(
-                record['interactionId'], result.user.user_id, subject.subject_id, subject.auth_version
+            updates['credentialProofHash'] = OidcUtil.credential_proof(
+                record['interactionId'],
+                result.user.user_id,
+                subject.subject_id,
+                subject.auth_version,
+                pepper=OidcConfig.oidc_token_hash_pepper,
             )
         else:
             cookie, session = await SsoSessionService.create(
@@ -1129,11 +1052,12 @@ class InteractionLoginService:
         record = await InteractionFlowService.csrf_record(redis, interaction_id, csrf_token)
         InteractionFlowService.require_status(record, 'password_change_required')
         user = await IdentityUserDao.get_active_user(db, int(record.get('userId') or 0))
-        proof = InteractionLoginService.credential_proof(
+        proof = OidcUtil.credential_proof(
             record['interactionId'],
             int(record.get('userId') or 0),
             str(record.get('subjectId') or ''),
             int(record.get('authVersion') or 0),
+            pepper=OidcConfig.oidc_token_hash_pepper,
         )
         if (
             user is None

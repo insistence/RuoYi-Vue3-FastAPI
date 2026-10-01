@@ -1,12 +1,7 @@
 import asyncio
-import base64
-import binascii
-import hashlib
 import inspect
-import json
-import re
 import secrets
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, Literal, TypeVar
@@ -14,11 +9,7 @@ from typing import Any, Literal, TypeVar
 from anyio import Path as AsyncPath
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey, RSAPublicNumbers
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.hashes import SHA256
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from jwt.utils import base64url_encode
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import OidcAuditEvent
@@ -30,18 +21,14 @@ from module_identity.entity.vo.oidc_key_vo import OidcKeyRotateModel, OidcKeyVie
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.audit_service import AuditService
 from utils.log_util import logger
+from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
 
 RS256 = 'RS256'
 _PUBLISHED_STATUSES = frozenset({'pending', 'active', 'retiring'})
-_PUBLIC_JWK_FIELDS = ('kty', 'use', 'kid', 'alg', 'n', 'e')
 _MIN_RSA_BITS = 2048
 _MIN_ENCRYPTION_KEY_BYTES = 32
 _ENCRYPTION_SALT_BYTES = 16
-_ENCRYPTION_KDF_ITERATIONS = 310_000
-_MIN_RSA_EXPONENT = 3
-_MAX_RSA_EXPONENT = 2**32
-_SAFE_KID_PATTERN = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$')
 _ROTATION_LOCK_TTL_SECONDS = 30
 _ROTATION_LOCK_RELEASE_SCRIPT = """
 if redis.call('get', KEYS[1]) == ARGV[1] then
@@ -66,34 +53,6 @@ class KeyService:
 
     CACHE_MAX_AGE = 300
 
-    @staticmethod
-    def _derive_encryption_key(material: bytes, salt: bytes) -> bytes:
-        """
-        使用随机盐派生私钥加密密钥
-
-        :param material: 部署配置中的加密主密钥
-        :param salt: 单条密钥记录的随机盐
-        :return: AES-GCM 使用的 256 位密钥
-        """
-
-        return PBKDF2HMAC(
-            algorithm=SHA256(),
-            length=32,
-            salt=salt,
-            iterations=_ENCRYPTION_KDF_ITERATIONS,
-        ).derive(material)
-
-    @staticmethod
-    def _utc_datetime(value: datetime | None) -> datetime | None:
-        """
-        规范化项目时间
-
-        :param value: 数据库时间值
-        :return: 带时区的 UTC 时间或 None
-        """
-
-        return TimezoneUtil.to_utc(value) if value is not None else None
-
     @classmethod
     def _require_enabled(cls, *, management: bool = False) -> None:
         """
@@ -105,21 +64,7 @@ class KeyService:
         """
 
         if not OidcConfig.oidc_enabled and not management:
-            raise KeyServiceError('OIDC is disabled')
-
-    @staticmethod
-    def _validate_kid(kid: str) -> str:
-        """
-        校验签名密钥标识可安全用于路径和数据库查询
-
-        :param kid: 待校验的密钥标识
-        :return: 原样返回的安全密钥标识
-        :raises KeyServiceError: 标识包含路径分隔符、空白、百分号或非 ASCII 字符
-        """
-
-        if not isinstance(kid, str) or not _SAFE_KID_PATTERN.fullmatch(kid):
-            raise KeyServiceError('kid contains invalid characters')
-        return kid
+            raise KeyServiceError('统一认证中心未启用')
 
     @staticmethod
     @asynccontextmanager
@@ -140,7 +85,7 @@ class KeyService:
             OidcRedisKey.signing_key_rotation_lock(), token, nx=True, ex=_ROTATION_LOCK_TTL_SECONDS
         )
         if not acquired:
-            raise KeyServiceError('signing key rotation is busy')
+            raise KeyServiceError('签名密钥正在轮换，请稍后重试')
         try:
             yield
         finally:
@@ -150,69 +95,6 @@ class KeyService:
                 OidcRedisKey.signing_key_rotation_lock(),
                 token,
             )
-
-    @classmethod
-    def _normalise_public_jwk(cls, record: Any) -> dict[str, str]:
-        """
-        提取并校验公开 RSA JWK
-
-        :param record: 数据库签名密钥记录或包含 public_jwk 字段的映射
-        :return: 只包含公开字段的 JWK
-        :raises KeyServiceError: JWK 结构或算法不合法
-        """
-
-        value = getattr(record, 'public_jwk', record)
-        if not isinstance(value, Mapping):
-            raise KeyServiceError('public JWK must be an object')
-        if (
-            getattr(record, 'key_use', 'sig') != 'sig'
-            or getattr(record, 'alg', RS256) != RS256
-            or value.get('kty') != 'RSA'
-            or value.get('use', 'sig') != 'sig'
-            or value.get('alg', RS256) != RS256
-        ):
-            raise KeyServiceError('only RSA RS256 signing JWK is supported')
-        record_kid = getattr(record, 'kid', None)
-        kid = value.get('kid', record_kid)
-        cls._validate_kid(kid)
-        if record_kid is not None and kid != record_kid:
-            raise KeyServiceError('public JWK kid does not match database kid')
-        result = {field: value.get(field) for field in _PUBLIC_JWK_FIELDS}
-        result.update({'kty': 'RSA', 'use': 'sig', 'kid': kid, 'alg': RS256})
-        if (
-            not isinstance(result.get('n'), str)
-            or not result['n']
-            or not isinstance(result.get('e'), str)
-            or not result['e']
-        ):
-            raise KeyServiceError('public JWK must contain n and e')
-        try:
-            n_bytes = base64.urlsafe_b64decode(result['n'] + '=' * (-len(result['n']) % 4))
-            e_bytes = base64.urlsafe_b64decode(result['e'] + '=' * (-len(result['e']) % 4))
-        except (TypeError, ValueError, binascii.Error) as exc:
-            raise KeyServiceError('public JWK n/e must be base64url') from exc
-        if (
-            not n_bytes
-            or not e_bytes
-            or n_bytes[0] == 0
-            or base64url_encode(n_bytes).decode() != result['n']
-            or base64url_encode(e_bytes).decode() != result['e']
-        ):
-            raise KeyServiceError('public JWK n/e encoding is invalid')
-        modulus = int.from_bytes(n_bytes, 'big')
-        exponent = int.from_bytes(e_bytes, 'big')
-        if (
-            modulus.bit_length() < _MIN_RSA_BITS
-            or exponent < _MIN_RSA_EXPONENT
-            or exponent >= _MAX_RSA_EXPONENT
-            or exponent % 2 == 0
-        ):
-            raise KeyServiceError('public JWK RSA numbers are invalid')
-        try:
-            RSAPublicNumbers(exponent, modulus).public_key()
-        except ValueError as exc:
-            raise KeyServiceError('public JWK RSA numbers are invalid') from exc
-        return result
 
     @staticmethod
     async def _private_material_async(  # noqa: PLR0912
@@ -231,26 +113,15 @@ class KeyService:
         reference = getattr(record, 'private_key_ref', None)
         ciphertext = getattr(record, 'private_key_ciphertext', None)
         if bool(reference) == bool(ciphertext):
-            raise KeyServiceError('exactly one private key source is required')
+            raise KeyServiceError('必须且只能配置一个签名私钥来源')
         if ciphertext:
             if decrypt_private_key is None:
                 try:
-                    ciphertext_value = str(ciphertext)
-                    if ciphertext_value.startswith('v2.'):
-                        envelope = base64.urlsafe_b64decode(ciphertext_value.removeprefix('v2.'))
-                        salt, nonce, encrypted = envelope[4:20], envelope[20:32], envelope[32:]
-                        encryption_key = KeyService._derive_encryption_key(
-                            OidcConfig.oidc_signing_key_encryption_key.encode(), salt
-                        )
-                    elif ciphertext_value.startswith('v1.'):
-                        envelope = base64.urlsafe_b64decode(ciphertext_value.removeprefix('v1.'))
-                        nonce, encrypted = envelope[:12], envelope[12:]
-                        encryption_key = hashlib.sha256(OidcConfig.oidc_signing_key_encryption_key.encode()).digest()
-                    else:
-                        raise ValueError('unsupported private key envelope')
-                    value = AESGCM(encryption_key).decrypt(nonce, encrypted, None)
+                    value = OidcUtil.decrypt_signing_private_key(
+                        str(ciphertext), OidcConfig.oidc_signing_key_encryption_key.encode()
+                    )
                 except Exception as exc:
-                    raise KeyServiceError('encrypted private key requires a valid encryption key') from exc
+                    raise KeyServiceError('解密签名私钥需要有效的加密密钥') from exc
             else:
                 value = decrypt_private_key(str(ciphertext))
             if inspect.isawaitable(value):
@@ -258,26 +129,26 @@ class KeyService:
             if isinstance(value, str):
                 value = value.encode()
             if not isinstance(value, bytes) or not value:
-                raise KeyServiceError('private key decryptor returned invalid data')
+                raise KeyServiceError('签名私钥解密器返回的数据无效')
             return value
         if OidcConfig.oidc_signing_key_source != 'file':
             if decrypt_private_key is None:
-                raise KeyServiceError('external private key reference requires an injected loader')
+                raise KeyServiceError('外部签名私钥引用必须配置加载器')
             value = decrypt_private_key(str(reference))
             if inspect.isawaitable(value):
                 value = await value
             if isinstance(value, str):
                 value = value.encode()
             if not isinstance(value, bytes) or not value:
-                raise KeyServiceError('private key loader returned invalid data')
+                raise KeyServiceError('签名私钥加载器返回的数据无效')
             return value
         path_value = str(reference or OidcConfig.oidc_signing_private_key_path).strip()
         if not path_value:
-            raise KeyServiceError('private key file path is required')
+            raise KeyServiceError('签名私钥文件路径不能为空')
         try:
             return await AsyncPath(path_value).read_bytes()
         except OSError as exc:
-            raise KeyServiceError('unable to load private key file') from exc
+            raise KeyServiceError('无法读取签名私钥文件') from exc
 
     @classmethod
     def _validate_record_window(cls, record: Any, now: datetime, *, require_active: bool = True) -> None:
@@ -293,14 +164,15 @@ class KeyService:
 
         expected_status = 'active' if require_active else 'pending'
         if getattr(record, 'status', None) != expected_status:
-            raise KeyServiceError(f'signing key is not {expected_status}')
+            raise KeyServiceError(f'签名密钥状态不符合要求，预期状态为 {expected_status}')
         if getattr(record, 'alg', None) != RS256 or OidcConfig.oidc_signing_algorithm != RS256:
-            raise KeyServiceError('only RS256 signing keys are supported')
-        cls._validate_kid(getattr(record, 'kid', None))
-        start = cls._utc_datetime(getattr(record, 'signing_start_at', None))
-        stop = cls._utc_datetime(getattr(record, 'signing_stop_at', None))
+            raise KeyServiceError('仅支持 RS256 签名密钥')
+        if not OidcUtil.is_valid_kid(getattr(record, 'kid', None)):
+            raise KeyServiceError('签名密钥标识 kid 包含不允许的字符')
+        start = TimezoneUtil.to_optional_utc(getattr(record, 'signing_start_at', None))
+        stop = TimezoneUtil.to_optional_utc(getattr(record, 'signing_stop_at', None))
         if require_active and (start is None or start > now or (stop is not None and stop <= now)):
-            raise KeyServiceError('signing key is outside its signing window')
+            raise KeyServiceError('签名密钥不在有效签发时间范围内')
 
     @classmethod
     async def load_private_key_async(
@@ -325,29 +197,24 @@ class KeyService:
         """
 
         cls._require_enabled(management=management)
-        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
+        current = TimezoneUtil.to_optional_utc(now or TimezoneUtil.utc_now())
         cls._validate_record_window(record, current, require_active=require_active)
         material = await cls._private_material_async(record, decrypt_private_key)
         try:
             private_key = serialization.load_pem_private_key(material, password=None)
         except (TypeError, ValueError) as exc:
-            raise KeyServiceError('invalid RSA private key') from exc
+            raise KeyServiceError('RSA 签名私钥无效') from exc
         if not isinstance(private_key, RSAPrivateKey):
-            raise KeyServiceError('signing key must be RSA')
+            raise KeyServiceError('签名密钥必须为 RSA 类型')
         if private_key.key_size < _MIN_RSA_BITS:
-            raise KeyServiceError('RSA signing key must be at least 2048 bits')
-        public_numbers = private_key.public_key().public_numbers()
-        derived = {
-            'kty': 'RSA',
-            'use': 'sig',
-            'kid': getattr(record, 'kid', ''),
-            'alg': RS256,
-            'n': base64url_encode(public_numbers.n.to_bytes((public_numbers.n.bit_length() + 7) // 8, 'big')).decode(),
-            'e': base64url_encode(public_numbers.e.to_bytes((public_numbers.e.bit_length() + 7) // 8, 'big')).decode(),
-        }
-        expected = cls._normalise_public_jwk(record)
+            raise KeyServiceError('RSA 签名密钥长度不得小于 2048 位')
+        derived = OidcUtil.rsa_public_jwk(private_key.public_key(), getattr(record, 'kid', ''))
+        try:
+            expected = OidcUtil.normalize_public_jwk(record, min_rsa_bits=_MIN_RSA_BITS)
+        except ValueError as exc:
+            raise KeyServiceError(str(exc)) from exc
         if derived != expected:
-            raise KeyServiceError('private key does not match public JWK')
+            raise KeyServiceError('签名私钥与公开 JWK 不匹配')
         return private_key
 
     @classmethod
@@ -372,7 +239,7 @@ class KeyService:
             asyncio.get_running_loop()
         except RuntimeError:
             return asyncio.run(cls.load_private_key_async(record, now=now, require_active=require_active))
-        raise KeyServiceError('synchronous loading is unavailable inside an event loop')
+        raise KeyServiceError('事件循环中不能同步加载签名私钥')
 
     @classmethod
     async def get_signing_key(
@@ -395,7 +262,7 @@ class KeyService:
         cls._require_enabled()
         record = await OidcKeyDao.get_active(db, alg=RS256)
         if record is None:
-            raise KeyServiceError('no active signing key')
+            raise KeyServiceError('尚无可用的活动签名密钥')
         return await cls.load_private_key_async(record, now=now, decrypt_private_key=decrypt_private_key)
 
     @classmethod
@@ -410,12 +277,12 @@ class KeyService:
         """
 
         cls._require_enabled()
-        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
+        current = TimezoneUtil.to_optional_utc(now or TimezoneUtil.utc_now())
         records = await OidcKeyDao.list_published(db, now=current)
         keys: list[dict[str, str]] = []
         for record in records:
-            publish_at = cls._utc_datetime(getattr(record, 'publish_at', None))
-            remove_at = cls._utc_datetime(getattr(record, 'remove_from_jwks_at', None))
+            publish_at = TimezoneUtil.to_optional_utc(getattr(record, 'publish_at', None))
+            remove_at = TimezoneUtil.to_optional_utc(getattr(record, 'remove_from_jwks_at', None))
             if (
                 getattr(record, 'status', None) not in _PUBLISHED_STATUSES
                 or getattr(record, 'alg', None) != RS256
@@ -424,23 +291,13 @@ class KeyService:
                 or (remove_at is not None and remove_at <= current)
             ):
                 continue
-            keys.append(cls._normalise_public_jwk(record))
+            try:
+                keys.append(OidcUtil.normalize_public_jwk(record, min_rsa_bits=_MIN_RSA_BITS))
+            except ValueError as exc:
+                raise KeyServiceError(str(exc)) from exc
         keys.sort(key=lambda item: item['kid'])
 
         return {'keys': keys}
-
-    @staticmethod
-    def compute_etag(payload: Mapping[str, Any]) -> str:
-        """
-        为 JWKS 响应计算稳定的强 ETag
-
-        :param payload: 公开响应 JSON 映射
-        :return: 带双引号的 SHA-256 ETag
-        """
-
-        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
-
-        return '"' + hashlib.sha256(canonical).hexdigest() + '"'
 
     @classmethod
     async def activate_key(
@@ -467,16 +324,17 @@ class KeyService:
         """
 
         cls._require_enabled(management=True)
-        cls._validate_kid(kid)
+        if not OidcUtil.is_valid_kid(kid):
+            raise KeyServiceError('签名密钥标识 kid 包含不允许的字符')
         async with cls._rotation_lock(redis):
-            current = cls._utc_datetime(now or TimezoneUtil.utc_now())
+            current = TimezoneUtil.to_optional_utc(now or TimezoneUtil.utc_now())
             await OidcKeyDao.lock_algorithm_for_update(db, alg=RS256)
             target = await OidcKeyDao.get_by_kid_for_update(db, kid)
             if target is None or target.alg != RS256 or target.status != 'pending':
-                raise KeyServiceError('target key is not pending')
-            publish_at = cls._utc_datetime(target.publish_at)
+                raise KeyServiceError('目标签名密钥不处于待激活状态')
+            publish_at = TimezoneUtil.to_optional_utc(target.publish_at)
             if publish_at is None or publish_at > current:
-                raise KeyServiceError('target key is not published')
+                raise KeyServiceError('目标签名密钥尚未发布')
             old = await OidcKeyDao.get_active(db, alg=RS256, for_update=True)
             await cls.load_private_key_async(
                 target,
@@ -498,7 +356,7 @@ class KeyService:
                         + OidcConfig.oidc_allowed_clock_skew_seconds,
                     )
                 )
-                previous_remove_at = cls._utc_datetime(old.remove_from_jwks_at)
+                previous_remove_at = TimezoneUtil.to_optional_utc(old.remove_from_jwks_at)
                 if previous_remove_at is None or previous_remove_at < retention_at:
                     await OidcKeyDao.set_retiring(db, old.kid, retention_at, current)
             if changed:
@@ -538,45 +396,37 @@ class KeyService:
 
         cls._require_enabled(management=True)
         if not isinstance(actor, str) or not actor.strip():
-            raise KeyServiceError('kid and actor are required')
-        cls._validate_kid(kid)
+            raise KeyServiceError('签名密钥标识 kid 和操作者不能为空')
+        if not OidcUtil.is_valid_kid(kid):
+            raise KeyServiceError('签名密钥标识 kid 包含不允许的字符')
         encryption_material = str(OidcConfig.oidc_signing_key_encryption_key or '').encode()
         if len(encryption_material) < _MIN_ENCRYPTION_KEY_BYTES:
-            raise KeyServiceError('signing key encryption key is required')
-        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
-        publish_at = cls._utc_datetime(publish_at)
-        activate_at = cls._utc_datetime(activate_at)
+            raise KeyServiceError('签名私钥加密密钥不能为空')
+        current = TimezoneUtil.to_optional_utc(now or TimezoneUtil.utc_now())
+        publish_at = TimezoneUtil.to_optional_utc(publish_at)
+        activate_at = TimezoneUtil.to_optional_utc(activate_at)
         if activate_at is not None and activate_at < publish_at:
-            raise KeyServiceError('activate_at must not precede publish_at')
+            raise KeyServiceError('密钥生效时间不得早于发布时间')
         if publish_at < current:
-            raise KeyServiceError('publish_at must not be in the past')
+            raise KeyServiceError('签名密钥发布时间不得早于当前时间')
         await OidcKeyDao.lock_algorithm_for_update(db, alg=RS256)
         existing = await OidcKeyDao.get_by_kid_for_update(db, kid)
         if existing is not None:
-            raise KeyServiceError('kid already exists')
+            raise KeyServiceError('签名密钥标识 kid 已存在')
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=_MIN_RSA_BITS)
-        public_numbers = private_key.public_key().public_numbers()
-        public_jwk = {
-            'kty': 'RSA',
-            'use': 'sig',
-            'kid': kid,
-            'alg': RS256,
-            'n': base64url_encode(public_numbers.n.to_bytes((public_numbers.n.bit_length() + 7) // 8, 'big')).decode(),
-            'e': base64url_encode(public_numbers.e.to_bytes((public_numbers.e.bit_length() + 7) // 8, 'big')).decode(),
-        }
+        public_jwk = OidcUtil.rsa_public_jwk(private_key.public_key(), kid)
         pem = private_key.private_bytes(
             serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
         )
         salt = secrets.token_bytes(_ENCRYPTION_SALT_BYTES)
         nonce = secrets.token_bytes(12)
-        encryption_key = cls._derive_encryption_key(encryption_material, salt)
-        encrypted = AESGCM(encryption_key).encrypt(nonce, pem, None)
+        ciphertext = OidcUtil.encrypt_signing_private_key(pem, encryption_material, salt=salt, nonce=nonce)
         record = SysOidcSigningKey(
             kid=kid,
             key_use='sig',
             alg=RS256,
             public_jwk=public_jwk,
-            private_key_ciphertext='v2.' + base64.urlsafe_b64encode(b'salt' + salt + nonce + encrypted).decode(),
+            private_key_ciphertext=ciphertext,
             status='pending',
             publish_at=publish_at,
             signing_start_at=activate_at or publish_at,
@@ -619,7 +469,7 @@ class KeyService:
         :raises KeyServiceError: 密钥配置、状态或材料不可用
         """
 
-        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
+        current = TimezoneUtil.to_optional_utc(now or TimezoneUtil.utc_now())
         async with cls._rotation_lock(redis):
             records = await OidcKeyDao.lock_algorithm_for_update(db, alg=RS256)
             active = next(
@@ -627,8 +477,8 @@ class KeyService:
                     row
                     for row in reversed(records)
                     if row.status == 'active'
-                    and cls._utc_datetime(row.signing_start_at) is not None
-                    and cls._utc_datetime(row.signing_start_at) <= current
+                    and TimezoneUtil.to_optional_utc(row.signing_start_at) is not None
+                    and TimezoneUtil.to_optional_utc(row.signing_start_at) <= current
                 ),
                 None,
             )
@@ -645,11 +495,11 @@ class KeyService:
                     publish_at=current,
                     activate_at=current,
                     actor=actor,
-                    remark='OIDC deployment bootstrap',
+                    remark='OIDC 部署初始化',
                     now=current,
                 )
             elif existing.status != 'pending':
-                raise KeyServiceError('bootstrap kid is not pending')
+                raise KeyServiceError('初始化签名密钥不处于待激活状态')
 
             await cls.load_private_key_async(
                 existing,
@@ -658,7 +508,7 @@ class KeyService:
                 management=True,
             )
             if not await OidcKeyDao.activate(db, kid, alg=RS256, now=current):
-                raise KeyServiceError('bootstrap signing key activation failed')
+                raise KeyServiceError('初始化签名密钥激活失败')
             await AuditService.record(
                 db,
                 OidcAuditEvent.SIGNING_KEY_ROTATED,
@@ -688,17 +538,18 @@ class KeyService:
         """
 
         cls._require_enabled(management=True)
-        cls._validate_kid(kid)
-        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
+        if not OidcUtil.is_valid_kid(kid):
+            raise KeyServiceError('签名密钥标识 kid 包含不允许的字符')
+        current = TimezoneUtil.to_optional_utc(now or TimezoneUtil.utc_now())
         record = await OidcKeyDao.get_by_kid_for_update(db, kid)
         if record is None or record.status not in {'active', 'retiring'}:
-            raise KeyServiceError('key is not active')
+            raise KeyServiceError('签名密钥未处于活动状态')
         if record.status == 'retiring':
             return False
         if record.status == 'active':
             active_count = sum(1 for item in await OidcKeyDao.lock_algorithm_for_update(db) if item.status == 'active')
             if active_count <= 1:
-                raise KeyServiceError('at least one active signing key is required')
+                raise KeyServiceError('必须保留至少一把有效的活动签名密钥')
         record.status = 'retiring'
         record.signing_stop_at = current
         record.remove_from_jwks_at = current + timedelta(
@@ -749,7 +600,7 @@ class KeyService:
         """
 
         cls._require_enabled()
-        current = cls._utc_datetime(now or TimezoneUtil.utc_now())
+        current = TimezoneUtil.to_optional_utc(now or TimezoneUtil.utc_now())
         pending = await OidcKeyDao.list_due_pending(db, now=current)
         activated = 0
         for record in pending:
@@ -766,7 +617,7 @@ class KeyService:
             except Exception:  # noqa: PERF203
                 await db.rollback()
                 safe_kid = (
-                    record.kid if isinstance(record.kid, str) and _SAFE_KID_PATTERN.fullmatch(record.kid) else 'invalid'
+                    record.kid if isinstance(record.kid, str) and OidcUtil.is_valid_kid(record.kid) else 'invalid'
                 )
                 try:
                     writer = audit_writer or AuditService.record_independent
@@ -778,8 +629,8 @@ class KeyService:
                         detail={'action': 'activation_failed', 'kid': safe_kid},
                     )
                 except Exception:
-                    logger.warning('OIDC signing key activation audit failed')
-                logger.warning('OIDC signing key activation failed event=signing_key_rotated')
+                    logger.warning('OIDC 签名密钥激活审计记录写入失败，密钥标识={}', safe_kid)
+                logger.warning('OIDC 签名密钥激活失败，事件=signing_key_rotated，密钥标识={}', safe_kid)
         return activated
 
     @classmethod
@@ -801,15 +652,16 @@ class KeyService:
         """
 
         cls._require_enabled(management=True)
-        cls._validate_kid(kid)
+        if not OidcUtil.is_valid_kid(kid):
+            raise KeyServiceError('签名密钥标识 kid 包含不允许的字符')
         record = await OidcKeyDao.get_by_kid_for_update(db, kid)
         if record is None or record.status != 'retired':
-            raise KeyServiceError('key is not safely retired')
-        remove_at = cls._utc_datetime(record.remove_from_jwks_at)
+            raise KeyServiceError('签名密钥尚未完成安全退役')
+        remove_at = TimezoneUtil.to_optional_utc(record.remove_from_jwks_at)
         if remove_at is None or remove_at > TimezoneUtil.utc_now():
-            raise KeyServiceError('key is still within JWKS retention window')
+            raise KeyServiceError('签名密钥仍在 JWKS 公钥保留期内')
         if not await OidcKeyDao.delete_retired(db, kid):
-            raise KeyServiceError('key deletion failed')
+            raise KeyServiceError('签名密钥删除失败')
         await AuditService.record(
             db,
             OidcAuditEvent.SIGNING_KEY_ROTATED,
@@ -826,9 +678,9 @@ class OidcKeyManagementService:
     """
 
     _ERROR_MESSAGES = {
-        'target key is not pending': '签名密钥状态已变化，请刷新列表后重试',
-        'target key is not published': '签名公钥尚未到公开时间，暂时不能开始使用',
-        'signing key rotation is busy': '其他实例正在处理签名密钥，请稍后重试',
+        '目标签名密钥不处于待激活状态': '签名密钥状态已变化，请刷新列表后重试',
+        '目标签名密钥尚未发布': '签名公钥尚未到公开时间，暂时不能开始使用',
+        '签名密钥正在轮换，请稍后重试': '其他实例正在处理签名密钥，请稍后重试',
     }
 
     @staticmethod
@@ -846,11 +698,11 @@ class OidcKeyManagementService:
             alg=row.alg,
             public_jwk=row.public_jwk,
             status=row.status,
-            publish_at=KeyService._utc_datetime(row.publish_at),
-            signing_start_at=KeyService._utc_datetime(row.signing_start_at),
-            signing_stop_at=KeyService._utc_datetime(row.signing_stop_at),
-            remove_from_jwks_at=KeyService._utc_datetime(row.remove_from_jwks_at),
-            create_time=KeyService._utc_datetime(row.create_time),
+            publish_at=TimezoneUtil.to_optional_utc(row.publish_at),
+            signing_start_at=TimezoneUtil.to_optional_utc(row.signing_start_at),
+            signing_stop_at=TimezoneUtil.to_optional_utc(row.signing_stop_at),
+            remove_from_jwks_at=TimezoneUtil.to_optional_utc(row.remove_from_jwks_at),
+            create_time=TimezoneUtil.to_optional_utc(row.create_time),
         ).model_dump(by_alias=True)
 
     @classmethod

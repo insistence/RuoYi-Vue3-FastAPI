@@ -1,5 +1,3 @@
-"""Token Introspection 服务的安全边界测试。"""
-
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 

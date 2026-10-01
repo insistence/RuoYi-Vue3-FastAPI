@@ -23,6 +23,7 @@ from module_identity.service.audit_service import AuditService
 from module_identity.service.identity_service import ClaimService
 from module_identity.service.infrastructure_service import AfterCommitCoordinator
 from module_identity.service.token_service import TokenService
+from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
 
 if TYPE_CHECKING:
@@ -79,7 +80,7 @@ class IntrospectionService:
         """
 
         try:
-            current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
+            current = TimezoneUtil.to_optional_utc(now) or TimezoneUtil.utc_now()
             client = await cls._resolve_caller(db, caller)
             if client is None or not isinstance(token, str) or not token:
                 return {'active': False}
@@ -223,28 +224,6 @@ class IntrospectionService:
             return None
         return client
 
-    @staticmethod
-    def _utc_datetime(value: datetime | None) -> datetime | None:
-        """
-        将输入时间统一转换为项目时间
-
-        :param value: 可选的待规范化 datetime 时间
-        :return: 带时区的 UTC datetime；输入为空时返回 None
-        """
-
-        return TimezoneUtil.to_utc(value) if value is not None else None
-
-    @staticmethod
-    def _json_list(value: Any) -> list[Any]:
-        """
-        将 Scope 或 Resource 字段规范化为列表
-
-        :param value: JSON 编码的 Scope 或 Resource 列表值
-        :return: Scope 或 Resource 元素列表；输入不是 JSON 数组时返回空列表
-        """
-
-        return list(value) if isinstance(value, (list, tuple)) else []
-
     @classmethod
     async def _introspect_access(  # noqa: PLR0912
         cls,
@@ -279,7 +258,7 @@ class IntrospectionService:
         jti = claims.get('jti')
         if not isinstance(jti, str) or await cls._redis_key_exists(redis, OidcRedisKey.revoked_jti(jti)):
             return {'active': False}
-        audiences = cls._audiences(claims.get('aud'))
+        audiences = OidcUtil.normalize_audiences(claims.get('aud'))
         resources = cls._resource_audiences(audiences)
         if not resources or not await cls._resources_owned_by_caller(db, audiences, caller.client_pk):
             return {'active': False}
@@ -296,7 +275,7 @@ class IntrospectionService:
         if grant_type == 'client_credentials':
             if (
                 issuer_client.client_type != 'confidential'
-                or 'client_credentials' not in cls._json_list(issuer_client.grant_types)
+                or 'client_credentials' not in OidcUtil.json_list(issuer_client.grant_types)
                 or claims.get('sub') != f'client:{issuer_client.client_id}'
             ):
                 return {'active': False}
@@ -442,7 +421,10 @@ class IntrospectionService:
         issuer_client = await OAuthClientDao.get_by_pk(db, row.client_pk, active_only=True)
         if issuer_client is None or issuer_client.status != cls._ACTIVE_CLIENT_STATUS:
             return {'active': False}
-        if cls._utc_datetime(row.idle_expires_at) <= now or cls._utc_datetime(row.absolute_expires_at) <= now:
+        if (
+            TimezoneUtil.to_optional_utc(row.idle_expires_at) <= now
+            or TimezoneUtil.to_optional_utc(row.absolute_expires_at) <= now
+        ):
             return {'active': False}
         if not await cls._refresh_family_active(db, row.family_id):
             return {'active': False}
@@ -473,26 +455,26 @@ class IntrospectionService:
             row.user_id,
             row.subject_id,
             issuer_client,
-            cls._json_list(row.scopes),
-            cls._json_list(row.resources),
+            OidcUtil.json_list(row.scopes),
+            OidcUtil.json_list(row.resources),
             now,
         ):
             return {'active': False}
-        resources = cls._audiences(row.resources)
+        resources = OidcUtil.normalize_audiences(row.resources)
         if not resources or not await cls._resources_owned_by_caller(db, resources, caller.client_pk):
             return {'active': False}
         result: dict[str, Any] = {
             'active': True,
             'client_id': issuer_client.client_id,
             'token_type': 'refresh_token',
-            'scope': ' '.join(str(item) for item in cls._json_list(row.scopes)),
+            'scope': ' '.join(str(item) for item in OidcUtil.json_list(row.scopes)),
             'sub': row.subject_id,
             'username': user.user_name,
             'aud': resources,
             'jti': parsed.token_id,
             'sid': row.sid,
-            'iat': cls._timestamp(row.issued_at),
-            'exp': cls._timestamp(row.absolute_expires_at),
+            'iat': OidcUtil.numeric_date(row.issued_at),
+            'exp': OidcUtil.numeric_date(row.absolute_expires_at),
         }
 
         return result
@@ -540,9 +522,9 @@ class IntrospectionService:
             and grant.client_pk == client.client_pk
             and grant.status == cls._ACTIVE_GRANT_STATUS
             and grant.client_policy_version == client.policy_version
-            and (grant.expires_at is None or cls._utc_datetime(grant.expires_at) > now)
-            and set(scopes).issubset(set(cls._json_list(grant.granted_scopes)))
-            and set(resources).issubset(set(cls._json_list(grant.granted_resources)))
+            and (grant.expires_at is None or TimezoneUtil.to_optional_utc(grant.expires_at) > now)
+            and set(scopes).issubset(set(OidcUtil.json_list(grant.granted_scopes)))
+            and set(resources).issubset(set(OidcUtil.json_list(grant.granted_resources)))
         )
 
     @classmethod
@@ -591,35 +573,6 @@ class IntrospectionService:
 
         return bool(await redis.exists(key))
 
-    @staticmethod
-    def _audiences(value: Any) -> list[str]:
-        """
-        将 aud 声明规范化为去重列表
-
-        :param value: OAuth Token 的 Audience 声明值
-        :return: 去重后的 Audience 列表；格式非法时返回空列表
-        """
-
-        values = [value] if isinstance(value, str) else value
-        if not isinstance(values, list) or not values or any(not isinstance(item, str) or not item for item in values):
-            return []
-        return list(dict.fromkeys(values))
-
-    @staticmethod
-    def _timestamp(value: datetime | None) -> int | None:
-        """
-        将 datetime 转换为有限的 Unix 时间戳
-
-        :param value: 可选的 Token 签发时间或过期时间
-        :return: 有限的 Unix 时间戳；输入为空或时间戳非有限时返回 None
-        """
-
-        if value is None:
-            return None
-        timestamp = value.timestamp()
-
-        return int(timestamp) if math.isfinite(timestamp) else None
-
 
 class RevocationError(ValueError):
     """
@@ -635,9 +588,10 @@ class RevocationError(ValueError):
         :return: None
         """
 
-        super().__init__(description)
+        self.message = OidcUtil.localized_oauth_message(error, description)
+        super().__init__(self.message)
         self.error = error
-        self.description = description
+        self.description = OidcUtil.protocol_error_description(error, description) or ''
 
 
 class RevocationService:
@@ -679,7 +633,7 @@ class RevocationService:
         :raises RevocationError: Client 未认证或副作用边界不可用
         """
 
-        current = cls._utc_datetime(now) or TimezoneUtil.utc_now()
+        current = TimezoneUtil.to_optional_utc(now) or TimezoneUtil.utc_now()
         client = await cls._resolve_caller(db, caller)
         if client is None:
             raise RevocationError('invalid_client', 'Client authentication failed')
@@ -953,17 +907,6 @@ class RevocationService:
 
         return
 
-    @staticmethod
-    def _utc_datetime(value: datetime | None) -> datetime | None:
-        """
-        将输入时间统一转换为项目时间
-
-        :param value: 数据库读取的可选时间
-        :return: 带时区的 UTC 时间或 None
-        """
-
-        return TimezoneUtil.to_utc(value) if value is not None else None
-
 
 class UserInfoService:
     """
@@ -984,13 +927,13 @@ class UserInfoService:
 
         client = await OAuthClientDao.get_by_client_id(db, claims['client_id'], active_only=True)
         if client is None or client.status != '0':
-            raise ValueError('client is inactive')
-        resources = IntrospectionService._resource_audiences(IntrospectionService._audiences(claims.get('aud')))
+            raise ValueError('客户端已停用')
+        resources = IntrospectionService._resource_audiences(OidcUtil.normalize_audiences(claims.get('aud')))
         if not await IntrospectionService._client_allows_access(db, client, claims, resources):
-            raise ValueError('client policy is inactive')
+            raise ValueError('客户端访问策略已失效')
         user = await IntrospectionService._access_user_state(db, claims, client, resources, TimezoneUtil.utc_now())
         if user is None:
-            raise ValueError('authorization is inactive')
+            raise ValueError('授权已失效')
         await cls._check_revocation(redis, claims['jti'])
 
         scopes = str(claims.get('scope', '')).split()
@@ -1019,10 +962,10 @@ class UserInfoService:
         """
 
         if redis is None:
-            raise ValueError('token is revoked')
+            raise ValueError('令牌已撤销')
         try:
             revoked = bool(await redis.exists(OidcRedisKey.revoked_jti(jti)))
         except (ConnectionError, TimeoutError, OSError):
-            raise ValueError('token status unavailable') from None
+            raise ValueError('令牌状态暂不可用') from None
         if revoked:
-            raise ValueError('token is revoked')
+            raise ValueError('令牌已撤销')

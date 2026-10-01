@@ -29,7 +29,9 @@ from module_identity.service.interaction_service import (
     InteractionLoginService,
     InteractionService,
 )
-from module_identity.service.session_service import SsoSessionService
+from module_identity.service.session_service import SsoSessionError, SsoSessionService
+from utils.client_ip_util import ClientIPUtil
+from utils.oidc_util import OidcUtil
 from utils.response_util import ResponseUtil
 
 interaction_controller = APIRouterPro(
@@ -53,19 +55,6 @@ def _redis(request: Request) -> Redis:
     if value is None:
         raise OidcInteractionException(error='server_error', status_code=503, message='认证服务不可用')
     return value
-
-
-def _client_ip(request: Request) -> str | None:
-    """
-    读取当前请求的客户端地址
-
-    :param request: 当前 HTTP 请求
-    :return: 客户端 IP 地址，不存在时返回 None
-    """
-
-    client = getattr(request, 'client', None)
-
-    return getattr(client, 'host', None)
 
 
 def _not_found() -> Response:
@@ -116,27 +105,12 @@ def _login_response(outcome: InteractionLoginOutcome) -> Response:
         return ResponseUtil.failure(msg=outcome.failure_message, headers=_NO_STORE)
     response = ResponseUtil.success(data=outcome.result, headers=_NO_STORE)
     if outcome.cookie is not None:
-        SsoSessionService.parse_cookie(outcome.cookie)
+        try:
+            OidcUtil.parse_sso_cookie(outcome.cookie)
+        except ValueError as exc:
+            raise SsoSessionError(str(exc)) from exc
         response.set_cookie(value=outcome.cookie, **SsoSessionService.cookie_parameters(max_age=outcome.cookie_max_age))
     return response
-
-
-def _json_pairs(items: list[tuple[str, object]]) -> dict[str, object]:
-    """
-    构造拒绝重复字段的 JSON 对象
-
-    :param items: JSON 对象字段
-    :return: 唯一字段组成的对象
-    :raises ValueError: JSON 对象包含重复字段
-    """
-
-    result: dict[str, object] = {}
-    for key, value in items:
-        # 拒绝重复字段，避免不同解析器产生歧义
-        if key in result:
-            raise ValueError('duplicate JSON field')
-        result[key] = value
-    return result
 
 
 async def _safe_json_body(request: Request, model: type[_MODEL]) -> _MODEL:
@@ -151,34 +125,30 @@ async def _safe_json_body(request: Request, model: type[_MODEL]) -> _MODEL:
     # 仅接受 JSON，避免协议请求被宽松解析
     content_type = request.headers.get('content-type', '').split(';', 1)[0].strip().lower()
     if content_type != 'application/json':
-        raise OidcInteractionException(error='invalid_request', status_code=400, message='Invalid interaction request')
+        raise OidcInteractionException(error='invalid_request', status_code=400, message='认证交互请求无效')
     try:
         chunks: list[bytes] = []
         size = 0
         async for chunk in request.stream():
             if not isinstance(chunk, (bytes, bytearray)):
-                raise ValueError('request body must be bytes')
+                raise ValueError('请求体必须为字节数据')
             # 限制请求体大小，避免认证交互接口被大请求消耗资源
             size += len(chunk)
             if size > _MAX_INTERACTION_BODY_BYTES:
-                raise ValueError('request body is too large')
+                raise ValueError('请求体大小超过允许范围')
             chunks.append(bytes(chunk))
         raw = b''.join(chunks)
     except Exception as exc:
-        raise OidcInteractionException(
-            error='invalid_request', status_code=400, message='Invalid interaction request'
-        ) from exc
+        raise OidcInteractionException(error='invalid_request', status_code=400, message='认证交互请求无效') from exc
     if len(raw) > _MAX_INTERACTION_BODY_BYTES:
-        raise OidcInteractionException(error='invalid_request', status_code=400, message='Invalid interaction request')
+        raise OidcInteractionException(error='invalid_request', status_code=400, message='认证交互请求无效')
     try:
-        value = json.loads(raw.decode('utf-8'), object_pairs_hook=_json_pairs)
+        value = json.loads(raw.decode('utf-8'), object_pairs_hook=OidcUtil.json_object_pairs)
         if not isinstance(value, dict):
-            raise ValueError('JSON body must be an object')
+            raise ValueError('JSON 请求体必须为对象')
         return model.model_validate(value)
     except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError, ValidationError) as exc:
-        raise OidcInteractionException(
-            error='invalid_request', status_code=400, message='Invalid interaction request'
-        ) from exc
+        raise OidcInteractionException(error='invalid_request', status_code=400, message='认证交互请求无效') from exc
 
 
 @interaction_controller.get(
@@ -212,7 +182,7 @@ async def get_interaction(
 async def captcha(request: Request, interaction_id: str) -> Response:
     if not OidcConfig.oidc_enabled:
         return _not_found()
-    outcome = await InteractionFlowService.captcha(_redis(request), interaction_id, _client_ip(request))
+    outcome = await InteractionFlowService.captcha(_redis(request), interaction_id, ClientIPUtil.get_client_ip(request))
     if outcome.rate_limited:
         return _failure_response(
             '请求过于频繁，请稍后再试',
@@ -248,7 +218,7 @@ async def login_endpoint(
         body,
         query_db,
         csrf_token,
-        _client_ip(request),
+        ClientIPUtil.get_client_ip(request),
         request.headers.get('user-agent'),
     )
 

@@ -1,5 +1,3 @@
-"""OAuth Token、Revocation 和 Introspection Controller 测试。"""
-
 import json
 from types import SimpleNamespace
 from typing import Any

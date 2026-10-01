@@ -1,5 +1,3 @@
-"""OIDC Claim 服务行为测试。"""
-
 from datetime import datetime, timezone
 
 import pytest

@@ -1,5 +1,3 @@
-"""统一认证管理 Service 的分层架构守卫。"""
-
 import re
 from pathlib import Path
 

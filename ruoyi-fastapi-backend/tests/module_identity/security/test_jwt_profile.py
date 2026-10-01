@@ -1,5 +1,3 @@
-"""三类 JWT Profile 的类型、算法、Issuer 与 Audience 隔离测试。"""
-
 import math
 from datetime import datetime, timezone
 

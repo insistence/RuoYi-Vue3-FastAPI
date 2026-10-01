@@ -1,5 +1,3 @@
-"""认证中心启动密钥校验测试。"""
-
 import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

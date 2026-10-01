@@ -264,7 +264,7 @@ class OAuthSessionManagementService:
             return count
         except Exception as exc:
             await coordinator.rollback(db)
-            raise ServiceException(message='批量撤销 Session 失败') from exc
+            raise ServiceException(message='批量撤销会话失败') from exc
 
     @staticmethod
     async def revoke_sessions(db: AsyncSession, redis: Redis, sids: list[str], actor: str, reason: str) -> int:
@@ -297,7 +297,7 @@ class OAuthSessionManagementService:
             return count
         except Exception as exc:
             await coordinator.rollback(db)
-            raise ServiceException(message='批量撤销 Session 失败') from exc
+            raise ServiceException(message='批量撤销会话失败') from exc
 
     @staticmethod
     async def revoke_grants(db: AsyncSession, grant_ids: list[str], actor: str, reason: str) -> int:
@@ -333,7 +333,7 @@ class OAuthSessionManagementService:
             return count
         except Exception as exc:
             await db.rollback()
-            raise ServiceException(message='批量撤销 Grant 失败') from exc
+            raise ServiceException(message='批量撤销授权失败') from exc
 
     @staticmethod
     async def set_access(db: AsyncSession, user_id: int, client_id: str, blocked: bool, actor: str, reason: str) -> int:

@@ -1,5 +1,3 @@
-"""数据库持久化约束及UTC响应契约的回归测试"""
-
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
@@ -22,8 +20,9 @@ from module_identity.entity.vo.oauth_client_vo import ClientViewModel
 from module_identity.security.opaque_token import parse_opaque_token
 from module_identity.security.principal import OAuthClientPrincipal
 from module_identity.service.identity_service import ClaimService
-from module_identity.service.session_service import LogoutService, SsoSessionService
+from module_identity.service.session_service import LogoutService
 from module_identity.service.token_service import RefreshTokenReuseDetected, TokenResult, TokenService
+from utils.oidc_util import OidcUtil
 from utils.response_util import ResponseUtil
 
 NOW = datetime(2026, 9, 12, 10, 0, tzinfo=timezone.utc)
@@ -220,7 +219,7 @@ async def test_confirmed_logout_revokes_offline_grant_with_expired_owned_cookie(
     sid = '99010000-0000-4000-8000-000000000001'
     session = await SsoSessionDao.get_by_sid(data_session, sid)
     secret = 's' * 43
-    session.session_secret_hash = SsoSessionService._secret_digest(secret, PEPPER)
+    session.session_secret_hash = OidcUtil.session_secret_digest(secret, PEPPER)
     await data_session.commit()
     result = await LogoutService.execute_logout(
         data_session,

@@ -25,6 +25,7 @@ from module_identity.entity.vo.oauth_session_vo import (
     SsoSessionModel,
 )
 from module_identity.service.oauth_session_management_service import OAuthSessionManagementService
+from utils.oidc_util import OidcUtil
 from utils.response_util import ResponseUtil
 
 oauth_session_controller = APIRouterPro(
@@ -45,35 +46,12 @@ def _actor(user: CurrentUserModel) -> str:
     :raises ServiceException: 当前用户不可用
     """
 
-    value = getattr(getattr(user, 'user', None), 'user_name', None)
-    if not isinstance(value, str) or not value.strip():
-        raise ServiceException(message='当前操作者不可用')
-    return value[:64]
-
-
-def _split(value: str, name: str) -> list[str]:
-    """
-    校验并拆分批量会话参数
-
-    :param value: 逗号分隔的会话或授权标识
-    :param name: 参数字段名称
-    :return: 去除空白后的参数列表
-    :raises ServiceException: 参数为空、超出数量限制、包含非法字符或重复值
-    """
-
-    values = [item.strip() for item in value.split(',')] if isinstance(value, str) else []
-    if (
-        not values
-        or len(values) > _MAX_BATCH_SIZE
-        or any(
-            not item or '/' in item or '\\' in item or '%' in item or any(char.isspace() for char in item)
-            for item in values
+    try:
+        return OidcUtil.actor_name(
+            getattr(getattr(user, 'user', None), 'user_name', None), error_message='当前操作者不可用'
         )
-    ):
-        raise ServiceException(message=f'{name} 参数无效')
-    if len(set(values)) != len(values):
-        raise ServiceException(message=f'{name} 参数重复')
-    return values
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
 
 
 @oauth_session_controller.get(
@@ -101,7 +79,7 @@ async def list_oauth_sessions(
 @ApiRateLimit(
     namespace=ApiNamespace.SYSTEM_OAUTH_SESSION_USER_REVOKE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION
 )
-@Log(title='OAuth Session管理', business_type=BusinessType.DELETE)
+@Log(title='OAuth 会话管理', business_type=BusinessType.DELETE)
 async def revoke_user_oauth_sessions(
     request: Request,
     user_id: Annotated[int, Path(gt=0)],
@@ -113,7 +91,7 @@ async def revoke_user_oauth_sessions(
         query_db, request.app.state.redis, user_id, _actor(current_user), payload.reason
     )
 
-    return ResponseUtil.success(msg='SSO Session 已撤销', data={'count': count})
+    return ResponseUtil.success(msg='单点登录会话已撤销', data={'count': count})
 
 
 @oauth_session_controller.get(
@@ -128,7 +106,7 @@ async def get_oauth_session(
 ) -> Response:
     data = await OAuthSessionManagementService.get_session(query_db, sid)
     if data is None:
-        raise ServiceException(message='Session 不存在')
+        raise ServiceException(message='会话不存在')
     return ResponseUtil.success(data=data)
 
 
@@ -140,7 +118,7 @@ async def get_oauth_session(
     dependencies=[UserInterfaceAuthDependency('system:oauthSession:revoke')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_SESSION_REVOKE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
-@Log(title='OAuth Session管理', business_type=BusinessType.DELETE)
+@Log(title='OAuth 会话管理', business_type=BusinessType.DELETE)
 async def revoke_oauth_sessions(
     request: Request,
     sids: Annotated[str, Path(min_length=1, max_length=6500)],
@@ -148,11 +126,15 @@ async def revoke_oauth_sessions(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
+    try:
+        batch_ids = OidcUtil.split_batch(sids, 'sids', max_size=_MAX_BATCH_SIZE, validate_all_first=True)
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
     count = await OAuthSessionManagementService.revoke_sessions(
-        query_db, request.app.state.redis, _split(sids, 'sids'), _actor(current_user), payload.reason
+        query_db, request.app.state.redis, batch_ids, _actor(current_user), payload.reason
     )
 
-    return ResponseUtil.success(msg='SSO Session 已撤销', data={'count': count})
+    return ResponseUtil.success(msg='单点登录会话已撤销', data={'count': count})
 
 
 @oauth_grant_controller.get(
@@ -198,7 +180,7 @@ async def get_oauth_grant(
 ) -> Response:
     data = await OAuthSessionManagementService.get_grant(query_db, grant_id)
     if data is None:
-        raise ServiceException(message='Grant 不存在')
+        raise ServiceException(message='授权记录不存在')
     return ResponseUtil.success(data=data)
 
 
@@ -210,7 +192,7 @@ async def get_oauth_grant(
     dependencies=[UserInterfaceAuthDependency('system:oauthGrant:revoke')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_GRANT_REVOKE, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
-@Log(title='OAuth Grant管理', business_type=BusinessType.DELETE)
+@Log(title='OAuth 授权管理', business_type=BusinessType.DELETE)
 async def revoke_oauth_grants(
     request: Request,
     grant_ids: Annotated[str, Path(min_length=1, max_length=6500)],
@@ -218,11 +200,13 @@ async def revoke_oauth_grants(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     current_user: Annotated[CurrentUserModel, CurrentUserDependency()],
 ) -> Response:
-    count = await OAuthSessionManagementService.revoke_grants(
-        query_db, _split(grant_ids, 'grant_ids'), _actor(current_user), payload.reason
-    )
+    try:
+        batch_ids = OidcUtil.split_batch(grant_ids, 'grant_ids', max_size=_MAX_BATCH_SIZE, validate_all_first=True)
+    except ValueError as exc:
+        raise ServiceException(message=str(exc)) from exc
+    count = await OAuthSessionManagementService.revoke_grants(query_db, batch_ids, _actor(current_user), payload.reason)
 
-    return ResponseUtil.success(msg='OAuth Grant 已撤销', data={'count': count})
+    return ResponseUtil.success(msg='OAuth 授权已撤销', data={'count': count})
 
 
 @oauth_grant_controller.put(
@@ -233,7 +217,7 @@ async def revoke_oauth_grants(
     dependencies=[UserInterfaceAuthDependency('system:oauthGrant:revoke')],
 )
 @ApiRateLimit(namespace=ApiNamespace.SYSTEM_OAUTH_GRANT_ACCESS, preset=ApiRateLimitPreset.USER_DESTRUCTIVE_MUTATION)
-@Log(title='OAuth Grant管理', business_type=BusinessType.UPDATE)
+@Log(title='OAuth 授权管理', business_type=BusinessType.UPDATE)
 async def set_oauth_client_access(
     request: Request,
     user_id: Annotated[int, Path(gt=0)],

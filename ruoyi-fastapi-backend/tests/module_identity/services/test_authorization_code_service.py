@@ -1,5 +1,3 @@
-"""Authorization Code Redis 服务测试。"""
-
 import asyncio
 
 import pytest

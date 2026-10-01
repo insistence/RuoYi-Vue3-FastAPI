@@ -1,5 +1,3 @@
-"""Interaction Redis 状态机和 CSRF 服务测试。"""
-
 import json
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
@@ -11,6 +9,7 @@ from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.interaction_service import InteractionService
 from tests.module_identity.support.redis_fakes import FakeRedis
+from utils.oidc_util import OidcUtil
 
 _PEPPER = 'interaction-test-pepper-' + 'x' * 32
 _CHALLENGE = 'A' * 43
@@ -195,7 +194,7 @@ async def test_transition_rejects_interaction_without_ttl(monkeypatch: pytest.Mo
         return json.loads(value)
 
     monkeypatch.setattr(InteractionService, '_get_record', classmethod(get_record))
-    with pytest.raises(OidcInteractionException, match='TTL is invalid'):
+    with pytest.raises(OidcInteractionException, match='认证交互有效期无效'):
         await InteractionService.transition(redis, created.interaction_id, {'awaiting_login'}, 'awaiting_consent')
     assert key not in redis.values
 
@@ -216,9 +215,9 @@ async def test_transition_rejects_duplicate_scope_and_incomplete_identity() -> N
 def test_max_age_decision_uses_project_local_time() -> None:
     """验证 max_age 使用项目约定的本地无时区时间。"""
     now = datetime(2026, 8, 24, 13, 0, tzinfo=timezone.utc)
-    assert InteractionService.requires_reauthentication(now - timedelta(seconds=10), 5, now) is True
-    assert InteractionService.requires_reauthentication(now - timedelta(seconds=2), 5, now) is False
-    assert InteractionService.requires_reauthentication(now, 5, now) is False
+    assert OidcUtil.requires_reauthentication(now - timedelta(seconds=10), 5, now) is True
+    assert OidcUtil.requires_reauthentication(now - timedelta(seconds=2), 5, now) is False
+    assert OidcUtil.requires_reauthentication(now, 5, now) is False
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,3 @@
-"""OIDC Signing Key DAO 数据层测试。"""
-
 from datetime import datetime, timezone
 from typing import Any
 

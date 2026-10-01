@@ -1,5 +1,3 @@
-"""凭据协调服务的 Legacy/OIDC 安全边界测试。"""
-
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -16,6 +14,7 @@ from module_identity.service.identity_service import (
     CredentialAuthenticationError,
     CredentialAuthenticationService,
 )
+from utils.oidc_util import OidcUtil
 from utils.pwd_util import PwdUtil
 
 _OIDC_FAILURE_SCRIPT_KEY_COUNT = 2
@@ -117,6 +116,7 @@ async def test_oidc_unknown_user_and_wrong_password_are_equivalent_and_dummy_ver
     ):
         await CredentialAuthenticationService.authenticate_oidc(redis, object(), user_name='alice', password='wrong')
     assert wrong.value.reason == unknown.value.reason
+    assert str(wrong.value) == str(unknown.value) == '账号或密码错误'
 
 
 @pytest.mark.asyncio
@@ -229,7 +229,7 @@ async def test_oidc_hashed_error_state_locks_without_plain_username() -> None:
         patch.object(PwdUtil, 'verify_password', return_value=False),
         pytest.raises(CredentialAuthenticationError) as exc_info,
     ):
-        digest = OidcRedisKey.hash_sensitive_identifier('alice', 'p' * 32)
+        digest = OidcUtil.hash_sensitive_identifier('alice', 'p' * 32)
         redis.values[OidcRedisKey.login_user_rate_limit(digest)] = 5
         await CredentialAuthenticationService.authenticate_oidc(redis, object(), user_name='alice', password='wrong')
     assert exc_info.value.reason == 'account_locked'

@@ -180,9 +180,7 @@ class OidcRuntimeService:
             app.state.oidc_readiness = readiness
             app.state.oidc_readiness_lock = asyncio.Lock()
         if readiness.enabled and not readiness.ready:
-            logger.warning(
-                'OIDC is enabled but not ready; protocol endpoints will return 503 until an active signing key is available'
-            )
+            logger.warning('统一认证中心已启用但尚未就绪；请创建并激活有效签名密钥，就绪前协议接口返回 503')
         return readiness
 
     @staticmethod
@@ -254,7 +252,7 @@ class OidcRuntimeService:
             except Exception:
                 app.state.oidc_registered_cors_origins = ()
                 app.state.oidc_cors_loaded_at = None
-                logger.error('OAuth registered CORS snapshot refresh failed')
+                logger.error('OAuth 已注册跨域来源快照刷新失败')
 
     @classmethod
     def cors_snapshot_callback(cls, app: FastAPI) -> Callable[[], Awaitable[None]]:
@@ -277,7 +275,7 @@ class OidcRuntimeService:
                 if redis is not None:
                     await redis.incr(cls._CORS_VERSION_KEY)
             except Exception:
-                logger.error('OAuth CORS invalidation publish failed; Workers will refresh within cache TTL')
+                logger.error('OAuth 跨域配置失效通知发布失败，各工作进程将在缓存有效期内刷新')
             app.state.oidc_cors_loaded_at = None
             await cls.ensure_cors_snapshot(app)
 
@@ -341,7 +339,7 @@ class OidcRuntimeService:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.error('OIDC key lifecycle iteration failed')
+                logger.error('OIDC 签名密钥生命周期维护任务执行失败')
 
     @staticmethod
     async def backchannel_retry_loop(redis: object) -> None:
@@ -362,7 +360,7 @@ class OidcRuntimeService:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                logger.error('OIDC backchannel retry iteration failed')
+                logger.error('OIDC 后端退出通知重试任务执行失败')
 
     @staticmethod
     async def stop_background_tasks(app: FastAPI) -> None:

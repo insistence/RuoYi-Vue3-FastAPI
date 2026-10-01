@@ -1,5 +1,3 @@
-"""退出确认、取消、CSRF防护及重放的HTTP回归测试"""
-
 import re
 from collections.abc import AsyncIterator, Iterator
 from time import monotonic

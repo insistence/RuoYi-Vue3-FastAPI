@@ -1,5 +1,3 @@
-"""KeyService 的私钥、公钥发布和窗口校验测试。"""
-
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -20,6 +18,7 @@ from module_identity.dao.oidc_key_dao import OidcKeyDao
 from module_identity.entity.do.oauth_audit_do import SysOAuthAuditLog
 from module_identity.entity.do.oidc_key_do import SysOidcSigningKey
 from module_identity.service.key_service import KeyService, KeyServiceError, OidcKeyManagementService
+from utils.oidc_util import OidcUtil
 
 _MIN_TEST_RSA_BITS = 2048
 
@@ -99,7 +98,7 @@ def _record(tmp_path: Path, *, status: str = 'active', matching: bool = True) ->
 async def test_key_lifecycle_rejects_unsafe_kid_before_database_access(kid: str) -> None:
     """激活、退役和删除入口统一拒绝无法安全放入路径的 kid。"""
     for operation in (KeyService.activate_key, KeyService.retire_key, KeyService.delete_key):
-        with pytest.raises(KeyServiceError, match='invalid characters'):
+        with pytest.raises(KeyServiceError, match='包含不允许的字符'):
             await operation(object(), kid)
 
 
@@ -212,10 +211,19 @@ async def test_activate_due_continues_when_failure_audit_writer_fails(monkeypatc
     async def failed_audit(*args: object, **kwargs: object) -> None:
         raise RuntimeError('audit database unavailable')
 
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        'module_identity.service.key_service.logger.warning',
+        lambda message, *args: warnings.append(message.format(*args)),
+    )
     monkeypatch.setattr('module_identity.service.key_service.OidcKeyDao.list_due_pending', due_keys)
     monkeypatch.setattr(KeyService, 'activate_key', activate)
     assert await KeyService.activate_due(_Session(), audit_writer=failed_audit) == 1
     assert activated == ['second']
+    assert warnings == [
+        'OIDC 签名密钥激活审计记录写入失败，密钥标识=first',
+        'OIDC 签名密钥激活失败，事件=signing_key_rotated，密钥标识=first',
+    ]
 
 
 @pytest.mark.asyncio
@@ -302,7 +310,7 @@ async def test_rotation_lock_is_cross_instance_exclusive_and_releases_atomically
     redis = _Redis()
     lock = KeyService._rotation_lock(redis)
     await lock.__aenter__()
-    with pytest.raises(KeyServiceError, match='busy'):
+    with pytest.raises(KeyServiceError, match='正在轮换'):
         async with KeyService._rotation_lock(redis):
             pass
     await lock.__aexit__(None, None, None)
@@ -312,14 +320,14 @@ async def test_rotation_lock_is_cross_instance_exclusive_and_releases_atomically
 @pytest.mark.asyncio
 async def test_private_key_must_match_public_jwk(tmp_path: Path) -> None:
     """公私钥不匹配时启动加载必须失败。"""
-    with pytest.raises(KeyServiceError, match='does not match'):
+    with pytest.raises(KeyServiceError, match='不匹配'):
         await KeyService.load_private_key_async(_record(tmp_path, matching=False))
 
 
 @pytest.mark.asyncio
 async def test_private_key_requires_active_signing_window(tmp_path: Path) -> None:
     """pending 或已停止签名的密钥不能用于签名。"""
-    with pytest.raises(KeyServiceError, match='not active'):
+    with pytest.raises(KeyServiceError, match='预期状态为 active'):
         await KeyService.load_private_key_async(_record(tmp_path, status='pending'))
 
 
@@ -331,17 +339,17 @@ async def test_imported_database_kid_is_validated_before_jwks_and_signing(
     record = _record(tmp_path)
     record.kid = 'bad/key'
     record.public_jwk['kid'] = 'bad/key'
-    with pytest.raises(KeyServiceError, match='invalid characters'):
+    with pytest.raises(KeyServiceError, match='包含不允许的字符'):
         await KeyService.load_private_key_async(record)
 
-    with pytest.raises(KeyServiceError, match='invalid characters'):
-        KeyService._normalise_public_jwk(record)
+    with pytest.raises(ValueError, match='包含不允许的字符'):
+        OidcUtil.normalize_public_jwk(record)
 
     async def published(*args: object, **kwargs: object) -> list[SimpleNamespace]:
         return [record]
 
     monkeypatch.setattr('module_identity.service.key_service.OidcKeyDao.list_published', published)
-    with pytest.raises(KeyServiceError, match='invalid characters'):
+    with pytest.raises(KeyServiceError, match='包含不允许的字符'):
         await KeyService.build_jwks(object())
 
 
@@ -516,7 +524,7 @@ async def test_real_session_rotation_rolls_back_on_key_mismatch(data_session: As
     await data_session.commit()
     config = _config()
     config.oidc_active_kid = 'old'
-    with pytest.raises(KeyServiceError, match='does not match'):
+    with pytest.raises(KeyServiceError, match='不匹配'):
         await KeyService.activate_key(data_session, 'new', now=now)
     await data_session.rollback()
     rows = (await data_session.execute(select(SysOidcSigningKey).order_by(SysOidcSigningKey.kid))).scalars().all()
@@ -602,7 +610,7 @@ async def test_jwks_rejects_malformed_rsa_jwk(monkeypatch: pytest.MonkeyPatch, t
         return [record]
 
     monkeypatch.setattr('module_identity.service.key_service.OidcKeyDao.list_published', published)
-    with pytest.raises(KeyServiceError, match=r'base64url|RSA numbers'):
+    with pytest.raises(KeyServiceError, match=r'Base64URL|RSA 参数'):
         await KeyService.build_jwks(object(), now=now)
 
 
@@ -634,7 +642,7 @@ async def test_activation_validates_pending_private_key_before_state_change(
     monkeypatch.setattr('module_identity.service.key_service.OidcKeyDao.get_by_kid_for_update', get_target)
     monkeypatch.setattr('module_identity.service.key_service.OidcKeyDao.get_active', get_old)
     monkeypatch.setattr('module_identity.service.key_service.OidcKeyDao.activate', activate)
-    with pytest.raises(KeyServiceError, match='does not match'):
+    with pytest.raises(KeyServiceError, match='不匹配'):
         await KeyService.activate_key(object(), 'k1')
     assert changed is False
 
@@ -685,4 +693,4 @@ def test_etag_is_stable_and_private_fields_are_not_serialized() -> None:
     """ETag 对字段顺序稳定，公开结果不含私钥字段。"""
     first = {'keys': [{'kid': 'k1', 'n': 'n', 'e': 'AQAB'}]}
     second = {'keys': [{'e': 'AQAB', 'n': 'n', 'kid': 'k1'}]}
-    assert KeyService.compute_etag(first) == KeyService.compute_etag(second)
+    assert OidcUtil.json_etag(first) == OidcUtil.json_etag(second)

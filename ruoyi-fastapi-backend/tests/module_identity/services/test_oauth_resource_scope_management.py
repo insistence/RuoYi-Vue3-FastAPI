@@ -1,5 +1,3 @@
-"""OAuth Resource 与 Scope 管理服务测试。"""
-
 from datetime import datetime, timezone
 
 import pytest
@@ -186,7 +184,7 @@ async def test_resource_audience_and_introspection_validation_is_fail_closed(res
         ),
         actor='a',
     )
-    with pytest.raises(OAuthClientManagementError, match='confidential'):
+    with pytest.raises(OAuthClientManagementError, match='机密客户端'):
         await OAuthResourceManagementService.update_resource(
             resource_session,
             ResourceUpdateModel.model_validate(
@@ -227,7 +225,7 @@ async def test_scope_binding_claim_whitelist_and_builtin_openid(resource_session
     )
     assert changed.claims == ['sub']
     assert (await resource_session.get(SysOAuthClient, 1)).policy_version == _FIRST_POLICY_CHANGE
-    with pytest.raises(OAuthClientManagementError, match='disallowed'):
+    with pytest.raises(OAuthClientManagementError, match='不允许发布的声明'):
         await OAuthResourceManagementService.create_scope(
             resource_session,
             ScopeModel(scope_code='bad', scope_name='Bad', scope_type='identity', claims=['user_id']),
@@ -238,11 +236,11 @@ async def test_scope_binding_claim_whitelist_and_builtin_openid(resource_session
         ScopeModel(scope_code='openid', scope_name='OpenID', scope_type='identity', claims=['sub']),
         actor='admin',
     )
-    with pytest.raises(OAuthClientManagementError, match='cannot be disabled'):
+    with pytest.raises(OAuthClientManagementError, match='不能停用'):
         await OAuthResourceManagementService.change_scope_status(
             resource_session, ScopeStatusModel(scope_code='openid', status='1'), actor='admin'
         )
-    with pytest.raises(OAuthClientManagementError, match='cannot be disabled or moved'):
+    with pytest.raises(OAuthClientManagementError, match='不能停用或更改归属'):
         await OAuthResourceManagementService.update_scope(
             resource_session,
             ScopeModel(
@@ -327,7 +325,7 @@ async def test_scope_requires_active_resource(resource_session: AsyncSession) ->
     await OAuthResourceManagementService.change_resource_status(
         resource_session, ResourceStatusModel(resource_id='orders-api', status='1'), actor='admin'
     )
-    with pytest.raises(OAuthClientManagementError, match='inactive'):
+    with pytest.raises(OAuthClientManagementError, match='已停用'):
         await OAuthResourceManagementService.create_scope(
             resource_session,
             ScopeModel(scope_code='orders.read', scope_name='读取', scope_type='resource', resource_id='orders-api'),

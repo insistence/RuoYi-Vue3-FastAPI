@@ -1,7 +1,8 @@
-import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, field_validator, model_validator
+
+from utils.oidc_util import OidcUtil
 
 
 class ProtocolModel(BaseModel):
@@ -45,8 +46,8 @@ class AuthorizeRequest(ProtocolModel):
         :return: 已校验 challenge
         """
 
-        if not re.fullmatch(r'[A-Za-z0-9_-]{43}', value):
-            raise ValueError('code_challenge must be an unpadded base64url SHA-256 value')
+        if not OidcUtil.is_s256_challenge(value):
+            raise ValueError('code_challenge 必须为不带填充的 Base64URL 编码 SHA-256 摘要')
         return value
 
     @field_validator('prompt')
@@ -59,15 +60,7 @@ class AuthorizeRequest(ProtocolModel):
         :return: 规范化后的 prompt 或 None
         """
 
-        if value is None:
-            return value
-        prompts = value.split()
-        allowed = {'login', 'consent', 'none'}
-        if not prompts or any(item not in allowed for item in prompts) or len(set(prompts)) != len(prompts):
-            raise ValueError('prompt must contain only supported values; none cannot be combined')
-        if 'none' in prompts and len(prompts) != 1:
-            raise ValueError('prompt must contain only supported values; none cannot be combined')
-        return ' '.join(prompts)
+        return OidcUtil.normalize_prompt(value)
 
     @model_validator(mode='after')
     def validate_oidc_nonce(self) -> 'AuthorizeRequest':
@@ -78,7 +71,7 @@ class AuthorizeRequest(ProtocolModel):
         """
 
         if 'openid' in self.scope.split() and not self.nonce:
-            raise ValueError('nonce is required when openid scope is requested')
+            raise ValueError('申请 openid 权限时必须提供 nonce')
         return self
 
 
@@ -108,18 +101,18 @@ class TokenRequest(ProtocolModel):
 
         if self.grant_type == 'authorization_code':
             if not self.code or not self.code_verifier or not self.redirect_uri:
-                raise ValueError('authorization_code requires code, redirect_uri and code_verifier')
+                raise ValueError('授权码兑换必须提供 code、redirect_uri 和 code_verifier')
             if self.refresh_token or self.scope is not None or self.resource is not None:
-                raise ValueError('authorization_code contains incompatible fields')
+                raise ValueError('授权码兑换请求包含不适用的字段')
         elif self.grant_type == 'refresh_token':
             if not self.refresh_token:
-                raise ValueError('refresh_token grant requires refresh_token')
+                raise ValueError('刷新令牌请求必须提供 refresh_token')
             if self.code or self.code_verifier or self.redirect_uri:
-                raise ValueError('refresh_token contains incompatible fields')
+                raise ValueError('刷新令牌请求包含不适用的字段')
         elif self.grant_type == 'client_credentials' and any(
             (self.code, self.code_verifier, self.refresh_token, self.redirect_uri)
         ):
-            raise ValueError('client_credentials contains incompatible fields')
+            raise ValueError('客户端凭据授权请求包含不适用的字段')
         return self
 
 

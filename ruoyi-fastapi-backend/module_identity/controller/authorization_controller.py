@@ -1,10 +1,9 @@
 import hashlib
-import hmac
 from base64 import b64encode
 from collections.abc import Iterable
 from html import escape
 from typing import Annotated, Any, cast
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
@@ -23,6 +22,8 @@ from module_identity.service.authorization_service import AuthorizationService
 from module_identity.service.infrastructure_service import OidcRateLimiter, RateLimitExceeded, RateLimitUnavailable
 from module_identity.service.logout_confirmation_service import LogoutConfirmationService
 from module_identity.service.session_service import LogoutService, LogoutServiceError, SsoSessionService
+from utils.client_ip_util import ClientIPUtil
+from utils.oidc_util import OidcUtil
 
 authorization_controller = APIRouterPro(
     tags=['认证中心协议'], order_num=4, dependencies=[Depends(require_oidc_protocol_ready)]
@@ -45,7 +46,6 @@ button[value=confirm]{background:#b91c1c;border-color:#b91c1c;color:#fff}button[
 _LOGOUT_STYLE_HASH = b64encode(hashlib.sha256(_LOGOUT_STYLE.encode()).digest()).decode()
 _LOGOUT_QUERY_LIMITS = {'id_token_hint': 8192, 'post_logout_redirect_uri': 1000, 'state': 2048}
 _LOGOUT_QUERY_FIELDS = frozenset(_LOGOUT_QUERY_LIMITS)
-_LOGOUT_RATE_PEPPER_MIN_BYTES = 32
 
 
 def _read_authorization_query(request: Request) -> dict[str, str]:
@@ -91,11 +91,10 @@ async def _enforce_authorization_rate_limit(request: Request, redis: Redis) -> N
     :raises OAuthProtocolException: 客户端地址缺失、请求超限或限流服务不可用时抛出
     """
     # 使用 HMAC-IP 固定窗口限流，Redirect 校验前不执行外跳
-    client = request.client
-    ip_address = getattr(client, 'host', None) if client is not None else None
-    if not isinstance(ip_address, str) or not ip_address:
+    ip_address = ClientIPUtil.get_client_ip(request)
+    if not isinstance(ip_address, str) or not ip_address or ip_address == 'unknown':
         raise OAuthProtocolException('temporarily_unavailable', 'Authorization service is unavailable', 503)
-    ip_hash = OidcRedisKey.hash_sensitive_identifier(ip_address, OidcConfig.oidc_token_hash_pepper)
+    ip_hash = OidcUtil.hash_sensitive_identifier(ip_address, OidcConfig.oidc_token_hash_pepper)
     try:
         await OidcRateLimiter.enforce(
             redis,
@@ -136,24 +135,6 @@ def _oidc_not_found_response() -> Response:
     """
 
     return JSONResponse(content={'error': 'not_found'}, status_code=404, headers=_NO_STORE)
-
-
-def _append_state(redirect_uri: str, state: str | None) -> str:
-    """
-    为已验证的退出回调地址附加状态参数
-
-    :param redirect_uri: 服务端已验证的退出回调地址
-    :param state: 原始退出状态参数
-    :return: 附加状态参数后的回调地址
-    """
-
-    if state is None:
-        return redirect_uri
-    parsed = urlsplit(redirect_uri)
-    query = [(key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True) if key != 'state']
-    query.append(('state', state))
-
-    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
 def _logout_page(title: str, body: str, *, redirect_origin: str | None = None) -> HTMLResponse:
@@ -257,22 +238,6 @@ def _valid_logout_parameters(values: Iterable[tuple[str, str]]) -> bool:
     return all(key in _LOGOUT_QUERY_FIELDS and len(value) <= _LOGOUT_QUERY_LIMITS[key] for key, value in values)
 
 
-def _logout_rate_scope(request: Request) -> str:
-    """
-    生成退出限流使用的 HMAC 主体摘要
-
-    :param request: 当前 HTTP 请求
-    :return: 退出限流主体摘要
-    """
-
-    address = getattr(getattr(request, 'client', None), 'host', None) or 'anonymous'
-    pepper = getattr(OidcConfig, 'oidc_token_hash_pepper', '')
-    raw_pepper = pepper.encode() if isinstance(pepper, str) else pepper
-    if not isinstance(raw_pepper, bytes) or len(raw_pepper) < _LOGOUT_RATE_PEPPER_MIN_BYTES:
-        raw_pepper = hashlib.sha256(b'oidc-logout-rate-limit-fallback').digest()
-    return hmac.new(raw_pepper, str(address).encode(), hashlib.sha256).hexdigest()
-
-
 @authorization_controller.api_route(
     '/oauth2/authorize',
     methods=['GET', 'POST'],
@@ -334,10 +299,10 @@ async def logout(
     redis = getattr(request.app.state, 'redis', None)
     try:
         if redis is None:
-            raise LogoutServiceError('logout service unavailable')
-        await OidcRateLimiter.enforce(
-            redis, OidcRedisKey.logout_rate_limit(_logout_rate_scope(request)), limit=60, window_seconds=60
-        )
+            raise LogoutServiceError('退出服务暂不可用')
+        address = ClientIPUtil.get_client_ip(request)
+        rate_scope = OidcUtil.logout_rate_scope(address, getattr(OidcConfig, 'oidc_token_hash_pepper', ''))
+        await OidcRateLimiter.enforce(redis, OidcRedisKey.logout_rate_limit(rate_scope), limit=60, window_seconds=60)
         token, nonce = await LogoutConfirmationService.issue(
             redis, parameters, request.cookies.get(OidcConfig.oidc_sso_cookie_name)
         )
@@ -381,7 +346,7 @@ async def confirm_logout(
     try:
         form = await read_form(request)
         if set(form) != {'confirmation', 'decision'} or form['decision'] not in {'confirm', 'cancel'}:
-            raise ValueError('Invalid confirmation')
+            raise ValueError('确认信息无效')
         redis = request.app.state.redis
         parameters = await LogoutConfirmationService.consume(
             redis,
@@ -411,7 +376,9 @@ async def confirm_logout(
         response = (
             _local_response(request)
             if result.redirect_uri is None
-            else RedirectResponse(_append_state(result.redirect_uri, result.state), status_code=303, headers=_NO_STORE)
+            else RedirectResponse(
+                OidcUtil.append_state(result.redirect_uri, result.state), status_code=303, headers=_NO_STORE
+            )
         )
         response.delete_cookie(**SsoSessionService.cookie_parameters())
     response.delete_cookie(

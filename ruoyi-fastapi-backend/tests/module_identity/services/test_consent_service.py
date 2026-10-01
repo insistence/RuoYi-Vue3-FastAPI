@@ -1,5 +1,3 @@
-"""Authorization Consent 服务测试。"""
-
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 

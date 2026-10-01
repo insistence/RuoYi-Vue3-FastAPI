@@ -1,5 +1,3 @@
-"""SSO Session Cookie、数据库事实和 Redis 热缓存测试。"""
-
 import asyncio
 import builtins
 import json
@@ -19,6 +17,7 @@ from module_identity.entity.do.oauth_grant_do import SysSsoSession
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.infrastructure_service import AfterCommitCoordinator
 from module_identity.service.session_service import SsoSessionError, SsoSessionService
+from utils.oidc_util import OidcUtil
 
 _PEPPER = 's' * 32
 _NOW = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -168,7 +167,7 @@ async def test_create_validate_and_remember_absolute_ttl(data_session: AsyncSess
     redis = SessionFakeRedis()
     cookie, row = await _create(data_session, redis)
     assert cookie.startswith('ss1.')
-    sid, secret = SsoSessionService.parse_cookie(cookie)
+    sid, secret = OidcUtil.parse_sso_cookie(cookie)
     UUID(sid)
     assert len(secret) == _COOKIE_SECRET_TEXT_LENGTH
     assert secret not in row.session_secret_hash
@@ -222,8 +221,8 @@ async def test_stale_cookie_index_does_not_reject_valid_database_session(data_se
     await _seed_identity(data_session)
     redis = SessionFakeRedis()
     cookie, row = await _create(data_session, redis)
-    sid, secret = SsoSessionService.parse_cookie(cookie)
-    digest = SsoSessionService._secret_digest(secret, _PEPPER)
+    sid, secret = OidcUtil.parse_sso_cookie(cookie)
+    digest = OidcUtil.session_secret_digest(secret, _PEPPER)
     await redis.set(OidcRedisKey.sso_cookie(digest), str(uuid4()), ex=3600)
     coordinator = AfterCommitCoordinator()
     validated = await SsoSessionService.validate(
@@ -260,7 +259,7 @@ async def test_wrong_secret_and_security_version_fail_closed(data_session: Async
     await _seed_identity(data_session)
     redis = SessionFakeRedis()
     cookie, row = await _create(data_session, redis)
-    sid, _ = SsoSessionService.parse_cookie(cookie)
+    sid, _ = OidcUtil.parse_sso_cookie(cookie)
     wrong_secret = 'a' * 43
     wrong = f'ss1.{sid}.{wrong_secret}'
     queue = AfterCommitCoordinator()
@@ -536,7 +535,7 @@ async def test_after_commit_uses_snapshot_and_publishes_when_cache_clear_fails(
     )
     row.status = 'revoked'
     await coordinator.commit(data_session)
-    sid, _ = SsoSessionService.parse_cookie(cookie)
+    sid, _ = OidcUtil.parse_sso_cookie(cookie)
     payload = json.loads(redis.values[OidcRedisKey.sso_session(sid)][0])
     assert payload['status'] == 'active'
 
@@ -564,7 +563,7 @@ async def test_user_status_and_cookie_response_security(data_session: AsyncSessi
         await SsoSessionService.validate(data_session, redis, cookie, pepper=_PEPPER, now=_NOW, coordinator=queue)
     await queue.commit(data_session)
     response = Response()
-    SsoSessionService.parse_cookie(cookie)
+    OidcUtil.parse_sso_cookie(cookie)
     response.set_cookie(value=cookie, **SsoSessionService.cookie_parameters())
     header = response.headers['set-cookie']
     assert 'Secure' in header and 'HttpOnly' in header and 'Path=/' in header and 'SameSite=lax' in header
@@ -579,12 +578,45 @@ def test_cookie_parser_rejects_noncanonical_sid_and_invalid_cookie_policy() -> N
     """Cookie sid 必须是服务端生成的规范 UUID，清理也不得绕过安全策略。"""
     secret = 'a' * _COOKIE_SECRET_TEXT_LENGTH
     sid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-    with pytest.raises(SsoSessionError):
-        SsoSessionService.parse_cookie(f'ss1.{sid.upper()}.{secret}')
-    with pytest.raises(SsoSessionError):
-        SsoSessionService.parse_cookie(f'ss1.{sid.replace("-", "")}.{secret}')
+    with pytest.raises(ValueError):
+        OidcUtil.parse_sso_cookie(f'ss1.{sid.upper()}.{secret}')
+    with pytest.raises(ValueError):
+        OidcUtil.parse_sso_cookie(f'ss1.{sid.replace("-", "")}.{secret}')
 
     insecure = _config()
     insecure.oidc_sso_cookie_secure = False
     with pytest.raises(SsoSessionError):
         SsoSessionService.cookie_parameters()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', ['validate', 'validate_logout_cookie'])
+@pytest.mark.parametrize(
+    ('cookie', 'pepper', 'message'),
+    [
+        ('malformed-cookie', _PEPPER, '会话 Cookie 格式无效'),
+        (f'ss1.{_SUBJECT_ID}.{"a" * _COOKIE_SECRET_TEXT_LENGTH}', 'short', '会话摘要密钥至少需要 32 字节'),
+    ],
+)
+async def test_session_entry_points_preserve_domain_errors_for_invalid_credentials(
+    data_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    cookie: str,
+    pepper: str,
+    message: str,
+) -> None:
+    """直接调用工具后，格式错误和摘要配置错误仍按会话异常处理。"""
+    monkeypatch.setattr(OidcConfig, 'oidc_token_hash_pepper', pepper)
+    with pytest.raises(SsoSessionError, match=message):
+        if operation == 'validate_logout_cookie':
+            await SsoSessionService.validate_logout_cookie(data_session, cookie)
+        else:
+            await SsoSessionService.validate(
+                data_session,
+                SessionFakeRedis(),
+                cookie,
+                pepper=pepper,
+                now=_NOW,
+                coordinator=AfterCommitCoordinator(),
+            )

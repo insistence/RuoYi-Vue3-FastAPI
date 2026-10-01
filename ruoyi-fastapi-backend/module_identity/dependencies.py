@@ -62,20 +62,20 @@ async def load_access_verification_key(
     try:
         header = jwt.get_unverified_header(token)
     except (PyJWTError, TypeError, ValueError) as exc:
-        raise JwtProfileError('invalid JWT header') from exc
+        raise JwtProfileError('JWT 头部格式无效') from exc
     if _REMOTE_KEY_HEADERS.intersection(header) or header.get('alg') != 'RS256' or header.get('typ') != 'at+jwt':
-        raise JwtProfileError('unsupported JWT header')
+        raise JwtProfileError('JWT 头部包含不支持的参数')
     kid = header.get('kid')
     if not isinstance(kid, str) or not kid:
-        raise JwtProfileError('kid is required')
-    current = _utc_datetime(now or TimezoneUtil.utc_now())
+        raise JwtProfileError('签名密钥标识 kid 不能为空')
+    current = TimezoneUtil.to_utc(now or TimezoneUtil.utc_now())
     record = await OidcKeyDao.get_verifying(query_db, kid, current)
     if record is None or not isinstance(record.public_jwk, dict):
-        raise JwtProfileError('unknown kid')
+        raise JwtProfileError('未知的签名密钥标识 kid')
     try:
         return jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(record.public_jwk, separators=(',', ':')))
     except (TypeError, ValueError, KeyError) as exc:
-        raise JwtProfileError('public key is invalid') from exc
+        raise JwtProfileError('签名公钥无效') from exc
 
 
 def _disabled() -> None:
@@ -86,7 +86,7 @@ def _disabled() -> None:
     if not OidcConfig.oidc_enabled:
         raise HTTPException(
             status_code=404,
-            detail='Not found',
+            detail='请求的资源不存在',
             headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'},
         )
 
@@ -128,7 +128,7 @@ def _redis(request: Request) -> Redis:
 
     value = getattr(request.app.state, 'redis', None)
     if value is None:
-        raise HTTPException(status_code=503, detail='Service unavailable')
+        raise HTTPException(status_code=503, detail='认证服务暂不可用')
     return value
 
 
@@ -144,29 +144,29 @@ async def read_form(request: Request) -> dict[str, str]:
     _disabled()
     content_type = request.headers.get('content-type', '').split(';', 1)[0].strip().lower()
     if content_type != 'application/x-www-form-urlencoded':
-        raise HTTPException(status_code=415, detail='Unsupported media type')
+        raise HTTPException(status_code=415, detail='不支持当前请求内容类型')
     content_length = request.headers.get('content-length')
     declared_length: int | None = None
     if content_length is not None:
         try:
             declared_length = int(content_length)
         except ValueError as exc:
-            raise HTTPException(status_code=413, detail='Request body too large') from exc
+            raise HTTPException(status_code=413, detail='请求体大小超过限制') from exc
         if declared_length < 0 or declared_length > _MAX_PROTOCOL_FORM_BYTES:
-            raise HTTPException(status_code=413, detail='Request body too large')
+            raise HTTPException(status_code=413, detail='请求体大小超过限制')
     chunks: list[bytes] = []
     actual_length = 0
     async for chunk in request.stream():
         actual_length += len(chunk)
         if actual_length > _MAX_PROTOCOL_FORM_BYTES:
-            raise HTTPException(status_code=413, detail='Request body too large')
+            raise HTTPException(status_code=413, detail='请求体大小超过限制')
         chunks.append(chunk)
     if declared_length is not None and actual_length != declared_length:
-        raise HTTPException(status_code=413, detail='Request body too large')
+        raise HTTPException(status_code=413, detail='请求体大小超过限制')
     try:
         decoded_body = b''.join(chunks).decode('utf-8')
         if _INVALID_PERCENT_ESCAPE.search(decoded_body):
-            raise ValueError('invalid percent escape')
+            raise ValueError('百分号编码无效')
         form_items = parse_qsl(
             decoded_body,
             keep_blank_values=True,
@@ -176,11 +176,11 @@ async def read_form(request: Request) -> dict[str, str]:
             max_num_fields=64,
         )
     except (UnicodeDecodeError, ValueError) as exc:
-        raise HTTPException(status_code=400, detail='Invalid form') from exc
+        raise HTTPException(status_code=400, detail='表单格式或参数无效') from exc
     result: dict[str, str] = {}
     for key, value in form_items:
         if key in result:
-            raise HTTPException(status_code=400, detail='Invalid form')
+            raise HTTPException(status_code=400, detail='表单格式或参数无效')
         result[key] = value
     return result
 
@@ -209,7 +209,7 @@ async def get_oidc_client(
     except (ClientAuthenticationError, ValueError, OAuthProtocolException):
         raise HTTPException(
             status_code=401,
-            detail='Client authentication failed',
+            detail='客户端认证失败',
             headers={'WWW-Authenticate': 'Basic realm="oauth2/token"'},
         ) from None
     return principal
@@ -247,9 +247,9 @@ async def _load_access_context(request: Request, query_db: AsyncSession) -> Acce
             or not isinstance(claims.get('sid'), str)
             or claims.get('sub', '').startswith('client:')
         ):
-            raise JwtProfileError('token is not a user access token')
+            raise JwtProfileError('当前令牌不是用户访问令牌')
         if isinstance(claims.get('ver'), bool) or not isinstance(claims.get('ver'), int) or claims['ver'] < 1:
-            raise JwtProfileError('auth version is invalid')
+            raise JwtProfileError('身份安全版本无效')
         return AccessTokenContext(token, claims)
     except (JwtProfileError, PyJWTError, TypeError, ValueError, KeyError):
         raise _invalid_token() from None
@@ -286,13 +286,13 @@ async def get_interaction_csrf(
     redis = _redis(request)
     csrf_token = request.headers.get('x-csrf-token')
     if not csrf_token or ',' in csrf_token:
-        raise HTTPException(status_code=403, detail='CSRF validation failed')
+        raise HTTPException(status_code=403, detail='CSRF 校验失败，请重新发起认证')
     try:
         record = await InteractionService.get_record(redis, interaction_id)
     except (OidcInteractionException, RedisError, TypeError, ValueError):
-        raise HTTPException(status_code=404, detail='Interaction not found') from None
+        raise HTTPException(status_code=404, detail='认证交互不存在') from None
     if not InteractionService.verify_csrf(record, csrf_token, pepper=OidcConfig.oidc_token_hash_pepper):
-        raise HTTPException(status_code=403, detail='CSRF validation failed')
+        raise HTTPException(status_code=403, detail='CSRF 校验失败，请重新发起认证')
     return record
 
 
@@ -302,7 +302,7 @@ def _invalid_token() -> HTTPException:
     """
 
     return HTTPException(
-        status_code=401, detail='Invalid access token', headers={'WWW-Authenticate': 'Bearer error="invalid_token"'}
+        status_code=401, detail='访问令牌无效', headers={'WWW-Authenticate': 'Bearer error="invalid_token"'}
     )
 
 
@@ -328,14 +328,3 @@ def InteractionCsrfDependency() -> params.Depends:  # noqa: N802
     """
 
     return Depends(get_interaction_csrf)
-
-
-def _utc_datetime(value: datetime) -> datetime:
-    """
-    规范化数据库时间为项目使用的带时区的 UTC 时间
-
-    :param value: 待转换的数据库时间
-    :return: 带UTC时区的时间
-    """
-
-    return TimezoneUtil.to_utc(value)

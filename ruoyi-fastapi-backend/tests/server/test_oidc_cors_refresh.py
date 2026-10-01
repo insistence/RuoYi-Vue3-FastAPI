@@ -1,5 +1,3 @@
-"""独立应用实例间的共享版本及缓存超时兜底测试"""
-
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 

@@ -1,5 +1,3 @@
-"""统一认证主体服务行为测试。"""
-
 from pathlib import Path
 
 import pytest
