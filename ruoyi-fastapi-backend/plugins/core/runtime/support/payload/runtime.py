@@ -1,24 +1,18 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Protocol, TypeAlias
+from collections.abc import Mapping
+from typing import Protocol, TypeAlias
 
 from pydantic import Field
 
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.lifecycle.purge import PluginPurgePlan
+from plugins.core.types import JSONObject
+from plugins.core.validation.plugin_deps import PluginBatchOperation
 from utils.log_util import logger
 
 from . import PluginPayloadBuilder
 from .base import PluginPayloadModel
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.lifecycle.purge import PluginPurgePlan
-    from plugins.core.types import JSONObject
-    from plugins.core.validation.plugin_deps import PluginBatchOperation
-
-    from .catalog import PluginMenuDiagnosticPlanPayload
-    from .plan import ActionPayload, VersionStatePayload
+from .catalog import PluginMenuDiagnosticPlanPayload
+from .plan import ActionPayload, VersionStatePayload
 
 
 class SupportsOk(Protocol):

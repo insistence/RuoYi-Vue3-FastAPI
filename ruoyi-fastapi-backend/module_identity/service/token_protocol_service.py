@@ -1,8 +1,11 @@
-from __future__ import annotations
-
 import hmac
 import math
-from typing import TYPE_CHECKING, Any
+from collections.abc import Awaitable, Callable
+from datetime import datetime
+from typing import Any
+
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
@@ -25,13 +28,6 @@ from module_identity.service.infrastructure_service import AfterCommitCoordinato
 from module_identity.service.token_service import TokenService
 from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
-
-if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-    from datetime import datetime
-
-    from redis.asyncio import Redis
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class IntrospectionService:

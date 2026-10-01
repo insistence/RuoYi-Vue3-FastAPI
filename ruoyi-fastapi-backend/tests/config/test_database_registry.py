@@ -1,20 +1,16 @@
-from __future__ import annotations
-
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, call
 
 import pytest
 from sqlalchemy import URL
 from sqlalchemy.exc import OperationalError
+from typing_extensions import Self
 
 from common.aspect.db_session import DBSessionDependency, get_db_session_provider
 from config import database
 from exceptions.exception import DataSourceInitializationException, DataSourceUnavailableException
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 EXPECTED_CONNECT_TIMEOUT = 7
 
@@ -108,7 +104,7 @@ class _Begin:
         self.should_fail = should_fail
         self.session_timezone = session_timezone
 
-    async def __aenter__(self) -> _Begin:
+    async def __aenter__(self) -> Self:
         if self.should_fail:
             raise RuntimeError('password=secret')
         return self

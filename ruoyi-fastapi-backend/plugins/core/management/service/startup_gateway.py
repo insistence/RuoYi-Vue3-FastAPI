@@ -1,20 +1,15 @@
-from __future__ import annotations
+from pathlib import Path
+from typing import Any
 
-from typing import TYPE_CHECKING, Any
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from common.vo import CrudResponseModel
+from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.management.dao.dao import PluginDao
+from plugins.core.management.entity.vo.schemas import PluginMigrationModel, PluginModel
 from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
 from plugins.core.management.service.service import PluginService
 from plugins.core.state import PluginStateResolver
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from common.vo import CrudResponseModel
-    from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.management.entity.vo.schemas import PluginMigrationModel, PluginModel
 
 
 class PluginManagementStartupGateway:

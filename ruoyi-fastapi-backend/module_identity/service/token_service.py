@@ -1,18 +1,20 @@
-from __future__ import annotations
-
 import hmac
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import uuid4
 
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 from pydantic import ValidationError
+from redis.asyncio import Redis
 from redis.exceptions import RedisError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException
+from module_admin.entity.do.user_do import SysUser
 from module_identity.dao.identity_user_dao import IdentityUserDao
 from module_identity.dao.oauth_access_policy_dao import OAuthAccessPolicyDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
@@ -20,7 +22,10 @@ from module_identity.dao.oauth_grant_dao import OAuthGrantDao
 from module_identity.dao.oauth_token_dao import OAuthTokenDao
 from module_identity.dao.oidc_key_dao import OidcKeyDao
 from module_identity.dao.sso_session_dao import SsoSessionDao
-from module_identity.entity.do.oauth_grant_do import SysOAuthGrant, SysOAuthRefreshToken
+from module_identity.entity.do.identity_subject_do import SysIdentitySubject
+from module_identity.entity.do.oauth_client_do import SysOAuthClient
+from module_identity.entity.do.oauth_grant_do import SysOAuthGrant, SysOAuthRefreshToken, SysSsoSession
+from module_identity.entity.do.oauth_resource_do import SysOAuthResource, SysOAuthScope
 from module_identity.entity.vo.protocol_vo import TokenRequest
 from module_identity.security.client_auth import ClientAuthenticationError, authenticate_client
 from module_identity.security.jwt_profile import JwtProfileError, encode_access_token, encode_id_token
@@ -38,17 +43,6 @@ from module_identity.service.identity_service import ClaimService, IdentitySubje
 from module_identity.service.key_service import KeyService, KeyServiceError
 from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
-
-if TYPE_CHECKING:
-    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
-    from redis.asyncio import Redis
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from module_admin.entity.do.user_do import SysUser
-    from module_identity.entity.do.identity_subject_do import SysIdentitySubject
-    from module_identity.entity.do.oauth_client_do import SysOAuthClient
-    from module_identity.entity.do.oauth_grant_do import SysSsoSession
-    from module_identity.entity.do.oauth_resource_do import SysOAuthResource, SysOAuthScope
 
 
 @dataclass(frozen=True, slots=True)

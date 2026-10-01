@@ -1,26 +1,21 @@
-from __future__ import annotations
-
+from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import Protocol, cast
 
+from plugins.core.capability import PluginRuntimeCapability
+from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.support import (
     BatchOperationResultPayload,
     PluginBatchReportBuilder,
     PluginPayloadBuilder,
     PluginRuntimePayloadBuilder,
 )
+from plugins.core.types import PluginStateRecord
 from plugins.core.validation.plugin_deps import PluginBatchOperation, PluginDependencyPlanBuilder
 
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from plugins.core.capability import PluginRuntimeCapability
-    from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.types import PluginStateRecord
-
-    from .context import PluginRuntimeContextService
-    from .dependency_container import PluginRuntimeDependencies
-    from .responses import PluginBatchResponse, PluginLifecycleResponse, PluginPlanResponse
+from .context import PluginRuntimeContextService
+from .dependency_container import PluginRuntimeDependencies
+from .responses import PluginBatchResponse, PluginLifecycleResponse, PluginPlanResponse
 
 
 class PluginBatchRuntimeOperations(Protocol):

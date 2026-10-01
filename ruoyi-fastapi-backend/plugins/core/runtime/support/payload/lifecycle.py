@@ -1,23 +1,18 @@
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
+from collections.abc import Mapping
+from typing import Protocol, TypeAlias, cast
 
 from pydantic import Field
 
+from plugins.core.lifecycle.migration import PluginMigrationResult
+from plugins.core.lifecycle.seed import PluginSeedResult
+from plugins.core.runtime.hooks import PluginHookResult
+from plugins.core.types import SupportsModelDump
+from plugins.core.validation.menus import PluginMenuConflictItem
+
 from . import PluginPayloadBuilder
 from .base import PluginPayloadModel
-
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
-    from plugins.core.lifecycle.migration import PluginMigrationResult
-    from plugins.core.lifecycle.seed import PluginSeedResult
-    from plugins.core.runtime.hooks import PluginHookResult
-    from plugins.core.types import SupportsModelDump
-    from plugins.core.validation.menus import PluginMenuConflictItem
-
-    from .plan import ActionPayload, VersionStatePayload
-    from .validation import MenuConflictItemPayload
+from .plan import ActionPayload, VersionStatePayload
+from .validation import MenuConflictItemPayload
 
 
 class SupportsOk(Protocol):

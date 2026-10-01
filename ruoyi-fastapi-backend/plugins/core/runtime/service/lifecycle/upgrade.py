@@ -1,35 +1,27 @@
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
-from plugins.core.lifecycle.migration import PluginMigrationError
-from plugins.core.lifecycle.seed import PluginSeedRunner
-from plugins.core.runtime.hooks import PluginHookRunner
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.lifecycle.migration import PluginMigrationError, PluginMigrationResult
+from plugins.core.lifecycle.seed import PluginSeedResult, PluginSeedRunner
+from plugins.core.runtime.hooks import PluginHookResult, PluginHookRunner
 from plugins.core.runtime.support import (
     PluginLifecyclePayloadBuilder,
     PluginPayloadBuilder,
     PluginPrecheckContext,
     PluginRuntimePayloadBuilder,
 )
+from plugins.core.types import PluginStateRecord
 
+from ..context import PluginRuntimeContextService
+from ..dependency_container import PluginRuntimeDependencies
+from ..responses import PluginLifecycleResponse
 from .common import PluginLifecycleUseCaseSupport
+from .operations import PluginLifecycleRuntimeOperations
 from .runner import PluginLifecycleStep, PluginLifecycleStepFailed, PluginLifecycleStepRunner
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.lifecycle.migration import PluginMigrationResult
-    from plugins.core.lifecycle.seed import PluginSeedResult
-    from plugins.core.runtime.hooks import PluginHookResult
-    from plugins.core.types import PluginStateRecord
-
-    from ..context import PluginRuntimeContextService
-    from ..dependency_container import PluginRuntimeDependencies
-    from ..responses import PluginLifecycleResponse
-    from .operations import PluginLifecycleRuntimeOperations
 
 
 @dataclass(slots=True)

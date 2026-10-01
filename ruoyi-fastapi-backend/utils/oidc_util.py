@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import base64
 import binascii
 import hashlib
@@ -10,7 +8,8 @@ import math
 import re
 import secrets
 from collections.abc import Collection, Iterable, Mapping, Sequence
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from typing import Any
 from urllib.parse import parse_qsl, unquote_plus, urlencode, urlsplit, urlunsplit
 from uuid import RFC_4122, UUID
 
@@ -18,9 +17,6 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey, RSAPubli
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.hashes import SHA256
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-
-if TYPE_CHECKING:
-    from datetime import datetime
 
 
 class OidcUtil:

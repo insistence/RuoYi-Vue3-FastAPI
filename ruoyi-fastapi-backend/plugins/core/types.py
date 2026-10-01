@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from typing import Any, Protocol, TypeAlias
 
 from pydantic import JsonValue as PydanticJsonValue

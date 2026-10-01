@@ -1,11 +1,7 @@
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from redis.asyncio import Redis
-    from sqlalchemy.ext.asyncio import AsyncSession
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 class RateLimitExceeded(ValueError):

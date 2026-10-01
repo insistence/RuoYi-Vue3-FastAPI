@@ -1,37 +1,32 @@
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
+from redis.asyncio import Redis
+from sqlalchemy import Row
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import CommonConstant, OidcAuditEvent
 from common.enums import RedisInitKeyConfig
 from config.env import OidcConfig
 from exceptions.exception import OAuthProtocolException
 from module_admin.dao.login_dao import login_by_account
+from module_admin.entity.do.dept_do import SysDept
+from module_admin.entity.do.user_do import SysUser
+from module_admin.entity.vo.login_vo import UserLogin
 from module_identity.dao.identity_subject_dao import IdentitySubjectDao
 from module_identity.dao.identity_user_dao import IdentityUserDao
 from module_identity.dao.oauth_client_dao import OAuthClientDao
 from module_identity.dao.oauth_token_dao import OAuthTokenDao
 from module_identity.dao.sso_session_dao import SsoSessionDao
+from module_identity.entity.do.identity_subject_do import SysIdentitySubject
 from module_identity.redis_keys import OidcRedisKey
 from module_identity.service.audit_service import AuditService
 from utils.oidc_util import OidcUtil
 from utils.pwd_util import PwdUtil
 from utils.time_util import TimezoneUtil
-
-if TYPE_CHECKING:
-    from redis.asyncio import Redis
-    from sqlalchemy import Row
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from module_admin.entity.do.dept_do import SysDept
-    from module_admin.entity.do.user_do import SysUser
-    from module_admin.entity.vo.login_vo import UserLogin
-    from module_identity.entity.do.identity_subject_do import SysIdentitySubject
 
 _DUMMY_PASSWORD_HASH = '$2b$12$ySHJfAWxzh49cIc7M5L21e5GlPyA7QhE2GkLn9XuUTqmKIRqhWIja'
 _LOGIN_FAILURE_TTL = timedelta(minutes=10)

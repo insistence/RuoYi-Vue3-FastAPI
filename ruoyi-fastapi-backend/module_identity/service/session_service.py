@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import hmac
 import json
@@ -8,11 +6,14 @@ import secrets
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 import jwt
+from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.constant import OidcAuditEvent
 from config.env import OidcConfig
@@ -45,11 +46,6 @@ from module_identity.service.infrastructure_service import AfterCommitCoordinato
 from module_identity.service.key_service import KeyService, KeyServiceError
 from utils.oidc_util import OidcUtil
 from utils.time_util import TimezoneUtil
-
-if TYPE_CHECKING:
-    from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
-    from redis.asyncio import Redis
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 _COOKIE_PREFIX = 'ss1'
 _COOKIE_SECRET_BYTES = 32

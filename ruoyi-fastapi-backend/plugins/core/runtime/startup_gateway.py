@@ -1,15 +1,11 @@
-from __future__ import annotations
+from pathlib import Path
+from typing import Any, NoReturn, Protocol, runtime_checkable
 
-from typing import TYPE_CHECKING, Any, NoReturn, Protocol, runtime_checkable
+from sqlalchemy.ext.asyncio import AsyncSession
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from common.vo import CrudResponseModel
-    from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.management.entity.vo.schemas import PluginMigrationModel, PluginModel
+from common.vo import CrudResponseModel
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.management.entity.vo.schemas import PluginMigrationModel, PluginModel
 
 
 @runtime_checkable

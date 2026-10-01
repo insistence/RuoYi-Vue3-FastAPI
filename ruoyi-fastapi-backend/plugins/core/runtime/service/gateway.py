@@ -1,32 +1,27 @@
-from __future__ import annotations
-
 import subprocess
 import threading
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeAlias, runtime_checkable
+from collections.abc import Callable, Mapping
+from contextlib import AbstractAsyncContextManager
+from pathlib import Path
+from typing import Any, Literal, Protocol, TypeAlias, runtime_checkable
 
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-    from contextlib import AbstractAsyncContextManager
-    from pathlib import Path
+from sqlalchemy.ext.asyncio import AsyncSession
 
-    from sqlalchemy.ext.asyncio import AsyncSession
-
-    from common.vo import CrudResponseModel
-    from plugins.core.discovery.scanner import DiscoveredPlugin
-    from plugins.core.lifecycle.migration import PluginMigrationResult
-    from plugins.core.lifecycle.purge import PluginPurgePlan
-    from plugins.core.management.entity.vo.schemas import (
-        PluginConfigModel,
-        PluginConfigUpdateModel,
-        PluginConfigValueModel,
-        PluginMigrationModel,
-        PluginModel,
-        PluginOperationLogDetailModel,
-        PluginOperationLogExportQueryModel,
-    )
-    from plugins.core.types import PluginConfigValue, PluginStateRecord
-    from plugins.core.validation.menus import PluginMenuConflictItem
+from common.vo import CrudResponseModel
+from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.lifecycle.migration import PluginMigrationResult
+from plugins.core.lifecycle.purge import PluginPurgePlan
+from plugins.core.management.entity.vo.schemas import (
+    PluginConfigModel,
+    PluginConfigUpdateModel,
+    PluginConfigValueModel,
+    PluginMigrationModel,
+    PluginModel,
+    PluginOperationLogDetailModel,
+    PluginOperationLogExportQueryModel,
+)
+from plugins.core.types import PluginConfigValue, PluginStateRecord
+from plugins.core.validation.menus import PluginMenuConflictItem
 
 PluginCommandOutputKind = Literal['status', 'stdout', 'stderr']
 PluginCommandOutputCallback: TypeAlias = Callable[[PluginCommandOutputKind, str], None]
