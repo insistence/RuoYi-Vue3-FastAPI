@@ -5,7 +5,7 @@ from typing import Literal
 from config.env import AppConfig
 
 PluginFrontendMode = Literal['dev', 'built']
-PluginBackendRuntimeMode = Literal['dev', 'service']
+PluginBackendRuntimeMode = Literal['dev', 'service', 'maintenance']
 
 BACKEND_ROOT_ENV_NAMES = ('RUOYI_PLUGIN_BACKEND_ROOT', 'RUOYI_BACKEND_ROOT')
 FRONTEND_ROOT_ENV_NAMES = ('RUOYI_PLUGIN_FRONTEND_ROOT', 'RUOYI_FRONTEND_ROOT')

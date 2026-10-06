@@ -16,3 +16,6 @@ pythonpath = ["."]
 
 [tool.setuptools.packages.find]
 include = ["cli*"]
+
+[tool.setuptools.package-data]
+"cli.runtime.plugin.scaffold" = ["assets/*.tmpl", "assets/native/*.tmpl", "assets/web/*.tmpl", "assets/python/*.tmpl"]

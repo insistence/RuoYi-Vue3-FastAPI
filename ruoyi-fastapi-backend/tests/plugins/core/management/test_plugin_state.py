@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from openpyxl import load_workbook
-from sqlalchemy import text
+from sqlalchemy import text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -38,6 +38,7 @@ from plugins.core.management.service.gateway import PluginManagementRuntimeGatew
 from plugins.core.management.service.logs import PluginOperationLogBuilder
 from plugins.core.management.service.service import PluginService
 from plugins.core.manifest.schema import PluginManifest
+from utils.time_util import TimezoneUtil
 
 INITIAL_MENU_ID = 100
 UPDATED_MENU_ID = 101
@@ -2262,9 +2263,12 @@ async def test_plugin_operation_log_export_services_returns_filtered_rows() -> N
                 dry_run=False,
                 continue_on_error=False,
             )
+            # 固定在 UTC 与上海日期不同的时刻，导出筛选使用应用业务日期。
+            created_at = datetime(2026, 10, 1, 16, 5, tzinfo=timezone.utc)
+            await session.execute(update(SysPluginOperationLog).values(create_time=created_at))
             await session.commit()
 
-            today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+            today = TimezoneUtil.to_business_time(created_at).strftime('%Y-%m-%d')
             export_list = await PluginService.get_plugin_operation_log_export_list_services(
                 session,
                 PluginOperationLogExportQueryModel(

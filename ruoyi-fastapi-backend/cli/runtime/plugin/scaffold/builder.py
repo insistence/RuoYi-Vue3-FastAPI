@@ -7,6 +7,7 @@ from .backend import PluginBackendScaffoldTemplateBuilder
 from .frontend import FrontendVersion, PluginFrontendScaffoldTemplateBuilder, PluginFrontendVersionResolver
 from .options import PluginScaffoldOptions, PluginScaffoldTemplateResolver
 from .payload import PluginScaffoldPayloadBuilder, PluginScaffoldPlanPayload
+from .v2 import PluginV2ScaffoldBuilder
 
 
 class PluginScaffoldBuilder:
@@ -56,6 +57,16 @@ class PluginScaffoldBuilder:
         :return: 插件模板写入计划
         """
         self._validate_plugin_id(plugin_id)
+        normalized_template = (template or PluginScaffoldTemplateResolver.DEFAULT_TEMPLATE).strip()
+        if normalized_template in PluginScaffoldTemplateResolver.V2_TEMPLATES:
+            return PluginV2ScaffoldBuilder(self.backend_root, self.frontend_root).build_plan(
+                plugin_id,
+                template=normalized_template,
+                backend=backend,
+                frontend=frontend,
+                test=test,
+                frontend_version=frontend_version,
+            )
         options = self._merge_options(
             PluginScaffoldTemplateResolver.resolve(template),
             backend=backend,

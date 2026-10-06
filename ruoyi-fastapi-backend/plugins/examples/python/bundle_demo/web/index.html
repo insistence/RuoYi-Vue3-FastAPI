@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>独立前端示例</title>
+  </head>
+  <body>
+    <main aria-busy="true" id="workspace">
+      <header>
+        <div>
+          <p class="eyebrow">插件应用</p>
+          <h1>独立前端示例</h1>
+          <p class="description">查看当前会话，并验证页面与服务端的通信。</p>
+        </div>
+        <button id="refresh" type="button">刷新状态</button>
+      </header>
+      <p id="notice" class="notice" role="status" aria-live="polite">
+        正在连接管理平台…
+      </p>
+      <section class="facts" aria-label="当前会话">
+        <article>
+          <h2>当前用户</h2>
+          <p id="user-name">等待连接</p>
+        </article>
+        <article>
+          <h2>显示时区</h2>
+          <p id="time-zone">等待连接</p>
+        </article>
+        <article>
+          <h2>服务端时间</h2>
+          <p id="server-time">等待连接</p>
+        </article>
+      </section>
+      <section class="panel">
+        <nav aria-label="示例内容">
+          <button id="overview" type="button" aria-current="page">
+            通信测试
+          </button>
+          <button id="details" type="button">接入说明</button>
+        </nav>
+        <div id="overview-panel">
+          <h2>发送一条测试消息</h2>
+          <p class="description">消息仅用于回显，不保存到业务数据库。</p>
+          <form id="echo-form">
+            <label for="message">测试消息</label>
+            <div class="input-row">
+              <input
+                id="message"
+                name="message"
+                maxlength="80"
+                required
+                value="独立页面连接成功"
+              />
+              <button id="send" type="submit">发送测试</button>
+            </div>
+          </form>
+          <p id="echo-result" role="status" aria-live="polite" class="result">
+            发送后将在这里显示结果。
+          </p>
+        </div>
+        <div id="details-panel" hidden>
+          <h2>独立构建，统一访问</h2>
+          <p class="description">
+            此页面来自插件自己的构建目录。主题、语言、时区与页面导航通过宿主桥同步；请求沿用宿主的权限和传输加密规则。
+          </p>
+          <p class="description">
+            浏览器会话限定当前插件，退出管理平台后会失效。
+          </p>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

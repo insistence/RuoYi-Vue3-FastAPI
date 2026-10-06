@@ -177,7 +177,7 @@
         :show-overflow-tooltip="true"
       />
       <el-table-column
-        label="源码版本"
+        label="代码版本"
         align="center"
         prop="version"
         width="100"
@@ -226,6 +226,19 @@
           <el-tag :type="getStatusTagType(scope.row.status)">{{
             getStatusLabel(scope.row.status)
           }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column
+        label="制品发布"
+        align="center"
+        min-width="220"
+      >
+        <template #default="scope">
+          <plugin-release-status
+            v-if="scope.row.source === 'artifact'"
+            :plugin="scope.row"
+          />
+          <span v-else>-</span>
         </template>
       </el-table-column>
       <el-table-column
@@ -1429,6 +1442,7 @@ import PluginDependencyDialog from './components/PluginDependencyDialog.vue'
 import PluginDiagnosticDialog from './components/PluginDiagnosticDialog.vue'
 import PluginDetailDialog from './components/PluginDetailDialog.vue'
 import PluginPlanDialog from './components/PluginPlanDialog.vue'
+import PluginReleaseStatus from './components/PluginReleaseStatus.vue'
 import {
   getPlanBlockerStatusLabel,
   getPlanOperationLabel,
@@ -1577,7 +1591,7 @@ function handleSelectionChange(selection) {
 }
 
 function canSelectForBatch(row) {
-  return !isOrphanPlugin(row)
+  return !isOrphanPlugin(row) && row?.source !== 'artifact'
 }
 
 /** 清空当前选择 */
@@ -1644,6 +1658,9 @@ function isEnabledSwitchBlocked(row) {
 }
 
 function getEnabledSwitchTooltip(row) {
+  if (row?.source === 'artifact') {
+    return '签名制品须在停机维护窗口通过 release enable/disable 修改启停设置，再启动全部 worker'
+  }
   if (row?.status === 'error') {
     return row?.enabled === '0'
       ? '插件当前被异常状态隔离；关闭开关可取消自动恢复意图'
@@ -2330,16 +2347,22 @@ function getStatusTagType(status) {
 function canInstall(row) {
   return (
     !isOrphanPlugin(row) &&
+    row?.source !== 'artifact' &&
     (!row.installedVersion || row.status === 'discovered' || row.status === 'error')
   )
 }
 
 function canUpgrade(row) {
-  return !isOrphanPlugin(row) && row.status === 'pending_upgrade'
+  return !isOrphanPlugin(row) && row?.source !== 'artifact' && row.status === 'pending_upgrade'
 }
 
 function canUninstall(row) {
-  return !isOrphanPlugin(row) && row.installedVersion && row.enabled === '0'
+  return (
+    !isOrphanPlugin(row) &&
+    row?.source !== 'artifact' &&
+    row.installedVersion &&
+    row.enabled === '0'
+  )
 }
 
 function isOrphanPlugin(row) {
@@ -2357,7 +2380,7 @@ function canExecuteActionResult(result) {
 }
 
 function isOperationBlocked(row, operation) {
-  return isCapabilityOperationBlocked(row?.capability, operation)
+  return row?.source === 'artifact' || isCapabilityOperationBlocked(row?.capability, operation)
 }
 
 function isCapabilityOperationBlocked(capability, operation) {

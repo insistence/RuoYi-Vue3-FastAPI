@@ -533,6 +533,33 @@ class PluginDependencyPolicySettings(BaseSettings):
     plugin_dependency_install_timeout: int = 600
 
 
+class PluginArtifactSettings(BaseSettings):
+    """
+    签名插件制品与维护发布配置；默认关闭以兼容目录插件部署。
+    """
+
+    plugin_artifact_enabled: bool = False
+    plugin_artifact_store: str = 'vf_admin/plugin_artifacts'
+    plugin_artifact_trust_file: str = ''
+    plugin_artifact_heartbeat_seconds: int = Field(default=15, ge=1, le=60)
+    plugin_artifact_worker_ttl_seconds: int = Field(default=60, ge=3, le=600)
+
+    @model_validator(mode='after')
+    def validate_artifact_settings(self) -> 'PluginArtifactSettings':
+        """
+        拒绝缺少信任根的启用配置和无法容纳正常心跳的超时。
+
+        :return: 通过信任根及维护心跳配置校验的制品设置
+        """
+        if self.plugin_artifact_enabled and not self.plugin_artifact_trust_file.strip():
+            raise ValueError('启用签名插件制品时必须配置 PLUGIN_ARTIFACT_TRUST_FILE')
+        if not self.plugin_artifact_store.strip():
+            raise ValueError('PLUGIN_ARTIFACT_STORE 不能为空')
+        if self.plugin_artifact_worker_ttl_seconds < 3 * self.plugin_artifact_heartbeat_seconds:
+            raise ValueError('插件 worker 超时必须至少为心跳间隔的三倍')
+        return self
+
+
 class GenSettings:
     """
     代码生成配置
@@ -746,6 +773,8 @@ TransportCryptoConfig = get_config.get_transport_crypto_config()
 OidcConfig = get_config.get_oidc_config()
 # 插件依赖安装策略配置
 PluginDependencyPolicyConfig = get_config.get_plugin_dependency_policy_config()
+# 签名插件制品与维护发布配置
+PluginArtifactConfig = PluginArtifactSettings()
 # 代码生成配置
 GenConfig = get_config.get_gen_config()
 # 上传配置

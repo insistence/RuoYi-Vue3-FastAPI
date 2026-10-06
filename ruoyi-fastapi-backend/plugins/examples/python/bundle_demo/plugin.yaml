@@ -1,0 +1,30 @@
+manifestVersion: 2
+id: bundle_demo
+name: 独立前端示例
+version: 1.0.0
+description: 独立构建前端通过宿主会话桥调用受保护的 ASGI 接口。
+backend:
+  runtime: python
+  integration: asgi
+  module: plugins.bundle_demo
+  entrypoint: plugins.bundle_demo:create_plugin
+frontend:
+  delivery:
+    type: bundle
+  bundle:
+    directory: web/dist
+    entry: index.html
+    spaFallback: true
+  menus:
+    - name: 独立前端示例
+      path: bundle_demo
+      component: PluginFrame
+      type: C
+      icon: component
+      perms: bundle_demo:view
+permissions:
+  - code: bundle_demo:view
+    name: 访问独立前端示例
+compatibility:
+  hostApiVersion: ^1.2.0
+  pythonVersion: '>=3.10'

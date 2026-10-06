@@ -2,6 +2,20 @@
 
 本文档面向插件开发者，说明如何在当前插件系统中创建、安装、启用、调试和发布插件。
 
+本文覆盖 v1 源码插件和 v2 显式入口插件。未特别注明的权限、菜单、配置、依赖和迁移规则两者共用；自动扫描控制器及默认 `create` 模板属于 v1。按开发目标选择入口：
+
+| 开发目标 | 使用说明 | 可运行示例 |
+| --- | --- | --- |
+| 沿用宿主源码页面和控制器扫描 | [快速开始](#2-快速开始)、[源码前端](#71-v1--source-页面) | [内置 AI 插件](../plugins/ai/README.md) |
+| 显式 Router 或 ASGI 子应用 | [v2 清单](#510-v2-清单与能力组合)、[显式入口与 SDK](#66-v2-显式入口与宿主-sdk) | [Python ASGI](../plugins/examples/python/asgi_demo/README.md) |
+| Rust 原生后端 | [原生插件](#68-rust-原生插件)、[项目脚手架与构建](#16-v2-项目脚手架与完整构建) | [Rust 示例](../plugins/examples/rust/rust_demo/README.md) |
+| 独立构建的插件页面 | [bundle 页面](#72-v2-独立-bundle-页面)、[浏览器 SDK](#73-bundle-浏览器-sdk) | [Python bundle](../plugins/examples/python/bundle_demo/README.md) |
+| 签名交付与生产维护 | [制品与发布](#15-v2-签名制品与维护发布)、[真实服务验收](#17-本地真实服务验收与-ci) | [Rust 签名发布示例](../plugins/examples/rust/rust_demo/README.md#签名制品与维护发布) |
+
+目录插件与签名制品不能同时使用相同插件 ID。两种方式均遵守进程重启边界，不提供原生模块热替换。
+
+后端命令使用已安装项目依赖的 Python 3.10–3.13 环境；创建与激活步骤见 [CLI 环境准备](cli_usage.md#22-安装依赖)。下文的 `python` 指向已激活环境，命令默认在后端目录执行。通用命令同时适用于 Windows PowerShell、macOS 和 Linux；环境变量等 Shell 语法分别列出。
+
 ## 1. 基本模型
 
 插件由后端插件和可选前端插件组成。默认源码布局如下：
@@ -10,6 +24,9 @@
 ruoyi-fastapi-backend/plugins/<plugin_id>/
 ruoyi-fastapi-frontend/plugins/<plugin_id>/
 ```
+
+开发示例统一位于后端 `plugins/examples/`，按实现语言分类：`python/` 保存 Python 示例，`rust/` 保存 Rust 原生插件工程。
+该目录不参与插件发现和启动代际计算。使用示例时，按各自 README 构建后部署到 `plugins/<plugin_id>/`，或通过签名制品发布流程安装。
 
 运行时不会把前后端仓库名写死在各操作入口中。插件系统优先使用显式传入的目录，其次读取
 `RUOYI_PLUGIN_BACKEND_ROOT`/`RUOYI_BACKEND_ROOT` 和
@@ -21,6 +38,8 @@ ruoyi-fastapi-frontend/plugins/<plugin_id>/
 `plugin.yaml` 只描述插件能力和资源。安装、启用、停用、升级等运行态由管理端或 CLI 生命周期命令维护；生命周期状态只使用 `discovered`、`installed`、`pending_upgrade`、`error`。
 
 ## 2. 快速开始
+
+本节使用默认 v1 模板。创建 v2 工程时，直接使用[第 16 节](#16-v2-项目脚手架与完整构建)的 `python-asgi`、`python-bundle`、`rust-asgi` 或 `rust-bundle` 模板。
 
 进入后端项目目录：
 
@@ -50,6 +69,8 @@ ruoyi plugin create demo --env=dev --template=crud-page --frontend-version=vue3
 - `full-stack`：生成后端和前端插件。
 - `scheduled-job`：包含定时任务示例。
 - `crud-page`：包含 CRUD 页面示例。
+
+以上为 v1 模板。v2 独立源码工程可选择 `python-asgi`、`python-bundle`、`rust-asgi`、`rust-bundle`，生成位置和完整构建步骤见[第 16 节](#16-v2-项目脚手架与完整构建)。
 
 先预览写入计划：
 
@@ -114,6 +135,8 @@ plugins/demo/
 后端 Python 模块路径必须与插件 ID 对齐。例如插件 ID 为 `demo` 时，`backend.module` 必须是 `plugins.demo`。
 
 ## 4. plugin.yaml 示例
+
+以下为 v1 清单示例；v2 的完整清单及差异见[第 5.10 节](#510-v2-清单与能力组合)。
 
 ```yaml
 manifestVersion: 1
@@ -238,8 +261,8 @@ config:
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `manifestVersion` | `number` | `1` | 插件清单版本。当前支持 `1`。 |
-| `id` | `string` | 必填 | 插件唯一标识。只能包含小写字母、数字、下划线和中划线，长度 2-64，必须以小写字母开头。不能使用 `admin`、`system`、`monitor`、`tool`。 |
+| `manifestVersion` | `number` | `1` | 插件清单版本，支持 `1` 和 `2`；显式入口必须声明 `2`。 |
+| `id` | `string` | 必填 | 插件唯一标识。只能包含小写字母、数字和下划线，长度 2-64，必须以小写字母开头。不能使用 `admin`、`system`、`monitor`、`tool`。 |
 | `name` | `string` | 必填 | 插件展示名称。 |
 | `version` | `string` | 必填 | 插件源码版本，用于安装版本记录和升级判断。 |
 | `description` | `string` | `""` | 插件说明。 |
@@ -268,8 +291,8 @@ config:
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `module` | `string` | 必填 | 插件后端 Python 模块路径，必须是 `plugins.<plugin_id>`。 |
-| `routers` | `object` | `{ autoScan: true }` | 控制器自动扫描声明。 |
+| `module` | `string` | 必填 | Python 插件为 `plugins.<plugin_id>`；v2 native 插件为 `ruoyi_plugin_<plugin_id>`。 |
+| `routers` | `object` | v1 为 `{ autoScan: true }` | 控制器自动扫描声明；v2 必须为 `false`，见第 5.10 节。 |
 | `health` | `object` | `{}` | 健康检查声明。 |
 | `migrations` | `string[]` | `[]` | 数据库迁移 SQL 脚本相对路径列表。 |
 | `seeds` | `string[]` | `[]` | 初始化数据 SQL 脚本相对路径列表。 |
@@ -280,7 +303,7 @@ config:
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `autoScan` | `boolean` | `true` | 是否按插件模块自动扫描并注册控制器。 |
+| `autoScan` | `boolean` | v1 为 `true`，v2 为 `false` | 是否按插件模块自动扫描并注册控制器；v2 只能由显式入口返回路由。 |
 
 `backend.health`：
 
@@ -304,7 +327,7 @@ config:
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `id` | `string` | 必填 | 插件内任务唯一标识。只能包含小写字母、数字、下划线和中划线，必须以小写字母开头。 |
+| `id` | `string` | 必填 | 插件内任务唯一标识。只能包含小写字母、数字和下划线，长度 2-64，必须以小写字母开头。 |
 | `name` | `string \| null` | `id` | 任务展示名称。 |
 | `callable` | `string` | 必填 | 任务函数路径，格式为 `<module_path>.<callable_name>`。 |
 | `trigger` | `"cron"` | `"cron"` | 任务触发器类型。 |
@@ -315,7 +338,8 @@ config:
 | `description` | `string` | `""` | 任务说明。 |
 | `misfirePolicy` | `"1" \| "2" \| "3"` | `"3"` | 计划执行错误策略。`1` 立即执行，`2` 执行一次，`3` 放弃执行。 |
 | `concurrent` | `"0" \| "1"` | `"1"` | 是否允许并发执行。`0` 允许，`1` 禁止。 |
-| `executor` | `"default" \| "processpool"` | `"default"` | 任务执行器。 |
+| `executor` | `"default" \| "processpool"` | `"default"` | v1 任务执行器；v2 只允许 `default`。 |
+| `timeoutSeconds` | `number` | `30` | 仅 v2：异步任务超时秒数，必须大于 0 且不超过 86400。 |
 
 ### 5.4 frontend
 
@@ -332,7 +356,7 @@ config:
 
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `type` | `"none" \| "source"` | `"none"` | 前端交付类型。存在菜单或 npm 依赖时会自动按源码交付处理。 |
+| `type` | `"none" \| "source" \| "bundle"` | `"none"` | v1 支持 `none/source`，v2 增加 `bundle`。未显式选择 bundle 时，存在菜单或 npm 依赖会按源码交付处理。 |
 | `buildRequired` | `boolean` | `false` | 前端资源是否需要构建后生效。源码交付时会自动视为需要构建。 |
 
 `frontend.menus[]`：
@@ -341,7 +365,7 @@ config:
 | --- | --- | --- | --- |
 | `name` | `string` | 必填 | 菜单名称。 |
 | `path` | `string` | 必填 | 菜单路由路径。普通菜单只能包含小写字母、数字、下划线、中划线和正斜杠，必须以小写字母开头；外链菜单必须使用 `http://` 或 `https://` 地址。 |
-| `component` | `string` | `"Layout"` | 组件路径。核心组件允许 `Layout`、`ParentView`、`InnerLink`；插件页面使用 `plugin/<plugin_id>/<view_path>`。 |
+| `component` | `string` | `"Layout"` | 核心布局允许 `Layout`、`ParentView`、`InnerLink`；源码页面使用 `plugin/<plugin_id>/<view_path>`，v2 bundle 页面使用 `PluginFrame`。 |
 | `perms` | `string` | `""` | 权限标识。非空时必须在顶层 `permissions` 中声明。 |
 | `icon` | `string` | `"#"` | 菜单图标。 |
 | `type` | `"M" \| "C" \| "F"` | `"C"` | 菜单类型。`M` 目录，`C` 菜单，`F` 按钮。 |
@@ -418,6 +442,7 @@ dependencies:
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `backendVersion` | `string \| null` | `null` | 后端版本约束。 |
+| `hostApiVersion` | `string` | `^1.0.0` | 仅 v2：宿主插件 SDK 版本约束，独立于应用版本；当前 Host API 为 `1.2.0`，bundle 使用 `^1.2.0`。 |
 | `frontendVersion` | `string \| null` | `null` | 前端版本约束。 |
 | `pythonVersion` | `string \| null` | `null` | Python 版本约束。 |
 | `nodeVersion` | `string \| null` | `null` | Node.js 版本约束。 |
@@ -505,11 +530,81 @@ config:
 - `options` 只对 `select` 生效，其他类型声明后会产生检查提示。
 - `group`、`order`、`placeholder` 会进入配置接口和导出元数据，可供插件自定义页面消费。
 
+### 5.10 v2 清单与能力组合
+
+v2 将后端运行时、Web 接入方式和前端交付分开声明：
+
+| 维度 | 可选值 | 使用方式 |
+| --- | --- | --- |
+| `backend.runtime` | `python`、`native` | Python 源码或预编译原生扩展，默认 `python` |
+| `backend.integration` | `router`、`asgi` | 返回宿主 Router 或创建独立子应用，默认 `router` |
+| `frontend.delivery.type` | `none`、`source`、`bundle` | 无页面、参与宿主构建的源码页面或独立前端构建产物 |
+
+Python Router、Native Router、Python ASGI、Native ASGI 均通过显式入口加载。`bundle` 必须配合 `asgi`；签名 `.rpk` 只接受 `none/bundle`，`source` 沿用目录插件及宿主前端构建流程。
+
+下面以 Python ASGI 与独立 bundle 为例。代码入口见第 6.6 节，前端构建见第 7.2 节；实际交付目录必须包含 `web/dist/index.html`。
+
+```yaml
+manifestVersion: 2
+id: report_center
+name: 报表中心
+version: 1.0.0
+backend:
+  runtime: python
+  integration: asgi
+  module: plugins.report_center
+  entrypoint: plugins.report_center:create_plugin
+  asgi:
+    mountPath: /apps/report_center
+    lifespan: managed
+frontend:
+  delivery:
+    type: bundle
+    buildRequired: false
+  bundle:
+    directory: web/dist
+    entry: index.html
+    spaFallback: true
+  menus:
+    - name: 报表中心
+      path: report_center
+      component: PluginFrame
+      type: C
+      perms: report_center:view
+permissions:
+  - code: report_center:view
+    name: 查看报表
+compatibility:
+  hostApiVersion: ^1.2.0
+  pythonVersion: '>=3.10'
+  databases: [mysql, postgresql]
+```
+
+v2 新增或改变的字段如下，其余迁移、菜单、配置及插件依赖继续使用本章已有定义。
+
+| 字段 | 默认值或要求 | 说明 |
+| --- | --- | --- |
+| `backend.entrypoint` | 必填 | `<module_path>:<callable_name>`，模块必须属于当前插件；返回 `PluginDefinition` |
+| `backend.routers.autoScan` | `false` | v2 不扫描 `controller/`，不能改为 `true` |
+| `backend.native.distribution` | native 必填 | wheel 的发行包名，例如 `ruoyi-plugin-report-center`；Python 运行时不能声明 `native` |
+| `backend.native.moduleRoot` | `native` | 已展开发行包的安全相对目录 |
+| `backend.asgi.mountPath` | `/apps/<id>` | 仅 ASGI 使用，不能改成其他路径 |
+| `backend.asgi.lifespan` | `managed` | `managed` 由宿主驱动生命周期；`none` 用于不实现 lifespan 协议的应用 |
+| `frontend.bundle.directory` | `web/dist` | 相对插件根目录的前端构建目录；选择 bundle 时必须声明 `frontend.bundle` |
+| `frontend.bundle.entry` | `index.html` | 相对构建目录的 HTML 入口，必须以 `.html` 结尾 |
+| `frontend.bundle.spaFallback` | `true` | 允许符合条件的 HTML 页面导航回落到入口，具体边界见第 7.2 节 |
+
+改用 Rust 时，将 `runtime` 改为 `native`、`module` 改为 `ruoyi_plugin_report_center`、`entrypoint` 改为 `ruoyi_plugin_report_center._native:create_plugin`，并声明 `native.distribution: ruoyi-plugin-report-center`。入口必须来自该发行包内的原生扩展，不能用另一个宿主模块或 Python 业务入口代替。发行包版本必须与插件 `version` 一致。
+
+`entrypoint`、Hook、健康检查都使用插件自身模块的完整路径；任务使用 `<module_path>.<callable_name>`。ASGI 插件不能同时声明 `hooks.onStartup/onShutdown`，启动和关闭统一写入 lifespan。资源路径使用 `/` 分隔的相对路径，不允许绝对路径、反斜杠、`.` 或 `..` 目录。
+
+bundle 不因存在菜单而变为源码前端，`buildRequired` 必须为 `false`，构建依赖由插件自己的 `package.json` 管理，不写入清单的 `dependencies.npm/npmDev`。清单校验和静态预检不会导入插件代码；通过预检仍需进行实际加载、权限与生命周期测试。
+
 ## 6. 后端开发约定
 
 ### 6.1 控制器
 
-应用启动时会按 `backend.module` 自动扫描已启用插件的控制器。推荐将接口放在 `controller/` 目录，并保持与项目原有 FastAPI 控制器风格一致。
+v1 在应用启动时按 `backend.module` 自动扫描已启用插件的控制器。推荐将接口放在 `controller/` 目录，并保持与项目原有 FastAPI 控制器风格一致。v2 返回显式路由或子应用，见第 6.6 节。
 
 后端插件路由采用启动期挂载模型：
 
@@ -525,8 +620,12 @@ from fastapi import APIRouter
 demo_controller = APIRouter(prefix='/demo', tags=['demo'])
 
 
-@demo_controller.get('/ping')
-async def ping():
+@demo_controller.get(
+    '/ping',
+    summary='获取插件连通状态接口',
+    description='用于检查插件接口是否可访问',
+)
+async def ping() -> dict[str, object]:
     return {'code': 200, 'msg': 'success', 'data': 'pong'}
 ```
 
@@ -594,7 +693,7 @@ backend:
     onInstall: plugins.demo.hooks:on_install
 ```
 
-钩子函数可以同步或异步，可以不接收参数，也可以接收 `context`：
+v1 钩子必须使用 `async def`，可以不接收参数，也可以接收 `context`；普通同步函数会被拒绝。v2 钩子固定接收一个 `PluginHookContext`，调用后必须立即返回可等待对象，Python 实现通常同样使用 `async def`。ASGI 插件的启动和关闭使用 lifespan，不重复声明运行时 Hook：
 
 ```python
 async def on_startup(context):
@@ -632,7 +731,114 @@ jobs:
 
 `callable` 使用 `<module_path>.<callable_name>` 格式。任务会写入系统任务表，由调度器按原系统机制执行。
 
+v2 只支持 `executor: default`，回调签名为 `callback(context, *args, **kwargs)`，其中 `context` 是 `PluginTaskContext(host, job_id)`。回调必须返回 awaitable，`timeoutSeconds` 默认 30 秒；后台上下文没有请求用户，不能调用要求登录用户身份的服务。建议示例任务先设为 `enabled: false`，验证后再启用。
+
+v2 调度记录保存宿主分发函数及插件 ID、任务 ID、版本，不直接持久化原生 callable。执行前检查当前 worker 就绪、版本一致、任务仍存在及插件已启用；任务在所属宿主事件循环执行，不支持进程池。关闭时先停止分发、取消并等待运行中的任务，再关闭插件资源。多 worker 的调度选主沿用宿主调度器。
+
+### 6.6 v2 显式入口与宿主 SDK
+
+清单中的 `create_plugin(host)` 必须同步、快速地返回 `PluginDefinition`；它只声明能力，不打开连接、启动线程或创建后台任务。当前 `PluginDefinition.api_version` 为 `1`，与清单版本 `2`、Host API 版本 `1.2.0` 是三个不同的版本号。
+
+| 定义字段 | 使用方式 |
+| --- | --- |
+| `routers` | Router 模式返回 `APIRouter` 实例序列，路由必须位于当前插件命名空间 |
+| `app_factory` | ASGI 模式提供同步 `factory(host)`，返回 ASGI callable；不能同时返回 routers |
+| `register_models` | 可选同步 `callback(host)`，仅注册 ORM 元数据，不执行数据库读写 |
+
+以下代码可作为第 5.10 节 Python 插件的 `__init__.py`，提供受权限保护的 `/api/info`。宿主 SDK 从 `plugins.core.sdk` 导入。
+
+```python
+from fastapi import FastAPI
+
+from plugins.core.sdk import PluginDefinition, PluginHostContext, PluginRequestContext, plugin_endpoint
+
+
+async def info(context: PluginRequestContext) -> dict[str, str]:
+    return {'pluginId': context.host.plugin_id, 'hostApiVersion': context.host.api_version}
+
+
+def create_app(host: PluginHostContext) -> FastAPI:
+    """
+    创建插件子应用并声明接口。
+
+    :param host: 宿主提供的插件上下文
+    :return: 插件 ASGI 子应用
+    """
+    app = FastAPI(title=host.plugin_id, docs_url=None, redoc_url=None)
+    app.add_api_route(
+        '/api/info',
+        plugin_endpoint(info, permission='report_center:view'),
+        summary='获取报表插件信息接口',
+        description='用于获取当前插件标识和宿主API版本',
+        response_model=dict[str, str],
+    )
+    return app
+
+
+def create_plugin(host: PluginHostContext) -> PluginDefinition:
+    """
+    声明插件显式入口。
+
+    :param host: 宿主提供的插件上下文
+    :return: 插件能力声明
+    """
+    return PluginDefinition(app_factory=create_app)
+```
+
+Router 模式将清单的 `integration` 改为 `router`，移除 `backend.asgi`；创建带 `/report_center` 等合法插件前缀的 `APIRouter`，注册接口后返回 `PluginDefinition(routers=(router,))`。若原清单使用 bundle，还需改为 `none/source` 并移除 `frontend.bundle`；同一插件 ID 不能同时启用两种接入方式。
+
+宿主上下文按以下边界使用：
+
+| 对象 | 当前提供的能力 | 使用边界 |
+| --- | --- | --- |
+| `PluginHostContext` | `plugin_id`、`resource_root`、只读 `config`、`services`、`session_factory`、`redis`、`logger`、`startup_write_enabled`、`api_version` | 配置为加载时快照，修改后重启读取；不保存请求身份或请求数据库会话 |
+| `PluginRequestContext` | `host`、当前 `user`、`permissions`、`require_permission()`；可选 `request_id/query_db` | 当前宿主默认不填充后两个可选字段，不能假定存在请求事务、数据权限上下文或单独取消信号 |
+| `PluginTaskContext` | `host`、`job_id` | 后台任务身份，不隐式获得用户或管理员权限 |
+
+普通 FastAPI 接口可从 `request.state.plugin_context` 获取请求上下文；WebSocket 对应 `websocket.state.plugin_context`。入口门禁验证用户能访问插件，具体 API 仍须调用 `require_permission()` 或使用 `plugin_endpoint(callback, permission=...)`。权限应同时声明在清单并授予使用者，仅有菜单可见性不代表 API 已鉴权。
+
+`host.resource(relative_path)` 将资源定位在插件根目录内；资源、配置或当前请求对象不能跨插件混用。数据库连接池可共享，`AsyncSession` 必须通过 `async with host.session_factory() as db` 按操作创建并释放，不能在并发任务或线程间共用。签名制品的业务表通过维护迁移创建，`register_models` 不能用来绕过该流程。
+
+当前公开的版本化业务服务为 `host.service('users.current_profile.v1')`。使用 `await host.service('users.current_profile.v1')(context)` 调用，需声明并授予 `<plugin_id>:profile` 权限。该服务再次核对插件和当前用户身份，独立创建数据库会话，返回 `userId/userName/nickName/avatar/postGroup/roleGroup`，不返回密码或内部 ORM 对象。多次服务调用不会自动组成一个事务，新增业务能力应定义明确的权限、数据权限、DTO 和事务边界。
+
+`plugin_endpoint` 把固定参数的插件回调转换为 FastAPI 端点；`plugin_lifespan(host, startup, shutdown)` 把两个接收 host 的异步回调转换为 lifespan，startup 可返回共享状态字典或 `None`。`await_plugin_callback` 统一等待 Python 协程或原生返回的 awaitable。v2 Hook 接收 `PluginHookContext`，健康检查接收 `PluginHealthContext`，两者并非 `PluginHostContext`。
+
+Python 回调在宿主事件循环执行，不能在其中调用 `asyncio.run()` 或阻塞等待已有循环；Rust 同步导出函数应快速返回 awaitable，CPU 密集工作应脱离事件循环线程。超时和取消不能强制终止阻塞的原生代码，插件应配合取消并对写操作实现幂等。不要关闭宿主提供的 Redis 或数据库连接池。
+
+### 6.7 ASGI 子应用与生命周期
+
+宿主把子应用挂载到固定 `/apps/<plugin_id>`。子应用声明相对路由，并通过 ASGI `root_path` 处理代理部署前缀，不要在子应用路由中再次写完整挂载地址。
+
+| 对外地址 | 子应用或交付声明 |
+| --- | --- |
+| `/apps/<id>/api/...` | 子应用中的 `/api/...` 路由 |
+| `/apps/<id>/ui/`、`/apps/<id>/ui/assets/...` | 仅 bundle：宿主提供已构建前端资源 |
+| `/apps/<id>/ws/...` | 可选：插件自行声明 WebSocket 路由，握手仍经过宿主门禁 |
+| `/apps/<id>/docs`、`/apps/<id>/openapi.json` | 取决于子应用自身配置，不自动合并到宿主 OpenAPI |
+
+外层网关检查插件启用状态、当前 worker 就绪状态和身份，再注入请求上下文；HTTP、静态资源和 WebSocket 握手均经过该边界。父应用的路由依赖、异常处理器和全部 state 不会自动继承；FastAPI 子应用由宿主显式提供 `app.state.plugin_host` 和共享 `app.state.redis`。具体 API 的权限与错误处理由插件声明，不要重复安装宿主的传输加密层。
+
+`lifespan: managed` 是默认值。宿主显式发送 ASGI startup/shutdown，等待启动及清单健康检查通过后才挂载，不依赖 `app.mount()` 自动运行子应用生命周期。`lifespan: none` 只适用于不需要宿主发送生命周期事件的 ASGI callable；需要初始化和释放资源的应用应保留 managed。
+
+每个 worker 都创建并启动自己的子应用实例。共享的迁移、菜单和安装操作由维护流程或相应单写者负责，不能放进每个 worker 都执行的资源初始化。目录插件需要全局启动写入时检查对应上下文的 `startup_write_enabled`；签名制品在普通 worker 中该能力为关闭状态。
+
+应用按依赖顺序启动、逆序关闭。插件只释放自己创建的资源；启动中途失败也应清理已建立的资源，shutdown 应可重复调用。使用 `@asynccontextmanager` 时，返回类型写为 `AsyncGenerator[状态类型, None]`；也可复用 `plugin_lifespan`，其 shutdown 在 startup 失败后同样会调用。
+
+新启用或更新代码需要重启。停用检查会拒绝后续新请求，但不会自动终止已建立的 WebSocket 或正在处理的请求；正式升级应停止全部宿主 worker 并按第 15 节完成维护发布。
+
+### 6.8 Rust 原生插件
+
+Rust 使用 PyO3 暴露 Python 扩展，并通过 maturin 构建 wheel；Windows 交付 `.pyd`，Linux 交付 `.so`。部署端只需匹配的运行环境和已构建产物，无需 Rust 编译工具链。原生代码与宿主同进程，适用于可信扩展；二进制交付不等于不可逆向，也不提供 Python 依赖或进程隔离。
+
+原生 wheel 在构建或维护环境中验证并展开到 `backend.native.moduleRoot`，默认 `native/`。宿主检查发行包名称、插件版本、Python 要求、wheel tag、已安装依赖及完整 RECORD SHA256；扩展只能从当前插件目录加载，不能覆盖宿主模块。RECORD 用于检查文件一致性，发布者信任仍需第 15 节的签名流程。
+
+构建机需安装 Rust、maturin 和目标平台编译工具：Windows 使用 MSVC Build Tools 的 C++ 工具及 Windows SDK，macOS 使用 Xcode Command Line Tools，Linux 使用 GCC 或 Clang 等编译工具。先选择 `rust-asgi` 或 `rust-bundle` 脚手架，再按第 16 节构建。`abi3` 可减少 Python ABI 构建数量，但不能跨操作系统或架构复用制品；按实际目标平台及 Python 3.10–3.13 的测试结果验证兼容性。
+
+Rust 通过 `PluginHostContext`、`plugin_endpoint`、`plugin_lifespan` 和版本化服务复用宿主能力，完整实现见 [Rust 示例](../plugins/examples/rust/rust_demo/README.md)。不要覆盖已加载的原生模块或依赖 `reload` 完成更新，发布后必须重启全部相关进程。
+
 ## 7. 前端开发约定
+
+### 7.1 v1 / source 页面
 
 插件前端代码放在：
 
@@ -653,6 +859,55 @@ plugin/demo/report/list -> ruoyi-fastapi-frontend/plugins/demo/views/report/list
 - 插件视图组件：`plugin/<plugin_id>/<view_path>`。
 
 前端 API 建议放在 `plugins/<plugin_id>/api/`，视图放在 `plugins/<plugin_id>/views/`。插件页面不需要加入主工程内置路由，菜单安装后由后端返回动态路由，前端 resolver 会自动定位插件视图。
+
+### 7.2 v2 独立 bundle 页面
+
+v2 ASGI 插件可声明 `frontend.delivery.type: bundle` 和 `frontend.bundle.directory: web/dist`，菜单组件使用 `PluginFrame`。`backend.runtime` 仍独立选择 `python` 或 `native`：bundle 只改变前端交付方式，不会保护 Python 后端源码；原生非源码交付参见 Rust 示例。此模式需要 Host API `^1.2.0`，不声明宿主 npm 依赖，也不参与宿主前端构建。首次升级宿主以加入 `PluginFrame` 时仍需构建宿主前端，之后新增或更新插件只构建插件自己的前端。
+
+后端通过 `sys_plugin_menu.menu_id` 的可信归属输出路由 `meta.pluginId`，不接受菜单 query、URL 或插件名称代替该标识。`PluginFrame` 先以宿主 Bearer 调用 `POST /plugin/runtime/<id>/session`，取得服务端校验的固定入口和短期插件会话，然后打开 `/apps/<id>/ui/`。不要手写任意 iframe 地址，也不要把主 token 放入 URL 或传给插件。
+
+插件浏览器 Cookie 使用 `HttpOnly`、`SameSite=Strict`，HTTPS 下为 `Secure`，路径限定为 `<root_path>/apps/<id>/`。会话最多 300 秒并受主登录有效期限制，同一主会话的多标签续期复用 Cookie 与 CSRF。每次 API、页面和资源访问都会检查主会话、插件状态和权限；退出、主登录替换、插件禁用或版本变化会使后续访问失效。写请求还要求同源 Origin 与 CSRF。插件 Cookie 不能用于其他宿主 API。已经建立的长连接不会因此自动排空。
+
+浏览器 SDK 位于前端 `src/utils/pluginBridge.js`，无 Vue/Axios 依赖。示例通过构建别名引入；独立插件仓库可把这一模块作为版本化依赖复制到自己的源码中。SDK 提供 `ready`、`request`、`navigate`、`subscribe` 和 `destroy`，具体用法见 [bundle_demo README](../plugins/examples/python/bundle_demo/README.md)。请求只允许当前插件 API 下的相对 `path`、JSON `params/data`；主页面使用原有加密请求客户端代理，自动附加插件 CSRF，并禁用主 Bearer。主 token、插件 Cookie 和 CSRF 值不进入桥消息。
+
+当前 JSON 桥每条消息最多 64 KiB、最多 8 个待处理请求、默认 15 秒超时，支持取消；不支持上传、二进制下载、streaming、SSE 或 WebSocket 代理。它不能替代后端具体 API 的 `require_permission`/`plugin_endpoint` 权限检查。
+
+UI GET/HEAD 使用普通 HTTPS，仍经过插件身份门禁；`/apps/<id>/api/...` 与会话签发接口保留宿主传输加密，不能整体加入加密排除列表。加密 AAD 保留 `/apps/<id>/api/...` 完整插件命名空间，只按宿主规则剥离部署前缀；加密的会话响应仍保留 `Set-Cookie`。
+
+HTML 注入有效 `uiBase`、`apiBase` 与 `<base>`。SPA 回退仅接受 UI GET/HEAD 中带 `Accept: text/html` 的无扩展名页面导航；缺失脚本、API、保留路径和非 HTML 请求不能返回首页。静态服务拒绝路径越界和链接逃逸，并限制为同源 iframe 嵌入。HTML 当前 `no-store`，其他静态资源 `no-cache`，不自动启用 immutable 缓存。
+
+默认 `VITE_APP_PLUGIN_BASE` 为空，插件走同源 `/apps/` 和 `/plugin/runtime/`。若后端 `APP_ROOT_PATH=/prefix`，宿主前端需设置 `VITE_APP_PLUGIN_BASE=/prefix`，代理也要保留相同前缀及外部 Host；HTTPS 的原始 scheme 由可信代理配置传递。仓库 Vite 与 Docker Nginx 已提供对应代理入口，生产环境应验证 Cookie Path、Origin、Secure 和加密 AAD。独立页面属于同源可信代码；iframe 提供布局和依赖隔离，不提供对恶意插件的安全隔离。
+
+### 7.3 bundle 浏览器 SDK
+
+插件前端通过构建别名或复制的 SDK 模块引入 `createPluginClient`。宿主在 HTML 的 `ruoyi-plugin-config` 中注入插件标识及包含真实部署前缀的运行基址；不要硬编码 UI 或 API 的绝对地址。
+
+```javascript
+import { createPluginClient } from '@ruoyi/plugin-bridge'
+
+const config = JSON.parse(document.getElementById('ruoyi-plugin-config').textContent)
+const client = createPluginClient({ pluginId: config.pluginId })
+const context = await client.ready
+// context 包含 theme、language、timeZone、route、uiBase 和 apiBase。
+const info = await client.request({ method: 'GET', path: 'info' })
+console.log(info.pluginId)
+
+const unsubscribe = client.subscribe(({ type, payload }) => {
+  // 根据 preferences、route、refresh、logout 事件更新插件自身界面。
+  console.log(type, payload)
+})
+
+window.addEventListener('pagehide', () => {
+  unsubscribe()
+  client.destroy()
+}, { once: true })
+```
+
+`request` 的 `path` 相对本插件 `apiBase`，例如 `info`、`reports/month`；不允许完整 URL、前导 `/`、`..` 或自行拼接查询串。查询参数放在 `params`，JSON 请求体放在 `data`，`GET/HEAD` 不带请求体。可在第二个参数传入 `{ signal: controller.signal }` 取消请求，不能传入任意请求头或 Axios 配置。
+
+`client.navigate('/details')` 同步插件内部路由，宿主保存在 `pluginRoute` 查询参数中；插件通过 `route` 事件更新自己的页面。使用 Vite 时采用相对资源基址，如 `base: './'`，前端路由基址使用注入的 `uiBase`。
+
+桥校验同源 origin、消息 source、插件 ID、协议版本和页面连接实例。重载、卸载、退出及超时会清理待处理请求；`destroy()` 用于插件自身清理。响应与宿主请求客户端的 JSON 结构一致，不额外解包 `data`，因此插件接口若返回 `{ code, data, msg }`，页面应按此结构读取。完整的请求、导航和偏好更新示例见 [bundle_demo](../plugins/examples/python/bundle_demo/README.md)。
 
 ## 8. 配置项
 
@@ -771,7 +1026,7 @@ ruoyi plugin batch enable --env=dev --yes
 - `uninstall`：安全卸载，保留可恢复数据。
 - `purge`：清理插件平台元数据，属于高风险操作。
 
-生产环境执行危险操作需要显式传入 `--allow-prod --yes`。
+生产环境执行危险操作需要显式传入 `--allow-prod --yes`；这两个参数不会绕过服务模式的生命周期限制。v2 签名制品应使用第 15 节的独立维护发布命令，不要通过切换到 dev 环境操作生产数据库。
 
 ## 11. 默认启用内置插件
 
@@ -852,9 +1107,269 @@ npm run build:prod
 
 - 插件 ID、后端模块、前端插件目录三者一致。
 - 菜单权限全部声明在顶层 `permissions`。
-- 菜单组件路径能映射到实际 Vue 文件。
+- source 菜单组件路径能映射到实际 Vue 文件；bundle 页面使用 `PluginFrame` 且 HTML 入口存在。
 - SQL seed 可重复执行。
 - migration 和 seed 不写插件目录外文件。
-- 生命周期钩子中的全局写操作检查 `startup_write_enabled`。
+- 生命周期钩子中的全局写操作检查 `startup_write_enabled`；v2 ASGI 资源使用 lifespan 初始化及释放。
 - 依赖声明完整，并通过 `check-deps`。
 - 插件状态只使用 `status` 的四个生命周期值。
+- v2 显式入口同步返回 `PluginDefinition`，异步回调符合 SDK 参数和 awaitable 约定。
+- 原生扩展及 bundle 已在目标环境验证；签名制品的运行期文件写到制品目录之外。
+
+## 15. v2 签名制品与维护发布
+
+### 15.1 制品目录与信任配置
+
+`.rpk` 是受约束的 ZIP。它只接受 `manifestVersion: 2`，前端交付类型为 `none` 或 `bundle`；目录名必须等于清单中的插件 ID。先构建 Rust wheel、独立前端和其他部署资源，再对准备好的插件目录签名。原生插件使用已展开且通过 wheel 校验的 `native/` 目录；制品导入不会替你执行 Cargo、maturin、npm、pip 或插件入口。
+
+```text
+sample.rpk
+  artifacts.json
+  signature.json
+  payload/
+    <plugin_id>/
+      plugin.yaml
+      native/...       # 原生插件的预编译模块与发行包元数据
+      web/dist/...     # bundle 插件的前端构建产物
+      migrations/...  # 清单声明的资源，按需交付
+      plugin.lock.yaml
+```
+
+Python 插件仍交付自身 Python 文件；`.rpk` 的签名不提供源码加密。打包目录不能包含 Rust/前端开发工程、`.env`、版本库、`node_modules` 或构建缓存。构建器忽略 Python/测试缓存，已导入目录的复验则拒绝任何额外文件，包括新增的 `__pycache__`。插件运行期文件、日志、上传和缓存必须存放在制品目录之外。
+
+签名私钥由发布者保管，使用 Ed25519 PKCS8 PEM，必须放在插件源码及预构建目录之外；不要交付给宿主运行进程。加密私钥可通过 `artifact build --password-env <环境变量名>` 读取密码。宿主只配置经过独立可信渠道取得的公钥，并为每个 keyId 指定可发布的插件 ID。包内 `signature.json` 的 keyId 只用于查询宿主信任配置，包内自带的公钥不能建立信任。
+
+宿主环境配置示例，路径相对于后端项目目录：
+
+```env
+PLUGIN_ARTIFACT_ENABLED=true
+PLUGIN_ARTIFACT_STORE=vf_admin/plugin_artifacts
+PLUGIN_ARTIFACT_TRUST_FILE=config/plugin_publishers.json
+PLUGIN_ARTIFACT_HEARTBEAT_SECONDS=15
+PLUGIN_ARTIFACT_WORKER_TTL_SECONDS=60
+```
+
+功能默认关闭。存储目录不能是后端项目本身、其上级或 `plugins/` 内部；它及其路径组件不能使用符号链接或 Windows 重解析点。TTL 至少为心跳间隔的三倍。启用前先按宿主数据库升级流程准备新增的制品、发布目标和 worker 状态表，不能把插件的业务 migration 当作宿主表升级。
+
+目录隔离不提供同进程 Python 依赖隔离。原生发行包和插件缺少或冲突的依赖应在维护环境处理，导入及 worker 启动不会隐式安装依赖。
+
+已有数据库对应的增量脚本是 [MySQL](../sql/upgrade_plugin_artifact_mysql.sql) 和 [PostgreSQL](../sql/upgrade_plugin_artifact_postgresql.sql)，仅新增这三张宿主状态表。新建数据库的初始化脚本也已包含这些表。普通 worker 不会隐式创建签名插件的业务表，业务结构由维护准备的迁移负责。
+
+`config/plugin_publishers.json` 格式如下；`publicKey` 占位符必须替换为真实 Ed25519 公钥的 PEM 字符串或 32 字节原始公钥的标准 Base64：
+
+```json
+{
+  "schemaVersion": 1,
+  "keys": [
+    {
+      "keyId": "publisher",
+      "publicKey": "<通过可信渠道取得的公钥>",
+      "pluginIds": ["rust_demo", "asgi_demo", "bundle_demo"],
+      "enabled": true
+    }
+  ]
+}
+```
+
+`pluginIds: ["*"]` 表示明确授权所有插件，应按实际发布职责配置范围。删除发布者或设置 `enabled: false` 后，后续验签、导入、维护准备和启动读取均按当前信任配置拒绝该签名；已经导入过不构成永久信任。已运行的代码不会因为编辑信任文件而自动热卸载，需要停止进程并完成维护处置。
+
+### 15.2 构建、校验和导入
+
+以下命令在后端目录执行，示例采用已构建好的 Rust 交付目录。私钥路径为示例，需替换为发布者实际管理的路径。
+
+```bash
+ruoyi plugin artifact build target/native-package/rust_demo target/rust_demo-1.0.0.rpk --key-file ../signing-keys/publisher.pem --key-id publisher --env=dev --output=json
+ruoyi plugin artifact verify target/rust_demo-1.0.0.rpk --env=prod --output=json
+ruoyi plugin artifact import target/rust_demo-1.0.0.rpk --env=prod --dry-run --output=json
+ruoyi plugin artifact import target/rust_demo-1.0.0.rpk --env=prod --allow-prod --yes --output=json
+ruoyi plugin artifact list --plugin-id rust_demo --env=prod --output=json
+```
+
+`build` 不覆盖已有输出。`verify` 只检查签名、全部文件摘要和发布者授权；`import --dry-run` 还检查源码目录冲突，但不展开目录，因此不代替正式导入的平台和结构检查。正式导入先接收私有快照，验签后展开到临时目录，完成兼容性与结构检查，再原子发布并登记数据库索引。所有路径、文件大小、解压数量和库存均受校验，链接与特殊文件会被拒绝。导入成功只代表制品可供维护流程选择，不执行 migration、seed 或 Hook，也不修改当前发布目标。
+
+已导入目录固定为：
+
+```text
+<PLUGIN_ARTIFACT_STORE>/<plugin_id>/<version>/<digest>/
+  artifacts.json
+  signature.json
+  payload/<plugin_id>/...
+```
+
+同 ID 的 `plugins/<plugin_id>` 源码目录会阻止制品导入和使用。迁移部署方式时应先在维护窗口备份并移出旧目录，保留数据库安装状态；不能留下旧源码并期待制品覆盖它。原有版本已经安装但没有对应制品的准备证据时，需要发布更高版本，不能根据版本号猜测对应 digest。
+
+重复导入不会覆盖现有对象；每次使用仍校验当前信任、文件库存和摘要。文件落盘与数据库登记不共享事务：登记失败时保留已验签对象，修复数据库后重试同一导入可完成登记。不要修改已导入目录来修复代码或权限；修改内容应生成新的制品。
+
+### 15.3 停机维护、准备证据与目标选择
+
+流程为：导入 → 查看计划 → 停止全部宿主 worker → 独立维护进程准备 → 读取发布代际 → 选择目标 → 启动全部 worker → 查看实际加载状态。第一版采用完整维护窗口，不提供二进制热替换或自动滚动发布。
+
+下面命令中的 `DIGEST` 和 `GENERATION` 是占位符，执行前必须替换：`DIGEST` 原样取自导入或列表结果；`GENERATION` 取自本次准备后最新的 `status` 结果，不能自造、使用空值或根据版本推断。
+
+```bash
+ruoyi plugin release plan rust_demo DIGEST --env=prod --output=json
+ruoyi plugin release prepare rust_demo DIGEST --env=prod --dry-run --output=json
+```
+
+计划及 dry-run 不执行 migration 或 Hook。确认计划和依赖后，通过现有进程管理器停止全部宿主 worker，再执行：
+
+```bash
+ruoyi plugin release prepare rust_demo DIGEST --maintenance --env=prod --allow-prod --yes --output=json
+ruoyi plugin release status --plugin-id rust_demo --env=prod --output=json
+ruoyi plugin release select rust_demo DIGEST --expected-generation GENERATION --expected-workers 2 --maintenance --env=prod --allow-prod --yes --output=json
+```
+
+`--expected-workers 2` 只是示例，必须填写本次实际部署的宿主 worker 数。CLI 不负责停止或启动宿主。`--maintenance` 是操作者已停机的声明；服务还会检查当前有效心跳，发现存活 worker 时拒绝执行。心跳过期不是进程已停止的充分证据，不能仅等 TTL 而保持旧进程运行。
+
+每次维护使用新 CLI 进程。`prepare` 复用安装/升级生命周期，执行需要的 migration、seed、菜单、配置、任务及 Hook。成功后记录精确的 `preparedDigest` 和 `preparedVersion`；`preparedVersion` 对应数据库的 `installedVersion`。相同版本只有已有准备证据同时匹配 digest 和数据库版本时才能复用；同版本换包、仅手工修改安装版本或缺失证据均不能跳过准备，应提升版本重新发布。准备失败不代表数据库 DDL 已自动回滚，应检查错误及迁移记录，修复后采用明确的新版本处理。
+
+`select` 只接受已准备的指定 digest，并以 `--expected-generation` 做并发条件更新；代际已变化时拒绝覆盖，应重新查询和审阅。首次 `plan` 可能尚无 generation，因此应在成功 `prepare` 后读取 `status`。选择目标不修改 `installedVersion`，也不代替启用操作：首装沿用生命周期默认开关，升级保留原有 enabled 状态，已停用插件不会因为选择新制品自动启用。
+
+启动全部 worker 后再执行 `release status`。`targetDigest` 是选择目标，`workers[].digest/version/generation/state` 才是各进程报告。`installedVersion` 是数据安装版本，不能据此判断进程实际加载的代码。
+
+| 发布状态 | 含义 |
+| --- | --- |
+| `no_target` | 尚未选择运行目标 |
+| `pending_restart` | 目标已选择，尚无足够且匹配的就绪报告 |
+| `partial` | 部分 worker 已就绪或确认停用，其他 worker 尚未满足发布目标 |
+| `failed` | 尚无匹配成功的 worker，且存在失败报告 |
+| `active` | 存活宿主数量达到预期，所有存活宿主均报告目标 digest 和 generation 已就绪 |
+| `disabled` | 停用目标已被足够且全部存活宿主确认，插件报告同一代际的 stopped 状态 |
+
+诊断同时检查 `prepareStatus`、`enabled`、`restartRequired`、`missingWorkers`、`mismatchWorkers`、`staleWorkers`、`failedWorkers` 和 `workers[].error`。例如插件已停用会阻止业务激活，不能仅因没有 `active` 就反复重启。状态汇总依赖宿主级心跳，不会只统计已经成功加载该插件的进程。真实数据库、多 worker、反向代理及运维进程管理仍需在部署环境验收。
+
+管理页提供制品与发布状态的只读查看入口，签名制品使用上述维护 CLI 完成变更。对应 HTTP 查询均要求宿主登录及 `system:plugin:query` 权限：
+
+| 接口 | 参数与用途 |
+| --- | --- |
+| `GET /system/plugin/artifacts/list` | 可选 `pluginId`，查询已验证制品 |
+| `GET /system/plugin/release/status` | 可选 `pluginId`，查询目标及各 worker 的实际报告 |
+| `GET /system/plugin/release/plan` | 必填 `pluginId`、`digest`，读取静态发布预检计划 |
+
+当前宿主未启用制品发布监控时，管理页显示状态不可确认。worker 心跳只报告已加载的目标快照，不会自动选择新目标；选择目标成功也不代表运行中的进程已更新。
+
+### 15.4 维护启停、代码回滚与签名轮换
+
+已选择且具备完整准备证据的制品可通过独立维护命令启停。先停止全部宿主 worker，读取最新 `release status` 的 generation，再根据需要执行下面其中一个命令：
+
+```bash
+ruoyi plugin release disable rust_demo --expected-generation GENERATION --maintenance --env=prod --allow-prod --yes --output=json
+ruoyi plugin release enable rust_demo --expected-generation GENERATION --maintenance --env=prod --allow-prod --yes --output=json
+```
+
+每次成功操作都会生成新 generation，不能共用旧代际连续启停。命令先做依赖预检，再在一个数据库事务中更新 enabled、关联菜单、插件拥有的任务、发布代际和审计；任一步失败整体回滚。启用时仍尊重任务自身的 `enabled: false` 声明，不会误改同名前缀的人工任务。当前目标、上一目标和数据库安装版本保持不变，`previousDigest` 仍可供代码回滚使用。命令成功后启动全部 worker；停用和启用都不通过热卸载/热挂载实现。
+
+回滚只选择 `previousDigest` 指向的上一代码制品。先确认旧代码兼容当前数据库结构，停止全部宿主 worker，再读取最新 `status` 的 generation：
+
+```bash
+ruoyi plugin release rollback rust_demo --expected-generation GENERATION --schema-compatible --maintenance --env=prod --allow-prod --yes --output=json
+```
+
+命令会重新验签并静态检查上一制品，重建其菜单、配置和任务声明；不执行旧版 migration、seed 或 Hook，不倒退 `installedVersion`。`--schema-compatible` 是运维人员的兼容性确认，不是自动推导出的数据库降级方案。随后启动全部 worker 并检查 `release status`。若旧代码不能使用当前数据结构，应制定数据库恢复方案，不能用代码回滚命令替代。
+
+当前没有自动停止进程、热卸载、存量连接排空或制品清理 CLI。修改 enabled、选择目标或撤销签名密钥均不能卸载进程中已加载的 Python/Rust 模块；处理仍需维护窗口和进程退出。保留仍被目标、上一目标或进程引用的版本目录，不要覆盖正在使用的二进制。
+
+制品 digest 是规范化 `artifacts.json` 的 SHA256，覆盖每个有效载荷文件的路径、大小和摘要；它不包含签名或 keyId。因此，用新密钥给完全相同内容重签不会生成新 digest，也不会替换现有对象的 `signature.json`。旧签名仍受信时重复导入返回原对象；旧签名已撤销时原对象复验失败，新签名不会覆盖它。需要轮换时，优先提升插件版本并发布新内容；若必须保留相同内容，必须在停机维护中显式处理旧对象及数据库索引/目标引用后重新登记。当前没有自动清理命令，不应直接覆盖签名文件或将已存在目录视为可信缓存。
+
+## 16. v2 项目脚手架与完整构建
+
+现有 `create` 默认仍为 v1 `full-stack`。下列显式模板创建独立源码工程，统一位于后端 `plugin-projects/<id>/`；创建工程不安装、启用或导入插件。该目录与运行中的 `plugins/`、不可变制品存储分开，避免原生开发工程参与运行时扫描或与同 ID 制品冲突。
+
+| 模板 | 后端 | 前端 | 交付准备 |
+| --- | --- | --- | --- |
+| `python-asgi` | Python ASGI | 无 | 生成的 `build_release.py` |
+| `python-bundle` | Python ASGI | 独立 Vite bundle | 先构建 `web/`，再运行 `build_release.py` |
+| `rust-asgi` | Rust PyO3 ASGI | 无 | 宿主 `scripts/build_native_plugin.py` |
+| `rust-bundle` | Rust PyO3 ASGI | 独立 Vite bundle | 先构建 `web/`，再运行原生构建器 |
+
+```bash
+ruoyi plugin create report_center --template rust-bundle --env dev --dry-run
+ruoyi plugin create report_center --template rust-bundle --env dev
+```
+
+每个工程包含 v2 清单、受 `<id>:view` 权限保护的 `/api/info`、显式入口、健康检查、lifespan、构建与发布 README，以及 SDK 合约测试。Rust 模板固定 `ruoyi_plugin_<id>` Python 命名空间，包含锁定的 Cargo 依赖。bundle 复制当前宿主的 bridge SDK，使用相对资源基址和专用插件会话，不内嵌主登录 token。它与宿主 Vue 版本独立，v2 模板不接受 `--frontend-version`；bundle 也不能配合 `--backend-only`。
+
+以下以 Rust bundle 为例，在后端目录及已激活的 Python 环境执行。构建机需具备前述 Rust、maturin、平台编译工具和 Node.js，运行宿主只接收构建产物。构建命令三种平台通用：
+
+```bash
+npm --prefix plugin-projects/report_center/web install
+npm --prefix plugin-projects/report_center/web run build
+python scripts/build_native_plugin.py --source plugin-projects/report_center --output target/report_center-package
+```
+
+随后指定交付目录并测试。Windows PowerShell：
+
+```powershell
+$env:RUOYI_PLUGIN_DIRECTORY = (Resolve-Path 'target/report_center-package/report_center').Path
+python -m pytest plugin-projects/report_center/tests -q
+```
+
+macOS / Linux（Bash、Zsh）：
+
+```bash
+export RUOYI_PLUGIN_DIRECTORY="$(pwd)/target/report_center-package/report_center"
+python -m pytest plugin-projects/report_center/tests -q
+```
+
+首次 `npm install` 产生的 `package-lock.json` 应随源码提交，后续构建可用 `npm ci`。原生构建器不会代替你运行 npm；缺少 bundle HTML 入口时在编译前报错。它只组装原生发行包、清单声明的迁移/seed 文件或目录、可选插件锁文件和已构建 bundle，拒绝链接、重解析点、硬链接、开发工程及敏感配置进入交付。`target/report_center-package/report_center` 才是签名输入，不是 wheel 所在目录或源码工程。
+
+Python 模板将上一例中的原生构建步骤替换为：
+
+```bash
+python plugin-projects/report_center/build_release.py --output target/report_center-package
+```
+
+Python 打包器仅复制模板清单、入口和构建后的 bundle；增加业务模块、SQL 或其他资源时，应显式扩展复制清单并测试。Python 插件仍以 Python 源码交付。Rust 交付不包含 `.rs`、Cargo 或前端开发工程；两种方式均需按第 15 节签名、导入、维护准备、选择目标及重启验收。所有构建输出必须使用新目录，不能覆盖已加载版本。
+
+## 17. 本地真实服务验收与 CI
+
+本节用于插件交付前的自动化回归和部署环境验收。插件自身的测试与静态检查见[第 13 节](#13-测试和发布前检查)，v2 工程构建及合约测试见[第 16 节](#16-v2-项目脚手架与完整构建)，签名交付与维护操作按[第 15 节](#15-v2-签名制品与维护发布)执行。
+
+### 17.1 本地自动化回归
+
+在后端目录、已安装宿主依赖的 Python 环境中执行。下面的命令适用于 Windows PowerShell、macOS 和 Linux：
+
+```bash
+python -m pip install pytest pytest-asyncio aiosqlite
+python -m pytest tests/cli/runtime/plugin/test_runtime_scaffold.py tests/cli/runtime/plugin/test_runtime_scaffold_v2.py -q
+python -m pytest tests/plugins/core/artifacts tests/plugins/core/deployment tests/plugins/core/management/test_release_dao.py tests/plugins/core/management/test_artifact_views.py tests/module_plugin/controller/test_plugin_release_controller.py tests/cli/root/test_plugin_artifact_commands.py tests/sql/test_plugin_release_schema.py -q
+```
+
+上述回归覆盖脚手架、签名制品、维护发布、状态查询及数据库脚本约束。原生插件还应在目标平台构建后执行[原生示例的集成验证](../plugins/examples/rust/rust_demo/README.md#本地集成验证)；测试因缺少原生制品而跳过时，不能据此确认原生交付可用。
+
+bundle 插件完成独立前端构建后，还应执行宿主桥接测试（在后端目录执行，三种平台通用）：
+
+```bash
+npm --prefix ../ruoyi-fastapi-frontend run test:plugin
+```
+
+### 17.2 真实服务与多 worker 验收
+
+准备独立的测试数据库、Redis、制品存储和发布者密钥，配置与目标部署一致的数据库类型、代理前缀、TLS 和 worker 数量。记录初始插件版本、数据库安装版本、目标 digest 和 generation；验收中的导入、迁移、目标选择及重启沿用第 15 节的正式维护流程。
+
+按下表逐项确认结果：
+
+| 场景 | 验收要求 |
+| --- | --- |
+| 首次发布 | 验签与导入成功，完成维护准备和目标选择；重启后所有预期 worker 报告同一 digest、generation，汇总状态为 `active`。 |
+| 升级 | 停止全部 worker 后准备新版本；迁移成功记录不重复执行，重启后全部 worker 加载新目标。 |
+| 代码回滚 | 确认旧代码兼容当前数据结构后选择上一目标并重启；运行代码回退，数据库安装版本和迁移历史保持不变。 |
+| 维护互斥 | 存在有效 worker 心跳时，维护准备被拒绝；并发维护操作不能绕过生命周期锁。 |
+| 部分启动失败 | 某个 worker 的初始化或健康检查失败时，发布状态及错误可诊断，不能把该 worker 计为已就绪。 |
+| 进程退出与重启 | 正常退出后释放资源；异常退出后的陈旧报告不再计入存活数量，新进程按当前目标加载。 |
+| 登录与权限 | 未登录、缺少插件权限或会话退出后的请求被拒绝；已授权用户能调用插件 API。bundle 页面另外验证会话、CSRF、资源路径和代理前缀。 |
+| 制品完整性 | 加载前后的签名与文件摘要检查通过，运行时未向不可变制品目录写入业务数据或缓存。 |
+
+保留每次操作的输出、发布状态和各 worker 的错误信息。成功依据是预期 worker 的实际就绪报告及业务接口验证，不能仅以导入成功、目标已选择或单进程测试通过判定部署完成。
+
+### 17.3 数据隔离与清理
+
+验收前明确本次使用的数据库、Redis 命名空间、制品目录和进程范围。结束后停止本次启动的进程、关闭连接并按记录清理临时资源；清理失败时保留资源标识供后续处理。插件自身的 migration 和回滚兼容性需要结合真实业务数据验证。
+
+反向代理、TLS、跨机器网络、既有 WebSocket 或长连接排空仍需在实际部署拓扑中验收。自动化回归不替代这些检查。
+
+### 17.4 CI 覆盖
+
+仓库的原生插件工作流配置 Windows/Linux、Python 3.10、3.11、3.12、3.13 构建测试矩阵，覆盖 v1/v2 脚手架、原生扩展以及签名制品与维护发布回归。
+
+发布集成工作流在 Python 3.10、3.11、3.12、3.13 上使用临时 MySQL、PostgreSQL 和 Redis 服务验证多 worker 发布行为。工作流配置不代表已经执行成功；发布前应核对对应提交的实际 CI 结果，并完成目标平台的部署验收。

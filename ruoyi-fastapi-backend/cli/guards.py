@@ -208,6 +208,24 @@ DEFAULT_DANGEROUS_COMMAND_RULES: dict[str, DangerousCommandRule] = {
     'gen export': DangerousCommandRule(command_name='gen export', risk_level='high', supports_dry_run=True),
     'gen sync-db': DangerousCommandRule(command_name='gen sync-db', risk_level='normal', supports_dry_run=False),
     'plugin install': DangerousCommandRule(command_name='plugin install', risk_level='high', supports_dry_run=True),
+    'plugin artifact import': DangerousCommandRule(
+        command_name='plugin artifact import', risk_level='high', supports_dry_run=True
+    ),
+    'plugin release prepare': DangerousCommandRule(
+        command_name='plugin release prepare', risk_level='high', supports_dry_run=True
+    ),
+    'plugin release select': DangerousCommandRule(
+        command_name='plugin release select', risk_level='high', supports_dry_run=False
+    ),
+    'plugin release rollback': DangerousCommandRule(
+        command_name='plugin release rollback', risk_level='high', supports_dry_run=False
+    ),
+    'plugin release enable': DangerousCommandRule(
+        command_name='plugin release enable', risk_level='high', supports_dry_run=False
+    ),
+    'plugin release disable': DangerousCommandRule(
+        command_name='plugin release disable', risk_level='high', supports_dry_run=False
+    ),
     'plugin install-deps': DangerousCommandRule(
         command_name='plugin install-deps',
         risk_level='high',

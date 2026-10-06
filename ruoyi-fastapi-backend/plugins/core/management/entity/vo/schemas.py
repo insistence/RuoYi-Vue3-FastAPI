@@ -44,6 +44,7 @@ class PluginModel(BaseModel):
     config: list[dict[str, Any]] | None = Field(default=None, description='插件配置声明')
     dependencies: dict[str, Any] | None = Field(default=None, description='插件依赖声明')
     plugin_dependencies: list[dict[str, Any]] | None = Field(default=None, description='插件依赖声明')
+    release: dict[str, Any] | None = Field(default=None, description='制品目标发布及各worker实际加载状态')
 
 
 class PluginQueryModel(BaseModel):

@@ -42,6 +42,7 @@ def get_default_job_timezone() -> str:
 
 MIN_PLUGIN_COMPONENT_PARTS = 3
 SUPPORTED_MANIFEST_VERSION = 1
+EXPLICIT_MANIFEST_VERSION = 2
 
 
 class PluginManifestError(ValueError):
@@ -1014,6 +1015,33 @@ class PluginManifest(BaseModel):
         return [permission.code for permission in self.permissions]
 
     @property
+    def runtime_kind(self) -> str:
+        """
+        返回统一的后端交付类型，v1 保持 Python 源码语义。
+
+        :return: 插件后端交付类型
+        """
+        return getattr(self.backend, 'runtime', 'python')
+
+    @property
+    def integration_kind(self) -> str:
+        """
+        返回统一的 Web 接入类型。
+
+        :return: 插件 Web 接入类型
+        """
+        return getattr(self.backend, 'integration', 'router')
+
+    @property
+    def uses_entrypoint(self) -> bool:
+        """
+        判断插件是否使用 v2 显式入口。
+
+        :return: 插件是否使用 v2 显式入口
+        """
+        return self.manifest_version == EXPLICIT_MANIFEST_VERSION
+
+    @property
     def permission_name_map(self) -> dict[str, str]:
         """
         获取权限展示名称映射。
@@ -1186,4 +1214,8 @@ class PluginManifestFactory:
         :param raw_manifest: YAML 解析得到的原始清单字典
         :return: 插件清单模型
         """
+        if raw_manifest.get('manifestVersion', raw_manifest.get('manifest_version', 1)) == EXPLICIT_MANIFEST_VERSION:
+            from plugins.core.manifest.v2 import PluginManifestV2  # noqa: PLC0415
+
+            return PluginManifestV2.model_validate(raw_manifest)
         return PluginManifest.model_validate(raw_manifest)

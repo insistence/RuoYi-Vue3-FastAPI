@@ -1,0 +1,35 @@
+manifestVersion: 2
+id: rust_demo
+name: Rust 原生 ASGI 示例
+version: 1.0.0
+description: 通过 PyO3 调用宿主 Python SDK 和用户资料服务。
+backend:
+  runtime: native
+  integration: asgi
+  module: ruoyi_plugin_rust_demo
+  entrypoint: ruoyi_plugin_rust_demo._native:create_plugin
+  native:
+    distribution: ruoyi-plugin-rust-demo
+  asgi:
+    mountPath: /apps/rust_demo
+    lifespan: managed
+  health:
+    checker: ruoyi_plugin_rust_demo._native:health
+  jobs:
+    - id: heartbeat
+      name: Rust 后台任务示例
+      callable: ruoyi_plugin_rust_demo._native.heartbeat
+      cronExpression: '0 */5 * * * ?'
+      enabled: false
+      timeoutSeconds: 10
+frontend:
+  delivery:
+    type: none
+permissions:
+  - code: rust_demo:view
+    name: 查看 Rust 示例
+  - code: rust_demo:profile
+    name: 通过 Rust 示例查看本人资料
+compatibility:
+  hostApiVersion: ^1.1.0
+  pythonVersion: '>=3.10'

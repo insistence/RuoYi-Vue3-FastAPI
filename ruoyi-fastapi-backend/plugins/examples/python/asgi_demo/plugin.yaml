@@ -1,0 +1,22 @@
+manifestVersion: 2
+id: asgi_demo
+name: ASGI 子应用示例
+version: 1.0.0
+description: 使用显式入口和宿主认证的独立 API 子应用。
+backend:
+  runtime: python
+  integration: asgi
+  module: plugins.asgi_demo
+  entrypoint: plugins.asgi_demo:create_plugin
+  asgi:
+    mountPath: /apps/asgi_demo
+    lifespan: managed
+frontend:
+  delivery:
+    type: none
+permissions:
+  - code: asgi_demo:view
+    name: 查看 ASGI 示例
+compatibility:
+  hostApiVersion: ^1.0.0
+  pythonVersion: '>=3.10'

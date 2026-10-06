@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import typer
 
+from .commands.artifact import register_artifact_commands
 from .commands.configuration import register_configuration_commands
 from .commands.dependency import register_dependency_commands
 from .commands.developer import register_developer_commands
@@ -11,6 +12,7 @@ from .commands.discovery import register_discovery_commands
 from .commands.lifecycle import register_lifecycle_commands
 
 if TYPE_CHECKING:
+    from .artifact_controller import PluginArtifactCommandController
     from .controller import PluginCommandController
 
 app = typer.Typer(
@@ -31,8 +33,20 @@ def _get_plugin_command_controller() -> 'PluginCommandController':
     return controller_class()
 
 
+@lru_cache(maxsize=1)
+def _get_plugin_artifact_controller() -> 'PluginArtifactCommandController':
+    """
+    延迟获取制品命令控制器，避免帮助查询加载部署依赖。
+
+    :return: 制品命令控制器
+    """
+    controller_class = importlib.import_module('cli.groups.plugin.artifact_controller').PluginArtifactCommandController
+    return controller_class()
+
+
 register_discovery_commands(app, _get_plugin_command_controller)
 register_configuration_commands(app, _get_plugin_command_controller)
 register_dependency_commands(app, _get_plugin_command_controller)
 register_lifecycle_commands(app, _get_plugin_command_controller)
 register_developer_commands(app, _get_plugin_command_controller)
+register_artifact_commands(app, _get_plugin_artifact_controller)

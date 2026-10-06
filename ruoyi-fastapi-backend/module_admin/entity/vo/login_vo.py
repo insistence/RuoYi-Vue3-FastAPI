@@ -79,6 +79,7 @@ class MetaModel(BaseModel):
     icon: str | None = Field(default=None, description='设置路由的图标')
     no_cache: bool | None = Field(default=None, description='设置为true，则不会被 <keep-alive>缓存')
     link: str | None = Field(default=None, description='内链地址（http(s)://开头）')
+    plugin_id: str | None = Field(default=None, description='由平台菜单归属确定的插件ID')
 
 
 class RouterModel(BaseModel):

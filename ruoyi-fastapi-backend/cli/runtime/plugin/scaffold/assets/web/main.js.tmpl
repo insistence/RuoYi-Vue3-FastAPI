@@ -1,0 +1,86 @@
+import { createPluginClient } from '../vendor/pluginBridge.js'
+import './style.css'
+
+// 统一按 ID 获取模板页面中的固定元素。
+const element = (id) => document.getElementById(id)
+let client
+let context = {}
+let connected = false
+let ended = false
+/**
+ * 更新连接提示，并区分错误状态。
+ */
+const showNotice = (text, error = false) => {
+  element('notice').textContent = text
+  element('notice').classList.toggle('error', error)
+}
+/**
+ * 同步请求忙碌状态；退出登录后保持刷新按钮禁用。
+ */
+const setBusy = (busy) => {
+  element('workspace').setAttribute('aria-busy', String(busy))
+  element('refresh').disabled = busy || ended
+}
+/**
+ * 保存宿主上下文，并应用当前主题和语言。
+ */
+const applyContext = (next) => {
+  context = { ...context, ...next }
+  document.documentElement.dataset.theme = context.theme?.mode || 'light'
+  document.documentElement.lang = context.language || 'zh-CN'
+}
+/**
+ * 通过宿主桥接会话查询插件状态，忽略退出登录后的响应。
+ */
+async function refresh() {
+  if (!connected || ended) return
+  setBusy(true)
+  try {
+    const result = await client.request({ method: 'GET', path: 'info' })
+    if (ended) return
+    element('plugin-id').textContent = result.pluginId
+    element('server-time').textContent = new Intl.DateTimeFormat(context.language || 'zh-CN', {
+      timeZone: context.timeZone || 'UTC', dateStyle: 'short', timeStyle: 'medium',
+    }).format(new Date(result.serverTime))
+    showNotice('连接正常，已获取最新状态。')
+  } catch (error) {
+    if (!ended) showNotice(`${error.message}，可点击“刷新状态”重试。`, true)
+  } finally {
+    setBusy(false)
+  }
+}
+/**
+ * 建立或重建宿主会话，并订阅偏好、刷新和退出登录事件。
+ */
+async function connect() {
+  setBusy(true)
+  try {
+    client?.destroy()
+    const config = JSON.parse(element('ruoyi-plugin-config').textContent)
+    client = createPluginClient({ pluginId: config.pluginId })
+    client.subscribe(({ type, payload }) => {
+      if (type === 'preferences' || type === 'route') applyContext(payload)
+      if (type === 'refresh') refresh()
+      if (type === 'logout') {
+        ended = true
+        connected = false
+        client.destroy()
+        element('plugin-id').textContent = '会话已结束'
+        element('server-time').textContent = '—'
+        showNotice('登录已结束，请重新登录管理平台。')
+        setBusy(false)
+      }
+    })
+    applyContext(await client.ready)
+    connected = true
+    await refresh()
+  } catch (error) {
+    connected = false
+    showNotice(error.message || '请从管理平台打开插件页面。', true)
+    setBusy(false)
+  }
+}
+element('refresh').addEventListener('click', () => connected ? refresh() : connect())
+// 页面离开时释放桥接层的事件监听和待处理请求。
+window.addEventListener('pagehide', () => client?.destroy(), { once: true })
+connect()

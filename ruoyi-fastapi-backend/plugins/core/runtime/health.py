@@ -7,6 +7,7 @@ from typing import Any, cast
 from common.constant import PluginRuntimeConstant
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.callable import LoadedPluginCallable, PluginCallableLoader
+from plugins.core.sdk.definition import await_plugin_callback
 from plugins.core.types import JSONObject
 
 
@@ -145,6 +146,8 @@ class PluginHealthChecker:
         :return: 健康检查原始返回值
         """
         callable_object = checker_callable.callable_object
+        if self.discovered_plugin.manifest.uses_entrypoint:
+            return await await_plugin_callback(callable_object, context, timeout=self.timeout_seconds)
         if not inspect.iscoroutinefunction(callable_object):
             raise TypeError('插件健康检查必须使用 async def 声明，平台不会在线程中执行不可终止的同步检查')
         raw_result = self._invoke_checker(checker_callable, context)

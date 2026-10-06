@@ -46,7 +46,7 @@ class PluginConfigUseCase:
         :return: 插件配置负载
         """
         try:
-            discovered_plugin = self._get_discovered_plugin(plugin_id)
+            discovered_plugin = await self.context.get_readonly_discovered_plugin(plugin_id)
             if not discovered_plugin:
                 return PluginPayloadBuilder.build_plugin_not_found_payload(plugin_id)
 
@@ -96,7 +96,7 @@ class PluginConfigUseCase:
         :return: 插件配置更新负载
         """
         try:
-            discovered_plugin = self._get_discovered_plugin(plugin_id)
+            discovered_plugin = await self.context.get_readonly_discovered_plugin(plugin_id)
             if not discovered_plugin:
                 return PluginPayloadBuilder.build_plugin_not_found_payload(plugin_id)
 

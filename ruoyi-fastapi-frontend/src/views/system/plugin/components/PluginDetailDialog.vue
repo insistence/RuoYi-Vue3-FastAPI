@@ -16,7 +16,9 @@
         >
           <el-descriptions-item label="插件ID">{{ detail.pluginId }}</el-descriptions-item>
           <el-descriptions-item label="插件名称">{{ detail.pluginName }}</el-descriptions-item>
-          <el-descriptions-item label="源码版本">{{ detail.version }}</el-descriptions-item>
+          <el-descriptions-item :label="detail.source === 'artifact' ? '制品版本' : '源码版本'">{{
+            detail.version
+          }}</el-descriptions-item>
           <el-descriptions-item label="已安装版本">{{
             detail.installedVersion || '-'
           }}</el-descriptions-item>
@@ -53,6 +55,99 @@
             >{{ detail.description || '-' }}</el-descriptions-item
           >
         </el-descriptions>
+
+        <template v-if="detail.source === 'artifact'">
+          <div class="detail-section-title">制品发布</div>
+          <el-alert
+            v-if="releaseView.unavailable"
+            title="暂未获取发布状态，请刷新列表后查看"
+            type="info"
+            show-icon
+            :closable="false"
+            class="mb16"
+          />
+          <el-alert
+            v-if="releaseView.error"
+            title="制品发布异常"
+            :description="releaseView.error"
+            type="error"
+            show-icon
+            :closable="false"
+            class="mb16 release-error"
+          />
+          <el-alert
+            v-if="releaseView.restartRequired"
+            title="尚未完成全部 worker 的状态确认"
+            description="请在停机维护窗口完成发布操作，再启动全部 worker；以下状态以实际进程报告为准。"
+            type="warning"
+            show-icon
+            :closable="false"
+            class="mb16"
+          />
+          <el-descriptions
+            :column="2"
+            border
+            class="mb16"
+          >
+            <el-descriptions-item label="发布状态">
+              <el-tag :type="releaseView.tagType">{{ releaseView.label }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="维护准备">{{
+              releaseView.preparationLabel
+            }}</el-descriptions-item>
+            <el-descriptions-item
+              label="Worker 状态"
+              :span="2"
+              >{{ releaseView.workerSummary }}</el-descriptions-item
+            >
+            <el-descriptions-item label="目标匹配 / 停用确认"
+              >{{ releaseView.counts.healthy }} /
+              {{ releaseView.counts.disabled }}</el-descriptions-item
+            >
+            <el-descriptions-item label="不一致 / 失败"
+              >{{ releaseView.counts.mismatch }} /
+              {{ releaseView.counts.failed }}</el-descriptions-item
+            >
+            <el-descriptions-item label="未确认 / 心跳过期"
+              >{{ releaseView.counts.missing }} /
+              {{ releaseView.counts.stale }}</el-descriptions-item
+            >
+            <el-descriptions-item label="目标代码版本">{{
+              detail.release?.targetVersion || '-'
+            }}</el-descriptions-item>
+            <el-descriptions-item
+              label="目标制品摘要"
+              :span="2"
+              ><code class="release-identity">{{
+                detail.release?.targetDigest || '未选择目标'
+              }}</code></el-descriptions-item
+            >
+            <el-descriptions-item
+              label="已准备摘要"
+              :span="2"
+              ><code class="release-identity">{{
+                detail.release?.preparedDigest || '尚未完成维护准备'
+              }}</code></el-descriptions-item
+            >
+            <el-descriptions-item
+              label="发布代际"
+              :span="2"
+              ><code class="release-identity">{{
+                detail.release?.generation || '-'
+              }}</code></el-descriptions-item
+            >
+            <el-descriptions-item
+              label="已安装数据结构版本"
+              :span="2"
+            >
+              {{ detail.installedVersion || '-' }}
+              <div class="release-explanation">
+                表示数据库迁移和安装资源已到达的版本；代码回滚不会降低此版本。worker
+                是否使用目标代码由发布状态确认。
+              </div>
+            </el-descriptions-item>
+          </el-descriptions>
+        </template>
 
         <div class="detail-section-title">后端声明</div>
         <el-descriptions
@@ -543,7 +638,7 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button
-          v-if="detail.status === 'error'"
+          v-if="detail.status === 'error' && detail.source !== 'artifact'"
           type="primary"
           @click="emit('repair')"
           v-hasPermi="['system:plugin:edit']"
@@ -557,6 +652,7 @@
 
 <script setup name="PluginDetailDialog">
 import { computed } from 'vue'
+import { getPluginReleaseView } from '@/utils/pluginReleaseFormatter'
 
 const props = defineProps({
   modelValue: {
@@ -599,6 +695,8 @@ const emit = defineEmits([
   'mark-migration-success',
   'mark-migration-failed',
 ])
+
+const releaseView = computed(() => getPluginReleaseView(props.detail))
 
 const detailDependencyRows = computed(() => {
   const dependencies = props.detail.dependencies || {}
@@ -658,6 +756,7 @@ function getFrontendDeliveryLabel(delivery) {
   const typeMap = {
     none: '无前端资源',
     source: '源码交付',
+    bundle: '独立前端制品',
   }
   return typeMap[delivery.type] || delivery.type || '-'
 }
@@ -687,11 +786,11 @@ function getMigrationStatusTagType(status) {
 }
 
 function canMarkMigrationSuccess(row) {
-  return ['running', 'failed'].includes(row?.status)
+  return props.detail.source !== 'artifact' && ['running', 'failed'].includes(row?.status)
 }
 
 function canMarkMigrationFailed(row) {
-  return row?.status === 'running'
+  return props.detail.source !== 'artifact' && row?.status === 'running'
 }
 </script>
 
@@ -727,5 +826,19 @@ function canMarkMigrationFailed(row) {
   display: flex;
   justify-content: center;
   gap: 4px;
+}
+
+.release-identity {
+  overflow-wrap: anywhere;
+}
+
+.release-explanation {
+  margin-top: 4px;
+  color: var(--el-text-color-regular);
+  line-height: 1.5;
+}
+
+.release-error :deep(.el-alert__description) {
+  overflow-wrap: anywhere;
 }
 </style>

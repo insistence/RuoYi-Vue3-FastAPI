@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from plugins.core.discovery.scanner import DiscoveredPlugin
+from plugins.core.discovery.scanner import DiscoveredPlugin, is_artifact_plugin
 
 PluginOperation = Literal[
     'install',
@@ -115,18 +115,29 @@ class PluginRuntimeCapabilityResolver:
         """
         manifest = discovered_plugin.manifest
         has_frontend_resources = bool(
-            manifest.frontend.menus or manifest.dependencies.npm or manifest.dependencies.npm_dev
+            manifest.frontend.menus
+            or manifest.dependencies.npm
+            or manifest.dependencies.npm_dev
+            or manifest.frontend.delivery.type == 'bundle'
         )
-        frontend_build_required = manifest.frontend.delivery.build_required or has_frontend_resources
+        frontend_build_required = manifest.frontend.delivery.type != 'bundle' and (
+            manifest.frontend.delivery.build_required or has_frontend_resources
+        )
         frontend_runtime_manageable = not (
             self.frontend_mode == 'built' and has_frontend_resources and frontend_build_required
         )
-        backend_runtime_manageable = self.backend_runtime_mode == 'dev'
+        backend_runtime_manageable = self.backend_runtime_mode in {'dev', 'maintenance'}
+        if is_artifact_plugin(discovered_plugin) and self.backend_runtime_mode != 'maintenance':
+            backend_runtime_manageable = False
         runtime_manageable = frontend_runtime_manageable and backend_runtime_manageable
 
         warnings = []
         if not backend_runtime_manageable:
-            warnings.append(SERVICE_MODE_REASON)
+            warnings.append(
+                '签名制品的生命周期只能通过插件维护发布命令执行，完成后重启 worker。'
+                if is_artifact_plugin(discovered_plugin)
+                else SERVICE_MODE_REASON
+            )
         if not frontend_runtime_manageable:
             warnings.append(BUILT_FRONTEND_REASON)
 

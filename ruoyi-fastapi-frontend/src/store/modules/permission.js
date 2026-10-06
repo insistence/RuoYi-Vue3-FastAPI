@@ -4,6 +4,7 @@ import { getRouters } from '@/api/menu'
 import Layout from '@/layout/index'
 import ParentView from '@/components/ParentView'
 import InnerLink from '@/layout/components/InnerLink'
+import PluginFrame from '@/components/PluginFrame/index.vue'
 import { resolvePluginViewPath } from '@/utils/pluginViewResolver'
 
 // 匹配内置 views 和插件 views 里面所有的 .vue 文件
@@ -72,6 +73,8 @@ function filterAsyncRouter(asyncRouterMap, lastRouter = false, type = false) {
         route.component = ParentView
       } else if (route.component === 'InnerLink') {
         route.component = InnerLink
+      } else if (route.component === 'PluginFrame') {
+        route.component = PluginFrame
       } else {
         route.component = loadView(route.component)
       }

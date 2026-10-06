@@ -8,6 +8,7 @@ import {
   shouldEncryptResponse,
 } from '@/utils/transportCryptoPolicy'
 import cache from '@/plugins/cache'
+import { normalizeTransportPath } from '@/utils/transportPath'
 
 const TRANSPORT_BASE_URL = import.meta.env.VITE_APP_BASE_API
 const TRANSPORT_ENABLE_HEADER = 'X-Transport-Encrypt'
@@ -147,43 +148,13 @@ function buildQueryUrlLength(url = '', params = {}) {
 }
 
 /**
- * 获取基础 API 地址对应的路径前缀。
- *
- * @returns {string} 基础路径前缀
- */
-function getBaseApiPath() {
-  if (!TRANSPORT_BASE_URL) {
-    return ''
-  }
-  if (TRANSPORT_BASE_URL.startsWith('http://') || TRANSPORT_BASE_URL.startsWith('https://')) {
-    const baseApiPath = new URL(TRANSPORT_BASE_URL).pathname
-    return baseApiPath === '/' ? '' : baseApiPath
-  }
-  return TRANSPORT_BASE_URL
-}
-
-/**
- * 计算参与 AAD 校验的标准请求路径。
+ * 计算参与 AAD 校验的标准请求路径，兼容插件部署前缀。
  *
  * @param {string} url 请求地址
  * @returns {string} 标准化请求路径
  */
 function getRequestPath(url = '') {
-  const baseApiPath = getBaseApiPath()
-  const normalizedUrl = String(url || '')
-
-  let pathname = normalizedUrl
-  if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
-    pathname = new URL(normalizedUrl).pathname
-  } else {
-    pathname = normalizedUrl.split('?')[0] || '/'
-  }
-
-  if (baseApiPath && pathname.startsWith(baseApiPath)) {
-    const normalizedPath = pathname.slice(baseApiPath.length)
-    return normalizedPath || '/'
-  }
-  return pathname || '/'
+  return normalizeTransportPath(url, TRANSPORT_BASE_URL, import.meta.env.VITE_APP_PLUGIN_BASE || '')
 }
 
 /**

@@ -1,11 +1,13 @@
 import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import createVitePlugins from './vite/plugins'
+import { normalizePluginBase } from './src/utils/pluginBridge.js'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd())
   const { VITE_APP_ENV } = env
+  const pluginBase = normalizePluginBase(env.VITE_APP_PLUGIN_BASE || '')
   return {
     // 部署生产环境和开发环境下的URL。
     // 默认情况下，vite 会假设你的应用是被部署在一个域名的根路径上
@@ -44,6 +46,15 @@ export default defineConfig(({ mode, command }) => {
       host: true,
       open: true,
       proxy: {
+        [`${pluginBase}/apps/`]: {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: false,
+          ws: true,
+        },
+        [`${pluginBase}/plugin/runtime/`]: {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: false,
+        },
         // https://cn.vitejs.dev/config/#server-proxy
         '/dev-api': {
           target: 'http://127.0.0.1:9099',

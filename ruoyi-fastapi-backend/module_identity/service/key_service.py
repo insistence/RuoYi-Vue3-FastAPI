@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import secrets
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Any, Literal, TypeVar
@@ -68,7 +68,7 @@ class KeyService:
 
     @staticmethod
     @asynccontextmanager
-    async def _rotation_lock(redis: Any) -> AsyncIterator[None]:
+    async def _rotation_lock(redis: Any) -> AsyncGenerator[None, None]:
         """
         获取密钥轮换锁
 

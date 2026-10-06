@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, call, patch
@@ -61,7 +61,7 @@ class FakeLifecycleLock:
         self.calls: list[tuple[str, str]] = []
 
     @asynccontextmanager
-    async def lock(self, plugin_id: str, operation: str) -> AsyncIterator[PluginLifecycleLockResult]:
+    async def lock(self, plugin_id: str, operation: str) -> AsyncGenerator[PluginLifecycleLockResult, None]:
         """返回预设锁结果。"""
         self.calls.append((plugin_id, operation))
         yield PluginLifecycleLockResult(acquired=self.acquired)
@@ -179,6 +179,31 @@ def test_startup_generation_changes_with_plugin_source(tmp_path: Path) -> None:
     second = PluginStartupGenerationResolver(tmp_path, release_id='').resolve()
 
     assert first != second
+
+
+@pytest.mark.parametrize(
+    'relative_path',
+    [
+        'python/asgi_demo/__init__.py',
+        'python/bundle_demo/plugin.yaml',
+        'rust/rust_demo/target/release/_native.pyd',
+    ],
+)
+def test_startup_generation_ignores_example_sources_and_build_outputs(tmp_path: Path, relative_path: str) -> None:
+    """校验示例源码、清单及构建产物变化不会改变宿主启动代际。"""
+    plugin_file = tmp_path / 'plugins' / 'demo' / 'hooks.py'
+    plugin_file.parent.mkdir(parents=True)
+    plugin_file.write_text('VERSION = 1\n', encoding='utf-8')
+    resolver = PluginStartupGenerationResolver(tmp_path, release_id='')
+    original = resolver.resolve()
+
+    example_file = tmp_path / 'plugins' / 'examples' / relative_path
+    example_file.parent.mkdir(parents=True)
+    example_file.write_text('example version 1\n', encoding='utf-8')
+    assert resolver.resolve() == original
+
+    example_file.write_text('example version 2\n', encoding='utf-8')
+    assert resolver.resolve() == original
 
 
 @pytest.mark.asyncio

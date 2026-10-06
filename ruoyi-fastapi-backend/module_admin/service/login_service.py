@@ -26,6 +26,7 @@ from module_identity.service.identity_service import (
     CredentialAuthenticationError,
     CredentialAuthenticationService,
 )
+from plugins.core.management.service.router_metadata import PluginRouterMetadataService
 from utils.client_ip_util import ClientIPUtil
 from utils.common_util import CamelCaseUtil
 from utils.jwt_util import JwtUtil
@@ -152,6 +153,35 @@ class LoginService:
         :return: 当前用户信息对象
         :raise: 令牌异常AuthException
         """
+        return await cls._resolve_current_user(request, token, query_db, refresh_session=True)
+
+    @classmethod
+    async def get_current_user_for_plugin_session(
+        cls, request: Request, token: str, query_db: AsyncSession
+    ) -> CurrentUserModel:
+        """
+        插件 Cookie 只验证主会话，不通过 GET/SET 续期复活并发退出的登录。
+
+        :param request: 当前插件请求
+        :param token: 插件会话绑定的宿主登录凭证
+        :param query_db: 用于查询用户及权限的数据库会话
+        :return: 通过宿主身份及实时权限校验的当前用户
+        """
+        return await cls._resolve_current_user(request, token, query_db, refresh_session=False)
+
+    @classmethod
+    async def _resolve_current_user(
+        cls, request: Request, token: str, query_db: AsyncSession, *, refresh_session: bool
+    ) -> CurrentUserModel:
+        """
+        共享身份和实时权限校验，调用方明确是否续期主会话。
+
+        :param request: 当前请求
+        :param token: 宿主登录凭证
+        :param query_db: 用于查询用户及权限的数据库会话
+        :param refresh_session: 是否续期宿主主登录会话
+        :return: 通过宿主身份及实时权限校验的当前用户
+        """
         # if token[:6] != 'Bearer':
         #     logger.warning("用户token不合法")
         #     raise AuthException(data="", message="用户token不合法")
@@ -180,13 +210,13 @@ class LoginService:
                 f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get("user_basic_info").user_id}'
             )
         if token == redis_token:
-            if AppConfig.app_same_time_login:
+            if refresh_session and AppConfig.app_same_time_login:
                 await request.app.state.redis.set(
                     f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{session_id}',
                     redis_token,
                     ex=timedelta(minutes=JwtConfig.jwt_redis_expire_minutes),
                 )
-            else:
+            elif refresh_session:
                 await request.app.state.redis.set(
                     f'{RedisInitKeyConfig.ACCESS_TOKEN.key}:{query_user.get("user_basic_info").user_id}',
                     redis_token,
@@ -294,8 +324,9 @@ class LoginService:
             ],
             key=lambda x: x.order_num,
         )
+        plugin_menu_ids = await PluginRouterMetadataService.get_menu_plugin_ids(query_db, user_router_menu)
         menus = cls.__generate_menus(MenuConstant.ROOT_ID, user_router_menu)
-        user_router = cls.__generate_user_router_menu(menus)
+        user_router = cls.__generate_user_router_menu(menus, plugin_menu_ids)
         return [router.model_dump(exclude_unset=True, by_alias=True) for router in user_router]
 
     @classmethod
@@ -319,11 +350,16 @@ class LoginService:
         return menu_list
 
     @classmethod
-    def __generate_user_router_menu(cls, permission_list: list[MenuTreeModel]) -> list[RouterModel]:
+    def __generate_user_router_menu(
+        cls,
+        permission_list: list[MenuTreeModel],
+        plugin_menu_ids: dict[int, str] | None = None,
+    ) -> list[RouterModel]:
         """
         工具方法：根据菜单树信息生成路由信息树形嵌套数据
 
         :param permission_list: 菜单树列表信息
+        :param plugin_menu_ids: 当前用户页面菜单的可信插件归属
         :return: 路由信息树形嵌套数据
         """
         router_list: list[RouterModel] = []
@@ -345,7 +381,7 @@ class LoginService:
             if c_menus and permission.menu_type == MenuConstant.TYPE_DIR:
                 router.always_show = True
                 router.redirect = 'noRedirect'
-                router.children = cls.__generate_user_router_menu(c_menus)
+                router.children = cls.__generate_user_router_menu(c_menus, plugin_menu_ids)
             elif RouterUtil.is_menu_frame(permission):
                 router.meta = None
                 children_list: list[RouterModel] = []
@@ -381,6 +417,13 @@ class LoginService:
                 children_list.append(children)
                 router.children = children_list
 
+            plugin_id = (plugin_menu_ids or {}).get(permission.menu_id)
+            if plugin_id and permission.component == 'PluginFrame':
+                # 一级页面由 Layout 包裹，归属必须附在真正渲染 PluginFrame 的子路由。
+                frame_routes = [router] if router.component == 'PluginFrame' else (router.children or [])
+                for frame_route in frame_routes:
+                    if frame_route.component == 'PluginFrame' and frame_route.meta is not None:
+                        frame_route.meta.plugin_id = plugin_id
             router_list.append(router)
 
         return router_list

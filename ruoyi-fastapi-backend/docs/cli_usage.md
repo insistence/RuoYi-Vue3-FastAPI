@@ -39,30 +39,46 @@ ruoyi --help
 
 ### 2.2 安装依赖
 
-MySQL 版本：
+使用 Python 3.10–3.13，先进入后端目录，再创建并激活虚拟环境。以下以标准库 `venv` 为例；已有环境也可直接使用，不要求特定环境名称或安装路径。
+
+Windows PowerShell：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+macOS / Linux（Bash、Zsh）：
 
 ```bash
-cd ruoyi-fastapi-backend
-pip3 install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+创建环境时使用已安装的受支持 Python 解释器。激活后，下文统一使用 `python` 和 `python -m pip`，确保安装依赖与执行命令使用同一个环境。每次打开新终端，都应先激活该环境。
+
+以下安装及 `ruoyi` 命令适用于 Windows PowerShell、macOS 和 Linux；只有涉及 Shell 语法的命令才分平台列出。
+
+MySQL 版本（在后端目录执行）：
+
+```bash
+python -m pip install -r requirements.txt
 ```
 
 PostgreSQL 版本：
 
 ```bash
-cd ruoyi-fastapi-backend
-pip3 install -r requirements-pg.txt
+python -m pip install -r requirements-pg.txt
 ```
 
 说明：
 
-- `requirements*.txt` 已包含当前项目自身安装项 `.`，因此不需要额外执行 `pip install -e .`
+- `requirements*.txt` 已包含当前项目自身安装项 `.`，因此不需要额外执行 `python -m pip install -e .`
 - 安装完成后，`ruoyi` 会随当前 Python 环境一起可用
 
-如果本地使用 Conda，推荐先进入项目环境再执行命令：
+安装完成后检查 CLI：
 
 ```bash
-conda activate ruoyi-fastapi
-cd ruoyi-fastapi-backend
 ruoyi --help
 ```
 
@@ -522,7 +538,7 @@ ruoyi tui --env=prod
 - 当前 TUI 是只读巡检工作台，页面内的写操作入口会通过确认弹窗或向导二次确认
 - 页面切换快捷键为 `D/A/O/B/C/T/G/P/E`，分别对应总览、应用、运维、数据库、缓存、任务、代码生成、参数配置、加密
 - 通用快捷键包括 `R` 刷新、`Q` 退出、`S` 聚焦侧栏、`←/→` 切换焦点或区域、`J/K` 滚动、`PgUp/PgDn` 翻页、`Home/End` 首尾跳转
-- 若当前 Python 环境缺少 TUI 依赖，`ruoyi tui` 会返回失败结果并提示重新执行 `pip install -r requirements.txt` 或 `pip install -r requirements-pg.txt`
+- 若当前 Python 环境缺少 TUI 依赖，`ruoyi tui` 会返回失败结果并提示重新执行 `python -m pip install -r requirements.txt` 或 `python -m pip install -r requirements-pg.txt`
 
 ## 6. 危险命令清单
 
@@ -842,8 +858,8 @@ ruoyi ops health --env=dev --output=json
 请依次确认：
 
 - 当前目录是否为 `ruoyi-fastapi-backend`
-- 当前 Python 环境是否执行过 `pip install -r requirements.txt` 或 `pip install -r requirements-pg.txt`
-- 当前终端是否真的使用了安装依赖的那个 Python/Conda 环境
+- 当前 Python 环境是否执行过 `python -m pip install -r requirements.txt` 或 `python -m pip install -r requirements-pg.txt`
+- 当前终端是否真的使用了安装依赖的那个 Python 环境
 
 ### 8.2 命令报数据库或 Redis 连接失败
 

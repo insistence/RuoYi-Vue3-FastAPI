@@ -1,0 +1,70 @@
+name: Plugin Release Integration
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'ruoyi-fastapi-backend/plugins/core/**'
+      - 'ruoyi-fastapi-backend/config/**'
+      - 'ruoyi-fastapi-backend/sql/upgrade_plugin_artifact_*.sql'
+      - 'ruoyi-fastapi-backend/sql/ruoyi-fastapi*.sql'
+      - 'ruoyi-fastapi-backend/scripts/plugin_release_integration.py'
+      - 'ruoyi-fastapi-backend/requirements.txt'
+      - 'ruoyi-fastapi-backend/requirements-pg.txt'
+      - '.github/workflows/plugin-release-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.11', '3.12', '3.13']
+    defaults:
+      run:
+        working-directory: ruoyi-fastapi-backend
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-only-mysql
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: ci-only-postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+      redis:
+        image: redis:6.2
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s --health-timeout=5s --health-retries=12
+    env:
+      RUOYI_PLUGIN_IT_ALLOW: '1'
+      RUOYI_IT_MYSQL_PASSWORD: ci-only-mysql
+      RUOYI_IT_PG_PASSWORD: ci-only-postgres
+      RUOYI_IT_REDIS_PASSWORD: ''
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ruoyi-fastapi-backend/requirements*.txt
+      - name: Install host dependencies
+        run: python -m pip install -r requirements.txt -r requirements-pg.txt
+      - name: Verify MySQL and Redis maintenance releases
+        run: python scripts/plugin_release_integration.py --engine mysql
+      - name: Verify PostgreSQL and Redis maintenance releases
+        run: python scripts/plugin_release_integration.py --engine postgresql

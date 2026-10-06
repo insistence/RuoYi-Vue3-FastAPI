@@ -54,6 +54,30 @@ class PluginRuntimeBuilder:
         self.entity_importer = EntityModuleImporter(self.backend_root)
         self._discovered_plugins: list[DiscoveredPlugin] | None = None
         self._discovery_errors: list[PluginDiscoveryError] | None = None
+        self._artifact_plugins: list[DiscoveredPlugin] = []
+        self._artifact_errors: list[PluginDiscoveryError] = []
+        self._artifact_plugin_ids: set[str] = set()
+
+    def set_artifact_plugins(
+        self,
+        plugins: list[DiscoveredPlugin],
+        *,
+        reserved_ids: set[str],
+        errors: list[PluginDiscoveryError] | None = None,
+    ) -> None:
+        """
+        绑定本进程启动时已验签的发布快照，失败的目标 ID 也禁止源码回退。
+
+        :param plugins: 启动时已通过验签的发布插件快照
+        :param reserved_ids: 已被制品发布记录占用的插件 ID 集合
+        :param errors: 制品解析过程中收集的插件发现错误列表
+        :return: None
+        """
+        self._artifact_plugins = list(plugins)
+        self._artifact_plugin_ids = set(reserved_ids)
+        self._artifact_errors = list(errors or [])
+        self._discovered_plugins = None
+        self._discovery_errors = None
 
     def discover_plugins(self) -> list[DiscoveredPlugin]:
         """
@@ -67,9 +91,20 @@ class PluginRuntimeBuilder:
         if self._discovered_plugins is not None:
             return self._discovered_plugins
         discovery_result = PluginScanner(self.plugins_root).discover_with_errors()
-        self._discovered_plugins = discovery_result.plugins
-        self._discovery_errors = discovery_result.errors
-        for error in discovery_result.errors:
+        conflicts = {plugin_id for plugin_id in self._artifact_plugin_ids if (self.plugins_root / plugin_id).exists()}
+        self._discovered_plugins = [
+            plugin for plugin in discovery_result.plugins if plugin.manifest.id not in self._artifact_plugin_ids
+        ] + [plugin for plugin in self._artifact_plugins if plugin.manifest.id not in conflicts]
+        self._discovery_errors = [*discovery_result.errors, *self._artifact_errors]
+        self._discovery_errors.extend(
+            PluginDiscoveryError(
+                manifest_path=self.plugins_root / plugin_id / 'plugin.yaml',
+                plugin_dir=self.plugins_root / plugin_id,
+                error_message=f'插件 {plugin_id} 同时存在源码目录和制品发布目标，已拒绝两者',
+            )
+            for plugin_id in sorted(conflicts)
+        )
+        for error in self._discovery_errors:
             logger.error(f'❌ 插件扫描失败，已隔离损坏插件：目录={error.plugin_dir}，错误：{error.error_message}')
 
         return self._discovered_plugins
@@ -111,6 +146,8 @@ class PluginRuntimeBuilder:
         """
         import_result = PluginEntityImportResult()
         for plugin in plugin_registry.list_enabled_plugins():
+            if plugin.discovered_plugin.manifest.uses_entrypoint:
+                continue
             entity_do_dir = plugin.backend_path / 'entity' / 'do'
             if not entity_do_dir.is_dir():
                 continue

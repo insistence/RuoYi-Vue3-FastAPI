@@ -20,6 +20,19 @@ class DiscoveredPlugin:
     manifest: PluginManifest
     backend_path: Path
     manifest_path: Path
+    artifact_digest: str | None = None
+    artifact_generation: str | None = None
+
+
+def is_artifact_plugin(plugin: DiscoveredPlugin) -> bool:
+    """
+    只有显式的非空字符串摘要表示制品来源，兼容旧扫描器返回对象。
+
+    :param plugin: 待判断的插件发现对象
+    :return: 插件是否来自带摘要的签名制品
+    """
+    digest = getattr(plugin, 'artifact_digest', None)
+    return isinstance(digest, str) and bool(digest)
 
 
 @dataclass(frozen=True)

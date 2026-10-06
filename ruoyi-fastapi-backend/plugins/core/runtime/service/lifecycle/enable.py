@@ -176,6 +176,11 @@ class PluginEnableUseCase(PluginLifecycleUseCaseSupport):
         :param record_operation_log: 是否记录插件操作审计日志
         :return: 插件启停结果负载
         """
+        blocked = await self.context.guard_artifact_operation(
+            plugin_id, 'enable' if enabled else 'disable', dry_run=dry_run
+        )
+        if blocked:
+            return blocked
         payload = await self._set_plugin_enabled(plugin_id, enabled=enabled, dry_run=dry_run)
         payload_view = cast('dict[str, object]', payload)
         payload_view['operation'] = 'enable' if enabled else 'disable'
@@ -438,6 +443,9 @@ class PluginEnableUseCase(PluginLifecycleUseCaseSupport):
         :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件卸载结果负载
         """
+        blocked = await self.context.guard_artifact_operation(plugin_id, 'uninstall', dry_run=dry_run)
+        if blocked:
+            return blocked
         result = await self._uninstall_plugin(plugin_id, dry_run=dry_run)
         result = PluginEnablePayloadBuilder.build_uninstall_payload(cast('dict[str, object]', result), dry_run=dry_run)
         result_view = cast('dict[str, object]', result)

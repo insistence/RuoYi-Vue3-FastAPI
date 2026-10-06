@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -43,7 +43,7 @@ async def test_oidc_runtime_validation_loads_database_active_key() -> None:
     db = object()
 
     @asynccontextmanager
-    async def session() -> AsyncIterator[object]:
+    async def session() -> AsyncGenerator[object, None]:
         yield db
 
     with (
@@ -65,7 +65,7 @@ async def test_oidc_runtime_validation_fails_closed_without_usable_key() -> None
     """active 元数据或私钥不可用时后台继续启动，但 OIDC 标记为未就绪。"""
 
     @asynccontextmanager
-    async def session() -> AsyncIterator[object]:
+    async def session() -> AsyncGenerator[object, None]:
         yield object()
 
     with (
@@ -123,7 +123,7 @@ async def test_background_loops_resume_after_lease_reacquisition(loop: str) -> N
     db = SimpleNamespace(commit=AsyncMock())
 
     @asynccontextmanager
-    async def session() -> AsyncIterator[SimpleNamespace]:
+    async def session() -> AsyncGenerator[SimpleNamespace, None]:
         yield db
 
     with (

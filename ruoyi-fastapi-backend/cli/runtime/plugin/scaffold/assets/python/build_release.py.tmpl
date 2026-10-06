@@ -1,0 +1,100 @@
+import argparse
+import json
+import shutil
+import stat
+from pathlib import Path
+
+PLUGIN_ID = "__PLUGIN_ID__"
+BUNDLE = __BUNDLE__
+SOURCE = Path(__file__).resolve().parent
+WEB_EXTENSIONS = {
+    ".html",
+    ".js",
+    ".css",
+    ".svg",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+}
+REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+
+
+def checked_file(path: Path) -> Path:
+    """
+    校验交付文件位于源码目录内，且不含链接、重解析点或硬链接。
+
+    :param path: 待交付的源码文件路径
+    :return: 通过检查的源码文件路径
+    """
+    for part in (path, *path.parents):
+        if part == SOURCE:
+            break
+        metadata = part.lstat()
+        if (
+            part.is_symlink()
+            or getattr(metadata, "st_file_attributes", 0) & REPARSE_POINT
+        ):
+            raise ValueError(f"交付资源不能是链接或重解析点：{part}")
+    resolved = path.resolve()
+    if not resolved.is_relative_to(SOURCE) or not path.is_file():
+        raise ValueError(f"交付文件必须位于源码目录：{path}")
+    if path.stat().st_nlink > 1:
+        raise ValueError(f"交付文件不能是硬链接：{path}")
+    return path
+
+
+def main() -> None:
+    """
+    按显式文件清单组装新交付目录，不安装依赖、导入插件或生成签名。
+
+    :return: None
+    """
+    parser = argparse.ArgumentParser(
+        description="仅组装本模板的交付文件；不安装依赖、不导入插件、不生成签名。"
+    )
+    parser.add_argument(
+        "--output", type=Path, required=True, help="全新输出目录（其中创建插件ID目录）"
+    )
+    output = parser.parse_args().output.resolve()
+    if (
+        output.exists()
+        or output.is_relative_to(SOURCE)
+        or SOURCE.is_relative_to(output)
+    ):
+        parser.error("输出目录必须不存在，且不得与源码目录重叠")
+    resources = [checked_file(SOURCE / name) for name in ("plugin.yaml", "__init__.py")]
+    if BUNDLE:
+        dist = SOURCE / "web" / "dist"
+        checked_file(dist / "index.html")
+        for path in sorted(dist.rglob("*")):
+            if (
+                path.is_symlink()
+                or getattr(path.lstat(), "st_file_attributes", 0) & REPARSE_POINT
+            ):
+                raise ValueError(f"bundle 不允许链接：{path}")
+            if not path.is_file():
+                continue
+            if path.suffix.lower() not in WEB_EXTENSIONS or any(
+                part.startswith(".") for part in path.relative_to(dist).parts
+            ):
+                raise ValueError(
+                    f"bundle 存在非交付文件；不要包含源码、source map 或密钥：{path}"
+                )
+            resources.append(checked_file(path))
+    plugin = output / PLUGIN_ID
+    plugin.mkdir(parents=True)
+    for resource in resources:
+        target = plugin / resource.relative_to(SOURCE)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(resource, target)
+    print(json.dumps({"plugin": str(plugin), "signed": False}, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
