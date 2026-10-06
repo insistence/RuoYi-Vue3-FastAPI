@@ -242,12 +242,15 @@ class ArtifactStore:
             raise ValueError('制品目录身份或 digest 与签名元数据不一致')
         return artifact
 
-    def _verify_directory(self, directory: Path, trusted_keys: Mapping[str, PublicKeyInput]) -> StoredArtifact:
+    def _verify_directory(
+        self, directory: Path, trusted_keys: Mapping[str, PublicKeyInput], *, signature_override: bytes | None = None
+    ) -> StoredArtifact:
         """
         核对制品目录内部布局、签名文档和全部已登记文件。
 
         :param directory: 待验证的候选目录或已发布制品根目录
         :param trusted_keys: 由宿主提供的签名密钥标识与可信公钥映射
+        :param signature_override: 维护轮换时用于验证现有字节的新签名，不修改磁盘
         :return: 通过目录完整性校验的制品存储对象
         :raises ValueError: 目录布局、签名、文件清单或实际内容不一致
         """
@@ -259,6 +262,8 @@ class ArtifactStore:
             metadata_bytes = _read_limited(source, self.limits.max_metadata_bytes)
         with files['signature.json'].open('rb') as source:
             signature_bytes = _read_limited(source, self.limits.max_signature_bytes)
+        if signature_override is not None:
+            signature_bytes = signature_override
         metadata, signature, digest = _verify_documents(metadata_bytes, signature_bytes, trusted_keys, self.limits)
         if set(files) != ROOT_DOCUMENTS | {item.path for item in metadata.files}:
             raise ValueError('存储制品存在额外或缺失文件')

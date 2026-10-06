@@ -6,8 +6,11 @@
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <el-tabs>
-      <el-tab-pane label="概览">
+    <el-tabs v-model="activeTab">
+      <el-tab-pane
+        label="概览"
+        name="overview"
+      >
         <div class="detail-section-title detail-section-title-first">基础信息</div>
         <el-descriptions
           :column="2"
@@ -202,6 +205,16 @@
             detail.frontend?.menus?.length || 0
           }}</el-descriptions-item>
         </el-descriptions>
+      </el-tab-pane>
+      <el-tab-pane
+        label="运行观测"
+        name="metrics"
+        lazy
+      >
+        <PluginRuntimeMetrics
+          v-if="modelValue && activeTab === 'metrics'"
+          :plugin-id="detail.pluginId"
+        />
       </el-tab-pane>
       <el-tab-pane label="菜单">
         <el-table
@@ -651,8 +664,11 @@
 </template>
 
 <script setup name="PluginDetailDialog">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { getPluginReleaseView } from '@/utils/pluginReleaseFormatter'
+import PluginRuntimeMetrics from './PluginRuntimeMetrics.vue'
+
+const activeTab = ref('overview')
 
 const props = defineProps({
   modelValue: {

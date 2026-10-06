@@ -442,7 +442,7 @@ dependencies:
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `backendVersion` | `string \| null` | `null` | 后端版本约束。 |
-| `hostApiVersion` | `string` | `^1.0.0` | 仅 v2：宿主插件 SDK 版本约束，独立于应用版本；当前 Host API 为 `1.2.0`，bundle 使用 `^1.2.0`。 |
+| `hostApiVersion` | `string` | `^1.0.0` | 仅 v2：宿主插件 SDK 版本约束，独立于应用版本；当前 Host API 为 `1.3.0`。bundle 至少使用 `^1.2.0`；请求 DTO、显式事务、字典及缓存服务使用 `^1.3.0`。 |
 | `frontendVersion` | `string \| null` | `null` | 前端版本约束。 |
 | `pythonVersion` | `string \| null` | `null` | Python 版本约束。 |
 | `nodeVersion` | `string \| null` | `null` | Node.js 版本约束。 |
@@ -737,7 +737,7 @@ v2 调度记录保存宿主分发函数及插件 ID、任务 ID、版本，不�
 
 ### 6.6 v2 显式入口与宿主 SDK
 
-清单中的 `create_plugin(host)` 必须同步、快速地返回 `PluginDefinition`；它只声明能力，不打开连接、启动线程或创建后台任务。当前 `PluginDefinition.api_version` 为 `1`，与清单版本 `2`、Host API 版本 `1.2.0` 是三个不同的版本号。
+清单中的 `create_plugin(host)` 必须同步、快速地返回 `PluginDefinition`；它只声明能力，不打开连接、启动线程或创建后台任务。当前 `PluginDefinition.api_version` 为 `1`，与清单版本 `2`、Host API 版本 `1.3.0` 是三个不同的版本号。
 
 | 定义字段 | 使用方式 |
 | --- | --- |
@@ -792,18 +792,71 @@ Router 模式将清单的 `integration` 改为 `router`，移除 `backend.asgi`�
 | 对象 | 当前提供的能力 | 使用边界 |
 | --- | --- | --- |
 | `PluginHostContext` | `plugin_id`、`resource_root`、只读 `config`、`services`、`session_factory`、`redis`、`logger`、`startup_write_enabled`、`api_version` | 配置为加载时快照，修改后重启读取；不保存请求身份或请求数据库会话 |
-| `PluginRequestContext` | `host`、当前 `user`、`permissions`、`require_permission()`；可选 `request_id/query_db` | 当前宿主默认不填充后两个可选字段，不能假定存在请求事务、数据权限上下文或单独取消信号 |
-| `PluginTaskContext` | `host`、`job_id` | 后台任务身份，不隐式获得用户或管理员权限 |
+| `PluginRequestContext` | `host`、当前 `user`、`permissions`、`require_permission()`、`request_id`、`transaction()`；适配器提供 `request` | `query_db` 只在显式事务块内有效；数据权限仍由具体服务处理 |
+| `PluginTaskContext` | `host`、`job_id`、本次执行的 `request_id` | 后台任务身份，不隐式获得用户或管理员权限 |
 
 普通 FastAPI 接口可从 `request.state.plugin_context` 获取请求上下文；WebSocket 对应 `websocket.state.plugin_context`。入口门禁验证用户能访问插件，具体 API 仍须调用 `require_permission()` 或使用 `plugin_endpoint(callback, permission=...)`。权限应同时声明在清单并授予使用者，仅有菜单可见性不代表 API 已鉴权。
 
 `host.resource(relative_path)` 将资源定位在插件根目录内；资源、配置或当前请求对象不能跨插件混用。数据库连接池可共享，`AsyncSession` 必须通过 `async with host.session_factory() as db` 按操作创建并释放，不能在并发任务或线程间共用。签名制品的业务表通过维护迁移创建，`register_models` 不能用来绕过该流程。
 
-当前公开的版本化业务服务为 `host.service('users.current_profile.v1')`。使用 `await host.service('users.current_profile.v1')(context)` 调用，需声明并授予 `<plugin_id>:profile` 权限。该服务再次核对插件和当前用户身份，独立创建数据库会话，返回 `userId/userName/nickName/avatar/postGroup/roleGroup`，不返回密码或内部 ORM 对象。多次服务调用不会自动组成一个事务，新增业务能力应定义明确的权限、数据权限、DTO 和事务边界。
+版本化业务服务通过 `await host.service('服务名称')(context, ...)` 调用。服务再次核对插件归属、当前登录用户和接口权限，仅返回普通数据，不返回密码或 ORM 对象。权限须同时声明在清单并授予用户。
+
+| 服务 | 参数（context 之后） | 权限 | 返回值与边界 |
+| --- | --- | --- | --- |
+| `users.current_profile.v1` | 无 | `<id>:profile` | `userId/userName/nickName/avatar/postGroup/roleGroup` |
+| `dictionaries.items.v1` | `dict_type` | `<id>:dict` | 已启用选项的 `label/value/cssClass/listClass/isDefault`；字典类型为字母开头的字母、数字、下划线，最长 100 字符 |
+| `cache.get.v1` | `key` | `<id>:cache` | JSON 数据；不存在时为 `None` |
+| `cache.set.v1` | `key, value, ttl_seconds=300` | `<id>:cache` | JSON UTF-8 数据最多 64 KiB；TTL 为 1–86400 秒 |
+| `cache.delete.v1` | `key` | `<id>:cache` | 是否删除已有缓存 |
+
+缓存键以字母或数字开头，允许字母、数字、`_ . : -`，最长 128 字符。宿主自动添加 `plugin:sdk:cache:<id>:` 前缀；不提供扫描、通配删除或任意 Redis 命令。缓存按插件共享，不自动按用户隔离，需要用户隔离时将当前用户 ID 纳入业务键。缓存写入不参与数据库事务。
 
 `plugin_endpoint` 把固定参数的插件回调转换为 FastAPI 端点；`plugin_lifespan(host, startup, shutdown)` 把两个接收 host 的异步回调转换为 lifespan，startup 可返回共享状态字典或 `None`。`await_plugin_callback` 统一等待 Python 协程或原生返回的 awaitable。v2 Hook 接收 `PluginHookContext`，健康检查接收 `PluginHealthContext`，两者并非 `PluginHostContext`。
 
 Python 回调在宿主事件循环执行，不能在其中调用 `asyncio.run()` 或阻塞等待已有循环；Rust 同步导出函数应快速返回 awaitable，CPU 密集工作应脱离事件循环线程。超时和取消不能强制终止阻塞的原生代码，插件应配合取消并对写操作实现幂等。不要关闭宿主提供的 Redis 或数据库连接池。
+
+#### 6.6.1 请求数据与校验
+
+`plugin_endpoint` 保持 `callback(context)` 调用方式。回调中的 `context.request` 是 `PluginHttpRequest`：`method/path/path_params/query/body`；`query` 保留同名多值，`to_payload()` 返回独立的 JSON 副本，其中路径参数字段名为 `pathParams`。不传递原始 Request、Cookie 或认证头。未经该适配器包装的普通 Router/ASGI 端点仍直接使用 FastAPI Request，不保证 `context.request` 已填充。
+
+默认不读取请求体；传入 `json_body=True` 或 Pydantic `body_model` 才启用 JSON 解析。默认上限为 1 MiB，可通过 `max_body_bytes` 调整。权限检查先于读取请求体；类型错误返回 415、实际接收字节超限返回 413、无效 JSON 返回 400、模型校验失败返回 422。校验错误不回显输入值。`timeout` 分别限制请求体读取和业务回调，每一阶段默认 30 秒。
+
+```python
+from pydantic import BaseModel, Field
+from plugins.core.sdk import PluginRequestContext, plugin_endpoint
+
+
+class MessageBody(BaseModel):
+    message: str = Field(min_length=1, max_length=200)
+
+
+async def echo(context: PluginRequestContext) -> dict:
+    return {**context.request.to_payload(), 'requestId': context.request_id}
+
+
+app.add_api_route(
+    '/api/echo/{item_id}',
+    plugin_endpoint(echo, permission='report_center:view', body_model=MessageBody),
+    methods=['POST'],
+    summary='验证请求上下文接口',
+    description='返回校验后的路径参数、多值查询参数、请求体和追踪标识',
+    response_model=dict,
+)
+```
+
+Python 与 Rust 实例均提供 `POST /api/echo/{item_id}`；Rust 通过 PyO3 读取同一 DTO，见对应示例 README。
+
+#### 6.6.2 显式请求事务
+
+默认每次数据库服务调用创建独立会话。需要连续调用共享事务时，使用以下形式：
+
+```python
+async with context.transaction() as transaction_context:
+    profile = await context.host.service('users.current_profile.v1')(transaction_context)
+    options = await context.host.service('dictionaries.items.v1')(transaction_context, 'sys_normal_disable')
+```
+
+事务正常结束时提交，异常或任务取消时回滚，最后关闭会话。业务 DAO 可使用块内的 `transaction_context.query_db`；不得自行提交、关闭或把该会话传给其他任务。宿主服务拒绝嵌套事务、块外继续使用事务上下文、手动注入的会话及跨 `asyncio` 任务复用；因此块内服务调用应顺序等待，不能用 `gather/create_task` 并发共享事务。该事务仅覆盖当前宿主数据库，不覆盖 Redis、外部 HTTP 或后台任务，也不自动提供行级数据权限。
 
 ### 6.7 ASGI 子应用与生命周期
 
@@ -1063,6 +1116,18 @@ ruoyi plugin diagnose demo --env=dev --output-file=demo-diagnose.json
 ruoyi plugin docs demo --env=dev --output-file=demo.md
 ```
 
+### 12.1 v2 运行观测
+
+管理端“插件详情 → 运行观测”可手动刷新。只读接口 `GET /system/plugin/runtime/metrics?pluginId=<id>` 要求宿主登录和 `system:plugin:query`。支持显式 Router、ASGI 的 HTTP/WebSocket 以及宿主分发的 v2 定时任务；v1 扫描路由不纳入本指标。
+
+指标按实际加载的插件、版本、digest、generation 和操作（`http/websocket/job:<id>`）分组，记录调用、在途、成功、拒绝、失败、取消、超时、失败率、平均耗时、最大耗时和近似 P95。失败率为失败次数除以已完成次数（成功、拒绝、失败、取消之和），超时计入失败；P95 是固定直方图区间的上界估计，不是精确分位数。HTTP 耗时覆盖完整响应，WebSocket 耗时覆盖连接生命周期；ASGI 组也包含静态资源和门禁拒绝，因此不能直接理解为某个业务接口的延迟。
+
+每个 worker 从启动开始累计，重启归零，不提供持久历史。每 15 秒向 Redis 发布一次快照，60 秒过期，正常退出仅删除自身快照。接口返回 `scope=reporting_workers` 表示本次有效采样中的进程，并不保证包含全部预期 worker；Redis 不可用时明确返回 `scope=current_worker`。首次启动的远程进程可能需等待一个采样周期才出现。当前进程使用即时快照，远程进程使用最近一次快照。
+
+返回数据包含 `observedWorkers`、采样时间、`invalidSnapshots/staleSnapshots/workerLimitReached` 和各进程的 `droppedSeries`，用于判断采样是否完整。单次最多读取 64 个远程快照，每个进程最多 1024 条指标序列。该页面不替代 `release status` 的发布一致性确认。
+
+请求和任务均设置追踪标识；日志上下文附带插件 ID、版本、制品摘要、代际、worker 和操作。指标只保存最近异常类型、时间和追踪标识，不采集 URL、请求体、认证头或异常消息。可用 `lastErrorRequestId` 关联宿主日志排查。
+
 ## 13. 测试和发布前检查
 
 后端单插件测试：
@@ -1245,6 +1310,7 @@ ruoyi plugin release select rust_demo DIGEST --expected-generation GENERATION --
 | `GET /system/plugin/artifacts/list` | 可选 `pluginId`，查询已验证制品 |
 | `GET /system/plugin/release/status` | 可选 `pluginId`，查询目标及各 worker 的实际报告 |
 | `GET /system/plugin/release/plan` | 必填 `pluginId`、`digest`，读取静态发布预检计划 |
+| `GET /system/plugin/runtime/metrics` | 可选 `pluginId`，按实际运行版本读取请求、连接和任务累计指标 |
 
 当前宿主未启用制品发布监控时，管理页显示状态不可确认。worker 心跳只报告已加载的目标快照，不会自动选择新目标；选择目标成功也不代表运行中的进程已更新。
 
@@ -1267,9 +1333,43 @@ ruoyi plugin release rollback rust_demo --expected-generation GENERATION --schem
 
 命令会重新验签并静态检查上一制品，重建其菜单、配置和任务声明；不执行旧版 migration、seed 或 Hook，不倒退 `installedVersion`。`--schema-compatible` 是运维人员的兼容性确认，不是自动推导出的数据库降级方案。随后启动全部 worker 并检查 `release status`。若旧代码不能使用当前数据结构，应制定数据库恢复方案，不能用代码回滚命令替代。
 
-当前没有自动停止进程、热卸载、存量连接排空或制品清理 CLI。修改 enabled、选择目标或撤销签名密钥均不能卸载进程中已加载的 Python/Rust 模块；处理仍需维护窗口和进程退出。保留仍被目标、上一目标或进程引用的版本目录，不要覆盖正在使用的二进制。
+当前没有自动停止进程、热卸载或存量连接排空。修改 enabled、选择目标或撤销签名密钥均不能卸载进程中已加载的 Python/Rust 模块；处理仍需维护窗口和进程退出。制品清理与签名轮换使用下面的独立维护命令。
 
-制品 digest 是规范化 `artifacts.json` 的 SHA256，覆盖每个有效载荷文件的路径、大小和摘要；它不包含签名或 keyId。因此，用新密钥给完全相同内容重签不会生成新 digest，也不会替换现有对象的 `signature.json`。旧签名仍受信时重复导入返回原对象；旧签名已撤销时原对象复验失败，新签名不会覆盖它。需要轮换时，优先提升插件版本并发布新内容；若必须保留相同内容，必须在停机维护中显式处理旧对象及数据库索引/目标引用后重新登记。当前没有自动清理命令，不应直接覆盖签名文件或将已存在目录视为可信缓存。
+制品 digest 是规范化 `artifacts.json` 的 SHA256，覆盖每个有效载荷文件的路径、大小和摘要，不包含签名或 keyId。普通重复导入仍不覆盖原对象。需要保持同一内容轮换密钥时：先把新公钥加入外部信任文件并授权该插件；用新私钥对原构建目录重新打包；停止全部 worker，读取当前 `artifact list` 的 keyId，再执行：
+
+```bash
+ruoyi plugin artifact build target/native-package/rust_demo target/rust_demo-rotated.rpk --key-file ../signing-keys/publisher-next.pem --key-id publisher-next --env=dev --output=json
+ruoyi plugin artifact rotate-signature target/rust_demo-rotated.rpk --expected-key-id publisher --maintenance --env=prod --allow-prod --yes --output=json
+```
+
+命令以新可信签名核对原目录的全部字节，再原子替换签名、CAS 更新索引并记录审计；digest、版本、发布引用和 generation 保持不变。旧密钥已撤销也可执行，因为新签名必须独立证明现有内容。新制品内容或版本不同、发布者越权、原目录篡改、原 keyId 变化均拒绝操作。成功后检查制品并重启全部 worker，再移除不再需要的旧公钥；无需重跑迁移。
+
+### 15.5 制品检查、保留策略与中断恢复
+
+只读检查规范存储目录与数据库索引，显示 `registered/orphan/missing/invalid`、引用保护原因和候选清理摘要：
+
+```bash
+ruoyi plugin artifact inspect --env=prod --output=json
+ruoyi plugin artifact prune --keep-last 2 --min-age-days 7 --env=prod --output=json
+```
+
+`prune` 默认只预演。默认保留每个插件最近导入的 2 个制品以及未满 7 天的对象；按导入时间排序，不按语义版本排序。同版本的不同平台构建分别计数。当前目标、上一目标、已准备制品，以及未报告 stopped 的进程所引用的摘要始终保护，过期心跳也不会自动解除引用。缺失、无效、已撤销签名或静态检查不通过的对象只报告问题，不自动删除；`.staging/.locks` 等内部目录不属于该清理计划。
+
+核对完整 `objects/protectedBy/candidates` 和 `planId` 后，停止全部宿主进程，使用同一保留参数执行：
+
+```bash
+ruoyi plugin artifact prune --keep-last 2 --min-age-days 7 --expected-plan PLAN_ID --execute --maintenance --env=prod --allow-prod --yes --output=json
+```
+
+清理、导入、签名轮换和发布共用全局生命周期锁。正式执行会重新检查计划与进程报告；计划变化必须重新预演。每个候选先移入存储内部隔离目录，再提交索引删除和审计，最后验证并清理隔离对象。多对象操作按对象提交，后续对象失败不会撤销已经完成的清理。
+
+文件与数据库不共享事务，因此 `.maintenance` 保存中断恢复日志。存在未完成日志时拒绝导入与制品加载，先保持停机并执行：
+
+```bash
+ruoyi plugin artifact reconcile --maintenance --env=prod --allow-prod --yes --output=json
+```
+
+恢复以已提交索引为准：清理未提交时恢复原目录，已提交时完成隔离对象删除；签名轮换按索引中的新旧 keyId 恢复相应签名。恢复同样检查路径、摘要和当前信任，不执行插件代码、迁移或 Hook。若日志损坏、文件丢失或删除中途发生文件系统故障，命令保留证据并报错，需要根据备份人工处理，不能通过删除日志强行启动。恢复旧签名后若该密钥已撤销，仍需再次完成新签名轮换才可加载。
 
 ## 16. v2 项目脚手架与完整构建
 

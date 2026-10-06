@@ -22,6 +22,18 @@ from plugins.core.management.entity.do.models import (
     SysPluginOperationLog,
 )
 from plugins.core.management.entity.do.release_models import SysPluginArtifact, SysPluginRelease, SysPluginWorker
+from plugins.core.runtime.service.lifecycle_lock import NoopPluginLifecycleLock
+
+
+@pytest.fixture(autouse=True)
+def isolate_catalog_lifecycle_lock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    为临时数据库测试显式替换导入锁，避免连接开发环境 Redis。
+
+    :param monkeypatch: pytest 替换工具
+    :return: None
+    """
+    monkeypatch.setattr('plugins.core.deployment.catalog.RedisPluginLifecycleLock', NoopPluginLifecycleLock)
 
 
 @pytest_asyncio.fixture

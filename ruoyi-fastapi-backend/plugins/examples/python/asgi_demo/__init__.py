@@ -1,9 +1,23 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
+from pydantic import BaseModel, Field
 
-from plugins.core.sdk import PluginDefinition, PluginHostContext
+from plugins.core.sdk import PluginDefinition, PluginHostContext, PluginRequestContext, plugin_endpoint
+
+
+class EchoBody(BaseModel):
+    """
+    SDK 请求体模型，约束示例消息长度。
+    """
+
+    message: str = Field(min_length=1, max_length=200)
+
+
+async def echo(context: PluginRequestContext) -> dict[str, Any]:
+    return {**context.request.to_payload(), 'requestId': context.request_id}
 
 
 def create_plugin(host: PluginHostContext) -> PluginDefinition:
@@ -52,5 +66,14 @@ def create_app(host: PluginHostContext) -> FastAPI:
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=str(exc)) from exc
         return {'pluginId': host.plugin_id, 'hostApiVersion': host.api_version, 'message': request.state.message}
+
+    app.add_api_route(
+        '/api/echo/{item_id}',
+        plugin_endpoint(echo, permission='asgi_demo:view', body_model=EchoBody),
+        methods=['POST'],
+        summary='验证ASGI插件请求上下文接口',
+        description='返回校验后的请求体、路径参数、多值查询参数与宿主追踪标识',
+        response_model=dict[str, Any],
+    )
 
     return app

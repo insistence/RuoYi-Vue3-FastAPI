@@ -52,13 +52,15 @@ fn create_app<'py>(py: Python<'py>, host: Bound<'py, PyAny>) -> PyResult<Bound<'
 /// 通过宿主 SDK 包装接口权限，供子应用和显式路由两种模式复用。
 fn add_routes(py: Python<'_>, app: &Bound<'_, PyAny>, prefix: &str) -> PyResult<()> {
     let sdk = py.import("plugins.core.sdk")?;
-    for (path, permission, callback, summary, description) in [
+    for (path, permission, callback, summary, description, method, json_body) in [
         (
             "/api/info",
             "rust_demo:view",
             wrap_pyfunction!(info, py)?,
             "获取原生插件信息接口",
             "用于获取当前插件标识、宿主API版本、运行引擎和服务器时间",
+            "GET",
+            false,
         ),
         (
             "/api/profile",
@@ -66,10 +68,22 @@ fn add_routes(py: Python<'_>, app: &Bound<'_, PyAny>, prefix: &str) -> PyResult<
             wrap_pyfunction!(profile, py)?,
             "获取原生插件当前用户信息接口",
             "用于通过宿主服务获取当前登录用户的基本信息",
+            "GET",
+            false,
+        ),
+        (
+            "/api/echo/{item_id}",
+            "rust_demo:view",
+            wrap_pyfunction!(echo, py)?,
+            "验证原生插件请求上下文接口",
+            "返回路径参数、多值查询参数、JSON请求体和宿主追踪标识",
+            "POST",
+            true,
         ),
     ] {
         let options = PyDict::new(py);
         options.set_item("permission", permission)?;
+        options.set_item("json_body", json_body)?;
         let endpoint = sdk
             .getattr("plugin_endpoint")?
             .call((callback,), Some(&options))?;
@@ -77,6 +91,7 @@ fn add_routes(py: Python<'_>, app: &Bound<'_, PyAny>, prefix: &str) -> PyResult<
         route_options.set_item("summary", summary)?;
         route_options.set_item("description", description)?;
         route_options.set_item("response_model", py.get_type::<PyDict>())?;
+        route_options.set_item("methods", vec![method])?;
         app.call_method(
             "add_api_route",
             (format!("{prefix}{path}"), endpoint),
@@ -145,6 +160,14 @@ fn profile<'py>(_py: Python<'py>, context: Bound<'py, PyAny>) -> PyResult<Bound<
         .getattr("host")?
         .call_method1("service", ("users.current_profile.v1",))?
         .call1((context,))
+}
+
+#[pyfunction]
+fn echo<'py>(py: Python<'py>, context: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let result = context.getattr("request")?.call_method0("to_payload")?;
+    result.set_item("requestId", context.getattr("request_id")?)?;
+    let payload = result.unbind();
+    pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(payload) })
 }
 
 /// 演示原生后台任务读取宿主任务上下文并返回执行结果。

@@ -27,6 +27,7 @@ class PluginArtifactCommandController:
         catalog_factory: Callable[[Any], Any] | None = None,
         service_factory: Callable[[Any], Any] | None = None,
         enablement_factory: Callable[[Any], Any] | None = None,
+        maintenance_factory: Callable[[Any], Any] | None = None,
     ) -> None:
         """
         初始化制品命令控制器，并保留部署依赖的延迟加载。
@@ -37,6 +38,7 @@ class PluginArtifactCommandController:
         :param catalog_factory: 制品目录服务工厂
         :param service_factory: 维护发布服务工厂
         :param enablement_factory: 制品启停服务工厂
+        :param maintenance_factory: 制品清理与签名轮换服务工厂
         :return: None
         """
         self.context_factory = context_factory or DEFAULT_CORE_SERVICES.context_factory
@@ -45,6 +47,68 @@ class PluginArtifactCommandController:
         self.catalog_factory = catalog_factory or self._default_catalog
         self.service_factory = service_factory or self._default_service
         self.enablement_factory = enablement_factory or self._default_enablement
+        self.maintenance_factory = maintenance_factory or self._default_maintenance
+
+    @staticmethod
+    def _default_maintenance(config: Any) -> Any:
+        """
+        延迟创建制品维护服务，帮助查询不加载数据库。
+
+        :param config: 制品发布配置
+        :return: 制品维护服务
+        """
+        return importlib.import_module('plugins.core.deployment.maintenance').PluginArtifactMaintenanceService(config)
+
+    def maintain_artifacts(
+        self,
+        operation: str,
+        env: str,
+        output: str,
+        *,
+        options: dict[str, Any],
+        allow_prod: bool = False,
+        yes: bool = False,
+        dry_run: bool = False,
+    ) -> None:
+        """
+        执行白名单中的维护操作，并复用 CLI 生产环境保护。
+
+        :param operation: inspect、prune、rotate-signature 或 reconcile
+        :param env: 当前命令环境
+        :param output: 输出格式
+        :param options: 当前命令显式支持的维护参数
+        :param allow_prod: 是否允许生产环境变更
+        :param yes: 是否跳过交互确认
+        :param dry_run: 是否只生成清理计划
+        :return: None
+        """
+        methods = {
+            'inspect': 'inspect',
+            'prune': 'prune',
+            'rotate-signature': 'rotate_signature',
+            'reconcile': 'reconcile',
+        }
+        if operation not in methods:
+            raise ValueError('未知制品维护命令')
+        ctx = self._context(
+            env,
+            output,
+            command_name=None if operation == 'inspect' else f'plugin artifact {operation}',
+            allow_prod=allow_prod,
+            yes=yes,
+            dry_run=dry_run,
+        )
+        arguments = dict(options)
+        if operation != 'inspect':
+            arguments['actor'] = ctx.operator
+        if operation == 'prune':
+            arguments['dry_run'] = dry_run
+        self._execute(
+            ctx,
+            lambda: self.execution_service.run_async(
+                getattr(self.maintenance_factory(self.config_factory()), methods[operation])(**arguments)
+            ),
+        )
 
     @staticmethod
     def _default_config() -> Any:

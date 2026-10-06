@@ -12,6 +12,8 @@ import yaml
 from fastapi import FastAPI
 from starlette import status
 
+from common.aspect.db_session import get_db_session_provider
+from module_admin.service.login_service import LoginService
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
 from plugins.core.discovery.scanner import PluginScanner
 from plugins.core.runtime.application import PluginApplicationRuntime
@@ -124,6 +126,42 @@ async def test_main_runtime_mounts_authenticates_and_stops_subapplication(tmp_pa
             ).status_code == status.HTTP_403_FORBIDDEN
         await manager.shutdown(app, startup_write_enabled=False)
     assert sys.modules['plugins.runtime_test'].events == ['start', 'stop']
+
+
+@pytest.mark.asyncio
+async def test_router_requests_are_observed_after_fastapi_registration(tmp_path: Path) -> None:
+    """Router 接入的实际路由也记录业务响应和接口权限拒绝。"""
+    source = """
+from fastapi import APIRouter, HTTPException, Request
+from plugins.core.sdk import PluginDefinition
+def create_plugin(host):
+    router = APIRouter(prefix='/runtime_test')
+    @router.get('/info')
+    async def info(request: Request):
+        return {'requestId': request.state.plugin_context.request_id}
+    @router.get('/denied')
+    async def denied():
+        raise HTTPException(status_code=403, detail='denied')
+    return PluginDefinition(routers=(router,))
+"""
+    plugin = write_plugin(tmp_path, source=source, integration='router')
+    app = FastAPI()
+    app.dependency_overrides[get_db_session_provider(None)] = object
+    app.dependency_overrides[LoginService.get_current_user] = lambda: SimpleNamespace(permissions=['runtime_test:view'])
+    runtime = ExplicitPluginRuntime(SimpleNamespace(is_plugin_enabled=AsyncMock(return_value=True)))
+    runtime.prepare(plugin, app, startup_write_enabled=False)
+    try:
+        await runtime.activate('runtime_test', app)
+        assert '/runtime_test/info' in app.openapi()['paths']
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+            response = await client.get('/runtime_test/info')
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()['requestId']
+            assert (await client.get('/runtime_test/denied')).status_code == status.HTTP_403_FORBIDDEN
+        metric = runtime.metrics.snapshot().series[0]
+        assert (metric.started, metric.active, metric.succeeded, metric.rejected) == (2, 0, 1, 1)
+    finally:
+        await runtime.shutdown()
 
 
 def test_dependency_cycle_and_missing_dependency_do_not_block_independent_plugin(tmp_path: Path) -> None:

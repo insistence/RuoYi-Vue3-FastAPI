@@ -73,6 +73,7 @@ def setup_plugin(tmp_path: Path) -> Iterator[SimpleNamespace]:
     host = PluginHostContext('dispatch_test', directory, services={'test.task': service}, session_factory=session)
     gateway = SimpleNamespace(is_plugin_enabled=AsyncMock(return_value=True))
     runtime = ExplicitPluginRuntime(gateway)
+    runtime.metrics.register('dispatch_test', plugin.manifest.version, None, None)
     definition = PluginEntrypointLoader(plugin).load(host)
     runtime.loaded['dispatch_test'] = LoadedExplicitPlugin(
         RegisteredPlugin(plugin, None, True, 'installed'), host, definition
@@ -106,10 +107,13 @@ async def test_persistent_reference_restores_and_dispatches_on_host_loop(setup_p
         assert await callback(*args, **kwargs) == 'done'
         context = state.service.await_args.args[0]
         assert isinstance(context, PluginTaskContext)
+        assert context.request_id
         assert not hasattr(context, 'user')
         assert state.service.await_args.args[1:] == ('argument',)
         assert state.service.await_args.kwargs == {'value': 'keyword'}
         assert state.sessions == ['open', 'close']
+        metric = next(item for item in state.runtime.metrics.snapshot().series if item.operation == 'job:tick')
+        assert (metric.started, metric.active, metric.succeeded) == (1, 0, 1)
     finally:
         await state.runtime.shutdown()
 
@@ -130,6 +134,8 @@ async def test_gates_reject_before_call_and_shutdown_unbinds(setup_plugin: Simpl
             await dispatch_plugin_job('dispatch_test', 'tick', '1.0.0')
         state.service.assert_not_called()
         assert state.sessions == ['open', 'close']
+        metric = next(item for item in state.runtime.metrics.snapshot().series if item.operation == 'job:tick')
+        assert (metric.started, metric.active, metric.rejected) == (1, 0, 1)
     finally:
         await state.runtime.shutdown()
     with pytest.raises(RuntimeError, match='未就绪'):
@@ -170,6 +176,8 @@ async def test_shutdown_cancels_running_task_before_child_resources_close(
         await state.runtime.shutdown()
     with pytest.raises(asyncio.CancelledError):
         await task
+    metric = next(item for item in state.runtime.metrics.snapshot().series if item.operation == 'job:tick')
+    assert (metric.active, metric.cancelled) == (0, 1)
 
 
 @pytest.mark.asyncio
@@ -193,6 +201,9 @@ async def test_job_timeout_and_host_exception_propagate(setup_plugin: SimpleName
         state.service.side_effect = ValueError('business-error')
         with pytest.raises(ValueError, match='business-error'):
             await dispatch_plugin_job('dispatch_test', 'tick', '1.0.0')
+        metric = next(item for item in state.runtime.metrics.snapshot().series if item.operation == 'job:tick')
+        assert (metric.started, metric.active, metric.failed, metric.timed_out) == (2, 0, 2, 1)
+        assert metric.last_error_type == 'ValueError'
     finally:
         await state.runtime.shutdown()
 

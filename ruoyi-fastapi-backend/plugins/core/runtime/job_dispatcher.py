@@ -2,11 +2,15 @@ import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+from uuid import uuid4
 
+from middlewares.trace_middleware.ctx import CTX_REQUEST_ID
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.entrypoint import PluginEntrypointLoader
+from plugins.core.runtime.metrics import MetricOutcome, PluginRuntimeMetrics
 from plugins.core.runtime.route_guard import PluginRouteStateGateway
 from plugins.core.sdk import PluginHostContext, PluginTaskContext, await_plugin_callback
+from utils.log_util import logger
 
 DISPATCH_TARGET = 'plugins.core.runtime.job_dispatcher.dispatch_plugin_job'
 
@@ -22,6 +26,7 @@ class PluginJobBinding:
     :param ready: 查询插件是否就绪的回调
     :param loop: 所属宿主事件循环
     :param tasks: 当前仍在执行的插件异步任务集合
+    :param metrics: 可选的当前 worker 指标收集器
     """
 
     plugin: DiscoveredPlugin
@@ -30,6 +35,7 @@ class PluginJobBinding:
     ready: Callable[[], bool]
     loop: asyncio.AbstractEventLoop
     tasks: set[asyncio.Task[Any]] = field(default_factory=set)
+    metrics: PluginRuntimeMetrics | None = None
 
 
 _bindings: dict[str, PluginJobBinding] = {}
@@ -40,6 +46,8 @@ def bind_plugin_jobs(
     host: PluginHostContext,
     gateway: PluginRouteStateGateway,
     ready: Callable[[], bool],
+    *,
+    metrics: PluginRuntimeMetrics | None = None,
 ) -> PluginJobBinding:
     """
     独占注册；同进程的第二个应用不能覆盖已有插件资源。
@@ -48,6 +56,7 @@ def bind_plugin_jobs(
     :param host: 任务使用的宿主能力上下文
     :param gateway: 插件启用状态查询网关
     :param ready: 查询插件是否就绪的回调
+    :param metrics: 可选的运行指标收集器
     :return: 绑定到当前事件循环的插件任务能力
     """
     plugin_id = plugin.manifest.id
@@ -55,7 +64,7 @@ def bind_plugin_jobs(
         raise RuntimeError(f'插件任务运行时已绑定：{plugin_id}')
     if host.plugin_id != plugin_id or host.session_factory is None:
         raise ValueError('任务宿主身份不匹配或缺少数据库会话工厂')
-    binding = PluginJobBinding(plugin, host, gateway, ready, asyncio.get_running_loop())
+    binding = PluginJobBinding(plugin, host, gateway, ready, asyncio.get_running_loop(), metrics=metrics)
     _bindings[plugin_id] = binding
     return binding
 
@@ -99,21 +108,48 @@ async def dispatch_plugin_job(plugin_id: str, job_id: str, version: str) -> Any:
         raise LookupError(f'插件未声明任务：{plugin_id}:{job_id}')
     task = asyncio.current_task()
     binding.tasks.add(task)
+    request_id = uuid4().hex
+    token = CTX_REQUEST_ID.set(request_id)
+    invocation = binding.metrics.begin(plugin_id, f'job:{job_id}', request_id) if binding.metrics is not None else None
+    log_fields = (
+        binding.metrics.log_fields(plugin_id, f'job:{job_id}')
+        if binding.metrics is not None
+        else {'plugin_id': plugin_id, 'plugin_operation': f'job:{job_id}'}
+    )
+    outcome: MetricOutcome = 'failed'
+    error_type = None
+    timed_out = False
     try:
-        async with binding.host.session_factory() as db:
-            if not await binding.gateway.is_plugin_enabled(db, plugin_id):
-                raise PermissionError(f'插件未启用：{plugin_id}')
-        # 数据库等待期间可能开始关闭，不能在解绑后再启动原生回调。
-        if _bindings.get(plugin_id) is not binding or not binding.ready():
-            raise RuntimeError(f'插件任务运行时已停止：{plugin_id}')
-        module, name = job.callable.rsplit('.', 1)
-        callback = PluginEntrypointLoader(binding.plugin).load_callable(f'{module}:{name}')
-        return await await_plugin_callback(
-            callback,
-            PluginTaskContext(binding.host, job_id),
-            *job.args,
-            kwargs=job.kwargs,
-            timeout=job.timeout_seconds,
-        )
+        with logger.contextualize(**log_fields):
+            async with binding.host.session_factory() as db:
+                if not await binding.gateway.is_plugin_enabled(db, plugin_id):
+                    raise PermissionError(f'插件未启用：{plugin_id}')
+            # 数据库等待期间可能开始关闭，不能在解绑后再启动原生回调。
+            if _bindings.get(plugin_id) is not binding or not binding.ready():
+                raise RuntimeError(f'插件任务运行时已停止：{plugin_id}')
+            module, name = job.callable.rsplit('.', 1)
+            callback = PluginEntrypointLoader(binding.plugin).load_callable(f'{module}:{name}')
+            result = await await_plugin_callback(
+                callback,
+                PluginTaskContext(binding.host, job_id, request_id=request_id),
+                *job.args,
+                kwargs=job.kwargs,
+                timeout=job.timeout_seconds,
+            )
+        outcome = 'succeeded'
+        return result
+    except asyncio.CancelledError:
+        outcome, error_type = 'cancelled', 'CancelledError'
+        raise
+    except PermissionError:
+        outcome, error_type = 'rejected', 'PermissionError'
+        raise
+    except Exception as exc:
+        error_type = type(exc).__name__
+        timed_out = isinstance(exc, (TimeoutError, asyncio.TimeoutError))
+        raise
     finally:
+        if invocation is not None:
+            invocation.finish(outcome, error_type=error_type, timed_out=timed_out)
+        CTX_REQUEST_ID.reset(token)
         binding.tasks.discard(task)

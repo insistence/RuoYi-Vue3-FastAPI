@@ -20,8 +20,11 @@ from plugins.core.runtime.entrypoint import PluginEntrypointLoader
 from plugins.core.runtime.health import PluginHealthChecker
 from plugins.core.runtime.host_services import build_host_services
 from plugins.core.runtime.job_dispatcher import PluginJobBinding, bind_plugin_jobs, unbind_plugin_jobs
+from plugins.core.runtime.metrics import PluginObservedASGI, PluginRuntimeMetrics
+from plugins.core.runtime.metrics_store import PluginMetricsReporter
 from plugins.core.runtime.route_guard import PluginEnabledDependency, PluginRouteStateGateway
 from plugins.core.sdk import PluginDefinition, PluginHostContext, PluginRequestContext
+from plugins.core.sdk.request import current_plugin_request_id
 from plugins.core.validation.manifest import PluginManifestChecker
 from plugins.core.validation.structure import PluginStructureChecker
 from utils.log_util import logger
@@ -62,6 +65,8 @@ class ExplicitPluginRuntime:
         """
         self.route_state_gateway = route_state_gateway
         self.loaded: dict[str, LoadedExplicitPlugin] = {}
+        self.metrics = PluginRuntimeMetrics()
+        self.metrics_reporter = PluginMetricsReporter(self.metrics)
 
     @staticmethod
     def ordered_plugins(registry: PluginRegistry) -> list[RegisteredPlugin]:
@@ -177,7 +182,9 @@ class ExplicitPluginRuntime:
             if config_values is not None
             else {item.key: item.default for item in manifest.config.items},
             session_factory=DataSourceRegistry.session,
-            services=build_host_services(plugin.plugin_id, DataSourceRegistry.session),
+            services=build_host_services(
+                plugin.plugin_id, DataSourceRegistry.session, getattr(app.state, 'redis', None)
+            ),
             redis=getattr(app.state, 'redis', None),
             logger=logger.bind(plugin_id=plugin.plugin_id),
             startup_write_enabled=startup_write_enabled and not is_artifact_plugin(discovered),
@@ -196,6 +203,13 @@ class ExplicitPluginRuntime:
                 for key in set(Base.metadata.tables) - existing_tables:
                     Base.metadata.tables[key].info['plugin_artifact'] = plugin.plugin_id
         self.loaded[plugin.plugin_id] = LoadedExplicitPlugin(plugin, host, definition)
+        worker = getattr(app.state, 'plugin_release_worker', None)
+        if worker is not None:
+            self.metrics.worker_id = worker.worker_id
+        self.metrics.register(
+            plugin.plugin_id, manifest.version, discovered.artifact_digest, discovered.artifact_generation
+        )
+        app.state.plugin_metrics_reporter = self.metrics_reporter
 
     async def activate(self, plugin_id: str, app: FastAPI) -> None:
         """
@@ -214,6 +228,7 @@ class ExplicitPluginRuntime:
                 loaded.host,
                 self.route_state_gateway,
                 lambda: loaded.active and (loaded.lifespan is None or loaded.lifespan.ready),
+                metrics=self.metrics,
             )
         try:
             await self._activate_web(loaded, app)
@@ -260,7 +275,8 @@ class ExplicitPluginRuntime:
                 if manifest.frontend.delivery.type == 'bundle':
                     web_app = PluginBundleASGI(child, plugin_id, loaded.plugin.backend_path, manifest.frontend.bundle)
                 gateway = PluginGatewayASGI(web_app, manager, self._authorizer(loaded, app))
-                app.router.routes.append(Mount(mount_path, app=gateway, name=f'plugin:{plugin_id}'))
+                observed = PluginObservedASGI(gateway, self.metrics, plugin_id)
+                app.router.routes.append(Mount(mount_path, app=observed, name=f'plugin:{plugin_id}'))
             except BaseException:
                 await manager.shutdown()
                 raise
@@ -312,6 +328,7 @@ class ExplicitPluginRuntime:
                 if not hasattr(route, 'methods'):
                     raise ValueError('v2 Router 的 WebSocket 或嵌套 Mount 请使用 ASGI 接入')
         for router in loaded.definition.routers:
+            previous_routes = len(app.router.routes)
             app.include_router(
                 router,
                 dependencies=[
@@ -319,6 +336,8 @@ class ExplicitPluginRuntime:
                     Depends(set_context),
                 ],
             )
+            for route in app.router.routes[previous_routes:]:
+                route.handle = PluginObservedASGI(route.handle, self.metrics, plugin_id)
 
     def _authorizer(self, loaded: LoadedExplicitPlugin, app: FastAPI) -> Any:
         """
@@ -378,7 +397,7 @@ class ExplicitPluginRuntime:
         declared = set(loaded.plugin.discovered_plugin.manifest.permission_codes)
         if declared and '*:*:*' not in permissions and not declared.intersection(permissions):
             raise PermissionError('缺少插件访问权限')
-        return PluginRequestContext(loaded.host, user, permissions)
+        return PluginRequestContext(loaded.host, user, permissions, request_id=current_plugin_request_id())
 
     async def shutdown(self) -> None:
         """
@@ -386,6 +405,7 @@ class ExplicitPluginRuntime:
 
         :return: None
         """
+        await self.metrics_reporter.stop()
         for loaded in reversed(list(self.loaded.values())):
             loaded.active = False
             if loaded.jobs is not None:

@@ -5,6 +5,7 @@ from typing import Annotated, Any
 import typer
 
 from cli.context import AllowProdOption, DryRunOption, EnvOption, OutputOption, YesOption
+from cli.groups.plugin.commands.artifact_maintenance import register_artifact_maintenance_commands
 
 MaintenanceOption = Annotated[
     bool, typer.Option('--maintenance', help='确认已停止全部宿主worker，并在独立维护进程执行')
@@ -26,6 +27,7 @@ def register_artifact_commands(app: typer.Typer, get_controller: Callable[[], An
     release_app = typer.Typer(help='维护准备、目标选择和worker实际加载状态', no_args_is_help=True)
     app.add_typer(artifact_app, name='artifact')
     app.add_typer(release_app, name='release')
+    register_artifact_maintenance_commands(artifact_app, get_controller)
     _register_release_enablement(release_app, get_controller)
 
     @artifact_app.command('build', help='离线签名打包预构建插件目录，不覆盖已有输出')

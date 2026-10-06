@@ -76,9 +76,25 @@ async def test_endpoint_adapter_enforces_permission_and_waits_native_style_resul
 
     endpoint = plugin_endpoint(native_callback, permission='demo:view')
     context = PluginRequestContext(host, object(), frozenset({'demo:view'}))
-    request = Request({'type': 'http', 'state': {'plugin_context': context}})
+    request = Request(
+        {
+            'type': 'http',
+            'method': 'GET',
+            'path': '/info',
+            'query_string': b'',
+            'headers': [],
+            'state': {'plugin_context': context},
+        }
+    )
     assert await endpoint(request) == {'ok': True}
-    callback.assert_awaited_once_with(context)
+    callback.assert_awaited_once()
+    received = callback.await_args.args[0]
+    assert received.host is context.host
+    assert received.user is context.user
+    assert received.permissions == context.permissions
+    assert received.request.method == 'GET'
+    assert received.request.path == '/info'
+    assert received.request_id
     request.state.plugin_context = PluginRequestContext(host, object())
     with pytest.raises(HTTPException) as denied:
         await endpoint(request)
@@ -99,7 +115,18 @@ async def test_endpoint_timeout_cancels_python_service(tmp_path: Path) -> None:
     context = PluginRequestContext(PluginHostContext('demo', tmp_path), object(), frozenset({'demo:view'}))
     endpoint = plugin_endpoint(slow, permission='demo:view', timeout=0.01)
     with pytest.raises(HTTPException) as timeout:
-        await endpoint(Request({'type': 'http', 'state': {'plugin_context': context}}))
+        await endpoint(
+            Request(
+                {
+                    'type': 'http',
+                    'method': 'GET',
+                    'path': '/slow',
+                    'query_string': b'',
+                    'headers': [],
+                    'state': {'plugin_context': context},
+                }
+            )
+        )
     assert timeout.value.status_code == status.HTTP_504_GATEWAY_TIMEOUT
     assert closed.is_set()
 

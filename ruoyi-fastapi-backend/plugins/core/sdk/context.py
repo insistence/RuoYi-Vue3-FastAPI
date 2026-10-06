@@ -1,9 +1,12 @@
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+import asyncio
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from plugins.core.sdk.request import PluginHttpRequest
 from plugins.core.sdk.version import HOST_API_VERSION
 
 
@@ -79,7 +82,9 @@ class PluginRequestContext:
     :param user: 宿主登录服务返回的当前用户
     :param permissions: 当前用户的接口权限集合
     :param request_id: 宿主提供的请求关联标识
-    :param query_db: 由宿主按请求需要注入的数据库会话
+    :param query_db: 显式事务块内有效的数据库会话，不得跨任务共享
+    :param request: SDK 接口适配器提供的 HTTP 请求数据快照
+    :param _transaction: 宿主内部的会话所有权记录，业务代码不应自行构造
     """
 
     host: PluginHostContext
@@ -87,6 +92,8 @@ class PluginRequestContext:
     permissions: frozenset[str] = frozenset()
     request_id: str | None = None
     query_db: Any = None
+    request: PluginHttpRequest | None = None
+    _transaction: '_PluginTransactionState | None' = field(default=None, repr=False, compare=False)
 
     def require_permission(self, permission: str) -> None:
         """
@@ -98,6 +105,57 @@ class PluginRequestContext:
         if permission not in self.permissions and '*:*:*' not in self.permissions:
             raise PermissionError(f'缺少权限：{permission}')
 
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator['PluginRequestContext']:
+        """
+        为当前任务创建显式事务，成功提交、异常或取消回滚，并关闭独占会话。
+
+        :return: 仅在当前事务块和当前 asyncio 任务内有效的请求上下文
+        :raises RuntimeError: 嵌套事务、缺少会话工厂或在失效上下文上重新开启事务
+        """
+        if self.query_db is not None or self._transaction is not None:
+            raise RuntimeError('插件请求事务不能嵌套或复用，请使用原始请求上下文')
+        if self.host.session_factory is None:
+            raise RuntimeError('宿主未提供数据库会话工厂')
+        async with self.host.session_factory() as db:
+            state = _PluginTransactionState(db, asyncio.current_task())
+            try:
+                async with db.begin():
+                    yield replace(self, query_db=db, _transaction=state)
+            finally:
+                state.active = False
+
+    def transaction_session(self) -> Any:
+        """
+        为宿主服务取得当前任务拥有的事务会话，拒绝过期、伪造或跨任务复用。
+
+        :return: 当前有效事务的会话；未开启事务时为 None
+        :raises RuntimeError: 事务所有权或有效期不符合要求
+        """
+        state = self._transaction
+        if state is None and self.query_db is None:
+            return None
+        if state is None or not state.active or state.session is not self.query_db:
+            raise RuntimeError('插件请求事务上下文已失效或不是由宿主创建')
+        if state.owner is not asyncio.current_task():
+            raise RuntimeError('插件请求事务会话不能跨 asyncio 任务共享')
+        return state.session
+
+
+@dataclass
+class _PluginTransactionState:
+    """
+    记录显式事务的会话、所属任务和有效期。
+
+    :param session: 当前事务独占的数据库会话
+    :param owner: 开启事务的 asyncio 任务
+    :param active: 事务块是否仍有效
+    """
+
+    session: Any
+    owner: asyncio.Task[Any] | None
+    active: bool = True
+
 
 @dataclass(frozen=True)
 class PluginTaskContext:
@@ -106,7 +164,9 @@ class PluginTaskContext:
 
     :param host: 当前插件的宿主能力上下文
     :param job_id: 插件清单声明的任务 ID
+    :param request_id: 本次任务执行的独立追踪标识
     """
 
     host: PluginHostContext
     job_id: str
+    request_id: str | None = None

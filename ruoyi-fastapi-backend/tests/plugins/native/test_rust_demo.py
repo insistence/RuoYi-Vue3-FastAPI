@@ -107,6 +107,18 @@ async def test_real_native_subapp_uses_host_auth_lifespan_and_python_service(plu
                 assert response.json()['userName'] == 'rust-user'
                 assert 'password' not in response.json()
                 assert service.await_args.args[1] == user.user.user_id
+                response = await client.post(
+                    '/apps/rust_demo/api/echo/item-7?tag=first&tag=second',
+                    headers=headers,
+                    json={'message': '来自 Python 的请求体'},
+                )
+                assert response.status_code == status.HTTP_200_OK, response.text
+                payload = response.json()
+                assert payload['pathParams'] == {'item_id': 'item-7'}
+                assert payload['query'] == {'tag': ['first', 'second']}
+                assert payload['body'] == {'message': '来自 Python 的请求体'}
+                assert payload['requestId']
+                assert 'test-token' not in response.text
                 user.permissions = ['rust_demo:view']
                 response = await client.get('/apps/rust_demo/api/profile', headers=headers)
                 assert response.status_code == status.HTTP_403_FORBIDDEN

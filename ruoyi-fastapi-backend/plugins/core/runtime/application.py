@@ -108,6 +108,9 @@ class PluginApplicationRuntime:
             await self._startup_coordinated(app, create_tables=create_tables)
             if self.release_worker is not None:
                 await self.release_worker.ready()
+            runtime = getattr(app.state, 'plugin_explicit_runtime', None)
+            if isinstance(runtime, ExplicitPluginRuntime):
+                runtime.metrics_reporter.start(getattr(app.state, 'redis', None), f'{self.ready_key}:metrics')
         except BaseException:
             # 激活后的 ready 发布或锁释放也可能失败，此时 server 尚未标记启动完成。
             # 显式资源需在这里释放，不能依赖正常 shutdown 分支。

@@ -211,6 +211,15 @@ DEFAULT_DANGEROUS_COMMAND_RULES: dict[str, DangerousCommandRule] = {
     'plugin artifact import': DangerousCommandRule(
         command_name='plugin artifact import', risk_level='high', supports_dry_run=True
     ),
+    'plugin artifact prune': DangerousCommandRule(
+        command_name='plugin artifact prune', risk_level='high', supports_dry_run=True
+    ),
+    'plugin artifact rotate-signature': DangerousCommandRule(
+        command_name='plugin artifact rotate-signature', risk_level='high', supports_dry_run=False
+    ),
+    'plugin artifact reconcile': DangerousCommandRule(
+        command_name='plugin artifact reconcile', risk_level='high', supports_dry_run=False
+    ),
     'plugin release prepare': DangerousCommandRule(
         command_name='plugin release prepare', risk_level='high', supports_dry_run=True
     ),

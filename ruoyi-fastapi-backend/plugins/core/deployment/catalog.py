@@ -10,6 +10,7 @@ from plugins.core.deployment.config import PluginDeploymentConfig
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
 from plugins.core.management.dao.release_dao import PluginReleaseDao
 from plugins.core.manifest.schema import EXPLICIT_MANIFEST_VERSION
+from plugins.core.runtime.service.lifecycle_lock import RedisPluginLifecycleLock
 from plugins.core.validation.manifest import PluginManifestChecker
 from plugins.core.validation.structure import PluginStructureChecker
 
@@ -40,6 +41,7 @@ class PluginArtifactCatalog:
         *,
         session_factory: Any = None,
         dao: Any = PluginReleaseDao,
+        lifecycle_lock: Any = None,
     ) -> None:
         """
         初始化不可变制品目录与数据库索引的访问服务。
@@ -47,11 +49,24 @@ class PluginArtifactCatalog:
         :param config: 制品发布配置快照
         :param session_factory: 异步数据库会话工厂，未提供时使用宿主数据源
         :param dao: 制品、发布目标及进程报告的数据访问接口
+        :param lifecycle_lock: 与维护、清理和轮换共用的全局生命周期锁
         :return: None
         """
         self.config = config
         self.session_factory = session_factory or DataSourceRegistry.session
         self.dao = dao
+        self.lifecycle_lock = lifecycle_lock or RedisPluginLifecycleLock()
+
+    def require_no_pending_maintenance(self) -> None:
+        """
+        拒绝在文件与索引尚未完成恢复时导入或加载制品。
+
+        :return: None
+        """
+        pending = self.config.store_root / '.maintenance'
+        ArtifactStore._assert_real_path(pending)
+        if pending.exists() and any(pending.glob('*.json')):
+            raise ValueError('存在未完成的制品维护，请先执行 artifact reconcile')
 
     @property
     def store(self) -> ArtifactStore:
@@ -132,9 +147,29 @@ class PluginArtifactCatalog:
                 'message': '容器验签和摘要检查通过；平台及目录结构将在正式导入的临时目录中检查',
                 **artifact_payload(verified),
             }
-        stored = await asyncio.to_thread(
-            self.store.import_artifact, path, keys, validate_candidate=self.validate_candidate
+        async with self.lifecycle_lock.lock('__artifacts__', 'artifact_import') as lock:
+            if not lock.acquired:
+                raise ValueError(lock.message)
+            self.require_no_pending_maintenance()
+            return await self._import_locked(path, keys, actor)
+
+    async def _import_locked(self, path: Path | str, keys: dict[str, Any], actor: str | None) -> dict[str, Any]:
+        """
+        持有全局维护锁时完成文件发布和索引事务，取消时先等待文件操作结束。
+
+        :param path: 已签名制品路径
+        :param keys: 当前可信公钥
+        :param actor: 操作者
+        :return: 导入后的制品身份
+        """
+        work = asyncio.create_task(
+            asyncio.to_thread(self.store.import_artifact, path, keys, validate_candidate=self.validate_candidate)
         )
+        try:
+            stored = await asyncio.shield(work)
+        except asyncio.CancelledError:
+            await work
+            raise
         # 文件与数据库不能共享事务。数据库失败时保留已验签不可变对象，重试可幂等登记。
         async with self.session_factory() as db:
             await self.dao.register_artifact(
@@ -158,6 +193,7 @@ class PluginArtifactCatalog:
         :return: 当前信任配置下通过验证的制品存储对象
         :raises ValueError: 制品不存在、索引不一致或当前信任及文件校验失败
         """
+        self.require_no_pending_maintenance()
         async with self.session_factory() as db:
             record = await self.dao.get_artifact(db, digest)
             if record is None:

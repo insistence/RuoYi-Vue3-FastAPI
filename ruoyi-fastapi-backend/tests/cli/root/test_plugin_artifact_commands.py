@@ -73,6 +73,45 @@ def app_for(controller: Any) -> typer.Typer:
             {'allow_prod': False, 'yes': False, 'dry_run': True},
         ),
         (['artifact', 'list', '--plugin-id', 'demo'], 'list_artifacts', {'plugin_id': 'demo'}),
+        (['artifact', 'inspect'], 'maintain_artifacts', {'options': {'keep_last': 2, 'min_age_days': 7}}),
+        (
+            ['artifact', 'prune'],
+            'maintain_artifacts',
+            {
+                'options': {'keep_last': 2, 'min_age_days': 7, 'expected_plan': None, 'maintenance': False},
+                'allow_prod': False,
+                'yes': False,
+                'dry_run': True,
+            },
+        ),
+        (
+            ['artifact', 'prune', '--execute', '--expected-plan', DIGEST, '--maintenance'],
+            'maintain_artifacts',
+            {
+                'options': {'keep_last': 2, 'min_age_days': 7, 'expected_plan': DIGEST, 'maintenance': True},
+                'allow_prod': False,
+                'yes': False,
+                'dry_run': False,
+            },
+        ),
+        (
+            ['artifact', 'rotate-signature', 'next.rpk', '--expected-key-id', 'old'],
+            'maintain_artifacts',
+            {
+                'options': {'archive': Path('next.rpk'), 'expected_key_id': 'old', 'maintenance': False},
+                'allow_prod': False,
+                'yes': False,
+            },
+        ),
+        (
+            ['artifact', 'reconcile'],
+            'maintain_artifacts',
+            {
+                'options': {'maintenance': False},
+                'allow_prod': False,
+                'yes': False,
+            },
+        ),
         (['release', 'plan', 'demo', DIGEST], 'plan_release', {}),
         (
             ['release', 'prepare', 'demo', DIGEST, '--maintenance', '--yes'],
@@ -178,7 +217,8 @@ def test_cli_rejects_missing_concurrency_token_and_unsupported_flags(arguments: 
 
 
 @pytest.mark.parametrize(
-    'help_arguments', [['artifact', '--help'], ['release', '--help'], ['release', 'select', '--help']]
+    'help_arguments',
+    [['artifact', '--help'], ['release', '--help'], ['release', 'select', '--help'], ['artifact', 'prune', '--help']],
 )
 def test_help_keeps_config_crypto_database_and_plugin_code_unloaded(help_arguments: list[str]) -> None:
     """
@@ -268,6 +308,9 @@ def test_production_mutations_are_guarded_before_loading_runtime() -> None:
     app = app_for(controller)
     for arguments in (
         ['artifact', 'import', 'target.rpk'],
+        ['artifact', 'prune', '--execute', '--maintenance'],
+        ['artifact', 'rotate-signature', 'next.rpk', '--expected-key-id', 'old', '--maintenance'],
+        ['artifact', 'reconcile', '--maintenance'],
         ['release', 'prepare', 'demo', DIGEST, '--maintenance'],
         ['release', 'select', 'demo', DIGEST, '--expected-generation', GENERATION, '--maintenance'],
         ['release', 'rollback', 'demo', '--expected-generation', GENERATION, '--maintenance', '--schema-compatible'],

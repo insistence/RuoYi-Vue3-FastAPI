@@ -2,6 +2,8 @@
 
 本示例将业务实现编译成 PyO3 扩展，通过现有插件平台加载。默认创建 ASGI 子应用，也提供 Router 入口。Rust 可以调用已有 Python 工具，并通过宿主 SDK 调用用户资料服务。交付 ZIP 包含清单、原生扩展和包元数据，不包含 `.rs`、Cargo 文件或 Python 业务源码。
 
+示例要求 Host API `^1.3.0`，新增 `POST /apps/rust_demo/api/echo/item-7?tag=first&tag=second`。使用宿主 Bearer 认证和 `rust_demo:view` 权限，发送 `{"message":"你好"}` JSON，即可收到 `pathParams`、保留同名多值的 `query`、`body` 和 `requestId`。Router 入口对应 `/rust_demo/api/echo/{item_id}`。Rust 从 `context.request.to_payload()` 读取宿主数据快照；SDK 负责体积限制、JSON 解析、权限及超时，不把认证头传入快照。
+
 创建自有项目可使用 `ruoyi plugin create <id> --template rust-asgi` 或 `--template rust-bundle`，详见[脚手架与完整构建](../../../../docs/plugin_development.md#16-v2-项目脚手架与完整构建)。原生构建器也支持 bundle 组合：先独立构建清单指定的前端目录，再使用同一 `--source` / `--output` 命令组装；本示例本身仍为无前端的 API 示例。
 
 ## 构建
