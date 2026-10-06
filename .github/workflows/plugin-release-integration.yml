@@ -6,7 +6,6 @@ on:
     paths:
       - 'ruoyi-fastapi-backend/plugins/core/**'
       - 'ruoyi-fastapi-backend/config/**'
-      - 'ruoyi-fastapi-backend/sql/upgrade_plugin_artifact_*.sql'
       - 'ruoyi-fastapi-backend/sql/ruoyi-fastapi*.sql'
       - 'ruoyi-fastapi-backend/scripts/plugin_release_integration.py'
       - 'ruoyi-fastapi-backend/requirements.txt'

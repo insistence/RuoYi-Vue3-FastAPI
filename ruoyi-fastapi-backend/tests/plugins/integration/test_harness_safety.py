@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from plugins.core.lifecycle.script import PluginLifecycleScriptHelper
 from scripts import plugin_release_integration as harness
 
 
@@ -88,13 +87,7 @@ async def test_prepare_schema_uses_initial_sql_without_drop_or_seed_data(
     await harness.prepare_schema(spec, SimpleNamespace(begin=begin))
 
     statements = [call.args[0] for call in connection.exec_driver_sql.await_args_list]
-    upgrade = PluginLifecycleScriptHelper.split_sql_statements(
-        (harness.BACKEND_ROOT / 'sql' / f'upgrade_plugin_artifact_{engine}.sql').read_text('utf-8')
-    )
-    repeated_upgrade = upgrade + upgrade
-    assert statements[: len(repeated_upgrade)] == repeated_upgrade
-    base_statements = statements[len(repeated_upgrade) :]
-    expected_tables = (
+    base_tables = (
         'sys_menu',
         'sys_job',
         'sys_plugin',
@@ -103,33 +96,49 @@ async def test_prepare_schema_uses_initial_sql_without_drop_or_seed_data(
         'sys_plugin_config',
         'sys_plugin_operation_log',
     )
+    release_tables = ('sys_plugin_artifact', 'sys_plugin_release', 'sys_plugin_worker')
+    expected_indexes = (
+        [
+            'create index if not exists idx_sys_plugin_artifact_plugin on sys_plugin_artifact (plugin_id, version)',
+            'create index if not exists idx_sys_plugin_worker_plugin on sys_plugin_worker (plugin_id, heartbeat_time)',
+        ]
+        if engine == 'postgresql'
+        else []
+    )
     initial_sql = (harness.BACKEND_ROOT / 'sql' / initial_filename).read_text('utf-8')
-    assert len(base_statements) == len(expected_tables)
-    for table_name, statement in zip(expected_tables, base_statements, strict=True):
+    expected_count = len(base_tables) + len(release_tables) + len(expected_indexes)
+    assert len(statements) == expected_count
+    for table_name, statement in zip(base_tables, statements[: len(base_tables)], strict=True):
         assert statement.lower().startswith(f'create table {table_name} (')
+    release_statements = statements[len(base_tables) : len(base_tables) + len(release_tables)]
+    for table_name, statement in zip(release_tables, release_statements, strict=True):
+        assert statement.lower().startswith(f'create table if not exists {table_name} (')
+    assert statements[len(base_tables) + len(release_tables) :] == expected_indexes
+    for statement in statements:
         assert statement in initial_sql
-    assert "default ''''''" not in base_statements[0]
+    assert "default ''''''" not in statements[0]
     checked_tables = {call.args[0].get_final_froms()[0].name for call in connection.execute.await_args_list}
     assert checked_tables == {'sys_plugin_artifact', 'sys_plugin_release', 'sys_plugin_worker'}
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('invalid_schema', ['missing', 'duplicate'])
-async def test_prepare_schema_rejects_incomplete_or_duplicate_base_ddl_before_execution(
-    invalid_schema: str, run_spec: harness.RunSpec, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize('table_name', ['sys_menu', 'sys_plugin_release'])
+async def test_prepare_schema_rejects_incomplete_or_duplicate_host_ddl_before_execution(
+    invalid_schema: str, table_name: str, run_spec: harness.RunSpec, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     initial_sql = (harness.BACKEND_ROOT / 'sql' / 'ruoyi-fastapi.sql').read_text('utf-8')
     if invalid_schema == 'missing':
-        initial_sql = initial_sql.replace('create table sys_menu (', 'create table unused_menu (')
+        initial_sql = initial_sql.replace(f'{table_name} (', f'unused_{table_name} (')
     else:
-        initial_sql += '\ncreate table sys_menu (menu_id bigint);'
+        initial_sql += f'\ncreate table if not exists {table_name} (id bigint);'
     sql_root = tmp_path / 'sql'
     sql_root.mkdir()
     (sql_root / 'ruoyi-fastapi.sql').write_text(initial_sql, encoding='utf-8')
     monkeypatch.setattr(harness, 'BACKEND_ROOT', tmp_path)
     engine = SimpleNamespace(begin=Mock(side_effect=AssertionError('DDL must not run')))
 
-    with pytest.raises(AssertionError, match=r'Incomplete base table DDL|Duplicate base table DDL'):
+    with pytest.raises(AssertionError, match=r'Incomplete host table DDL|Duplicate host table DDL'):
         await harness.prepare_schema(run_spec, engine)
 
     engine.begin.assert_not_called()

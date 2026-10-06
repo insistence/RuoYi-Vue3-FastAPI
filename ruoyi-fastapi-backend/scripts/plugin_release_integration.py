@@ -313,7 +313,7 @@ async def clear_own_redis_keys(spec: RunSpec) -> int:
 
 async def prepare_schema(spec: RunSpec, engine: Any) -> None:
     """
-    重复执行增量发布 SQL 验证幂等性，再按初始化 SQL 创建所需管理表。
+    从初始化 SQL 提取所需宿主表和索引，在隔离空库中创建并验证发布表。
 
     :param spec: 当前验收的隔离运行信息，不包含连接密码
     :param engine: 隔离数据库的异步连接池
@@ -336,35 +336,48 @@ async def prepare_schema(spec: RunSpec, engine: Any) -> None:
         'sys_plugin_menu',
         'sys_plugin_migration',
         'sys_plugin_operation_log',
+        'sys_plugin_artifact',
+        'sys_plugin_release',
+        'sys_plugin_worker',
     }
     initial_filename = 'ruoyi-fastapi.sql' if spec.engine == 'mysql' else 'ruoyi-fastapi-pg.sql'
     initial_statements = PluginLifecycleScriptHelper.split_sql_statements(
         (BACKEND_ROOT / 'sql' / initial_filename).read_text('utf-8')
     )
     table_statements = {}
+    index_statements = []
     for statement in initial_statements:
-        match = re.match(r'CREATE\s+TABLE\s+(\w+)\s*\(', statement, re.IGNORECASE)
+        match = re.match(r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(', statement, re.IGNORECASE)
         if match and match[1].lower() in required_tables:
             table_name = match[1].lower()
-            check(table_name not in table_statements, f'Duplicate base table DDL: {table_name}')
+            check(table_name not in table_statements, f'Duplicate host table DDL: {table_name}')
             table_statements[table_name] = statement
-    check(table_statements.keys() == required_tables, f'Incomplete base table DDL in {initial_filename}')
+        index_match = re.match(
+            r'CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?\w+\s+ON\s+(\w+)\s*\(',
+            statement,
+            re.IGNORECASE,
+        )
+        if index_match and index_match[1].lower() in required_tables:
+            index_statements.append(statement)
+    check(table_statements.keys() == required_tables, f'Incomplete host table DDL in {initial_filename}')
 
-    filename = f'upgrade_plugin_artifact_{spec.engine}.sql'
-    statements = PluginLifecycleScriptHelper.split_sql_statements((BACKEND_ROOT / 'sql' / filename).read_text('utf-8'))
-    for _ in range(EXPECTED_WORKER_COUNT):
-        async with engine.begin() as connection:
-            for statement in statements:
-                await connection.exec_driver_sql(statement)
     async with engine.begin() as connection:
-        # 制品、发布和 worker 表必须由前面的增量 SQL 创建，不能由 ORM 补建。
-        for model in (SysPluginArtifact, SysPluginRelease, SysPluginWorker):
-            check(not (await connection.execute(select(model))).all(), f'{model.__tablename__} is not empty')
-        # 基础表沿用初始化 SQL，保留 DO 为兼容 Alembic 检查采用的默认值写法。
-        # 只执行所需表的 CREATE TABLE，不导入种子数据或执行 DROP 等其他语句。
+        # 只执行所需宿主表和索引的创建语句，不执行删除、种子数据或其他语句。
         for statement in table_statements.values():
             await connection.exec_driver_sql(statement)
-    emit('incremental_ddl', engine=spec.engine, script=filename, executions=2, ormTables=3)
+        for statement in index_statements:
+            await connection.exec_driver_sql(statement)
+        # 发布表必须由初始化 SQL 创建，不能由 ORM 补建。
+        for model in (SysPluginArtifact, SysPluginRelease, SysPluginWorker):
+            check(not (await connection.execute(select(model))).all(), f'{model.__tablename__} is not empty')
+    emit(
+        'schema_ddl',
+        engine=spec.engine,
+        script=initial_filename,
+        tables=len(table_statements),
+        indexes=len(index_statements),
+        ormTables=3,
+    )
 
 
 def make_artifacts(spec: RunSpec) -> tuple[Path, Path]:

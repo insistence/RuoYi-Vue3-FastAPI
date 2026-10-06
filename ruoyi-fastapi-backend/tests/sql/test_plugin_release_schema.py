@@ -1,36 +1,50 @@
+import re
 from pathlib import Path
 
 import pytest
+from sqlalchemy import CheckConstraint
 from sqlalchemy.dialects import mysql, postgresql
 from sqlalchemy.schema import CreateTable
 
+from plugins.core.lifecycle.script import PluginLifecycleScriptHelper
 from plugins.core.management.entity.do.release_models import SysPluginArtifact, SysPluginRelease, SysPluginWorker
 
 SQL_ROOT = Path(__file__).resolve().parents[2] / 'sql'
 
 
 @pytest.mark.parametrize(
-    ('initial', 'upgrade', 'time_type'),
+    ('initial', 'time_type'),
     [
-        ('ruoyi-fastapi.sql', 'upgrade_plugin_artifact_mysql.sql', 'datetime(3)'),
-        ('ruoyi-fastapi-pg.sql', 'upgrade_plugin_artifact_postgresql.sql', 'timestamp(3) with time zone'),
+        ('ruoyi-fastapi.sql', 'datetime(3)'),
+        ('ruoyi-fastapi-pg.sql', 'timestamp(3) with time zone'),
     ],
 )
-def test_incremental_and_initial_release_schema_match(initial: str, upgrade: str, time_type: str) -> None:
+def test_initial_release_schema_matches_models(initial: str, time_type: str) -> None:
     initialization = (SQL_ROOT / initial).read_text(encoding='utf-8')
-    migration = (SQL_ROOT / upgrade).read_text(encoding='utf-8')
-    migration_body = '\n'.join(line for line in migration.splitlines() if not line.lstrip().startswith('--'))
-    initialization_body = '\n'.join(line for line in initialization.splitlines() if not line.lstrip().startswith('--'))
-    assert ' '.join(migration_body.split()) in ' '.join(initialization_body.split())
-    assert 'drop table' not in migration.lower()
-    assert 'alter table' not in migration.lower()
-    assert time_type in migration
+    statements = PluginLifecycleScriptHelper.split_sql_statements(initialization)
     for table in (SysPluginArtifact.__table__, SysPluginRelease.__table__, SysPluginWorker.__table__):
-        assert f'create table if not exists {table.name} (' in migration
+        table_statements = [
+            statement
+            for statement in statements
+            if re.match(rf'CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+{table.name}\s*\(', statement, re.IGNORECASE)
+        ]
+        assert len(table_statements) == 1
+        ddl = table_statements[0].lower()
+        normalized_ddl = ' '.join(ddl.split())
+        assert time_type in ddl
         for column in table.columns:
-            assert column.name in migration
-    for constraint in ('ck_sys_plugin_release_workers', 'ck_sys_plugin_release_prepare', 'ck_sys_plugin_worker_state'):
-        assert constraint in migration
+            assert re.search(rf'^\s*{column.name}\s+\w+', ddl, re.MULTILINE)
+        primary_keys = ', '.join(column.name for column in table.primary_key.columns)
+        assert f'primary key ({primary_keys})' in normalized_ddl
+        for constraint in table.constraints:
+            if isinstance(constraint, CheckConstraint):
+                assert f'constraint {constraint.name} check ({constraint.sqltext})' in normalized_ddl
+        for index in table.indexes:
+            columns = ', '.join(column.name for column in index.columns)
+            if initial == 'ruoyi-fastapi-pg.sql':
+                assert f'create index if not exists {index.name} on {table.name} ({columns})' in statements
+            else:
+                assert f'key {index.name} ({columns})' in normalized_ddl
 
 
 @pytest.mark.parametrize('dialect', [mysql.dialect(), postgresql.dialect()])

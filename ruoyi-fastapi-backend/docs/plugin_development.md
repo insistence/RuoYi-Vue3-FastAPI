@@ -1153,7 +1153,7 @@ PLUGIN_ARTIFACT_WORKER_TTL_SECONDS=60
 
 目录隔离不提供同进程 Python 依赖隔离。原生发行包和插件缺少或冲突的依赖应在维护环境处理，导入及 worker 启动不会隐式安装依赖。
 
-已有数据库对应的增量脚本是 [MySQL](../sql/upgrade_plugin_artifact_mysql.sql) 和 [PostgreSQL](../sql/upgrade_plugin_artifact_postgresql.sql)，仅新增这三张宿主状态表。新建数据库的初始化脚本也已包含这些表。普通 worker 不会隐式创建签名插件的业务表，业务结构由维护准备的迁移负责。
+新建数据库使用的 [MySQL 初始化 SQL](../sql/ruoyi-fastapi.sql) 和 [PostgreSQL 初始化 SQL](../sql/ruoyi-fastapi-pg.sql) 已包含这三张宿主状态表。已有数据库按 [CLI 数据库迁移流程](cli_usage.md#43-数据库迁移)生成迁移文件，补齐并审查这三张表的建表、索引和约束后执行升级，不要在已有数据库上直接重跑完整初始化 SQL。普通 worker 不会隐式创建签名插件的业务表，业务结构由维护准备的迁移负责。
 
 `config/plugin_publishers.json` 格式如下；`publicKey` 占位符必须替换为真实 Ed25519 公钥的 PEM 字符串或 32 字节原始公钥的标准 Base64：
 
