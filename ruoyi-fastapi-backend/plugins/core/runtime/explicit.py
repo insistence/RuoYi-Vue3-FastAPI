@@ -71,6 +71,7 @@ class ExplicitPluginRuntime:
         self.loaded: dict[str, LoadedExplicitPlugin] = {}
         self.metrics = PluginRuntimeMetrics()
         self.metrics_reporter = PluginMetricsReporter(self.metrics)
+        self._closing = False
 
     @staticmethod
     def ordered_plugins(registry: PluginRegistry) -> list[RegisteredPlugin]:
@@ -237,9 +238,13 @@ class ExplicitPluginRuntime:
         :param app: 宿主 FastAPI 应用
         :return: None
         """
+        if self._closing:
+            raise RuntimeError('插件运行时已进入关闭阶段，不能激活插件')
         loaded = self.loaded[plugin_id]
         if loaded.active:
             return
+        if loaded.lifespan is not None and loaded.lifespan.has_pending_task:
+            raise RuntimeError(f'插件上一次生命周期尚未退出：{plugin_id}')
         if loaded.plugin.discovered_plugin.manifest.backend.jobs:
             loaded.jobs = bind_plugin_jobs(
                 loaded.plugin.discovered_plugin,
@@ -252,8 +257,11 @@ class ExplicitPluginRuntime:
             await self._activate_web(loaded, app)
         except BaseException:
             if loaded.jobs is not None:
-                await unbind_plugin_jobs(loaded.jobs)
-                loaded.jobs = None
+                try:
+                    await unbind_plugin_jobs(loaded.jobs)
+                    loaded.jobs = None
+                except Exception:
+                    logger.exception(f'插件激活失败后的任务回收失败：{plugin_id}')
             raise
         loaded.active = True
         if plugin_id in self.metrics.configurations:
@@ -272,6 +280,8 @@ class ExplicitPluginRuntime:
         manifest = loaded.plugin.discovered_plugin.manifest
         if manifest.integration_kind == 'router':
             await self._check_health(loaded, app)
+            if self._closing:
+                raise RuntimeError('插件运行时已进入关闭阶段，不能注册路由')
             self._register_routers(loaded, app)
         else:
             child = loaded.definition.app_factory(loaded.host)
@@ -288,9 +298,12 @@ class ExplicitPluginRuntime:
             if any(getattr(route, 'path', None) == mount_path for route in app.routes):
                 raise ValueError(f'插件挂载路径冲突：{mount_path}')
             manager = PluginLifespanManager(child, managed=manifest.backend.asgi.lifespan == 'managed')
+            loaded.lifespan = manager
             try:
                 await manager.startup()
                 await self._check_health(loaded, app)
+                if self._closing:
+                    raise RuntimeError('插件运行时已进入关闭阶段，不能挂载子应用')
                 web_app = child
                 if manifest.frontend.delivery.type == 'bundle':
                     web_app = PluginBundleASGI(child, plugin_id, loaded.plugin.backend_path, manifest.frontend.bundle)
@@ -299,9 +312,11 @@ class ExplicitPluginRuntime:
                 app.router.routes.append(Mount(mount_path, app=observed, name=f'plugin:{plugin_id}'))
                 loaded.gateway = gateway
             except BaseException:
-                await manager.shutdown()
+                try:
+                    await manager.shutdown()
+                except Exception:
+                    logger.exception(f'插件激活失败后的 ASGI 回收失败：{plugin_id}')
                 raise
-            loaded.lifespan = manager
 
     @staticmethod
     async def _check_health(loaded: LoadedExplicitPlugin, app: FastAPI) -> None:
@@ -433,21 +448,30 @@ class ExplicitPluginRuntime:
 
         :return: None
         """
-        await self.metrics_reporter.stop()
-        for loaded in reversed(list(self.loaded.values())):
+        self._closing = True
+        instances = list(reversed(self.loaded.values()))
+        for loaded in instances:
             loaded.active = False
             if loaded.plugin.plugin_id in self.metrics.configurations:
                 self.metrics.configurations[loaded.plugin.plugin_id].active = False
-            if loaded.jobs is not None:
-                await unbind_plugin_jobs(loaded.jobs)
-                loaded.jobs = None
+        for loaded in instances:
             if loaded.gateway is not None:
                 try:
                     await loaded.gateway.drain()
                 except Exception:
                     logger.exception(f'插件长连接关闭失败：{loaded.plugin.plugin_id}')
+            if loaded.jobs is not None:
+                try:
+                    await unbind_plugin_jobs(loaded.jobs)
+                    loaded.jobs = None
+                except Exception:
+                    logger.exception(f'插件任务关闭失败：{loaded.plugin.plugin_id}')
             if loaded.lifespan is not None:
                 try:
                     await loaded.lifespan.shutdown()
                 except Exception:
                     logger.exception(f'插件 ASGI 关闭失败：{loaded.plugin.plugin_id}')
+        try:
+            await self.metrics_reporter.stop()
+        except Exception:
+            logger.exception('插件指标上报关闭失败')

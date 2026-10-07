@@ -1,6 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 import httpx
@@ -117,3 +117,148 @@ async def test_lifespan_timeout_cancels_task() -> None:
     with pytest.raises(TimeoutError):
         await manager.startup()
     assert stopped.is_set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('phase', ['startup', 'shutdown'])
+async def test_lifespan_timeout_is_bounded_and_retry_uses_fresh_protocol_state(phase: str) -> None:
+    """拒绝残留任务重启，退出后重试不读取旧任务的迟到消息和状态。"""
+    release = asyncio.Event()
+    attempts = []
+
+    async def child(scope: Scope, receive: Receive, send: Send) -> None:
+        attempts.append(scope['state'])
+        await receive()
+        if len(attempts) > 1:
+            scope['state']['attempt'] = len(attempts)
+            await send({'type': 'lifespan.startup.complete'})
+            await receive()
+            await send({'type': 'lifespan.shutdown.complete'})
+            return
+        if phase == 'shutdown':
+            await send({'type': 'lifespan.startup.complete'})
+            await receive()
+        while not release.is_set():
+            with suppress(asyncio.CancelledError):
+                await release.wait()
+        scope['state']['stale'] = True
+        await send({'type': 'lifespan.startup.failed', 'message': 'late response'})
+
+    manager = PluginLifespanManager(child, timeout=0.01, cancel_timeout=0.01)
+    if phase == 'shutdown':
+        await manager.startup()
+    operation = asyncio.create_task(getattr(manager, phase)())
+    try:
+        await asyncio.wait({operation}, timeout=1)
+        assert operation.done(), '生命周期取消等待必须有界'
+        with pytest.raises(TimeoutError):
+            await operation
+        assert not manager.ready and manager.has_pending_task
+        with pytest.raises(RuntimeError, match='尚未退出'):
+            await manager.startup()
+        release.set()
+        await asyncio.wait({manager._task}, timeout=1)
+        await manager.startup()
+        assert manager.ready and manager.state == {'attempt': 2}
+        assert attempts[0] is not attempts[1]
+        await manager.shutdown()
+        await manager.shutdown()
+    finally:
+        release.set()
+        await asyncio.gather(operation, return_exceptions=True)
+        await manager.shutdown()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('phase', ['startup', 'shutdown'])
+async def test_lifespan_self_cancellation_is_protocol_error(phase: str) -> None:
+    async def child(scope: Scope, receive: Receive, send: Send) -> None:
+        await receive()
+        if phase == 'shutdown':
+            await send({'type': 'lifespan.startup.complete'})
+            await receive()
+            await send({'type': 'lifespan.shutdown.complete'})
+        raise asyncio.CancelledError
+
+    manager = PluginLifespanManager(child)
+    if phase == 'shutdown':
+        await manager.startup()
+    with pytest.raises(RuntimeError, match='自行取消'):
+        await getattr(manager, phase)()
+    assert not manager.ready and not manager.has_pending_task
+
+
+@pytest.mark.asyncio
+async def test_lifespan_accepts_callable_returning_future() -> None:
+    async def child(scope: Scope, receive: Receive, send: Send) -> None:
+        await receive()
+        await send({'type': 'lifespan.startup.complete'})
+        await receive()
+        await send({'type': 'lifespan.shutdown.complete'})
+
+    def app(scope: Scope, receive: Receive, send: Send) -> asyncio.Future[None]:
+        return asyncio.create_task(child(scope, receive, send))
+
+    manager = PluginLifespanManager(app)
+    await manager.startup()
+    assert manager.ready
+    await manager.shutdown()
+    assert not manager.has_pending_task
+
+
+@pytest.mark.asyncio
+async def test_host_cancellation_propagates_and_releases_lifespan_task() -> None:
+    opened, stopped = asyncio.Event(), asyncio.Event()
+
+    async def child(scope: Scope, receive: Receive, send: Send) -> None:
+        opened.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            stopped.set()
+
+    manager = PluginLifespanManager(child)
+    task = asyncio.create_task(manager.startup())
+    await opened.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert stopped.is_set() and not manager.has_pending_task
+
+
+@pytest.mark.parametrize('timeout', [0, -1, float('inf'), float('nan')])
+def test_lifespan_rejects_invalid_time_limits(timeout: float) -> None:
+    with pytest.raises(ValueError, match='大于零'):
+        PluginLifespanManager(None, timeout=timeout)
+    with pytest.raises(ValueError, match='大于零'):
+        PluginLifespanManager(None, cancel_timeout=timeout)
+
+
+@pytest.mark.asyncio
+async def test_concurrent_shutdown_waits_for_startup_and_sends_one_shutdown() -> None:
+    opened, release = asyncio.Event(), asyncio.Event()
+    messages = []
+
+    async def child(scope: Scope, receive: Receive, send: Send) -> None:
+        messages.append((await receive())['type'])
+        opened.set()
+        await release.wait()
+        await send({'type': 'lifespan.startup.complete'})
+        messages.append((await receive())['type'])
+        await send({'type': 'lifespan.shutdown.complete'})
+
+    manager = PluginLifespanManager(child, timeout=1)
+    starting = asyncio.create_task(manager.startup())
+    await opened.wait()
+    stopping = [asyncio.create_task(manager.shutdown()) for _ in range(2)]
+    try:
+        await asyncio.sleep(0)
+        assert not manager.ready
+        release.set()
+        await asyncio.wait_for(asyncio.gather(starting, *stopping), timeout=1)
+        assert messages == ['lifespan.startup', 'lifespan.shutdown']
+        assert not manager.ready and not manager.has_pending_task
+    finally:
+        release.set()
+        await asyncio.gather(starting, *stopping, return_exceptions=True)
+        await manager.shutdown()

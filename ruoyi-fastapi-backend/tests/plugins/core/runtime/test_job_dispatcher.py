@@ -3,7 +3,7 @@ import inspect
 import pickle
 import sys
 from collections.abc import AsyncGenerator, Iterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -20,7 +20,12 @@ from plugins.core.lifecycle.jobs import PluginJobModelBuilder
 from plugins.core.manifest.schema import PluginManifestFactory
 from plugins.core.runtime.entrypoint import PluginEntrypointLoader
 from plugins.core.runtime.explicit import ExplicitPluginRuntime, LoadedExplicitPlugin
-from plugins.core.runtime.job_dispatcher import DISPATCH_TARGET, dispatch_plugin_job
+from plugins.core.runtime.job_dispatcher import (
+    DISPATCH_TARGET,
+    bind_plugin_jobs,
+    dispatch_plugin_job,
+    unbind_plugin_jobs,
+)
 from plugins.core.sdk import PluginHostContext, PluginTaskContext
 from plugins.core.validation.structure import PluginStructureChecker
 
@@ -236,3 +241,51 @@ def test_job_preflight_does_not_import_and_rejects_invalid_settings(setup_plugin
         }
         with pytest.raises(ValueError):
             PluginManifestFactory.create(data)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('during_gate', [False, True])
+async def test_unbind_is_bounded_and_blocks_new_binding_until_old_jobs_exit(
+    setup_plugin: SimpleNamespace, during_gate: bool
+) -> None:
+    """残留任务保持在途，不允许复用绑定；延迟结束最终记录取消且不启动迟到回调。"""
+    state = setup_plugin
+    opened, release = asyncio.Event(), asyncio.Event()
+
+    async def resistant(*args: object, **kwargs: object) -> bool:
+        opened.set()
+        while not release.is_set():
+            with suppress(asyncio.CancelledError):
+                await release.wait()
+        return True
+
+    (state.gateway.is_plugin_enabled if during_gate else state.service).side_effect = resistant
+    await state.runtime.activate('dispatch_test', FastAPI())
+    binding = state.runtime.loaded['dispatch_test'].jobs
+    task = asyncio.create_task(dispatch_plugin_job('dispatch_test', 'tick', '1.0.0'))
+    await opened.wait()
+    stopping = asyncio.create_task(unbind_plugin_jobs(binding, timeout=0.01))
+    try:
+        await asyncio.wait({stopping}, timeout=1)
+        assert stopping.done() and not task.done()
+        await stopping
+        with pytest.raises(RuntimeError, match='未就绪'):
+            await dispatch_plugin_job('dispatch_test', 'tick', '1.0.0')
+        with pytest.raises(RuntimeError, match='旧任务尚未退出'):
+            bind_plugin_jobs(state.plugin, binding.host, state.gateway, lambda: True)
+        sample = next(item for item in state.runtime.metrics.snapshot().series if item.operation == 'job:tick')
+        assert (sample.active, sample.succeeded, sample.cancelled) == (1, 0, 0)
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, timeout=1)
+        if during_gate:
+            state.service.assert_not_called()
+        assert state.sessions == ['open', 'close']
+        sample = next(item for item in state.runtime.metrics.snapshot().series if item.operation == 'job:tick')
+        assert (sample.active, sample.succeeded, sample.cancelled) == (0, 0, 1)
+        replacement = bind_plugin_jobs(state.plugin, binding.host, state.gateway, lambda: True)
+        await unbind_plugin_jobs(replacement, timeout=0.01)
+    finally:
+        release.set()
+        await asyncio.gather(stopping, task, return_exceptions=True)
+        await state.runtime.shutdown()

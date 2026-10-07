@@ -1,7 +1,7 @@
 import asyncio
 import sys
 from collections.abc import AsyncGenerator, Generator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -11,15 +11,18 @@ import pytest
 import yaml
 from fastapi import FastAPI
 from starlette import status
+from starlette.types import Receive, Scope, Send
 
 from common.aspect.db_session import get_db_session_provider
 from module_admin.service.login_service import LoginService
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
 from plugins.core.discovery.scanner import PluginScanner
 from plugins.core.runtime.application import PluginApplicationRuntime
+from plugins.core.runtime.asgi import PluginLifespanManager
 from plugins.core.runtime.explicit import ExplicitPluginRuntime
 from plugins.core.runtime.startup import PluginRuntimeStartupManager
 from plugins.core.runtime.startup_coordination import PluginStartupGenerationResolver
+from plugins.core.sdk import PluginDefinition
 
 ASGI_SOURCE = """
 from contextlib import asynccontextmanager
@@ -208,6 +211,171 @@ async def test_health_failure_after_startup_shuts_down_child(tmp_path: Path) -> 
         await runtime.activate('runtime_test', app)
     assert sys.modules['plugins.runtime_test'].events == ['start', 'stop']
     assert all(getattr(route, 'path', '') != '/apps/runtime_test' for route in app.routes)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure_at', ['metrics', 'connection', 'job', 'lifespan'])
+async def test_shutdown_isolates_cleanup_failures_and_closes_in_reverse_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_at: str
+) -> None:
+    """一个清理步骤失败后继续其余资源及依赖插件，关闭开始即拒绝全部激活。"""
+    runtime = ExplicitPluginRuntime(SimpleNamespace())
+    app = FastAPI()
+    for plugin_id in ['runtime_test_base', 'runtime_test_consumer']:
+        runtime.prepare(write_plugin(tmp_path, plugin_id=plugin_id), app, startup_write_enabled=False)
+        await runtime.activate(plugin_id, app)
+    order = []
+
+    async def step(name: str, *, fails: bool = False) -> None:
+        assert all(not loaded.active for loaded in runtime.loaded.values())
+        with pytest.raises(RuntimeError, match='关闭阶段'):
+            await runtime.activate('runtime_test_base', app)
+        order.append(name)
+        if fails:
+            raise RuntimeError('cleanup failed')
+
+    metrics_stop = AsyncMock(side_effect=lambda: None)
+    if failure_at == 'metrics':
+        metrics_stop.side_effect = RuntimeError('metrics failed')
+    monkeypatch.setattr(runtime.metrics_reporter, 'stop', metrics_stop)
+    consumer = runtime.loaded['runtime_test_consumer']
+    actual_shutdown = consumer.lifespan.shutdown
+
+    async def consumer_lifespan() -> None:
+        await actual_shutdown()
+        await step('consumer:lifespan', fails=failure_at == 'lifespan')
+
+    async def consumer_connection() -> None:
+        await step('consumer:connection', fails=failure_at == 'connection')
+
+    async def consumer_jobs(binding: object) -> None:
+        await step('consumer:job', fails=failure_at == 'job')
+
+    monkeypatch.setattr(consumer.lifespan, 'shutdown', consumer_lifespan)
+    monkeypatch.setattr(consumer.gateway, 'drain', consumer_connection)
+    consumer.jobs = object()
+    monkeypatch.setattr('plugins.core.runtime.explicit.unbind_plugin_jobs', consumer_jobs)
+    try:
+        await runtime.shutdown()
+        assert order == ['consumer:connection', 'consumer:job', 'consumer:lifespan']
+        assert sys.modules['plugins.runtime_test_base'].events == ['start', 'stop']
+        assert sys.modules['plugins.runtime_test_consumer'].events == ['start', 'stop']
+        assert all(not loaded.lifespan.ready for loaded in runtime.loaded.values())
+        metrics_stop.assert_awaited_once()
+    finally:
+        await actual_shutdown()
+        await runtime.loaded['runtime_test_base'].lifespan.shutdown()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('integration', ['router', 'asgi'])
+async def test_shutdown_during_health_check_cannot_publish_late_plugin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, integration: str
+) -> None:
+    """关闭与激活并发时，健康检查完成不能重新发布路由或恢复 active。"""
+    source = (
+        ASGI_SOURCE
+        if integration == 'asgi'
+        else (
+            'from plugins.core.sdk import PluginDefinition\n'
+            'from fastapi import APIRouter\n'
+            'def create_plugin(host):\n'
+            '    router = APIRouter()\n'
+            '    router.add_api_route("/runtime_test/info", lambda: {})\n'
+            '    return PluginDefinition(routers=[router])\n'
+        )
+    )
+    plugin = write_plugin(tmp_path, source=source, integration=integration)
+    app = FastAPI()
+    runtime = ExplicitPluginRuntime(SimpleNamespace())
+    runtime.prepare(plugin, app, startup_write_enabled=False)
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def check(*args: object) -> None:
+        entered.set()
+        await release.wait()
+
+    monkeypatch.setattr(runtime, '_check_health', check)
+    activating = asyncio.create_task(runtime.activate('runtime_test', app))
+    try:
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        await runtime.shutdown()
+        release.set()
+        with pytest.raises(RuntimeError, match='关闭阶段'):
+            await activating
+        assert not runtime.loaded['runtime_test'].active
+        assert all('runtime_test' not in getattr(route, 'path', '') for route in app.routes)
+        if integration == 'asgi':
+            assert sys.modules['plugins.runtime_test'].events == ['start', 'stop']
+    finally:
+        release.set()
+        await asyncio.gather(activating, return_exceptions=True)
+        await runtime.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_failed_activation_cannot_replace_pending_lifespan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """显式运行时保留启动失败的管理器，旧资源退出前不能创建第二个子应用。"""
+    runtime = ExplicitPluginRuntime(SimpleNamespace())
+    app = FastAPI()
+    runtime.prepare(write_plugin(tmp_path), app, startup_write_enabled=False)
+    release = asyncio.Event()
+    attempts = []
+
+    async def child(scope: Scope, receive: Receive, send: Send) -> None:
+        attempts.append(scope)
+        await receive()
+        if len(attempts) == 1:
+            while not release.is_set():
+                with suppress(asyncio.CancelledError):
+                    await release.wait()
+            raise RuntimeError('old resource stopped')
+        await send({'type': 'lifespan.startup.complete'})
+        await receive()
+        await send({'type': 'lifespan.shutdown.complete'})
+
+    loaded = runtime.loaded['runtime_test']
+    loaded.definition = PluginDefinition(app_factory=lambda _: child)
+    monkeypatch.setattr(
+        'plugins.core.runtime.explicit.PluginLifespanManager',
+        lambda child, **kwargs: PluginLifespanManager(child, timeout=0.01, cancel_timeout=0.01, **kwargs),
+    )
+    activating = asyncio.create_task(runtime.activate('runtime_test', app))
+    try:
+        await asyncio.wait({activating}, timeout=1)
+        assert activating.done()
+        with pytest.raises(TimeoutError):
+            await activating
+        assert loaded.lifespan.has_pending_task
+        with pytest.raises(RuntimeError, match='上一次生命周期尚未退出'):
+            await runtime.activate('runtime_test', app)
+        assert len(attempts) == 1
+        release.set()
+        await asyncio.wait({loaded.lifespan._task}, timeout=1)
+        await runtime.activate('runtime_test', app)
+        assert loaded.active and loaded.lifespan.ready
+        assert [scope['type'] for scope in attempts] == ['lifespan', 'lifespan']
+        assert sum(getattr(route, 'path', '') == '/apps/runtime_test' for route in app.routes) == 1
+    finally:
+        release.set()
+        await asyncio.gather(activating, return_exceptions=True)
+        await runtime.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_activation_cleanup_failure_preserves_original_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = ExplicitPluginRuntime(SimpleNamespace())
+    app = FastAPI()
+    plugin = write_plugin(tmp_path, source=ASGI_SOURCE.replace("events.append('stop')", "raise ValueError('cleanup')"))
+    runtime.prepare(plugin, app, startup_write_enabled=False)
+    monkeypatch.setattr(runtime, '_check_health', AsyncMock(side_effect=LookupError('primary health failure')))
+    with pytest.raises(LookupError, match='primary health failure'):
+        await runtime.activate('runtime_test', app)
+    assert not runtime.loaded['runtime_test'].lifespan.has_pending_task
 
 
 @pytest.mark.asyncio
