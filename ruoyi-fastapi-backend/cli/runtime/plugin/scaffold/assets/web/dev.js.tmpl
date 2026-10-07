@@ -1,0 +1,62 @@
+import { createPluginHostBridge, validatePluginSession } from './vendor/pluginBridge.js'
+
+const element = (id) => document.getElementById(id)
+const frame = element('plugin-frame')
+let route = '/'
+const bridge = createPluginHostBridge({
+  pluginId: '__PLUGIN_ID__',
+  session: validatePluginSession(
+    {
+      pluginId: '__PLUGIN_ID__',
+      bridgeVersion: 1,
+      uiBase: '/apps/__PLUGIN_ID__/ui/',
+      apiBase: '/apps/__PLUGIN_ID__/api/',
+      csrfToken: 'local-mock-no-credentials',
+      expiresIn: 3600,
+    },
+    '__PLUGIN_ID__'
+  ),
+  getTarget: () => frame.contentWindow,
+  request: async ({ url, method, signal }) => {
+    await new Promise((resolve, reject) => {
+      if (signal.aborted) return reject(new Error('已取消'))
+      const cancel = () => {
+        clearTimeout(timer)
+        reject(new Error('已取消'))
+      }
+      const timer = setTimeout(
+        () => {
+          signal.removeEventListener('abort', cancel)
+          resolve()
+        },
+        Math.max(0, Math.min(5000, Number(element('delay').value) || 0))
+      )
+      signal.addEventListener('abort', cancel, { once: true })
+    })
+    if (element('failure').checked) throw new Error('模拟请求失败')
+    if (method !== 'get' || url !== '/apps/__PLUGIN_ID__/api/info')
+      throw new Error('模拟接口未实现')
+    return { pluginId: '__PLUGIN_ID__', serverTime: new Date().toISOString() }
+  },
+  getContext: () => ({
+    theme: { mode: element('theme').value },
+    language: 'zh-CN',
+    timeZone: 'Asia/Shanghai',
+    route,
+  }),
+  onReady: () => {
+    element('status').textContent = '模拟连接已建立'
+  },
+  onRoute: (next) => {
+    route = next
+    bridge.updateRoute(route)
+  },
+})
+frame.src = '/index.html'
+element('theme').addEventListener('change', () => bridge.updatePreferences())
+element('reload').addEventListener('click', () => frame.contentWindow.location.reload())
+element('logout').addEventListener('click', () => {
+  bridge.destroy({ logout: true })
+  element('status').textContent = '模拟会话已退出；刷新整个页面可重新连接'
+})
+window.addEventListener('pagehide', () => bridge.destroy(), { once: true })

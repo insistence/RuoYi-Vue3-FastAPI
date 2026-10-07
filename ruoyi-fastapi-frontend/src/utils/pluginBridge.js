@@ -7,6 +7,9 @@ export const PLUGIN_BRIDGE_VERSION = 1
 export const PLUGIN_BRIDGE_MAX_BYTES = 64 * 1024
 export const PLUGIN_BRIDGE_MAX_PENDING = 8
 export const PLUGIN_BRIDGE_MAX_FILE_BYTES = 10 * 1024 * 1024
+export const PLUGIN_BRIDGE_MAX_STREAMS = 2
+export const PLUGIN_BRIDGE_MAX_STREAM_BYTES = 10 * 1024 * 1024
+export const PLUGIN_BRIDGE_STREAM_TIMEOUT = 300000
 const REQUEST_TIMEOUT = 15000
 const TRANSFER_TIMEOUT = 120000
 const ID_PATTERN = /^[a-z][a-z0-9_-]{1,63}$/
@@ -205,6 +208,36 @@ function validateTransfer(type, payload) {
   return { ...safe, file }
 }
 
+function validateStream(payload) {
+  assertKeys(payload, ['path', 'params', 'lastEventId'])
+  validateRequest({
+    method: 'GET',
+    path: payload.path,
+    ...(payload.params === undefined ? {} : { params: payload.params }),
+  })
+  if (
+    payload.lastEventId !== undefined &&
+    (typeof payload.lastEventId !== 'string' ||
+      payload.lastEventId.length > 1024 ||
+      /[^\x20-\x7e]/.test(payload.lastEventId))
+  )
+    throw new Error('事件游标无效')
+  return jsonCopy(payload)
+}
+
+function validateStreamEvent(value) {
+  assertKeys(value, ['event', 'data', 'id'])
+  if (['event', 'data', 'id'].some((key) => typeof value[key] !== 'string'))
+    throw new Error('插件事件格式无效')
+  return jsonCopy(value)
+}
+
+const streamCount = (pending) =>
+  [...pending.values()].filter((entry) => entry.type === 'stream').length
+
+const streamDuration = (value) =>
+  Math.min(Math.max(Number(value) || PLUGIN_BRIDGE_STREAM_TIMEOUT, 1), PLUGIN_BRIDGE_STREAM_TIMEOUT)
+
 async function validateDownload(data) {
   if (!(data instanceof Blob) || data.size > PLUGIN_BRIDGE_MAX_FILE_BYTES) {
     throw new Error('下载文件无效或超过 10 MiB')
@@ -239,6 +272,7 @@ export function createPluginHostBridge({
   session,
   getTarget,
   request,
+  stream,
   getContext = () => ({}),
   onReady = () => {},
   onRoute = () => {},
@@ -248,6 +282,7 @@ export function createPluginHostBridge({
   now = Date.now,
   timeoutMs = REQUEST_TIMEOUT,
   transferTimeoutMs = TRANSFER_TIMEOUT,
+  streamTimeoutMs = PLUGIN_BRIDGE_STREAM_TIMEOUT,
 }) {
   validatePluginId(pluginId)
   const target = getTarget()
@@ -304,7 +339,20 @@ export function createPluginHostBridge({
         clientId,
         uiBase: currentSession.uiBase,
         apiBase: currentSession.apiBase,
-        capabilities: { files: { version: 1, maxBytes: PLUGIN_BRIDGE_MAX_FILE_BYTES } },
+        capabilities: {
+          files: { version: 1, maxBytes: PLUGIN_BRIDGE_MAX_FILE_BYTES },
+          ...(typeof stream === 'function'
+            ? {
+                streams: {
+                  version: 1,
+                  maxConcurrent: PLUGIN_BRIDGE_MAX_STREAMS,
+                  maxEventBytes: PLUGIN_BRIDGE_MAX_BYTES,
+                  maxBytes: PLUGIN_BRIDGE_MAX_STREAM_BYTES,
+                  maxDurationMs: streamDuration(streamTimeoutMs),
+                },
+              }
+            : {}),
+        },
       })
       onReady()
       return
@@ -321,6 +369,17 @@ export function createPluginHostBridge({
       return
     }
     if (!MESSAGE_ID_PATTERN.test(message.id || '')) return
+    if (message.type === 'stream-ack') {
+      const entry = pending.get(message.id)
+      if (
+        entry?.type === 'stream' &&
+        isRecord(message.payload) &&
+        Object.keys(message.payload).length === 1 &&
+        message.payload.sequence === entry.sequence
+      )
+        entry.ack?.()
+      return
+    }
     if (message.type === 'cancel') {
       const entry = pending.get(message.id)
       if (entry) {
@@ -330,24 +389,45 @@ export function createPluginHostBridge({
       }
       return
     }
-    if (!['request', 'upload', 'download'].includes(message.type) || pending.has(message.id)) return
+    if (
+      !['request', 'upload', 'download', 'stream'].includes(message.type) ||
+      pending.has(message.id)
+    )
+      return
     if (pending.size >= PLUGIN_BRIDGE_MAX_PENDING) {
       resultError(message.id, '插件请求过多，请稍后重试')
       return
     }
+    if (message.type === 'stream') {
+      if (typeof stream !== 'function') {
+        resultError(message.id, '当前宿主不支持实时事件流，请升级宿主')
+        return
+      }
+      if (streamCount(pending) >= PLUGIN_BRIDGE_MAX_STREAMS) {
+        resultError(message.id, '实时连接过多，请先关闭已有连接')
+        return
+      }
+    }
     let payload
     try {
       payload =
-        message.type === 'request'
-          ? validateRequest(message.payload)
-          : validateTransfer(message.type, message.payload)
+        message.type === 'stream'
+          ? validateStream(message.payload)
+          : message.type === 'request'
+            ? validateRequest(message.payload)
+            : validateTransfer(message.type, message.payload)
     } catch (error) {
       resultError(message.id, error.message)
       return
     }
     const controller = new AbortController()
-    const entry = { controller, timer: null }
-    const duration = message.type === 'request' ? timeoutMs : transferTimeoutMs
+    const entry = { type: message.type, controller, timer: null, sequence: 0 }
+    const duration =
+      message.type === 'stream'
+        ? streamDuration(streamTimeoutMs)
+        : message.type === 'request'
+          ? timeoutMs
+          : transferTimeoutMs
     entry.timer = setTimeout(() => {
       if (pending.get(message.id) !== entry) return
       pending.delete(message.id)
@@ -378,8 +458,45 @@ export function createPluginHostBridge({
       send('progress', { phase, loaded, total }, message.id)
     }
     Promise.resolve()
-      .then(() => {
+      .then(async () => {
         if (!live() || pending.get(message.id) !== entry) return undefined
+        if (message.type === 'stream') {
+          let totalBytes = 0
+          for await (const event of stream({
+            url: currentSession.apiBase + payload.path,
+            params: payload.params,
+            lastEventId: payload.lastEventId,
+            csrfToken: currentSession.csrfToken,
+            signal: controller.signal,
+          })) {
+            if (!live() || pending.get(message.id) !== entry) break
+            const safeEvent = validateStreamEvent(event)
+            totalBytes += new TextEncoder().encode(JSON.stringify(safeEvent)).byteLength
+            if (totalBytes > PLUGIN_BRIDGE_MAX_STREAM_BYTES) throw new Error('事件流超过容量限制')
+            entry.sequence += 1
+            // 每条事件等待插件处理完成，防止慢回调造成 postMessage 队列无限增长。
+            await new Promise((resolve, reject) => {
+              const cleanup = () => {
+                clearTimeout(timer)
+                entry.ack = null
+                controller.signal.removeEventListener('abort', cancel)
+              }
+              const cancel = () => {
+                cleanup()
+                reject(new Error('事件处理已取消'))
+              }
+              const timer = setTimeout(cancel, Math.min(REQUEST_TIMEOUT, duration))
+              entry.ack = () => {
+                cleanup()
+                resolve()
+              }
+              controller.signal.addEventListener('abort', cancel, { once: true })
+              if (controller.signal.aborted) cancel()
+              else send('stream-event', { sequence: entry.sequence, event: safeEvent }, message.id)
+            })
+          }
+          return null
+        }
         let body = payload.data
         if (message.type === 'upload') {
           body = new FormData()
@@ -423,6 +540,7 @@ export function createPluginHostBridge({
       })
       .finally(() => {
         clearTimeout(entry.timer)
+        if (entry.type === 'stream') controller.abort()
         if (pending.get(message.id) === entry) pending.delete(message.id)
       })
   }
@@ -476,6 +594,7 @@ export function createPluginClient({
   origin = globalThis.location?.origin,
   timeoutMs = REQUEST_TIMEOUT,
   transferTimeoutMs = TRANSFER_TIMEOUT,
+  streamTimeoutMs = PLUGIN_BRIDGE_STREAM_TIMEOUT,
 }) {
   validatePluginId(pluginId)
   if (!parentWindow || parentWindow === eventTarget || !origin || origin === 'null') {
@@ -486,6 +605,7 @@ export function createPluginClient({
   let destroyed = false
   let context = null
   let waitingForReady = 0
+  let waitingStreams = 0
   let resolveReady
   let rejectReady
   const subscribers = new Set()
@@ -564,6 +684,30 @@ export function createPluginClient({
       return
     }
     if (!instance || message.instance !== instance) return
+    if (message.type === 'stream-event') {
+      const entry = pending.get(message.id)
+      if (
+        entry?.type !== 'stream' ||
+        entry.delivering ||
+        !isRecord(message.payload) ||
+        message.payload.sequence !== entry.sequence + 1
+      )
+        return
+      entry.sequence += 1
+      entry.delivering = true
+      Promise.resolve()
+        .then(() => {
+          if (pending.get(message.id) === entry)
+            return entry.onEvent(validateStreamEvent(message.payload.event))
+        })
+        .then(() => {
+          if (pending.get(message.id) !== entry) return
+          entry.delivering = false
+          send('stream-ack', { sequence: entry.sequence }, message.id)
+        })
+        .catch(() => entry.fail('插件事件处理失败，连接已关闭'))
+      return
+    }
     if (message.type === 'progress') {
       const entry = pending.get(message.id)
       const value = message.payload
@@ -595,7 +739,10 @@ export function createPluginClient({
       if (message.payload.ok) {
         try {
           const data = message.payload.data
-          if (entry.type === 'download') {
+          if (entry.type === 'stream') {
+            if (data !== null) throw new Error('事件流结束消息无效')
+            entry.resolve()
+          } else if (entry.type === 'download') {
             if (!(data instanceof Blob) || data.size > PLUGIN_BRIDGE_MAX_FILE_BYTES)
               throw new Error('下载文件无效')
             entry.resolve(data)
@@ -624,39 +771,60 @@ export function createPluginClient({
   eventTarget.addEventListener('message', listener)
   const readyTimer = setTimeout(() => destroy('插件初始化超时，请重试'), timeoutMs)
   send('ready', { clientId })
-  const execute = async (type, safePayload, { signal, onProgress } = {}) => {
+  const execute = async (type, safePayload, { signal, onProgress, onEvent } = {}) => {
     if (onProgress !== undefined && typeof onProgress !== 'function')
       throw new Error('进度回调无效')
+    if (type === 'stream' && typeof onEvent !== 'function') throw new Error('事件处理回调无效')
     if (destroyed || signal?.aborted) throw new Error('插件请求已取消')
     if (pending.size + waitingForReady >= PLUGIN_BRIDGE_MAX_PENDING) {
       throw new Error('插件请求过多，请稍后重试')
     }
+    if (type === 'stream' && streamCount(pending) + waitingStreams >= PLUGIN_BRIDGE_MAX_STREAMS)
+      throw new Error('实时连接过多，请先关闭已有连接')
     waitingForReady += 1
+    if (type === 'stream') waitingStreams += 1
     try {
       await waitForReady(signal)
     } finally {
       waitingForReady -= 1
+      if (type === 'stream') waitingStreams -= 1
     }
     if (destroyed || signal?.aborted) throw new Error('插件请求已取消')
-    if (type !== 'request' && context.capabilities?.files?.version !== 1) {
+    if (['upload', 'download'].includes(type) && context.capabilities?.files?.version !== 1) {
       throw new Error('当前宿主不支持文件传输，请升级宿主')
     }
+    if (type === 'stream' && context.capabilities?.streams?.version !== 1)
+      throw new Error('当前宿主不支持实时事件流，请升级宿主')
+    if (type === 'stream' && streamCount(pending) >= PLUGIN_BRIDGE_MAX_STREAMS)
+      throw new Error('实时连接过多，请先关闭已有连接')
     if (pending.size >= PLUGIN_BRIDGE_MAX_PENDING) throw new Error('插件请求过多，请稍后重试')
     const id = nonce()
     return new Promise((resolve, reject) => {
-      const cancel = () => {
+      const fail = (message) => {
         const entry = pending.get(id)
         if (!entry) return
         pending.delete(id)
         clearTimeout(entry.timer)
         entry.cleanup()
         send('cancel', undefined, id)
-        reject(new Error('插件请求已取消或超时'))
+        reject(new Error(message))
       }
-      const timer = setTimeout(cancel, type === 'request' ? timeoutMs : transferTimeoutMs)
+      const cancel = () => fail('插件请求已取消或超时')
+      const timer = setTimeout(
+        cancel,
+        type === 'stream'
+          ? streamDuration(streamTimeoutMs)
+          : type === 'request'
+            ? timeoutMs
+            : transferTimeoutMs
+      )
       pending.set(id, {
         type,
         onProgress,
+        onEvent,
+        sequence: 0,
+        delivering: false,
+        fail,
         resolve,
         reject,
         timer,
@@ -690,6 +858,9 @@ export function createPluginClient({
         validateTransfer('download', { method: 'GET', ...payload }),
         options
       )
+    },
+    async stream(payload, options) {
+      return execute('stream', validateStream(payload), options)
     },
     navigate(route) {
       if (!instance || destroyed) throw new Error('插件尚未连接')

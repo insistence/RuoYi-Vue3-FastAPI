@@ -921,9 +921,9 @@ v2 ASGI 插件可声明 `frontend.delivery.type: bundle` 和 `frontend.bundle.di
 
 插件浏览器 Cookie 使用 `HttpOnly`、`SameSite=Strict`，HTTPS 下为 `Secure`，路径限定为 `<root_path>/apps/<id>/`。会话最多 300 秒并受主登录有效期限制，同一主会话的多标签续期复用 Cookie 与 CSRF。每次 API、页面和资源访问都会检查主会话、插件状态和权限；退出、主登录替换、插件禁用或版本变化会使后续访问失效。写请求还要求同源 Origin 与 CSRF。插件 Cookie 不能用于其他宿主 API。已经建立的长连接不会因此自动排空。
 
-浏览器 SDK 位于前端 `src/utils/pluginBridge.js`，配套类型位于 `pluginBridge.d.ts`，无 Vue/Axios 依赖。示例通过构建别名引入；独立插件仓库可将这两个文件作为版本化依赖复制到自己的源码中。SDK 提供 `ready`、`request`、`upload`、`download`、`navigate`、`subscribe` 和 `destroy`，具体用法见 [bundle_demo README](../plugins/examples/python/bundle_demo/README.md)。请求只允许当前插件 API 下的相对 `path`；主页面使用原有请求客户端代理，自动附加插件 CSRF，并禁用主 Bearer。主 token、插件 Cookie 和 CSRF 值不进入桥消息。
+浏览器 SDK 位于前端 `src/utils/pluginBridge.js`，配套类型位于 `pluginBridge.d.ts`，无 Vue/Axios 依赖。示例通过构建别名引入；独立插件仓库可将这两个文件作为版本化依赖复制到自己的源码中。SDK 提供 `ready`、`request`、`upload`、`download`、`stream`、`navigate`、`subscribe` 和 `destroy`，具体用法见 [bundle_demo README](../plugins/examples/python/bundle_demo/README.md)。请求只允许当前插件 API 下的相对 `path`；JSON 与文件由主页面使用原有请求客户端代理，SSE 使用宿主专用 fetch 适配器；两者自动附加插件 CSRF，不发送主 Bearer。主 token、插件 Cookie 和 CSRF 值不进入桥消息。
 
-JSON 请求、响应和文件元数据每条最多 64 KiB，所有请求合计最多 8 个待处理任务；JSON 默认 15 秒超时，文件传输默认 120 秒。`upload/download` 的文件内容使用 Blob 结构化克隆，单次最多 10 MiB，支持进度和取消。协议仍为 bridge v1，通过握手 `capabilities.files.version=1` 协商文件能力；旧宿主明确返回不支持，旧 JSON 客户端仍可工作。当前不代理 streaming、SSE 或 WebSocket。通信桥不能替代后端具体 API 的 `require_permission`/`plugin_endpoint` 权限检查。
+JSON 请求、响应和文件元数据每条最多 64 KiB，所有请求合计最多 8 个待处理任务；JSON 默认 15 秒超时，文件传输默认 120 秒。`upload/download` 的文件内容使用 Blob 结构化克隆，单次最多 10 MiB，支持进度和取消。协议仍为 bridge v1，通过握手 `capabilities.files.version=1` 协商文件能力、`capabilities.streams.version=1` 协商 SSE 能力；旧宿主明确拒绝其未公布的能力，旧 JSON 客户端仍可工作。SSE 每个页面最多 2 条连接，默认且最长 5 分钟，单条事件最多 64 KiB、单次连接累计最多 10 MiB。当前不代理任意字节流或 WebSocket。通信桥不能替代后端具体 API 的 `require_permission`/`plugin_endpoint` 权限检查。
 
 UI GET/HEAD 使用普通 HTTPS，仍经过插件身份门禁；`/apps/<id>/api/...` 与会话签发接口保留宿主传输加密，不能整体加入加密排除列表。加密 AAD 保留 `/apps/<id>/api/...` 完整插件命名空间，只按宿主规则剥离部署前缀；加密的会话响应仍保留 `Set-Cookie`。
 
@@ -980,7 +980,29 @@ const report = await client.download({ path: 'files/report', params: { month: '2
 
 文件传输沿用宿主已有的二进制请求策略，不使用 JSON 加密信封；HTTPS、插件 Cookie、Origin、CSRF 和接口权限校验仍然执行。部署处于传输加密 `required` 模式时，须将**具体文件接口**加入 `TRANSPORT_CRYPTO_EXCLUDE_PATHS`，如 `/apps/bundle_demo/api/files/inspect,/apps/bundle_demo/api/files/report`，追加到已有列表并保留原有配置。路径按后端规则不带代理前缀。未配置时请求会被拒绝，不自动旁路；不要排除整个 `/apps` 或插件 API 命名空间。服务端与反向代理也应限制上传大小；示例后端会独立检查文件 10 MiB 和表单附加 64 KiB 的实际字节上限。
 
-本地开发可运行 `npm --prefix plugins/examples/python/bundle_demo/web run dev`（从后端目录）。`/dev.html` 使用真实桥协议和内存模拟请求，可切换主题、延迟、故障、重载及退出；不连接实际账号、数据库或 Redis。模拟宿主和开发配置注入只用于 Vite 开发服务，默认生产构建只有插件 `index.html`，不含模拟宿主。它便于开发交互，实际会话、权限与代理仍应在宿主集成环境验证。
+SSE 使用 `stream` 发起只读 GET 请求；必须提供 `onEvent`，其中 `data` 是原始字符串，由业务决定是否解析 JSON：
+
+```javascript
+const controller = new AbortController()
+let lastEventId = ''
+async function receive() {
+  await client.stream({ path: 'events', params: { count: 10 }, lastEventId }, {
+    signal: controller.signal,
+    onEvent: async ({ event, data, id }) => {
+      await saveEvent({ event, data }) // 由插件实现；处理成功后再记下游标。
+      lastEventId = id
+    },
+  })
+}
+receive().catch(showStreamError) // 由插件实现错误提示和重新连接入口。
+// 用户停止时调用 controller.abort()；重试时创建新的 AbortController，并传回 lastEventId。
+```
+
+宿主增量解析 UTF-8、跨分片换行、多行 data 和 id；只分发以空行结尾的完整事件。每次等待 `onEvent` 返回的 Promise 完成后才继续交付，回调超过 15 秒或失败会取消连接。`stream()` 在正常 EOF 后完成，取消、超时或网络错误时拒绝；不自动重连，也不使用服务端的 `retry` 字段。重试间隔、持久化游标、事件去重及断线补发由插件与服务端共同实现，不能据此承诺不丢失或只处理一次。`lastEventId` 仅接受最多 1024 个可打印 ASCII 字符，通过 `Last-Event-ID` 请求头发送；业务服务应选择符合这一约束的游标。取消、重载、退出和 `destroy()` 会终止宿主连接，丢弃迟到事件；已开始的业务回调仍需自行处理取消。
+
+事件接口必须返回 `text/event-stream`，禁止跨源地址和重定向。SSE 不使用 JSON 加密信封，依赖 HTTPS；若当前传输策略会加密该端点，需将**精确事件路径**（如 `/apps/bundle_demo/api/events`，不含部署前缀）追加到既有 `TRANSPORT_CRYPTO_EXCLUDE_PATHS`，宿主不会自动绕过策略。建立请求时仍校验插件 Cookie、主登录和接口权限；宿主会附加 CSRF 头，后端沿用只读 GET 的门禁规则，强制 Origin/CSRF 校验针对写请求。已建立连接不会因后端权限、插件状态变化而自动重新鉴权或排空，业务长连接需自行处理。反向代理应关闭该事件接口的响应缓冲，并配置相应超时；示例返回 `X-Accel-Buffering: no`。
+
+本地开发可运行 `npm --prefix plugins/examples/python/bundle_demo/web run dev`（从后端目录）。`/dev.html` 使用真实桥协议和内存模拟请求，支持文件与逐条事件，可切换主题、延迟、故障、重载及退出；不连接实际账号、数据库或 Redis。模拟宿主和开发配置注入只用于 Vite 开发服务，默认生产构建只有插件 `index.html`，不含模拟宿主。它便于开发交互，实际会话、权限与代理仍应在宿主集成环境验证。
 
 `client.navigate('/details')` 同步插件内部路由，宿主保存在 `pluginRoute` 查询参数中；插件通过 `route` 事件更新自己的页面。使用 Vite 时采用相对资源基址，如 `base: './'`，前端路由基址使用注入的 `uiBase`。
 
@@ -1431,7 +1453,9 @@ ruoyi plugin create report_center --template rust-bundle --env dev --dry-run
 ruoyi plugin create report_center --template rust-bundle --env dev
 ```
 
-每个工程包含 v2 清单、受 `<id>:view` 权限保护的 `/api/info`、显式入口、健康检查、lifespan、构建与发布 README，以及 SDK 合约测试。Rust 模板固定 `ruoyi_plugin_<id>` Python 命名空间，包含锁定的 Cargo 依赖。bundle 复制当前宿主的 bridge SDK，使用相对资源基址和专用插件会话，不内嵌主登录 token。它与宿主 Vue 版本独立，v2 模板不接受 `--frontend-version`；bundle 也不能配合 `--backend-only`。
+每个工程包含 v2 清单、受 `<id>:view` 权限保护的 `/api/info`、显式入口、健康检查、lifespan、构建与发布 README，以及 SDK 合约测试。Rust 模板固定 `ruoyi_plugin_<id>` Python 命名空间，包含锁定的 Cargo 依赖。bundle 复制当前宿主的 bridge SDK 及配套 `.d.ts`，使用相对资源基址和专用插件会话，不内嵌主登录 token。它与宿主 Vue 版本独立，v2 模板不接受 `--frontend-version`；bundle 也不能配合 `--backend-only`。
+
+bundle 安装 npm 依赖后，可运行 `npm --prefix plugin-projects/report_center/web run dev`，自动打开生成的 `/dev.html`。`dev.js` 提供 `/api/info` 的内存模拟、主题、延迟、故障、重载和退出，可按业务扩展；默认模板未实现文件或 SSE 业务接口。模拟配置仅在开发服务注入，生产构建不包含开发宿主。文件与 SSE 的完整示例见 `bundle_demo`。
 
 以下以 Rust bundle 为例，在后端目录及已激活的 Python 环境执行。构建机需具备前述 Rust、maturin、平台编译工具和 Node.js，运行宿主只接收构建产物。构建命令三种平台通用：
 

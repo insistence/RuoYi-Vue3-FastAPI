@@ -1,6 +1,6 @@
 # 独立打包前端插件示例
 
-本示例使用 **Python ASGI 后端 + 独立 Vite 前端 bundle**。页面通过宿主 `PluginFrame` 打开，取得宿主主题、语言、时区和路由状态，再通过通信桥调用查询、回显、上传检查和报表下载 API。欢迎语展示按需配置读取的用法；业务接口不保存消息或文件内容。
+本示例使用 **Python ASGI 后端 + 独立 Vite 前端 bundle**。页面通过宿主 `PluginFrame` 打开，取得宿主主题、语言、时区和路由状态，再通过通信桥调用查询、回显、上传检查、报表下载和 SSE 事件 API。欢迎语展示按需配置读取的用法；业务接口不保存消息或文件内容。
 
 通用清单与后端入口见[插件开发手册](../../../../docs/plugin_development.md#510-v2-清单与能力组合)，浏览器集成协议见[bundle 页面与 SDK](../../../../docs/plugin_development.md#72-v2-独立-bundle-页面)。
 
@@ -33,7 +33,7 @@ node ../ruoyi-fastapi-frontend/node_modules/vite/bin/vite.js build plugins/examp
 npm --prefix plugins/examples/python/bundle_demo/web run dev
 ```
 
-开发服务只监听本机，自动打开 `/dev.html`。模拟宿主使用真实通信桥，提供主题切换、0–5000 毫秒延迟、故障注入、页面重载和退出；上传检查与下载在浏览器内存中完成，不调用实际后端。刷新整个页面可恢复模拟退出后的会话。
+开发服务只监听本机，自动打开 `/dev.html`。模拟宿主使用真实通信桥，提供主题切换、0–5000 毫秒延迟、故障注入、页面重载和退出；上传检查、下载与逐条事件在浏览器内存中完成，不调用实际后端。事件间隔最短 100 毫秒，可停止后按游标继续。刷新整个页面可恢复模拟退出后的会话。
 
 `web/dev/mockRequest.js` 是可扩展的纯请求适配器，可按业务补充本地响应；真实插件界面位于 `web/src/main.js`。Vite 仅在开发服务为插件入口注入模拟标识，生产构建只包含插件入口和其依赖，不包含开发宿主。模拟环境不能验证真实登录、权限、CSRF、反向代理或传输加密，这些仍需在宿主内验证。
 
@@ -58,6 +58,7 @@ New-Item -ItemType Directory -Path (Join-Path $bundlePackage 'web') -Force | Out
 Copy-Item -LiteralPath (Join-Path $bundleSource 'plugin.yaml') -Destination $bundlePackage
 Copy-Item -LiteralPath (Join-Path $bundleSource '__init__.py') -Destination $bundlePackage
 Copy-Item -LiteralPath (Join-Path $bundleSource 'files.py') -Destination $bundlePackage
+Copy-Item -LiteralPath (Join-Path $bundleSource 'events.py') -Destination $bundlePackage
 Copy-Item -LiteralPath $bundleDist -Destination (Join-Path $bundlePackage 'web') -Recurse
 Compress-Archive -LiteralPath $bundlePackage -DestinationPath (Join-Path $bundleRelease 'bundle_demo-1.0.0.zip')
 ```
@@ -82,7 +83,7 @@ macOS / Linux（Bash、Zsh）：
     mkdir "$bundleRelease"
     bundlePackage="$bundleRelease/bundle_demo"
     mkdir -p "$bundlePackage/web"
-    cp "$bundleSource/plugin.yaml" "$bundleSource/__init__.py" "$bundleSource/files.py" "$bundlePackage/"
+    cp "$bundleSource/plugin.yaml" "$bundleSource/__init__.py" "$bundleSource/files.py" "$bundleSource/events.py" "$bundlePackage/"
     cp -R "$bundleDist" "$bundlePackage/web/dist"
     python -m zipfile -c "$bundleRelease/bundle_demo-1.0.0.zip" "$bundlePackage"
 )
@@ -94,6 +95,8 @@ ZIP 内布局：
 bundle_demo/
   plugin.yaml
   __init__.py
+  files.py
+  events.py
   web/
     dist/
       index.html
@@ -133,7 +136,7 @@ ruoyi plugin artifact import target/bundle_demo-1.0.0.rpk --env=prod --allow-pro
 4. 重启后端；在现有角色权限管理中授予 `bundle_demo:view`，或使用具有通配权限的管理员。
 5. 重新取得用户菜单后打开“独立前端示例”。页面会显示实际登录用户、服务端时间，并支持有权限的 POST 回显。
 
-`plugin.yaml` 使用 Host API `^1.4.0`，供欢迎语接口调用 `host.read_config()`。基础 bundle 协议仍兼容 `^1.2.0`；文件能力由前端握手协商，首次使用新文件 API 时需要更新并构建宿主前端。菜单组件为 `PluginFrame`，后端根据 `sys_plugin_menu` 的真实关联返回 `meta.pluginId`；不从路径或 `query.pluginId` 推测插件。只有已启用、已激活且用户有权限的 bundle 可以签发浏览器会话。
+`plugin.yaml` 使用 Host API `^1.4.0`，供欢迎语接口调用 `host.read_config()`。基础 bundle 协议仍兼容 `^1.2.0`；文件与 SSE 能力由前端握手协商，首次使用时需要更新并构建支持这些能力的宿主前端。菜单组件为 `PluginFrame`，后端根据 `sys_plugin_menu` 的真实关联返回 `meta.pluginId`；不从路径或 `query.pluginId` 推测插件。只有已启用、已激活且用户有权限的 bundle 可以签发浏览器会话。
 
 生产模式继续遵守现有生命周期写操作限制，应通过维护部署流程更新并重启。不要把生产配置切到 dev 来绕过限制，也不要期待复制目录后自动热挂载。
 
@@ -175,7 +178,7 @@ window.addEventListener('pagehide', () => {
 
 `request` 的 `path` 必须相对于本插件 `apiBase`，例如 `summary`、`reports/month`；不能是完整 URL、以 `/` 开头、包含 `..` 或自行拼接查询串。查询参数使用 `params: { page: 1 }`。方法使用大写 `GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS`；`GET/HEAD` 不允许 `data`。可在第二个参数传入 `{ signal: controller.signal }` 取消请求。
 
-返回值与宿主请求客户端的 JSON 返回值一致。本例 API 直接返回 JSON 对象；若自己的 API 使用 `{ code, data, msg }`，桥保留该结构，不额外替插件解包 `data`。JSON 请求和文件元数据每条最多 64 KiB，所有请求合计最多 8 个待处理任务，JSON 默认 15 秒、文件默认 120 秒超时。当前不支持 streaming、SSE 或 WebSocket 代理。
+返回值与宿主请求客户端的 JSON 返回值一致。本例 API 直接返回 JSON 对象；若自己的 API 使用 `{ code, data, msg }`，桥保留该结构，不额外替插件解包 `data`。JSON 请求和文件元数据每条最多 64 KiB，所有请求合计最多 8 个待处理任务，JSON 默认 15 秒、文件默认 120 秒超时。SSE 通过 `stream` 单独接收，不支持任意字节流或 WebSocket 代理。
 
 ```javascript
 const controller = new AbortController()
@@ -190,6 +193,12 @@ const report = await client.download({ path: 'files/report' }, options)
 
 单文件最多 10 MiB；`upload` 接受 File/Blob，宿主重建 multipart，默认字段名 `file`、方法 POST，可使用 `fieldName/filename/fields/params`，其中 `fields` 的值只能是字符串。后端 `files.py` 检查权限及实际字节数，返回 SHA-256 摘要，不保存内容。`download` 返回 Blob，由页面决定保存名称并释放对象 URL。进度的 `total` 可能为 `null`；上传字节数可能包含 multipart 开销，进度到达 100% 后仍应等待 Promise 完成。页面已提供取消按钮、错误反馈和重试入口。旧宿主未公布 `capabilities.files.version=1` 时，SDK 会明确拒绝文件传输。
 
+## SSE 实时事件
+
+页面“接收实时事件”通过 `client.stream({ path: 'events', params: { count: 10 }, lastEventId }, { signal, onEvent })` 逐条显示最近 5 条事件；“停止接收”取消连接，“继续接收”传回最后成功处理的 id。正常完成后重新开始，页面重载会清空游标。`events.py` 的 GET `/api/events` 要求 `bundle_demo:view` 权限，默认每 0.5 秒发送一条 `tick`，最多 20 条。游标是事件编号；补发仅演示后续编号，重新生成服务端时间，不代表持久化历史重放。
+
+`onEvent` 接收 `{ event, data, id }`，其中 `data` 为字符串，可返回 Promise。宿主等待处理完成才发送下一条，回调失败或超过 15 秒会关闭连接。每页最多 2 条流、每条最多 5 分钟，单事件最多 64 KiB、累计最多 10 MiB；超限或异常会拒绝返回的 Promise，正常 EOF 则完成。SDK 不自动重连；按业务实现退避、去重及恢复，并为重试创建新的 AbortController。恢复用 `lastEventId` 只接受最多 1024 个可打印 ASCII 字符。旧宿主未公布 `capabilities.streams.version=1` 时会明确拒绝，需要更新宿主前端。完整调用示例见[浏览器 SDK](../../../../docs/plugin_development.md#73-bundle-浏览器-sdk)。
+
 ## 配置读取与状态
 
 安装后在管理页修改“页面欢迎语”，保存后回到本插件点击“刷新状态”。查询接口调用 `await context.host.read_config()`，从新的数据库会话取得当前插件的配置快照，并仅向页面返回公开的欢迎语字段；配置中的敏感值不能直接交给浏览器。
@@ -202,13 +211,15 @@ const report = await client.download({ path: 'files/report' }, options)
 
 UI、静态文件、API 每次访问均经过宿主门禁并回查主登录和当前权限。退出、主登录替换、插件停用或版本改变会使后续请求失效。具体 API 继续使用 `plugin_endpoint(..., permission='bundle_demo:view')` 或 `request.state.plugin_context.require_permission(...)`；仅隐藏菜单不能代替 API 权限。
 
-子页面通过 `postMessage` 发送受校验的 JSON 或文件消息，父页面使用已有 `request` 客户端，禁用自动添加主 Bearer，自动发送插件 Cookie 并添加 `X-Plugin-CSRF`。写请求同时校验精确同源 Origin。主 token、Cookie 和 CSRF 不进入 bridge 消息或插件 URL。Cookie 也不能替代其他宿主接口的 Bearer。
+子页面通过 `postMessage` 发送受校验的 JSON、文件或事件消息；父页面的 JSON/文件使用已有 `request` 客户端，SSE 使用增量 fetch 适配器。两者禁用主 Bearer，自动发送插件 Cookie 并添加 `X-Plugin-CSRF`。写请求同时校验精确同源 Origin。主 token、Cookie 和 CSRF 不进入 bridge 消息或插件 URL。Cookie 也不能替代其他宿主接口的 Bearer。
 
 只读 `/apps/bundle_demo/ui/` 使用普通 HTTPS，HTML 当前 `Cache-Control: no-store`，其他静态文件 `no-cache`；资源仍需认证。`/apps/bundle_demo/api/...` 与会话签发接口继续遵守宿主传输加密，不能把 `/apps` 整段排除。真实加密测试已覆盖 JSON 信封、Cookie、CSRF、完整 API AAD 以及代理前缀。
 
 文件上传下载不使用 JSON 加密信封，依赖 HTTPS 传输。若启用 `required` 模式，须在已有 `TRANSPORT_CRYPTO_EXCLUDE_PATHS` 列表中追加 `/apps/bundle_demo/api/files/inspect,/apps/bundle_demo/api/files/report` 两个精确端点；后端标准化路径不含代理前缀。保留现有例外，不排除整个插件 API；未经配置的文件请求仍会被拒绝。插件身份、权限、Origin 和 CSRF 校验在例外端点上仍然执行。反向代理也应设置符合业务要求的文件大小限制。
 
 同源插件属于可信代码。iframe 仅隔离布局和依赖；它不是阻止恶意插件读取同源数据的安全沙箱。现有主 token 在宿主前端可读，“桥不传 token”不等于不可信同源代码无法接触宿主凭证。
+
+SSE 同样依赖 HTTPS，不支持 JSON 加密信封；当前策略会加密事件端点时，需在既有例外列表中追加精确路径 `/apps/bundle_demo/api/events`（不含代理前缀），保留其他 API 的加密。宿主会先检查策略，拒绝未配置的流请求，不会自动降级。反向代理须关闭该接口的响应缓冲并配置超时，示例同时返回 `X-Accel-Buffering: no`。宿主退出、重载和会话失效会取消当前页面的流，但服务端不会对已经建立的连接持续重新鉴权；业务长连接需自行响应权限或插件状态变化。
 
 ## 代理前缀与验证
 
@@ -219,7 +230,7 @@ UI、静态文件、API 每次访问均经过宿主门禁并回查主登录和�
 从后端目录可执行定向验证：
 
 ```bash
-python -m pytest tests/plugins/core/runtime/test_bundle.py tests/plugins/core/runtime/test_browser_session.py tests/plugins/core/runtime/test_bundle_transport.py tests/plugins/core/runtime/test_bundle_files.py tests/plugins/core/runtime/test_configuration.py tests/module_admin/service/test_login_plugin_routes.py -q
+python -m pytest tests/plugins/core/runtime/test_bundle.py tests/plugins/core/runtime/test_browser_session.py tests/plugins/core/runtime/test_bundle_transport.py tests/plugins/core/runtime/test_bundle_files.py tests/plugins/core/runtime/test_bundle_events.py tests/plugins/core/runtime/test_configuration.py tests/module_admin/service/test_login_plugin_routes.py -q
 npm --prefix ../ruoyi-fastapi-frontend run test:plugin
 ```
 

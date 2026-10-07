@@ -77,13 +77,22 @@ class PluginV2ScaffoldBuilder:
         if test:
             entries.append((root / 'tests' / 'test_plugin.py', self._render('test_plugin.py', replacements)))
         if bundle:
-            sdk_path = self.frontend_root / 'src' / 'utils' / 'pluginBridge.js'
-            if not sdk_path.is_file():
-                raise ValueError(f'缺少宿主桥接 SDK：{sdk_path}；请配置正确的 RUOYI_PLUGIN_FRONTEND_ROOT')
-            entries.append((root / 'web' / 'vendor' / 'pluginBridge.js', sdk_path.read_text(encoding='utf-8')))
+            for sdk_name in ('pluginBridge.js', 'pluginBridge.d.ts'):
+                sdk_path = self.frontend_root / 'src' / 'utils' / sdk_name
+                if not sdk_path.is_file():
+                    raise ValueError(f'缺少宿主桥接 SDK：{sdk_path}；请配置正确的 RUOYI_PLUGIN_FRONTEND_ROOT')
+                entries.append((root / 'web' / 'vendor' / sdk_name, sdk_path.read_text(encoding='utf-8')))
             entries.extend(
                 (root / 'web' / name, self._render(f'web/{name.removeprefix("src/")}', replacements))
-                for name in ('index.html', 'package.json', 'vite.config.js', 'src/main.js', 'src/style.css')
+                for name in (
+                    'index.html',
+                    'dev.html',
+                    'dev.js',
+                    'package.json',
+                    'vite.config.js',
+                    'src/main.js',
+                    'src/style.css',
+                )
             )
 
         payload = PluginScaffoldPlanPayload(
@@ -195,6 +204,11 @@ class PluginV2ScaffoldBuilder:
             f'```bash\nnpm --prefix {root}/web install\nnpm --prefix {root}/web run build\n```\n\n'
             '提交生成的 package-lock.json；后续可用 `npm ci` 重现前端依赖。构建器只复制已构建的 '
             '`web/dist`，不会自动执行 npm。桥接 SDK 已从生成时的宿主复制到 `web/vendor`，升级宿主时应核对兼容性。\n\n'
+            f'本地调试可运行 `npm --prefix {root}/web run dev`，打开 `/dev.html`。'
+            '模拟宿主支持主题、延迟、失败、重载及退出，使用模拟 `/api/info` 响应；业务接口需自行扩展 `web/dev.js`。'
+            '模拟页不进入生产构建，也不能替代真实权限、会话和传输加密验证。'
+            '同目录的 `pluginBridge.d.ts` 提供 JSON、文件及可协商 SSE 能力的类型；'
+            '实时事件示例与协议限制见宿主开发手册。\n\n'
             if bundle
             else ''
         )

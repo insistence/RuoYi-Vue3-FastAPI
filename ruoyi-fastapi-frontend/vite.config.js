@@ -50,6 +50,21 @@ export default defineConfig(({ mode, command }) => {
           target: 'http://127.0.0.1:9099',
           changeOrigin: false,
           ws: true,
+          configure(proxy) {
+            proxy.on('proxyRes', (upstream, _request, response) => {
+              if (
+                upstream.headers['content-type']?.split(';')[0].trim().toLowerCase() !==
+                'text/event-stream'
+              )
+                return
+              // pipe 不会转发上游异常关闭；及时结束下游，让插件可以报告失败并重连。
+              upstream.once('aborted', () => response.destroy())
+              upstream.once('error', () => response.destroy())
+              response.once('close', () => {
+                if (!upstream.complete) upstream.destroy()
+              })
+            })
+          },
         },
         [`${pluginBase}/plugin/runtime/`]: {
           target: 'http://127.0.0.1:9099',

@@ -93,11 +93,16 @@ def test_v2_templates_create_independent_projects_without_importing_or_installin
     else:
         assert plugin.manifest.backend.entrypoint == f'plugins.{PLUGIN_ID}:create_plugin'
     if bundle:
-        assert (source / 'web' / 'vendor' / 'pluginBridge.js').read_text(encoding='utf-8') == (
-            FRONTEND_ROOT / 'src' / 'utils' / 'pluginBridge.js'
-        ).read_text(encoding='utf-8')
+        for name in ('pluginBridge.js', 'pluginBridge.d.ts'):
+            assert (source / 'web' / 'vendor' / name).read_text(encoding='utf-8') == (
+                FRONTEND_ROOT / 'src' / 'utils' / name
+            ).read_text(encoding='utf-8')
         package = json.loads((source / 'web' / 'package.json').read_text(encoding='utf-8'))
         assert package['scripts']['build'] == 'vite build'
+        assert package['scripts']['dev'] == 'vite --host 127.0.0.1 --open /dev.html'
+        assert (source / 'web' / 'dev.html').is_file()
+        assert f'/apps/{PLUGIN_ID}/api/info' in (source / 'web' / 'dev.js').read_text(encoding='utf-8')
+        assert "apply: 'serve'" in (source / 'web' / 'vite.config.js').read_text(encoding='utf-8')
         assert plugin.manifest.frontend.menus[0].component == 'PluginFrame'
         assert plugin.manifest.frontend.menus[0].perms == f'{PLUGIN_ID}:view'
 

@@ -73,6 +73,16 @@
               等待选择文件或下载报表。
             </p>
           </section>
+          <section class="file-panel" aria-labelledby="stream-heading">
+            <h2 id="stream-heading">实时事件</h2>
+            <p class="description">逐条接收服务端状态。停止或断开后，可从上次收到的位置继续。</p>
+            <div class="file-actions">
+              <button id="start-stream" type="button">接收实时事件</button>
+              <button id="stop-stream" type="button" disabled>停止接收</button>
+            </div>
+            <p id="stream-status" class="result" role="status" aria-atomic="true">尚未开始接收。</p>
+            <ol id="stream-events" aria-label="最近收到的事件" class="stream-events"></ol>
+          </section>
         </div>
         <div id="details-panel" hidden>
           <h2>独立构建，统一访问</h2>

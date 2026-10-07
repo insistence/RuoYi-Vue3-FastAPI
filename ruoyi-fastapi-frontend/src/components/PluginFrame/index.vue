@@ -61,6 +61,12 @@ import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
 import request from '@/utils/request'
 import { getDisplayTimezone } from '@/utils/time'
+import { tansParams } from '@/utils/ruoyi'
+import { createPluginSseTransport } from '@/utils/pluginSse'
+import {
+  ensureTransportCryptoPolicyLoaded,
+  shouldEncryptRequest,
+} from '@/utils/transportCryptoPolicy'
 import {
   createPluginHostBridge,
   normalizePluginBase,
@@ -175,6 +181,12 @@ async function loadSession(ticket, renew = false) {
         session,
         getTarget: () => frameRef.value?.contentWindow,
         request,
+        stream: createPluginSseTransport({
+          loadPolicy: ensureTransportCryptoPolicyLoaded,
+          shouldEncryptRequest,
+          serializeParams: tansParams,
+          getTimezone: getDisplayTimezone,
+        }),
         getContext: () => ({ ...preferences(), route: currentPluginRoute() }),
         onReady: () => {
           if (ticket !== generation) return

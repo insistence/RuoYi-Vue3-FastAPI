@@ -130,6 +130,8 @@ async function setup({
   now = Date.now,
   timeoutMs = 15000,
   transferTimeoutMs = 120000,
+  stream,
+  streamTimeoutMs = 300000,
 } = {}) {
   const { hostWindow, childWindow } = windowPair()
   let target = childWindow
@@ -140,6 +142,7 @@ async function setup({
     session: validatePluginSession(sessionData, 'demo', '', now()),
     getTarget: () => target,
     request,
+    stream,
     getContext: () => ({
       theme: { mode: theme },
       language: 'zh-CN',
@@ -152,6 +155,7 @@ async function setup({
     now,
     timeoutMs,
     transferTimeoutMs,
+    streamTimeoutMs,
   })
   const child = createPluginClient({
     pluginId: 'demo',
@@ -159,6 +163,7 @@ async function setup({
     parentWindow: hostWindow,
     origin: ORIGIN,
     transferTimeoutMs,
+    streamTimeoutMs,
   })
   await child.ready
   return {
@@ -713,4 +718,213 @@ for (const filesSupported of [false, true]) {
     await assert.rejects(pending, /不支持文件传输/)
     child.destroy()
   }
+}
+
+// 实时事件按回调 Promise 确认逐条传递，查询、游标与会话信息只交给宿主适配器。
+{
+  const gate = deferred()
+  const events = []
+  let produced = 0
+  let config
+  const pair = await setup({
+    stream: async function* (value) {
+      config = value
+      for (let i = 1; i <= 3; i++) {
+        produced++
+        yield { event: 'tick', data: String(i), id: String(i) }
+      }
+    },
+  })
+  const result = pair.child.stream(
+    { path: 'events', params: { count: 3 }, lastEventId: '0' },
+    {
+      onEvent: async (event) => {
+        events.push(event)
+        if (event.id === '1') await gate.promise
+      },
+    }
+  )
+  await flush()
+  assert.equal(produced, 1)
+  assert.equal(events.length, 1)
+  assert.equal(config.url, '/apps/demo/api/events')
+  assert.deepEqual(config.params, { count: 3 })
+  assert.equal(config.lastEventId, '0')
+  assert.equal(config.csrfToken, sessionData.csrfToken)
+  assert.equal(pair.child.context.capabilities.streams.maxConcurrent, 2)
+  const streamMessage = pair.hostWindow.messages.find((message) => message.type === 'stream')
+  for (const payload of [{ sequence: 2 }, { sequence: 1, extra: true }]) {
+    pair.hostWindow.dispatch({
+      origin: ORIGIN,
+      source: pair.childWindow,
+      data: { ...streamMessage, type: 'stream-ack', payload },
+    })
+  }
+  await flush()
+  assert.equal(produced, 1, '无效确认不能提前读取下一条事件')
+  gate.resolve()
+  assert.equal(await result, undefined)
+  await flush()
+  assert.deepEqual(
+    events.map((event) => event.id),
+    ['1', '2', '3']
+  )
+  assert.equal(config.signal.aborted, true)
+  pair.destroy()
+}
+
+// 绕过 SDK 直接发送消息仍受宿主路径、字段和连接数校验。
+{
+  let opened = 0
+  const pair = await setup({
+    stream: async function* ({ signal }) {
+      opened++
+      await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }))
+    },
+  })
+  const initialize = pair.childWindow.messages.find((message) => message.type === 'initialize')
+  const sendStream = (id, payload) =>
+    pair.hostWindow.dispatch({
+      origin: ORIGIN,
+      source: pair.childWindow,
+      data: { ...initialize, type: 'stream', id, payload },
+    })
+  sendStream('malformed-stream', { path: 'events', headers: { Authorization: 'forbidden' } })
+  await flush()
+  assert.equal(opened, 0)
+  assert.equal(pair.childWindow.messages.at(-1).payload.ok, false)
+  for (const id of ['stream-one', 'stream-two', 'stream-three']) sendStream(id, { path: 'events' })
+  await flush()
+  assert.equal(opened, 2)
+  assert.match(
+    pair.childWindow.messages.find((message) => message.id === 'stream-three').payload.message,
+    /连接过多/
+  )
+  pair.destroy()
+}
+
+// 初始化尚未完成时也计入实时连接数；取消排队请求后可重新排队。
+{
+  const pair = windowPair()
+  const child = createPluginClient({
+    pluginId: 'demo',
+    eventTarget: pair.childWindow,
+    parentWindow: pair.hostWindow,
+    origin: ORIGIN,
+  })
+  const controller = new AbortController()
+  const first = child.stream({ path: 'events' }, { onEvent() {}, signal: controller.signal })
+  const second = child.stream({ path: 'events' }, { onEvent() {} })
+  const firstRejected = assert.rejects(first, /取消/)
+  const secondRejected = assert.rejects(second, /关闭/)
+  await assert.rejects(child.stream({ path: 'events' }, { onEvent() {} }), /连接过多/)
+  controller.abort()
+  await firstRejected
+  const replacement = assert.rejects(child.stream({ path: 'events' }, { onEvent() {} }), /关闭/)
+  child.destroy()
+  await Promise.all([secondRejected, replacement])
+}
+
+// 无能力协商的旧宿主不接收流请求；接口路径、任意请求头与游标注入均被拒绝。
+{
+  const pair = await setup()
+  await assert.rejects(pair.child.stream({ path: 'events' }, { onEvent() {} }), /不支持实时/)
+  for (const payload of [
+    { path: '../other' },
+    { path: 'events', headers: {} },
+    { path: 'events', method: 'POST' },
+    { path: 'events', lastEventId: 'bad\nvalue' },
+  ])
+    await assert.rejects(pair.child.stream(payload, { onEvent() {} }))
+  await assert.rejects(pair.child.stream({ path: 'events' }), /回调/)
+  pair.destroy()
+}
+
+// 第三个实时连接被拒绝，普通 JSON 请求仍可进行；取消会关闭底层迭代器。
+{
+  const controllers = [new AbortController(), new AbortController()]
+  let closed = 0
+  const pair = await setup({
+    stream: async function* ({ signal }) {
+      try {
+        yield { event: 'tick', data: 'one', id: '1' }
+        await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }))
+      } finally {
+        closed++
+      }
+    },
+  })
+  const requests = controllers.map((controller) =>
+    pair.child.stream({ path: 'events' }, { signal: controller.signal, onEvent() {} })
+  )
+  const rejected = requests.map((promise) => assert.rejects(promise, /取消/))
+  await flush()
+  await assert.rejects(pair.child.stream({ path: 'events' }, { onEvent() {} }), /实时连接过多/)
+  assert.deepEqual(await pair.child.request({ method: 'GET', path: 'ok' }), {
+    code: 200,
+    data: 'ok',
+  })
+  for (const controller of controllers) controller.abort()
+  await Promise.all(rejected)
+  await flush()
+  assert.equal(closed, 2)
+  pair.destroy()
+}
+
+// 处理失败、超时、页面重载和退出均取消旧流，迟到事件不能更新当前页面。
+for (const mode of ['callback', 'timeout', 'reload', 'logout', 'oversize']) {
+  const delivered = []
+  let signal
+  let closed = false
+  const pair = await setup({
+    streamTimeoutMs: mode === 'timeout' ? 20 : 300000,
+    stream: async function* (config) {
+      signal = config.signal
+      try {
+        yield {
+          event: 'tick',
+          id: '1',
+          data: mode === 'oversize' ? 'x'.repeat(PLUGIN_BRIDGE_MAX_BYTES) : 'one',
+        }
+        if (!signal.aborted)
+          await new Promise((resolve) => signal.addEventListener('abort', resolve, { once: true }))
+        yield { event: 'tick', id: '2', data: 'late' }
+      } finally {
+        closed = true
+      }
+    },
+  })
+  const request = pair.child.stream(
+    { path: 'events' },
+    {
+      onEvent: (event) => {
+        delivered.push(event.id)
+        if (mode === 'callback') return Promise.reject(new Error('plugin callback failed'))
+      },
+    }
+  )
+  const rejected = assert.rejects(request)
+  await flush()
+  if (mode === 'logout') pair.host.destroy({ logout: true })
+  if (mode === 'reload') {
+    pair.hostWindow.dispatch({
+      origin: ORIGIN,
+      source: pair.childWindow,
+      data: {
+        namespace: 'ruoyi.plugin',
+        version: 1,
+        pluginId: 'demo',
+        instance: '',
+        type: 'ready',
+        payload: { clientId: 'new-stream-document' },
+      },
+    })
+    pair.child.destroy()
+  }
+  await rejected
+  await flush()
+  assert.equal(signal.aborted, true)
+  assert.equal(closed, true)
+  assert.deepEqual(delivered, mode === 'oversize' ? [] : ['1'])
+  pair.destroy()
 }

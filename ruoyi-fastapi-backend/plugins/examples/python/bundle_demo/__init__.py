@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from plugins.core.sdk import PluginDefinition, PluginHostContext, PluginRequestContext, plugin_endpoint
 from utils.time_util import TimezoneUtil
 
+from .events import register_event_routes
 from .files import register_file_routes
 
 
@@ -43,6 +44,7 @@ def create_plugin(host: PluginHostContext) -> PluginDefinition:
         """
         app = FastAPI(title='独立前端示例', docs_url=None, redoc_url=None)
         register_file_routes(app)
+        register_event_routes(app)
         app.add_api_route(
             '/api/summary',
             plugin_endpoint(summary, permission='bundle_demo:view'),

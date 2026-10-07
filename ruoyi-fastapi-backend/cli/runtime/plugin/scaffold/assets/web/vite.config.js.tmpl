@@ -1,6 +1,26 @@
 export default {
   // 使用相对资源路径，使 bundle 可由宿主从插件目录交付。
   base: './',
+  plugins: [
+    {
+      name: 'local-plugin-config',
+      apply: 'serve',
+      transformIndexHtml(html, context) {
+        if (!['/', '/index.html'].includes(context.path)) return html
+        return {
+          html,
+          tags: [
+            {
+              tag: 'script',
+              attrs: { id: 'ruoyi-plugin-config', type: 'application/json' },
+              children: JSON.stringify({ pluginId: '__PLUGIN_ID__' }),
+              injectTo: 'head',
+            },
+          ],
+        }
+      },
+    },
+  ],
   // 交付目录只包含构建产物，不生成源码映射文件。
   build: { sourcemap: false },
 }

@@ -1,5 +1,5 @@
 import { createPluginHostBridge, validatePluginSession } from '@ruoyi/plugin-bridge'
-import { createMockPluginRequest } from './mockRequest.js'
+import { createMockPluginRequest, createMockPluginStream } from './mockRequest.js'
 
 const frame = document.getElementById('plugin-frame')
 let route = '/'
@@ -18,6 +18,10 @@ const bridge = createPluginHostBridge({
   ),
   getTarget: () => frame.contentWindow,
   request: createMockPluginRequest({
+    getDelay: () => document.getElementById('delay').value,
+    shouldFail: () => document.getElementById('failure').checked,
+  }),
+  stream: createMockPluginStream({
     getDelay: () => document.getElementById('delay').value,
     shouldFail: () => document.getElementById('failure').checked,
   }),

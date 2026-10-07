@@ -69,3 +69,46 @@ export function createMockPluginRequest({ getDelay = () => 300, shouldFail = () 
     throw new Error('模拟接口未实现')
   }
 }
+
+/** 创建逐条产出事件的本地适配器，复用延迟和故障开关，支持取消与游标恢复。 */
+export function createMockPluginStream({ getDelay = () => 300, shouldFail = () => false } = {}) {
+  return async function* (config) {
+    if (config.url !== '/apps/bundle_demo/api/events') throw new Error('模拟实时接口未实现')
+    const count = Number(config.params?.count ?? 10)
+    const cursorText = config.lastEventId || '0'
+    const cursor = Number(cursorText)
+    if (
+      !Number.isInteger(count) ||
+      count < 1 ||
+      count > 20 ||
+      !/^[0-9]{1,2}$/.test(cursorText) ||
+      !Number.isInteger(cursor) ||
+      cursor < 0 ||
+      cursor > count
+    )
+      throw new Error('模拟事件参数无效')
+    for (let index = cursor + 1; index <= count; index++) {
+      await new Promise((resolve, reject) => {
+        if (config.signal.aborted) return reject(new Error('已取消'))
+        const cancel = () => {
+          clearTimeout(timer)
+          reject(new Error('已取消'))
+        }
+        const timer = setTimeout(
+          () => {
+            config.signal.removeEventListener('abort', cancel)
+            resolve()
+          },
+          Math.max(100, Math.min(5000, Number(getDelay()) || 0))
+        )
+        config.signal.addEventListener('abort', cancel, { once: true })
+      })
+      if (shouldFail()) throw new Error('模拟实时接口失败')
+      yield {
+        event: 'tick',
+        id: String(index),
+        data: JSON.stringify({ index, total: count, serverTime: new Date().toISOString() }),
+      }
+    }
+  }
+}

@@ -6,6 +6,53 @@ const element = (id) => document.getElementById(id)
 let client
 let context = {}
 let transferController
+let streamController
+let lastEventId = ''
+
+/** 逐条显示事件，保留游标供用户主动恢复，并限制页面中的历史数量。 */
+async function receiveEvents() {
+  if (streamController) return
+  const controller = new AbortController()
+  streamController = controller
+  const start = element('start-stream')
+  const stop = element('stop-stream')
+  const status = element('stream-status')
+  const list = element('stream-events')
+  if (!lastEventId) list.replaceChildren()
+  start.disabled = true
+  stop.disabled = false
+  status.textContent = '正在连接实时事件…'
+  try {
+    await client.stream(
+      { path: 'events', params: { count: 10 }, lastEventId },
+      {
+        signal: controller.signal,
+        onEvent: (event) => {
+          const value = JSON.parse(event.data)
+          lastEventId = event.id
+          const item = document.createElement('li')
+          item.textContent = `事件 ${value.index} / ${value.total} · ${value.serverTime}`
+          list.append(item)
+          while (list.children.length > 5) list.firstElementChild.remove()
+          status.textContent = `已收到 ${value.index} / ${value.total} 条事件。`
+        },
+      }
+    )
+    status.textContent = '本次事件接收完成，可重新开始。'
+    lastEventId = ''
+  } catch (error) {
+    status.textContent = controller.signal.aborted
+      ? '已停止接收，可从上次位置继续。'
+      : `${error.message}，可继续接收。`
+  } finally {
+    streamController = null
+    start.textContent = lastEventId ? '继续接收' : '接收实时事件'
+    start.disabled = false
+    stop.disabled = true
+  }
+}
+element('start-stream').addEventListener('click', receiveEvents)
+element('stop-stream').addEventListener('click', () => streamController?.abort())
 
 /**
  * 传输期间禁止重复提交，完成或失败后允许重试。
@@ -152,6 +199,7 @@ async function connect() {
       if (type === 'refresh') refresh()
       if (type === 'logout') {
         transferController?.abort()
+        streamController?.abort()
         element('workspace').replaceChildren(
           Object.assign(document.createElement('p'), {
             textContent: '登录已结束，请重新登录管理平台。',

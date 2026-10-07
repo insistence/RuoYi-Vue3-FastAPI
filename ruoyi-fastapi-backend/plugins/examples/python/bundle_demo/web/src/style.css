@@ -171,6 +171,13 @@ progress {
   margin-top: 16px;
   accent-color: var(--primary);
 }
+.stream-events {
+  padding-left: 24px;
+  color: var(--muted);
+  font-size: 14px;
+  min-height: 120px;
+  overflow-wrap: anywhere;
+}
 :root[data-theme='dark'] {
   background: #141414;
   color: #e5eaf3;

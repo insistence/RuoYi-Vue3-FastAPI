@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
-import { createMockPluginRequest } from '../../../ruoyi-fastapi-backend/plugins/examples/python/bundle_demo/web/dev/mockRequest.js'
+import {
+  createMockPluginRequest,
+  createMockPluginStream,
+} from '../../../ruoyi-fastapi-backend/plugins/examples/python/bundle_demo/web/dev/mockRequest.js'
 
 const request = createMockPluginRequest({ getDelay: () => 0 })
 const config = (path, options = {}) => ({
@@ -44,3 +47,31 @@ const rejected = assert.rejects(pending, /取消/)
 controller.abort()
 await rejected
 await assert.rejects(slow(config('summary', { signal: controller.signal })), /取消/)
+
+const streamController = new AbortController()
+const stream = createMockPluginStream({ getDelay: () => 100 })
+const streamConfig = config('events', {
+  params: { count: 3 },
+  lastEventId: '1',
+  signal: streamController.signal,
+})
+const received = []
+for await (const event of stream(streamConfig)) received.push(event)
+assert.deepEqual(
+  received.map((event) => event.id),
+  ['2', '3']
+)
+assert.equal(JSON.parse(received[0].data).index, 2)
+for (const invalid of [{ params: { count: 0 } }, { lastEventId: '1.0' }, { lastEventId: '001' }]) {
+  await assert.rejects(stream({ ...streamConfig, ...invalid }).next(), /参数无效/)
+}
+const interrupted = stream(streamConfig)
+const next = interrupted.next()
+const interruptedResult = assert.rejects(next, /取消/)
+streamController.abort()
+await interruptedResult
+const failedStream = createMockPluginStream({ getDelay: () => 100, shouldFail: () => true })
+await assert.rejects(
+  failedStream({ ...streamConfig, signal: new AbortController().signal }).next(),
+  /失败/
+)
