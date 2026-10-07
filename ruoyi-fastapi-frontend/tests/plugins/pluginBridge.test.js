@@ -825,6 +825,26 @@ for (const filesSupported of [false, true]) {
   await Promise.all([secondRejected, replacement])
 }
 
+// 宿主主动关闭使用固定提示，不泄露鉴权异常，也不交付保留的控制消息。
+{
+  const pair = await setup({
+    stream: async function* () {
+      yield { id: '1', event: 'tick', data: 'first' }
+      const error = new Error('secret authentication details')
+      error.name = 'PluginStreamClosedError'
+      throw error
+    },
+  })
+  const events = []
+  await assert.rejects(
+    pair.child.stream({ path: 'events' }, { onEvent: (event) => events.push(event) }),
+    /宿主关闭/
+  )
+  assert.equal(events.length, 1)
+  assert.equal(JSON.stringify(pair.childWindow.messages).includes('secret'), false)
+  pair.destroy()
+}
+
 // 无能力协商的旧宿主不接收流请求；接口路径、任意请求头与游标注入均被拒绝。
 {
   const pair = await setup()

@@ -137,3 +137,33 @@ for (const value of [
   response = () => value
   await assert.rejects(collect(stream(config)), /响应无效/)
 }
+
+// 宿主保留的关闭事件必须转换为失败，不能交给业务或当作正常 EOF。
+response = () =>
+  new Response(
+    'id: 1\ndata: first\n\nevent: ruoyi.plugin.closed\ndata: {"code":403,"reason":"access_revoked"}\n\n',
+    {
+      headers: { 'Content-Type': 'text/event-stream' },
+    }
+  )
+const revoked = stream(config)
+assert.equal((await revoked.next()).value.data, 'first')
+await assert.rejects(revoked.next(), (error) => error.name === 'PluginStreamClosedError')
+for (const partial of [
+  'data: unfinished\n',
+  'data: unfinished\r',
+  'data: unfinished\n\nevent: custom\ndata: partial\n',
+]) {
+  response = () =>
+    new Response(partial + 'event: ruoyi.plugin.closed\ndata: {"code":403}\n\n', {
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  const values = []
+  await assert.rejects(
+    async () => {
+      for await (const event of stream(config)) values.push(event.data)
+    },
+    (error) => error.name === 'PluginStreamClosedError'
+  )
+  assert.deepEqual(values, partial.includes('\n\n') ? ['unfinished'] : [])
+}

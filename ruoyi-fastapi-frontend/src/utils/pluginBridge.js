@@ -534,9 +534,15 @@ export function createPluginHostBridge({
             send('result', { ok: true, data: safeData }, message.id)
         }
       })
-      .catch(() => {
+      .catch((error) => {
         // 只返回可展示的错误信息，避免向插件暴露请求头、调用堆栈或宿主令牌。
-        if (pending.get(message.id) === entry) resultError(message.id, '插件请求失败，请重试')
+        if (pending.get(message.id) === entry)
+          resultError(
+            message.id,
+            message.type === 'stream' && error?.name === 'PluginStreamClosedError'
+              ? '实时连接已由宿主关闭，请重试'
+              : '插件请求失败，请重试'
+          )
       })
       .finally(() => {
         clearTimeout(entry.timer)

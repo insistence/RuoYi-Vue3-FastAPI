@@ -6,6 +6,12 @@ from typing import Any
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from plugins.core.runtime.connections import (
+    CANCEL_TIMEOUT_SECONDS,
+    RECHECK_INTERVAL_SECONDS,
+    RECHECK_TIMEOUT_SECONDS,
+    PluginConnectionManager,
+)
 from plugins.core.sdk.context import PluginRequestContext
 
 
@@ -131,6 +137,10 @@ class PluginGatewayASGI:
         app: ASGIApp,
         lifespan: PluginLifespanManager,
         authorize: Callable[[Scope], Awaitable[PluginRequestContext]],
+        *,
+        recheck_interval: float = RECHECK_INTERVAL_SECONDS,
+        recheck_timeout: float = RECHECK_TIMEOUT_SECONDS,
+        cancel_timeout: float = CANCEL_TIMEOUT_SECONDS,
     ) -> None:
         """
         初始化插件请求门禁。
@@ -138,11 +148,21 @@ class PluginGatewayASGI:
         :param app: 受保护的插件 ASGI 应用
         :param lifespan: 当前插件的生命周期管理器
         :param authorize: 根据 ASGI 请求作用域构建宿主身份上下文的异步授权器
+        :param recheck_interval: 已建立长连接的身份复核间隔秒数
+        :param recheck_timeout: 每次长连接身份复核的超时秒数
+        :param cancel_timeout: 长连接任务取消的等待秒数
         :return: None
         """
         self.app = app
         self.lifespan = lifespan
         self.authorize = authorize
+        self.connections = PluginConnectionManager(
+            authorize,
+            lambda: lifespan.ready,
+            recheck_interval=recheck_interval,
+            recheck_timeout=recheck_timeout,
+            cancel_timeout=cancel_timeout,
+        )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """
@@ -155,7 +175,7 @@ class PluginGatewayASGI:
         """
         if scope['type'] not in {'http', 'websocket'}:
             raise RuntimeError('插件 lifespan 必须由宿主管理器驱动')
-        if not self.lifespan.ready:
+        if not self.lifespan.ready or self.connections.closing:
             await self._reject(scope, receive, send, 503, '插件尚未就绪')
             return
         try:
@@ -168,7 +188,15 @@ class PluginGatewayASGI:
             return
         child_scope = dict(scope)
         child_scope['state'] = {**scope.get('state', {}), **self.lifespan.state, 'plugin_context': context}
-        await self.app(child_scope, receive, send)
+        await self.connections.run(self.app, scope, child_scope, context, receive, send)
+
+    async def drain(self) -> None:
+        """
+        在释放插件资源前停止当前 worker 的 SSE 与 WebSocket。
+
+        :return: None
+        """
+        await self.connections.drain()
 
     @staticmethod
     async def _reject(scope: Scope, receive: Receive, send: Send, status: int, message: str) -> None:

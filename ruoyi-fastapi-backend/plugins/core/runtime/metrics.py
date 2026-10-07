@@ -13,6 +13,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from middlewares.trace_middleware.ctx import CTX_REQUEST_ID
 from plugins.core.runtime.configuration import PluginConfigObservation
+from plugins.core.runtime.connections import CONNECTION_OUTCOME_KEY, ConnectionClosure
 from plugins.core.sdk.request import current_plugin_request_id
 from utils.log_util import logger
 
@@ -343,6 +344,11 @@ class PluginObservedASGI:
             timed_out = isinstance(exc, (TimeoutError, asyncio.TimeoutError))
             raise
         finally:
+            closure = scope.get(CONNECTION_OUTCOME_KEY)
+            if isinstance(closure, ConnectionClosure):
+                outcome = closure.outcome
+                error_type = f'PluginConnection:{closure.reason}'
+                timed_out = closure.reason == 'authorization_timeout'
             if invocation is not None:
                 invocation.finish(outcome, error_type=error_type, timed_out=timed_out)
             CTX_REQUEST_ID.reset(token)

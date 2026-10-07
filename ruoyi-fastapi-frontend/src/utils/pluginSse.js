@@ -122,6 +122,13 @@ export function createPluginSseTransport({
       await response.body?.cancel()
       throw new Error('实时接口响应无效')
     }
-    yield* readPluginSse(response.body)
+    for await (const event of readPluginSse(response.body)) {
+      if (event.event === 'ruoyi.plugin.closed') {
+        const error = new Error('实时连接已由宿主关闭')
+        error.name = 'PluginStreamClosedError'
+        throw error
+      }
+      yield event
+    }
   }
 }

@@ -219,7 +219,9 @@ UI、静态文件、API 每次访问均经过宿主门禁并回查主登录和�
 
 同源插件属于可信代码。iframe 仅隔离布局和依赖；它不是阻止恶意插件读取同源数据的安全沙箱。现有主 token 在宿主前端可读，“桥不传 token”不等于不可信同源代码无法接触宿主凭证。
 
-SSE 同样依赖 HTTPS，不支持 JSON 加密信封；当前策略会加密事件端点时，需在既有例外列表中追加精确路径 `/apps/bundle_demo/api/events`（不含代理前缀），保留其他 API 的加密。宿主会先检查策略，拒绝未配置的流请求，不会自动降级。反向代理须关闭该接口的响应缓冲并配置超时，示例同时返回 `X-Accel-Buffering: no`。宿主退出、重载和会话失效会取消当前页面的流，但服务端不会对已经建立的连接持续重新鉴权；业务长连接需自行响应权限或插件状态变化。
+SSE 同样依赖 HTTPS，不支持 JSON 加密信封；当前策略会加密事件端点时，需在既有例外列表中追加精确路径 `/apps/bundle_demo/api/events`（不含代理前缀），保留其他 API 的加密。宿主会先检查策略，拒绝未配置的流请求，不会自动降级。反向代理须关闭该接口的响应缓冲并配置超时，示例同时返回 `X-Accel-Buffering: no`。宿主退出、重载和会话失效会取消当前页面的流。
+
+ASGI 网关对已建立的 SSE/WebSocket 按 15 秒间隔复核登录、插件启用状态和权限，单次复核设置 5 秒超时，不续期主登录。权限减配、会话失效、查询失败或超时会关闭连接。SSE 的保留事件 `ruoyi.plugin.closed` 由宿主适配器拦截，页面显示“实时连接已由宿主关闭”，不会误报正常完成；已处理游标仍保留，重新连接须通过当前身份和权限检查。业务不要使用该保留事件名。更新后端时应同步更新宿主前端；旧适配器不能识别关闭通知。示例默认 10 条事件约 5 秒即完成，通常不会触发周期复核；长时间运行的业务应按[生命周期说明](../../../../docs/plugin_development.md#67-asgi-子应用与生命周期)处理取消与资源释放。
 
 ## 代理前缀与验证
 
@@ -230,8 +232,8 @@ SSE 同样依赖 HTTPS，不支持 JSON 加密信封；当前策略会加密事�
 从后端目录可执行定向验证：
 
 ```bash
-python -m pytest tests/plugins/core/runtime/test_bundle.py tests/plugins/core/runtime/test_browser_session.py tests/plugins/core/runtime/test_bundle_transport.py tests/plugins/core/runtime/test_bundle_files.py tests/plugins/core/runtime/test_bundle_events.py tests/plugins/core/runtime/test_configuration.py tests/module_admin/service/test_login_plugin_routes.py -q
+python -m pytest tests/plugins/core/runtime/test_bundle.py tests/plugins/core/runtime/test_browser_session.py tests/plugins/core/runtime/test_bundle_transport.py tests/plugins/core/runtime/test_bundle_files.py tests/plugins/core/runtime/test_bundle_events.py tests/plugins/core/runtime/test_connections.py tests/plugins/core/runtime/test_connection_sessions.py tests/plugins/core/runtime/test_configuration.py tests/module_admin/service/test_login_plugin_routes.py -q
 npm --prefix ../ruoyi-fastapi-frontend run test:plugin
 ```
 
-测试覆盖静态边界、Cookie/CSRF/退出、真实 RSA/AES 协议、文件大小和 `root_path`；浏览器会话测试替换真实账号查询，配置读取测试使用隔离 SQLite 验证保存、解密及重启版本。实际角色配置、TLS/Nginx、多 worker、既有 WebSocket 或长连接排空仍需部署验收，当前不提供这些连接的自动关闭协议。
+测试覆盖静态边界、Cookie/CSRF/退出、真实 RSA/AES 协议、文件大小、`root_path`、流连接复核及运行时关闭顺序；浏览器会话测试替换真实账号查询，配置读取测试使用隔离 SQLite 验证保存、解密及重启版本。实际角色配置、TLS/Nginx、多 worker 和 ASGI 服务器的优雅停机阶段仍需部署验收。网关的周期关闭与协作式取消不能强制终止忽略取消的 Python 代码，也不提供跨 worker 的即时撤销广播。

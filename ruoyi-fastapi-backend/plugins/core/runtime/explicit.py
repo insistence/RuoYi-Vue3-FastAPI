@@ -17,6 +17,7 @@ from plugins.core.runtime.asgi import PluginGatewayASGI, PluginLifespanManager
 from plugins.core.runtime.browser_session import authenticate_browser_session
 from plugins.core.runtime.bundle import PluginBundleASGI
 from plugins.core.runtime.configuration import PluginConfigObservation, PluginConfigReader, config_revision
+from plugins.core.runtime.connections import AUTH_RECHECK_KEY
 from plugins.core.runtime.entrypoint import PluginEntrypointLoader
 from plugins.core.runtime.health import PluginHealthChecker
 from plugins.core.runtime.host_services import build_host_services
@@ -42,6 +43,7 @@ class LoadedExplicitPlugin:
     :param lifespan: ASGI 子应用生命周期管理器
     :param active: 插件是否已完成激活
     :param jobs: 当前 worker 中的插件任务绑定
+    :param gateway: 当前 worker 的 ASGI 长连接管理入口
     """
 
     plugin: RegisteredPlugin
@@ -50,6 +52,7 @@ class LoadedExplicitPlugin:
     lifespan: PluginLifespanManager | None = None
     active: bool = False
     jobs: PluginJobBinding | None = None
+    gateway: PluginGatewayASGI | None = None
 
 
 class ExplicitPluginRuntime:
@@ -294,6 +297,7 @@ class ExplicitPluginRuntime:
                 gateway = PluginGatewayASGI(web_app, manager, self._authorizer(loaded, app))
                 observed = PluginObservedASGI(gateway, self.metrics, plugin_id)
                 app.router.routes.append(Mount(mount_path, app=observed, name=f'plugin:{plugin_id}'))
+                loaded.gateway = gateway
             except BaseException:
                 await manager.shutdown()
                 raise
@@ -375,6 +379,8 @@ class ExplicitPluginRuntime:
             """
             auth_scope = dict(scope, type='http', app=app)
             request = Request(auth_scope)
+            if not loaded.active:
+                raise PermissionError('插件未激活或正在关闭')
             authorization = request.headers.get('authorization', '')
             scheme, _, token = authorization.partition(' ')
             async with DataSourceRegistry.session() as db:
@@ -384,7 +390,12 @@ class ExplicitPluginRuntime:
                     if scheme.lower() != 'bearer' or not token.strip():
                         raise LookupError('Bearer 凭证无效')
                     try:
-                        user = await LoginService.get_current_user(request=request, token=token.strip(), query_db=db)
+                        resolve_user = (
+                            LoginService.get_current_user_for_plugin_session
+                            if scope.get(AUTH_RECHECK_KEY)
+                            else LoginService.get_current_user
+                        )
+                        user = await resolve_user(request=request, token=token.strip(), query_db=db)
                     except AuthException as exc:
                         raise LookupError('登录已失效') from exc
                 elif loaded.plugin.discovered_plugin.manifest.frontend.delivery.type == 'bundle':
@@ -430,6 +441,11 @@ class ExplicitPluginRuntime:
             if loaded.jobs is not None:
                 await unbind_plugin_jobs(loaded.jobs)
                 loaded.jobs = None
+            if loaded.gateway is not None:
+                try:
+                    await loaded.gateway.drain()
+                except Exception:
+                    logger.exception(f'插件长连接关闭失败：{loaded.plugin.plugin_id}')
             if loaded.lifespan is not None:
                 try:
                     await loaded.lifespan.shutdown()

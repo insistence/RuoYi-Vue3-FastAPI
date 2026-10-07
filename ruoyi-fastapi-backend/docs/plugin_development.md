@@ -877,7 +877,15 @@ async with context.transaction() as transaction_context:
 
 应用按依赖顺序启动、逆序关闭。插件只释放自己创建的资源；启动中途失败也应清理已建立的资源，shutdown 应可重复调用。使用 `@asynccontextmanager` 时，返回类型写为 `AsyncGenerator[状态类型, None]`；也可复用 `plugin_lifespan`，其 shutdown 在 startup 失败后同样会调用。
 
-新启用或更新代码需要重启。停用检查会拒绝后续新请求，但不会自动终止已建立的 WebSocket 或正在处理的请求；正式升级应停止全部宿主 worker 并按第 15 节完成维护发布。
+ASGI 网关在响应声明 `text/event-stream` 或 WebSocket 接受握手后，开始周期复核。首次及每次复核之间等待 15 秒，单次鉴权设置 5 秒超时；每次使用独立数据库会话，复核结束即关闭，不因长连接长期占用会话。复核检查主登录、插件 Cookie（使用 Cookie 时）、插件启用状态、当前 worker 就绪状态和用户权限；复核请求不会续期主登录。
+
+主登录失效、插件停用、身份变化或原权限集合中的任一权限被移除时，关闭连接。采用保守的权限减配策略，即使被移除的权限与当前接口无关，也需要重新连接；权限增加不修改已有 `plugin_context` 的快照。接口和数据权限仍由插件自身校验。复核查询出错或超时也会关闭连接，不能在无法确认权限时持续发送数据。撤销是周期检测，并非即时广播；已发出的数据无法撤回。
+
+SSE 使用保留事件 `ruoyi.plugin.closed` 通知关闭，随后结束响应。完整关闭事件的 `data` 提供 `code` 和 `reason`，固定原因包括 `session_expired`、`access_revoked`、`authorization_unavailable`、`authorization_timeout` 和 `plugin_shutdown`，不返回底层异常详情。业务不能使用这一事件名；自写 SSE 客户端必须先按事件名识别并结束处理，不能把该 EOF 当作业务成功。如果关闭时业务事件尚未发送完整，宿主会覆盖其事件类型，`data` 可能含有未完成的业务内容，因此不能依赖 JSON 解析成功后才识别关闭。宿主浏览器适配器会拦截该事件并拒绝 `stream()`，不会交给插件的 `onEvent`。更新后端时需同步更新宿主前端，旧适配器不能识别这一关闭语义。WebSocket 的身份或权限失效使用关闭码 `1008`，复核不可用或超时使用 `1011`，运行时关闭使用 `1012`。
+
+显式运行时进入 shutdown 后先拒绝新连接、并发取消当前插件的流，再释放其 lifespan 资源。业务任务的取消等待和关闭消息的发送超时均为 5 秒；发送超时后会取消发送任务并限时回收。忽略取消的任务会记录告警并隔离后续输出，Python 无法强制终止任意业务代码。插件应在 `finally` 中清理资源，不能吞掉取消后继续运行。这一机制覆盖 v2 **ASGI** 的 SSE/WebSocket；普通 HTTP、任意字节流、v2 Router 和 v1 路由不增加周期复核。ASGI 服务器可能先等待在途请求、再进入 lifespan shutdown，部署时仍须配置有限的优雅停机等待时间；网关不接管该服务器阶段。
+
+新启用或更新代码仍需要重启。修改发布目标或撤销签名密钥不会热卸载已加载模块，也不会触发即时的跨 worker 关闭；正式升级仍须停止全部宿主 worker，并按第 15 节完成维护发布。
 
 ### 6.8 Rust 原生插件
 
@@ -919,7 +927,7 @@ v2 ASGI 插件可声明 `frontend.delivery.type: bundle` 和 `frontend.bundle.di
 
 后端通过 `sys_plugin_menu.menu_id` 的可信归属输出路由 `meta.pluginId`，不接受菜单 query、URL 或插件名称代替该标识。`PluginFrame` 先以宿主 Bearer 调用 `POST /plugin/runtime/<id>/session`，取得服务端校验的固定入口和短期插件会话，然后打开 `/apps/<id>/ui/`。不要手写任意 iframe 地址，也不要把主 token 放入 URL 或传给插件。
 
-插件浏览器 Cookie 使用 `HttpOnly`、`SameSite=Strict`，HTTPS 下为 `Secure`，路径限定为 `<root_path>/apps/<id>/`。会话最多 300 秒并受主登录有效期限制，同一主会话的多标签续期复用 Cookie 与 CSRF。每次 API、页面和资源访问都会检查主会话、插件状态和权限；退出、主登录替换、插件禁用或版本变化会使后续访问失效。写请求还要求同源 Origin 与 CSRF。插件 Cookie 不能用于其他宿主 API。已经建立的长连接不会因此自动排空。
+插件浏览器 Cookie 使用 `HttpOnly`、`SameSite=Strict`，HTTPS 下为 `Secure`，路径限定为 `<root_path>/apps/<id>/`。会话最多 300 秒并受主登录有效期限制，同一主会话的多标签续期复用 Cookie 与 CSRF。每次 API、页面和资源访问都会检查主会话、插件状态和权限；退出、主登录替换、插件禁用或版本变化会使后续访问失效。写请求还要求同源 Origin 与 CSRF。插件 Cookie 不能用于其他宿主 API。已建立的 ASGI SSE/WebSocket 按[生命周期说明](#67-asgi-子应用与生命周期)周期复核并关闭失效连接，不承诺即时撤销。
 
 浏览器 SDK 位于前端 `src/utils/pluginBridge.js`，配套类型位于 `pluginBridge.d.ts`，无 Vue/Axios 依赖。示例通过构建别名引入；独立插件仓库可将这两个文件作为版本化依赖复制到自己的源码中。SDK 提供 `ready`、`request`、`upload`、`download`、`stream`、`navigate`、`subscribe` 和 `destroy`，具体用法见 [bundle_demo README](../plugins/examples/python/bundle_demo/README.md)。请求只允许当前插件 API 下的相对 `path`；JSON 与文件由主页面使用原有请求客户端代理，SSE 使用宿主专用 fetch 适配器；两者自动附加插件 CSRF，不发送主 Bearer。主 token、插件 Cookie 和 CSRF 值不进入桥消息。
 
@@ -1000,7 +1008,7 @@ receive().catch(showStreamError) // 由插件实现错误提示和重新连接�
 
 宿主增量解析 UTF-8、跨分片换行、多行 data 和 id；只分发以空行结尾的完整事件。每次等待 `onEvent` 返回的 Promise 完成后才继续交付，回调超过 15 秒或失败会取消连接。`stream()` 在正常 EOF 后完成，取消、超时或网络错误时拒绝；不自动重连，也不使用服务端的 `retry` 字段。重试间隔、持久化游标、事件去重及断线补发由插件与服务端共同实现，不能据此承诺不丢失或只处理一次。`lastEventId` 仅接受最多 1024 个可打印 ASCII 字符，通过 `Last-Event-ID` 请求头发送；业务服务应选择符合这一约束的游标。取消、重载、退出和 `destroy()` 会终止宿主连接，丢弃迟到事件；已开始的业务回调仍需自行处理取消。
 
-事件接口必须返回 `text/event-stream`，禁止跨源地址和重定向。SSE 不使用 JSON 加密信封，依赖 HTTPS；若当前传输策略会加密该端点，需将**精确事件路径**（如 `/apps/bundle_demo/api/events`，不含部署前缀）追加到既有 `TRANSPORT_CRYPTO_EXCLUDE_PATHS`，宿主不会自动绕过策略。建立请求时仍校验插件 Cookie、主登录和接口权限；宿主会附加 CSRF 头，后端沿用只读 GET 的门禁规则，强制 Origin/CSRF 校验针对写请求。已建立连接不会因后端权限、插件状态变化而自动重新鉴权或排空，业务长连接需自行处理。反向代理应关闭该事件接口的响应缓冲，并配置相应超时；示例返回 `X-Accel-Buffering: no`。
+事件接口必须返回 `text/event-stream`，禁止跨源地址和重定向。SSE 不使用 JSON 加密信封，依赖 HTTPS；若当前传输策略会加密该端点，需将**精确事件路径**（如 `/apps/bundle_demo/api/events`，不含部署前缀）追加到既有 `TRANSPORT_CRYPTO_EXCLUDE_PATHS`，宿主不会自动绕过策略。建立请求时仍校验插件 Cookie、主登录和接口权限；宿主会附加 CSRF 头，后端沿用只读 GET 的门禁规则，强制 Origin/CSRF 校验针对写请求。ASGI 网关会周期复核已建立连接；收到宿主关闭通知时 `stream()` 拒绝，业务应保留已处理游标并按新的登录及权限状态决定是否重试。反向代理应关闭该事件接口的响应缓冲，并配置相应超时；示例返回 `X-Accel-Buffering: no`。
 
 本地开发可运行 `npm --prefix plugins/examples/python/bundle_demo/web run dev`（从后端目录）。`/dev.html` 使用真实桥协议和内存模拟请求，支持文件与逐条事件，可切换主题、延迟、故障、重载及退出；不连接实际账号、数据库或 Redis。模拟宿主和开发配置注入只用于 Vite 开发服务，默认生产构建只有插件 `index.html`，不含模拟宿主。它便于开发交互，实际会话、权限与代理仍应在宿主集成环境验证。
 
@@ -1186,6 +1194,8 @@ ruoyi plugin docs demo --env=dev --output-file=demo.md
 管理端“插件详情 → 运行观测”可手动刷新。只读接口 `GET /system/plugin/runtime/metrics?pluginId=<id>` 要求宿主登录和 `system:plugin:query`。支持显式 Router、ASGI 的 HTTP/WebSocket 以及宿主分发的 v2 定时任务；v1 扫描路由不纳入本指标。
 
 指标按实际加载的插件、版本、digest、generation 和操作（`http/websocket/job:<id>`）分组，记录调用、在途、成功、拒绝、失败、取消、超时、失败率、平均耗时、最大耗时和近似 P95。失败率为失败次数除以已完成次数（成功、拒绝、失败、取消之和），超时计入失败；P95 是固定直方图区间的上界估计，不是精确分位数。HTTP 耗时覆盖完整响应，WebSocket 耗时覆盖连接生命周期；ASGI 组也包含静态资源和门禁拒绝，因此不能直接理解为某个业务接口的延迟。
+
+ASGI 长连接因登录或权限撤销而关闭时计入“拒绝”，复核不可用计入“失败”，复核超时同时计入“超时”，客户端断开或运行时关闭计入“取消”。SSE 即使已经发送 HTTP 200，也按实际关闭原因分类，错误类型显示 `PluginConnection:<reason>`，不记录用户凭证或异常详情。
 
 每个 worker 从启动开始累计，重启归零，不提供持久历史。每 15 秒向 Redis 发布一次快照，60 秒过期，正常退出仅删除自身快照。接口返回 `scope=reporting_workers` 表示本次有效采样中的进程，并不保证包含全部预期 worker；Redis 不可用时明确返回 `scope=current_worker`。首次启动的远程进程可能需等待一个采样周期才出现。当前进程使用即时快照，远程进程使用最近一次快照。
 
@@ -1399,7 +1409,7 @@ ruoyi plugin release rollback rust_demo --expected-generation GENERATION --schem
 
 命令会重新验签并静态检查上一制品，重建其菜单、配置和任务声明；不执行旧版 migration、seed 或 Hook，不倒退 `installedVersion`。`--schema-compatible` 是运维人员的兼容性确认，不是自动推导出的数据库降级方案。随后启动全部 worker 并检查 `release status`。若旧代码不能使用当前数据结构，应制定数据库恢复方案，不能用代码回滚命令替代。
 
-当前没有自动停止进程、热卸载或存量连接排空。修改 enabled、选择目标或撤销签名密钥均不能卸载进程中已加载的 Python/Rust 模块；处理仍需维护窗口和进程退出。制品清理与签名轮换使用下面的独立维护命令。
+当前没有自动停止进程或热卸载。ASGI SSE/WebSocket 支持周期权限复核及当前 worker 的运行时关闭回收，但这不代替维护窗口和全部进程退出。修改 enabled、选择目标或撤销签名密钥均不能卸载进程中已加载的 Python/Rust 模块，发布目标和签名状态也不属于连接的周期复核内容。制品清理与签名轮换使用下面的独立维护命令。
 
 制品 digest 是规范化 `artifacts.json` 的 SHA256，覆盖每个有效载荷文件的路径、大小和摘要，不包含签名或 keyId。普通重复导入仍不覆盖原对象。需要保持同一内容轮换密钥时：先把新公钥加入外部信任文件并授权该插件；用新私钥对原构建目录重新打包；停止全部 worker，读取当前 `artifact list` 的 keyId，再执行：
 
