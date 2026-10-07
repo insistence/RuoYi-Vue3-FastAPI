@@ -26,5 +26,12 @@ permissions:
   - code: bundle_demo:view
     name: 访问独立前端示例
 compatibility:
-  hostApiVersion: ^1.2.0
+  hostApiVersion: ^1.4.0
   pythonVersion: '>=3.10'
+config:
+  items:
+    - key: greeting
+      label: 页面欢迎语
+      type: string
+      default: 欢迎使用独立前端插件
+      description: 示例查询接口每次主动读取此项，保存后刷新页面即可查看新文案。

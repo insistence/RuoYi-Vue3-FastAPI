@@ -182,6 +182,11 @@ class PluginMetricsReporter:
                 'workerId': snapshot.worker_id,
                 'collectedAt': snapshot.collected_at,
                 'droppedSeries': snapshot.dropped_series,
+                'configurations': [
+                    config.model_dump(by_alias=True)
+                    for config in snapshot.configurations
+                    if plugin_id is None or config.plugin_id == plugin_id
+                ],
                 'series': [
                     series.to_payload()
                     for series in snapshot.series
@@ -190,7 +195,7 @@ class PluginMetricsReporter:
             }
             for snapshot in sorted(snapshots, key=lambda item: item.worker_id)
         ]
-        workers = [worker for worker in workers if worker['series']]
+        workers = [worker for worker in workers if worker['series'] or worker['configurations']]
         return {
             'ok': True,
             'supported': True,

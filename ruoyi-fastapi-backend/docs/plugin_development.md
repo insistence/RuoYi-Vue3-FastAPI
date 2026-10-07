@@ -442,7 +442,7 @@ dependencies:
 | 字段 | 类型 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `backendVersion` | `string \| null` | `null` | 后端版本约束。 |
-| `hostApiVersion` | `string` | `^1.0.0` | 仅 v2：宿主插件 SDK 版本约束，独立于应用版本；当前 Host API 为 `1.3.0`。bundle 至少使用 `^1.2.0`；请求 DTO、显式事务、字典及缓存服务使用 `^1.3.0`。 |
+| `hostApiVersion` | `string` | `^1.0.0` | 仅 v2：宿主插件 SDK 版本约束，独立于应用版本；当前 Host API 为 `1.4.0`。bundle 至少使用 `^1.2.0`；请求 DTO、显式事务、字典及缓存服务使用 `^1.3.0`；按需配置读取使用 `^1.4.0`。 |
 | `frontendVersion` | `string \| null` | `null` | 前端版本约束。 |
 | `pythonVersion` | `string \| null` | `null` | Python 版本约束。 |
 | `nodeVersion` | `string \| null` | `null` | Node.js 版本约束。 |
@@ -737,7 +737,7 @@ v2 调度记录保存宿主分发函数及插件 ID、任务 ID、版本，不�
 
 ### 6.6 v2 显式入口与宿主 SDK
 
-清单中的 `create_plugin(host)` 必须同步、快速地返回 `PluginDefinition`；它只声明能力，不打开连接、启动线程或创建后台任务。当前 `PluginDefinition.api_version` 为 `1`，与清单版本 `2`、Host API 版本 `1.3.0` 是三个不同的版本号。
+清单中的 `create_plugin(host)` 必须同步、快速地返回 `PluginDefinition`；它只声明能力，不打开连接、启动线程或创建后台任务。当前 `PluginDefinition.api_version` 为 `1`，与清单版本 `2`、Host API 版本 `1.4.0` 是三个不同的版本号。
 
 | 定义字段 | 使用方式 |
 | --- | --- |
@@ -791,7 +791,7 @@ Router 模式将清单的 `integration` 改为 `router`，移除 `backend.asgi`�
 
 | 对象 | 当前提供的能力 | 使用边界 |
 | --- | --- | --- |
-| `PluginHostContext` | `plugin_id`、`resource_root`、只读 `config`、`services`、`session_factory`、`redis`、`logger`、`startup_write_enabled`、`api_version` | 配置为加载时快照，修改后重启读取；不保存请求身份或请求数据库会话 |
+| `PluginHostContext` | `plugin_id`、`resource_root`、只读 `config`、`config_revision`、`services`、`session_factory`、`redis`、`logger`、`startup_write_enabled`、`api_version` | `config` 为启动快照；`await read_config()` 主动读取最新配置，不自动应用到业务资源；不保存请求身份或请求数据库会话 |
 | `PluginRequestContext` | `host`、当前 `user`、`permissions`、`require_permission()`、`request_id`、`transaction()`；适配器提供 `request` | `query_db` 只在显式事务块内有效；数据权限仍由具体服务处理 |
 | `PluginTaskContext` | `host`、`job_id`、本次执行的 `request_id` | 后台任务身份，不隐式获得用户或管理员权限 |
 
@@ -921,9 +921,9 @@ v2 ASGI 插件可声明 `frontend.delivery.type: bundle` 和 `frontend.bundle.di
 
 插件浏览器 Cookie 使用 `HttpOnly`、`SameSite=Strict`，HTTPS 下为 `Secure`，路径限定为 `<root_path>/apps/<id>/`。会话最多 300 秒并受主登录有效期限制，同一主会话的多标签续期复用 Cookie 与 CSRF。每次 API、页面和资源访问都会检查主会话、插件状态和权限；退出、主登录替换、插件禁用或版本变化会使后续访问失效。写请求还要求同源 Origin 与 CSRF。插件 Cookie 不能用于其他宿主 API。已经建立的长连接不会因此自动排空。
 
-浏览器 SDK 位于前端 `src/utils/pluginBridge.js`，无 Vue/Axios 依赖。示例通过构建别名引入；独立插件仓库可把这一模块作为版本化依赖复制到自己的源码中。SDK 提供 `ready`、`request`、`navigate`、`subscribe` 和 `destroy`，具体用法见 [bundle_demo README](../plugins/examples/python/bundle_demo/README.md)。请求只允许当前插件 API 下的相对 `path`、JSON `params/data`；主页面使用原有加密请求客户端代理，自动附加插件 CSRF，并禁用主 Bearer。主 token、插件 Cookie 和 CSRF 值不进入桥消息。
+浏览器 SDK 位于前端 `src/utils/pluginBridge.js`，配套类型位于 `pluginBridge.d.ts`，无 Vue/Axios 依赖。示例通过构建别名引入；独立插件仓库可将这两个文件作为版本化依赖复制到自己的源码中。SDK 提供 `ready`、`request`、`upload`、`download`、`navigate`、`subscribe` 和 `destroy`，具体用法见 [bundle_demo README](../plugins/examples/python/bundle_demo/README.md)。请求只允许当前插件 API 下的相对 `path`；主页面使用原有请求客户端代理，自动附加插件 CSRF，并禁用主 Bearer。主 token、插件 Cookie 和 CSRF 值不进入桥消息。
 
-当前 JSON 桥每条消息最多 64 KiB、最多 8 个待处理请求、默认 15 秒超时，支持取消；不支持上传、二进制下载、streaming、SSE 或 WebSocket 代理。它不能替代后端具体 API 的 `require_permission`/`plugin_endpoint` 权限检查。
+JSON 请求、响应和文件元数据每条最多 64 KiB，所有请求合计最多 8 个待处理任务；JSON 默认 15 秒超时，文件传输默认 120 秒。`upload/download` 的文件内容使用 Blob 结构化克隆，单次最多 10 MiB，支持进度和取消。协议仍为 bridge v1，通过握手 `capabilities.files.version=1` 协商文件能力；旧宿主明确返回不支持，旧 JSON 客户端仍可工作。当前不代理 streaming、SSE 或 WebSocket。通信桥不能替代后端具体 API 的 `require_permission`/`plugin_endpoint` 权限检查。
 
 UI GET/HEAD 使用普通 HTTPS，仍经过插件身份门禁；`/apps/<id>/api/...` 与会话签发接口保留宿主传输加密，不能整体加入加密排除列表。加密 AAD 保留 `/apps/<id>/api/...` 完整插件命名空间，只按宿主规则剥离部署前缀；加密的会话响应仍保留 `Set-Cookie`。
 
@@ -957,6 +957,30 @@ window.addEventListener('pagehide', () => {
 ```
 
 `request` 的 `path` 相对本插件 `apiBase`，例如 `info`、`reports/month`；不允许完整 URL、前导 `/`、`..` 或自行拼接查询串。查询参数放在 `params`，JSON 请求体放在 `data`，`GET/HEAD` 不带请求体。可在第二个参数传入 `{ signal: controller.signal }` 取消请求，不能传入任意请求头或 Axios 配置。
+
+```javascript
+const controller = new AbortController()
+const options = {
+  signal: controller.signal,
+  onProgress: ({ phase, loaded, total }) => {
+    // total 为 null 时显示已传输字节或不确定进度；进度 100% 不代表服务端处理完成。
+    console.log(phase, loaded, total)
+  },
+}
+const inspected = await client.upload({
+  path: 'files/inspect', file: selectedFile,
+  // method 默认 POST，也支持 PUT/PATCH；file 为浏览器 File 或 Blob。
+  fieldName: 'file', filename: selectedFile.name, fields: { category: 'report' },
+}, options)
+const report = await client.download({ path: 'files/report', params: { month: '2026-10' } }, options)
+// report 是 Blob，由插件决定保存名称和时机；使用 URL.createObjectURL 后必须释放 URL。
+```
+
+`upload` 由宿主重建 multipart 表单，`fields` 仅接受字符串字段，返回 JSON；不能直接向 `request` 传入 `FormData`。`download` 默认 GET，也可使用允许的其他方法和 JSON `data`，只返回 Blob，不暴露响应头或宿主请求对象。下载时收到小于等于 64 KiB 且包含非 200 数字 `code` 的 JSON 错误响应会被拒绝；普通 JSON 文件仍可下载。进度按字节报告，上传进度可能包含 multipart 开销；返回的 Promise 成功才表示响应处理完成。取消、超时、重载和退出后，迟到的进度与结果不会交付给旧页面。
+
+文件传输沿用宿主已有的二进制请求策略，不使用 JSON 加密信封；HTTPS、插件 Cookie、Origin、CSRF 和接口权限校验仍然执行。部署处于传输加密 `required` 模式时，须将**具体文件接口**加入 `TRANSPORT_CRYPTO_EXCLUDE_PATHS`，如 `/apps/bundle_demo/api/files/inspect,/apps/bundle_demo/api/files/report`，追加到已有列表并保留原有配置。路径按后端规则不带代理前缀。未配置时请求会被拒绝，不自动旁路；不要排除整个 `/apps` 或插件 API 命名空间。服务端与反向代理也应限制上传大小；示例后端会独立检查文件 10 MiB 和表单附加 64 KiB 的实际字节上限。
+
+本地开发可运行 `npm --prefix plugins/examples/python/bundle_demo/web run dev`（从后端目录）。`/dev.html` 使用真实桥协议和内存模拟请求，可切换主题、延迟、故障、重载及退出；不连接实际账号、数据库或 Redis。模拟宿主和开发配置注入只用于 Vite 开发服务，默认生产构建只有插件 `index.html`，不含模拟宿主。它便于开发交互，实际会话、权限与代理仍应在宿主集成环境验证。
 
 `client.navigate('/details')` 同步插件内部路由，宿主保存在 `pluginRoute` 查询参数中；插件通过 `route` 事件更新自己的页面。使用 Vite 时采用相对资源基址，如 `base: './'`，前端路由基址使用注入的 `uiBase`。
 
@@ -1010,6 +1034,25 @@ ruoyi plugin config demo import --env=dev --input-file=demo-config.json --yes
 配置值会按类型进行序列化和反序列化：`boolean` 返回布尔值，`number` 返回数字，`json` 返回对象或数组。更新配置时，未在 `plugin.yaml` 中声明的配置键会被拒绝。
 
 内置管理页会根据 `type` 渲染基础控件，支持必填校验、下拉选项、敏感输入和配置说明；更复杂的分组、排序或提示布局可以在插件自定义页面中消费配置元数据后自行实现。
+
+### 8.1 启动快照、按需读取与生效状态
+
+v2 的 `host.config` 在加载时读取，`host.config_revision` 标识该启动快照。保存配置不会热替换此对象，也不会自动重建连接池、任务或子应用。需要变更这些启动资源时，应保存配置后按部署流程重启所有相关 worker。
+
+Host API `^1.4.0` 提供 `await host.read_config()`，返回 `PluginConfigSnapshot(values, revision)`。每次调用创建独立数据库会话，按**当前进程已加载清单**读取本插件已提交配置并合并默认值，敏感项在插件服务端解密；不接受其他插件 ID，不复用请求事务，不改变 `host.config`。请求、任务或健康检查均可主动调用。数据库故障会抛出异常，不以旧值冒充最新配置；业务代码负责缓存策略和应用失败的处理。一次操作应复用同一个快照，避免中途重复读取导致设置不一致。
+
+```python
+async def summary(context: PluginRequestContext) -> dict[str, str]:
+    snapshot = await context.host.read_config()
+    # 只选取明确可公开的字段，不向浏览器返回整个 values。
+    return {'greeting': str(snapshot.values.get('greeting', '欢迎使用'))}
+```
+
+`bundle_demo` 的欢迎语按上例每次请求读取，因此保存后点击“刷新状态”即可看到新文案。对于需要异步重建资源的配置，插件应先完成资源校验和替换，再更新自己的业务状态；SDK 的最近读取版本仅证明读取完成，不能证明这些操作成功。
+
+管理页配置弹窗在保存后保留打开，并刷新 `GET /system/plugin/<id>/config/status`。该只读接口要求登录和 `system:plugin:query`，返回保存版本 `desiredRevision`、各进程 `startupRevision`、最近 `lastReadRevision/lastReadAt`，不返回配置值。版本使用绑定插件 ID 的 HMAC，不能按顺序比较；相同有效配置的版本稳定，敏感值变化也会改变版本，宿主 JWT 密钥变化会使版本改变。
+
+`state=restart_required` 表示至少一个已观测活跃进程的启动快照不同；`observed_match` 仅表示已观测到匹配进程且未观测到活跃差异；`unobserved` 表示尚不能确认，包括未启动、v1 或旧宿主。`unknownWorkers` 表示已上报运行指标却未上报配置版本的进程数量。最近按需读取版本不会把旧启动快照标记为已生效。远程数据复用运行观测的 15 秒采样、60 秒 TTL 和读取上限；始终结合 `scope`、缺失/过期/无效计数判断范围，不能把局部匹配当作整个集群一致。
 
 ## 9. 依赖管理
 
@@ -1311,6 +1354,7 @@ ruoyi plugin release select rust_demo DIGEST --expected-generation GENERATION --
 | `GET /system/plugin/release/status` | 可选 `pluginId`，查询目标及各 worker 的实际报告 |
 | `GET /system/plugin/release/plan` | 必填 `pluginId`、`digest`，读取静态发布预检计划 |
 | `GET /system/plugin/runtime/metrics` | 可选 `pluginId`，按实际运行版本读取请求、连接和任务累计指标 |
+| `GET /system/plugin/<id>/config/status` | 比较保存配置与已观测进程的启动快照，显示按需读取版本，不返回敏感值 |
 
 当前宿主未启用制品发布监控时，管理页显示状态不可确认。worker 心跳只报告已加载的目标快照，不会自动选择新目标；选择目标成功也不代表运行中的进程已更新。
 

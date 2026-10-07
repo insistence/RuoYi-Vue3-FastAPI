@@ -4,11 +4,73 @@ import {
   createPluginHostBridge,
   normalizePluginBase,
   PLUGIN_BRIDGE_MAX_BYTES,
+  PLUGIN_BRIDGE_MAX_FILE_BYTES,
   validatePluginApiPath,
   validatePluginRoute,
   validatePluginSession,
 } from '../../src/utils/pluginBridge.js'
 import { normalizeTransportPath } from '../../src/utils/transportPath.js'
+
+// 文件通过真实结构化克隆进入宿主，表单由宿主重建且仍使用受限会话。
+async function checkFileTransfers() {
+  const requests = []
+  const events = []
+  const pair = await setup({
+    request: async (config) => {
+      requests.push(config)
+      if (config.responseType === 'blob') {
+        config.onDownloadProgress({ loaded: 6, total: 6 })
+        return new Blob(['报告'], { type: 'text/plain' })
+      }
+      assert.equal(config.data.get('category'), 'test')
+      const file = config.data.get('attachment')
+      assert.equal(file.name, '报告.txt')
+      assert.equal(await file.text(), '报告')
+      config.onUploadProgress({ loaded: 3, total: 6 })
+      config.onUploadProgress({ loaded: 6, total: 6 })
+      return { received: file.size }
+    },
+  })
+  try {
+    const result = await pair.child.upload(
+      {
+        path: 'files/upload',
+        file: new Blob(['报告']),
+        filename: '报告.txt',
+        fieldName: 'attachment',
+        fields: { category: 'test' },
+      },
+      {
+        onProgress: (event) => {
+          events.push(event)
+          throw new Error('插件回调错误')
+        },
+      }
+    )
+    assert.deepEqual(result, { received: 6 })
+    assert.deepEqual(events.at(-1), { phase: 'upload', loaded: 6, total: 6 })
+    const blob = await pair.child.download(
+      { path: 'files/report', params: { month: '10' } },
+      { onProgress: (event) => events.push(event) }
+    )
+    assert.equal(await blob.text(), '报告')
+    assert.equal(blob.type, 'text/plain')
+    assert.deepEqual(events.at(-1), { phase: 'download', loaded: 6, total: 6 })
+    for (const config of requests) {
+      assert.equal(config.headers.isToken, false)
+      assert.equal(config.headers['X-Plugin-CSRF'], sessionData.csrfToken)
+      assert.equal(config.headers.Authorization, undefined)
+      assert.equal(config.headers.encrypt, false)
+      assert.equal(config.timeout, 120000)
+      assert.equal(config.pluginBridge, true)
+    }
+    assert.equal(requests[0].headers['Content-Type'], undefined)
+    assert.equal(requests[0].url, '/apps/demo/api/files/upload')
+    assert.equal(pair.child.context.capabilities.files.maxBytes, PLUGIN_BRIDGE_MAX_FILE_BYTES)
+  } finally {
+    pair.destroy()
+  }
+}
 
 const ORIGIN = 'https://example.test'
 const sessionData = {
@@ -55,6 +117,7 @@ function windowPair() {
   ]) {
     target.postMessage = (data, targetOrigin) => {
       assert.equal(targetOrigin, ORIGIN, 'all messages must name an exact origin')
+      data = structuredClone(data)
       target.messages.push(data)
       queueMicrotask(() => target.dispatch({ data, source, origin: ORIGIN }))
     }
@@ -66,6 +129,7 @@ async function setup({
   request = async () => ({ code: 200, data: 'ok' }),
   now = Date.now,
   timeoutMs = 15000,
+  transferTimeoutMs = 120000,
 } = {}) {
   const { hostWindow, childWindow } = windowPair()
   let target = childWindow
@@ -87,12 +151,14 @@ async function setup({
     origin: ORIGIN,
     now,
     timeoutMs,
+    transferTimeoutMs,
   })
   const child = createPluginClient({
     pluginId: 'demo',
     eventTarget: childWindow,
     parentWindow: hostWindow,
     origin: ORIGIN,
+    transferTimeoutMs,
   })
   await child.ready
   return {
@@ -490,4 +556,161 @@ assert.equal(
   child.destroy()
   await Promise.all(rejected)
   assert.equal(pair.childWindow.listeners.size, 0)
+}
+
+await checkFileTransfers()
+
+// 无效文件在子页面和宿主两侧分别拒绝，下载也不能返回错误信封或过大响应。
+{
+  let calls = 0
+  const pair = await setup({
+    request: async () => {
+      calls += 1
+      return {}
+    },
+  })
+  const valid = { path: 'upload', file: new Blob(['test']) }
+  for (const changes of [
+    { file: 'not a file' },
+    { file: new Blob([new Uint8Array(PLUGIN_BRIDGE_MAX_FILE_BYTES + 1)]) },
+    { filename: '../secret' },
+    { filename: 'bad\nname' },
+    { fieldName: 'a\r\nb' },
+    { fields: { file: 'duplicate' } },
+    { fields: { number: 1 } },
+    { params: null },
+    { path: '//outside.test' },
+    { method: 'GET' },
+    { headers: { Authorization: 'forged' } },
+  ])
+    await assert.rejects(pair.child.upload({ ...valid, ...changes }))
+  await assert.rejects(pair.child.download({ path: '../outside' }))
+  await assert.rejects(pair.child.download({ path: 'ok' }, { onProgress: true }))
+  const init = pair.childWindow.messages.find((message) => message.type === 'initialize')
+  pair.hostWindow.dispatch({
+    origin: ORIGIN,
+    source: pair.childWindow,
+    data: {
+      namespace: 'ruoyi.plugin',
+      version: 1,
+      pluginId: 'demo',
+      instance: init.instance,
+      type: 'upload',
+      id: 'forged-file',
+      payload: {
+        method: 'POST',
+        path: 'upload',
+        file: 'bad',
+        fieldName: 'file',
+        filename: 'x',
+        fields: {},
+      },
+    },
+  })
+  await flush()
+  assert.equal(calls, 0)
+  assert.equal(
+    pair.childWindow.messages.find((message) => message.id === 'forged-file').payload.ok,
+    false
+  )
+  pair.destroy()
+}
+for (const body of [
+  new Blob([new Uint8Array(PLUGIN_BRIDGE_MAX_FILE_BYTES + 1)]),
+  new Blob(['{"code":401,"msg":"secret token"}'], { type: 'application/json' }),
+  { headers: { authorization: 'secret' } },
+]) {
+  const pair = await setup({ request: async () => body })
+  await assert.rejects(pair.child.download({ path: 'report' }), /插件请求失败/)
+  assert.equal(JSON.stringify(pair.childWindow.messages).includes('secret'), false)
+  pair.destroy()
+}
+{
+  const pair = await setup({
+    request: async () => new Blob(['{"report":true}'], { type: 'application/json' }),
+  })
+  assert.equal(await (await pair.child.download({ path: 'report' })).text(), '{"report":true}')
+  pair.destroy()
+}
+
+// 超限进度立即取消传输；取消和超时之后，迟到进度及响应均被丢弃。
+for (const mode of ['oversize', 'cancel', 'timeout', 'reload']) {
+  const delayed = deferred()
+  let config
+  const events = []
+  const pair = await setup({
+    transferTimeoutMs: mode === 'timeout' ? 10 : 120000,
+    request: (value) => {
+      config = value
+      return delayed.promise
+    },
+  })
+  const controller = new AbortController()
+  const promise = pair.child.download(
+    { path: 'report' },
+    { signal: controller.signal, onProgress: (event) => events.push(event) }
+  )
+  const rejected = assert.rejects(promise)
+  await flush()
+  if (mode === 'oversize') config.onDownloadProgress({ loaded: PLUGIN_BRIDGE_MAX_FILE_BYTES + 1 })
+  if (mode === 'cancel') controller.abort()
+  if (mode === 'reload') {
+    pair.hostWindow.dispatch({
+      origin: ORIGIN,
+      source: pair.childWindow,
+      data: {
+        namespace: 'ruoyi.plugin',
+        version: 1,
+        pluginId: 'demo',
+        instance: '',
+        type: 'ready',
+        payload: { clientId: 'new-file-document' },
+      },
+    })
+    pair.child.destroy()
+  }
+  await rejected
+  await flush()
+  assert.equal(config.signal.aborted, true)
+  config.onDownloadProgress({ loaded: 3, total: 3 })
+  delayed.resolve(new Blob(['old']))
+  await flush()
+  assert.equal(events.length, 0)
+  pair.destroy()
+}
+
+// 未公布文件能力的旧宿主立即报兼容错误；握手前调用仍可正常排队。
+for (const filesSupported of [false, true]) {
+  const pair = windowPair()
+  const child = createPluginClient({
+    pluginId: 'demo',
+    eventTarget: pair.childWindow,
+    parentWindow: pair.hostWindow,
+    origin: ORIGIN,
+  })
+  const pending = child.download({ path: 'report' })
+  const clientId = pair.hostWindow.messages[0].payload.clientId
+  pair.childWindow.dispatch({
+    origin: ORIGIN,
+    source: pair.hostWindow,
+    data: {
+      namespace: 'ruoyi.plugin',
+      version: 1,
+      pluginId: 'demo',
+      type: 'initialize',
+      instance: 'host-instance',
+      payload: { clientId, ...(filesSupported ? { capabilities: { files: { version: 1 } } } : {}) },
+    },
+  })
+  if (filesSupported) {
+    await flush()
+    const request = pair.hostWindow.messages.find((message) => message.type === 'download')
+    assert.ok(request)
+    const rejected = assert.rejects(pending, /关闭/)
+    child.destroy()
+    await rejected
+  } else {
+    await assert.rejects(pending, /不支持文件传输/)
+    child.destroy()
+  }
 }

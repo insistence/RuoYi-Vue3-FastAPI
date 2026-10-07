@@ -16,6 +16,7 @@ from plugins.core.discovery.scanner import is_artifact_plugin
 from plugins.core.runtime.asgi import PluginGatewayASGI, PluginLifespanManager
 from plugins.core.runtime.browser_session import authenticate_browser_session
 from plugins.core.runtime.bundle import PluginBundleASGI
+from plugins.core.runtime.configuration import PluginConfigObservation, PluginConfigReader, config_revision
 from plugins.core.runtime.entrypoint import PluginEntrypointLoader
 from plugins.core.runtime.health import PluginHealthChecker
 from plugins.core.runtime.host_services import build_host_services
@@ -175,12 +176,24 @@ class ExplicitPluginRuntime:
         compatibility = PluginManifestChecker(backend_root=backend_root).check(manifest)
         if not compatibility.ok:
             raise ValueError('；'.join(item.message for item in compatibility.error_issues))
+        values = (
+            dict(config_values)
+            if config_values is not None
+            else {item.key: item.default for item in manifest.config.items}
+        )
+        observation = PluginConfigObservation(
+            plugin_id=plugin.plugin_id,
+            version=manifest.version,
+            digest=discovered.artifact_digest,
+            generation=discovered.artifact_generation,
+            startup_revision=config_revision(plugin.plugin_id, values),
+        )
         host = PluginHostContext(
             plugin_id=plugin.plugin_id,
             resource_root=discovered.backend_path,
-            config=config_values
-            if config_values is not None
-            else {item.key: item.default for item in manifest.config.items},
+            config=values,
+            config_revision=observation.startup_revision,
+            config_reader=PluginConfigReader(discovered, DataSourceRegistry.session, observation).read,
             session_factory=DataSourceRegistry.session,
             services=build_host_services(
                 plugin.plugin_id, DataSourceRegistry.session, getattr(app.state, 'redis', None)
@@ -209,6 +222,8 @@ class ExplicitPluginRuntime:
         self.metrics.register(
             plugin.plugin_id, manifest.version, discovered.artifact_digest, discovered.artifact_generation
         )
+        if plugin.plugin_id in self.metrics.identities:
+            self.metrics.configurations[plugin.plugin_id] = observation
         app.state.plugin_metrics_reporter = self.metrics_reporter
 
     async def activate(self, plugin_id: str, app: FastAPI) -> None:
@@ -238,6 +253,8 @@ class ExplicitPluginRuntime:
                 loaded.jobs = None
             raise
         loaded.active = True
+        if plugin_id in self.metrics.configurations:
+            self.metrics.configurations[plugin_id].active = True
         app.openapi_schema = None
 
     async def _activate_web(self, loaded: LoadedExplicitPlugin, app: FastAPI) -> None:
@@ -408,6 +425,8 @@ class ExplicitPluginRuntime:
         await self.metrics_reporter.stop()
         for loaded in reversed(list(self.loaded.values())):
             loaded.active = False
+            if loaded.plugin.plugin_id in self.metrics.configurations:
+                self.metrics.configurations[loaded.plugin.plugin_id].active = False
             if loaded.jobs is not None:
                 await unbind_plugin_jobs(loaded.jobs)
                 loaded.jobs = None

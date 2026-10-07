@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite --host 127.0.0.1 --open /dev.html",
     "build": "vite build"
   },
   "devDependencies": {

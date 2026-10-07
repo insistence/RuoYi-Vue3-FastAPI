@@ -6,7 +6,9 @@ export const PLUGIN_BRIDGE_NAMESPACE = 'ruoyi.plugin'
 export const PLUGIN_BRIDGE_VERSION = 1
 export const PLUGIN_BRIDGE_MAX_BYTES = 64 * 1024
 export const PLUGIN_BRIDGE_MAX_PENDING = 8
+export const PLUGIN_BRIDGE_MAX_FILE_BYTES = 10 * 1024 * 1024
 const REQUEST_TIMEOUT = 15000
+const TRANSFER_TIMEOUT = 120000
 const ID_PATTERN = /^[a-z][a-z0-9_-]{1,63}$/
 const MESSAGE_ID_PATTERN = /^[a-zA-Z0-9_-]{1,80}$/
 const METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'])
@@ -167,6 +169,64 @@ function validateRequest(payload) {
   return jsonCopy(payload)
 }
 
+function validateTransfer(type, payload) {
+  if (type === 'download') return validateRequest(payload)
+  assertKeys(payload, ['method', 'path', 'params', 'file', 'fieldName', 'filename', 'fields'])
+  const { file, ...metadata } = payload
+  const safe = jsonCopy(metadata)
+  validateRequest({
+    method: safe.method,
+    path: safe.path,
+    ...(safe.params === undefined ? {} : { params: safe.params }),
+  })
+  if (!['POST', 'PUT', 'PATCH'].includes(safe.method)) throw new Error('文件上传方法无效')
+  if (!(file instanceof Blob) || file.size > PLUGIN_BRIDGE_MAX_FILE_BYTES) {
+    throw new Error('文件必须是 Blob 或 File，且不能超过 10 MiB')
+  }
+  if (!/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(safe.fieldName)) throw new Error('文件字段名无效')
+  if (
+    typeof safe.filename !== 'string' ||
+    !safe.filename.trim() ||
+    safe.filename.length > 255 ||
+    /[\\/\x00-\x1f\x7f]/.test(safe.filename) ||
+    ['.', '..'].includes(safe.filename)
+  )
+    throw new Error('上传文件名无效')
+  if (
+    !isRecord(safe.fields) ||
+    Object.entries(safe.fields).some(
+      ([key, value]) =>
+        !/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(key) ||
+        key === safe.fieldName ||
+        typeof value !== 'string'
+    )
+  )
+    throw new Error('上传表单字段无效')
+  return { ...safe, file }
+}
+
+async function validateDownload(data) {
+  if (!(data instanceof Blob) || data.size > PLUGIN_BRIDGE_MAX_FILE_BYTES) {
+    throw new Error('下载文件无效或超过 10 MiB')
+  }
+  // 错误响应不能作为文件交付；合法的 JSON 文件仍可下载。
+  if (
+    data.size <= PLUGIN_BRIDGE_MAX_BYTES &&
+    /(?:application\/json|\+json)(?:;|$)/i.test(data.type)
+  ) {
+    let value
+    try {
+      value = JSON.parse(await data.text())
+    } catch {
+      /* 非 JSON 内容按文件返回。 */
+    }
+    if (isRecord(value) && typeof value.code === 'number' && value.code !== 200) {
+      throw new Error('插件下载失败')
+    }
+  }
+  return data
+}
+
 /**
  * 创建宿主侧通信桥，复用现有请求客户端转发插件请求。
  * getTarget 必须返回当前 iframe 的 contentWindow，不能返回全局窗口或旧页面缓存。
@@ -187,6 +247,7 @@ export function createPluginHostBridge({
   origin = globalThis.location?.origin,
   now = Date.now,
   timeoutMs = REQUEST_TIMEOUT,
+  transferTimeoutMs = TRANSFER_TIMEOUT,
 }) {
   validatePluginId(pluginId)
   const target = getTarget()
@@ -243,6 +304,7 @@ export function createPluginHostBridge({
         clientId,
         uiBase: currentSession.uiBase,
         apiBase: currentSession.apiBase,
+        capabilities: { files: { version: 1, maxBytes: PLUGIN_BRIDGE_MAX_FILE_BYTES } },
       })
       onReady()
       return
@@ -268,50 +330,91 @@ export function createPluginHostBridge({
       }
       return
     }
-    if (message.type !== 'request' || pending.has(message.id)) return
+    if (!['request', 'upload', 'download'].includes(message.type) || pending.has(message.id)) return
     if (pending.size >= PLUGIN_BRIDGE_MAX_PENDING) {
       resultError(message.id, '插件请求过多，请稍后重试')
       return
     }
     let payload
     try {
-      payload = validateRequest(message.payload)
+      payload =
+        message.type === 'request'
+          ? validateRequest(message.payload)
+          : validateTransfer(message.type, message.payload)
     } catch (error) {
       resultError(message.id, error.message)
       return
     }
     const controller = new AbortController()
     const entry = { controller, timer: null }
+    const duration = message.type === 'request' ? timeoutMs : transferTimeoutMs
     entry.timer = setTimeout(() => {
       if (pending.get(message.id) !== entry) return
       pending.delete(message.id)
       controller.abort()
       resultError(message.id, '插件请求超时，请重试')
-    }, timeoutMs)
+    }, duration)
     pending.set(message.id, entry)
+    const progressState = new Map()
+    const progress = (phase) => (event) => {
+      if (pending.get(message.id) !== entry || !live()) return
+      const loaded = Number(event.loaded)
+      if (!Number.isSafeInteger(loaded) || loaded < 0) return
+      if (phase === 'download' && loaded > PLUGIN_BRIDGE_MAX_FILE_BYTES) {
+        pending.delete(message.id)
+        clearTimeout(entry.timer)
+        controller.abort()
+        resultError(message.id, '下载文件超过 10 MiB')
+        return
+      }
+      const total = Number.isSafeInteger(event.total) && event.total >= loaded ? event.total : null
+      const previous = progressState.get(phase)
+      if (
+        previous &&
+        (loaded < previous.loaded || (now() - previous.time < 100 && loaded !== total))
+      )
+        return
+      progressState.set(phase, { loaded, time: now() })
+      send('progress', { phase, loaded, total }, message.id)
+    }
     Promise.resolve()
       .then(() => {
         if (!live() || pending.get(message.id) !== entry) return undefined
+        let body = payload.data
+        if (message.type === 'upload') {
+          body = new FormData()
+          for (const [key, value] of Object.entries(payload.fields)) body.append(key, value)
+          body.append(payload.fieldName, payload.file, payload.filename)
+        }
         return request({
           url: currentSession.apiBase + payload.path,
           baseURL: '',
           method: payload.method.toLowerCase(),
           ...(payload.params === undefined ? {} : { params: payload.params }),
-          ...(payload.data === undefined ? {} : { data: payload.data }),
+          ...(body === undefined ? {} : { data: body }),
           headers: {
             isToken: false,
             'X-Plugin-CSRF': currentSession.csrfToken,
             repeatSubmit: false,
+            ...(message.type === 'request' ? {} : { encrypt: false, encryptResponse: false }),
+            ...(message.type === 'upload' ? { 'Content-Type': undefined } : {}),
           },
           signal: controller.signal,
-          timeout: timeoutMs,
+          timeout: duration,
           skipErrorMessage: true,
           pluginBridge: true,
+          ...(message.type === 'upload' ? { onUploadProgress: progress('upload') } : {}),
+          ...(message.type === 'download'
+            ? { responseType: 'blob', onDownloadProgress: progress('download') }
+            : {}),
         })
       })
-      .then((data) => {
+      .then(async (data) => {
         if (pending.get(message.id) === entry && live()) {
-          send('result', { ok: true, data: jsonCopy(data) }, message.id)
+          const safeData =
+            message.type === 'download' ? await validateDownload(data) : jsonCopy(data)
+          if (pending.get(message.id) === entry && live())
+            send('result', { ok: true, data: safeData }, message.id)
         }
       })
       .catch(() => {
@@ -372,6 +475,7 @@ export function createPluginClient({
   parentWindow = globalThis.window?.parent,
   origin = globalThis.location?.origin,
   timeoutMs = REQUEST_TIMEOUT,
+  transferTimeoutMs = TRANSFER_TIMEOUT,
 }) {
   validatePluginId(pluginId)
   if (!parentWindow || parentWindow === eventTarget || !origin || origin === 'null') {
@@ -460,14 +564,46 @@ export function createPluginClient({
       return
     }
     if (!instance || message.instance !== instance) return
+    if (message.type === 'progress') {
+      const entry = pending.get(message.id)
+      const value = message.payload
+      if (
+        !entry?.onProgress ||
+        !isRecord(value) ||
+        !['upload', 'download'].includes(value.phase) ||
+        !Number.isSafeInteger(value.loaded) ||
+        value.loaded < 0 ||
+        !(
+          value.total === null ||
+          (Number.isSafeInteger(value.total) && value.total >= value.loaded)
+        )
+      )
+        return
+      try {
+        entry.onProgress({ phase: value.phase, loaded: value.loaded, total: value.total })
+      } catch {
+        /* 不影响请求完成。 */
+      }
+      return
+    }
     if (message.type === 'result') {
       const entry = pending.get(message.id)
       if (!entry || !isRecord(message.payload) || typeof message.payload.ok !== 'boolean') return
       pending.delete(message.id)
       clearTimeout(entry.timer)
       entry.cleanup()
-      if (message.payload.ok) entry.resolve(message.payload.data)
-      else
+      if (message.payload.ok) {
+        try {
+          const data = message.payload.data
+          if (entry.type === 'download') {
+            if (!(data instanceof Blob) || data.size > PLUGIN_BRIDGE_MAX_FILE_BYTES)
+              throw new Error('下载文件无效')
+            entry.resolve(data)
+          } else entry.resolve(jsonCopy(data))
+        } catch (error) {
+          entry.reject(error)
+        }
+      } else
         entry.reject(
           new Error(
             typeof message.payload.message === 'string'
@@ -488,46 +624,72 @@ export function createPluginClient({
   eventTarget.addEventListener('message', listener)
   const readyTimer = setTimeout(() => destroy('插件初始化超时，请重试'), timeoutMs)
   send('ready', { clientId })
+  const execute = async (type, safePayload, { signal, onProgress } = {}) => {
+    if (onProgress !== undefined && typeof onProgress !== 'function')
+      throw new Error('进度回调无效')
+    if (destroyed || signal?.aborted) throw new Error('插件请求已取消')
+    if (pending.size + waitingForReady >= PLUGIN_BRIDGE_MAX_PENDING) {
+      throw new Error('插件请求过多，请稍后重试')
+    }
+    waitingForReady += 1
+    try {
+      await waitForReady(signal)
+    } finally {
+      waitingForReady -= 1
+    }
+    if (destroyed || signal?.aborted) throw new Error('插件请求已取消')
+    if (type !== 'request' && context.capabilities?.files?.version !== 1) {
+      throw new Error('当前宿主不支持文件传输，请升级宿主')
+    }
+    if (pending.size >= PLUGIN_BRIDGE_MAX_PENDING) throw new Error('插件请求过多，请稍后重试')
+    const id = nonce()
+    return new Promise((resolve, reject) => {
+      const cancel = () => {
+        const entry = pending.get(id)
+        if (!entry) return
+        pending.delete(id)
+        clearTimeout(entry.timer)
+        entry.cleanup()
+        send('cancel', undefined, id)
+        reject(new Error('插件请求已取消或超时'))
+      }
+      const timer = setTimeout(cancel, type === 'request' ? timeoutMs : transferTimeoutMs)
+      pending.set(id, {
+        type,
+        onProgress,
+        resolve,
+        reject,
+        timer,
+        cleanup: () => signal?.removeEventListener('abort', cancel),
+      })
+      signal?.addEventListener('abort', cancel, { once: true })
+      send(type, safePayload, id)
+    })
+  }
   return {
     ready,
     get context() {
       return context
     },
-    async request(payload, { signal } = {}) {
-      const safePayload = validateRequest(payload)
-      if (destroyed || signal?.aborted) throw new Error('插件请求已取消')
-      if (pending.size + waitingForReady >= PLUGIN_BRIDGE_MAX_PENDING) {
-        throw new Error('插件请求过多，请稍后重试')
+    async request(payload, options) {
+      return execute('request', validateRequest(payload), options)
+    },
+    async upload(payload, options) {
+      const value = {
+        method: 'POST',
+        fieldName: 'file',
+        fields: {},
+        filename: payload?.file?.name || 'upload.bin',
+        ...payload,
       }
-      waitingForReady += 1
-      try {
-        await waitForReady(signal)
-      } finally {
-        waitingForReady -= 1
-      }
-      if (destroyed || signal?.aborted) throw new Error('插件请求已取消')
-      if (pending.size >= PLUGIN_BRIDGE_MAX_PENDING) throw new Error('插件请求过多，请稍后重试')
-      const id = nonce()
-      return new Promise((resolve, reject) => {
-        const cancel = () => {
-          const entry = pending.get(id)
-          if (!entry) return
-          pending.delete(id)
-          clearTimeout(entry.timer)
-          entry.cleanup()
-          send('cancel', undefined, id)
-          reject(new Error('插件请求已取消或超时'))
-        }
-        const timer = setTimeout(cancel, timeoutMs)
-        pending.set(id, {
-          resolve,
-          reject,
-          timer,
-          cleanup: () => signal?.removeEventListener('abort', cancel),
-        })
-        signal?.addEventListener('abort', cancel, { once: true })
-        send('request', safePayload, id)
-      })
+      return execute('upload', validateTransfer('upload', value), options)
+    },
+    async download(payload, options) {
+      return execute(
+        'download',
+        validateTransfer('download', { method: 'GET', ...payload }),
+        options
+      )
     },
     navigate(route) {
       if (!instance || destroyed) throw new Error('插件尚未连接')

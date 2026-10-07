@@ -1,11 +1,12 @@
 import asyncio
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
+from plugins.core.sdk.config import PluginConfigSnapshot
 from plugins.core.sdk.request import PluginHttpRequest
 from plugins.core.sdk.version import HOST_API_VERSION
 
@@ -27,6 +28,8 @@ class PluginHostContext:
     :param logger: 绑定插件标识的日志对象
     :param startup_write_enabled: 当前实例是否允许执行启动期全局写入
     :param api_version: 宿主插件 API 版本
+    :param config_revision: 启动配置快照的不透明版本，手动构造上下文时可为空
+    :param config_reader: 宿主绑定的当前插件配置读取器
     """
 
     plugin_id: str
@@ -38,6 +41,8 @@ class PluginHostContext:
     logger: Any = None
     startup_write_enabled: bool = False
     api_version: str = HOST_API_VERSION
+    config_revision: str | None = None
+    config_reader: Callable[[], Awaitable[PluginConfigSnapshot]] | None = field(default=None, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         """
@@ -48,6 +53,17 @@ class PluginHostContext:
         object.__setattr__(self, 'resource_root', self.resource_root.resolve())
         object.__setattr__(self, 'config', MappingProxyType(dict(self.config)))
         object.__setattr__(self, 'services', MappingProxyType(dict(self.services)))
+
+    async def read_config(self) -> PluginConfigSnapshot:
+        """
+        使用独立会话读取当前插件最新配置，不替换启动快照或自动重建业务资源。
+
+        :return: 本次读取的配置明文和版本；敏感值不得直接返回浏览器
+        :raises RuntimeError: 当前上下文未提供按需配置读取能力
+        """
+        if self.config_reader is None:
+            raise RuntimeError('宿主未提供按需配置读取能力')
+        return await self.config_reader()
 
     def resource(self, relative_path: str) -> Path:
         """

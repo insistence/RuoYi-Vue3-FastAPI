@@ -2,12 +2,18 @@
   <el-dialog
     :title="title"
     :model-value="modelValue"
-    width="720px"
+    width="min(720px, calc(100vw - 32px))"
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
+    <PluginConfigStatus
+      v-if="modelValue && pluginId"
+      :plugin-id="pluginId"
+      :refresh-key="refreshKey"
+    />
     <el-form
       ref="configRef"
+      class="plugin-config-form"
       :model="configForm"
       label-width="120px"
     >
@@ -156,8 +162,11 @@
 <script setup name="PluginConfigDialog">
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import PluginConfigStatus from './PluginConfigStatus.vue'
 
 const props = defineProps({
+  pluginId: { type: String, default: '' },
+  refreshKey: { type: Number, default: 0 },
   modelValue: {
     type: Boolean,
     default: false,
@@ -396,7 +405,7 @@ function formatConfigGroupLabel(groupName) {
 .config-help {
   width: 100%;
   margin-top: 4px;
-  color: #909399;
+  color: var(--el-text-color-regular);
   font-size: 12px;
   line-height: 18px;
 }
@@ -438,8 +447,27 @@ function formatConfigGroupLabel(groupName) {
 .plugin-config-section-title {
   padding-left: 120px;
   margin: 0 0 10px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   font-size: 13px;
   font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .plugin-config-form :deep(.el-form-item) {
+    display: block;
+  }
+
+  .plugin-config-form :deep(.el-form-item__label) {
+    width: auto !important;
+    justify-content: flex-start;
+  }
+
+  .plugin-config-form :deep(.el-form-item__content) {
+    margin-left: 0 !important;
+  }
+
+  .plugin-config-section-title {
+    padding-left: 0;
+  }
 }
 </style>

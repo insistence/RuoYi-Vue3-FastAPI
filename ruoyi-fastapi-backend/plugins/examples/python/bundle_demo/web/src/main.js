@@ -5,11 +5,74 @@ import './style.css'
 const element = (id) => document.getElementById(id)
 let client
 let context = {}
+let transferController
+
+/**
+ * 传输期间禁止重复提交，完成或失败后允许重试。
+ */
+async function transfer(kind) {
+  if (transferController) return
+  transferController = new AbortController()
+  for (const id of ['upload', 'download', 'file']) element(id).disabled = true
+  element('cancel-transfer').disabled = false
+  const progress = element('file-progress')
+  const resultElement = element('file-result')
+  const controls = ['upload', 'download', 'file'].map(element)
+  const cancelButton = element('cancel-transfer')
+  progress.hidden = false
+  progress.removeAttribute('value')
+  resultElement.textContent = '正在传输…'
+  const options = {
+    signal: transferController.signal,
+    onProgress: ({ loaded, total }) => {
+      if (total) progress.value = Math.round((loaded * 100) / total)
+      else progress.removeAttribute('value')
+      resultElement.textContent = total
+        ? `已传输 ${loaded} / ${total} 字节，等待服务端处理…`
+        : `已传输 ${loaded} 字节，等待服务端处理…`
+    },
+  }
+  try {
+    if (kind === 'upload') {
+      const file = element('file').files[0]
+      if (!file) throw new Error('请先选择文件')
+      const result = await client.upload({ path: 'files/inspect', file }, options)
+      resultElement.textContent = `已检查 ${result.filename}（${result.size} 字节），SHA-256：${result.sha256}`
+    } else {
+      const blob = await client.download({ path: 'files/report' }, options)
+      const url = URL.createObjectURL(blob)
+      const link = Object.assign(document.createElement('a'), {
+        href: url,
+        download: 'plugin-report.csv',
+      })
+      document.body.append(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      resultElement.textContent = `报表已接收（${blob.size} 字节），已交给浏览器保存。`
+    }
+    progress.value = 100
+  } catch (error) {
+    resultElement.textContent = error.message
+    progress.hidden = true
+  } finally {
+    transferController = null
+    for (const control of controls) control.disabled = false
+    cancelButton.disabled = true
+  }
+}
+element('file-form').addEventListener('submit', (event) => {
+  event.preventDefault()
+  transfer('upload')
+})
+element('download').addEventListener('click', () => transfer('download'))
+element('cancel-transfer').addEventListener('click', () => transferController?.abort())
 
 /**
  * 更新连接提示，并区分错误状态。
  */
 const showNotice = (text, error = false) => {
+  if (!element('notice')) return
   element('notice').textContent = text
   element('notice').classList.toggle('error', error)
 }
@@ -18,7 +81,7 @@ const showNotice = (text, error = false) => {
  */
 const setBusy = (busy) => {
   element('workspace').setAttribute('aria-busy', String(busy))
-  element('refresh').disabled = busy
+  if (element('refresh')) element('refresh').disabled = busy
 }
 /**
  * 应用宿主推送的主题、语言、时区和插件内部路由。
@@ -47,7 +110,7 @@ const refresh = async () => {
       dateStyle: 'short',
       timeStyle: 'medium',
     }).format(new Date(result.serverTime))
-    showNotice('已连接管理平台，当前会话有效。')
+    showNotice(result.greeting || '已连接管理平台，当前会话有效。')
   } catch (error) {
     showNotice(`${error.message}，可点击“刷新状态”重试。`, true)
   } finally {
@@ -60,19 +123,21 @@ element('details').addEventListener('click', () => client?.navigate('/details'))
 // POST 请求同样交给宿主桥接层处理身份和传输策略，页面不保存管理员 token。
 element('echo-form').addEventListener('submit', async (event) => {
   event.preventDefault()
-  element('send').disabled = true
-  element('echo-result').textContent = '正在发送…'
+  const button = element('send')
+  const result = element('echo-result')
+  button.disabled = true
+  result.textContent = '正在发送…'
   try {
     const response = await client.request({
       method: 'POST',
       path: 'echo',
       data: { message: element('message').value },
     })
-    element('echo-result').textContent = `服务端已收到：${response.message}`
+    result.textContent = `服务端已收到：${response.message}`
   } catch (error) {
-    element('echo-result').textContent = error.message
+    result.textContent = error.message
   } finally {
-    element('send').disabled = false
+    button.disabled = false
   }
 })
 /**
@@ -86,10 +151,11 @@ async function connect() {
       if (type === 'preferences' || type === 'route') applyContext(payload)
       if (type === 'refresh') refresh()
       if (type === 'logout') {
+        transferController?.abort()
         element('workspace').replaceChildren(
           Object.assign(document.createElement('p'), {
             textContent: '登录已结束，请重新登录管理平台。',
-          }),
+          })
         )
       }
     })
@@ -98,7 +164,7 @@ async function connect() {
   } catch (error) {
     showNotice(error.message || '请从管理平台打开插件页面。', true)
     setBusy(false)
-    element('send').disabled = true
+    if (element('send')) element('send').disabled = true
   }
 }
 connect()

@@ -155,6 +155,22 @@ input {
   font-size: 14px;
   overflow-wrap: anywhere;
 }
+.file-panel {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+.file-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+progress {
+  width: 100%;
+  margin-top: 16px;
+  accent-color: var(--primary);
+}
 :root[data-theme='dark'] {
   background: #141414;
   color: #e5eaf3;

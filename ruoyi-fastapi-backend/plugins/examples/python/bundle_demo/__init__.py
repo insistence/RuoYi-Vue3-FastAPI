@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from plugins.core.sdk import PluginDefinition, PluginHostContext, PluginRequestContext, plugin_endpoint
 from utils.time_util import TimezoneUtil
 
+from .files import register_file_routes
+
 
 class EchoInput(BaseModel):
     """
@@ -14,10 +16,13 @@ class EchoInput(BaseModel):
 
 
 async def summary(context: PluginRequestContext) -> dict[str, str]:
+    snapshot = await context.host.read_config()
     return {
         'pluginId': context.host.plugin_id,
         'userName': context.user.user.user_name,
         'serverTime': TimezoneUtil.utc_now().isoformat(),
+        'greeting': str(snapshot.values.get('greeting', '')),
+        'configRevision': snapshot.revision,
     }
 
 
@@ -37,6 +42,7 @@ def create_plugin(host: PluginHostContext) -> PluginDefinition:
         :return: 插件 ASGI 子应用
         """
         app = FastAPI(title='独立前端示例', docs_url=None, redoc_url=None)
+        register_file_routes(app)
         app.add_api_route(
             '/api/summary',
             plugin_endpoint(summary, permission='bundle_demo:view'),

@@ -2,7 +2,7 @@
   <el-dialog
     title="插件详情"
     :model-value="modelValue"
-    width="920px"
+    width="min(920px, calc(100vw - 32px))"
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
@@ -817,7 +817,7 @@ function canMarkMigrationFailed(row) {
 
 .detail-section-title {
   margin: 14px 0 8px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   font-size: 13px;
   font-weight: 600;
 }
@@ -835,7 +835,7 @@ function canMarkMigrationFailed(row) {
 }
 
 .detail-empty-text {
-  color: #909399;
+  color: var(--el-text-color-regular);
 }
 
 .detail-row-actions {

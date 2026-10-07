@@ -12,6 +12,7 @@ from starlette import status
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from middlewares.trace_middleware.ctx import CTX_REQUEST_ID
+from plugins.core.runtime.configuration import PluginConfigObservation
 from plugins.core.sdk.request import current_plugin_request_id
 from utils.log_util import logger
 
@@ -100,6 +101,7 @@ class PluginMetricSnapshot(BaseModel):
     collected_at: float = Field(ge=0, allow_inf_nan=False)
     dropped_series: NonNegativeInt = 0
     series: list[PluginMetricSeries] = Field(max_length=MAX_METRIC_SERIES)
+    configurations: list[PluginConfigObservation] = Field(default_factory=list, max_length=MAX_METRIC_SERIES)
 
 
 @dataclass
@@ -159,6 +161,7 @@ class PluginRuntimeMetrics:
     :param identities: 插件加载版本、摘要和发布代际
     :param series: 按插件及操作索引的计数器
     :param dropped_series: 超出容量而未采集的调用数
+    :param configurations: 当前进程的配置版本观测，不保存配置明文
     """
 
     worker_id: str = field(default_factory=lambda: uuid4().hex)
@@ -166,6 +169,7 @@ class PluginRuntimeMetrics:
     identities: dict[str, dict[str, Any]] = field(default_factory=dict)
     series: dict[tuple[str, str], PluginMetricSeries] = field(default_factory=dict)
     dropped_series: int = 0
+    configurations: dict[str, PluginConfigObservation] = field(default_factory=dict)
 
     def register(self, plugin_id: str, version: str, digest: str | None, generation: str | None) -> None:
         """
@@ -235,6 +239,7 @@ class PluginRuntimeMetrics:
             collected_at=time.time(),
             dropped_series=self.dropped_series,
             series=[series.model_copy(deep=True) for _, series in sorted(self.series.items())],
+            configurations=[config.model_copy(deep=True) for _, config in sorted(self.configurations.items())],
         )
 
     def log_fields(self, plugin_id: str, operation: str) -> dict[str, Any]:

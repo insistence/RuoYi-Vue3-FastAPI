@@ -148,6 +148,16 @@ export function updatePluginConfig(pluginId, data) {
   })
 }
 
+// 查询配置保存版本与已观测进程的启动快照。
+export function getPluginConfigStatus(pluginId, signal) {
+  return request({
+    url: '/system/plugin/' + pluginId + '/config/status',
+    method: 'get',
+    signal,
+    skipErrorMessage: true,
+  })
+}
+
 // 检查插件依赖
 export function checkPluginDependencies(pluginId) {
   return request({

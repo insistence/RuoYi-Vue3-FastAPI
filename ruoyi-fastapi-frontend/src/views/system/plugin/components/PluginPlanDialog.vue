@@ -2,7 +2,7 @@
   <el-dialog
     :title="title"
     :model-value="modelValue"
-    width="920px"
+    width="min(920px, calc(100vw - 32px))"
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
@@ -332,27 +332,27 @@ const canExecuteBatchPlan = computed(() => {
 .plan-summary-item {
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--el-border-color-light);
   border-radius: 4px;
-  background: #f8f9fb;
+  background: var(--el-fill-color-light);
 }
 
 .plan-summary-label {
   display: block;
   margin-bottom: 6px;
-  color: #909399;
+  color: var(--el-text-color-regular);
   font-size: 12px;
 }
 
 .plan-summary-value {
-  color: #303133;
+  color: var(--el-text-color-primary);
   font-size: 14px;
   font-weight: 600;
   word-break: break-all;
 }
 
 .plan-summary-value.is-danger {
-  color: #f56c6c;
+  color: var(--el-color-danger);
 }
 
 .plan-order-tag {
