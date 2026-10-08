@@ -10,6 +10,7 @@ from .commands.dependency import register_dependency_commands
 from .commands.developer import register_developer_commands
 from .commands.discovery import register_discovery_commands
 from .commands.lifecycle import register_lifecycle_commands
+from .commands.sdk import register_sdk_commands
 
 if TYPE_CHECKING:
     from .artifact_controller import PluginArtifactCommandController
@@ -50,3 +51,4 @@ register_dependency_commands(app, _get_plugin_command_controller)
 register_lifecycle_commands(app, _get_plugin_command_controller)
 register_developer_commands(app, _get_plugin_command_controller)
 register_artifact_commands(app, _get_plugin_artifact_controller)
+register_sdk_commands(app)

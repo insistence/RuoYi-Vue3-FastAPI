@@ -1509,6 +1509,38 @@ python plugin-projects/report_center/build_release.py --output target/report_cen
 
 Python 打包器仅复制模板清单、入口和构建后的 bundle；增加业务模块、SQL 或其他资源时，应显式扩展复制清单并测试。Python 插件仍以 Python 源码交付。Rust 交付不包含 `.rs`、Cargo 或前端开发工程；两种方式均需按第 15 节签名、导入、维护准备、选择目标及重启验收。所有构建输出必须使用新目录，不能覆盖已加载版本。
 
+### 16.1 桥接 SDK 溯源与显式更新
+
+bundle 工程的 `web/vendor/pluginBridge.sdk.json` 记录独立 `sdkVersion`、桥协议 `bridgeVersion`、可选文件/SSE 能力版本、来源位置及 JS/类型声明摘要。SDK 的初始版本为 `1.0.0`，与宿主 Host API 版本和桥协议 v1 分开管理；只读导出 `PLUGIN_BRIDGE_SDK_VERSION` 不增加消息字段。纯 API 模板不生成前端 SDK。
+
+摘要算法为 `sha256-utf8-lf`：按 UTF-8 读取、去掉可选的 UTF-8 BOM，再将 CRLF/CR 统一为 LF 后计算 SHA256，因此 Windows 和 Linux 的正常换行转换不会被判为业务修改。该记录用于源码追踪和修改检测，不提供签名可信性；同一 SDK 版本下来源内容变化也会被检出，SDK 维护者仍应按变更发布新的版本。
+
+在后端目录使用离线命令：
+
+```bash
+ruoyi plugin sdk check plugin-projects/report_center --output=json
+ruoyi plugin sdk update plugin-projects/report_center --dry-run --output=json
+ruoyi plugin sdk update plugin-projects/report_center
+npm --prefix plugin-projects/report_center/web run build
+```
+
+默认来源为宿主相邻前端目录；独立检出时可传 `--frontend-root PATH`，或设置 `RUOYI_PLUGIN_FRONTEND_ROOT`。命令只静态读取工程清单和固定 SDK 文件，不导入插件、不读取宿主运行环境、不连接数据库或 registry。清单检查仅确认 YAML 可读、`manifestVersion: 2` 和 bundle 工程类型，不执行完整插件清单校验；完整检查与业务测试仍按第 13 节执行。
+
+| `check` 状态 | 含义与处理 |
+| --- | --- |
+| `current` | 记录、版本及文件摘要与选定来源一致，退出码为 0。 |
+| `outdated` | 本地 SDK 与其记录一致，但与选定来源不同；返回非零，可显式更新。来源可能比本地旧，命令不替你决定是否降级。 |
+| `modified` | SDK 文件与本地记录不一致；先审阅自己的改动。 |
+| `untracked` | 旧工程缺少溯源记录，不能假定原副本未修改。 |
+| `invalid` | 工程、文件或元数据无效；按错误信息修复。 |
+| `incompatible` | 桥协议不同，需要先完成协议迁移；`--force` 不会绕过。 |
+
+`protocolCompatible` 仅表示桥协议版本一致；可选能力可增减，不能据此推断所有业务功能都能运行。前端测试固定保留上轮 SDK 客户端，验证旧客户端与当前宿主的 JSON、文件和 SSE 调用；当前客户端遇到旧宿主未公布或不支持的能力时明确拒绝，并保留可用的 JSON 通道。
+
+更新只处理 `pluginBridge.js`、`pluginBridge.d.ts` 和 `pluginBridge.sdk.json`。写入前将原文件保存到工程 `.plugin-sdk-backups/<唯一目录>/`，写入异常会尝试恢复原内容，溯源记录最后替换；同一工程并发更新被拒绝，符号链接和越界路径也被拒绝。正在构建时应先停止构建再更新，三个文件不构成跨文件系统原子事务；进程被强制终止后需先核对备份与文件状态，再人工处理遗留更新锁，不能把删除锁当作已完成恢复。
+
+本地修改、旧副本或可安全备份的损坏溯源记录，默认不会被覆盖。确需用选定来源重新纳管时，先执行 `update --force --dry-run`，审阅结果后再执行 `update --force`；非法 YAML、非 v2 bundle 工程、无效来源 SDK 或不安全路径不能通过此选项绕过。业务源码不受影响，已构建的 `web/dist` 也不会自动改变；更新后要重建、回归，再按正式流程发布。
+
 ## 17. 本地真实服务验收与 CI
 
 本节用于插件交付前的自动化回归和部署环境验收。插件自身的测试与静态检查见[第 13 节](#13-测试和发布前检查)，v2 工程构建及合约测试见[第 16 节](#16-v2-项目脚手架与完整构建)，签名交付与维护操作按[第 15 节](#15-v2-签名制品与维护发布)执行。
@@ -1558,7 +1590,7 @@ npm --prefix ../ruoyi-fastapi-frontend run test:plugin
 
 ### 17.4 CI 覆盖
 
-仓库的原生插件工作流配置 Windows/Linux、Python 3.10、3.11、3.12、3.13 构建测试矩阵，覆盖 v1/v2 脚手架、原生扩展以及签名制品与维护发布回归。
+仓库的原生插件工作流配置 Windows/Linux、Python 3.10、3.11、3.12、3.13 构建测试矩阵，覆盖 v1/v2 脚手架、SDK 溯源与离线更新命令、原生扩展以及签名制品与维护发布回归。
 
 发布集成工作流在 Python 3.10、3.11、3.12、3.13 上使用临时 MySQL、PostgreSQL 和 Redis 服务验证多 worker 发布行为。工作流配置不代表已经执行成功；发布前应核对对应提交的实际 CI 结果，并完成目标平台的部署验收。
 

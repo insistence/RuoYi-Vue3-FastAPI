@@ -277,6 +277,18 @@ ruoyi plugin test demo --env=dev
 
 `install-deps` 是真实 Python/npm 依赖安装的唯一显式入口。文本 TTY 下可省略 `--yes`，CLI 会先输出依赖安装计划和策略判定，再询问是否执行；非 TTY、JSON 输出或 CI 场景应传 `--yes`，否则会由策略返回确认阻断。
 
+独立 v2 bundle 工程可离线检查、更新复制到 `web/vendor` 的桥接 SDK：
+
+```bash
+ruoyi plugin sdk check plugin-projects/report_center --output=json
+ruoyi plugin sdk update plugin-projects/report_center --dry-run --output=json
+ruoyi plugin sdk update plugin-projects/report_center
+```
+
+这些命令不接受 `--env`，也不读取宿主数据库配置或执行插件代码。来源默认为相邻前端目录，可用 `--frontend-root PATH` 或 `RUOYI_PLUGIN_FRONTEND_ROOT` 指定。`check` 仅在版本、来源记录及文件摘要与选定宿主一致（`current`）时返回 0；过期副本、本地修改或缺少记录返回非零，适合纳入构建检查。`protocolCompatible` 只比较桥协议，不表示业务功能已经验收。
+
+`update` 是显式写入命令，先备份再替换三个 SDK 文件。默认拒绝覆盖本地 SDK 修改或旧工程的未跟踪副本；需要纳管时先审阅 `update --force --dry-run`，再执行 `update --force`。备份位于工程 `.plugin-sdk-backups/`，业务代码保持原样。更新后应重建 bundle 并执行兼容测试；不会下载依赖、签名发布或改变运行中的插件。完整状态与摘要规则见开发手册第 16.1 节。
+
 ### 4.7 Shell Completion 初始化
 
 ```bash

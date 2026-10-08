@@ -3,8 +3,6 @@
  * 同源 iframe 中运行的是受信任代码，不提供安全沙箱隔离。
  */
 export const PLUGIN_BRIDGE_NAMESPACE = 'ruoyi.plugin'
-// SDK 源码交付版本独立于消息协议版本，不写入桥消息。
-export const PLUGIN_BRIDGE_SDK_VERSION = '1.0.0'
 export const PLUGIN_BRIDGE_VERSION = 1
 export const PLUGIN_BRIDGE_MAX_BYTES = 64 * 1024
 export const PLUGIN_BRIDGE_MAX_PENDING = 8

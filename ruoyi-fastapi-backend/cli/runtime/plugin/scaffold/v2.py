@@ -4,6 +4,8 @@ from typing import Any
 
 import yaml
 
+from cli.runtime.plugin.sdk import PluginBridgeSdk
+
 from .payload import PluginScaffoldPlanPayload
 
 
@@ -77,11 +79,10 @@ class PluginV2ScaffoldBuilder:
         if test:
             entries.append((root / 'tests' / 'test_plugin.py', self._render('test_plugin.py', replacements)))
         if bundle:
-            for sdk_name in ('pluginBridge.js', 'pluginBridge.d.ts'):
-                sdk_path = self.frontend_root / 'src' / 'utils' / sdk_name
-                if not sdk_path.is_file():
-                    raise ValueError(f'缺少宿主桥接 SDK：{sdk_path}；请配置正确的 RUOYI_PLUGIN_FRONTEND_ROOT')
-                entries.append((root / 'web' / 'vendor' / sdk_name, sdk_path.read_text(encoding='utf-8')))
+            entries.extend(
+                (root / 'web' / 'vendor' / sdk_name, content)
+                for sdk_name, content in PluginBridgeSdk(self.frontend_root).build_vendor_files().items()
+            )
             entries.extend(
                 (root / 'web' / name, self._render(f'web/{name.removeprefix("src/")}', replacements))
                 for name in (
@@ -203,7 +204,8 @@ class PluginV2ScaffoldBuilder:
         frontend_steps = (
             f'```bash\nnpm --prefix {root}/web install\nnpm --prefix {root}/web run build\n```\n\n'
             '提交生成的 package-lock.json；后续可用 `npm ci` 重现前端依赖。构建器只复制已构建的 '
-            '`web/dist`，不会自动执行 npm。桥接 SDK 已从生成时的宿主复制到 `web/vendor`，升级宿主时应核对兼容性。\n\n'
+            '`web/dist`，不会自动执行 npm。桥接 SDK 和溯源清单已从生成时的宿主复制到 `web/vendor`，'
+            '检查及更新方式见下文。\n\n'
             f'本地调试可运行 `npm --prefix {root}/web run dev`，打开 `/dev.html`。'
             '模拟宿主支持主题、延迟、失败、重载及退出，使用模拟 `/api/info` 响应；业务接口需自行扩展 `web/dev.js`。'
             '模拟页不进入生产构建，也不能替代真实权限、会话和传输加密验证。'
@@ -234,6 +236,24 @@ class PluginV2ScaffoldBuilder:
             '测试使用宿主 SDK 和本地请求上下文替身，不连接数据库。Rust 模板未指定构建产物时明确跳过，'
             'Python 模板也可直接测试源码目录。测试不代替真实登录、数据库和多 worker 发布验收。\n\n'
             if test
+            else ''
+        )
+        sdk_steps = (
+            '## SDK 检查与更新\n\n'
+            '`web/vendor/pluginBridge.sdk.json` 记录 SDK 版本、桥协议版本、能力声明和来源摘要。'
+            'SDK 版本独立于桥协议 v1；两个源码文件的摘要按 UTF-8、LF 换行计算，'
+            '跨平台换行转换不会被误判为 SDK 改动。协议兼容不等于业务兼容。\n\n'
+            f'```bash\nruoyi plugin sdk check {root} --output json\n'
+            f'ruoyi plugin sdk update {root} --dry-run\n'
+            f'ruoyi plugin sdk update {root}\n```\n\n'
+            '`check` 只有 `current` 状态返回成功退出码；`outdated` 或其他状态均返回非零退出码。'
+            '`update --dry-run` 只预览，实际 `update` 命令直接写入，不需要额外的 `--yes`。'
+            '修改过或没有溯源记录的旧副本默认拒绝覆盖，需显式使用 `--force`。'
+            '每次实际更新都先将原 SDK 备份到本工程的 `.plugin-sdk-backups/`。\n\n'
+            '命令只使用本地宿主 SDK，不联网、不安装依赖、不更新业务源码或运行中的插件。'
+            f'更新后必须重新运行 `npm --prefix {root}/web run build`，'
+            '验证业务页面、类型与宿主能力，再重新打包并按维护流程发布。\n\n'
+            if bundle
             else ''
         )
         access_note = (
@@ -289,7 +309,7 @@ PostgreSQL 使用 `python -m pip install -r requirements-pg.txt`。下文 `pytho
 每次使用不存在的新输出目录。交付目录为 `{output}/{plugin_id}`；不要签名整个源码工程、wheel 输出目录或 Cargo 工程。
 {packaging_note}
 
-{tests}## 签名与维护发布
+{tests}{sdk_steps}## 签名与维护发布
 
 先在宿主启用 `PLUGIN_ARTIFACT_ENABLED`，设置制品存储位置和外部信任公钥文件；公钥必须授权 `{plugin_id}`。
 发布者 Ed25519 PKCS8 私钥放在源码及交付目录之外。以下路径和大写占位符需要替换为实际值。

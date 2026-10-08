@@ -1,4 +1,5 @@
 import ast
+import hashlib
 import json
 import os
 import subprocess
@@ -105,6 +106,50 @@ def test_v2_templates_create_independent_projects_without_importing_or_installin
         assert "apply: 'serve'" in (source / 'web' / 'vite.config.js').read_text(encoding='utf-8')
         assert plugin.manifest.frontend.menus[0].component == 'PluginFrame'
         assert plugin.manifest.frontend.menus[0].perms == f'{PLUGIN_ID}:view'
+    else:
+        assert not (source / 'web').exists()
+        assert not list(source.rglob('pluginBridge.sdk.json'))
+
+
+@pytest.mark.parametrize('template', ['python-bundle', 'rust-bundle'])
+def test_bundle_templates_record_sdk_identity_and_source_hashes(tmp_path: Path, template: str) -> None:
+    """
+    验证 bundle 工程包含独立 SDK 版本、协议能力及与实际副本一致的来源摘要。
+    """
+    _, source = generate(tmp_path, template)
+    vendor = source / 'web' / 'vendor'
+    sdk = json.loads((vendor / 'pluginBridge.sdk.json').read_text(encoding='utf-8'))
+    assert sdk['schemaVersion'] == 1
+    assert sdk['sdkVersion'] == '1.0.0'
+    assert sdk['bridgeVersion'] == 1
+    assert sdk['capabilities'] == {'files': 1, 'streams': 1}
+    assert sdk['hashAlgorithm'] == 'sha256-utf8-lf'
+    assert sdk['source'] == {'project': 'RuoYi-Vue3-FastAPI', 'directory': 'ruoyi-fastapi-frontend/src/utils'}
+    assert set(sdk['files']) == {'pluginBridge.js', 'pluginBridge.d.ts'}
+    for name in ('pluginBridge.js', 'pluginBridge.d.ts'):
+        content = (vendor / name).read_text(encoding='utf-8')
+        assert sdk['files'][name] == hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
+def test_bundle_sdk_source_hashes_are_stable_across_crlf_checkout(tmp_path: Path) -> None:
+    """
+    验证使用 CRLF 的宿主源码副本生成工程后，SDK 溯源摘要仍与规范化内容一致。
+    """
+    frontend = tmp_path / 'frontend'
+    sdk_source = frontend / 'src' / 'utils'
+    sdk_source.mkdir(parents=True)
+    for name in ('pluginBridge.js', 'pluginBridge.d.ts', 'pluginBridge.sdk.json'):
+        content = (FRONTEND_ROOT / 'src' / 'utils' / name).read_text(encoding='utf-8')
+        (sdk_source / name).write_bytes(content.replace('\n', '\r\n').encode('utf-8'))
+    backend = tmp_path / 'backend'
+    payload = build_runtime(backend, frontend_root=frontend).create_plugin(PLUGIN_ID, template='python-bundle')
+    assert payload['ok'], payload
+    vendor = backend / 'plugin-projects' / PLUGIN_ID / 'web' / 'vendor'
+    sdk = json.loads((vendor / 'pluginBridge.sdk.json').read_text(encoding='utf-8'))
+    for name in ('pluginBridge.js', 'pluginBridge.d.ts'):
+        expected = (FRONTEND_ROOT / 'src' / 'utils' / name).read_text(encoding='utf-8')
+        assert (vendor / name).read_text(encoding='utf-8') == expected
+        assert sdk['files'][name] == hashlib.sha256(expected.encode('utf-8')).hexdigest()
 
 
 @pytest.mark.parametrize('template', TEMPLATES)
@@ -126,10 +171,22 @@ def test_v2_template_readme_matches_browser_capabilities(tmp_path: Path, templat
         assert '本模板仅生成 `/api/info`，文件和事件接口需自行实现并校验权限' in readme
         assert '`TRANSPORT_CRYPTO_EXCLUDE_PATHS`' in readme
         assert '不支持上传、流式响应' not in readme
+        assert '`web/vendor/pluginBridge.sdk.json`' in readme
+        assert f'ruoyi plugin sdk check plugin-projects/{PLUGIN_ID} --output json' in readme
+        assert f'ruoyi plugin sdk update plugin-projects/{PLUGIN_ID} --dry-run' in readme
+        assert f'ruoyi plugin sdk update plugin-projects/{PLUGIN_ID}\n' in readme
+        assert '只有 `current` 状态返回成功退出码' in readme
+        assert '修改过或没有溯源记录的旧副本默认拒绝覆盖' in readme
+        assert '`--force`' in readme and '`.plugin-sdk-backups/`' in readme
+        assert '协议兼容不等于业务兼容' in readme
+        assert '不联网、不安装依赖、不更新业务源码或运行中的插件' in readme
+        assert f'更新后必须重新运行 `npm --prefix plugin-projects/{PLUGIN_ID}/web run build`' in readme
     else:
         assert '子应用不提供独立登录' in readme
         assert 'capabilities.files' not in readme
         assert 'capabilities.streams' not in readme
+        assert 'pluginBridge.sdk.json' not in readme
+        assert 'ruoyi plugin sdk' not in readme
 
 
 @pytest.mark.parametrize('template', TEMPLATES)
@@ -216,6 +273,8 @@ def test_generated_python_release_passes_structure_and_generated_contract_tests(
             'pytest',
             '-c',
             str(BACKEND_ROOT / 'pyproject.toml'),
+            '--confcutdir',
+            str(source),
             str(source / 'tests'),
             '-q',
         ],

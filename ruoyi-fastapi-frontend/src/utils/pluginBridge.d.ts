@@ -1,4 +1,6 @@
 export const PLUGIN_BRIDGE_NAMESPACE: 'ruoyi.plugin'
+/** SDK 源码交付版本，独立于桥消息协议版本。 */
+export const PLUGIN_BRIDGE_SDK_VERSION: '1.0.0'
 export const PLUGIN_BRIDGE_VERSION: 1
 export const PLUGIN_BRIDGE_MAX_BYTES: number
 export const PLUGIN_BRIDGE_MAX_PENDING: number
