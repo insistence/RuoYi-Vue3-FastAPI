@@ -5,6 +5,8 @@ on:
     branches: [master]
     paths:
       - 'ruoyi-fastapi-backend/plugins/core/**'
+      - 'ruoyi-fastapi-backend/plugins/examples/python/task_demo/**'
+      - 'ruoyi-fastapi-frontend/src/utils/pluginBridge.js'
       - 'ruoyi-fastapi-backend/config/**'
       - 'ruoyi-fastapi-backend/cli/groups/plugin/**'
       - 'ruoyi-fastapi-backend/cli/runtime/plugin/**'
@@ -13,6 +15,7 @@ on:
       - 'ruoyi-fastapi-backend/app.py'
       - 'ruoyi-fastapi-backend/sql/ruoyi-fastapi*.sql'
       - 'ruoyi-fastapi-backend/scripts/plugin_release_integration.py'
+      - 'ruoyi-fastapi-backend/scripts/plugin_task_integration.py'
       - 'ruoyi-fastapi-backend/tests/plugins/**'
       - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_artifact_commands.py'
       - 'ruoyi-fastapi-backend/tests/cli/runtime/plugin/**'
@@ -75,6 +78,14 @@ jobs:
           cache-dependency-path: ruoyi-fastapi-backend/requirements*.txt
       - name: Install host dependencies
         run: python -m pip install -r requirements.txt -r requirements-pg.txt
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Test and build task plugin bundle
+        run: |
+          npm --prefix plugins/examples/python/task_demo/web install --no-audit --no-fund --package-lock=false
+          npm --prefix plugins/examples/python/task_demo/web test
+          npm --prefix plugins/examples/python/task_demo/web run build
       - name: Verify MySQL and Redis maintenance releases
         run: python scripts/plugin_release_integration.py --engine mysql
       - name: Verify PostgreSQL and Redis maintenance releases

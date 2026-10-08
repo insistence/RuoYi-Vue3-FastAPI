@@ -10,6 +10,7 @@
 | 显式 Router 或 ASGI 子应用 | [v2 清单](#510-v2-清单与能力组合)、[显式入口与 SDK](#66-v2-显式入口与宿主-sdk) | [Python ASGI](../plugins/examples/python/asgi_demo/README.md) |
 | Rust 原生后端 | [原生插件](#68-rust-原生插件)、[项目脚手架与构建](#16-v2-项目脚手架与完整构建) | [Rust 示例](../plugins/examples/rust/rust_demo/README.md) |
 | 独立构建的插件页面 | [bundle 页面](#72-v2-独立-bundle-页面)、[浏览器 SDK](#73-bundle-浏览器-sdk) | [Python bundle](../plugins/examples/python/bundle_demo/README.md) |
+| 持久化业务与升级 | [受控 Python 交付](#162-python-业务模块与迁移交付)、[显式事务](#66-v2-显式入口与宿主-sdk) | [任务 CRUD 示例](../plugins/examples/python/task_demo/README.md) |
 | 签名交付与生产维护 | [制品与发布](#15-v2-签名制品与维护发布)、[真实服务验收](#17-本地真实服务验收与-ci) | [Rust 签名发布示例](../plugins/examples/rust/rust_demo/README.md#签名制品与维护发布) |
 
 目录插件与签名制品不能同时使用相同插件 ID。两种方式均遵守进程重启边界，不提供原生模块热替换。
@@ -1507,7 +1508,7 @@ Python 模板将上一例中的原生构建步骤替换为：
 python plugin-projects/report_center/build_release.py --output target/report_center-package
 ```
 
-Python 打包器仅复制模板清单、入口和构建后的 bundle；增加业务模块、SQL 或其他资源时，应显式扩展复制清单并测试。Python 插件仍以 Python 源码交付。Rust 交付不包含 `.rs`、Cargo 或前端开发工程；两种方式均需按第 15 节签名、导入、维护准备、选择目标及重启验收。所有构建输出必须使用新目录，不能覆盖已加载版本。
+Python 打包器固定复制 `plugin.yaml`，按生成的 `release-files.json` 纳入显式业务 `.py/.sql` 文件，再复制构建后的 bundle；新增业务模块与 SQL 时维护该清单，规则见第 16.2 节。Python 插件仍以 Python 源码交付。Rust 交付不包含 `.rs`、Cargo 或前端开发工程；两种方式均需按第 15 节签名、导入、维护准备、选择目标及重启验收。所有构建输出必须使用新目录，不能覆盖已加载版本。
 
 ### 16.1 桥接 SDK 溯源与显式更新
 
@@ -1541,6 +1542,29 @@ npm --prefix plugin-projects/report_center/web run build
 
 本地修改、旧副本或可安全备份的损坏溯源记录，默认不会被覆盖。确需用选定来源重新纳管时，先执行 `update --force --dry-run`，审阅结果后再执行 `update --force`；非法 YAML、非 v2 bundle 工程、无效来源 SDK 或不安全路径不能通过此选项绕过。业务源码不受影响，已构建的 `web/dist` 也不会自动改变；更新后要重建、回归，再按正式流程发布。
 
+### 16.2 Python 业务模块与迁移交付
+
+新生成的 Python 工程包含 `release-files.json`，初始为 `{"schemaVersion": 1, "files": ["__init__.py"]}`。该文件供独立构建脚本使用，不属于运行时插件清单，也不进入制品。示例扩展：
+
+```json
+{
+  "schemaVersion": 1,
+  "files": [
+    "__init__.py",
+    "models.py",
+    "service.py",
+    "migrations/mysql/001_init.sql",
+    "migrations/postgresql/001_init.sql"
+  ]
+}
+```
+
+文件必须显式列出，使用插件源码根目录下的相对路径，仅接受 `.py/.sql`；不接受目录、通配符、路径跳转、隐藏路径、开发目录、重复或大小写冲突以及链接、重解析点和硬链接。配置最多 64 KiB、1024 项。`plugin.yaml` 固定复制，bundle 的 `web/dist` 沿用静态扩展名白名单及链接检查。构建器先校验全部输入再创建输出目录，不导入插件、不安装依赖、不执行迁移。新增 SQL 还须加入 `plugin.yaml` 的迁移声明，并测试清单与实际制品一致；制品预检仍负责验证插件结构与迁移引用。
+
+已生成的旧构建脚本不会自动改变，可以继续按原有约定交付；采用新脚本时应一并迁入文件清单，再验证完整交付目录。不要直接将整个 Python 工程、凭据、前端源码或依赖目录签名发布。
+
+[`task_demo`](../plugins/examples/python/task_demo/README.md) 展示完整的共享任务业务：独立 bundle 表单、分页与状态筛选、`view/write` 分权、SDK 显式事务、参数校验、MySQL/PostgreSQL SQL，以及从 1.0 数据结构到 1.1 优先级字段的数据保留。示例源码与生成工程使用同一构建器契约；数据库写入不发生在插件启动阶段。
+
 ## 17. 本地真实服务验收与 CI
 
 本节用于插件交付前的自动化回归和部署环境验收。插件自身的测试与静态检查见[第 13 节](#13-测试和发布前检查)，v2 工程构建及合约测试见[第 16 节](#16-v2-项目脚手架与完整构建)，签名交付与维护操作按[第 15 节](#15-v2-签名制品与维护发布)执行。
@@ -1552,6 +1576,7 @@ npm --prefix plugin-projects/report_center/web run build
 ```bash
 python -m pip install pytest pytest-asyncio aiosqlite
 python -m pytest tests/cli/runtime/plugin/test_runtime_scaffold.py tests/cli/runtime/plugin/test_runtime_scaffold_v2.py -q
+python -m pytest tests/plugins/examples/test_task_demo.py tests/plugins/core/deployment/test_task_delivery.py -q
 python -m pytest tests/plugins/core/artifacts tests/plugins/core/deployment tests/plugins/core/management/test_release_dao.py tests/plugins/core/management/test_artifact_views.py tests/module_plugin/controller/test_plugin_release_controller.py tests/cli/root/test_plugin_artifact_commands.py tests/sql/test_plugin_release_schema.py -q
 ```
 
@@ -1593,6 +1618,8 @@ npm --prefix ../ruoyi-fastapi-frontend run test:plugin
 仓库的原生插件工作流配置 Windows/Linux、Python 3.10、3.11、3.12、3.13 构建测试矩阵，覆盖 v1/v2 脚手架、SDK 溯源与离线更新命令、原生扩展以及签名制品与维护发布回归。
 
 发布集成工作流在 Python 3.10、3.11、3.12、3.13 上使用临时 MySQL、PostgreSQL 和 Redis 服务验证多 worker 发布行为。工作流配置不代表已经执行成功；发布前应核对对应提交的实际 CI 结果，并完成目标平台的部署验收。
+
+该工作流还实际构建 `task_demo` 的 bundle，并通过 `scripts/plugin_task_integration.py` 验证 Python 受控目录打包、签名、导入、维护准备、目标选择、旧结构数据保留以及当前业务 CRUD/读写分权。旧版本是仅承载 001 迁移的测试夹具；当前版本从真实签名制品加载。业务 HTTP 验收使用已认证上下文和 ASGI 适配器，不代替浏览器登录验收。运行真实发布集成脚本前须先按任务示例 README 构建 `web/dist`；本地 SQLite 交付回归使用最小 HTML 夹具，单独验证维护链路。
 
 [`plugin-frontend.yml`](../../.github/workflows/plugin-frontend.yml) 在 Node.js 22 上执行 `npm run test:plugin`，相关源码、测试、SDK、构建配置及依赖变更会触发检查。仓库当前不提交 npm 锁文件，因此使用 `npm install --package-lock=false`，依赖解析仍遵循 `package.json` 的版本范围。
 

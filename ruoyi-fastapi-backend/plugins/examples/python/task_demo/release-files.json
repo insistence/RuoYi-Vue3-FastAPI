@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    "__init__.py",
+    "models.py",
+    "service.py",
+    "migrations/mysql/001_init.sql",
+    "migrations/mysql/002_priority.sql",
+    "migrations/postgresql/001_init.sql",
+    "migrations/postgresql/002_priority.sql"
+  ]
+}

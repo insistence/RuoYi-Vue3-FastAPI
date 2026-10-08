@@ -6,8 +6,8 @@ import unicodedata
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
-PLUGIN_ID = '__PLUGIN_ID__'
-BUNDLE = __BUNDLE__
+PLUGIN_ID = 'task_demo'
+BUNDLE = True
 SOURCE = Path(__file__).resolve().parent
 RELEASE_MANIFEST = 'release-files.json'
 MANIFEST_VERSION = 1

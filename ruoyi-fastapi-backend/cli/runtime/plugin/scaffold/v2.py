@@ -1,3 +1,4 @@
+import json
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -75,6 +76,12 @@ class PluginV2ScaffoldBuilder:
             entries.extend(
                 (root / name, self._render(f'python/{name}', replacements))
                 for name in ('__init__.py', 'build_release.py')
+            )
+            entries.append(
+                (
+                    root / 'release-files.json',
+                    json.dumps({'schemaVersion': 1, 'files': ['__init__.py']}, indent=2) + '\n',
+                )
             )
         if test:
             entries.append((root / 'tests' / 'test_plugin.py', self._render('test_plugin.py', replacements)))
@@ -223,8 +230,13 @@ class PluginV2ScaffoldBuilder:
         packaging_note = (
             '原生打包器复制扩展、发行包元数据、清单及声明的交付资源；不复制 Rust 工程。'
             if native
-            else 'Python 打包脚本只复制本模板的清单、入口和已构建 bundle；'
-            '增加业务模块、SQL 或资源后，应明确扩展该复制清单并测试。'
+            else 'Python 打包脚本按 `release-files.json` 的 `files` 列表复制业务 `.py`、`.sql` 文件。'
+            '初始清单为 `{"schemaVersion": 1, "files": ["__init__.py"]}`；增加模块或迁移 SQL 时，'
+            '将每个文件的明确相对路径加入清单，例如 `models.py`、`migrations/mysql/001_init.sql`，再重新构建并测试。'
+            '`plugin.yaml` 固定纳入，bundle 模板自动纳入已构建的 `web/dist`，这两项不写入列表；'
+            '清单本身和构建脚本不进入交付。清单上限 64 KiB、1024 个文件，不支持目录或通配符。'
+            '隐藏路径、重复或大小写冲突、tests/keys/vendor 等开发目录、链接、重解析点和硬链接均会被拒绝。'
+            '所有资源校验通过后才创建输出目录；未列出的私有文件不会自动复制。'
         )
         tests = (
             'Windows PowerShell：\n\n'

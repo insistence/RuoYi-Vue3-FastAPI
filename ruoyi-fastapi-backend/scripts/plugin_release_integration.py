@@ -910,6 +910,9 @@ async def run(spec: RunSpec) -> None:
     :param spec: 当前验收的隔离运行信息，不包含连接密码
     :return: None
     """
+    task_source = BACKEND_ROOT / 'plugins' / 'examples' / 'python' / 'task_demo'
+    if not (task_source / 'web' / 'dist' / 'index.html').is_file():
+        raise ValueError('请先按 task_demo/README.md 安装前端依赖并构建 web/dist，再运行真实发布验收')
     configure_process(spec)
     admin = database_engine(spec, admin=True)
     engine = None
@@ -922,6 +925,17 @@ async def run(spec: RunSpec) -> None:
         engine = database_engine(spec)
         await prepare_schema(spec, engine)
         await exercise_release(spec, engine)
+        from plugins.core.deployment.service import PluginDeploymentService  # noqa: PLC0415
+        from scripts.plugin_task_integration import exercise_task_delivery  # noqa: PLC0415
+
+        config, sessions = wire_runtime(spec, engine)
+        task_result = await exercise_task_delivery(
+            PluginDeploymentService(config, session_factory=sessions),
+            sessions,
+            task_source,
+            Path(spec.root) / 'task-delivery',
+        )
+        emit('task_delivery', **task_result)
     finally:
         if engine is not None:
             try:
@@ -957,6 +971,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             '需显式授权的真实 Redis 与 MySQL/PostgreSQL 插件发布验收脚本。\n\n'
+            '运行前须按 plugins/examples/python/task_demo/README.md 构建任务示例的 web/dist。\n'
             '仅用于研发验收；通过 RUOYI_PLUGIN_IT_ALLOW=1 显式开启。导入本模块不会加载宿主配置、\n'
             '建立连接或读取应用的 .env 文件。'
         )

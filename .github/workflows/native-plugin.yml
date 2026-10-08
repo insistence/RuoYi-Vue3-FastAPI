@@ -6,6 +6,8 @@ on:
     paths:
       - 'ruoyi-fastapi-backend/plugins/core/**'
       - 'ruoyi-fastapi-backend/plugins/examples/rust/**'
+      - 'ruoyi-fastapi-backend/plugins/examples/python/task_demo/**'
+      - 'ruoyi-fastapi-backend/scripts/plugin_task_integration.py'
       - 'ruoyi-fastapi-backend/scripts/build_native_plugin.py'
       - 'ruoyi-fastapi-backend/cli/runtime/plugin/scaffold/**'
       - 'ruoyi-fastapi-backend/cli/runtime/plugin/sdk.py'
@@ -24,6 +26,8 @@ on:
     paths:
       - 'ruoyi-fastapi-backend/plugins/core/**'
       - 'ruoyi-fastapi-backend/plugins/examples/rust/**'
+      - 'ruoyi-fastapi-backend/plugins/examples/python/task_demo/**'
+      - 'ruoyi-fastapi-backend/scripts/plugin_task_integration.py'
       - 'ruoyi-fastapi-backend/scripts/build_native_plugin.py'
       - 'ruoyi-fastapi-backend/cli/runtime/plugin/scaffold/**'
       - 'ruoyi-fastapi-backend/cli/runtime/plugin/sdk.py'
@@ -69,6 +73,8 @@ jobs:
         run: python -m pytest tests/cli/runtime/plugin/test_runtime_scaffold.py tests/cli/runtime/plugin/test_runtime_scaffold_v2.py -q
       - name: Verify SDK provenance and offline update commands
         run: python -m pytest tests/cli/runtime/plugin/test_runtime_sdk.py tests/cli/root/test_plugin_sdk_commands.py -q
+      - name: Verify persistent task plugin
+        run: python -m pytest tests/plugins/examples/test_task_demo.py -q
       - name: Build and assemble source-free plugin
         run: python scripts/build_native_plugin.py --output target/native-package
       - name: Check Rust code
