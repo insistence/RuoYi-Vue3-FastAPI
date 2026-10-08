@@ -253,7 +253,7 @@ async def test_shutdown_isolates_cleanup_failures_and_closes_in_reverse_order(
 
     monkeypatch.setattr(consumer.lifespan, 'shutdown', consumer_lifespan)
     monkeypatch.setattr(consumer.gateway, 'drain', consumer_connection)
-    consumer.jobs = object()
+    consumer.jobs = SimpleNamespace(tasks=set())
     monkeypatch.setattr('plugins.core.runtime.explicit.unbind_plugin_jobs', consumer_jobs)
     try:
         await runtime.shutdown()

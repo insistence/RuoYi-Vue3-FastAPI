@@ -99,6 +99,25 @@ class PluginConnectionManager:
         self.connections: set[_PluginConnection] = set()
         self._unfinished: set[asyncio.Task[Any]] = set()
 
+    def connection_counts(self) -> dict[str, int]:
+        """
+        读取当前已打开的协议连接数量，不公开作用域、身份或请求头。
+
+        :return: SSE 与 WebSocket 的当前连接数量
+        """
+        return {
+            'sse': sum(connection.scope['type'] == 'http' for connection in self.connections),
+            'websocket': sum(connection.scope['type'] == 'websocket' for connection in self.connections),
+        }
+
+    def pending_tasks(self) -> frozenset[asyncio.Task[Any]]:
+        """
+        为宿主诊断提供尚未结束的取消超时任务快照，不改变任务或清理集合。
+
+        :return: 当前仍被连接回收器保留的任务集合，只供宿主统计使用
+        """
+        return frozenset(task for task in self._unfinished if not task.done())
+
     async def run(
         self,
         app: ASGIApp,

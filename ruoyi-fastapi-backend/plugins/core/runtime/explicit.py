@@ -1,6 +1,6 @@
 import inspect
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -18,6 +18,12 @@ from plugins.core.runtime.browser_session import authenticate_browser_session
 from plugins.core.runtime.bundle import PluginBundleASGI
 from plugins.core.runtime.configuration import PluginConfigObservation, PluginConfigReader, config_revision
 from plugins.core.runtime.connections import AUTH_RECHECK_KEY
+from plugins.core.runtime.diagnostics import (
+    PluginActivationHealth,
+    PluginRuntimeDiagnosticSnapshot,
+    activation_health_observation,
+    collect_runtime_diagnostics,
+)
 from plugins.core.runtime.entrypoint import PluginEntrypointLoader
 from plugins.core.runtime.health import PluginHealthChecker
 from plugins.core.runtime.host_services import build_host_services
@@ -44,6 +50,7 @@ class LoadedExplicitPlugin:
     :param active: 插件是否已完成激活
     :param jobs: 当前 worker 中的插件任务绑定
     :param gateway: 当前 worker 的 ASGI 长连接管理入口
+    :param activation_health: 最近一次激活健康检查的安全摘要，不表示持续健康
     """
 
     plugin: RegisteredPlugin
@@ -53,6 +60,7 @@ class LoadedExplicitPlugin:
     active: bool = False
     jobs: PluginJobBinding | None = None
     gateway: PluginGatewayASGI | None = None
+    activation_health: PluginActivationHealth = field(default_factory=PluginActivationHealth)
 
 
 class ExplicitPluginRuntime:
@@ -72,6 +80,14 @@ class ExplicitPluginRuntime:
         self.metrics = PluginRuntimeMetrics()
         self.metrics_reporter = PluginMetricsReporter(self.metrics)
         self._closing = False
+
+    def diagnostic_snapshot(self) -> PluginRuntimeDiagnosticSnapshot:
+        """
+        读取当前 worker 已加载插件的身份、资源与最近激活检查，不触发插件回调。
+
+        :return: 与旧版 metrics 协议独立的有界诊断快照
+        """
+        return collect_runtime_diagnostics(self)
 
     @staticmethod
     def ordered_plugins(registry: PluginRegistry) -> list[RegisteredPlugin]:
@@ -259,7 +275,8 @@ class ExplicitPluginRuntime:
             if loaded.jobs is not None:
                 try:
                     await unbind_plugin_jobs(loaded.jobs)
-                    loaded.jobs = None
+                    if not any(not task.done() for task in loaded.jobs.tasks):
+                        loaded.jobs = None
                 except Exception:
                     logger.exception(f'插件激活失败后的任务回收失败：{plugin_id}')
             raise
@@ -329,6 +346,7 @@ class ExplicitPluginRuntime:
         """
         if loaded.plugin.discovered_plugin.manifest.backend.health.checker:
             result = await PluginHealthChecker(loaded.plugin.discovered_plugin).check(app=app)
+            loaded.activation_health = activation_health_observation(result)
             if not result.ok:
                 raise RuntimeError(f'插件激活健康检查失败：{result.message}')
 
@@ -463,7 +481,8 @@ class ExplicitPluginRuntime:
             if loaded.jobs is not None:
                 try:
                     await unbind_plugin_jobs(loaded.jobs)
-                    loaded.jobs = None
+                    if not any(not task.done() for task in loaded.jobs.tasks):
+                        loaded.jobs = None
                 except Exception:
                     logger.exception(f'插件任务关闭失败：{loaded.plugin.plugin_id}')
             if loaded.lifespan is not None:

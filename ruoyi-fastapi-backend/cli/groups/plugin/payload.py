@@ -47,6 +47,9 @@ class PluginCommandPayloadAdapter:
         cls._adapt_plugin_runtime_state(node)
         cls._adapt_manifest_job_state(node, parent_key)
         for key, value in list(node.items()):
+            if key == 'runtime':
+                # 新运行观测使用 API 与 CLI 共享契约，不重新解释发布目标的 enabled。
+                continue
             cls._adapt_node(value, parent_key=key)
 
     @staticmethod

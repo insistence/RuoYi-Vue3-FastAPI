@@ -1214,6 +1214,46 @@ ASGI 长连接因登录或权限撤销而关闭时计入“拒绝”，复核不
 
 请求和任务均设置追踪标识；日志上下文附带插件 ID、版本、制品摘要、代际、worker 和操作。指标只保存最近异常类型、时间和追踪标识，不采集 URL、请求体、认证头或异常消息。可用 `lastErrorRequestId` 关联宿主日志排查。
 
+### 12.2 统一运行诊断
+
+管理端“诊断包 → 原始数据”、`GET /system/plugin/{plugin_id}/diagnose` 和 `ruoyi plugin diagnose` 的 JSON 包中，`runtime` 汇集发布目标、worker 实际加载状态与运行快照。Web 接口要求宿主登录和 `system:plugin:query`。现有页面会保留并显示整个 JSON；诊断弹窗没有文件下载按钮，需要导出时使用 CLI：
+
+```bash
+ruoyi plugin diagnose demo --env=dev --output=json
+ruoyi plugin diagnose demo --env=dev --output-file=demo-diagnose.json
+```
+
+诊断包顶层 `ok` 仍表示原有静态诊断结果，页面的“正常/异常”也读取该字段。已经生成的诊断包通过成功响应返回，检查发现问题时仍保留 `data.ok=false`；插件不存在或诊断包生成失败仍返回失败响应。接口成功不表示全部 worker 已加载目标制品、实时健康或资源已经释放。运行态状态应单独查看 `runtime.state` 和各 worker 的 `freshness/observation`。`runtime.release.summary` 中的目标与 `runtime.workers[].actual` 中实际加载的 `version/digest/generation` 分开记录；`releaseReport` 是发布上报记录，不能代替当前 `actual`。源码插件没有制品摘要和发布代际，对应值为 `null`。
+
+`runtime.state=observed` 表示取得新鲜 worker 快照，不保证该 worker 已加载目标插件；`partial` 表示存在已知采样缺口，`unobserved` 表示没有新鲜快照，`unavailable` 表示运行观测不可用。这些状态均不等同 `healthy`。
+
+诊断进程扫描不到制品 manifest 时，保留 `database_only` 信息并标记静态检查未完成，仍可查看发布与运行快照；此路径不导入制品代码，也不会将尚未检查的配置或结构标记为正常。
+
+采集只观察宿主已经维护的状态，不启动插件、不重新执行健康检查器，也不触发迁移、停用或资源清理。有效快照的 `workers[].actual` 包含以下插件信息，worker 整体清理总数单独放在 worker 行：
+
+| 信息 | 含义与边界 |
+| --- | --- |
+| `active/ready/closing` | 当前 worker 中实际加载插件的运行与关闭状态。 |
+| `lifespan` | ASGI 的 `managed/started/ready/taskActive`；Router 没有 ASGI lifespan，此项为 `null`。 |
+| `connections`、`activeJobs` | 宿主登记的 SSE/WebSocket 连接数量和当前任务数量；不枚举插件内部任意协程、线程或原生任务。 |
+| `pendingConnectionTasks/pendingJobTasks` | 宿主发出取消后仍未退出、仍保留用于清理的已知任务数量。 |
+| `workerPendingCleanupTasks` | 整个 worker 的去重清理任务总数，包含插件子项，不能与上述数量相加。 |
+| `activationHealth` | 激活时已执行检查的 `status/checkedAt/durationMs` 历史摘要。未声明或尚未执行检查时为 `unknown`，不等同持续健康探测。 |
+| `config` | `startupRevision` 是启动配置，`lastReadRevision/lastReadAt` 是最近一次按需读取，读取完成不表示业务已经应用新配置；修订标识使用 HMAC，不包含运行配置值。 |
+| `lastError` | 已有观测记录中的异常类型、`requestId` 和时间；不包含异常消息、堆栈、URL、请求体或凭证。 |
+
+每个 worker 最多报告 1024 个显式加载的插件，超限通过 `droppedPlugins` 表达。`observedTotals` 仅合计本次新鲜 `actual` 中的连接、任务及插件清理计数，其 `totalsScope` 固定为 `fresh_observed_workers`，没有可用观测时为 `null`。`workerPendingCleanupTasks` 不计入这些合计。`observedWorkers` 是包含目标插件新鲜观测的 worker 数量；预期数量和存活报告基线都不可得时，`missingWorkers` 为 `null`。没有采集到的项目使用 `null` 或未知状态，不能把缺失快照解释成连接数为 0、清理完成或插件健康。
+
+配置修订标识在同一插件、相同宿主密钥下可跨 worker 和重启比较；不同环境或密钥轮换后的摘要不能直接用于判断业务配置差异。运行配置的摘要脱敏只针对新增快照，诊断包原有 `config` 区域继续遵循其配置脱敏规则。采集时间、健康检查完成时间、配置读取时间与最近错误时间使用 epoch 秒，耗时 `durationMs` 使用毫秒。
+
+运行快照每 15 秒写入独立的 Redis 诊断命名空间，TTL 为 60 秒；该命名空间以宿主 ready key 加 `:diagnostics:v1` 为前缀，不修改既有运行观测指标的 schema，也不新增数据库表。聚合最多读取 64 个 worker，每份快照最大 512 KiB；返回采样范围、`collectedAt/ageSeconds`，并通过 `invalidSnapshots/staleSnapshots/workerLimitReached` 标记损坏、过期与采样上限。worker 的 `source=current_worker` 表示即时本地采样，`source=redis` 表示周期快照。过期或损坏数据不会作为当前 `actual` 或计入 `observedTotals`，远程结果仅代表最近一次有效采样。
+
+诊断快照按 `runtime.sampleTtlSeconds` 判断新鲜度；数据库中的宿主和插件发布上报按 `runtime.release.workerTtlSeconds` 判断 `host.fresh/releaseReport.fresh`。两种时效独立，发布心跳仍有效不代表运行快照仍可用。
+
+远端快照必须包含完整的协议字段，缺少字段或含非法 UTF-8 的记录按损坏处理，不使用模型默认值补成零计数，也不影响其他有效 worker。最终聚合时会重新校验快照时间，避免将查询过程中已经过期的记录计入结果。
+
+Redis 不可用且本地采样可用时，Web 诊断退回处理当前请求的 worker 的真实本地状态，范围为 `current_worker`；CLI 没有正在服务请求的宿主 worker，运行快照标记为 `unavailable`，不能用 CLI 进程的空状态代替服务器。采样缺失、部分上报和不可用都不表示全部 worker 健康。需要确认发布一致性时，还应结合 `release status` 的目标、存活上报及缺失/陈旧/失败 worker 信息；本诊断不改变发布状态。
+
 ## 13. 测试和发布前检查
 
 后端单插件测试：

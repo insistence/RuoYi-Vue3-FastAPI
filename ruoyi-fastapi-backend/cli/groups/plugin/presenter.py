@@ -206,17 +206,22 @@ class PluginCommandPresenter:
             checks = check.get('checks')
             check_items = checks if isinstance(checks, list) else []
             first_check = check_items[0] if check_items and isinstance(check_items[0], dict) else {}
-            lines.append(f'check_ok: {str(check.get("ok", False)).lower()}')
-            lines.append(f'dependency_count: {len(first_check.get("dependencies", [])) if first_check else 0}')
-            lines.append(f'structure_errors: {len(first_check.get("structureErrors", [])) if first_check else 0}')
-            lines.append(f'menu_conflicts: {len(first_check.get("menuConflicts", [])) if first_check else 0}')
-        if isinstance(menu_plan, dict):
+            if check.get('supported') is False:
+                lines.append('check: unavailable (database_only)')
+            else:
+                lines.append(f'check_ok: {str(check.get("ok", False)).lower()}')
+                lines.append(f'dependency_count: {len(first_check.get("dependencies", [])) if first_check else 0}')
+                lines.append(f'structure_errors: {len(first_check.get("structureErrors", [])) if first_check else 0}')
+                lines.append(f'menu_conflicts: {len(first_check.get("menuConflicts", [])) if first_check else 0}')
+        if isinstance(menu_plan, dict) and menu_plan.get('supported') is not False:
             lines.append(
                 f'menu_plan: total={menu_plan.get("total", 0)} | '
                 f'permissions={menu_plan.get("permissionCount", 0)} | '
                 f'enabled={menu_plan.get("enabledCount", 0)}'
             )
-        if isinstance(config, dict):
+        if isinstance(config, dict) and config.get('supported') is False:
+            lines.append('configs: unavailable (database_only)')
+        elif isinstance(config, dict):
             configs = config.get('configs')
             lines.append(f'configs: {len(configs) if isinstance(configs, list) else 0}')
             summary = config.get('summary')
@@ -228,11 +233,82 @@ class PluginCommandPresenter:
                 )
         if isinstance(audit, dict):
             lines.append(f'audit_available: {str(audit.get("available", False)).lower()}')
+        runtime = payload.get('runtime')
+        if isinstance(runtime, dict):
+            lines.extend(self._build_runtime_diagnostics_lines(runtime))
         if payload.get('outputFile'):
             lines.append(f'output_file: {payload.get("outputFile")}')
             lines.append(f'exported: {str(payload.get("exported", False)).lower()}')
 
         return '\n'.join(lines)
+
+    @staticmethod
+    def _build_runtime_diagnostics_lines(runtime: dict[str, object]) -> list[str]:
+        """
+        显示观测范围及实际进程状态，缺失快照不得呈现为零计数。
+
+        :param runtime: 运行诊断聚合负载
+        :return: 包含范围、时效和实际状态的文本行
+        """
+
+        def value(item: object) -> str:
+            """
+            将未观测值显示为未知，并保留真实零计数。
+
+            :param item: 待显示的状态值
+            :return: 适合 CLI 文本的状态字符串
+            """
+            return 'unknown' if item is None else str(item).lower() if isinstance(item, bool) else str(item)
+
+        lines = [
+            f'runtime_state: {runtime.get("state", "unavailable")}',
+            f'runtime_scope: {runtime.get("scope", "unavailable")}',
+            (
+                f'runtime_workers: observed={value(runtime.get("observedWorkers"))} | '
+                f'expected={value(runtime.get("expectedWorkers"))} | missing={value(runtime.get("missingWorkers"))}'
+            ),
+            (
+                f'runtime_samples: ttl_seconds={value(runtime.get("sampleTtlSeconds"))} | '
+                f'stale={value(runtime.get("staleSnapshots"))} | invalid={value(runtime.get("invalidSnapshots"))}'
+            ),
+        ]
+        release = runtime.get('release')
+        summary = release.get('summary') if isinstance(release, dict) else None
+        if isinstance(summary, dict):
+            lines.append(
+                f'release_target: status={summary.get("status", "unknown")} | '
+                f'digest={value(summary.get("targetDigest"))} | generation={value(summary.get("generation"))}'
+            )
+        workers = runtime.get('workers')
+        for worker in workers if isinstance(workers, list) else []:
+            actual = worker.get('actual') or {}
+            connections = actual.get('connections') or {}
+            health = actual.get('activationHealth') or {}
+            lines.extend(
+                [
+                    (
+                        f'worker: {worker.get("workerId")} | freshness={worker.get("freshness")} | '
+                        f'observation={worker.get("observation")} | age_seconds={value(worker.get("ageSeconds"))}'
+                    ),
+                    (
+                        f'  actual: version={value(actual.get("version"))} | digest={value(actual.get("digest"))} | '
+                        f'generation={value(actual.get("generation"))} | ready={value(actual.get("ready"))} | '
+                        f'closing={value(actual.get("closing"))}'
+                    ),
+                    (
+                        f'  running: jobs={value(actual.get("activeJobs"))} | sse={value(connections.get("sse"))} | '
+                        f'websocket={value(connections.get("websocket"))} | '
+                        f'pending_connection_tasks={value(actual.get("pendingConnectionTasks"))} | '
+                        f'pending_job_tasks={value(actual.get("pendingJobTasks"))} | '
+                        f'worker_pending_cleanup={value(worker.get("workerPendingCleanupTasks"))}'
+                    ),
+                    (
+                        f'  activation_health: {health.get("status", "unknown")} | '
+                        f'checked_at={value(health.get("checkedAt"))}'
+                    ),
+                ]
+            )
+        return lines
 
     def build_docs_text(self, payload: dict[str, object]) -> str:
         """

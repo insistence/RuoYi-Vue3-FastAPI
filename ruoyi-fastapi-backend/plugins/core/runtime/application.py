@@ -7,6 +7,7 @@ from functools import cache
 from fastapi import FastAPI
 
 from common.constant import LockConstant
+from plugins.core.runtime.diagnostics_store import PluginDiagnosticsReporter, diagnostics_namespace
 from plugins.core.runtime.explicit import ExplicitPluginRuntime
 from plugins.core.runtime.startup import PluginRuntimeStartupManager
 from plugins.core.runtime.startup_coordination import PluginStartupGenerationResolver
@@ -110,7 +111,13 @@ class PluginApplicationRuntime:
                 await self.release_worker.ready()
             runtime = getattr(app.state, 'plugin_explicit_runtime', None)
             if isinstance(runtime, ExplicitPluginRuntime):
+                if self.release_worker is not None:
+                    # 即使全部显式插件准备失败，空运行时也属于已有发布 worker。
+                    runtime.metrics.worker_id = self.release_worker.worker_id
                 runtime.metrics_reporter.start(getattr(app.state, 'redis', None), f'{self.ready_key}:metrics')
+                reporter = PluginDiagnosticsReporter(runtime.diagnostic_snapshot, runtime.metrics.worker_id)
+                app.state.plugin_diagnostics_reporter = reporter
+                reporter.start(getattr(app.state, 'redis', None), diagnostics_namespace(self.ready_key))
         except BaseException:
             # 激活后的 ready 发布或锁释放也可能失败，此时 server 尚未标记启动完成。
             # 显式资源需在这里释放，不能依赖正常 shutdown 分支。
@@ -119,6 +126,7 @@ class PluginApplicationRuntime:
                 if isinstance(runtime, ExplicitPluginRuntime):
                     await runtime.shutdown()
             finally:
+                await self._stop_diagnostics(app)
                 if self.release_worker is not None:
                     try:
                         await self.release_worker.stop(failed=True)
@@ -389,8 +397,24 @@ class PluginApplicationRuntime:
         try:
             await self.startup_manager.shutdown(app, startup_write_enabled=startup_write_enabled)
         finally:
+            await self._stop_diagnostics(app)
             if self.release_worker is not None:
                 await self.release_worker.stop()
+
+    @staticmethod
+    async def _stop_diagnostics(app: FastAPI) -> None:
+        """
+        关闭诊断采样，观测清理失败不阻止发布 worker 上报最终状态。
+
+        :param app: 宿主 FastAPI 应用
+        :return: None
+        """
+        reporter = getattr(app.state, 'plugin_diagnostics_reporter', None)
+        if isinstance(reporter, PluginDiagnosticsReporter):
+            try:
+                await reporter.stop()
+            except Exception:
+                logger.warning('插件运行诊断上报关闭失败，远程快照将按 TTL 过期')
 
     async def clear_startup_ready(self, app: FastAPI, generation: str | None = None) -> None:
         """

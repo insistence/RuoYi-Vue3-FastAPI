@@ -182,7 +182,7 @@ def test_update_previews_then_backs_up_exact_bytes_and_writes_metadata_last(
         calls.append(target.name)
         replace(source, target)
 
-    monkeypatch.setattr('cli.runtime.plugin.sdk.os.replace', record_replace)
+    monkeypatch.setattr(os, 'replace', record_replace)
     report = sdk.update(project)
     assert report['ok'] and report['updated'] and report['status'] == 'current'
     assert calls == list(VENDOR_FILES)
@@ -345,7 +345,7 @@ def test_failed_update_restores_originals_and_keeps_backup(
             raise OSError('simulated replacement failure')
         replace(source, target)
 
-    monkeypatch.setattr('cli.runtime.plugin.sdk.os.replace', fail_once)
+    monkeypatch.setattr(os, 'replace', fail_once)
     report = sdk.update(project)
     assert not report['ok'] and not report['updated']
     assert Path(report['backupDir']).is_dir()
@@ -373,7 +373,7 @@ def test_final_content_verification_failure_rolls_back(
             corrupted = True
             (target.parent / SDK_FILES[0]).write_bytes(b'simulated corrupted bytes')
 
-    monkeypatch.setattr('cli.runtime.plugin.sdk.os.replace', corrupt_once)
+    monkeypatch.setattr(os, 'replace', corrupt_once)
     report = sdk.update(project)
     assert not report['ok'] and not report['updated']
     assert '内容校验失败' in report['message']
@@ -397,7 +397,7 @@ def test_untracked_creation_failure_removes_new_files(
             raise OSError('metadata write failed')
         replace(source, target)
 
-    monkeypatch.setattr('cli.runtime.plugin.sdk.os.replace', fail_metadata)
+    monkeypatch.setattr(os, 'replace', fail_metadata)
     report = sdk.update(project, force=True)
     assert not report['ok']
     assert not list((project / 'web/vendor').iterdir())
@@ -419,7 +419,7 @@ def test_rollback_failure_reports_backup_and_continues_other_files(
             raise OSError('type file unavailable')
         replace(source, target)
 
-    monkeypatch.setattr('cli.runtime.plugin.sdk.os.replace', fail_types)
+    monkeypatch.setattr(os, 'replace', fail_types)
     report = sdk.update(project)
     assert not report['ok'] and '回滚未完成' in report['message']
     backup = Path(report['backupDir'])
@@ -446,7 +446,7 @@ def test_windows_reparse_components_are_rejected(
             return SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=0x400)
         return lstat(path)
 
-    monkeypatch.setattr('cli.runtime.plugin.sdk.stat.FILE_ATTRIBUTE_REPARSE_POINT', 0x400, raising=False)
+    monkeypatch.setattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400, raising=False)
     monkeypatch.setattr(Path, 'lstat', reparse_lstat)
     report = sdk.update(project, force=True)
     assert not report['ok'] and '重解析点' in report['message']

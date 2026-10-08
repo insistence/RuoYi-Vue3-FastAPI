@@ -331,10 +331,14 @@ async def verify_browser_streams(fixture: SimpleNamespace, page: Any, frame: Any
     await expect(frame.locator('#stream-state')).to_contain_text('取消')
     await wait_until(lambda: not connections)
     await start_browser_streams(page, frame, origin)
+    live = fixture.runtime.diagnostic_snapshot().plugins[0]
+    assert live.ready and live.connections.sse == 1 and live.connections.websocket == 1
     fixture.user.permissions = []
     await expect(frame.locator('#stream-state')).to_contain_text('宿主关闭')
     await page.wait_for_function('window.socketCode === 1008')
     await wait_until(lambda: not connections)
+    revoked = fixture.runtime.diagnostic_snapshot().plugins[0]
+    assert revoked.connections.sse == 0 and revoked.connections.websocket == 0
     fixture.user.permissions = ['browser_test:view']
     await start_browser_streams(page, frame, origin)
     fixture.redis.values.pop(fixture.main_key)
@@ -347,6 +351,10 @@ async def verify_browser_streams(fixture: SimpleNamespace, page: Any, frame: Any
     await expect(frame.locator('#stream-state')).to_contain_text('宿主关闭')
     await page.wait_for_function('window.socketCode === 1012')
     assert not connections and not loaded.lifespan.has_pending_task
+    stopped = fixture.runtime.diagnostic_snapshot().plugins[0]
+    assert stopped.closing and not stopped.ready and not stopped.active
+    assert stopped.connections.sse == 0 and stopped.connections.websocket == 0
+    assert stopped.pending_connection_tasks == 0 and not stopped.lifespan.task_active
 
 
 async def verify_browser(fixture: SimpleNamespace, origin: str, output: Path) -> None:

@@ -584,6 +584,7 @@ async def worker_process(spec: RunSpec, queue: Any, stop: Any, launch: str, fail
         target = worker.targets[0]
         module = sys.modules[f'plugins.{PLUGIN_ID}']
         loaded = app.state.plugin_explicit_runtime.loaded[PLUGIN_ID]
+        await app.state.plugin_diagnostics_reporter.publish()
         queue.put(
             {
                 'ok': True,
@@ -592,6 +593,7 @@ async def worker_process(spec: RunSpec, queue: Any, stop: Any, launch: str, fail
                 'modulePath': module.__file__,
                 'active': loaded.active,
                 'digest': target.digest,
+                'artifactGeneration': target.generation,
                 'writer': bool(app.state.plugin_startup_write_enabled),
                 'failed': fail,
                 'generation': app.state.plugin_startup_generation,
@@ -697,6 +699,11 @@ class Workers:
 
         :return: 已启动并收集上报结果的 worker 管理器
         """
+        from plugins.core.runtime.diagnostics_store import (  # noqa: PLC0415
+            diagnostics_namespace,
+            read_runtime_diagnostics,
+        )
+
         try:
             for process in self.processes:
                 process.start()
@@ -711,6 +718,28 @@ class Workers:
                     await client.get(f'{self.spec.redis_prefix}writer:{self.launch}') == '1',
                     'Writer callback ran more than once',
                 )
+                diagnostics = await read_runtime_diagnostics(
+                    client, diagnostics_namespace(f'{self.spec.redis_prefix}ready'), PLUGIN_ID
+                )
+                check(diagnostics['scope'] == 'reporting_workers', 'Runtime diagnostics are unavailable')
+                check(diagnostics['currentWorkerId'] is None, 'Maintenance reader fabricated a local worker')
+                observed = {item['workerId']: item for item in diagnostics['workers']}
+                check(
+                    set(observed) == {item['workerId'] for item in self.reports},
+                    'Runtime diagnostics do not match the live child processes',
+                )
+                for report in self.reports:
+                    actual = observed[report['workerId']]['plugins']
+                    check(len(actual) == 1, 'Runtime diagnostics omitted the loaded plugin')
+                    check(
+                        actual[0]['version'] == report['version']
+                        and actual[0]['digest'] == report['digest']
+                        and actual[0]['generation'] == report['artifactGeneration']
+                        and actual[0]['active'] == report['active']
+                        and actual[0]['ready'] == report['active'],
+                        'Runtime diagnostics disagree with the actual loaded plugin',
+                    )
+                emit('runtime_diagnostics', launch=self.launch, observedWorkers=len(observed), actualStateVerified=True)
             finally:
                 await client.aclose()
             return self

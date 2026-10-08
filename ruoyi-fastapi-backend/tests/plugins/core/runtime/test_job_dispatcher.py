@@ -289,3 +289,51 @@ async def test_unbind_is_bounded_and_blocks_new_binding_until_old_jobs_exit(
         release.set()
         await asyncio.gather(stopping, task, return_exceptions=True)
         await state.runtime.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_keeps_pending_job_diagnostics_until_callback_exits(
+    setup_plugin: SimpleNamespace, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """运行时关闭后仍保留取消超时任务的插件归属，迟到退出后计数归零。"""
+    state = setup_plugin
+    opened, release = asyncio.Event(), asyncio.Event()
+
+    async def resistant(*args: object, **kwargs: object) -> bool:
+        opened.set()
+        while not release.is_set():
+            with suppress(asyncio.CancelledError):
+                await release.wait()
+        return True
+
+    async def bounded_unbind(binding: object) -> None:
+        await unbind_plugin_jobs(binding, timeout=0.01)
+
+    state.service.side_effect = resistant
+    monkeypatch.setattr('plugins.core.runtime.explicit.unbind_plugin_jobs', bounded_unbind)
+    await state.runtime.activate('dispatch_test', FastAPI())
+    binding = state.runtime.loaded['dispatch_test'].jobs
+    task = asyncio.create_task(dispatch_plugin_job('dispatch_test', 'tick', '1.0.0'))
+    await opened.wait()
+    try:
+        running = state.runtime.diagnostic_snapshot().plugins[0]
+        assert running.active_jobs == 1 and running.pending_job_tasks == 0
+        await state.runtime.shutdown()
+        pending = state.runtime.diagnostic_snapshot()
+        assert state.runtime.loaded['dispatch_test'].jobs is binding
+        assert not pending.plugins[0].ready
+        assert pending.plugins[0].closing
+        assert pending.plugins[0].active_jobs == 1
+        assert pending.plugins[0].pending_job_tasks == 1
+        assert pending.worker_pending_cleanup_tasks == 1
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, timeout=1)
+        finished = state.runtime.diagnostic_snapshot()
+        assert finished.plugins[0].active_jobs == 0
+        assert finished.plugins[0].pending_job_tasks == 0
+        assert finished.worker_pending_cleanup_tasks == 0
+    finally:
+        release.set()
+        await asyncio.gather(task, return_exceptions=True)
+        await state.runtime.shutdown()

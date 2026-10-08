@@ -277,6 +277,15 @@ ruoyi plugin test demo --env=dev
 
 `install-deps` 是真实 Python/npm 依赖安装的唯一显式入口。文本 TTY 下可省略 `--yes`，CLI 会先输出依赖安装计划和策略判定，再询问是否执行；非 TTY、JSON 输出或 CI 场景应传 `--yes`，否则会由策略返回确认阻断。
 
+插件诊断包可输出完整 JSON 或保存到文件：
+
+```bash
+ruoyi plugin diagnose demo --env=dev --output=json
+ruoyi plugin diagnose demo --env=dev --output-file=demo-diagnose.json
+```
+
+包中的 `runtime` 汇集发布目标、各 worker 实际加载版本、连接与任务、激活健康历史及配置修订摘要。此命令不启动插件或重新执行健康检查；顶层 `ok` 保持静态诊断含义，运行态结果需单独判断。CLI 从 Redis 读取宿主快照，并保留缺失、过期或不可用状态，不能据此认定服务器没有连接或全部健康。快照范围、时效、脱敏和计数说明见[统一运行诊断](plugin_development.md#122-统一运行诊断)。管理端同一内容位于“诊断包 → 原始数据”。
+
 独立 v2 bundle 工程可离线检查、更新复制到 `web/vendor` 的桥接 SDK：
 
 ```bash
