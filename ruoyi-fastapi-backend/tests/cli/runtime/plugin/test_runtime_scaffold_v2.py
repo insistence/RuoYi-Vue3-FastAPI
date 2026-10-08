@@ -108,6 +108,31 @@ def test_v2_templates_create_independent_projects_without_importing_or_installin
 
 
 @pytest.mark.parametrize('template', TEMPLATES)
+def test_v2_template_readme_matches_browser_capabilities(tmp_path: Path, template: str) -> None:
+    """
+    验证生成说明区分浏览器 SDK 能力与模板自带接口，并保留协商和传输限制。
+    """
+    _, source = generate(tmp_path, template)
+    readme = (source / 'README.md').read_text(encoding='utf-8')
+    if template.endswith('-bundle'):
+        assert 'JSON 请求和响应每条最多 64 KiB' in readme
+        assert '`upload` / `download`' in readme
+        assert '`capabilities.files.version=1`' in readme
+        assert '单次最多 10 MiB' in readme
+        assert '`stream`' in readme
+        assert '`capabilities.streams.version=1`' in readme
+        assert '每个页面最多 2 条连接' in readme
+        assert '不自动重连' in readme
+        assert '本模板仅生成 `/api/info`，文件和事件接口需自行实现并校验权限' in readme
+        assert '`TRANSPORT_CRYPTO_EXCLUDE_PATHS`' in readme
+        assert '不支持上传、流式响应' not in readme
+    else:
+        assert '子应用不提供独立登录' in readme
+        assert 'capabilities.files' not in readme
+        assert 'capabilities.streams' not in readme
+
+
+@pytest.mark.parametrize('template', TEMPLATES)
 def test_v2_template_dry_run_and_conflict_never_overwrite(tmp_path: Path, template: str) -> None:
     """
     验证预演不写文件，目录冲突时不覆盖已有内容。

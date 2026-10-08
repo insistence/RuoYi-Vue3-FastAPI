@@ -236,6 +236,25 @@ class PluginV2ScaffoldBuilder:
             if test
             else ''
         )
+        access_note = (
+            '由宿主 PluginFrame 打开页面；前端通过 `createPluginClient.ready` 建立会话，'
+            '再调用 `request({method: "GET", path: "info"})`，不得读取或保存管理员 token。'
+            'SDK 仅访问当前插件 API 下的相对路径，不代理任意外部 URL、任意字节流或 WebSocket。\n\n'
+            '- `request`：JSON 请求和响应每条最多 64 KiB，默认超时 15 秒。\n'
+            '- `upload` / `download`：通过 `capabilities.files.version=1` 协商，'
+            '使用 Blob 传输文件，单次最多 10 MiB，默认超时 120 秒，支持进度和取消。\n'
+            '- `stream`：通过 `capabilities.streams.version=1` 协商只读 GET SSE，'
+            '每个页面最多 2 条连接，每条连接最长 5 分钟、累计最多 10 MiB，单条事件最多 64 KiB；'
+            '必须提供 `onEvent`，支持取消，不自动重连。\n\n'
+            '以上请求合计最多 8 个待处理任务；旧宿主未公布的能力会被拒绝，桥协议仍为 v1。'
+            '本模板仅生成 `/api/info`，文件和事件接口需自行实现并校验权限。'
+            '文件和 SSE 沿用普通 HTTPS 传输，不使用 JSON 加密信封；'
+            '若传输加密策略要求加密，需按宿主开发手册将具体接口路径加入 '
+            '`TRANSPORT_CRYPTO_EXCLUDE_PATHS`，不能排除整个插件 API 命名空间。'
+            '完整用法、鉴权和代理部署要求见宿主 `docs/plugin_development.md` 第 7.3 节。'
+            if bundle
+            else '先给角色授予插件权限，再通过宿主认证调用 API；子应用不提供独立登录。'
+        )
         return f"""# {plugin_id}
 
 这是 manifest v2 的 {'Rust native' if native else 'Python'} ASGI 源码工程{'，包含独立前端 bundle' if bundle else ''}。
@@ -300,5 +319,5 @@ ruoyi plugin release select {plugin_id} DIGEST --expected-generation GENERATION 
 ## 访问
 
 权限为 `{plugin_id}:view`，接口为 `GET /apps/{plugin_id}/api/info`。请求沿用宿主认证与传输加密策略。
-{'由宿主 PluginFrame 打开页面；前端通过 createPluginClient.ready 建立会话，再 request({method: "GET", path: "info"})，不得读取或保存管理员 token。桥仅支持有大小限制的 JSON 请求，不支持上传、流式响应或任意外部 URL。' if bundle else '先给角色授予插件权限，再通过宿主认证调用 API；子应用不提供独立登录。'}
+{access_note}
 """

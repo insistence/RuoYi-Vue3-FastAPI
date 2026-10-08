@@ -1197,6 +1197,8 @@ ruoyi plugin diagnose demo --env=dev --output-file=demo-diagnose.json
 ruoyi plugin docs demo --env=dev --output-file=demo.md
 ```
 
+v2 检查器必须返回 `True` / `False`，或包含布尔字段 `ok` 的字典，例如 `{'ok': True, 'message': '就绪', 'details': {'database': True}}`。`None`、空字典、字符串、数字以及 `{'ok': 'false'}` 都属于契约错误，检查结果为 `ok=False, status=error`，启动时会阻止该插件激活。`message`、`status`、`details` 是可选诊断信息，是否通过始终由 `ok` 决定。未声明检查器时仍返回 `unknown`，表示未执行健康探测；v1 保留原有返回值兼容行为。
+
 ### 12.1 v2 运行观测
 
 管理端“插件详情 → 运行观测”可手动刷新。只读接口 `GET /system/plugin/runtime/metrics?pluginId=<id>` 要求宿主登录和 `system:plugin:query`。支持显式 Router、ASGI 的 HTTP/WebSocket 以及宿主分发的 v2 定时任务；v1 扫描路由不纳入本指标。
@@ -1559,3 +1561,20 @@ npm --prefix ../ruoyi-fastapi-frontend run test:plugin
 仓库的原生插件工作流配置 Windows/Linux、Python 3.10、3.11、3.12、3.13 构建测试矩阵，覆盖 v1/v2 脚手架、原生扩展以及签名制品与维护发布回归。
 
 发布集成工作流在 Python 3.10、3.11、3.12、3.13 上使用临时 MySQL、PostgreSQL 和 Redis 服务验证多 worker 发布行为。工作流配置不代表已经执行成功；发布前应核对对应提交的实际 CI 结果，并完成目标平台的部署验收。
+
+[`plugin-frontend.yml`](../../.github/workflows/plugin-frontend.yml) 在 Node.js 22 上执行 `npm run test:plugin`，相关源码、测试、SDK、构建配置及依赖变更会触发检查。仓库当前不提交 npm 锁文件，因此使用 `npm install --package-lock=false`，依赖解析仍遵循 `package.json` 的版本范围。
+
+[`plugin-network-smoke.yml`](../../.github/workflows/plugin-network-smoke.yml) 在 Linux、Python 3.12、Node.js 22 与 Chromium 上执行真实网络 smoke。链路为宿主 Vue `PluginFrame` → iframe SDK → 临时 HTTPS Vite 代理 → Uvicorn → 生产插件会话与门禁，使用 `/gateway` 部署前缀。覆盖未登录拒绝、限定路径的 Secure/HttpOnly/SameSite Cookie、JSON POST、CSRF/Origin 拒绝、SSE 增量接收与取消后游标恢复、SSE/WebSocket 在权限及主会话撤销后的关闭，以及 runtime drain 后连接和 lifespan 回收。工作流保留截图、Playwright trace、代理日志与 JUnit 结果。
+
+本地复现（在后端目录执行，三个平台通用）：
+
+```bash
+python -m pip install pytest pytest-asyncio aiosqlite playwright
+python -m playwright install chromium
+npm --prefix ../ruoyi-fastapi-frontend install --no-audit --no-fund --package-lock=false
+python -c "import os,pytest; os.environ['RUOYI_PLUGIN_NETWORK_SMOKE']='1'; raise SystemExit(pytest.main(['tests/plugins/integration/test_network_smoke.py','-q']))"
+```
+
+常规 pytest 不设置 `RUOYI_PLUGIN_NETWORK_SMOKE=1` 时跳过此项，不要求安装浏览器。显式启用后，缺少浏览器或 Node 依赖会直接失败。可通过 `RUOYI_SMOKE_BROWSER_EXECUTABLE` 指定已有 Chromium 浏览器，通过 `RUOYI_SMOKE_OUTPUT` 指定诊断目录；默认输出在后端 `target/plugin-network-smoke/`。测试仅绑定 loopback 随机端口，临时证书不加入系统信任库，结束时回收浏览器和服务。
+
+该 smoke 的账号查询、数据库会话、插件启用状态和 Redis 使用隔离夹具，传输加密为 off；它验证真实网络上的生产会话协议，不覆盖真实账号登录、Redis 故障、required 加密、生产证书信任或进程信号触发的停机。runtime drain 之后才让 Uvicorn 正常退出，SIGTERM、完整宿主 lifespan 及目标部署代理仍按 17.2 节另行验收。

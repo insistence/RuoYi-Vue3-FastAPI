@@ -181,6 +181,10 @@ class PluginHealthChecker:
         :param started_at: 检查开始时间
         :return: 插件健康检查结果
         """
+        if self.discovered_plugin.manifest.uses_entrypoint and not (
+            isinstance(raw_result, bool) or (isinstance(raw_result, dict) and isinstance(raw_result.get('ok'), bool))
+        ):
+            raise TypeError('v2 插件健康检查必须返回 bool 或包含 bool 类型 ok 字段的字典')
         if isinstance(raw_result, dict):
             raw_details = raw_result.get('details')
             ok = bool(raw_result.get('ok', raw_result.get('healthy', True)))
