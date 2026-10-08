@@ -174,6 +174,11 @@ def test_v2_template_readme_matches_browser_capabilities(tmp_path: Path, templat
     """
     _, source = generate(tmp_path, template)
     readme = (source / 'README.md').read_text(encoding='utf-8')
+    assert (
+        f'ruoyi plugin release wait {PLUGIN_ID} DIGEST --generation SELECTED_GENERATION --expected-workers 1' in readme
+    )
+    assert '不要复用上面输入的旧 `GENERATION`' in readme
+    assert '`--timeout 0` 只查询并断言一次' in readme
     if template.endswith('-bundle'):
         assert 'JSON 请求和响应每条最多 64 KiB' in readme
         assert '`upload` / `download`' in readme

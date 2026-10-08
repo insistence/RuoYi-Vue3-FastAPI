@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 import threading
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
@@ -52,6 +54,34 @@ def test_opt_in_requires_explicit_password_environment(
         harness.require_opt_in(engine)
     monkeypatch.setenv('RUOYI_IT_REDIS_PASSWORD', '')
     harness.require_opt_in(engine)
+
+
+@pytest.mark.parametrize('engine', ['mysql', 'postgresql'])
+def test_cli_wait_environment_targets_only_the_isolated_database_without_mutating_parent(
+    engine: str, run_spec: harness.RunSpec, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = harness.RunSpec(engine, run_spec.run_id, run_spec.root)
+    prefix = 'RUOYI_IT_MYSQL' if engine == 'mysql' else 'RUOYI_IT_PG'
+    monkeypatch.setenv(harness.OPT_IN, '1')
+    monkeypatch.setenv(f'{prefix}_PASSWORD', 'integration-only-test-secret')
+    monkeypatch.setenv('RUOYI_IT_REDIS_PASSWORD', '')
+    monkeypatch.setenv('DB_SOURCES', '{"foreign": {}}')
+    monkeypatch.setenv('APP_ENV', 'parent-config-must-remain')
+    parent = os.environ.copy()
+
+    child = harness.cli_wait_environment(spec)
+
+    assert dict(os.environ) == parent
+    assert child['APP_ENV'] == f'plugin_it_{spec.run_id}'
+    sources = json.loads(child['DB_SOURCES'])
+    assert set(sources) == {'primary'}
+    assert sources['primary']['db_database'] == spec.database
+    assert sources['primary']['db_type'] == engine
+    assert sources['primary']['db_password'] == 'integration-only-test-secret'
+    assert sources['primary']['db_echo'] is False
+    assert child['PLUGIN_ARTIFACT_STORE'] == str(Path(spec.root) / 'store')
+    assert child['PLUGIN_ARTIFACT_TRUST_FILE'] == str(Path(spec.root) / 'trusted.json')
+    assert child['LOG_FILE_ENABLED'] == 'false'
 
 
 @pytest.mark.parametrize(

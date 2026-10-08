@@ -1,11 +1,16 @@
+import asyncio
 import importlib
+import math
 import os
+import re
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from cli.context import CliContext
 from cli.core import DEFAULT_CORE_SERVICES, CliContextFactory, CliExecutionService
+from cli.exit_codes import ARGUMENT_ERROR
 from cli.runtime.base import RUNTIME_OPERATOR
 
 MAX_SIGNING_KEY_BYTES = 64 * 1024
@@ -456,6 +461,119 @@ class PluginArtifactCommandController:
             ctx,
             lambda: self.execution_service.run_async(self.service_factory(self.config_factory()).status(plugin_id)),
         )
+
+    @staticmethod
+    def _release_wait_argument_error(
+        plugin_id: str,
+        digest: str,
+        expected_generation: str,
+        expected_workers: int,
+        timeout_seconds: float,
+        poll_interval_seconds: float,
+    ) -> str | None:
+        """
+        在读取部署配置前校验固定目标和有限时间参数。
+
+        :param plugin_id: 固定等待的插件 ID
+        :param digest: 固定等待的制品 SHA256 摘要
+        :param expected_generation: 选择、启用或回滚目标后返回的新发布代际
+        :param expected_workers: 本次发布要求的宿主 worker 数量
+        :param timeout_seconds: 非负的有限轮询超时秒数
+        :param poll_interval_seconds: 正的有限查询间隔秒数
+        :return: 固定参数错误描述，参数有效时为 None
+        """
+        for value, pattern, message in (
+            (plugin_id, r'[a-z][a-z0-9_]{1,63}', '插件 ID 必须为 2 至 64 位小写字母、数字或下划线，并以字母开头'),
+            (digest, r'[0-9a-f]{64}', 'digest 必须为 64 位小写十六进制摘要'),
+            (expected_generation, r'[0-9a-f]{32}', 'generation 必须为 32 位小写十六进制代际'),
+        ):
+            if not isinstance(value, str) or re.fullmatch(pattern, value) is None:
+                return message
+        if type(expected_workers) is not int or expected_workers < 1:
+            return 'expected-workers 必须为正整数'
+        for value, label, allow_zero in (
+            (timeout_seconds, 'timeout', True),
+            (poll_interval_seconds, 'interval', False),
+        ):
+            try:
+                finite = type(value) in (int, float) and math.isfinite(value)
+            except OverflowError:
+                finite = False
+            if not finite or value < 0 or (not allow_zero and value == 0):
+                return f'{label} 必须为有限数值，且' + ('不小于 0' if allow_zero else '大于 0')
+        return None
+
+    def wait_release(
+        self,
+        plugin_id: str,
+        digest: str,
+        env: str,
+        output: str,
+        *,
+        expected_generation: str,
+        expected_workers: int,
+        timeout_seconds: float = 300,
+        poll_interval_seconds: float = 2,
+    ) -> None:
+        """
+        只读等待固定发布目标，将取消或初始化异常转换为脱敏的最终结果。
+
+        :param plugin_id: 固定等待的插件 ID
+        :param digest: 固定等待的制品 SHA256 摘要
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :param expected_generation: 选择、启用或回滚目标后返回的新发布代际
+        :param expected_workers: 本次发布要求的宿主 worker 数量
+        :param timeout_seconds: 轮询超时秒数，为零时只查询一次
+        :param poll_interval_seconds: 两次查询的间隔秒数
+        :return: None
+        """
+        error = self._release_wait_argument_error(
+            plugin_id, digest, expected_generation, expected_workers, timeout_seconds, poll_interval_seconds
+        )
+        ctx = CliContext(env=env, output=output)
+        payload: dict[str, Any] = {
+            'ok': False,
+            'operation': 'release_wait',
+            'reason': 'invalid_arguments' if error else 'unavailable',
+            'message': error or '发布状态暂不可查询',
+            'target': {
+                'pluginId': plugin_id,
+                'digest': digest,
+                'generation': expected_generation,
+                'expectedWorkers': expected_workers,
+            },
+            'lastObserved': None,
+            'attempts': 0 if error else None,
+            'elapsedSeconds': 0.0,
+            'timeoutSeconds': None if error else timeout_seconds,
+            'intervalSeconds': None if error else poll_interval_seconds,
+        }
+        if error:
+            self.execution_service.complete_payload(ctx, {**payload, 'exit_code': ARGUMENT_ERROR})
+            return
+        started = time.monotonic()
+        try:
+            ctx = self._context(env, output)
+            payload = self.execution_service.run_async(
+                self.service_factory(self.config_factory()).wait(
+                    plugin_id,
+                    digest,
+                    expected_generation=expected_generation,
+                    expected_workers=expected_workers,
+                    timeout_seconds=timeout_seconds,
+                    poll_interval_seconds=poll_interval_seconds,
+                )
+            )
+        except (asyncio.CancelledError, KeyboardInterrupt):
+            payload.update(ok=False, reason='cancelled', message='已取消等待发布就绪', attempts=None, lastObserved=None)
+            payload['elapsedSeconds'] = round(max(0.0, time.monotonic() - started), 3)
+        except Exception:
+            payload.update(
+                ok=False, reason='unavailable', message='发布状态暂不可查询', attempts=None, lastObserved=None
+            )
+            payload['elapsedSeconds'] = round(max(0.0, time.monotonic() - started), 3)
+        self.execution_service.complete_payload(ctx, payload)
 
     def rollback_release(
         self,

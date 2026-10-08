@@ -7,6 +7,7 @@ from config.database import DataSourceRegistry
 from plugins.core.artifacts import StoredArtifact
 from plugins.core.deployment.catalog import PluginArtifactCatalog, artifact_payload
 from plugins.core.deployment.config import PluginDeploymentConfig
+from plugins.core.deployment.convergence import wait_for_release
 from plugins.core.deployment.state import RUNTIME_PLUGIN_ID, aggregate_release
 from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
 from plugins.core.environment import PluginRuntimeEnvironmentService
@@ -133,6 +134,40 @@ class PluginDeploymentService:
                 for item in reports
             ]
         return {'ok': True, 'releases': rows, 'workers': workers}
+
+    async def wait(
+        self,
+        plugin_id: str,
+        digest: str,
+        *,
+        expected_generation: str,
+        expected_workers: int,
+        timeout_seconds: float = 300,
+        poll_interval_seconds: float = 2,
+    ) -> dict[str, Any]:
+        """
+        只读等待调用方固定的发布目标在全部有效存活 worker 上收敛。
+
+        :param plugin_id: 固定验收的插件 ID
+        :param digest: 固定验收的制品 SHA256 摘要
+        :param expected_generation: 固定验收的发布代际
+        :param expected_workers: 必须与发布记录相同的预期 worker 数量下限
+        :param timeout_seconds: 总体等待秒数，零表示单次断言
+        :param poll_interval_seconds: 未收敛时的查询间隔秒数
+        :return: 固定目标的收敛结果及最后一次有效观测
+        :raises ValueError: 固定身份或等待参数不合法
+        :raises asyncio.CancelledError: 调用方取消等待
+        """
+        return await wait_for_release(
+            self.status,
+            plugin_id,
+            digest,
+            expected_generation=expected_generation,
+            expected_workers=expected_workers,
+            worker_ttl_seconds=self.config.worker_ttl_seconds,
+            timeout_seconds=timeout_seconds,
+            poll_interval_seconds=poll_interval_seconds,
+        )
 
     async def _require_quiescent(self) -> None:
         """

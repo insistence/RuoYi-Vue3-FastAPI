@@ -18,6 +18,7 @@ on:
       - 'ruoyi-fastapi-backend/scripts/plugin_task_integration.py'
       - 'ruoyi-fastapi-backend/tests/plugins/**'
       - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_artifact_commands.py'
+      - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_release_wait.py'
       - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_diagnostics.py'
       - 'ruoyi-fastapi-backend/tests/cli/runtime/plugin/**'
       - 'ruoyi-fastapi-backend/tests/module_plugin/**'

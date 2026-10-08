@@ -143,6 +143,16 @@ def app_for(controller: Any) -> typer.Typer:
         ),
         (['release', 'status', '--plugin-id', 'demo'], 'release_status', {'plugin_id': 'demo'}),
         (
+            ['release', 'wait', 'demo', DIGEST, '--generation', GENERATION, '--expected-workers', '3'],
+            'wait_release',
+            {
+                'expected_generation': GENERATION,
+                'expected_workers': 3,
+                'timeout_seconds': 300,
+                'poll_interval_seconds': 2,
+            },
+        ),
+        (
             ['release', 'enable', 'demo', '--expected-generation', GENERATION, '--maintenance', '--yes'],
             'set_release_enabled',
             {'enabled': True, 'expected_generation': GENERATION, 'maintenance': True, 'allow_prod': False, 'yes': True},
@@ -218,7 +228,13 @@ def test_cli_rejects_missing_concurrency_token_and_unsupported_flags(arguments: 
 
 @pytest.mark.parametrize(
     'help_arguments',
-    [['artifact', '--help'], ['release', '--help'], ['release', 'select', '--help'], ['artifact', 'prune', '--help']],
+    [
+        ['artifact', '--help'],
+        ['release', '--help'],
+        ['release', 'select', '--help'],
+        ['release', 'wait', '--help'],
+        ['artifact', 'prune', '--help'],
+    ],
 )
 def test_help_keeps_config_crypto_database_and_plugin_code_unloaded(help_arguments: list[str]) -> None:
     """
@@ -231,6 +247,7 @@ def test_help_keeps_config_crypto_database_and_plugin_code_unloaded(help_argumen
         'plugins.core.artifacts',
         'plugins.core.deployment.config',
         'plugins.core.deployment.service',
+        'plugins.core.runtime.service',
         'cli.groups.plugin.artifact_controller',
     )
     script = (

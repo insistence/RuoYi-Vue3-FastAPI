@@ -1429,6 +1429,44 @@ ruoyi plugin release select rust_demo DIGEST --expected-generation GENERATION --
 
 诊断同时检查 `prepareStatus`、`enabled`、`restartRequired`、`missingWorkers`、`mismatchWorkers`、`staleWorkers`、`failedWorkers` 和 `workers[].error`。例如插件已停用会阻止业务激活，不能仅因没有 `active` 就反复重启。状态汇总依赖宿主级心跳，不会只统计已经成功加载该插件的进程。真实数据库、多 worker、反向代理及运维进程管理仍需在部署环境验收。
 
+流水线可通过 `release wait` 等待精确目标收敛。保存刚才 `select` 返回的 `generation` 为 `SELECTED_GENERATION`；如果随后执行 `enable` 或 `rollback`，改用该操作返回的新代际。通过进程管理器启动全部 worker 后执行：
+
+```bash
+ruoyi plugin release wait rust_demo DIGEST --generation SELECTED_GENERATION --expected-workers 2 --timeout 300 --interval 2 --env prod --output json
+```
+
+四个固定目标均必填：插件 ID、64 位小写 SHA256 digest、32 位小写十六进制 generation 和正整数 expected-workers。等待使用的 generation 是变更后返回的新值，与 `select/enable/rollback` 的 `--expected-generation` 变更前并发令牌不同。预期 worker 数量必须与当前发布记录一致；等待期间目标摘要、代际或预期数量变化都会立即失败，不会自动追踪另一次发布。
+
+仅当目标处于启用状态、所有有效存活宿主均报告相同 digest 和 generation 已就绪，且存活数量达到固定的预期下限时，结果才是 `converged`。超过预期数量的存活宿主也必须全部就绪；缺失或过期报告不能补足数量。已经退出的历史 worker 的陈旧记录不会阻止足够的新 worker 收敛。部分成功的摘要可能同时含失败 worker，因此不能只用 `status=partial` 继续等待而忽略失败计数。
+
+命令只查询已有发布状态，不选择目标、执行 Hook、迁移、重启或创建诊断采样，不接受 `--maintenance`、`--allow-prod`、`--yes` 或 `--dry-run`。默认轮询 300 秒、间隔 2 秒；超时必须为有限非负数，间隔必须为有限正数。`--timeout 0` 只进行一次状态查询，适合已完成外部等待后的断言：
+
+```bash
+ruoyi plugin release wait rust_demo DIGEST --generation SELECTED_GENERATION --expected-workers 2 --timeout 0 --env prod --output json
+```
+
+超时约束核心轮询，不包含此前的配置初始化和模块导入。单次状态查询上限为 10 秒，非零等待还受剩余轮询预算约束；查询取消采用异步协作机制。`timeout 0` 也有单次查询上限，不表示跳过查询。
+
+JSON 标准输出只包含一个最终对象：`ok`、`operation=release_wait`、`reason`、`message`、固定 `target`、`lastObserved`、`attempts`、`elapsedSeconds`、`timeoutSeconds` 和 `intervalSeconds`。`lastObserved` 仅保留发布摘要的白名单字段，不带 `workers[].error`、`lastError` 或原始异常正文。没有有效观测时它为 `null`；CLI 取消或初始化失败无法确认查询进度时，`attempts` 也为 `null`。`target` 包含 `pluginId/digest/generation/expectedWorkers`，不会被后续查询改写。
+
+`lastObserved` 是最后一次可用观测；`timeout` 或 `unavailable` 时可能保留前一轮已经过期的摘要。自动决策应以最终 `ok/reason` 和退出码为准，不能因为其中仍有 `status=active` 就认定本次等待成功。
+
+| `reason` | 含义与退出码 |
+| --- | --- |
+| `converged` | 固定目标已收敛，退出 `0`。 |
+| `not_converged` | 单次断言获得有效状态，但尚未收敛，退出 `50`。 |
+| `timeout` | 非零轮询预算耗尽仍未收敛，退出 `50`。 |
+| `target_missing` | 没有指定插件的发布目标，退出 `50`。 |
+| `target_changed` | 当前摘要、代际或预期数量与固定目标不同，退出 `50`。 |
+| `target_disabled` | 当前发布目标已停用，退出 `50`。 |
+| `worker_failed` | 已观测到当前发布的 worker 故障，退出 `50`。 |
+| `unavailable` | 配置初始化、状态读取或有界查询不可用，退出 `50`。 |
+| `invalid_observation` | 返回状态结构不完整或不符合观测契约，退出 `50`。 |
+| `invalid_arguments` | CLI 在服务创建前拒绝无效固定目标或时间参数，退出 `2`。缺少参数或未知选项由解析器直接以 `2` 拒绝。 |
+| `cancelled` | CLI 收到异步取消或键盘中断，输出固定脱敏结果并退出 `50`。 |
+
+`release status` 的顶层 `ok` 保持“状态查询成功”的含义，即使目标尚未生效也可能是 `true`。流水线应判断 `release wait` 的退出码与原因；就绪报告仍不能代替插件业务接口验收。
+
 管理页提供制品与发布状态的只读查看入口，签名制品使用上述维护 CLI 完成变更。对应 HTTP 查询均要求宿主登录及 `system:plugin:query` 权限：
 
 | 接口 | 参数与用途 |
@@ -1617,10 +1655,10 @@ npm --prefix plugin-projects/report_center/web run build
 python -m pip install pytest pytest-asyncio aiosqlite
 python -m pytest tests/cli/runtime/plugin/test_runtime_scaffold.py tests/cli/runtime/plugin/test_runtime_scaffold_v2.py -q
 python -m pytest tests/plugins/examples/test_task_demo.py tests/plugins/core/deployment/test_task_delivery.py -q
-python -m pytest tests/plugins/core/artifacts tests/plugins/core/deployment tests/plugins/core/management/test_release_dao.py tests/plugins/core/management/test_artifact_views.py tests/module_plugin/controller/test_plugin_release_controller.py tests/cli/root/test_plugin_artifact_commands.py tests/sql/test_plugin_release_schema.py -q
+python -m pytest tests/plugins/core/artifacts tests/plugins/core/deployment tests/plugins/core/management/test_release_dao.py tests/plugins/core/management/test_artifact_views.py tests/module_plugin/controller/test_plugin_release_controller.py tests/cli/root/test_plugin_artifact_commands.py tests/cli/root/test_plugin_release_wait.py tests/sql/test_plugin_release_schema.py -q
 ```
 
-上述回归覆盖脚手架、签名制品、维护发布、状态查询及数据库脚本约束。原生插件还应在目标平台构建后执行[原生示例的集成验证](../plugins/examples/rust/rust_demo/README.md#本地集成验证)；测试因缺少原生制品而跳过时，不能据此确认原生交付可用。
+上述回归覆盖脚手架、签名制品、维护发布、固定目标等待与单次断言、状态查询及数据库脚本约束。原生插件还应在目标平台构建后执行[原生示例的集成验证](../plugins/examples/rust/rust_demo/README.md#本地集成验证)；测试因缺少原生制品而跳过时，不能据此确认原生交付可用。
 
 bundle 插件完成独立前端构建后，还应执行宿主桥接测试（在后端目录执行，三种平台通用）：
 
@@ -1658,6 +1696,8 @@ npm --prefix ../ruoyi-fastapi-frontend run test:plugin
 仓库的原生插件工作流配置 Windows/Linux、Python 3.10、3.11、3.12、3.13 构建测试矩阵，覆盖 v1/v2 脚手架、SDK 溯源与离线更新命令、原生扩展以及签名制品与维护发布回归。
 
 发布集成工作流在 Python 3.10、3.11、3.12、3.13 上使用临时 MySQL、PostgreSQL 和 Redis 服务验证多 worker 发布行为。工作流配置不代表已经执行成功；发布前应核对对应提交的实际 CI 结果，并完成目标平台的部署验收。
+
+`scripts/plugin_release_integration.py` 还检查双 worker 首次发布、升级和代码回滚后的固定目标收敛，无 worker 时单次断言不收敛，旧目标代际被拒绝、单 worker 故障立即失败，以及报告过期、缺员和遗留陈旧记录下的等待结果。足够的新 worker 全部就绪后，遗留陈旧记录不应造成永久等待；失败结果保留退出码和固定原因供流水线判断。脚本还针对两种数据库启动独立的完整 CLI 进程，验证标准输出可整体解析为一个 JSON 对象，并核对未就绪时退出 `50`、就绪后退出 `0`。
 
 该工作流还实际构建 `task_demo` 的 bundle，并通过 `scripts/plugin_task_integration.py` 验证 Python 受控目录打包、签名、导入、维护准备、目标选择、旧结构数据保留以及当前业务 CRUD/读写分权。旧版本是仅承载 001 迁移的测试夹具；当前版本从真实签名制品加载。业务 HTTP 验收使用已认证上下文和 ASGI 适配器，不代替浏览器登录验收。运行真实发布集成脚本前须先按任务示例 README 构建 `web/dist`；本地 SQLite 交付回归使用最小 HTML 夹具，单独验证维护链路。
 

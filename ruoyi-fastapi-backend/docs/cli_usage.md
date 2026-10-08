@@ -286,6 +286,19 @@ ruoyi plugin diagnose demo --env=dev --output-file=demo-diagnose.json
 
 包中的 `runtime` 汇集发布目标、各 worker 实际加载版本、连接与任务、激活健康历史及配置修订摘要。此命令不启动插件或重新执行健康检查；顶层 `ok` 保持静态诊断含义，运行态结果需单独判断。CLI 从 Redis 读取宿主快照，并保留缺失、过期或不可用状态，不能据此认定服务器没有连接或全部健康。快照范围、时效、脱敏和计数说明见[统一运行诊断](plugin_development.md#122-统一运行诊断)。管理端同一内容位于“诊断包 → 原始数据”。
 
+完成制品目标选择、通过进程管理器启动全部 worker 后，可用固定目标等待命令作为发布流水线门禁：
+
+```bash
+ruoyi plugin release wait demo DIGEST --generation SELECTED_GENERATION --expected-workers 2 --timeout 300 --interval 2 --env prod --output json
+ruoyi plugin release wait demo DIGEST --generation SELECTED_GENERATION --expected-workers 2 --timeout 0 --env prod --output json
+```
+
+插件 ID、`DIGEST`、`--generation` 和 `--expected-workers` 均必填。`DIGEST` 是 64 位小写 SHA256；`SELECTED_GENERATION` 使用最近一次 `select`、`enable` 或 `rollback` 返回的 32 位新代际，不能复用该变更输入的 `--expected-generation`。worker 数量必须与发布记录一致，并填写实际部署要求的数量。命令只读，不需要维护确认，也不会启动进程或切换目标。
+
+`--timeout` 默认为 300 秒，`--interval` 默认为 2 秒；前者必须为有限非负数，后者必须为有限正数。`--timeout 0` 只查询并断言一次，未就绪立即返回 `not_converged`。非零超时约束核心轮询，配置加载和模块导入发生在此前；单次状态查询最多 10 秒，并受剩余轮询预算约束，取消采用异步协作方式。
+
+JSON 只输出一个最终对象，包含固定 `target`、脱敏的 `lastObserved`、查询次数、耗时及 `reason`；没有逐轮进度输出。只有 `converged` 返回 `0`；超时、目标变化、停用、worker 故障或观测不可用返回 `50`，CLI 取消返回 `cancelled` 和 `50`。CLI 参数校验失败返回 `invalid_arguments` 和 `2`；缺少必填参数或未知选项由命令行解析器直接以 `2` 拒绝。`lastObserved` 是最后一次可用观测，超时或查询失败时可能来自此前且已过期的轮次，不能仅依据其中的 `active` 判定成功。自动决策应以最终退出码和 `ok/reason` 为准；`release status` 的 `ok` 仍只表示查询成功，不能代替该门禁。完整判定与原因表见[制品发布与验收](plugin_development.md#153-停机维护准备证据与目标选择)。
+
 独立 v2 bundle 工程可离线检查、更新复制到 `web/vendor` 的桥接 SDK：
 
 ```bash

@@ -13,12 +13,16 @@ on:
       - 'ruoyi-fastapi-backend/cli/runtime/plugin/sdk.py'
       - 'ruoyi-fastapi-backend/cli/groups/plugin/commands/developer.py'
       - 'ruoyi-fastapi-backend/cli/groups/plugin/commands/sdk.py'
+      - 'ruoyi-fastapi-backend/cli/groups/plugin/commands/artifact*.py'
+      - 'ruoyi-fastapi-backend/cli/groups/plugin/artifact_controller.py'
       - 'ruoyi-fastapi-backend/cli/groups/plugin/command.py'
       - 'ruoyi-fastapi-frontend/src/utils/pluginBridge*'
       - 'ruoyi-fastapi-backend/pyproject.toml'
       - 'ruoyi-fastapi-backend/tests/cli/runtime/plugin/test_runtime_scaffold*.py'
       - 'ruoyi-fastapi-backend/tests/cli/runtime/plugin/test_runtime_sdk.py'
       - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_sdk_commands.py'
+      - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_artifact_commands.py'
+      - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_release_wait.py'
       - 'ruoyi-fastapi-backend/tests/plugins/**'
       - '.github/workflows/native-plugin.yml'
   pull_request:
@@ -33,12 +37,16 @@ on:
       - 'ruoyi-fastapi-backend/cli/runtime/plugin/sdk.py'
       - 'ruoyi-fastapi-backend/cli/groups/plugin/commands/developer.py'
       - 'ruoyi-fastapi-backend/cli/groups/plugin/commands/sdk.py'
+      - 'ruoyi-fastapi-backend/cli/groups/plugin/commands/artifact*.py'
+      - 'ruoyi-fastapi-backend/cli/groups/plugin/artifact_controller.py'
       - 'ruoyi-fastapi-backend/cli/groups/plugin/command.py'
       - 'ruoyi-fastapi-frontend/src/utils/pluginBridge*'
       - 'ruoyi-fastapi-backend/pyproject.toml'
       - 'ruoyi-fastapi-backend/tests/cli/runtime/plugin/test_runtime_scaffold*.py'
       - 'ruoyi-fastapi-backend/tests/cli/runtime/plugin/test_runtime_sdk.py'
       - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_sdk_commands.py'
+      - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_artifact_commands.py'
+      - 'ruoyi-fastapi-backend/tests/cli/root/test_plugin_release_wait.py'
       - 'ruoyi-fastapi-backend/tests/plugins/**'
       - '.github/workflows/native-plugin.yml'
   workflow_dispatch:
@@ -86,4 +94,4 @@ jobs:
       - name: Verify signed artifacts and maintenance releases
         env:
           RUOYI_NATIVE_PLUGIN_DIR: ${{ github.workspace }}/ruoyi-fastapi-backend/target/native-package/rust_demo
-        run: python -m pytest tests/plugins/core/artifacts tests/plugins/core/deployment tests/plugins/core/management/test_release_dao.py tests/plugins/core/management/test_artifact_views.py tests/module_plugin/controller/test_plugin_release_controller.py tests/cli/root/test_plugin_artifact_commands.py tests/sql/test_plugin_release_schema.py -q
+        run: python -m pytest tests/plugins/core/artifacts tests/plugins/core/deployment tests/plugins/core/management/test_release_dao.py tests/plugins/core/management/test_artifact_views.py tests/module_plugin/controller/test_plugin_release_controller.py tests/cli/root/test_plugin_artifact_commands.py tests/cli/root/test_plugin_release_wait.py tests/sql/test_plugin_release_schema.py -q

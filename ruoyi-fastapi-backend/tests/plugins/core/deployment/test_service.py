@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 import yaml
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from config.database import DataSourceRegistry
@@ -518,3 +518,48 @@ async def test_status_reports_disabled_only_after_worker_confirms_current_genera
     assert confirmed['status'] == 'disabled'
     assert confirmed['disabledWorkers'] == 1
     assert not confirmed['restartRequired']
+
+
+@pytest.mark.asyncio
+async def test_wait_assertion_uses_existing_release_reports_without_database_writes(
+    service: PluginDeploymentService,
+    deployment_archive: Path,
+    deployment_sessions: async_sessionmaker[AsyncSession],
+) -> None:
+    """完整服务通过真实查询验收固定代际，期间不写发布、worker 或审计记录。"""
+    selected = await import_prepare_select(service, deployment_archive)
+    async with deployment_sessions() as db:
+        for plugin_id in ('__runtime__', PLUGIN_ID):
+            await PluginReleaseDao.upsert_worker_report(
+                db,
+                worker_id='d' * 32,
+                plugin_id=plugin_id,
+                state='ready',
+                heartbeat_time=TimezoneUtil.utc_now(),
+                artifact_digest=selected['digest'] if plugin_id == PLUGIN_ID else None,
+                generation=selected['generation'] if plugin_id == PLUGIN_ID else None,
+                version=selected['version'] if plugin_id == PLUGIN_ID else None,
+            )
+        await db.commit()
+    statements = []
+    engine = deployment_sessions.kw['bind'].sync_engine
+
+    def record_statement(
+        connection: object, cursor: object, statement: str, parameters: object, context: object, executemany: bool
+    ) -> None:
+        """记录验收阶段 SQL，不修改当前数据库连接。"""
+        statements.append(statement)
+
+    event.listen(engine, 'before_cursor_execute', record_statement)
+    try:
+        result = await service.wait(
+            PLUGIN_ID,
+            selected['digest'],
+            expected_generation=selected['generation'],
+            expected_workers=1,
+            timeout_seconds=0,
+        )
+    finally:
+        event.remove(engine, 'before_cursor_execute', record_statement)
+    assert result['reason'] == 'converged' and result['ok'] is True
+    assert statements and all(statement.lstrip().upper().startswith('SELECT') for statement in statements)

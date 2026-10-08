@@ -210,6 +210,43 @@ def register_artifact_commands(app: typer.Typer, get_controller: Callable[[], An
         """
         get_controller().release_status(env, output, plugin_id=plugin_id)
 
+    @release_app.command('wait', help='只读等待指定摘要、代际和worker数量全部就绪；超时或失败返回非零')
+    def release_wait(
+        plugin_id: Annotated[str, typer.Argument(help='固定等待的插件ID')],
+        digest: Annotated[str, typer.Argument(help='固定等待的64位小写SHA256摘要')],
+        generation: Annotated[
+            str, typer.Option('--generation', help='select、enable或rollback返回的新发布代际，32位小写十六进制')
+        ],
+        expected_workers: Annotated[int, typer.Option('--expected-workers', min=1, help='本次发布预期宿主worker数量')],
+        timeout: Annotated[float, typer.Option('--timeout', min=0, help='轮询超时秒数，0表示只查询并断言一次')] = 300,
+        interval: Annotated[float, typer.Option('--interval', help='两次查询间隔秒数，必须大于0')] = 2,
+        env: EnvOption = 'dev',
+        output: OutputOption = 'text',
+    ) -> None:
+        """
+        等待精确发布目标就绪，只输出一次最终结果。
+
+        :param plugin_id: 固定等待的插件 ID
+        :param digest: 固定等待的制品 SHA256 摘要
+        :param generation: 选择、启用或回滚目标后返回的新发布代际
+        :param expected_workers: 本次发布要求的宿主 worker 数量
+        :param timeout: 轮询超时秒数，为零时只查询一次
+        :param interval: 查询间隔秒数
+        :param env: 当前命令运行环境
+        :param output: 输出格式
+        :return: None
+        """
+        get_controller().wait_release(
+            plugin_id,
+            digest,
+            env,
+            output,
+            expected_generation=generation,
+            expected_workers=expected_workers,
+            timeout_seconds=timeout,
+            poll_interval_seconds=interval,
+        )
+
     @release_app.command('rollback', help='选择上一个代码制品，保留当前数据库安装版本')
     def release_rollback(
         plugin_id: Annotated[str, typer.Argument(help='插件ID')],

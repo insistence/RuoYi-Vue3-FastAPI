@@ -341,7 +341,15 @@ ruoyi plugin release status --plugin-id {plugin_id} --env prod
 ruoyi plugin release select {plugin_id} DIGEST --expected-generation GENERATION --expected-workers 1 --maintenance --env prod --allow-prod --yes
 ```
 
-将 expected-workers 改为实际数量，重启全部 worker 后再次查询 status；仅所有预期 worker 均就绪才算完成。
+将 expected-workers 改为实际数量，保存 select 返回的新 generation；若随后 enable 或 rollback，则使用该操作返回的新代际。
+通过进程管理器启动全部 worker 后，使用新的 `SELECTED_GENERATION` 等待发布就绪，不要复用上面输入的旧 `GENERATION`：
+
+```bash
+ruoyi plugin release wait {plugin_id} DIGEST --generation SELECTED_GENERATION --expected-workers 1 --timeout 300 --interval 2 --env prod --output json
+```
+
+wait 的 worker 数量应与 select 一致；四个固定目标均必填。只有全部存活 worker 加载同一目标且数量达到预期才返回 0。
+`--timeout 0` 只查询并断言一次；尚未就绪、超时、目标变化、停用或 worker 故障均返回非零。wait 只读，不负责重启或变更目标。
 `installedVersion` 是数据准备状态，选择目标不会立即切换运行代码。更新版本时同步清单{'、Cargo.toml、Cargo.lock 和 pyproject.toml' if native else ''}。
 旧代码回滚必须兼容当前数据库，不撤销迁移。不要覆盖已加载二进制或修改不可变制品目录。
 

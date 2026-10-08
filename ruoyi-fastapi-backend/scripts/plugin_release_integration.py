@@ -662,15 +662,19 @@ class Workers:
     负责全部验收 worker 的启动与回收，包括启动未完成的进程组。
     """
 
-    def __init__(self, spec: RunSpec, *, one_fails: bool = False) -> None:
+    def __init__(
+        self, spec: RunSpec, *, one_fails: bool = False, retired_worker_ids: frozenset[str] = frozenset()
+    ) -> None:
         """
         创建两个 worker 及各自独立的停止事件。
 
         :param spec: 当前验收的隔离运行信息，不包含连接密码
         :param one_fails: 是否让第二个 worker 主动触发启动失败
+        :param retired_worker_ids: 已确认退出但其诊断快照仍可能保留的本轮 worker 身份
         :return: None
         """
         self.spec = spec
+        self.retired_worker_ids = retired_worker_ids
         self.launch = uuid4().hex
         self.context = multiprocessing.get_context('spawn')
         self.queue = self.context.Queue()
@@ -725,7 +729,7 @@ class Workers:
                 check(diagnostics['currentWorkerId'] is None, 'Maintenance reader fabricated a local worker')
                 observed = {item['workerId']: item for item in diagnostics['workers']}
                 check(
-                    set(observed) == {item['workerId'] for item in self.reports},
+                    set(observed) - self.retired_worker_ids == {item['workerId'] for item in self.reports},
                     'Runtime diagnostics do not match the live child processes',
                 )
                 for report in self.reports:
@@ -739,7 +743,14 @@ class Workers:
                         and actual[0]['ready'] == report['active'],
                         'Runtime diagnostics disagree with the actual loaded plugin',
                     )
-                emit('runtime_diagnostics', launch=self.launch, observedWorkers=len(observed), actualStateVerified=True)
+                emit(
+                    'runtime_diagnostics',
+                    launch=self.launch,
+                    observedWorkers=len(observed),
+                    currentWorkers=len(self.reports),
+                    retainedWorkerSnapshots=len(set(observed) & self.retired_worker_ids),
+                    actualStateVerified=True,
+                )
             finally:
                 await client.aclose()
             return self
@@ -806,6 +817,166 @@ async def release_state(service: Any) -> dict[str, Any]:
     return result['releases'][0]
 
 
+async def verify_release_wait(
+    service: Any,
+    selected: dict[str, Any],
+    scenario: str,
+    reason: str,
+    *,
+    timeout_seconds: float = 0,
+) -> dict[str, Any]:
+    """
+    使用维护命令返回的固定目标验证等待结果，禁止从最新状态重新取得目标。
+
+    :param service: 连接到隔离数据库的发布服务
+    :param selected: 选择或回滚操作返回的制品摘要和新发布代际
+    :param scenario: 本次验收场景的输出标识
+    :param reason: 预期的机器可读结果原因
+    :param timeout_seconds: 等待时限，零表示只检查一次
+    :return: 本次等待返回的完整结果
+    """
+    target = {
+        'pluginId': PLUGIN_ID,
+        'digest': selected['digest'],
+        'generation': selected['generation'],
+        'expectedWorkers': EXPECTED_WORKER_COUNT,
+    }
+    result = await service.wait(
+        PLUGIN_ID,
+        target['digest'],
+        expected_generation=target['generation'],
+        expected_workers=EXPECTED_WORKER_COUNT,
+        timeout_seconds=timeout_seconds,
+        poll_interval_seconds=0.1,
+    )
+    check(result['operation'] == 'release_wait', 'Wait returned a different operation')
+    check(result['target'] == target, f'Wait changed the pinned target in {scenario}')
+    check(result['reason'] == reason, f'Unexpected wait reason in {scenario}: {result}')
+    check(result['ok'] is (reason == 'converged'), f'Wait success flag disagrees with reason in {scenario}')
+    check(result['attempts'] >= 1, f'Wait did not observe the real database in {scenario}')
+    if timeout_seconds == 0:
+        check(result['attempts'] == 1, f'Zero-timeout wait polled more than once in {scenario}')
+    emit('release_wait', scenario=scenario, reason=reason, attempts=result['attempts'], targetPinned=True)
+    return result
+
+
+def cli_wait_environment(spec: RunSpec) -> dict[str, str]:
+    """
+    为真实 CLI 子进程构造隔离连接配置，凭据仅保存在子进程环境中。
+
+    :param spec: 当前验收的隔离运行信息，不包含连接密码
+    :return: 指向当前隔离数据库和制品目录的子进程环境
+    """
+    require_opt_in(spec.engine)
+    spec.validate()
+    mysql = spec.engine == 'mysql'
+    prefix = 'RUOYI_IT_MYSQL' if mysql else 'RUOYI_IT_PG'
+    child_env = os.environ.copy()
+    child_env.update(
+        APP_ENV=f'plugin_it_{spec.run_id}',
+        DB_DEFAULT_SOURCE='primary',
+        DB_SOURCES=json.dumps(
+            {
+                'primary': {
+                    'db_type': spec.engine,
+                    'db_host': os.environ.get(f'{prefix}_HOST', '127.0.0.1'),
+                    'db_port': int(os.environ.get(f'{prefix}_PORT', '3306' if mysql else '5432')),
+                    'db_username': os.environ.get(f'{prefix}_USER', 'root' if mysql else 'postgres'),
+                    'db_password': os.environ[f'{prefix}_PASSWORD'],
+                    'db_database': spec.database,
+                    'db_echo': False,
+                    'db_connect_timeout': 10,
+                }
+            }
+        ),
+        PLUGIN_ARTIFACT_ENABLED='true',
+        PLUGIN_ARTIFACT_STORE=str(Path(spec.root) / 'store'),
+        PLUGIN_ARTIFACT_TRUST_FILE=str(Path(spec.root) / 'trusted.json'),
+        PLUGIN_ARTIFACT_HEARTBEAT_SECONDS='1',
+        PLUGIN_ARTIFACT_WORKER_TTL_SECONDS=str(TTL_SECONDS),
+        LOG_FILE_ENABLED='false',
+        LOG_FILE_BASE_DIR=str(Path(spec.root) / 'logs'),
+        PYTHONIOENCODING='utf-8',
+        PYTHONDONTWRITEBYTECODE='1',
+    )
+    return child_env
+
+
+async def verify_release_wait_cli(spec: RunSpec, selected: dict[str, Any], scenario: str, reason: str) -> None:
+    """
+    冷启动完整 CLI，使用真实隔离数据库验证单份 JSON 与操作系统退出码。
+
+    :param spec: 当前验收的隔离运行信息，不包含连接密码
+    :param selected: 选择操作返回的固定制品摘要和发布代际
+    :param scenario: 本次验收场景的输出标识
+    :param reason: 预期的机器可读结果原因
+    :return: None
+    """
+    child_env = cli_wait_environment(spec)
+    command = [
+        sys.executable,
+        '-m',
+        'cli.main',
+        'plugin',
+        'release',
+        'wait',
+        PLUGIN_ID,
+        selected['digest'],
+        '--generation',
+        selected['generation'],
+        '--expected-workers',
+        str(EXPECTED_WORKER_COUNT),
+        '--timeout',
+        '0',
+        '--interval',
+        '0.1',
+        '--env',
+        child_env['APP_ENV'],
+        '--output',
+        'json',
+    ]
+    process = await asyncio.create_subprocess_exec(
+        *command, cwd=str(BACKEND_ROOT), env=child_env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    try:
+        stdout, _stderr = await asyncio.wait_for(process.communicate(), timeout=30)
+    finally:
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
+    try:
+        result = json.loads(stdout)
+    except (UnicodeError, ValueError):
+        raise AssertionError('Cold release wait CLI did not return a single JSON document') from None
+    check(isinstance(result, dict), 'Cold release wait CLI did not return a JSON object')
+    expected_exit = 0 if reason == 'converged' else 50
+    check(
+        process.returncode == expected_exit, f'Cold release wait CLI exited {process.returncode}, not {expected_exit}'
+    )
+    check(result.get('operation') == 'release_wait', 'Cold release wait CLI returned another operation')
+    check(result.get('reason') == reason, f'Cold release wait CLI returned an unexpected reason in {scenario}')
+    check(result.get('ok') is (reason == 'converged'), 'Cold release wait CLI returned an inconsistent success flag')
+    check(
+        result.get('target')
+        == {
+            'pluginId': PLUGIN_ID,
+            'digest': selected['digest'],
+            'generation': selected['generation'],
+            'expectedWorkers': EXPECTED_WORKER_COUNT,
+        },
+        'Cold release wait CLI changed the pinned target',
+    )
+    check(result.get('attempts') == 1, 'Cold release wait CLI did not perform exactly one database observation')
+    emit(
+        'release_wait_cli',
+        scenario=scenario,
+        reason=reason,
+        exitCode=expected_exit,
+        jsonDocument=True,
+        targetPinned=True,
+    )
+
+
 async def expect_maintenance_blocked(service: Any, digest: str) -> None:
     """
     验证存在存活 worker 时维护准备会被拒绝。
@@ -851,6 +1022,51 @@ async def verify_migrations(sessions: Any, installed: str, rows: int) -> None:
             check(any(item.operation == 'upgrade' for item in logs), 'Real maintenance upgrade audit missing')
 
 
+async def exercise_release_recovery(spec: RunSpec, service: Any, target: dict[str, Any]) -> None:
+    """
+    验证失败进程、过期缺员与替换双进程对同一固定目标的等待结果。
+
+    :param spec: 当前验收的隔离运行信息，不包含连接密码
+    :param service: 连接到隔离数据库的发布服务
+    :param target: 回滚后固定的制品摘要和新发布代际
+    :return: None
+    """
+    async with Workers(spec, one_fails=True) as workers:
+        state = await release_state(service)
+        check(
+            state['status'] == 'partial' and state['healthyWorkers'] == 1 and state['failedWorkers'] == 1,
+            f'Failure reported as healthy: {state}',
+        )
+        await verify_release_wait(service, target, 'partial_with_failure', 'worker_failed', timeout_seconds=3)
+        await workers.kill_failed_worker()
+        await asyncio.sleep(TTL_SECONDS + 1)
+        state = await release_state(service)
+        check(
+            state['status'] == 'partial' and state['healthyWorkers'] == 1 and state['staleWorkers'] >= 1,
+            f'Expired process was counted live: {state}',
+        )
+        check(state['liveWorkers'] == 1, 'Dead worker still contributes to live count')
+        await verify_release_wait(service, target, 'stale_missing_worker', 'not_converged')
+        await verify_release_wait(service, target, 'stale_missing_worker_timeout', 'timeout', timeout_seconds=0.3)
+        emit('partial_and_stale', healthyWorkers=1, liveWorkers=1, staleWorkers=state['staleWorkers'])
+    # 发布心跳与运行诊断有独立 TTL；已终止进程的诊断快照可能比发布存活报告保留更久。
+    retired_worker_ids = frozenset(item['workerId'] for item in workers.reports if item['failed'])
+    async with Workers(spec, retired_worker_ids=retired_worker_ids):
+        result = await verify_release_wait(
+            service, target, 'replacement_with_old_stale_worker', 'converged', timeout_seconds=3
+        )
+        state = await release_state(service)
+        check(
+            state['status'] == 'active'
+            and state['healthyWorkers'] == EXPECTED_WORKER_COUNT
+            and state['liveWorkers'] == EXPECTED_WORKER_COUNT
+            and state['staleWorkers'] >= 1,
+            f'Replacement workers did not converge with historical stale reports: {state}',
+        )
+        check(result['lastObserved']['staleWorkers'] >= 1, 'Wait lost the historical stale worker evidence')
+        emit('replacement_active', healthyWorkers=EXPECTED_WORKER_COUNT, staleWorkers=state['staleWorkers'])
+
+
 async def exercise_release(spec: RunSpec, engine: Any) -> None:
     """
     依次验收发布、升级、代码回滚以及失败和过期 worker 状态。
@@ -869,8 +1085,13 @@ async def exercise_release(spec: RunSpec, engine: Any) -> None:
     await test_real_lock(spec)
     await run_maintenance(spec, 'prepare', digest1)
     await verify_migrations(sessions, '1.0.0', 1)
-    await run_maintenance(spec, 'select', digest1)
+    initial_target = await run_maintenance(spec, 'select', digest1)
+    await verify_release_wait(service, initial_target, 'before_workers', 'not_converged')
+    await verify_release_wait(service, initial_target, 'before_workers_timeout', 'timeout', timeout_seconds=0.3)
+    await verify_release_wait_cli(spec, initial_target, 'before_workers', 'not_converged')
     async with Workers(spec) as workers:
+        await verify_release_wait(service, initial_target, 'initial_active', 'converged', timeout_seconds=3)
+        await verify_release_wait_cli(spec, initial_target, 'initial_active', 'converged')
         state = await release_state(service)
         check(
             state['status'] == 'active' and state['healthyWorkers'] == EXPECTED_WORKER_COUNT,
@@ -890,8 +1111,10 @@ async def exercise_release(spec: RunSpec, engine: Any) -> None:
         emit('initial_active', workers=2, writer=1, reader=1, maintenanceBlocked=True)
     await run_maintenance(spec, 'prepare', digest2)
     await verify_migrations(sessions, '2.0.0', 2)
-    await run_maintenance(spec, 'select', digest2)
+    upgrade_target = await run_maintenance(spec, 'select', digest2)
+    await verify_release_wait(service, initial_target, 'upgrade_rejects_previous_target', 'target_changed')
     async with Workers(spec) as workers:
+        await verify_release_wait(service, upgrade_target, 'upgrade_active', 'converged', timeout_seconds=3)
         state = await release_state(service)
         check(state['status'] == 'active', f'Upgrade did not converge: {state}')
         check(
@@ -899,9 +1122,12 @@ async def exercise_release(spec: RunSpec, engine: Any) -> None:
             'Upgrade reused old code',
         )
         emit('upgrade_active', codeVersion='2.0.0', installedVersion=state['installedVersion'])
-    await run_maintenance(spec, 'rollback')
+    rollback_target = await run_maintenance(spec, 'rollback')
     await verify_migrations(sessions, '2.0.0', 2)
     async with Workers(spec) as workers:
+        await verify_release_wait(service, rollback_target, 'rollback_active', 'converged', timeout_seconds=3)
+        await verify_release_wait(service, upgrade_target, 'rollback_rejects_upgrade_target', 'target_changed')
+        await verify_release_wait(service, initial_target, 'rollback_rejects_old_generation', 'target_changed')
         state = await release_state(service)
         check(
             state['status'] == 'active' and state['installedVersion'] == '2.0.0', f'Rollback lost schema state: {state}'
@@ -911,21 +1137,7 @@ async def exercise_release(spec: RunSpec, engine: Any) -> None:
             'Rollback did not load prior artifact',
         )
         emit('rollback_active', codeVersion='1.0.0', installedVersion='2.0.0', migrationRows=2)
-    async with Workers(spec, one_fails=True) as workers:
-        state = await release_state(service)
-        check(
-            state['status'] == 'partial' and state['healthyWorkers'] == 1 and state['failedWorkers'] == 1,
-            f'Failure reported as healthy: {state}',
-        )
-        await workers.kill_failed_worker()
-        await asyncio.sleep(TTL_SECONDS + 1)
-        state = await release_state(service)
-        check(
-            state['status'] == 'partial' and state['healthyWorkers'] == 1 and state['staleWorkers'] >= 1,
-            f'Expired process was counted live: {state}',
-        )
-        check(state['liveWorkers'] == 1, 'Dead worker still contributes to live count')
-        emit('partial_and_stale', healthyWorkers=1, liveWorkers=1, staleWorkers=state['staleWorkers'])
+    await exercise_release_recovery(spec, service, rollback_target)
     await service.catalog.get(digest1)
     await service.catalog.get(digest2)
     check(not list(config.store_root.rglob('*.pyc')), 'Artifact runtime produced bytecode inside immutable store')
