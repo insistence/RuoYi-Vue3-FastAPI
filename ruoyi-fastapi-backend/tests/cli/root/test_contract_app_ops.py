@@ -1,6 +1,9 @@
+import os
 import subprocess
+import sys
 from collections.abc import Callable
 from pathlib import Path
+from textwrap import dedent
 
 from cli.exit_codes import DEPENDENCY_ERROR, SUCCESS
 from cli.runtime.plugin.scaffold import PluginFrontendVersionResolver
@@ -544,18 +547,64 @@ def test_plugin_install_dry_run_json_output_has_stable_contract(
 
 
 def test_plugin_upgrade_dry_run_json_output_has_stable_contract(
-    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+    backend_dir: Path,
     parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
 ) -> None:
-    completed = run_cli_command('plugin', 'upgrade', 'ai', '--dry-run', '--yes', '--env=dev', '--output=json')
-    payload = parse_json_stdout(completed)
+    # 成功契约需要已确认的目录插件来源；CI 不应连接宿主数据库来决定测试结果。
+    script = dedent(
+        """
+        import runpy
+        import sys
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, Mock, patch
 
-    assert completed.returncode == SUCCESS
+        from plugins.core.management.service.gateway import PluginManagementRuntimeGateway
+
+        state = SimpleNamespace(plugin_id='ai', source='local', installed_version='0.0.1')
+        read_state = AsyncMock(return_value=state)
+        read_history = AsyncMock(return_value=None)
+        database = Mock(side_effect=AssertionError('Contract tests must not open database sessions'))
+        sys.argv[0] = 'ruoyi'
+        with (
+            patch.object(PluginManagementRuntimeGateway, 'get_plugin_state', read_state),
+            patch.object(PluginManagementRuntimeGateway, 'get_plugin_migration', read_history),
+            patch.object(PluginManagementRuntimeGateway, 'get_async_session_local', database),
+        ):
+            try:
+                runpy.run_module('cli.main', run_name='__main__')
+            finally:
+                read_state.assert_any_await('ai')
+                database.assert_not_called()
+        """
+    )
+    completed = subprocess.run(
+        [
+            sys.executable,
+            '-c',
+            script,
+            'plugin',
+            'upgrade',
+            'ai',
+            '--dry-run',
+            '--yes',
+            '--env=dev',
+            '--output=json',
+        ],
+        cwd=backend_dir,
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        env={**os.environ, 'PYTHONIOENCODING': 'utf-8', 'LOG_FILE_ENABLED': 'false'},
+        check=False,
+        timeout=60,
+    )
+    assert completed.returncode == SUCCESS, completed.stderr
+    payload = parse_json_stdout(completed)
     assert payload['ok'] is True
     assert payload['pluginId'] == 'ai'
     assert payload['dryRun'] is True
-    assert 'installedVersion' in payload
+    assert payload['installedVersion'] == '0.0.1'
     assert 'currentVersion' in payload
-    assert 'needsUpgrade' in payload
-    assert 'databaseAvailable' in payload
+    assert payload['needsUpgrade'] is True
+    assert payload['databaseAvailable'] is True
     assert isinstance(payload['actions'], list)

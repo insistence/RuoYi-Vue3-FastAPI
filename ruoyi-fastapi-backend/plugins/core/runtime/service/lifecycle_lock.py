@@ -1,6 +1,6 @@
 import asyncio
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager, suppress
+from collections.abc import AsyncGenerator
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
 from dataclasses import dataclass
 from typing import Protocol
 from uuid import uuid4
@@ -43,7 +43,7 @@ class PluginLifecycleLock(Protocol):
     插件生命周期操作锁接口。
     """
 
-    def lock(self, plugin_id: str, operation: str) -> AsyncIterator[PluginLifecycleLockResult]:
+    def lock(self, plugin_id: str, operation: str) -> AbstractAsyncContextManager[PluginLifecycleLockResult]:
         """
         获取插件生命周期操作锁。
 
@@ -59,7 +59,7 @@ class NoopPluginLifecycleLock:
     """
 
     @asynccontextmanager
-    async def lock(self, plugin_id: str, operation: str) -> AsyncIterator[PluginLifecycleLockResult]:
+    async def lock(self, plugin_id: str, operation: str) -> AsyncGenerator[PluginLifecycleLockResult, None]:
         """
         返回已获取锁结果。
 
@@ -101,7 +101,7 @@ class RedisPluginLifecycleLock:
         self.expire_seconds = expire_seconds or LockConstant.PLUGIN_LIFECYCLE_LOCK_EXPIRE_SECONDS
 
     @asynccontextmanager
-    async def lock(self, plugin_id: str, operation: str) -> AsyncIterator[PluginLifecycleLockResult]:
+    async def lock(self, plugin_id: str, operation: str) -> AsyncGenerator[PluginLifecycleLockResult, None]:
         """
         获取插件生命周期操作锁。
 

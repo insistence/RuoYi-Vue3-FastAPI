@@ -37,6 +37,8 @@ from plugins.core.management.entity.do.models import (
     SysPluginMigration,
     SysPluginOperationLog,
 )
+from plugins.core.management.entity.do.release_models import SysPluginArtifact, SysPluginRelease, SysPluginWorker
+from scripts.verify_timezone_database import MAIN_INSTANT_COLUMNS, PLUGIN_INSTANT_COLUMNS
 
 # 显式维护 DO 类及 update_time 列清单，新增或移除时需同步核对模型。
 ENTITY_MODELS = (
@@ -77,6 +79,9 @@ ENTITY_MODELS = (
     SysPluginMigration,
     SysPluginConfig,
     SysPluginOperationLog,
+    SysPluginArtifact,
+    SysPluginRelease,
+    SysPluginWorker,
 )
 
 UPDATE_TIME_MODELS = (
@@ -101,6 +106,8 @@ UPDATE_TIME_MODELS = (
     SysPlugin,
     SysPluginMigration,
     SysPluginConfig,
+    SysPluginRelease,
+    SysPluginWorker,
 )
 
 CREATE_TIME_ONLY_MODELS = (
@@ -110,6 +117,7 @@ CREATE_TIME_ONLY_MODELS = (
     SysJobLog,
     SysPluginMenu,
     SysPluginOperationLog,
+    SysPluginArtifact,
 )
 
 REQUIRED_CREATE_TIME_MODELS = {
@@ -171,6 +179,19 @@ def test_all_time_columns_use_utc_type_and_callable_defaults() -> None:
             if isinstance(column.type, DbUtcDateTime) and column.default is not None:
                 default = column.default.arg
                 assert callable(default), f'{model.__name__}.{column.name}'
+
+
+def test_timezone_database_verifier_counts_match_entity_columns() -> None:
+    """真实数据库验收的字段总数随模型契约更新，避免新增表后仅在集成 CI 中失败。"""
+    main_count = 0
+    plugin_count = 0
+    for model in ENTITY_MODELS:
+        count = sum(isinstance(column.type, DbUtcDateTime) for column in model.__table__.columns)
+        if model.__tablename__.startswith('ai_'):
+            plugin_count += count
+        else:
+            main_count += count
+    assert (main_count, plugin_count) == (MAIN_INSTANT_COLUMNS, PLUGIN_INSTANT_COLUMNS)
 
 
 @pytest.mark.asyncio

@@ -50,6 +50,13 @@ class PluginCallableLoader:
         :param callable_path: manifest 中声明的 callable 路径，格式为 <module_path>:<callable_name>
         :return: 已加载 callable
         """
+        if self.discovered_plugin.manifest.uses_entrypoint:
+            from plugins.core.runtime.entrypoint import PluginEntrypointLoader  # noqa: PLC0415
+
+            loader = PluginEntrypointLoader(self.discovered_plugin)
+            loader.check_entrypoint()
+            module_name, callable_name = callable_path.split(':', 1)
+            return LoadedPluginCallable(module_name, callable_name, loader.load_callable(callable_path))
         module_path, callable_name = callable_path.split(':', maxsplit=1)
         module_name = self.resolve_module_name(module_path)
         module = self.import_module(module_name)

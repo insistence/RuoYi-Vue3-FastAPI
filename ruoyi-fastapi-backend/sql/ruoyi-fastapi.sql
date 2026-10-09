@@ -1180,6 +1180,63 @@ create table sys_plugin_operation_log (
 ) engine=innodb comment = '插件批量操作审计日志表';
 
 -- ----------------------------
+-- 36、插件已验证制品表
+-- ----------------------------
+create table if not exists sys_plugin_artifact (
+  digest             varchar(64)    not null comment '制品SHA256',
+  plugin_id          varchar(64)    not null comment '插件ID',
+  version            varchar(32)    not null comment '制品版本',
+  key_id             varchar(128)   not null comment '签名公钥标识',
+  relative_path      varchar(512)   not null comment '制品存储内不可变相对目录',
+  manifest_json      text           not null comment '验证后的清单JSON',
+  created_by         varchar(64)    default null comment '导入者',
+  create_time        datetime(3)    default null comment '创建时间',
+  primary key (digest),
+  key idx_sys_plugin_artifact_plugin (plugin_id, version)
+) engine=innodb comment='插件已验证制品表';
+
+-- ----------------------------
+-- 37、插件目标发布表
+-- ----------------------------
+create table if not exists sys_plugin_release (
+  plugin_id          varchar(64)    not null comment '插件ID',
+  target_digest      varchar(64)    default null comment '目标制品SHA256',
+  previous_digest    varchar(64)    default null comment '上一次目标制品SHA256',
+  prepared_digest    varchar(64)    default null comment '维护准备成功的制品SHA256',
+  generation         varchar(32)    not null comment '目标发布代际UUID',
+  expected_workers   int            not null default 1 comment '预期宿主worker数量',
+  prepare_status     varchar(16)    not null default 'idle' comment '维护准备状态',
+  prepared_version   varchar(32)    default null comment '维护确认的数据结构安装版本',
+  last_error         text           default null comment '维护准备错误',
+  create_by          varchar(64)    default null comment '创建者',
+  update_by          varchar(64)    default null comment '更新者',
+  create_time        datetime(3)    default null comment '创建时间',
+  update_time        datetime(3)    default null comment '更新时间',
+  primary key (plugin_id),
+  constraint ck_sys_plugin_release_workers check (expected_workers >= 1),
+  constraint ck_sys_plugin_release_prepare check (prepare_status in ('idle', 'preparing', 'prepared', 'failed'))
+) engine=innodb comment='插件目标发布表';
+
+-- ----------------------------
+-- 38、插件worker加载状态表
+-- ----------------------------
+create table if not exists sys_plugin_worker (
+  worker_id          varchar(32)    not null comment '宿主进程UUID',
+  plugin_id          varchar(64)    not null comment '插件ID或__runtime__',
+  artifact_digest    varchar(64)    default null comment '实际加载的制品SHA256',
+  version            varchar(32)    default null comment '实际加载的制品版本',
+  generation         varchar(32)    default null comment '实际加载的发布代际UUID',
+  state              varchar(16)    not null comment 'worker状态',
+  heartbeat_time     datetime(3)    not null comment 'UTC心跳时间',
+  error              text           default null comment '加载或运行错误',
+  create_time        datetime(3)    default null comment '创建时间',
+  update_time        datetime(3)    default null comment '更新时间',
+  primary key (worker_id, plugin_id),
+  key idx_sys_plugin_worker_plugin (plugin_id, heartbeat_time),
+  constraint ck_sys_plugin_worker_state check (state in ('starting', 'ready', 'failed', 'stopped'))
+) engine=innodb comment='插件worker加载状态表';
+
+-- ----------------------------
 -- 统一认证中心相关表清理
 -- ----------------------------
 drop table if exists sys_oauth_audit_archive;
@@ -1200,7 +1257,7 @@ drop table if exists sys_oauth_client;
 drop table if exists sys_identity_subject;
 
 -- ----------------------------
--- 36、统一认证主体关联表
+-- 39、统一认证主体关联表
 -- ----------------------------
 create table sys_identity_subject (
   identity_id   bigint       not null auto_increment  comment '内部主键',
@@ -1225,7 +1282,7 @@ insert into sys_identity_subject (user_id, subject_id, auth_version, create_by, 
 select user_id, uuid(), 1, 'initial-sql', UTC_TIMESTAMP(3) from sys_user;
 
 -- ----------------------------
--- 37、OAuth客户端表
+-- 40、OAuth客户端表
 -- ----------------------------
 create table sys_oauth_client (
   client_pk                            bigint        not null auto_increment    comment '内部主键',
@@ -1260,7 +1317,7 @@ create table sys_oauth_client (
 ) engine=innodb comment = 'OAuth客户端表';
 
 -- ----------------------------
--- 38、OAuth客户端密钥表
+-- 41、OAuth客户端密钥表
 -- ----------------------------
 create table sys_oauth_client_secret (
   secret_id     varchar(36)   not null                   comment 'Secret ID',
@@ -1281,7 +1338,7 @@ create table sys_oauth_client_secret (
 ) engine=innodb comment = 'OAuth客户端密钥表';
 
 -- ----------------------------
--- 39、OAuth客户端URI表
+-- 42、OAuth客户端URI表
 -- ----------------------------
 create table sys_oauth_client_uri (
   uri_id       bigint         not null auto_increment  comment 'URI 主键',
@@ -1299,7 +1356,7 @@ create table sys_oauth_client_uri (
 ) engine=innodb comment = 'OAuth客户端URI表';
 
 -- ----------------------------
--- 40、OAuth资源服务器表
+-- 43、OAuth资源服务器表
 -- ----------------------------
 create table sys_oauth_resource (
   resource_pk               bigint        not null auto_increment   comment '内部主键',
@@ -1325,7 +1382,7 @@ create table sys_oauth_resource (
 ) engine=innodb comment = 'OAuth资源服务器表';
 
 -- ----------------------------
--- 41、OAuth权限范围表
+-- 44、OAuth权限范围表
 -- ----------------------------
 create table sys_oauth_scope (
   scope_pk          bigint        not null auto_increment  comment '内部主键',
@@ -1361,7 +1418,7 @@ insert into sys_oauth_scope values(6, 'dept', '部门', 'identity', null, json_a
 insert into sys_oauth_scope values(7, 'offline_access', '离线访问', 'identity', null, json_array(), 1, 1, '0', 'system', UTC_TIMESTAMP(3), 'system', UTC_TIMESTAMP(3), '允许签发 Refresh Token');
 
 -- ----------------------------
--- 42、OAuth客户端和权限范围关联表
+-- 45、OAuth客户端和权限范围关联表
 -- ----------------------------
 create table sys_oauth_client_scope (
   client_pk       bigint    not null            comment 'Client 主键',
@@ -1377,7 +1434,7 @@ create table sys_oauth_client_scope (
 ) engine=innodb comment = 'OAuth客户端和权限范围关联表';
 
 -- ----------------------------
--- 43、OAuth客户端和资源服务器关联表
+-- 46、OAuth客户端和资源服务器关联表
 -- ----------------------------
 create table sys_oauth_client_resource (
   client_pk    bigint    not null            comment 'Client 主键',
@@ -1391,7 +1448,7 @@ create table sys_oauth_client_resource (
 ) engine=innodb comment = 'OAuth客户端和资源服务器关联表';
 
 -- ----------------------------
--- 44、用户应用访问控制表
+-- 47、用户应用访问控制表
 -- ----------------------------
 create table sys_oauth_access_policy (
   user_id       bigint        not null                  comment '用户ID',
@@ -1406,7 +1463,7 @@ create table sys_oauth_access_policy (
 ) engine=innodb comment = 'OAuth用户应用访问控制表';
 
 -- ----------------------------
--- 45、OAuth授权记录表
+-- 48、OAuth授权记录表
 -- ----------------------------
 create table sys_oauth_grant (
   grant_id               varchar(36)   not null                   comment 'Grant ID',
@@ -1433,7 +1490,7 @@ create table sys_oauth_grant (
 ) engine=innodb comment = 'OAuth授权记录表';
 
 -- ----------------------------
--- 46、OIDC单点登录会话表
+-- 49、OIDC单点登录会话表
 -- ----------------------------
 create table sys_sso_session (
   sid                  varchar(36)   not null                   comment 'OIDC Session ID',
@@ -1462,7 +1519,7 @@ create table sys_sso_session (
 ) engine=innodb comment = 'OIDC单点登录会话表';
 
 -- ----------------------------
--- 47、SSO会话与参与应用关联表
+-- 50、SSO会话与参与应用关联表
 -- ----------------------------
 create table sys_sso_session_client (
   sid           varchar(36)  not null  comment 'SSO Session ID',
@@ -1476,7 +1533,7 @@ create table sys_sso_session_client (
 ) engine=innodb comment = 'SSO会话参与应用';
 
 -- ----------------------------
--- 48、OAuth刷新令牌表
+-- 51、OAuth刷新令牌表
 -- ----------------------------
 create table sys_oauth_refresh_token (
   token_id              varchar(36)   not null                   comment 'Token ID',
@@ -1516,7 +1573,7 @@ create table sys_oauth_refresh_token (
 ) engine=innodb comment = 'OAuth刷新令牌表';
 
 -- ----------------------------
--- 49、OIDC签名密钥表
+-- 52、OIDC签名密钥表
 -- ----------------------------
 create table sys_oidc_signing_key (
   key_pk                  bigint         not null auto_increment   comment '内部主键',
@@ -1542,7 +1599,7 @@ create table sys_oidc_signing_key (
 ) engine=innodb comment = 'OIDC签名密钥表';
 
 -- ----------------------------
--- 50、OAuth审计日志表
+-- 53、OAuth审计日志表
 -- ----------------------------
 create table sys_oauth_audit_log (
   event_id      bigint        not null auto_increment    comment '事件ID',
@@ -1571,7 +1628,7 @@ create table sys_oauth_audit_log (
 ) engine=innodb comment = 'OAuth审计日志表';
 
 -- ----------------------------
--- 51、OAuth审计归档表
+-- 54、OAuth审计归档表
 -- ----------------------------
 create table sys_oauth_audit_archive (
   event_id      bigint        not null      comment '原事件ID',

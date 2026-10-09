@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>插件网络验收夹具</title>
+  </head>
+  <body>
+    <p id="ready">等待宿主</p>
+    <button id="echo">回显</button><output id="echo-result"></output>
+    <button id="start">接收事件</button><button id="stop">停止事件</button>
+    <button id="reset">重置验收游标</button>
+    <output id="stream-state"></output>
+    <ol id="events"></ol>
+    <script type="module">
+      import { createPluginClient } from "./assets/bridge.js";
+      const client = createPluginClient({ pluginId: "browser_test" });
+      const element = (id) => document.getElementById(id);
+      let controller;
+      let cursor = "";
+      await client.ready;
+      element("ready").textContent = "宿主已连接";
+      element("echo").onclick = async () => {
+        const value = await client.request({
+          path: "echo",
+          method: "POST",
+          data: { message: "network" },
+        });
+        element("echo-result").textContent = value.message;
+      };
+      element("start").onclick = async () => {
+        controller = new AbortController();
+        element("events").replaceChildren();
+        element("stream-state").textContent = "连接中";
+        try {
+          await client.stream(
+            { path: "events", params: { count: 20 }, lastEventId: cursor },
+            {
+              signal: controller.signal,
+              onEvent(event) {
+                cursor = event.id;
+                const item = document.createElement("li");
+                item.textContent = event.id;
+                element("events").append(item);
+                element("stream-state").textContent = "接收中";
+              },
+            },
+          );
+          element("stream-state").textContent = "完成";
+        } catch (error) {
+          element("stream-state").textContent = error.message;
+        }
+      };
+      element("stop").onclick = () => controller?.abort();
+      element("reset").onclick = () => {
+        cursor = "";
+        element("events").replaceChildren();
+      };
+    </script>
+  </body>
+</html>

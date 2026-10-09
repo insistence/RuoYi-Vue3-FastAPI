@@ -1,0 +1,85 @@
+from datetime import datetime, timezone
+
+from fastapi import FastAPI
+
+from plugins.core.sdk import (
+    PluginDefinition,
+    PluginHostContext,
+    PluginRequestContext,
+    plugin_endpoint,
+    plugin_lifespan,
+)
+
+
+async def startup(host: PluginHostContext) -> dict[str, bool]:
+    """
+    记录插件启动并返回就绪状态，可在此初始化插件自有资源。
+
+    :param host: 宿主提供的插件上下文
+    :return: 插件就绪状态
+    """
+    host.logger.info("__PLUGIN_ID__ started")
+    return {"pluginReady": True}
+
+
+async def shutdown(host: PluginHostContext) -> None:
+    """
+    记录插件关闭，可在此释放插件自有资源并保留宿主共享连接池。
+
+    :param host: 宿主提供的插件上下文
+    :return: None
+    """
+    host.logger.info("__PLUGIN_ID__ stopped")
+    # 仅释放插件自身创建的资源，不关闭宿主 Redis 或数据库连接池。
+
+
+async def health(context: object) -> bool:
+    """
+    返回本模板的健康检查结果，可在此扩展插件自有依赖检查。
+
+    :param context: 宿主调用健康检查时传入的上下文
+    :return: 插件是否健康
+    """
+    return True
+
+
+async def info(context: PluginRequestContext) -> dict[str, str]:
+    return {
+        "pluginId": context.host.plugin_id,
+        "hostApiVersion": context.host.api_version,
+        "engine": "python",
+        "serverTime": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def create_app(host: PluginHostContext) -> FastAPI:
+    """
+    创建受宿主权限保护的 ASGI 子应用并绑定插件生命周期。
+
+    :param host: 宿主提供的插件上下文
+    :return: 插件 ASGI 子应用
+    """
+    app = FastAPI(
+        title="__PLUGIN_ID__",
+        docs_url=None,
+        redoc_url=None,
+        lifespan=plugin_lifespan(host, startup, shutdown),
+    )
+    app.add_api_route(
+        "/api/info",
+        plugin_endpoint(info, permission="__PLUGIN_ID__:view"),
+        summary="获取插件信息接口",
+        description="用于获取当前插件标识、宿主API版本、运行引擎和服务器时间",
+        response_model=dict[str, str],
+    )
+    return app
+
+
+def create_plugin(host: PluginHostContext) -> PluginDefinition:
+    """
+    声明插件能力，实际资源初始化交给生命周期回调。
+
+    :param host: 宿主提供的插件上下文
+    :return: 插件能力声明
+    """
+    return PluginDefinition(app_factory=create_app)

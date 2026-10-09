@@ -204,6 +204,21 @@ class CliPluginRuntimeService:
             failure_code=self.runtime_error_code,
         ).to_payload()
 
+    async def diagnose_plugin_with_runtime(self, plugin_id: str) -> dict[str, object]:
+        """
+        在静态诊断包上附加服务 worker 的只读快照，保留原诊断成功语义。
+
+        :param plugin_id: 待诊断的插件 ID
+        :return: 包含静态检查及独立运行观测的诊断包
+        """
+        from plugins.core.runtime.diagnostics_query import read_cli_runtime_diagnostics  # noqa: PLC0415
+
+        payload = await self.core_runtime.diagnose_plugin(plugin_id)
+        payload['runtime'] = await read_cli_runtime_diagnostics(
+            plugin_id, backend_root=Path(self._resolve_runtime_environment().get_backend_dir())
+        )
+        return payload
+
     def lock_plugin_dependencies(
         self,
         plugin_id: str,

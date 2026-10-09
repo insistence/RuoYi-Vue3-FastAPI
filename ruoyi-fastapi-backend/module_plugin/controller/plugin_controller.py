@@ -451,11 +451,26 @@ async def diagnose_system_plugin(
     query_db: Annotated[AsyncSession, DBSessionDependency()],
     plugin_id: Annotated[str, Path(description='插件ID')],
 ) -> Response:
+    from plugins.core.runtime.diagnostics_query import read_plugin_runtime_diagnostics  # noqa: PLC0415
+
     diagnose_plugin_result = await get_plugin_operation_service().diagnose_plugin_with_audit_services(
         query_db, plugin_id
     )
+    application_runtime = getattr(request.app.state, 'plugin_application_runtime', None)
+    diagnose_plugin_result['runtime'] = await read_plugin_runtime_diagnostics(
+        plugin_id,
+        reporter=getattr(request.app.state, 'plugin_diagnostics_reporter', None),
+        redis=getattr(request.app.state, 'redis', None),
+        ready_key=getattr(application_runtime, 'ready_key', None),
+    )
     logger.info(diagnose_plugin_result.get('message', '插件诊断包生成完成'))
 
+    if all(key in diagnose_plugin_result for key in ('info', 'check', 'config', 'menuPlan', 'audit')):
+        # 完整诊断包中的 ok=false 表示检查发现问题，仍需让页面读取其运行观测证据。
+        return ResponseUtil.success(
+            msg=str(diagnose_plugin_result.get('message') or '插件诊断包生成完成'),
+            data=_public_plugin_payload(diagnose_plugin_result),
+        )
     return _plugin_operation_response(diagnose_plugin_result, '插件诊断包生成完成')
 
 

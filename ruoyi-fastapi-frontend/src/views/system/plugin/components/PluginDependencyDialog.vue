@@ -2,7 +2,7 @@
   <el-dialog
     title="插件依赖"
     :model-value="modelValue"
-    width="860px"
+    width="min(860px, calc(100vw - 32px))"
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
@@ -434,27 +434,27 @@ async function copyText(text) {
 .dependency-summary-item {
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--el-border-color-light);
   border-radius: 4px;
-  background: #f8f9fb;
+  background: var(--el-fill-color-light);
 }
 
 .dependency-summary-label {
   display: block;
   margin-bottom: 6px;
-  color: #909399;
+  color: var(--el-text-color-regular);
   font-size: 12px;
 }
 
 .dependency-summary-value {
-  color: #303133;
+  color: var(--el-text-color-primary);
   font-size: 14px;
   font-weight: 600;
   word-break: break-all;
 }
 
 .dependency-summary-value.is-danger {
-  color: #f56c6c;
+  color: var(--el-color-danger);
 }
 
 .dependency-policy-messages {
@@ -464,7 +464,7 @@ async function copyText(text) {
 
 .dependency-policy-next {
   margin-top: 6px;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 
 .dependency-command-cell {
@@ -477,7 +477,7 @@ async function copyText(text) {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: #303133;
+  color: var(--el-text-color-primary);
   font-family: monospace;
   text-overflow: ellipsis;
   white-space: nowrap;

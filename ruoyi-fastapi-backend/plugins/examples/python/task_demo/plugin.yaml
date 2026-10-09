@@ -1,0 +1,43 @@
+manifestVersion: 2
+id: task_demo
+name: 持久化任务示例
+version: 1.1.0
+description: 独立前端与 ASGI 接口结合，演示显式事务、读写分权及无损字段迁移。
+backend:
+  runtime: python
+  integration: asgi
+  module: plugins.task_demo
+  entrypoint: plugins.task_demo:create_plugin
+  health:
+    checker: plugins.task_demo:health
+  migrations:
+    - migrations/mysql/001_init.sql
+    - migrations/mysql/002_priority.sql
+    - migrations/postgresql/001_init.sql
+    - migrations/postgresql/002_priority.sql
+frontend:
+  delivery:
+    type: bundle
+    buildRequired: false
+  bundle:
+    directory: web/dist
+    entry: index.html
+    spaFallback: true
+  menus:
+    - name: 持久化任务示例
+      path: task_demo
+      component: PluginFrame
+      type: C
+      icon: list
+      perms: task_demo:view
+permissions:
+  - code: task_demo:view
+    name: 查看任务
+  - code: task_demo:write
+    name: 编辑任务
+compatibility:
+  hostApiVersion: ^1.4.0
+  pythonVersion: '>=3.10'
+  databases:
+    - mysql
+    - postgresql

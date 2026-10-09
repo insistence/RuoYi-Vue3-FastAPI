@@ -102,12 +102,15 @@ class FakePluginRuntimeGateway:
     def __init__(self) -> None:
         """初始化测试用插件运行时适配器。"""
         self.session_local = FakeSessionLocal()
+        self.lifecycle_uows: list[FakePluginLifecycleUnitOfWork] = []
         self.completed_process = CompletedProcess(args=[], returncode=0, stdout='1 passed\n', stderr='')
         self.commands: list[tuple[list[str], str, int | None]] = []
 
     def open_lifecycle_unit_of_work(self) -> FakePluginLifecycleUnitOfWork:
         """打开测试生命周期主事务工作单元。"""
-        return FakePluginLifecycleUnitOfWork(self)
+        unit_of_work = FakePluginLifecycleUnitOfWork(self)
+        self.lifecycle_uows.append(unit_of_work)
+        return unit_of_work
 
     def get_async_session_local(self) -> FakeSessionLocal:
         """获取测试会话工厂。"""
@@ -123,9 +126,8 @@ class FakePluginRuntimeGateway:
             return await FakePluginService.get_plugin_list_services(session)
 
     async def get_plugin_state(self, plugin_id: str) -> SimpleNamespace | None:
-        """获取测试插件状态。"""
-        async with self.session_local() as session:
-            return await FakePluginService.plugin_detail_services(session, plugin_id)
+        """读取内存状态，不在生命周期事务记录中创建只读会话。"""
+        return await FakePluginService.plugin_detail_services(None, plugin_id)
 
     @staticmethod
     def build_operation_log_export_query(export_limit: int) -> SimpleNamespace:

@@ -226,6 +226,7 @@ class PluginCatalogPayloadMixin:
         :param plugin: 已注册插件运行时快照或已发现插件
         :param dependency_items: 依赖检查项列表
         :param database_error: 数据库状态读取错误信息
+        :param capability: 插件运行时管理能力及操作限制
         :return: 插件详情负载
         """
         discovered_plugin = plugin.discovered_plugin if isinstance(plugin, RegisteredPlugin) else plugin
@@ -247,6 +248,11 @@ class PluginCatalogPayloadMixin:
             'database': cls.build_database_state(database_plugin, database_error),
             'backend': {
                 'module': manifest.backend.module,
+                'manifestVersion': manifest.manifest_version,
+                'runtime': manifest.runtime_kind,
+                'integration': manifest.integration_kind,
+                'entrypoint': getattr(manifest.backend, 'entrypoint', None),
+                'mountPath': getattr(getattr(manifest.backend, 'asgi', None), 'mount_path', None),
                 'autoScanRouters': manifest.backend.routers.auto_scan,
                 'migrations': manifest.backend.migrations,
                 'seeds': manifest.backend.seeds,

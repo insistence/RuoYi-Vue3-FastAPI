@@ -57,11 +57,15 @@ def register_developer_commands(app: typer.Typer, get_controller: Callable[[], A
         output: OutputOption = 'text',
         template: Annotated[
             str,
-            typer.Option('--template', help='插件模板：minimal、backend-only、full-stack、scheduled-job、crud-page'),
+            typer.Option(
+                '--template',
+                help='v1：minimal、backend-only、full-stack、scheduled-job、crud-page；'
+                'v2：python-asgi、python-bundle、rust-asgi、rust-bundle（生成独立源码工程）',
+            ),
         ] = 'full-stack',
         frontend_version: Annotated[
             Literal['auto', 'vue2', 'vue3'],
-            typer.Option('--frontend-version', help='前端 Vue 版本：auto、vue2、vue3；auto 读取 package.json'),
+            typer.Option('--frontend-version', help='v1 前端 Vue 版本：auto、vue2、vue3；v2 bundle 不使用宿主 Vue'),
         ] = 'auto',
         backend_only: Annotated[bool, typer.Option('--backend-only', help='只创建后端插件模板')] = False,
         frontend_only: Annotated[bool, typer.Option('--frontend-only', help='只创建前端插件模板')] = False,

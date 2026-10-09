@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>任务清单 · 本地模拟宿主</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font:
+          14px/1.6 'Segoe UI',
+          'Microsoft YaHei',
+          sans-serif;
+        color: #172b36;
+        background: #f3f6f7;
+      }
+      header {
+        padding: 16px 24px;
+        background: #fff;
+        border-bottom: 1px solid #879aa4;
+      }
+      h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+      p {
+        margin: 6px 0 12px;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 16px;
+      }
+      .controls label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      input[type='number'] {
+        width: 78px;
+      }
+      button,
+      select,
+      input {
+        font: inherit;
+      }
+      button,
+      select,
+      input[type='number'] {
+        min-height: 36px;
+        border: 1px solid #879aa4;
+        border-radius: 5px;
+        padding: 4px 8px;
+        background: #fff;
+        color: #172b36;
+      }
+      button {
+        cursor: pointer;
+      }
+      :focus-visible {
+        outline: 3px solid #176b62;
+        outline-offset: 3px;
+      }
+      #status {
+        color: #516574;
+        font-size: 12px;
+      }
+      iframe {
+        width: 100%;
+        height: 1050px;
+        border: 0;
+        display: block;
+      }
+      @media (max-width: 640px) {
+        header {
+          padding: 16px;
+        }
+        button,
+        select,
+        input[type='number'] {
+          min-height: 44px;
+        }
+        iframe {
+          height: 2200px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>任务清单 · 本地模拟宿主</h1>
+      <p>
+        使用模拟权限与内存数据，不连接真实后端。刷新整个页面会重置任务。此页仅用于开发，不进入生产构建。
+      </p>
+      <div class="controls">
+        <label
+          >主题
+          <select id="theme">
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+          </select></label
+        >
+        <label
+          >延迟（毫秒） <input id="delay" type="number" value="250" min="0" max="5000"
+        /></label>
+        <label><input id="failure" type="checkbox" />模拟请求失败</label>
+        <label><input id="read-only" type="checkbox" />只读权限</label>
+        <button id="reset" type="button">恢复示例任务</button>
+        <button id="empty" type="button">清空模拟任务</button>
+        <button id="reload" type="button">重载插件</button>
+        <button id="logout" type="button">模拟退出</button>
+        <span id="status" role="status" aria-live="polite">等待连接</span>
+      </div>
+    </header>
+    <iframe id="plugin-frame" title="任务清单插件"></iframe>
+    <script type="module" src="/dev/host.js"></script>
+  </body>
+</html>

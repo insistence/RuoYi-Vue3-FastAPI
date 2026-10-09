@@ -55,9 +55,9 @@ Issuer 必须是无路径前缀、无查询串的固定公开地址。`OIDC_PUBL
 
 ## 3. 平台启用与检查
 
-所有后端命令在 `ruoyi-fastapi-backend` 目录执行，并使用已安装项目依赖的 Python 3 解释器。命令适用于 Windows PowerShell 和 macOS Terminal，不依赖特定的 Python 环境管理工具。下面以 `dev` 环境为例，其他环境替换为对应的 `--env` 和配置文件。
+所有后端命令在 `ruoyi-fastapi-backend` 目录执行，并使用已安装项目依赖的 Python 3.10–3.13 环境。命令适用于 Windows PowerShell、macOS 和 Linux，不依赖特定的环境管理工具、环境名称或安装路径。创建与激活步骤见 [CLI 环境准备](cli_usage.md#22-安装依赖)。下面以 `dev` 环境为例，其他环境替换为对应的 `--env` 和配置文件。
 
-`ruoyi` 命令在 Windows 和 macOS 上的参数一致。直接调用 Python 时，下文分别给出 Windows 的 `python` 和 macOS 的 `python3` 写法；若本机解释器命令不同，替换为实际安装项目依赖的解释器。
+`ruoyi` 命令在三个平台上的参数一致。激活环境后，直接调用解释器统一使用 `python`；在新终端执行命令前也应激活同一环境。
 
 ### 3.1 配置功能开关和密钥材料
 
@@ -94,10 +94,10 @@ Windows PowerShell：
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-macOS Terminal：
+macOS / Linux（Bash、Zsh）：
 
 ```shell
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
 多实例使用同一套持久化配置。每次重启重新生成 Pepper 会使已有不透明凭据无法匹配；更换加密材料会影响数据库中现有签名私钥的解密。配置文件不提交真实密钥。修改环境配置后重启后端实例。
@@ -124,10 +124,10 @@ ruoyi app doctor --env dev
 
 若终端找不到 `ruoyi` 命令，可直接使用 Python 模块入口，将上面命令的 `ruoyi` 前缀替换为下表中的调用方式，其余参数保持不变：
 
-| 系统               | 替代前缀                      | 检查命令示例                                       |
-| ------------------ | ----------------------------- | -------------------------------------------------- |
-| Windows PowerShell | `python -X utf8 -m cli.main`  | `python -X utf8 -m cli.main app doctor --env dev`  |
-| macOS Terminal     | `python3 -X utf8 -m cli.main` | `python3 -X utf8 -m cli.main app doctor --env dev` |
+| 系统 | 替代前缀 | 检查命令示例 |
+| --- | --- | --- |
+| Windows PowerShell | `python -X utf8 -m cli.main` | `python -X utf8 -m cli.main app doctor --env dev` |
+| macOS / Linux（Bash、Zsh） | `python -X utf8 -m cli.main` | `python -X utf8 -m cli.main app doctor --env dev` |
 
 生产密钥初始化还需要显式传入 `--allow-prod`，并指定实际生产环境。
 
@@ -159,11 +159,11 @@ python -c "import urllib.request; print(urllib.request.urlopen('https://auth.exa
 python -c "import urllib.request; print(urllib.request.urlopen('https://auth.example.com/oauth2/jwks', timeout=10).read().decode('utf-8'))"
 ```
 
-macOS Terminal：
+macOS / Linux（Bash、Zsh）：
 
 ```shell
-python3 -c "import urllib.request; print(urllib.request.urlopen('https://auth.example.com/.well-known/openid-configuration', timeout=10).read().decode('utf-8'))"
-python3 -c "import urllib.request; print(urllib.request.urlopen('https://auth.example.com/oauth2/jwks', timeout=10).read().decode('utf-8'))"
+python -c "import urllib.request; print(urllib.request.urlopen('https://auth.example.com/.well-known/openid-configuration', timeout=10).read().decode('utf-8'))"
+python -c "import urllib.request; print(urllib.request.urlopen('https://auth.example.com/oauth2/jwks', timeout=10).read().decode('utf-8'))"
 ```
 
 检查 Discovery 中的 `issuer` 和各端点是否为预期公开 HTTPS 地址，JWKS 是否包含可用 RSA 公钥，并确认 `ruoyi app doctor` 的 OIDC 检查通过。开关为真但无有效签名密钥时，Discovery/JWKS 等就绪检查可能返回 503；先检查密钥状态和加密配置。

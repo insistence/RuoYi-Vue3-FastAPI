@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>任务清单</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#task-list-section">跳到任务列表</a>
+    <main id="workspace" class="workspace">
+      <header class="page-header">
+        <div class="page-heading">
+          <div class="page-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <rect x="4" y="3" width="16" height="18" rx="3" />
+              <path d="m8 9 1.5 1.5L12 8M14 9h3M8 15h9" />
+            </svg>
+          </div>
+          <div>
+            <p class="eyebrow">任务工作区</p>
+            <h1>任务清单</h1>
+            <p class="page-description">团队共享任务，一起记录进展、完成待办。</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <span id="access-mode" class="access-mode">连接中</span>
+          <button id="create-task" class="button button-primary" type="button" disabled>
+            <svg
+              class="icon"
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+            >
+              <path d="M10 4v12M4 10h12" />
+            </svg>
+            新增任务
+          </button>
+        </div>
+      </header>
+
+      <p id="read-only-notice" class="read-only-notice" hidden>
+        当前会话仅可查看共享任务。新增、编辑和删除需要写入权限。
+      </p>
+      <p id="notice" class="notice" role="status" aria-live="polite" aria-atomic="true"></p>
+
+      <section
+        id="task-list-section"
+        class="list-panel"
+        aria-labelledby="list-heading"
+        tabindex="-1"
+      >
+        <div class="list-toolbar">
+          <div class="list-heading-row">
+            <h2 id="list-heading">全部任务</h2>
+            <span id="task-count" class="task-count">等待加载</span>
+          </div>
+          <button id="refresh" class="button button-secondary" type="button" disabled>
+            <svg
+              class="icon"
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+            >
+              <path d="M16.5 9a6.5 6.5 0 1 0-1.2 4.8M16.5 4v5h-5" />
+            </svg>
+            刷新列表
+          </button>
+        </div>
+        <div class="filter-row">
+          <div id="status-filters" class="status-filters" role="group" aria-label="按任务状态筛选">
+            <button class="filter-button" type="button" data-status="" aria-pressed="true" disabled>
+              全部
+            </button>
+            <button
+              class="filter-button"
+              type="button"
+              data-status="todo"
+              aria-pressed="false"
+              disabled
+            >
+              待完成
+            </button>
+            <button
+              class="filter-button"
+              type="button"
+              data-status="done"
+              aria-pressed="false"
+              disabled
+            >
+              已完成
+            </button>
+          </div>
+          <p class="list-hint">点击任务标题查看详情</p>
+        </div>
+
+        <div id="list-error" class="error-panel" role="alert" hidden>
+          <p id="list-error-message"></p>
+          <button id="retry" class="button button-secondary" type="button">重新加载</button>
+        </div>
+
+        <div id="list-region" class="list-region" aria-busy="true">
+          <div id="loading-state" class="loading-state" role="status">
+            <span class="loading-dot" aria-hidden="true"></span>
+            <span id="loading-message">正在连接工作区…</span>
+          </div>
+          <table id="task-table" class="task-table" hidden>
+            <caption class="sr-only">
+              任务清单，可点击任务标题查看详情
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">任务</th>
+                <th scope="col">状态</th>
+                <th scope="col">优先级</th>
+                <th scope="col">更新时间</th>
+                <th scope="col" class="actions-heading">操作</th>
+              </tr>
+            </thead>
+            <tbody id="task-rows"></tbody>
+          </table>
+          <div id="empty-state" class="empty-state" hidden>
+            <svg
+              class="empty-icon"
+              aria-hidden="true"
+              viewBox="0 0 64 64"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="15" y="10" width="34" height="45" rx="6" />
+              <path d="M24 24h16M24 33h16M24 42h9" />
+              <path d="M25 10V7h14v3" />
+            </svg>
+            <h3 id="empty-heading">还没有任务</h3>
+            <p id="empty-description">新增第一条任务，开始记录待办事项。</p>
+            <button id="empty-create" class="button button-primary" type="button" disabled>
+              新增任务
+            </button>
+            <button id="clear-filter" class="button button-secondary" type="button" hidden>
+              查看全部任务
+            </button>
+          </div>
+        </div>
+
+        <footer class="pagination" aria-label="任务分页">
+          <p id="page-summary">尚未加载任务</p>
+          <div class="page-controls">
+            <label class="page-size-label" for="page-size">每页</label>
+            <select id="page-size" aria-label="每页任务数量" disabled>
+              <option value="10">10 条</option>
+              <option value="20">20 条</option>
+            </select>
+            <button id="previous-page" class="button button-secondary" type="button" disabled>
+              上一页
+            </button>
+            <span id="page-number" class="page-number" aria-label="当前页码">—</span>
+            <button id="next-page" class="button button-secondary" type="button" disabled>
+              下一页
+            </button>
+          </div>
+        </footer>
+      </section>
+    </main>
+
+    <dialog id="task-dialog" class="dialog task-dialog" aria-labelledby="dialog-heading">
+      <header class="dialog-header">
+        <div>
+          <p id="dialog-kicker" class="eyebrow">新任务</p>
+          <h2 id="dialog-heading">新增任务</h2>
+        </div>
+        <button id="close-dialog" class="icon-button" type="button" aria-label="关闭任务详情">
+          <svg
+            class="icon"
+            aria-hidden="true"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.6"
+          >
+            <path d="m5 5 10 10M15 5 5 15" />
+          </svg>
+        </button>
+      </header>
+      <form id="task-form">
+        <div class="dialog-body">
+          <p id="detail-loading" class="inline-notice" role="status" hidden>正在读取任务详情…</p>
+          <p id="form-error" class="form-error" role="alert" tabindex="-1" hidden></p>
+          <p id="form-read-only" class="inline-notice" hidden>当前会话仅可查看，不能保存修改。</p>
+          <fieldset id="task-fields">
+            <div class="field">
+              <div class="field-label">
+                <label for="task-title">任务标题 <span class="required-mark">*</span></label
+                ><span id="title-count" class="field-count">0 / 120</span>
+              </div>
+              <input
+                id="task-title"
+                name="title"
+                type="text"
+                maxlength="120"
+                required
+                autocomplete="off"
+                aria-describedby="title-hint"
+                placeholder="例如：完成本周交付检查"
+              />
+              <p id="title-hint" class="field-hint">用一句话描述要完成的事情。</p>
+            </div>
+            <div class="field">
+              <div class="field-label">
+                <label for="task-description">任务说明</label
+                ><span id="description-count" class="field-count">0 / 500</span>
+              </div>
+              <textarea
+                id="task-description"
+                name="description"
+                maxlength="500"
+                rows="5"
+                placeholder="补充完成标准、注意事项或相关背景（选填）"
+              ></textarea>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="task-status">状态</label
+                ><select id="task-status" name="status">
+                  <option value="todo">待完成</option>
+                  <option value="done">已完成</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="task-priority">优先级</label
+                ><select id="task-priority" name="priority">
+                  <option value="normal">普通</option>
+                  <option value="high">优先处理</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+          <p id="task-timestamps" class="task-timestamps" hidden></p>
+        </div>
+        <footer class="dialog-footer">
+          <p id="save-state" class="save-state" role="status" aria-live="polite"></p>
+          <div class="dialog-actions">
+            <button id="cancel-dialog" class="button button-secondary" type="button">取消</button
+            ><button id="save-task" class="button button-primary" type="submit">新增任务</button>
+          </div>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog
+      id="delete-dialog"
+      class="dialog delete-dialog"
+      aria-labelledby="delete-heading"
+      aria-describedby="delete-description"
+    >
+      <div class="dialog-body">
+        <p class="eyebrow">删除任务</p>
+        <h2 id="delete-heading">确认删除这条任务？</h2>
+        <p id="delete-title" class="delete-task-title"></p>
+        <p id="delete-description" class="muted-text">删除后无法恢复，请确认这条任务已不再需要。</p>
+        <p id="delete-error" class="form-error" role="alert" tabindex="-1" hidden></p>
+      </div>
+      <footer class="dialog-footer">
+        <div class="dialog-actions">
+          <button id="cancel-delete" class="button button-secondary" type="button" autofocus>
+            保留任务</button
+          ><button id="confirm-delete" class="button button-danger" type="button">确认删除</button>
+        </div>
+      </footer>
+    </dialog>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

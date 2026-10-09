@@ -33,7 +33,8 @@ class PluginScaffoldTemplateResolver:
     使用 Resolver 模式将模板名称转换为稳定的模板生成选项。
     """
 
-    SUPPORTED_TEMPLATES = {'minimal', 'backend-only', 'full-stack', 'scheduled-job', 'crud-page'}
+    V2_TEMPLATES = frozenset({'python-asgi', 'python-bundle', 'rust-asgi', 'rust-bundle'})
+    SUPPORTED_TEMPLATES = {'minimal', 'backend-only', 'full-stack', 'scheduled-job', 'crud-page'} | V2_TEMPLATES
     DEFAULT_TEMPLATE = 'full-stack'
 
     @classmethod
@@ -45,6 +46,16 @@ class PluginScaffoldTemplateResolver:
         :return: 插件模板生成选项
         """
         normalized_template = (template or cls.DEFAULT_TEMPLATE).strip() or cls.DEFAULT_TEMPLATE
+        if normalized_template in cls.V2_TEMPLATES:
+            return PluginScaffoldOptions(
+                backend=True,
+                frontend=normalized_template.endswith('-bundle'),
+                migration=False,
+                seed=False,
+                job=False,
+                config=False,
+                test=True,
+            )
         if normalized_template == 'minimal':
             return PluginScaffoldOptions(
                 backend=True,

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>__PLUGIN_ID__ 本地开发</title>
+    <style>
+      body {
+        margin: 0;
+        font:
+          14px/1.6 system-ui,
+          sans-serif;
+        color: #243244;
+        background: #f4f6f8;
+      }
+      header {
+        padding: 16px 24px;
+        border-bottom: 1px solid #cbd5e1;
+        background: white;
+      }
+      h1 {
+        margin: 0;
+        font-size: 20px;
+      }
+      p {
+        margin: 6px 0 12px;
+      }
+      .controls {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      input[type='number'] {
+        width: 80px;
+      }
+      select,
+      input,
+      button {
+        font: inherit;
+      }
+      button,
+      select {
+        min-height: 44px;
+      }
+      :focus-visible {
+        outline: 3px solid #2563eb;
+        outline-offset: 2px;
+      }
+      iframe {
+        border: 0;
+        width: 100%;
+        min-height: 900px;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>__PLUGIN_ID__ · 模拟宿主</h1>
+      <p>仅使用本地模拟响应，不连接真实后端。此页面不进入生产构建。</p>
+      <div class="controls">
+        <label
+          >主题
+          <select id="theme">
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+          </select></label
+        >
+        <label
+          >延迟（毫秒）
+          <input
+            id="delay"
+            type="number"
+            value="300"
+            min="0"
+            max="5000"
+        /></label>
+        <label
+          ><input
+            id="failure"
+            type="checkbox"
+          />模拟请求失败</label
+        >
+        <button
+          id="reload"
+          type="button"
+        >
+          重载插件
+        </button>
+        <button
+          id="logout"
+          type="button"
+        >
+          模拟退出
+        </button>
+        <span
+          id="status"
+          role="status"
+          >等待连接</span
+        >
+      </div>
+    </header>
+    <iframe
+      id="plugin-frame"
+      title="__PLUGIN_ID__ 插件页面"
+    ></iframe>
+    <script
+      type="module"
+      src="/dev.js"
+    ></script>
+  </body>
+</html>

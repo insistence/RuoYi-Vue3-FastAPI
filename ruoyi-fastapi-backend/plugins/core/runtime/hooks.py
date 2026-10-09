@@ -6,6 +6,7 @@ from typing import Any
 from common.constant import PluginRuntimeConstant
 from plugins.core.discovery.scanner import DiscoveredPlugin
 from plugins.core.runtime.callable import LoadedPluginCallable, PluginCallableLoader
+from plugins.core.sdk.definition import await_plugin_callback
 from utils.log_util import logger
 
 
@@ -151,6 +152,9 @@ class PluginHookRunner:
         :return: None
         """
         callable_object = hook_callable.callable_object
+        if self.discovered_plugin.manifest.uses_entrypoint:
+            await await_plugin_callback(callable_object, context, timeout=self.timeout_seconds)
+            return
         if not inspect.iscoroutinefunction(callable_object):
             raise TypeError('生命周期钩子必须使用 async def 声明，平台不会在线程中执行不可终止的同步钩子')
         result = self._invoke_hook(hook_callable, context)

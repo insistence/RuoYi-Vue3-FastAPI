@@ -377,6 +377,13 @@ class PluginQueryUseCase:
         """
         info_payload = cast('dict[str, object]', await self.get_plugin_info_with_state(plugin_id))
         if not info_payload.get('ok', False):
+            database_plugin, database_error = await self._load_database_plugin_state(plugin_id)
+            if (
+                database_error is None
+                and getattr(database_plugin, 'source', None) == 'artifact'
+                and self._get_discovered_plugin(plugin_id) is None
+            ):
+                return await self._diagnose_database_artifact(plugin_id, database_plugin)
             return PluginRuntimePayloadBuilder.build_diagnose_failure_payload(plugin_id, info_payload)
 
         check_payload = cast('dict[str, object]', await self.check_plugin_async(plugin_id))
@@ -399,6 +406,40 @@ class PluginQueryUseCase:
             menu_plan=menu_plan,
             config_payload=config_payload,
             audit_payload=audit_payload,
+        )
+
+    async def _diagnose_database_artifact(self, plugin_id: str, plugin: PluginStateRecord) -> PluginDiagnoseResponse:
+        """
+        源码扫描不可见的制品仍保留数据库诊断，且不导入制品代码或猜测配置。
+
+        :param plugin_id: 待诊断的制品插件 ID
+        :param plugin: 已从数据库读取的插件状态
+        :return: 明确标出静态检查不可用的数据库诊断包
+        """
+        unavailable = {
+            'ok': False,
+            'supported': False,
+            'scope': 'database_only',
+            'message': '当前诊断进程未发现制品 manifest，请结合发布与运行快照查看实际状态',
+        }
+        return PluginRuntimePayloadBuilder.build_diagnose_payload(
+            plugin_id,
+            info_payload={
+                'ok': True,
+                'plugin': {
+                    'pluginId': plugin_id,
+                    'source': 'artifact',
+                    'scope': 'database_only',
+                    'installedVersion': plugin.installed_version,
+                    'status': plugin.status,
+                    'lastError': plugin.last_error,
+                    'database': {'available': True, 'enabled': plugin.enabled},
+                },
+            },
+            check_payload={**unavailable, 'checks': []},
+            menu_plan={**PluginRuntimePayloadBuilder.build_empty_menu_plan(), 'supported': False},
+            config_payload={**unavailable, 'configs': []},
+            audit_payload=await self._build_recent_audit_snapshot(plugin_id),
         )
 
     async def _build_recent_audit_snapshot(

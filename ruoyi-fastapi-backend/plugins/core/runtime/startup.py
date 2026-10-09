@@ -11,6 +11,7 @@ from common.router import auto_register_controller_files
 from config.database import DataSourceRegistry
 from config.env import AppConfig, get_config
 from plugins.core.discovery.registry import PluginRegistry, RegisteredPlugin
+from plugins.core.discovery.scanner import is_artifact_plugin
 from plugins.core.lifecycle.migration import (
     PluginMigrationHistoryRecord,
     PluginMigrationHistoryStore,
@@ -18,6 +19,7 @@ from plugins.core.lifecycle.migration import (
 )
 from plugins.core.lifecycle.seed import PluginSeedRunner
 from plugins.core.runtime.bootstrap import PluginRuntimeBuilder
+from plugins.core.runtime.explicit import ExplicitPluginRuntime
 from plugins.core.runtime.hooks import PluginHookRunner
 from plugins.core.runtime.route_guard import (
     PluginEnabledDependency,
@@ -287,11 +289,98 @@ class PluginRuntimeStartupManager:
             default_dependency_failed_plugin_ids | dependency_failed_plugin_ids
         )
         self.disable_runtime_plugins(app, dependency_failed_plugin_ids)
+        await self.prepare_explicit_plugins(app, startup_write_enabled=startup_write_enabled)
         import_failed_plugin_ids = await self.import_enabled_plugin_entities(
             app,
             startup_write_enabled=startup_write_enabled,
         )
         self.disable_runtime_plugins(app, import_failed_plugin_ids)
+
+    async def prepare_explicit_plugins(self, app: FastAPI, *, startup_write_enabled: bool) -> None:
+        """
+        v2 在建表前导入入口及显式模型，每个应用保存自己的实例。
+
+        :param app: 宿主 FastAPI 应用
+        :param startup_write_enabled: 当前 worker 是否允许执行启动期全局写入
+        :return: None
+        """
+        registry = getattr(app.state, 'plugin_registry', None)
+        if not isinstance(registry, PluginRegistry):
+            return
+        plugins, errors = ExplicitPluginRuntime.dependency_order(registry)
+        if not plugins and not errors:
+            return
+        runtime = ExplicitPluginRuntime(self.route_state_gateway)
+        app.state.plugin_explicit_runtime = runtime
+        for plugin in plugins:
+            if not plugin.discovered_plugin.manifest.uses_entrypoint:
+                continue
+            try:
+                failed_dependencies = [
+                    dep.id for dep in plugin.discovered_plugin.manifest.dependencies.plugins if dep.id in errors
+                ]
+                if failed_dependencies:
+                    raise ValueError(f'插件依赖准备失败：{", ".join(failed_dependencies)}')
+                config_values = await self.load_explicit_plugin_config(plugin)
+                runtime.prepare(plugin, app, startup_write_enabled=startup_write_enabled, config_values=config_values)
+            except Exception as exc:
+                errors[plugin.plugin_id] = str(exc)
+        for plugin_id, message in errors.items():
+            logger.error(f'插件显式入口准备失败：{plugin_id}，{message}')
+            if startup_write_enabled:
+                await self.mark_plugin_runtime_error(app, plugin_id, message)
+        self.disable_runtime_plugins(app, set(errors))
+
+    @staticmethod
+    async def load_explicit_plugin_config(plugin: RegisteredPlugin) -> dict[str, Any]:
+        """
+        仅向插件注入自己的配置明文快照，读取沿用原有解密和默认值规则。
+
+        :param plugin: 待读取配置的注册插件
+        :return: 按清单默认值和数据库配置合并的插件专属配置快照
+        """
+        if not plugin.discovered_plugin.manifest.config.items:
+            return {}
+        from plugins.core.management.service.service import PluginService  # noqa: PLC0415
+
+        async with DataSourceRegistry.session() as db:
+            values = await PluginService.get_plugin_config_services(db, plugin.discovered_plugin, reveal_secret=True)
+        return {item.key: item.value for item in values}
+
+    async def activate_explicit_plugins(self, app: FastAPI, *, startup_write_enabled: bool) -> None:
+        """
+        子应用必须完成 startup 后挂载，失败不会留下可访问的半初始化路由。
+
+        :param app: 宿主 FastAPI 应用
+        :param startup_write_enabled: 当前 worker 是否允许执行启动期全局写入
+        :return: None
+        """
+        runtime = getattr(app.state, 'plugin_explicit_runtime', None)
+        if not isinstance(runtime, ExplicitPluginRuntime):
+            return
+        registry = getattr(app.state, 'plugin_registry', None)
+        enabled = {plugin.plugin_id for plugin in registry.list_enabled_plugins()}
+        failures: set[str] = set()
+        try:
+            for plugin_id, loaded in runtime.loaded.items():
+                if plugin_id not in enabled:
+                    continue
+                try:
+                    for dependency in loaded.plugin.discovered_plugin.manifest.dependencies.plugins:
+                        if dependency.id not in enabled or dependency.id in failures:
+                            raise ValueError(f'插件依赖激活失败：{dependency.id}')
+                    await runtime.activate(plugin_id, app)
+                except Exception as exc:
+                    failures.add(plugin_id)
+                    logger.exception(f'插件显式入口激活失败：{plugin_id}')
+                    if startup_write_enabled:
+                        await self.mark_plugin_runtime_error(app, plugin_id, str(exc))
+        except BaseException:
+            # 整体启动取消或错误持久化失败时，主应用尚未标记 startup 完成。
+            # 此处必须释放已经启动的子应用，不能依赖后续主应用 shutdown。
+            await runtime.shutdown()
+            raise
+        self.disable_runtime_plugins(app, failures)
 
     async def requires_startup_write(self) -> bool:
         """
@@ -309,7 +398,7 @@ class PluginRuntimeStartupManager:
         discovered_plugin_ids = {
             plugin.manifest.id
             for plugin in self.builder.discover_plugins()
-            if plugin.manifest.id in self.default_enabled_builtin_plugin_ids
+            if plugin.manifest.id in self.default_enabled_builtin_plugin_ids and not is_artifact_plugin(plugin)
         }
         if not discovered_plugin_ids:
             return False
@@ -351,7 +440,11 @@ class PluginRuntimeStartupManager:
                 dependency_result = self._check_plugin_python_dependencies(plugin.plugin_id, python_requirements)
                 failed_messages = self._build_dependency_failed_messages(dependency_result)
             if not failed_messages:
-                if startup_write_enabled and self._has_startup_dependency_error(plugin):
+                if (
+                    startup_write_enabled
+                    and not is_artifact_plugin(plugin.discovered_plugin)
+                    and self._has_startup_dependency_error(plugin)
+                ):
                     recovered_plugins.append(plugin)
                 continue
             failed_plugin_ids.add(plugin.plugin_id)
@@ -570,6 +663,7 @@ class PluginRuntimeStartupManager:
             await self.install_enabled_plugin_resources(app)
         await self.run_enabled_plugin_hooks(app, 'on_startup', startup_write_enabled=startup_write_enabled)
         self.register_enabled_plugin_routers(app, startup_write_enabled=startup_write_enabled)
+        await self.activate_explicit_plugins(app, startup_write_enabled=startup_write_enabled)
 
     async def shutdown(self, app: FastAPI, *, startup_write_enabled: bool = True) -> None:
         """
@@ -579,7 +673,12 @@ class PluginRuntimeStartupManager:
         :param startup_write_enabled: 是否允许执行启动期写库操作
         :return: None
         """
-        await self.run_enabled_plugin_hooks(app, 'on_shutdown', startup_write_enabled=startup_write_enabled)
+        runtime = getattr(app.state, 'plugin_explicit_runtime', None)
+        try:
+            if isinstance(runtime, ExplicitPluginRuntime):
+                await runtime.shutdown()
+        finally:
+            await self.run_enabled_plugin_hooks(app, 'on_shutdown', startup_write_enabled=startup_write_enabled)
 
     async def load_registry_from_database(self, app: FastAPI) -> None:
         """
@@ -591,6 +690,12 @@ class PluginRuntimeStartupManager:
         async with DataSourceRegistry.session() as query_db:
             plugin_list = await self.management_gateway.list_plugins(query_db)
             app.state.plugin_registry = self.builder.build_registry(plugin_list)
+        # 源码插件错误/安装同步也会重建注册表，不能因此重新启用本进程已失败的制品。
+        isolated_ids = set(getattr(app.state, 'plugin_artifact_failed_ids', set()))
+        worker_errors = getattr(getattr(app.state, 'plugin_release_worker', None), 'errors', {})
+        if isinstance(worker_errors, dict):
+            isolated_ids.update(worker_errors)
+        self.disable_runtime_plugins(app, isolated_ids)
 
     async def import_enabled_plugin_entities(
         self,
@@ -640,6 +745,8 @@ class PluginRuntimeStartupManager:
 
         plugins = list(plugin_registry.list_enabled_plugins())
         for plugin in plugins:
+            if is_artifact_plugin(plugin.discovered_plugin):
+                continue
             await self.install_plugin_resources_with_isolation(app, plugin)
 
     async def install_plugin_resources_with_isolation(
@@ -693,7 +800,7 @@ class PluginRuntimeStartupManager:
         plugins_to_sync = [
             plugin
             for plugin in plugin_registry.list_enabled_plugins()
-            if self._should_sync_plugin_install_state(plugin)
+            if not is_artifact_plugin(plugin.discovered_plugin) and self._should_sync_plugin_install_state(plugin)
         ]
         if not plugins_to_sync:
             return
@@ -970,7 +1077,7 @@ class PluginRuntimeStartupManager:
             await PluginHookRunner(plugin.discovered_plugin).run(
                 hook_name,
                 app=app,
-                startup_write_enabled=startup_write_enabled,
+                startup_write_enabled=startup_write_enabled and not is_artifact_plugin(plugin.discovered_plugin),
             )
         except Exception as exc:
             logger.bind(
@@ -995,6 +1102,13 @@ class PluginRuntimeStartupManager:
         :param error_message: 错误信息
         :return: None
         """
+        registered_plugin = self.get_registered_plugin(app, plugin_id)
+        if registered_plugin and is_artifact_plugin(registered_plugin.discovered_plugin):
+            worker = getattr(app.state, 'plugin_release_worker', None)
+            if worker is not None:
+                worker.errors[plugin_id] = error_message[:2000]
+            self.disable_runtime_plugins(app, {plugin_id})
+            return
         async with DataSourceRegistry.session() as query_db:
             result = await self.management_gateway.mark_plugin_error(query_db, plugin_id, error_message)
             if not result.is_success:
@@ -1030,7 +1144,7 @@ class PluginRuntimeStartupManager:
         discovered_plugins = [
             plugin
             for plugin in self.builder.discover_plugins()
-            if plugin.manifest.id in self.default_enabled_builtin_plugin_ids
+            if plugin.manifest.id in self.default_enabled_builtin_plugin_ids and not is_artifact_plugin(plugin)
         ]
         if not discovered_plugins:
             return set()
@@ -1144,6 +1258,13 @@ class PluginRuntimeStartupManager:
         plugin_registry = getattr(app.state, 'plugin_registry', None)
         if plugin_registry is None:
             return
+        isolated_ids = set(getattr(app.state, 'plugin_artifact_failed_ids', set()))
+        isolated_ids.update(
+            plugin.plugin_id
+            for plugin in plugin_registry.list_plugins()
+            if plugin.plugin_id in plugin_ids and is_artifact_plugin(plugin.discovered_plugin)
+        )
+        app.state.plugin_artifact_failed_ids = isolated_ids
         app.state.plugin_registry = PluginRegistry(
             [
                 replace(plugin, enabled=False, status='error') if plugin.plugin_id in plugin_ids else plugin

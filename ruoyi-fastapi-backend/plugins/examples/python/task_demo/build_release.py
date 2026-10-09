@@ -1,0 +1,233 @@
+import argparse
+import json
+import shutil
+import stat
+import unicodedata
+from pathlib import Path, PureWindowsPath
+from typing import Any
+
+PLUGIN_ID = 'task_demo'
+BUNDLE = True
+SOURCE = Path(__file__).resolve().parent
+RELEASE_MANIFEST = 'release-files.json'
+MANIFEST_VERSION = 1
+MAX_MANIFEST_BYTES = 64 * 1024
+MAX_SOURCE_FILES = 1024
+MAX_PATH_LENGTH = 1024
+MAX_PATH_COMPONENTS = 32
+MAX_COMPONENT_LENGTH = 255
+FIRST_PRINTABLE_CHARACTER = 32
+DELETE_CHARACTER = 127
+SOURCE_EXTENSIONS = {'.py', '.sql'}
+FORBIDDEN_DIRECTORIES = {
+    'tests',
+    'test',
+    'keys',
+    'vendor',
+    'node_modules',
+    '__pycache__',
+    'build',
+    'dist',
+    'target',
+    'web',
+}
+FORBIDDEN_FILES = {'build_release.py', 'conftest.py', 'setup.py'}
+WEB_EXTENSIONS = {
+    '.html',
+    '.js',
+    '.css',
+    '.svg',
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.gif',
+    '.webp',
+    '.ico',
+    '.woff',
+    '.woff2',
+    '.ttf',
+}
+REPARSE_POINT = getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400)
+
+
+def checked_file(path: Path) -> Path:
+    """
+    校验交付文件位于源码目录内，且不含链接、重解析点或硬链接。
+
+    :param path: 待交付的源码文件路径
+    :return: 通过检查的源码文件路径
+    """
+    for part in (path, *path.parents):
+        if part == SOURCE:
+            break
+        metadata = part.lstat()
+        if part.is_symlink() or getattr(metadata, 'st_file_attributes', 0) & REPARSE_POINT:
+            raise ValueError(f'交付资源不能是链接或重解析点：{part}')
+    resolved = path.resolve()
+    if not resolved.is_relative_to(SOURCE) or not path.is_file():
+        raise ValueError(f'交付文件必须位于源码目录：{path}')
+    if path.stat().st_nlink > 1:
+        raise ValueError(f'交付文件不能是硬链接：{path}')
+    return path
+
+
+def checked_relative_path(value: str) -> tuple[str, ...]:
+    """
+    校验明确的跨平台相对路径，不接受通配符、隐藏组件或设备路径。
+
+    :param value: 清单或 bundle 中的相对路径
+    :return: 未经折叠或重写的路径组件
+    """
+    if not isinstance(value, str):
+        raise ValueError('交付路径必须为字符串')
+    parts = value.split('/')
+    if (
+        not value
+        or len(value) > MAX_PATH_LENGTH
+        or len(parts) > MAX_PATH_COMPONENTS
+        or unicodedata.normalize('NFC', value) != value
+        or any(
+            not part
+            or part.startswith('.')
+            or part.endswith((' ', '.'))
+            or len(part) > MAX_COMPONENT_LENGTH
+            or PureWindowsPath(part).is_reserved()
+            or any(
+                char in '<>:"\\|?*[]' or ord(char) < FIRST_PRINTABLE_CHARACTER or ord(char) == DELETE_CHARACTER
+                for char in part
+            )
+            for part in parts
+        )
+    ):
+        raise ValueError(f'交付清单包含不安全路径：{value!r}')
+    return tuple(parts)
+
+
+def checked_inventory(names: list[str]) -> None:
+    """
+    拒绝重复文件、文件与目录冲突以及任一级目录的大小写歧义。
+
+    :param names: 全部交付文件的相对路径
+    :return: None
+    """
+    spellings: dict[str, str] = {}
+    files: set[str] = set()
+    directories: set[str] = set()
+    for name in names:
+        parts = checked_relative_path(name)
+        key = name.casefold()
+        if key in files:
+            raise ValueError(f'交付清单包含重复文件或大小写冲突：{name}')
+        files.add(key)
+        for count in range(1, len(parts) + 1):
+            prefix = '/'.join(parts[:count])
+            if spellings.setdefault(prefix.casefold(), prefix) != prefix:
+                raise ValueError(f'交付清单包含目录大小写冲突：{name}')
+            if count < len(parts):
+                directories.add(prefix.casefold())
+    if files & directories:
+        raise ValueError('交付清单存在文件与父目录冲突')
+
+
+def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """
+    解析 JSON 对象时拒绝重复字段，避免不同工具对同一清单作不同解释。
+
+    :param pairs: JSON 对象按原始顺序出现的字段
+    :return: 不包含重复字段的对象
+    """
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f'交付清单包含重复字段：{key}')
+        result[key] = value
+    return result
+
+
+def source_resources() -> list[Path]:
+    """
+    按有大小和数量上限的显式清单读取 Python、SQL 资源，不扫描业务源码。
+
+    :return: 已通过路径、类型和链接检查的源码文件列表
+    """
+    path = checked_file(SOURCE / RELEASE_MANIFEST)
+    with path.open('rb') as source:
+        content = source.read(MAX_MANIFEST_BYTES + 1)
+    if len(content) > MAX_MANIFEST_BYTES:
+        raise ValueError('release-files.json 超过 64 KiB 上限')
+    manifest = json.loads(content.decode('utf-8-sig'), object_pairs_hook=unique_object)
+    if (
+        not isinstance(manifest, dict)
+        or set(manifest) != {'schemaVersion', 'files'}
+        or type(manifest['schemaVersion']) is not int
+        or manifest['schemaVersion'] != MANIFEST_VERSION
+    ):
+        raise ValueError('release-files.json 必须包含 schemaVersion: 1 和 files')
+    names = manifest['files']
+    if not isinstance(names, list) or not 1 <= len(names) <= MAX_SOURCE_FILES:
+        raise ValueError('交付清单 files 必须为包含 1 至 1024 项的列表')
+    checked_inventory(names)
+    for name in names:
+        parts = name.split('/')
+        filename = parts[-1].casefold()
+        if (
+            Path(name).suffix not in SOURCE_EXTENSIONS
+            or any(part.casefold() in FORBIDDEN_DIRECTORIES for part in parts[:-1])
+            or filename in FORBIDDEN_FILES
+            or filename.startswith('test_')
+            or filename.endswith('_test.py')
+        ):
+            raise ValueError(f'仅允许业务 .py/.sql 文件，不能包含测试、密钥或开发资源：{name}')
+    return [checked_file(SOURCE / name) for name in names]
+
+
+def bundle_resources() -> list[Path]:
+    """
+    收集已构建 bundle，保留原有静态扩展名、隐藏文件和链接限制。
+
+    :return: 已通过检查的 web/dist 文件列表
+    """
+    dist = SOURCE / 'web' / 'dist'
+    checked_file(dist / 'index.html')
+    resources = []
+    for path in sorted(dist.rglob('*')):
+        if path.is_symlink() or getattr(path.lstat(), 'st_file_attributes', 0) & REPARSE_POINT:
+            raise ValueError(f'bundle 不允许链接：{path}')
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in WEB_EXTENSIONS:
+            raise ValueError(f'bundle 存在非交付文件；不要包含源码、source map 或密钥：{path}')
+        resources.append(checked_file(path))
+    if not any(path.relative_to(dist).as_posix() == 'index.html' for path in resources):
+        raise ValueError('bundle 入口必须使用准确的 index.html 文件名')
+    return resources
+
+
+def main() -> None:
+    """
+    按显式文件清单组装新交付目录，不安装依赖、导入插件或生成签名。
+
+    :return: None
+    """
+    parser = argparse.ArgumentParser(
+        description='按 release-files.json 组装交付文件；不安装依赖、不导入插件、不生成签名。'
+    )
+    parser.add_argument('--output', type=Path, required=True, help='全新输出目录（其中创建插件ID目录）')
+    output = parser.parse_args().output.resolve()
+    if output.exists() or output.is_relative_to(SOURCE) or SOURCE.is_relative_to(output):
+        parser.error('输出目录必须不存在，且不得与源码目录重叠')
+    resources = [checked_file(SOURCE / 'plugin.yaml'), *source_resources()]
+    if BUNDLE:
+        resources.extend(bundle_resources())
+    checked_inventory([path.relative_to(SOURCE).as_posix() for path in resources])
+    plugin = output / PLUGIN_ID
+    plugin.mkdir(parents=True)
+    for resource in resources:
+        target = plugin / resource.relative_to(SOURCE)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(resource, target)
+    print(json.dumps({'plugin': str(plugin), 'signed': False}, ensure_ascii=False))
+
+
+if __name__ == '__main__':
+    main()

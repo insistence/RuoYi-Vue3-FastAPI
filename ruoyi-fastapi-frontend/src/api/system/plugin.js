@@ -1,5 +1,16 @@
 import request from '@/utils/request'
 
+// 查询实际加载插件的累计运行指标
+export function getPluginRuntimeMetrics(pluginId, signal) {
+  return request({
+    url: '/system/plugin/runtime/metrics',
+    method: 'get',
+    params: { pluginId },
+    signal,
+    skipErrorMessage: true,
+  })
+}
+
 // 查询插件列表
 export function listPlugin(query) {
   return request({
@@ -134,6 +145,16 @@ export function updatePluginConfig(pluginId, data) {
     url: '/system/plugin/' + pluginId + '/config',
     method: 'put',
     data,
+  })
+}
+
+// 查询配置保存版本与已观测进程的启动快照。
+export function getPluginConfigStatus(pluginId, signal) {
+  return request({
+    url: '/system/plugin/' + pluginId + '/config/status',
+    method: 'get',
+    signal,
+    skipErrorMessage: true,
   })
 }
 

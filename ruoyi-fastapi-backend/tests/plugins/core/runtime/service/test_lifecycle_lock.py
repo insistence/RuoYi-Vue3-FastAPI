@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, patch
 
@@ -24,7 +24,7 @@ class DeniedLifecycleLock:
         self.calls: list[tuple[str, str]] = []
 
     @asynccontextmanager
-    async def lock(self, plugin_id: str, operation: str) -> AsyncIterator[PluginLifecycleLockResult]:
+    async def lock(self, plugin_id: str, operation: str) -> AsyncGenerator[PluginLifecycleLockResult, None]:
         """返回未获取锁结果。"""
         self.calls.append((plugin_id, operation))
         yield PluginLifecycleLockResult(acquired=False, message='插件正在操作中')
@@ -36,7 +36,7 @@ class FailingLifecycleLock:
     """
 
     @asynccontextmanager
-    async def lock(self, plugin_id: str, operation: str) -> AsyncIterator[PluginLifecycleLockResult]:
+    async def lock(self, plugin_id: str, operation: str) -> AsyncGenerator[PluginLifecycleLockResult, None]:
         """不应被调用的锁。"""
         raise AssertionError('dry_run 不应获取生命周期锁')
         yield PluginLifecycleLockResult(acquired=True)

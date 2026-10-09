@@ -7,6 +7,8 @@ from functools import cache
 from fastapi import FastAPI
 
 from common.constant import LockConstant
+from plugins.core.runtime.diagnostics_store import PluginDiagnosticsReporter, diagnostics_namespace
+from plugins.core.runtime.explicit import ExplicitPluginRuntime
 from plugins.core.runtime.startup import PluginRuntimeStartupManager
 from plugins.core.runtime.startup_coordination import PluginStartupGenerationResolver
 from utils.log_util import logger
@@ -33,6 +35,7 @@ class PluginApplicationRuntime:
         ready_wait_interval_seconds: int = LockConstant.PLUGIN_STARTUP_READY_WAIT_INTERVAL_SECONDS,
         lifecycle_lock: PluginLifecycleLock | None = None,
         startup_generation: str | None = None,
+        release_worker: object | None = None,
     ) -> None:
         """
         初始化插件应用运行时适配器。
@@ -45,6 +48,7 @@ class PluginApplicationRuntime:
         :param ready_wait_interval_seconds: 等待 ready 轮询间隔
         :param lifecycle_lock: 插件生命周期全局锁
         :param startup_generation: 测试或部署显式注入的启动代际
+        :param release_worker: 维护当前发布快照和 worker 心跳的可选协调器
         :return: None
         """
         self.startup_manager = startup_manager or PluginRuntimeStartupManager()
@@ -55,6 +59,7 @@ class PluginApplicationRuntime:
         self.ready_wait_interval_seconds = ready_wait_interval_seconds
         self.lifecycle_lock = lifecycle_lock or NoopPluginLifecycleLock()
         self.startup_generation = startup_generation
+        self.release_worker = release_worker
 
     def bind_app(self, app: FastAPI) -> None:
         """
@@ -75,6 +80,8 @@ class PluginApplicationRuntime:
         """
         self._ensure_bound(app)
         self.startup_manager.import_builtin_entities()
+        if self.release_worker is not None:
+            from plugins.core.management.entity.do import release_models  # noqa: F401, PLC0415
 
     async def startup(
         self,
@@ -92,7 +99,57 @@ class PluginApplicationRuntime:
         :param create_tables: 数据库建表回调
         :return: None
         """
+        try:
+            if self.release_worker is not None:
+                await self.release_worker.start(
+                    app, self.startup_manager.builder, self.lifecycle_lock, timeout=self.ready_wait_timeout_seconds
+                )
+                self.startup_generation = self.release_worker.generation(self.resolve_startup_generation())
+                app.state.plugin_release_worker = self.release_worker
+            await self._startup_coordinated(app, create_tables=create_tables)
+            if self.release_worker is not None:
+                await self.release_worker.ready()
+            runtime = getattr(app.state, 'plugin_explicit_runtime', None)
+            if isinstance(runtime, ExplicitPluginRuntime):
+                if self.release_worker is not None:
+                    # 即使全部显式插件准备失败，空运行时也属于已有发布 worker。
+                    runtime.metrics.worker_id = self.release_worker.worker_id
+                runtime.metrics_reporter.start(getattr(app.state, 'redis', None), f'{self.ready_key}:metrics')
+                reporter = PluginDiagnosticsReporter(runtime.diagnostic_snapshot, runtime.metrics.worker_id)
+                app.state.plugin_diagnostics_reporter = reporter
+                reporter.start(getattr(app.state, 'redis', None), diagnostics_namespace(self.ready_key))
+        except BaseException:
+            # 激活后的 ready 发布或锁释放也可能失败，此时 server 尚未标记启动完成。
+            # 显式资源需在这里释放，不能依赖正常 shutdown 分支。
+            runtime = getattr(app.state, 'plugin_explicit_runtime', None)
+            try:
+                if isinstance(runtime, ExplicitPluginRuntime):
+                    await runtime.shutdown()
+            finally:
+                await self._stop_diagnostics(app)
+                if self.release_worker is not None:
+                    try:
+                        await self.release_worker.stop(failed=True)
+                    except Exception:
+                        logger.exception('插件启动失败后的 worker 状态上报失败；旧心跳将按 TTL 失效')
+            raise
+
+    async def _startup_coordinated(
+        self,
+        app: FastAPI,
+        *,
+        create_tables: Callable[[], Awaitable[None]],
+    ) -> None:
+        """
+        执行 writer/reader 协调，包括激活后的 ready 发布及锁释放。
+
+        :param app: 宿主 FastAPI 应用
+        :param create_tables: 在允许写入的 worker 中创建数据库表的异步回调
+        :return: None
+        """
         self._ensure_bound(app)
+        if self.release_worker is not None:
+            await self.release_worker.assert_snapshot_current()
         generation = self.resolve_startup_generation()
         app.state.plugin_startup_generation = generation
         app.state.plugin_startup_write_enabled = False
@@ -337,7 +394,27 @@ class PluginApplicationRuntime:
         """
         self._ensure_bound(app)
         startup_write_enabled = bool(getattr(app.state, 'plugin_startup_write_enabled', False))
-        await self.startup_manager.shutdown(app, startup_write_enabled=startup_write_enabled)
+        try:
+            await self.startup_manager.shutdown(app, startup_write_enabled=startup_write_enabled)
+        finally:
+            await self._stop_diagnostics(app)
+            if self.release_worker is not None:
+                await self.release_worker.stop()
+
+    @staticmethod
+    async def _stop_diagnostics(app: FastAPI) -> None:
+        """
+        关闭诊断采样，观测清理失败不阻止发布 worker 上报最终状态。
+
+        :param app: 宿主 FastAPI 应用
+        :return: None
+        """
+        reporter = getattr(app.state, 'plugin_diagnostics_reporter', None)
+        if isinstance(reporter, PluginDiagnosticsReporter):
+            try:
+                await reporter.stop()
+            except Exception:
+                logger.warning('插件运行诊断上报关闭失败，远程快照将按 TTL 过期')
 
     async def clear_startup_ready(self, app: FastAPI, generation: str | None = None) -> None:
         """
@@ -468,6 +545,7 @@ def get_plugin_application_runtime() -> PluginApplicationRuntime:
 
     :return: 应用插件运行时适配器
     """
+    from plugins.core.deployment.config import PluginDeploymentConfig  # noqa: PLC0415
     from plugins.core.management.service.startup_gateway import (  # noqa: PLC0415
         PluginManagementRouteStateGateway,
         PluginManagementStartupGateway,
@@ -478,7 +556,14 @@ def get_plugin_application_runtime() -> PluginApplicationRuntime:
         management_gateway=PluginManagementStartupGateway(),
         route_state_gateway=PluginManagementRouteStateGateway(),
     )
+    deployment_config = PluginDeploymentConfig.from_settings(startup_manager.builder.backend_root)
+    release_worker = None
+    if deployment_config.enabled:
+        from plugins.core.deployment.worker import PluginReleaseWorker  # noqa: PLC0415
+
+        release_worker = PluginReleaseWorker(deployment_config)
     return PluginApplicationRuntime(
         startup_manager=startup_manager,
         lifecycle_lock=RedisPluginLifecycleLock(),
+        release_worker=release_worker,
     )

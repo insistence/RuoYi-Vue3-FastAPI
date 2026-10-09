@@ -1,4 +1,4 @@
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.vo import CrudResponseModel, PageModel
 from plugins.core.capability import STATE_CHANGE_OPERATIONS, PluginRuntimeCapabilityResolver
-from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner
+from plugins.core.discovery.scanner import DiscoveredPlugin, PluginScanner, is_artifact_plugin
 from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT
 from plugins.core.lifecycle.jobs import PluginJobInstaller, PluginJobRepository
 from plugins.core.lifecycle.purge import PluginPurgePlan, PluginPurgePlanner
@@ -61,6 +61,18 @@ class PluginService:
         return [PluginModel(**CamelCaseUtil.transform_result(plugin)) for plugin in plugin_list]
 
     @classmethod
+    async def get_plugin_state_services(cls, query_db: AsyncSession, plugin_id: str) -> PluginModel | None:
+        """
+        读取原始持久化状态，不依赖展示层发现、制品目录或发布聚合。
+
+        :param query_db: 当前查询使用的数据库会话
+        :param plugin_id: 插件ID
+        :return: 插件持久化状态模型，不存在时为 None
+        """
+        plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        return PluginModel(**CamelCaseUtil.transform_result(plugin)) if plugin is not None else None
+
+    @classmethod
     async def get_plugin_page_list_services(
         cls,
         query_db: AsyncSession,
@@ -85,6 +97,9 @@ class PluginService:
         discovered_plugins = PluginScanner(backend_root).discover()
         database_plugins = await PluginDao.get_plugin_list(query_db)
         database_plugin_map = {plugin.plugin_id: plugin for plugin in database_plugins}
+        artifact_plugins = await cls._build_artifact_plugin_models(
+            query_db, database_plugins, backend_root, frontend_root
+        )
         discovered_plugin_ids = {plugin.manifest.id for plugin in discovered_plugins}
         plugin_items = [
             cls._build_plugin_model(
@@ -94,11 +109,13 @@ class PluginService:
                 database_plugin_map.get(discovered_plugin.manifest.id),
             ).model_dump(by_alias=True)
             for discovered_plugin in discovered_plugins
+            if discovered_plugin.manifest.id not in artifact_plugins
         ]
+        plugin_items.extend(plugin.model_dump(by_alias=True) for plugin in artifact_plugins.values())
         plugin_items.extend(
             cls._build_orphan_plugin_model(plugin).model_dump(by_alias=True)
             for plugin in database_plugins
-            if plugin.plugin_id not in discovered_plugin_ids
+            if plugin.plugin_id not in discovered_plugin_ids and plugin.plugin_id not in artifact_plugins
         )
         plugin_items = cls._filter_plugin_page_items(plugin_items, query_object)
 
@@ -128,11 +145,39 @@ class PluginService:
         backend_root = backend_root or Path(PLUGIN_RUNTIME_ENVIRONMENT.get_backend_plugins_dir())
         frontend_root = frontend_root or Path(PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_plugins_dir())
         plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        if plugin is not None and getattr(plugin, 'source', None) == 'artifact':
+            models = await cls._build_artifact_plugin_models(query_db, [plugin], backend_root, frontend_root)
+            return models[plugin_id]
         discovered_plugin = cls._get_discovered_plugin(backend_root, plugin_id)
         if discovered_plugin:
             return cls._build_plugin_model(discovered_plugin, backend_root, frontend_root, plugin)
 
         return cls._build_orphan_plugin_model(plugin) if plugin else None
+
+    @classmethod
+    async def _build_artifact_plugin_models(
+        cls, query_db: AsyncSession, plugins: Iterable[object], backend_root: Path, frontend_root: Path | None
+    ) -> dict[str, PluginModel]:
+        """
+        筛选制品来源的插件记录，并构建包含发布状态的展示模型。
+
+        :param query_db: 当前查询使用的数据库会话
+        :param plugins: 待筛选的插件持久化记录集合
+        :param backend_root: 后端插件根目录
+        :param frontend_root: 前端插件根目录，未配置时为 None
+        :return: 插件ID到制品展示模型的映射，没有制品记录时返回空字典
+        """
+        artifacts = [plugin for plugin in plugins if getattr(plugin, 'source', None) == 'artifact']
+        if not artifacts:
+            return {}
+        from plugins.core.management.service.release_view import build_artifact_plugin_view  # noqa: PLC0415
+
+        return {
+            plugin.plugin_id: await build_artifact_plugin_view(
+                query_db, plugin, backend_root, frontend_root, cls._build_plugin_model
+            )
+            for plugin in artifacts
+        }
 
     @classmethod
     async def upsert_discovered_plugin_services(
@@ -770,6 +815,8 @@ class PluginService:
         :return: 插件物理清理计划
         """
         plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        if getattr(plugin, 'source', None) == 'artifact':
+            raise ValueError('制品插件不能通过孤儿元数据清理入口删除，请使用维护发布流程')
         menu_count = await PluginDao.count_plugin_menus(query_db, plugin_id)
         config_count = await PluginDao.count_plugin_configs(query_db, plugin_id)
         migration_count = await PluginDao.count_plugin_migrations(query_db, plugin_id)
@@ -811,10 +858,12 @@ class PluginService:
         :param plugin_id: 插件ID
         :return: None
         """
+        plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
+        if getattr(plugin, 'source', None) == 'artifact':
+            raise ValueError('制品插件不能通过普通purge删除平台状态，请使用维护发布流程')
         plugin_menus = await PluginDao.get_plugin_menu_list(query_db, plugin_id)
         menu_ids = [plugin_menu.menu_id for plugin_menu in plugin_menus]
 
-        plugin = await PluginDao.get_plugin_by_id(query_db, plugin_id)
         if plugin:
             await cls.update_plugin_enabled_services(query_db, plugin_id, enabled=False)
         await PluginDao.delete_plugin_menus(query_db, plugin_id)
@@ -962,6 +1011,8 @@ class PluginService:
         current_status = getattr(existing_plugin, 'status', None)
         last_error = getattr(existing_plugin, 'last_error', None)
         status = PluginService._resolve_status(manifest.version, installed_version, enabled, current_status)
+        if is_artifact_plugin(discovered_plugin) and current_status is not None:
+            status = current_status
         frontend_path = frontend_root / manifest.frontend.plugin_id if frontend_root else None
         frontend_menus = PluginMenuTree.flatten(manifest.frontend.menus)
 
@@ -972,8 +1023,12 @@ class PluginService:
             installedVersion=installed_version,
             enabled=enabled,
             status=status,
-            source='local',
-            backendPath=str(discovered_plugin.backend_path.relative_to(backend_root)),
+            source='artifact' if is_artifact_plugin(discovered_plugin) else 'local',
+            backendPath=(
+                f'artifact:{discovered_plugin.artifact_digest}'
+                if is_artifact_plugin(discovered_plugin)
+                else str(discovered_plugin.backend_path.relative_to(backend_root))
+            ),
             frontendPath=str(frontend_path.relative_to(frontend_root)) if frontend_path and frontend_root else None,
             lastError=last_error,
             description=manifest.description,

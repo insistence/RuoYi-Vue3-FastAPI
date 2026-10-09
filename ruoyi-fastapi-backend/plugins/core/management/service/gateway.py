@@ -1,6 +1,7 @@
 import subprocess
 from collections.abc import Mapping
 from importlib import import_module
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from plugins.core.lifecycle.migration import PluginMigrationRunner
@@ -242,7 +243,36 @@ class PluginManagementRuntimeGateway:
         async_session_local = self.get_async_session_local()
         plugin_service = self.get_plugin_service()
         async with async_session_local() as session:
-            return await plugin_service.plugin_detail_services(session, plugin_id)
+            state_reader = getattr(plugin_service, 'get_plugin_state_services', plugin_service.plugin_detail_services)
+            return await state_reader(session, plugin_id)
+
+    async def get_selected_artifact_plugin(self, plugin_id: str, backend_root: Path) -> object:
+        """
+        按发布目标和当前宿主信任配置解析制品清单，供只读配置入口使用。
+
+        :param plugin_id: 插件ID
+        :param backend_root: 宿主后端项目根目录
+        :return: 完成当前信任校验并携带发布代际的插件发现对象
+        :raises ValueError: 功能未启用、尚未选择目标，或制品归属及验证结果不符合要求
+        """
+        from plugins.core.deployment.catalog import PluginArtifactCatalog  # noqa: PLC0415
+        from plugins.core.deployment.config import PluginDeploymentConfig  # noqa: PLC0415
+        from plugins.core.management.dao.release_dao import PluginReleaseDao  # noqa: PLC0415
+
+        config = PluginDeploymentConfig.from_settings(backend_root)
+        config.require_enabled()
+        async_session_local = self.get_async_session_local()
+        async with async_session_local() as session:
+            release = await PluginReleaseDao.get_release(session, plugin_id)
+            if release is None or not release.target_digest:
+                raise ValueError('插件尚未选择发布目标')
+            digest, generation = release.target_digest, release.generation
+        catalog = PluginArtifactCatalog(config, session_factory=async_session_local)
+        catalog.reject_source_conflict(plugin_id)
+        artifact = await catalog.get(digest)
+        if artifact.plugin_id != plugin_id:
+            raise ValueError('发布目标制品与插件ID不一致')
+        return catalog.discovered(artifact, generation)
 
     @staticmethod
     def build_operation_log_export_query(export_limit: int) -> 'PluginOperationLogExportQueryModel':

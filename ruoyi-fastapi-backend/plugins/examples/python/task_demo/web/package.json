@@ -1,0 +1,14 @@
+{
+  "name": "ruoyi-plugin-task-demo",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --open /dev.html",
+    "build": "vite build",
+    "test": "node --test tests/mockRequest.test.js"
+  },
+  "devDependencies": {
+    "vite": "6.4.3"
+  }
+}

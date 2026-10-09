@@ -1,11 +1,13 @@
 import { defineConfig, loadEnv } from 'vite'
 import path from 'path'
 import createVitePlugins from './vite/plugins'
+import { normalizePluginBase } from './src/utils/pluginBridge.js'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd())
   const { VITE_APP_ENV } = env
+  const pluginBase = normalizePluginBase(env.VITE_APP_PLUGIN_BASE || '')
   return {
     // 部署生产环境和开发环境下的URL。
     // 默认情况下，vite 会假设你的应用是被部署在一个域名的根路径上
@@ -44,6 +46,33 @@ export default defineConfig(({ mode, command }) => {
       host: true,
       open: true,
       proxy: {
+        [`${pluginBase}/apps/`]: {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: false,
+          ws: true,
+          // Uvicorn 会补回 root_path，转发时只剥离一次外部部署前缀。
+          rewrite: (requestPath) => requestPath.slice(pluginBase.length),
+          configure(proxy) {
+            proxy.on('proxyRes', (upstream, _request, response) => {
+              if (
+                upstream.headers['content-type']?.split(';')[0].trim().toLowerCase() !==
+                'text/event-stream'
+              )
+                return
+              // pipe 不会转发上游异常关闭；及时结束下游，让插件可以报告失败并重连。
+              upstream.once('aborted', () => response.destroy())
+              upstream.once('error', () => response.destroy())
+              response.once('close', () => {
+                if (!upstream.complete) upstream.destroy()
+              })
+            })
+          },
+        },
+        [`${pluginBase}/plugin/runtime/`]: {
+          target: 'http://127.0.0.1:9099',
+          changeOrigin: false,
+          rewrite: (requestPath) => requestPath.slice(pluginBase.length),
+        },
         // https://cn.vitejs.dev/config/#server-proxy
         '/dev-api': {
           target: 'http://127.0.0.1:9099',

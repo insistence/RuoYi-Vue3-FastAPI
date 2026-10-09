@@ -1,0 +1,112 @@
+//! 编译为原生扩展的 ASGI 插件；身份认证与权限校验继续使用宿主 Python SDK。
+use pyo3::prelude::*;
+use pyo3::types::PyDict;
+
+/// 声明子应用工厂，实际资源初始化交给生命周期回调。
+#[pyfunction]
+fn create_plugin<'py>(py: Python<'py>, _host: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("app_factory", wrap_pyfunction!(create_app, py)?)?;
+    py.import("plugins.core.sdk")?
+        .getattr("PluginDefinition")?
+        .call((), Some(&kwargs))
+}
+
+/// 为当前 worker 创建独立子应用，并通过宿主 SDK 绑定生命周期和接口权限。
+#[pyfunction]
+fn create_app<'py>(py: Python<'py>, host: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let sdk = py.import("plugins.core.sdk")?;
+    let lifespan = sdk.getattr("plugin_lifespan")?.call1((
+        host,
+        wrap_pyfunction!(startup, py)?,
+        wrap_pyfunction!(shutdown, py)?,
+    ))?;
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("title", "__PLUGIN_ID__")?;
+    kwargs.set_item("lifespan", lifespan)?;
+    kwargs.set_item("docs_url", py.None())?;
+    kwargs.set_item("redoc_url", py.None())?;
+    let app = py
+        .import("fastapi")?
+        .getattr("FastAPI")?
+        .call((), Some(&kwargs))?;
+    let options = PyDict::new(py);
+    options.set_item("permission", "__PLUGIN_ID__:view")?;
+    let endpoint = sdk
+        .getattr("plugin_endpoint")?
+        .call((wrap_pyfunction!(info, py)?,), Some(&options))?;
+    let route_options = PyDict::new(py);
+    route_options.set_item("summary", "获取插件信息接口")?;
+    route_options.set_item(
+        "description",
+        "用于获取当前插件标识、宿主API版本、运行引擎和服务器时间",
+    )?;
+    route_options.set_item("response_model", py.get_type::<PyDict>())?;
+    app.call_method(
+        "add_api_route",
+        ("/api/info", endpoint),
+        Some(&route_options),
+    )?;
+    Ok(app)
+}
+
+/// 记录插件启动，并通过 Python 可等待对象返回就绪状态。
+#[pyfunction]
+fn startup<'py>(py: Python<'py>, host: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    host.getattr("logger")?
+        .call_method1("info", ("__PLUGIN_ID__ started",))?;
+    pyo3_async_runtimes::tokio::future_into_py(py, async {
+        Python::attach(|py| {
+            let state = PyDict::new(py);
+            state.set_item("pluginReady", true)?;
+            Ok(state.unbind())
+        })
+    })
+}
+
+/// 演示插件关闭回调，仅释放插件自己创建的资源。
+#[pyfunction]
+fn shutdown<'py>(py: Python<'py>, host: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    host.getattr("logger")?
+        .call_method1("info", ("__PLUGIN_ID__ stopped",))?;
+    // 宿主共享的数据库连接池和 Redis 客户端继续由宿主负责关闭。
+    pyo3_async_runtimes::tokio::future_into_py(py, async { Ok(()) })
+}
+
+/// 通过可等待对象返回健康结果，可扩展插件自有依赖检查。
+#[pyfunction]
+fn health<'py>(py: Python<'py>, _context: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    pyo3_async_runtimes::tokio::future_into_py(py, async { Ok(true) })
+}
+
+#[pyfunction]
+fn info<'py>(py: Python<'py>, context: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let host = context.getattr("host")?;
+    let plugin_id: String = host.getattr("plugin_id")?.extract()?;
+    let api_version: String = host.getattr("api_version")?.extract()?;
+    let timestamp: String = py
+        .import("utils.time_util")?
+        .getattr("TimezoneUtil")?
+        .call_method0("utc_now")?
+        .call_method0("isoformat")?
+        .extract()?;
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        Python::attach(|py| {
+            let result = PyDict::new(py);
+            result.set_item("pluginId", plugin_id)?;
+            result.set_item("hostApiVersion", api_version)?;
+            result.set_item("engine", "rust")?;
+            result.set_item("serverTime", timestamp)?;
+            Ok(result.unbind())
+        })
+    })
+}
+
+/// 导出清单和宿主运行时需要的 Python 扩展入口。
+#[pymodule]
+fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(create_plugin, module)?)?;
+    module.add_function(wrap_pyfunction!(create_app, module)?)?;
+    module.add_function(wrap_pyfunction!(health, module)?)?;
+    Ok(())
+}

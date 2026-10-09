@@ -86,6 +86,9 @@ class PluginInstallUseCase(PluginLifecycleUseCaseSupport):
         :param operated_by: 操作者用户名，非预演时写入审计日志
         :return: 插件安装结果负载
         """
+        blocked = await self.context.guard_artifact_operation(plugin_id, 'install', dry_run=dry_run)
+        if blocked:
+            return blocked
         payload = await self._install_plugin(plugin_id, dry_run=dry_run)
         payload_view = cast('dict[str, object]', payload)
         payload_view['operation'] = 'install'

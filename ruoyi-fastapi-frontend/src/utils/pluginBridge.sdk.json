@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "sdkVersion": "1.0.0",
+  "bridgeVersion": 1,
+  "capabilities": {
+    "files": 1,
+    "streams": 1
+  }
+}

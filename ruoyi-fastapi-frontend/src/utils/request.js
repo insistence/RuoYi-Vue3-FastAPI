@@ -118,6 +118,10 @@ service.interceptors.response.use(
     if (res.request.responseType === 'blob' || res.request.responseType === 'arraybuffer') {
       return res.data
     }
+    // 插件的独立会话失效不应触发宿主账号退出，由 PluginFrame 显示局部错误。
+    if (res.config?.pluginBridge && code !== 200) {
+      return Promise.reject(new Error('插件请求失败，请重试'))
+    }
     if (code === 401) {
       if (!isRelogin.show) {
         isRelogin.show = true

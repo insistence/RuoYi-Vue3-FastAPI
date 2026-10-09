@@ -2,13 +2,14 @@ import asyncio
 from pathlib import Path
 from time import monotonic
 
-from plugins.core.capability import PluginRuntimeCapability, PluginRuntimeCapabilityResolver
+from plugins.core.capability import STATE_CHANGE_OPERATIONS, PluginRuntimeCapability, PluginRuntimeCapabilityResolver
 from plugins.core.discovery.registry import PluginRegistry
 from plugins.core.discovery.scanner import (
     DiscoveredPlugin,
     PluginDiscoveryError,
     PluginDiscoveryResult,
     PluginScanner,
+    is_artifact_plugin,
 )
 from plugins.core.lifecycle.migration import PluginMigrationRunner
 from plugins.core.lifecycle.precheck import PluginLifecycleScriptPrechecker
@@ -27,6 +28,7 @@ from plugins.core.validation.structure import PluginStructureChecker
 from utils.log_util import logger
 
 from .dependency_container import PluginRuntimeDependencies
+from .gateway import UnavailablePluginStateQueryGateway
 from .migration_store import PluginMigrationHistoryGatewayStore
 from .responses import PluginRuntimeBlockedPayload, PluginRuntimeBlockedPayloadDict
 
@@ -51,6 +53,19 @@ class PluginRuntimeContextService:
         self.dependencies = dependencies
         self._discovered_plugins_cache: dict[Path, tuple[float, list[DiscoveredPlugin]]] = {}
         self._discovery_errors_cache: dict[Path, list[PluginDiscoveryError]] = {}
+        self._discovery_override: PluginDiscoveryResult | None = None
+
+    def set_discovery_snapshot(self, plugins: list[DiscoveredPlugin]) -> None:
+        """
+        维护流程注入已验证目录，不修改全局扫描器或运行中进程的发现缓存。
+
+        :param plugins: 维护流程已验证的插件发现快照
+        :return: None
+        """
+        ids = [plugin.manifest.id for plugin in plugins]
+        if len(ids) != len(set(ids)):
+            raise ValueError('插件发现快照包含重复 ID')
+        self._discovery_override = PluginDiscoveryResult(plugins=list(plugins))
 
     def build_registry(self) -> PluginRegistry:
         """
@@ -101,6 +116,102 @@ class PluginRuntimeContextService:
         except Exception as exc:
             logger.exception(f'读取数据库插件状态失败：{plugin_id}，{exc}')
             return None, str(exc)
+
+    async def guard_artifact_operation(
+        self, plugin_id: str, operation: str, *, dry_run: bool = False, check_capability: bool = True
+    ) -> PluginRuntimeBlockedPayloadDict | None:
+        """
+        数据库来源是最终依据，缺少源码目录不能授权清理已发布制品。
+
+        :param plugin_id: 待操作的插件 ID
+        :param operation: 待执行的生命周期操作名称
+        :param dry_run: 是否仅预览操作
+        :param check_capability: 是否同时检查已发现插件的运行时管理能力
+        :return: 制品操作拦截结果，允许操作时返回 None
+        """
+        if self.dependencies.runtime_environment.get_backend_runtime_mode() == 'maintenance':
+            return None
+        discovered = self.get_discovered_plugin(plugin_id)
+        if discovered is not None and check_capability:
+            blocked = self.build_operation_blocked_payload(discovered, operation, dry_run=dry_run)
+            if blocked:
+                return blocked
+        if dry_run and isinstance(self.dependencies.state_query_gateway, UnavailablePluginStateQueryGateway):
+            return None
+        plugin, error = await self.load_database_plugin_state(plugin_id)
+        artifact = getattr(plugin, 'source', None) == 'artifact' or is_artifact_plugin(discovered)
+        if not artifact and not error:
+            return None
+        message = (
+            '签名制品插件只能通过维护发布命令变更，完成后重启全部worker'
+            if artifact
+            else '无法确认插件来源，已阻止生命周期变更，请恢复插件状态查询后重试'
+        )
+        return self._artifact_operation_blocked_payload(plugin_id, operation, message, dry_run=dry_run)
+
+    def build_dependency_install_event_loop_blocked_payload(self, plugin_id: str) -> PluginRuntimeBlockedPayloadDict:
+        """
+        已有事件循环时，同步依赖安装不能另建循环查询同一个数据库连接池。
+
+        :param plugin_id: 待安装依赖的插件 ID
+        :return: 阻止在已有事件循环内同步安装依赖的结果载荷
+        """
+        return self._artifact_operation_blocked_payload(
+            plugin_id,
+            'dependency_install',
+            '当前事件循环不能同步确认插件来源，请使用维护CLI执行依赖安装',
+        )
+
+    @staticmethod
+    def _artifact_operation_blocked_payload(
+        plugin_id: str, operation: str, message: str, *, dry_run: bool = False
+    ) -> PluginRuntimeBlockedPayloadDict:
+        """
+        构建制品生命周期操作的统一拦截结果。
+
+        :param plugin_id: 待操作的插件 ID
+        :param operation: 被拦截的操作名称
+        :param message: 当前操作的拦截原因
+        :param dry_run: 是否仅预览操作
+        :return: 包含操作能力及维护建议的拦截结果载荷
+        """
+        return PluginRuntimeBlockedPayload(
+            ok=False,
+            status='blocked',
+            operation=operation,
+            plugin_id=plugin_id,
+            message=message,
+            suggestion='请使用 plugin release 命令，并在执行前停止全部宿主worker。',
+            capability={
+                'pluginId': plugin_id,
+                'backendRuntimeManageable': False,
+                'runtimeManageable': False,
+                'blockedOperations': sorted(STATE_CHANGE_OPERATIONS),
+                'warnings': [message],
+                'primaryReason': message,
+            },
+            dry_run=dry_run,
+            exit_code=1,
+        ).to_payload(exclude_none=True)
+
+    async def get_readonly_discovered_plugin(self, plugin_id: str) -> DiscoveredPlugin | None:
+        """
+        配置读取可解析已选且重新验签的制品清单，不执行任何入口。
+
+        :param plugin_id: 待读取配置的插件 ID
+        :return: 已发现源码插件或重新验签的当前制品，未找到时返回 None
+        """
+        if isinstance(self.dependencies.state_query_gateway, UnavailablePluginStateQueryGateway):
+            return self.get_discovered_plugin(plugin_id)
+        plugin, error = await self.load_database_plugin_state(plugin_id)
+        if error:
+            raise ValueError('无法确认插件来源，配置读取已中止')
+        if getattr(plugin, 'source', None) != 'artifact':
+            return self.get_discovered_plugin(plugin_id)
+        resolver = getattr(self.dependencies.state_query_gateway, 'get_selected_artifact_plugin', None)
+        if not callable(resolver):
+            raise ValueError('插件状态适配器未提供已选制品的只读解析能力')
+        return await resolver(plugin_id, Path(self.dependencies.runtime_environment.get_backend_dir()))
 
     async def load_database_plugin_states_with_error(self) -> tuple[list[PluginStateRecord], str | None]:
         """
@@ -360,6 +471,8 @@ class PluginRuntimeContextService:
         :param backend_root: 后端项目根目录
         :return: 插件发现结果
         """
+        if self._discovery_override is not None:
+            return PluginDiscoveryResult(plugins=list(self._discovery_override.plugins))
         resolved_backend_root = backend_root.resolve()
         cached_entry = self._discovered_plugins_cache.get(resolved_backend_root)
         if cached_entry is not None:

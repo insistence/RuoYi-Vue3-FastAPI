@@ -18,7 +18,8 @@ from utils.time_util import TimezoneUtil
 
 BACKEND = Path(__file__).resolve().parents[1]
 MILLISECOND_PRECISION = 3
-MAIN_INSTANT_COLUMNS = 73
+# 包含插件制品、发布目标和 worker 状态表新增的 6 个 UTC 时刻字段。
+MAIN_INSTANT_COLUMNS = 79
 PLUGIN_INSTANT_COLUMNS = 4
 TIMEZONE_LENGTH = 64
 ASYNC_PROBE_ID = 99
@@ -320,7 +321,7 @@ def main() -> None:
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     print(
         f'{source.db_type} {report["version"]}: passed; database={target.db_database}; '
-        f'{MAIN_INSTANT_COLUMNS}+4 time columns, 13 roundtrips, 3 generated CRUD cases'
+        f'{MAIN_INSTANT_COLUMNS}+{PLUGIN_INSTANT_COLUMNS} time columns, 13 roundtrips, 3 generated CRUD cases'
     )
 
 

@@ -5,7 +5,7 @@ from module_admin.dao.job_dao import JobDao
 from module_admin.entity.do.job_do import SysJob
 from module_admin.entity.vo.job_vo import JobModel
 from plugins.core.discovery.scanner import DiscoveredPlugin
-from plugins.core.manifest.schema import PluginJobManifest
+from plugins.core.manifest.schema import PluginJobManifest, PluginManifest
 from plugins.core.utils import escape_sql_like
 
 
@@ -22,24 +22,37 @@ class PluginJobModelBuilder:
     REMARK_PREFIX = '[plugin-job]'
 
     @classmethod
-    def build(cls, plugin_id: str, job: PluginJobManifest, *, enabled: bool = True) -> JobModel:
+    def build(
+        cls, plugin_id: str, job: PluginJobManifest, *, enabled: bool = True, manifest: PluginManifest | None = None
+    ) -> JobModel:
         """
         构建系统定时任务模型。
 
         :param plugin_id: 插件ID
         :param job: 插件定时任务声明
         :param enabled: 任务是否启用
+        :param manifest: 用于校验任务归属并选择 v2 分发入口的插件清单
         :return: 系统定时任务模型
         """
-        cls._validate_callable_belongs_to_plugin(plugin_id, job.callable)
+        target, args, kwargs = job.callable, job.args, job.kwargs
+        if manifest is not None and manifest.uses_entrypoint:
+            from plugins.core.runtime.job_dispatcher import DISPATCH_TARGET  # noqa: PLC0415
+
+            if manifest.id != plugin_id or job not in manifest.backend.jobs:
+                raise ValueError('任务不属于当前插件清单')
+            if not job.callable.startswith(f'{manifest.backend.module}.'):
+                raise ValueError('任务 callable 越过插件模块边界')
+            target, args, kwargs = DISPATCH_TARGET, [plugin_id, job.id, manifest.version], {}
+        else:
+            cls._validate_callable_belongs_to_plugin(plugin_id, job.callable)
         return JobModel(
             jobName=cls.build_job_name(plugin_id, job.id),
             jobGroup=cls.JOB_GROUP,
             jobStore=job.job_store,
             jobExecutor=job.executor,
-            invokeTarget=job.callable,
-            jobArgs=job.args,
-            jobKwargs=job.kwargs,
+            invokeTarget=target,
+            jobArgs=args,
+            jobKwargs=kwargs,
             cronExpression=job.cron_expression,
             timeZone=job.time_zone,
             misfireGraceTime=job.misfire_grace_time,
@@ -239,7 +252,7 @@ class PluginJobInstaller:
         desired_job_names = {PluginJobModelBuilder.build_job_name(manifest.id, job.id) for job in manifest.backend.jobs}
         await self.repository.delete_plugin_jobs_except(manifest.id, desired_job_names)
         for job in manifest.backend.jobs:
-            job_model = PluginJobModelBuilder.build(manifest.id, job, enabled=enabled)
+            job_model = PluginJobModelBuilder.build(manifest.id, job, enabled=enabled, manifest=manifest)
             await self.upsert_plugin_job(job_model)
             installed_jobs.append(job_model)
 

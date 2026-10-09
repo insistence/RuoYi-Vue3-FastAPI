@@ -71,6 +71,7 @@ class TransportCryptoMiddleware:
         path = self._normalize_path(str(scope.get('path', '')))
         if (
             self._is_excluded_path(path)
+            or self._is_bundle_ui_navigation(scope, path)
             or TransportCryptoConfig.transport_crypto_mode == 'off'
             or not self._is_enabled_path(path)
         ):
@@ -710,6 +711,26 @@ class TransportCryptoMiddleware:
         if '重复请求' in message or '重放' in message:
             return 'replay_detected'
         return 'decrypt_failed'
+
+    @staticmethod
+    def _is_bundle_ui_navigation(scope: Scope, path: str) -> bool:
+        """
+        仅已加载 bundle 的只读 UI 使用普通 HTTPS；API 仍遵守信封协议。
+
+        :param scope: ASGI 请求作用域
+        :param path: 去除宿主部署前缀后的请求路径
+        :return: 是否为已加载插件构建产物的只读 UI 请求
+        """
+        if scope.get('method') not in {'GET', 'HEAD'}:
+            return False
+        runtime = getattr(getattr(scope.get('app'), 'state', None), 'plugin_explicit_runtime', None)
+        for plugin_id, loaded in getattr(runtime, 'loaded', {}).items():
+            if loaded.plugin.discovered_plugin.manifest.frontend.delivery.type != 'bundle':
+                continue
+            prefix = f'/apps/{plugin_id}/ui'
+            if path == prefix or path.startswith(f'{prefix}/'):
+                return True
+        return False
 
     @classmethod
     def _is_excluded_path(cls, path: str) -> bool:

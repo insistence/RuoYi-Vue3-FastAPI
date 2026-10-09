@@ -135,6 +135,8 @@ class PluginStructureChecker:
             self._check_dir('backend_root', discovered_plugin.backend_path),
             self._check_file('manifest', discovered_plugin.manifest_path),
         ]
+        if manifest.uses_entrypoint:
+            return self._check_explicit_plugin(discovered_plugin, items, include_frontend=include_frontend)
         if manifest.backend.routers.auto_scan:
             controller_dir = discovered_plugin.backend_path / 'controller'
             items.append(self._check_dir('controller_dir', controller_dir))
@@ -152,6 +154,54 @@ class PluginStructureChecker:
             items.extend(self._check_frontend(discovered_plugin))
 
         return PluginStructureCheckResult(plugin_id=manifest.id, items=items)
+
+    def _check_explicit_plugin(
+        self,
+        plugin: DiscoveredPlugin,
+        items: list[PluginStructureCheckItem],
+        *,
+        include_frontend: bool,
+    ) -> PluginStructureCheckResult:
+        """
+        v2 只静态定位入口，编译模块不能用源码 AST 判断可调用性。
+
+        :param plugin: 待检查的已发现插件
+        :param items: 已收集的结构检查项
+        :param include_frontend: 是否同时检查前端资源结构
+        :return: 包含入口、资源及前端结构校验项的检查结果
+        """
+        from plugins.core.runtime.entrypoint import PluginEntrypointLoader  # noqa: PLC0415
+
+        loader = PluginEntrypointLoader(plugin)
+        try:
+            location = loader.check_entrypoint()
+            items.append(PluginStructureCheckItem('entrypoint', str(location.path), True, '插件入口文件与来源有效'))
+            # 父包在实际导入前也必须位于已绑定目录。
+            loader.locate_module(plugin.manifest.backend.module)
+            callbacks = [value for value in plugin.manifest.backend.hooks.model_dump().values() if value is not None]
+            if plugin.manifest.backend.health.checker:
+                callbacks.append(plugin.manifest.backend.health.checker)
+            callbacks.extend(':'.join(job.callable.rsplit('.', 1)) for job in plugin.manifest.backend.jobs)
+            for callback in callbacks:
+                loader.locate_module(callback.split(':', 1)[0])
+        except (ImportError, ValueError, OSError) as exc:
+            items.append(PluginStructureCheckItem('entrypoint', plugin.manifest.backend.entrypoint, False, str(exc)))
+        items.extend(self._check_migration_files(plugin))
+        items.extend(self._check_seed_files(plugin))
+        for job in plugin.manifest.backend.jobs:
+            items.append(self._check_job_name_length(plugin.manifest.id, job))
+            items.append(self._check_job_callable_boundary(plugin.manifest.backend.module, job))
+            items.append(self._check_job_cron_expression(job))
+        if plugin.manifest.frontend.delivery.type == 'bundle':
+            bundle = plugin.manifest.frontend.bundle
+            items.append(
+                self._check_plugin_relative_file(
+                    'frontend_bundle', plugin.backend_path, f'{bundle.directory}/{bundle.entry}'
+                )
+            )
+        elif include_frontend:
+            items.extend(self._check_frontend(plugin))
+        return PluginStructureCheckResult(plugin_id=plugin.manifest.id, items=items)
 
     def _check_controller_route_prefixes(
         self,

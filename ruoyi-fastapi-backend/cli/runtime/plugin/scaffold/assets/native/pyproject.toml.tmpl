@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[project]
+name = "__DISTRIBUTION__"
+version = "1.0.0"
+requires-python = ">=3.10"
+description = "RuoYi native ASGI plugin example"
+
+[tool.maturin]
+python-source = "python"
+module-name = "ruoyi_plugin___PLUGIN_ID__._native"
+bindings = "pyo3"

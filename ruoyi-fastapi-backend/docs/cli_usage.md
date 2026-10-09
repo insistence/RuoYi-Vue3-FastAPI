@@ -39,30 +39,46 @@ ruoyi --help
 
 ### 2.2 安装依赖
 
-MySQL 版本：
+使用 Python 3.10–3.13，先进入后端目录，再创建并激活虚拟环境。以下以标准库 `venv` 为例；已有环境也可直接使用，不要求特定环境名称或安装路径。
+
+Windows PowerShell：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+macOS / Linux（Bash、Zsh）：
 
 ```bash
-cd ruoyi-fastapi-backend
-pip3 install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+创建环境时使用已安装的受支持 Python 解释器。激活后，下文统一使用 `python` 和 `python -m pip`，确保安装依赖与执行命令使用同一个环境。每次打开新终端，都应先激活该环境。
+
+以下安装及 `ruoyi` 命令适用于 Windows PowerShell、macOS 和 Linux；只有涉及 Shell 语法的命令才分平台列出。
+
+MySQL 版本（在后端目录执行）：
+
+```bash
+python -m pip install -r requirements.txt
 ```
 
 PostgreSQL 版本：
 
 ```bash
-cd ruoyi-fastapi-backend
-pip3 install -r requirements-pg.txt
+python -m pip install -r requirements-pg.txt
 ```
 
 说明：
 
-- `requirements*.txt` 已包含当前项目自身安装项 `.`，因此不需要额外执行 `pip install -e .`
+- `requirements*.txt` 已包含当前项目自身安装项 `.`，因此不需要额外执行 `python -m pip install -e .`
 - 安装完成后，`ruoyi` 会随当前 Python 环境一起可用
 
-如果本地使用 Conda，推荐先进入项目环境再执行命令：
+安装完成后检查 CLI：
 
 ```bash
-conda activate ruoyi-fastapi
-cd ruoyi-fastapi-backend
 ruoyi --help
 ```
 
@@ -260,6 +276,40 @@ ruoyi plugin test demo --env=dev
 `lock-deps` 会根据 `plugin.yaml` 中声明的 Python/npm/npmDev 外部依赖生成 `plugin.lock.yaml` 模板。默认模式不联网解析版本，也不生成 hash/integrity；如传入 `--offline-dir`，命令会从已有本地 wheel/tgz 反填 `resolvedVersion`、Python `hashes` 和 npm/npmDev `integrity`。该命令仍不会下载、安装或访问 registry，无法反填的项需要由人工审核或 CI 发布流水线补齐后，才能用于 `locked` 或 `offline` 策略。
 
 `install-deps` 是真实 Python/npm 依赖安装的唯一显式入口。文本 TTY 下可省略 `--yes`，CLI 会先输出依赖安装计划和策略判定，再询问是否执行；非 TTY、JSON 输出或 CI 场景应传 `--yes`，否则会由策略返回确认阻断。
+
+插件诊断包可输出完整 JSON 或保存到文件：
+
+```bash
+ruoyi plugin diagnose demo --env=dev --output=json
+ruoyi plugin diagnose demo --env=dev --output-file=demo-diagnose.json
+```
+
+包中的 `runtime` 汇集发布目标、各 worker 实际加载版本、连接与任务、激活健康历史及配置修订摘要。此命令不启动插件或重新执行健康检查；顶层 `ok` 保持静态诊断含义，运行态结果需单独判断。CLI 从 Redis 读取宿主快照，并保留缺失、过期或不可用状态，不能据此认定服务器没有连接或全部健康。快照范围、时效、脱敏和计数说明见[统一运行诊断](plugin_development.md#122-统一运行诊断)。管理端同一内容位于“诊断包 → 原始数据”。
+
+完成制品目标选择、通过进程管理器启动全部 worker 后，可用固定目标等待命令作为发布流水线门禁：
+
+```bash
+ruoyi plugin release wait demo DIGEST --generation SELECTED_GENERATION --expected-workers 2 --timeout 300 --interval 2 --env prod --output json
+ruoyi plugin release wait demo DIGEST --generation SELECTED_GENERATION --expected-workers 2 --timeout 0 --env prod --output json
+```
+
+插件 ID、`DIGEST`、`--generation` 和 `--expected-workers` 均必填。`DIGEST` 是 64 位小写 SHA256；`SELECTED_GENERATION` 使用最近一次 `select`、`enable` 或 `rollback` 返回的 32 位新代际，不能复用该变更输入的 `--expected-generation`。worker 数量必须与发布记录一致，并填写实际部署要求的数量。命令只读，不需要维护确认，也不会启动进程或切换目标。
+
+`--timeout` 默认为 300 秒，`--interval` 默认为 2 秒；前者必须为有限非负数，后者必须为有限正数。`--timeout 0` 只查询并断言一次，未就绪立即返回 `not_converged`。非零超时约束核心轮询，配置加载和模块导入发生在此前；单次状态查询最多 10 秒，并受剩余轮询预算约束，取消采用异步协作方式。
+
+JSON 只输出一个最终对象，包含固定 `target`、脱敏的 `lastObserved`、查询次数、耗时及 `reason`；没有逐轮进度输出。只有 `converged` 返回 `0`；超时、目标变化、停用、worker 故障或观测不可用返回 `50`，CLI 取消返回 `cancelled` 和 `50`。CLI 参数校验失败返回 `invalid_arguments` 和 `2`；缺少必填参数或未知选项由命令行解析器直接以 `2` 拒绝。`lastObserved` 是最后一次可用观测，超时或查询失败时可能来自此前且已过期的轮次，不能仅依据其中的 `active` 判定成功。自动决策应以最终退出码和 `ok/reason` 为准；`release status` 的 `ok` 仍只表示查询成功，不能代替该门禁。完整判定与原因表见[制品发布与验收](plugin_development.md#153-停机维护准备证据与目标选择)。
+
+独立 v2 bundle 工程可离线检查、更新复制到 `web/vendor` 的桥接 SDK：
+
+```bash
+ruoyi plugin sdk check plugin-projects/report_center --output=json
+ruoyi plugin sdk update plugin-projects/report_center --dry-run --output=json
+ruoyi plugin sdk update plugin-projects/report_center
+```
+
+这些命令不接受 `--env`，也不读取宿主数据库配置或执行插件代码。来源默认为相邻前端目录，可用 `--frontend-root PATH` 或 `RUOYI_PLUGIN_FRONTEND_ROOT` 指定。`check` 仅在版本、来源记录及文件摘要与选定宿主一致（`current`）时返回 0；过期副本、本地修改或缺少记录返回非零，适合纳入构建检查。`protocolCompatible` 只比较桥协议，不表示业务功能已经验收。
+
+`update` 是显式写入命令，先备份再替换三个 SDK 文件。默认拒绝覆盖本地 SDK 修改或旧工程的未跟踪副本；需要纳管时先审阅 `update --force --dry-run`，再执行 `update --force`。备份位于工程 `.plugin-sdk-backups/`，业务代码保持原样。更新后应重建 bundle 并执行兼容测试；不会下载依赖、签名发布或改变运行中的插件。完整状态与摘要规则见开发手册第 16.1 节。
 
 ### 4.7 Shell Completion 初始化
 
@@ -522,7 +572,7 @@ ruoyi tui --env=prod
 - 当前 TUI 是只读巡检工作台，页面内的写操作入口会通过确认弹窗或向导二次确认
 - 页面切换快捷键为 `D/A/O/B/C/T/G/P/E`，分别对应总览、应用、运维、数据库、缓存、任务、代码生成、参数配置、加密
 - 通用快捷键包括 `R` 刷新、`Q` 退出、`S` 聚焦侧栏、`←/→` 切换焦点或区域、`J/K` 滚动、`PgUp/PgDn` 翻页、`Home/End` 首尾跳转
-- 若当前 Python 环境缺少 TUI 依赖，`ruoyi tui` 会返回失败结果并提示重新执行 `pip install -r requirements.txt` 或 `pip install -r requirements-pg.txt`
+- 若当前 Python 环境缺少 TUI 依赖，`ruoyi tui` 会返回失败结果并提示重新执行 `python -m pip install -r requirements.txt` 或 `python -m pip install -r requirements-pg.txt`
 
 ## 6. 危险命令清单
 
@@ -842,8 +892,8 @@ ruoyi ops health --env=dev --output=json
 请依次确认：
 
 - 当前目录是否为 `ruoyi-fastapi-backend`
-- 当前 Python 环境是否执行过 `pip install -r requirements.txt` 或 `pip install -r requirements-pg.txt`
-- 当前终端是否真的使用了安装依赖的那个 Python/Conda 环境
+- 当前 Python 环境是否执行过 `python -m pip install -r requirements.txt` 或 `python -m pip install -r requirements-pg.txt`
+- 当前终端是否真的使用了安装依赖的那个 Python 环境
 
 ### 8.2 命令报数据库或 Redis 连接失败
 

@@ -1,0 +1,74 @@
+import logging
+import os
+from collections.abc import Awaitable, Callable
+from pathlib import Path
+
+import httpx
+import pytest
+from fastapi import Request
+from starlette import status
+from starlette.responses import Response
+
+from plugins.core.discovery.scanner import PluginScanner
+from plugins.core.runtime.entrypoint import PluginEntrypointLoader
+from plugins.core.sdk import (
+    PluginHostContext,
+    PluginRequestContext,
+    await_plugin_callback,
+)
+
+NATIVE = __NATIVE__
+DIRECTORY = os.environ.get("RUOYI_PLUGIN_DIRECTORY")
+ROOT = Path(DIRECTORY).resolve() if DIRECTORY else Path(__file__).resolve().parents[1]
+pytestmark = pytest.mark.skipif(
+    NATIVE and not DIRECTORY, reason="请先构建并设置 RUOYI_PLUGIN_DIRECTORY"
+)
+
+
+@pytest.mark.asyncio
+async def test_plugin_contract_and_permission() -> None:
+    """
+    验证插件工厂、生命周期、接口权限和健康检查合约。
+
+    :return: None
+    """
+    plugin = PluginScanner(ROOT.parent).load_manifest(ROOT / "plugin.yaml")
+    host = PluginHostContext(
+        "__PLUGIN_ID__", ROOT, logger=logging.getLogger("__PLUGIN_ID__")
+    )
+    loader = PluginEntrypointLoader(plugin)
+    definition = loader.load(host)
+    app = definition.app_factory(host)
+    permissions = set()
+
+    @app.middleware("http")
+    async def inject_test_context(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        """
+        注入本地请求上下文替身，不连接宿主数据库。
+
+        :param request: 已由宿主注入插件上下文的请求
+        :param call_next: 继续执行后续请求处理的回调
+        :return: 后续请求处理返回的响应
+        """
+        request.state.plugin_context = PluginRequestContext(
+            host, object(), frozenset(permissions)
+        )
+        return await call_next(request)
+
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://plugin.test"
+        ) as client,
+    ):
+        denied = await client.get("/api/info")
+        assert denied.status_code == status.HTTP_403_FORBIDDEN
+        permissions.add("__PLUGIN_ID__:view")
+        response = await client.get("/api/info")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["pluginId"] == "__PLUGIN_ID__"
+        assert response.json()["engine"] == "__RUNTIME__"
+    health = loader.load_callable(plugin.manifest.backend.health.checker)
+    assert await await_plugin_callback(health, host) is True
