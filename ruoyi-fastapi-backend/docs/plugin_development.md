@@ -946,7 +946,9 @@ UI GET/HEAD 使用普通 HTTPS，仍经过插件身份门禁；`/apps/<id>/api/.
 
 HTML 注入有效 `uiBase`、`apiBase` 与 `<base>`。SPA 回退仅接受 UI GET/HEAD 中带 `Accept: text/html` 的无扩展名页面导航；缺失脚本、API、保留路径和非 HTML 请求不能返回首页。静态服务拒绝路径越界和链接逃逸，并限制为同源 iframe 嵌入。HTML 当前 `no-store`，其他静态资源 `no-cache`，不自动启用 immutable 缓存。
 
-默认 `VITE_APP_PLUGIN_BASE` 为空，插件走同源 `/apps/` 和 `/plugin/runtime/`。若后端 `APP_ROOT_PATH=/prefix`，宿主前端需设置 `VITE_APP_PLUGIN_BASE=/prefix`，代理也要保留相同前缀及外部 Host；HTTPS 的原始 scheme 由可信代理配置传递。仓库 Vite 与 Docker Nginx 已提供对应代理入口，生产环境应验证 Cookie Path、Origin、Secure 和加密 AAD。独立页面属于同源可信代码；iframe 提供布局和依赖隔离，不提供对恶意插件的安全隔离。
+前端各环境已显式配置 `VITE_APP_PLUGIN_BASE`：development 为 `/dev-api`、production 为 `/prod-api`、docker 为 `/docker-api`、staging 为 `/stage-api`，与各环境的 `VITE_APP_BASE_API` 一致。开发、生产、Docker 分别对齐后端 `.env.dev`、`.env.prod`、`.env.dockermy`/`.env.dockerpg` 的 `APP_ROOT_PATH`；仓库未提供独立的后端 staging 环境文件，部署 staging 时需将后端 `APP_ROOT_PATH` 配为 `/stage-api`。以开发环境为例，插件使用同源 `/dev-api/apps/` 和 `/dev-api/plugin/runtime/`，Cookie Path 和会话响应也包含此前缀。
+
+自定义部署时，宿主前端的 `VITE_APP_PLUGIN_BASE` 必须与后端 `APP_ROOT_PATH` 一致；只有后端前缀为空时，前端才留空并使用 `/apps/` 和 `/plugin/runtime/`。浏览器侧保留部署前缀，代理转发至通过 `app.py` 启动的 Uvicorn 时剥离此前缀一次，由 Uvicorn 补回 ASGI `root_path`；保留外部 Host，HTTPS 的原始 scheme 由可信代理配置传递。仓库 Vite 已按此规则改写插件路径；两份 Docker Nginx 配置也已提供 `/docker-api/apps/` 和 `/docker-api/plugin/runtime/` 专用代理，并在转发时剥离 `/docker-api`。生产、staging 或自定义反向代理须配套设置相同前缀、专用代理入口及转发路径，保留 WebSocket 升级和 SSE 非缓冲配置，并验证 Cookie Path、Origin、Secure 和加密 AAD。独立页面属于同源可信代码；iframe 提供布局和依赖隔离，不提供对恶意插件的安全隔离。
 
 ### 7.3 bundle 浏览器 SDK
 

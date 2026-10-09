@@ -8,11 +8,10 @@ const root = fileURLToPath(new URL('../../../', import.meta.url))
 const [upstream, certificate, key, readyFile] = process.argv.slice(2)
 process.chdir(root)
 process.env.VITE_APP_PLUGIN_BASE = '/gateway'
-const proxy = (prefix) => ({
+const proxy = () => ({
   target: upstream,
   changeOrigin: false,
   headers: { 'x-forwarded-proto': 'https' },
-  rewrite: (path) => path.slice(prefix.length),
 })
 const server = await createServer({
   root,
@@ -23,9 +22,10 @@ const server = await createServer({
     open: false,
     https: { cert: readFileSync(certificate), key: readFileSync(key) },
     proxy: {
-      '/gateway/apps/': { ...proxy('/gateway'), ws: true },
-      '/gateway/plugin/runtime/': proxy('/gateway'),
-      '/dev-api': proxy('/dev-api'),
+      // 直接复用 Vite 配置的路径改写，避免测试覆盖掩盖实际代理配置错误。
+      '/gateway/apps/': { ...proxy(), ws: true },
+      '/gateway/plugin/runtime/': proxy(),
+      '/dev-api': proxy(),
     },
   },
 })

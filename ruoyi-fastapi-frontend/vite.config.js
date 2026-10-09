@@ -50,6 +50,8 @@ export default defineConfig(({ mode, command }) => {
           target: 'http://127.0.0.1:9099',
           changeOrigin: false,
           ws: true,
+          // Uvicorn 会补回 root_path，转发时只剥离一次外部部署前缀。
+          rewrite: (requestPath) => requestPath.slice(pluginBase.length),
           configure(proxy) {
             proxy.on('proxyRes', (upstream, _request, response) => {
               if (
@@ -69,6 +71,7 @@ export default defineConfig(({ mode, command }) => {
         [`${pluginBase}/plugin/runtime/`]: {
           target: 'http://127.0.0.1:9099',
           changeOrigin: false,
+          rewrite: (requestPath) => requestPath.slice(pluginBase.length),
         },
         // https://cn.vitejs.dev/config/#server-proxy
         '/dev-api': {
