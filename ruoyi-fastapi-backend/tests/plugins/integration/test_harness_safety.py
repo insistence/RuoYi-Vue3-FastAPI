@@ -5,6 +5,7 @@ import threading
 from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 from fnmatch import fnmatchcase
+from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -18,6 +19,22 @@ from scripts import plugin_release_integration as harness
 @pytest.fixture
 def run_spec(tmp_path: Path) -> harness.RunSpec:
     return harness.RunSpec('mysql', '0123456789abcdef' * 2, str(tmp_path))
+
+
+@pytest.fixture
+def built_task_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    为资源清理单测提供独立的构建入口，避免依赖工作区中的忽略产物。
+
+    :param tmp_path: pytest 临时目录
+    :param monkeypatch: 测试内属性替换工具
+    :return: None
+    """
+    backend = tmp_path / 'backend'
+    entry = backend / 'plugins' / 'examples' / 'python' / 'task_demo' / 'web' / 'dist' / 'index.html'
+    entry.parent.mkdir(parents=True)
+    entry.write_text('<html></html>', encoding='utf-8')
+    monkeypatch.setattr(harness, 'BACKEND_ROOT', backend)
 
 
 @pytest.mark.parametrize('engine', ['mysql', 'postgresql'])
@@ -204,6 +221,7 @@ async def test_database_ddl_only_addresses_validated_run_database(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('created', [False, True])
+@pytest.mark.usefixtures('built_task_bundle')
 async def test_run_drops_database_only_after_successful_create(
     created: bool, run_spec: harness.RunSpec, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -238,6 +256,7 @@ async def test_run_drops_database_only_after_successful_create(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('built_task_bundle')
 async def test_run_continues_owned_cleanup_after_engine_dispose_error(
     run_spec: harness.RunSpec, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -250,6 +269,11 @@ async def test_run_continues_owned_cleanup_after_engine_dispose_error(
     monkeypatch.setattr(harness, 'create_isolated_database', AsyncMock())
     monkeypatch.setattr(harness, 'prepare_schema', AsyncMock())
     monkeypatch.setattr(harness, 'exercise_release', AsyncMock())
+    monkeypatch.setattr(harness, 'wire_runtime', Mock(return_value=(object(), object())))
+    monkeypatch.setattr(import_module('plugins.core.deployment.service'), 'PluginDeploymentService', Mock())
+    monkeypatch.setattr(
+        import_module('scripts.plugin_task_integration'), 'exercise_task_delivery', AsyncMock(return_value={})
+    )
     monkeypatch.setattr(harness, 'clear_own_redis_keys', clear)
     monkeypatch.setattr(harness, 'drop_isolated_database', drop)
     monkeypatch.setattr(harness, 'emit', Mock())
@@ -442,3 +466,23 @@ def test_real_spawn_terminated_waiter_does_not_block_other_worker_shutdown() -> 
                 process.join(timeout=5)
         workers.queue.close()
         workers.queue.join_thread()
+
+
+@pytest.mark.asyncio
+async def test_run_requires_built_bundle_before_opening_any_resource(
+    tmp_path: Path, run_spec: harness.RunSpec, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(harness, 'BACKEND_ROOT', tmp_path / 'unbuilt-backend')
+    configure = Mock(side_effect=AssertionError('Configuration must remain untouched'))
+    factory = Mock(side_effect=AssertionError('Database access is forbidden'))
+    redis = Mock(side_effect=AssertionError('Redis access is forbidden'))
+    monkeypatch.setattr(harness, 'configure_process', configure)
+    monkeypatch.setattr(harness, 'database_engine', factory)
+    monkeypatch.setattr(harness, 'redis_client', redis)
+
+    with pytest.raises(ValueError, match='web/dist'):
+        await harness.run(run_spec)
+
+    configure.assert_not_called()
+    factory.assert_not_called()
+    redis.assert_not_called()
