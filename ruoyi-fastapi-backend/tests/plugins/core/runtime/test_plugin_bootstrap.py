@@ -13,7 +13,7 @@ def test_plugin_runtime_builder_defaults_to_backend_root() -> None:
 
     assert builder.backend_root == BACKEND_ROOT
     assert builder.plugins_root == BACKEND_ROOT / 'plugins'
-    assert builder.frontend_plugins_root == BACKEND_ROOT.parent / 'ruoyi-fastapi-frontend' / 'plugins'
+    assert builder.frontend_plugins_root == BACKEND_ROOT.parent / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins'
 
 
 def test_plugin_runtime_builder_resolves_frontend_plugins_root_from_backend_root(tmp_path: Path) -> None:
@@ -22,7 +22,7 @@ def test_plugin_runtime_builder_resolves_frontend_plugins_root_from_backend_root
 
     builder = PluginRuntimeBuilder(backend_root)
 
-    assert builder.frontend_plugins_root == tmp_path / 'frontend' / 'plugins'
+    assert builder.frontend_plugins_root == tmp_path / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins'
 
 
 def write_manifest(plugin_dir: Path, content: str) -> None:

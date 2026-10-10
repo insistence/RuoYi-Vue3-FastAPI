@@ -15,12 +15,12 @@ npm --prefix plugins/examples/python/bundle_demo/web install
 npm --prefix plugins/examples/python/bundle_demo/web run build
 ```
 
-首次安装会生成此示例自己的锁文件；独立维护插件时应保留锁文件，在 CI 中使用 `npm ci`。示例的 SDK 别名指向本仓库 `ruoyi-fastapi-frontend/src/utils/pluginBridge.js`。迁移到独立插件仓库时，将该模块及相邻的 `pluginBridge.d.ts` 一起复制为自己的版本化源码依赖，并调整 `vite.config.js` 中 `@ruoyi/plugin-bridge` 的别名。TypeScript 项目还应在自己的 `tsconfig.json` 中将同一别名映射到复制后的模块路径。
+首次安装会生成此示例自己的锁文件；独立维护插件时应保留锁文件，在 CI 中使用 `npm ci`。示例的 SDK 别名指向本仓库 `ruoyi-fastapi-frontend/vue3/web/src/utils/pluginBridge.js`。迁移到独立插件仓库时，将该模块及相邻的 `pluginBridge.d.ts` 一起复制为自己的版本化源码依赖，并调整 `vite.config.js` 中 `@ruoyi/plugin-bridge` 的别名。TypeScript 项目还应在自己的 `tsconfig.json` 中将同一别名映射到复制后的模块路径。
 
 如果本仓库宿主前端依赖已安装，也可复用其中的 Vite 可执行文件构建**同一个插件前端项目**：
 
 ```bash
-node ../ruoyi-fastapi-frontend/node_modules/vite/bin/vite.js build plugins/examples/python/bundle_demo/web --config plugins/examples/python/bundle_demo/web/vite.config.js
+node ../ruoyi-fastapi-frontend/vue3/web/node_modules/vite/bin/vite.js build plugins/examples/python/bundle_demo/web --config plugins/examples/python/bundle_demo/web/vite.config.js
 ```
 
 两种方式均输出 `plugins/examples/python/bundle_demo/web/dist`。配置使用 `base: './'`、关闭 sourcemap；宿主交付 HTML 时注入有效 `<base>` 和运行基址，因此资源和页面深层链接不需写死域名或代理前缀。直接用 `file://` 打开 dist 不会建立宿主身份桥；真实账号交互应从管理平台的插件菜单进入。
@@ -233,7 +233,7 @@ ASGI 网关对已建立的 SSE/WebSocket 按 15 秒间隔复核登录、插件�
 
 ```bash
 python -m pytest tests/plugins/core/runtime/test_bundle.py tests/plugins/core/runtime/test_browser_session.py tests/plugins/core/runtime/test_bundle_transport.py tests/plugins/core/runtime/test_bundle_files.py tests/plugins/core/runtime/test_bundle_events.py tests/plugins/core/runtime/test_connections.py tests/plugins/core/runtime/test_connection_sessions.py tests/plugins/core/runtime/test_configuration.py tests/module_admin/service/test_login_plugin_routes.py -q
-npm --prefix ../ruoyi-fastapi-frontend run test:plugin
+npm --prefix ../ruoyi-fastapi-frontend/vue3/web run test:plugin
 ```
 
 测试覆盖静态边界、Cookie/CSRF/退出、真实 RSA/AES 协议、文件大小、`root_path`、流连接复核及运行时关闭顺序；浏览器会话测试替换真实账号查询，配置读取测试使用隔离 SQLite 验证保存、解密及重启版本。实际角色配置、TLS/Nginx、多 worker 和 ASGI 服务器的优雅停机阶段仍需部署验收。网关的周期关闭与协作式取消不能强制终止忽略取消的 Python 代码，也不提供跨 worker 的即时撤销广播。

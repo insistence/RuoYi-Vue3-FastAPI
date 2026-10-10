@@ -356,8 +356,7 @@ def test_manifest_checker_warns_unpinned_dependencies() -> None:
             'backend': {'module': 'plugins.demo'},
             'dependencies': {
                 'python': ['openai'],
-                'npm': ['axios'],
-                'npmDev': ['vite'],
+                'frontend': {'vue3': {'npm': ['axios'], 'npmDev': ['vite']}},
                 'plugins': ['base'],
             },
         }
@@ -373,8 +372,8 @@ def test_manifest_checker_warns_unpinned_dependencies() -> None:
         'plugin_dependency_unpinned',
     ]
     assert result.warning_issues[0].path == 'dependencies.python.0'
-    assert result.warning_issues[1].path == 'dependencies.npm.0'
-    assert result.warning_issues[2].path == 'dependencies.npmDev.0'
+    assert result.warning_issues[1].path == 'dependencies.frontend.vue3.npm.0'
+    assert result.warning_issues[2].path == 'dependencies.frontend.vue3.npmDev.0'
     assert result.warning_issues[3].path == 'dependencies.plugins.base.version'
 
 
@@ -388,7 +387,7 @@ def test_manifest_checker_accepts_pinned_dependencies() -> None:
             'backend': {'module': 'plugins.demo'},
             'dependencies': {
                 'python': ['openai>=2.0.0'],
-                'npm': ['axios^1.0.0'],
+                'frontend': {'vue3': {'npm': ['axios^1.0.0']}},
                 'plugins': ['base>=1.0.0'],
             },
         }

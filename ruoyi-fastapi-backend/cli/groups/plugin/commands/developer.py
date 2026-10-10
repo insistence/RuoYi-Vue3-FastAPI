@@ -1,11 +1,11 @@
 from collections.abc import Callable
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 import typer
 
 from cli.context import DryRunOption, EnvOption, OutputOption
 
-from ..options import PluginCreateCommandOptions
+from ..options import PluginCreateCommandOptions, PluginFrontendFrameworkChoice
 
 
 def register_developer_commands(app: typer.Typer, get_controller: Callable[[], Any]) -> None:
@@ -63,9 +63,11 @@ def register_developer_commands(app: typer.Typer, get_controller: Callable[[], A
                 'v2：python-asgi、python-bundle、rust-asgi、rust-bundle（生成独立源码工程）',
             ),
         ] = 'full-stack',
-        frontend_version: Annotated[
-            Literal['auto', 'vue2', 'vue3'],
-            typer.Option('--frontend-version', help='v1 前端 Vue 版本：auto、vue2、vue3；v2 bundle 不使用宿主 Vue'),
+        frontend_framework: Annotated[
+            PluginFrontendFrameworkChoice,
+            typer.Option(
+                '--frontend-framework', help='宿主框架，auto 自动识别；v1 源码模板仅支持 vue2、vue3，v2 模板仅接受 auto'
+            ),
         ] = 'auto',
         backend_only: Annotated[bool, typer.Option('--backend-only', help='只创建后端插件模板')] = False,
         frontend_only: Annotated[bool, typer.Option('--frontend-only', help='只创建前端插件模板')] = False,
@@ -83,7 +85,7 @@ def register_developer_commands(app: typer.Typer, get_controller: Callable[[], A
         :param env: 当前命令运行环境
         :param output: 输出格式
         :param template: 插件模板名称
-        :param frontend_version: 前端 Vue 版本
+        :param frontend_framework: 前端框架标识，auto 表示自动识别
         :param backend_only: 是否只创建后端插件模板
         :param frontend_only: 是否只创建前端插件模板
         :param no_migration: 是否不创建 migration 示例
@@ -102,7 +104,7 @@ def register_developer_commands(app: typer.Typer, get_controller: Callable[[], A
                 backend_only=backend_only,
                 frontend_only=frontend_only,
                 template=template,
-                frontend_version=frontend_version,
+                frontend_framework=frontend_framework,
                 no_migration=no_migration,
                 no_seed=no_seed,
                 no_job=no_job,

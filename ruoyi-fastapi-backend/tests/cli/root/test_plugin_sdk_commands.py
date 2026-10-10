@@ -12,7 +12,7 @@ from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, SUCCESS
 from cli.groups.plugin.commands.sdk import register_sdk_commands
 
 BACKEND = Path(__file__).resolve().parents[3]
-FRONTEND = BACKEND.parent / 'ruoyi-fastapi-frontend'
+FRONTEND = BACKEND.parent / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
 
 
 def sdk_app() -> typer.Typer:
@@ -102,6 +102,87 @@ def test_sdk_cli_bad_source_is_json_and_nonzero(project: Path, tmp_path: Path) -
     )
     assert result.exit_code != SUCCESS
     assert json.loads(result.stdout)['ok'] is False
+
+
+@pytest.mark.parametrize(('framework', 'selected_framework'), [('auto', 'vue3'), ('vue2', 'vue2'), ('vue3', 'vue3')])
+def test_sdk_cli_selects_supported_framework_from_frontend_container(
+    project: Path, framework: str, selected_framework: str
+) -> None:
+    """校验 SDK 更新和检查命令均接受三个固定框架选项。"""
+    result = CliRunner().invoke(
+        sdk_app(),
+        [
+            'sdk',
+            'update',
+            str(project),
+            '--frontend-root',
+            str(FRONTEND.parents[1]),
+            '--frontend-framework',
+            framework,
+            '--force',
+            '--output',
+            'json',
+        ],
+    )
+    assert result.exit_code == SUCCESS, result.stdout
+    metadata = json.loads((project / 'web/vendor/pluginBridge.sdk.json').read_text(encoding='utf-8'))
+    assert metadata['source']['directory'] == f'ruoyi-fastapi-frontend/{selected_framework}/web/src/utils'
+    check_result = CliRunner().invoke(
+        sdk_app(),
+        [
+            'sdk',
+            'check',
+            str(project),
+            '--frontend-root',
+            str(FRONTEND.parents[1]),
+            '--frontend-framework',
+            framework,
+            '--output',
+            'json',
+        ],
+    )
+    assert check_result.exit_code == SUCCESS, check_result.stdout
+    assert json.loads(check_result.stdout)['status'] == 'current'
+
+
+@pytest.mark.parametrize('operation', ['check', 'update'])
+@pytest.mark.parametrize('framework', ['react', 'custom_ui-1', '../react', 'Vue3'])
+def test_sdk_cli_rejects_unsupported_framework_before_file_operations(
+    project: Path, operation: str, framework: str
+) -> None:
+    """校验 SDK 命令在参数解析阶段拒绝固定选项之外的框架且不修改工程。"""
+    before = {path.relative_to(project): path.read_bytes() for path in project.rglob('*') if path.is_file()}
+    result = CliRunner().invoke(
+        sdk_app(),
+        [
+            'sdk',
+            operation,
+            str(project),
+            '--frontend-framework',
+            framework,
+            '--output',
+            'json',
+        ],
+    )
+    assert result.exit_code == ARGUMENT_ERROR
+    assert 'Invalid value' in result.output
+    assert framework in result.output
+    assert 'auto' in result.output and 'vue2' in result.output and 'vue3' in result.output
+    assert before == {path.relative_to(project): path.read_bytes() for path in project.rglob('*') if path.is_file()}
+
+
+@pytest.mark.parametrize('operation', ['check', 'update'])
+def test_sdk_cli_help_displays_fixed_frontend_framework_choices(operation: str) -> None:
+    """校验两个 SDK 命令的帮助均展示固定框架选项。"""
+    result = CliRunner().invoke(sdk_app(), ['sdk', operation, '--help'], terminal_width=160)
+    assert result.exit_code == SUCCESS
+    assert 'auto|vue2|vue3' in result.output
+
+
+def test_sdk_cli_rejects_removed_frontend_version_option(project: Path) -> None:
+    """校验旧版本选项已移除，不保留兼容别名。"""
+    result = CliRunner().invoke(sdk_app(), ['sdk', 'check', str(project), '--frontend-version', 'vue3'])
+    assert result.exit_code == ARGUMENT_ERROR
 
 
 def test_sdk_cli_invalid_output_is_argument_error(project: Path) -> None:

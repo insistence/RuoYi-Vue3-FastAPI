@@ -1,0 +1,8 @@
+{
+  "sourceCommit": "b0d16a3eae1979afabb838245c00e1f816aa59e9",
+  "sourcePath": "ruoyi-fastapi-frontend/src/utils/pluginBridge.js",
+  "sha256": "71d4f3f69e81073f2bcb3dd5ae791f70c759f2f05a41a44964b7c7243d6769f7",
+  "sdkVersion": null,
+  "bridgeVersion": 1,
+  "snapshot": "完整已提交源码；SDK 版本字段引入前未版本化，不代表历史已发布 SDK 版本。"
+}

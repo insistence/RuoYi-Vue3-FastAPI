@@ -185,14 +185,19 @@ class PluginManifestChecker:
         """
         检查未声明版本约束的依赖。
 
+        检查 Python 依赖及 frontend 中所有前端框架分类，不依赖当前宿主选择。
+
         :param manifest: 插件 manifest
         :return: 未声明版本约束问题项列表
         """
         issues = []
         for dependency_kind, requirements in (
             ('python', manifest.dependencies.python),
-            ('npm', manifest.dependencies.npm),
-            ('npmDev', manifest.dependencies.npm_dev),
+            *[
+                (f'frontend.{framework}.{kind}', requirements)
+                for framework, profile in manifest.dependencies.frontend.items()
+                for kind, requirements in (('npm', profile.npm), ('npmDev', profile.npm_dev))
+            ],
         ):
             for index, requirement in enumerate(requirements):
                 if dependency_kind == 'python':

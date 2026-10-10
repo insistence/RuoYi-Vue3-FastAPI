@@ -94,7 +94,7 @@ def test_plugin_runtime_test_plugin_runs_backend_and_frontend_targets(tmp_path: 
     """校验插件测试命令会聚合执行后端 pytest 和前端 node 测试。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'ruoyi-fastapi-backend'
-    frontend_root = project_root / 'ruoyi-fastapi-frontend'
+    frontend_root = project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
     backend_test_root = backend_root / 'tests' / 'plugins' / 'demo'
     frontend_test_file = frontend_root / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js'
     backend_test_root.mkdir(parents=True)
@@ -138,7 +138,7 @@ def test_plugin_runtime_test_plugin_can_run_frontend_build_acceptance(tmp_path: 
     """校验插件测试命令可按需追加前端构建验收。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'ruoyi-fastapi-backend'
-    frontend_root = project_root / 'ruoyi-fastapi-frontend'
+    frontend_root = project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
     backend_test_root = backend_root / 'tests' / 'plugins' / 'demo'
     backend_test_root.mkdir(parents=True)
     frontend_root.mkdir(parents=True)
@@ -166,7 +166,7 @@ def test_plugin_runtime_test_plugin_reports_missing_test_dir(tmp_path: Path) -> 
     assert result['message'].startswith('插件测试目录不存在')
     assert result['targets'] == [
         str(backend_root / 'tests' / 'plugins' / 'demo'),
-        str(backend_root.parent / 'frontend' / 'tests' / 'plugins' / 'demo'),
+        str(backend_root.parent / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'tests' / 'plugins' / 'demo'),
     ]
 
 

@@ -4,43 +4,47 @@ on:
   push:
     branches: [master]
     paths:
-      - 'ruoyi-fastapi-frontend/src/api/system/plugin.js'
-      - 'ruoyi-fastapi-frontend/src/components/PluginFrame/**'
-      - 'ruoyi-fastapi-frontend/src/views/system/plugin/**'
-      - 'ruoyi-fastapi-frontend/src/utils/**'
-      - 'ruoyi-fastapi-frontend/src/plugins/**'
-      - 'ruoyi-fastapi-frontend/src/router/**'
-      - 'ruoyi-fastapi-frontend/src/store/modules/permission.js'
-      - 'ruoyi-fastapi-frontend/src/store/modules/user.js'
-      - 'ruoyi-fastapi-frontend/src/permission.js'
-      - 'ruoyi-fastapi-frontend/plugins/**'
-      - 'ruoyi-fastapi-frontend/tests/plugins/**'
-      - 'ruoyi-fastapi-frontend/tests/run-tests.js'
-      - 'ruoyi-fastapi-frontend/package.json'
-      - 'ruoyi-fastapi-frontend/package-lock.json'
-      - 'ruoyi-fastapi-frontend/vite.config.js'
-      - 'ruoyi-fastapi-frontend/vite/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/api/system/plugin.js'
+      - 'ruoyi-fastapi-frontend/*/web/src/components/PluginFrame/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/views/system/plugin/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/utils/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/plugins/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/router/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/store/modules/permission.js'
+      - 'ruoyi-fastapi-frontend/*/web/src/store/modules/user.js'
+      - 'ruoyi-fastapi-frontend/*/web/src/permission.js'
+      - 'ruoyi-fastapi-frontend/*/web/plugins/**'
+      - 'ruoyi-fastapi-frontend/*/web/tests/plugins/**'
+      - 'ruoyi-fastapi-frontend/*/web/tests/run-tests.js'
+      - 'ruoyi-fastapi-frontend/*/web/tests/plugins/run-plugin-tests.js'
+      - 'ruoyi-fastapi-frontend/*/web/package.json'
+      - 'ruoyi-fastapi-frontend/*/web/package-lock.json'
+      - 'ruoyi-fastapi-frontend/*/web/vite.config.js'
+      - 'ruoyi-fastapi-frontend/*/web/vue.config.js'
+      - 'ruoyi-fastapi-frontend/*/web/vite/**'
       - 'ruoyi-fastapi-backend/plugins/examples/python/bundle_demo/web/**'
       - '.github/workflows/plugin-frontend.yml'
   pull_request:
     branches: [master]
     paths:
-      - 'ruoyi-fastapi-frontend/src/api/system/plugin.js'
-      - 'ruoyi-fastapi-frontend/src/components/PluginFrame/**'
-      - 'ruoyi-fastapi-frontend/src/views/system/plugin/**'
-      - 'ruoyi-fastapi-frontend/src/utils/**'
-      - 'ruoyi-fastapi-frontend/src/plugins/**'
-      - 'ruoyi-fastapi-frontend/src/router/**'
-      - 'ruoyi-fastapi-frontend/src/store/modules/permission.js'
-      - 'ruoyi-fastapi-frontend/src/store/modules/user.js'
-      - 'ruoyi-fastapi-frontend/src/permission.js'
-      - 'ruoyi-fastapi-frontend/plugins/**'
-      - 'ruoyi-fastapi-frontend/tests/plugins/**'
-      - 'ruoyi-fastapi-frontend/tests/run-tests.js'
-      - 'ruoyi-fastapi-frontend/package.json'
-      - 'ruoyi-fastapi-frontend/package-lock.json'
-      - 'ruoyi-fastapi-frontend/vite.config.js'
-      - 'ruoyi-fastapi-frontend/vite/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/api/system/plugin.js'
+      - 'ruoyi-fastapi-frontend/*/web/src/components/PluginFrame/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/views/system/plugin/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/utils/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/plugins/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/router/**'
+      - 'ruoyi-fastapi-frontend/*/web/src/store/modules/permission.js'
+      - 'ruoyi-fastapi-frontend/*/web/src/store/modules/user.js'
+      - 'ruoyi-fastapi-frontend/*/web/src/permission.js'
+      - 'ruoyi-fastapi-frontend/*/web/plugins/**'
+      - 'ruoyi-fastapi-frontend/*/web/tests/plugins/**'
+      - 'ruoyi-fastapi-frontend/*/web/tests/run-tests.js'
+      - 'ruoyi-fastapi-frontend/*/web/tests/plugins/run-plugin-tests.js'
+      - 'ruoyi-fastapi-frontend/*/web/package.json'
+      - 'ruoyi-fastapi-frontend/*/web/package-lock.json'
+      - 'ruoyi-fastapi-frontend/*/web/vite.config.js'
+      - 'ruoyi-fastapi-frontend/*/web/vue.config.js'
+      - 'ruoyi-fastapi-frontend/*/web/vite/**'
       - 'ruoyi-fastapi-backend/plugins/examples/python/bundle_demo/web/**'
       - '.github/workflows/plugin-frontend.yml'
   workflow_dispatch:
@@ -52,16 +56,20 @@ jobs:
   plugins:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [vue2, vue3]
     defaults:
       run:
-        working-directory: ruoyi-fastapi-frontend
+        working-directory: ruoyi-fastapi-frontend/${{ matrix.framework }}/web
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: ruoyi-fastapi-frontend/package.json
+          cache-dependency-path: ruoyi-fastapi-frontend/${{ matrix.framework }}/web/package.json
       - name: Install frontend dependencies
         # This repository does not commit npm lockfiles, so npm ci is not available.
         run: npm install --no-audit --no-fund --package-lock=false

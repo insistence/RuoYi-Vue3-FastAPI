@@ -6,7 +6,7 @@ on:
     paths:
       - 'ruoyi-fastapi-backend/plugins/core/**'
       - 'ruoyi-fastapi-backend/plugins/examples/python/task_demo/**'
-      - 'ruoyi-fastapi-frontend/src/utils/pluginBridge.js'
+      - 'ruoyi-fastapi-frontend/*/web/src/utils/pluginBridge.js'
       - 'ruoyi-fastapi-backend/config/**'
       - 'ruoyi-fastapi-backend/cli/groups/plugin/**'
       - 'ruoyi-fastapi-backend/cli/runtime/plugin/**'

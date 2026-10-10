@@ -8,7 +8,7 @@ from typing import Literal
 
 from packaging.requirements import InvalidRequirement
 
-from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT
+from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT, PluginRuntimeEnvironmentService
 from plugins.core.manifest.schema import PluginManifest
 from plugins.core.validation.python_requirements import PythonRequirementParser
 from plugins.core.validation.versioning import PluginVersionComparator, PluginVersionConstraintMatcher
@@ -534,32 +534,47 @@ class PluginDependencyChecker:
         python_inspector: PythonDependencyInspector | None = None,
         npm_inspector: NpmDependencyInspector | None = None,
         frontend_mode: Literal['dev', 'built'] = 'dev',
+        runtime_environment: PluginRuntimeEnvironmentService | None = None,
     ) -> None:
         """
         初始化插件依赖检查器。
 
         :param python_inspector: Python 依赖检查器
-        :param npm_inspector: npm 依赖检查器
+        :param npm_inspector: 当前宿主前端的 npm 依赖检查器
+        :param frontend_mode: 前端运行模式，已构建模式跳过 npm 依赖实际检查
+        :param runtime_environment: 保留当前宿主显式框架选择的运行时环境
+        :return: None
         """
+        self.runtime_environment = runtime_environment or PLUGIN_RUNTIME_ENVIRONMENT
         self.python_inspector = python_inspector or PythonDependencyInspector()
-        self.npm_inspector = npm_inspector or NpmDependencyInspector()
+        self.npm_inspector = npm_inspector or NpmDependencyInspector(
+            frontend_root=self.runtime_environment.get_frontend_dir()
+        )
         self.frontend_mode = frontend_mode
 
     def check_manifest(self, manifest: PluginManifest) -> DependencyCheckResult:
         """
         检查插件清单依赖。
 
+        根据当前宿主前端框架选择 frontend 中对应分类，只检查该分类声明的前端依赖。
+
         :param manifest: 插件清单
         :return: 插件依赖检查结果
         """
         items = []
         items.extend(self.python_inspector.check(manifest.dependencies.python))
+        frontend_framework = (
+            self.runtime_environment.get_frontend_framework(self.npm_inspector.frontend_root)
+            if manifest.dependencies.frontend
+            else 'vue3'
+        )
+        frontend_dependencies = manifest.dependencies.resolve_frontend(frontend_framework)
         if self.frontend_mode == 'built':
-            items.extend(self.npm_inspector.skip(manifest.dependencies.npm))
-            items.extend(self.npm_inspector.skip(manifest.dependencies.npm_dev, dev=True))
+            items.extend(self.npm_inspector.skip(frontend_dependencies.npm))
+            items.extend(self.npm_inspector.skip(frontend_dependencies.npm_dev, dev=True))
         else:
-            items.extend(self.npm_inspector.check(manifest.dependencies.npm))
-            items.extend(self.npm_inspector.check(manifest.dependencies.npm_dev, dev=True))
+            items.extend(self.npm_inspector.check(frontend_dependencies.npm))
+            items.extend(self.npm_inspector.check(frontend_dependencies.npm_dev, dev=True))
 
         return DependencyCheckResult(plugin_id=manifest.id, items=items)
 

@@ -448,8 +448,10 @@ backend:
 dependencies:
   python:
     - openai>=2.17.0
-  npm:
-    - vue>=3.5.0
+  frontend:
+    vue3:
+      npm:
+        - vue>=3.5.0
 """,
     )
 

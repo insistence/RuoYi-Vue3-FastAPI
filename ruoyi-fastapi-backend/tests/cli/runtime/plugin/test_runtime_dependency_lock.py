@@ -15,8 +15,7 @@ def write_demo_dependency_manifest(backend_root: Path) -> None:
     manifest = yaml.safe_load(manifest_path.read_text(encoding='utf-8'))
     manifest['dependencies'] = {
         'python': ['openai>=2.0.0,<3.0.0'],
-        'npm': ['dayjs>=1.11.0,<2.0.0'],
-        'npmDev': [],
+        'frontend': {'vue3': {'npm': ['dayjs>=1.11.0,<2.0.0'], 'npmDev': []}},
         'plugins': [],
     }
     manifest_path.write_text(yaml.safe_dump(manifest, allow_unicode=True, sort_keys=False), encoding='utf-8')
@@ -43,6 +42,8 @@ def test_plugin_runtime_lock_dependencies_dry_run_returns_lockfile_template(tmp_
     lockfile = yaml.safe_load(payload['lockfile'])
     assert lockfile['plugin'] == 'demo'
     assert lockfile['version'] == '0.1.0'
+    assert lockfile['frontendFramework'] == 'vue3'
+    assert 'frontendVersion' not in lockfile
     assert lockfile['python'][0]['name'] == 'openai'
     assert lockfile['python'][0]['requirement'] == 'openai>=2.0.0,<3.0.0'
     assert lockfile['python'][0]['resolvedVersion'] == ''

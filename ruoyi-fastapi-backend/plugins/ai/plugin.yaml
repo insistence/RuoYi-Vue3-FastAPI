@@ -86,18 +86,31 @@ dependencies:
     - ollama==0.6.2
     - openai==2.52.0
     - portkey-ai==2.3.4
-  npm:
-    - '@antv/infographic^0.2.13'
-    - '@terrastruct/d2==0.1.33'
-    - katex>=0.16.27
-    - markstream-vue==1.0.9-beta.2
-    - mermaid>=11.15.0
-    - shiki^3.21.0
-    - stream-diffs==0.0.2
-    - stream-markdown==0.0.16
-    - stream-monaco==0.0.48
-  npmDev:
-    - vite-plugin-monaco-editor-esm==2.0.2
+  frontend:
+    vue2:
+      npm:
+        - '@antv/infographic^0.2.13'
+        - '@terrastruct/d2==0.1.33'
+        - katex>=0.16.27
+        - markstream-vue2==0.0.50
+        - mermaid>=11.15.0
+        - shiki^3.21.0
+        - stream-markdown==0.0.16
+        - stream-monaco==0.0.48
+      npmDev: []
+    vue3:
+      npm:
+        - '@antv/infographic^0.2.13'
+        - '@terrastruct/d2==0.1.33'
+        - katex>=0.16.27
+        - markstream-vue==1.0.9-beta.2
+        - mermaid>=11.15.0
+        - shiki^3.21.0
+        - stream-diffs==0.0.2
+        - stream-markdown==0.0.16
+        - stream-monaco==0.0.48
+      npmDev:
+        - vite-plugin-monaco-editor-esm==2.0.2
   plugins: []
 
 compatibility:

@@ -1,6 +1,6 @@
 # AI 管理后端插件
 
-AI 管理插件提供模型配置、供应商字典、会话对话和流式输出能力。插件保留原有接口前缀和权限标识，安装后会在系统菜单中生成「AI 管理」目录，以及「模型管理」「AI 对话」两个页面。
+AI 管理插件提供模型配置、供应商字典、会话对话和流式输出能力。插件保留原有接口前缀和权限标识，安装后会在系统菜单中生成「AI 管理」目录，以及「模型管理」「AI 对话」两个页面。各前端框架共用此后端插件及同一份 `plugin.yaml`，页面目录约定为 `ruoyi-fastapi-frontend/<framework>/web/plugins/ai`；当前提供 Vue2、Vue3 页面，分别位于 `vue2/web/plugins/ai` 和 `vue3/web/plugins/ai`。
 
 ## 功能
 
@@ -93,7 +93,17 @@ ruoyi plugin disable ai --env=dev --yes
 - `ollama`
 - 以及其他供应商 SDK
 
-插件启动期会检查已启用插件的 Python 依赖。缺失依赖时，CLI 启动流程会提示是否安装依赖；生产环境建议在发布阶段提前安装，避免运行期临时拉取依赖。
+应用启动时只做默认启用插件的依赖门禁，不会自动安装或提示安装依赖。缺失依赖时，应在启动前显式执行 `ruoyi plugin install-deps ai --env=dev`；生产环境应在发布阶段提前准备依赖。
+
+前端依赖按宿主框架完整声明，当前 AI 插件提供以下分类：
+
+- `dependencies.frontend.vue2.npm`：Vue2 所需的全部运行依赖，包括 `markstream-vue2` 以及 Markdown、代码高亮、图表等依赖。
+- `dependencies.frontend.vue3.npm`：Vue3 所需的全部运行依赖，包括 `markstream-vue`、`stream-diffs` 以及 Markdown、代码高亮、图表等依赖。
+- `dependencies.frontend.vue3.npmDev`：Vue3 构建使用的 `vite-plugin-monaco-editor-esm`。
+
+多个框架都使用的包也在各自分类中列出，不设公共依赖层。`dependencies.frontend` 接受 `react` 等安全的小写框架标识，但新增分类不会生成对应页面；当前 AI 插件仅提供 Vue2、Vue3 实现。旧顶层 `dependencies.npm/npmDev` 已移除，清单校验会拒绝；未声明目标框架分类时，该宿主没有 npm 依赖。
+
+插件系统解析选定 Web 工程的框架，只检查、安装匹配框架分类中的依赖。默认选择 `vue3/web`；检查或安装 Vue2 依赖时，先在当前终端设置 `RUOYI_PLUGIN_FRONTEND_FRAMEWORK=vue2`（PowerShell：`$env:RUOYI_PLUGIN_FRONTEND_FRAMEWORK = 'vue2'`；Bash：`export RUOYI_PLUGIN_FRONTEND_FRAMEWORK=vue2`），再执行同样的插件命令。未设置该变量时也可使用 `RUOYI_FRONTEND_FRAMEWORK`，或用 `RUOYI_PLUGIN_FRONTEND_ROOT` 指向具体 Web 工程。各框架工程分别安装依赖和构建，后端插件仅需安装、启用一次。完整规则见[插件开发手册](../../docs/plugin_development.md#9-依赖管理)。
 
 ## 数据库
 

@@ -1,7 +1,10 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from cli.runtime.plugin.service import CliPluginRuntimeService
+from plugins.core.environment import PluginRuntimeEnvironmentService
 
 from .conftest import FakeRuntimeEnvironment, build_runtime
 
@@ -62,16 +65,21 @@ def test_plugin_runtime_create_plugin_dry_run_does_not_write_files(tmp_path: Pat
     assert payload['template'] == 'full-stack'
     assert payload['backend'] is True
     assert payload['frontend'] is True
-    assert payload['frontendVersion'] == 'vue3'
+    assert payload['frontendFramework'] == 'vue3'
     assert payload['test'] is True
     assert payload['backendTest'] is True
     assert payload['frontendTest'] is True
     assert str(backend_root / 'tests' / 'plugins' / 'demo') in payload['targetDirs']
-    assert str(project_root / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo') in payload['targetDirs']
+    assert (
+        str(project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'tests' / 'plugins' / 'demo')
+        in payload['targetDirs']
+    )
     assert payload['files']
     assert not (backend_root / 'plugins' / 'demo' / 'plugin.yaml').exists()
     assert not (backend_root / 'tests' / 'plugins' / 'demo' / 'test_ping.py').exists()
-    assert not (project_root / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').exists()
+    assert not (
+        project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js'
+    ).exists()
 
 
 def test_plugin_runtime_create_plugin_rejects_unsafe_plugin_id(tmp_path: Path) -> None:
@@ -93,6 +101,7 @@ def test_plugin_runtime_create_plugin_uses_runtime_frontend_dir(tmp_path: Path) 
     backend_root = project_root / 'api-server'
     frontend_root = project_root / 'web-client'
     backend_root.mkdir(parents=True)
+    write_frontend_package(frontend_root, {'vue': '^3.5.26'})
 
     payload = build_runtime(backend_root, frontend_root=frontend_root).create_plugin('demo')
 
@@ -115,7 +124,7 @@ def test_plugin_runtime_create_plugin_auto_detects_vue2_frontend(tmp_path: Path)
     view_content = (frontend_root / 'plugins' / 'demo' / 'views' / 'index.vue').read_text(encoding='utf-8')
     test_content = (frontend_root / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').read_text(encoding='utf-8')
     assert payload['ok'] is True
-    assert payload['frontendVersion'] == 'vue2'
+    assert payload['frontendFramework'] == 'vue2'
     assert '<script>' in view_content
     assert 'export default {' in view_content
     assert 'slot-scope="scope"' in view_content
@@ -137,7 +146,7 @@ def test_plugin_runtime_create_plugin_auto_detects_vue3_frontend(tmp_path: Path)
     view_content = (frontend_root / 'plugins' / 'demo' / 'views' / 'index.vue').read_text(encoding='utf-8')
     test_content = (frontend_root / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').read_text(encoding='utf-8')
     assert payload['ok'] is True
-    assert payload['frontendVersion'] == 'vue3'
+    assert payload['frontendFramework'] == 'vue3'
     assert '<script setup' in view_content
     assert '<template #default="scope">' in view_content
     assert 'export default {' not in view_content
@@ -145,8 +154,8 @@ def test_plugin_runtime_create_plugin_auto_detects_vue3_frontend(tmp_path: Path)
     assert "'../../../plugins/demo/views/index.vue'" in test_content
 
 
-def test_plugin_runtime_create_plugin_supports_frontend_version_override(tmp_path: Path) -> None:
-    """校验显式 frontend_version 会覆盖 package.json 自动识别结果。"""
+def test_plugin_runtime_create_plugin_supports_frontend_framework_override(tmp_path: Path) -> None:
+    """校验显式 frontend_framework 会覆盖 package.json 自动识别结果。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'api-server'
     frontend_root = project_root / 'web-client'
@@ -156,25 +165,75 @@ def test_plugin_runtime_create_plugin_supports_frontend_version_override(tmp_pat
     payload = build_runtime(backend_root, frontend_root=frontend_root).create_plugin(
         'demo',
         template='crud-page',
-        frontend_version='vue2',
+        frontend_framework='vue2',
         dry_run=True,
     )
 
     view_payload = next(file for file in payload['files'] if str(file['path']).endswith('/views/index.vue'))
     assert payload['ok'] is True
-    assert payload['frontendVersion'] == 'vue2'
+    assert payload['frontendFramework'] == 'vue2'
     assert 'export default {' in view_payload['content']
 
 
-def test_plugin_runtime_create_plugin_rejects_unknown_frontend_version(tmp_path: Path) -> None:
-    """校验未知的 frontend_version 会返回清晰错误。"""
+def test_plugin_create_preserves_independent_host_framework_context(tmp_path: Path) -> None:
+    """校验独立宿主的运行时框架选择会保留，创建命令显式参数仍可覆盖。"""
+    frontend = tmp_path / 'web-client'
+    write_frontend_package(frontend, {'vue': '^3.5.26'})
+    runtime = CliPluginRuntimeService(
+        runtime_environment=PluginRuntimeEnvironmentService(
+            backend_root=tmp_path / 'backend', frontend_root=frontend, frontend_framework='vue2'
+        )
+    )
+
+    payload = runtime.create_plugin('demo', dry_run=True)
+    override = runtime.create_plugin('demo', frontend_framework='vue3', dry_run=True)
+
+    assert payload['ok'] is True
+    assert payload['frontendFramework'] == 'vue2'
+    assert override['ok'] is True
+    assert override['frontendFramework'] == 'vue3'
+
+
+def test_backend_only_scaffold_does_not_require_frontend_framework(tmp_path: Path) -> None:
+    """校验仅后端模板不要求解析不存在的独立前端工程。"""
+    runtime = CliPluginRuntimeService(
+        runtime_environment=PluginRuntimeEnvironmentService(
+            backend_root=tmp_path / 'backend', frontend_root=tmp_path / 'missing-frontend'
+        )
+    )
+    payload = runtime.create_plugin('demo', frontend=False, dry_run=True)
+    assert payload['ok'] is True
+    assert payload['frontendFramework'] is None
+
+
+@pytest.mark.parametrize('framework', ['vue4', 'react', 'custom_ui-1'])
+def test_plugin_runtime_create_plugin_rejects_unsupported_frontend_template(tmp_path: Path, framework: str) -> None:
+    """校验合法但没有源码模板的框架会返回清晰错误且不写文件。"""
     backend_root = tmp_path / 'project' / 'api-server'
     backend_root.mkdir(parents=True)
 
-    payload = build_runtime(backend_root).create_plugin('demo', frontend_version='vue4', dry_run=True)
+    payload = build_runtime(backend_root).create_plugin('demo', frontend_framework=framework)
 
     assert payload['ok'] is False
-    assert 'frontend_version 仅支持 auto、vue2、vue3' in str(payload['error'])
+    assert f'暂不支持前端框架 {framework} 的源码模板' in str(payload['error'])
+    assert not (backend_root / 'plugins/demo').exists()
+
+
+def test_plugin_scaffold_selects_vue2_workspace_and_leaves_vue3_untouched(tmp_path: Path) -> None:
+    """校验显式选择 Vue 2 时，脚手架将页面与测试写入同一个 Vue 2 工程。"""
+    backend_root = tmp_path / 'ruoyi-fastapi-backend'
+    backend_root.mkdir()
+    container = tmp_path / 'ruoyi-fastapi-frontend'
+    write_frontend_package(container / 'vue2/web', {'vue': '^2.7.16'})
+    write_frontend_package(container / 'vue3/web', {'vue': '^3.5.26'})
+
+    payload = build_runtime(backend_root).create_plugin('demo', frontend_framework='vue2')
+
+    assert payload['ok'] is True
+    assert payload['frontendFramework'] == 'vue2'
+    assert (container / 'vue2/web/plugins/demo/views/index.vue').is_file()
+    assert (container / 'vue2/web/tests/plugins/demo/pluginView.test.js').is_file()
+    assert not (container / 'vue3/web/plugins/demo').exists()
 
 
 def test_plugin_runtime_create_plugin_writes_backend_and_frontend_files(tmp_path: Path) -> None:
@@ -196,8 +255,12 @@ def test_plugin_runtime_create_plugin_writes_backend_and_frontend_files(tmp_path
     assert (backend_root / 'plugins' / 'demo' / 'migrations' / '001_init.sql').is_file()
     assert (backend_root / 'plugins' / 'demo' / 'seeds' / '001_seed.sql').is_file()
     assert (backend_root / 'tests' / 'plugins' / 'demo' / 'test_ping.py').is_file()
-    assert (project_root / 'ruoyi-fastapi-frontend' / 'plugins' / 'demo' / 'views' / 'index.vue').is_file()
-    assert (project_root / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').is_file()
+    assert (
+        project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins' / 'demo' / 'views' / 'index.vue'
+    ).is_file()
+    assert (
+        project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js'
+    ).is_file()
 
 
 def test_plugin_runtime_create_plugin_generates_checkable_template(tmp_path: Path) -> None:
@@ -221,8 +284,12 @@ def test_plugin_runtime_create_plugin_generates_checkable_template(tmp_path: Pat
     assert (backend_root / 'plugins' / 'demo' / 'migrations' / '001_init.sql').is_file()
     assert (backend_root / 'plugins' / 'demo' / 'seeds' / '001_seed.sql').is_file()
     assert (backend_root / 'tests' / 'plugins' / 'demo' / 'test_ping.py').is_file()
-    assert (project_root / 'ruoyi-fastapi-frontend' / 'plugins' / 'demo' / 'views' / 'index.vue').is_file()
-    assert (project_root / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js').is_file()
+    assert (
+        project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins' / 'demo' / 'views' / 'index.vue'
+    ).is_file()
+    assert (
+        project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'tests' / 'plugins' / 'demo' / 'pluginView.test.js'
+    ).is_file()
 
 
 def test_plugin_runtime_create_plugin_supports_optional_scaffold_parts(tmp_path: Path) -> None:
@@ -245,7 +312,7 @@ def test_plugin_runtime_create_plugin_supports_optional_scaffold_parts(tmp_path:
 
     assert create_payload['ok'] is True
     assert create_payload['frontend'] is False
-    assert create_payload['frontendVersion'] is None
+    assert create_payload['frontendFramework'] is None
     assert create_payload['migration'] is False
     assert create_payload['seed'] is False
     assert create_payload['job'] is False
@@ -253,12 +320,12 @@ def test_plugin_runtime_create_plugin_supports_optional_scaffold_parts(tmp_path:
     assert create_payload['test'] is False
     assert check_payload['ok'] is True
     assert check_payload['checks'][0]['structureErrors'] == []
-    assert not (project_root / 'ruoyi-fastapi-frontend' / 'plugins' / 'demo').exists()
+    assert not (project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins' / 'demo').exists()
     assert not (backend_root / 'plugins' / 'demo' / 'jobs.py').exists()
     assert not (backend_root / 'plugins' / 'demo' / 'migrations' / '001_init.sql').exists()
     assert not (backend_root / 'plugins' / 'demo' / 'seeds' / '001_seed.sql').exists()
     assert not (backend_root / 'tests' / 'plugins' / 'demo' / 'test_ping.py').exists()
-    assert not (project_root / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo').exists()
+    assert not (project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'tests' / 'plugins' / 'demo').exists()
 
 
 def test_plugin_runtime_create_plugin_supports_minimal_template(tmp_path: Path) -> None:
@@ -275,14 +342,14 @@ def test_plugin_runtime_create_plugin_supports_minimal_template(tmp_path: Path) 
     assert create_payload['template'] == 'minimal'
     assert create_payload['backend'] is True
     assert create_payload['frontend'] is False
-    assert create_payload['frontendVersion'] is None
+    assert create_payload['frontendFramework'] is None
     assert create_payload['migration'] is False
     assert create_payload['seed'] is False
     assert create_payload['job'] is False
     assert create_payload['config'] is False
     assert create_payload['test'] is True
     assert check_payload['ok'] is True
-    assert not (project_root / 'ruoyi-fastapi-frontend' / 'plugins' / 'demo').exists()
+    assert not (project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins' / 'demo').exists()
     assert not (backend_root / 'plugins' / 'demo' / 'jobs.py').exists()
     assert (backend_root / 'tests' / 'plugins' / 'demo' / 'test_ping.py').is_file()
 
@@ -301,14 +368,14 @@ def test_plugin_runtime_create_plugin_supports_scheduled_job_template(tmp_path: 
     assert create_payload['template'] == 'scheduled-job'
     assert create_payload['backend'] is True
     assert create_payload['frontend'] is False
-    assert create_payload['frontendVersion'] is None
+    assert create_payload['frontendFramework'] is None
     assert create_payload['migration'] is False
     assert create_payload['seed'] is False
     assert create_payload['job'] is True
     assert create_payload['config'] is False
     assert check_payload['ok'] is True
     assert (backend_root / 'plugins' / 'demo' / 'jobs.py').is_file()
-    assert not (project_root / 'ruoyi-fastapi-frontend' / 'plugins' / 'demo').exists()
+    assert not (project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins' / 'demo').exists()
 
 
 def test_plugin_runtime_create_plugin_supports_crud_page_template(tmp_path: Path) -> None:
@@ -334,8 +401,10 @@ def test_plugin_runtime_create_plugin_supports_crud_page_template(tmp_path: Path
     assert (backend_root / 'tests' / 'plugins' / 'demo' / 'test_ping.py').read_text(encoding='utf-8').find(
         'service_crud_flow'
     ) > -1
-    assert (project_root / 'ruoyi-fastapi-frontend' / 'plugins' / 'demo' / 'api' / 'demo.js').is_file()
-    assert (project_root / 'ruoyi-fastapi-frontend' / 'plugins' / 'demo' / 'views' / 'index.vue').is_file()
+    assert (project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins' / 'demo' / 'api' / 'demo.js').is_file()
+    assert (
+        project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins' / 'demo' / 'views' / 'index.vue'
+    ).is_file()
 
 
 def test_plugin_runtime_create_plugin_rejects_existing_target_dir(tmp_path: Path) -> None:
@@ -366,7 +435,7 @@ def test_plugin_runtime_create_plugin_rejects_existing_frontend_test_dir(tmp_pat
     """校验插件模板创建会拒绝覆盖已存在前端测试目录。"""
     project_root = tmp_path / 'project'
     backend_root = project_root / 'ruoyi-fastapi-backend'
-    frontend_test_root = project_root / 'ruoyi-fastapi-frontend' / 'tests' / 'plugins' / 'demo'
+    frontend_test_root = project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'tests' / 'plugins' / 'demo'
     backend_root.mkdir(parents=True)
     frontend_test_root.mkdir(parents=True)
 

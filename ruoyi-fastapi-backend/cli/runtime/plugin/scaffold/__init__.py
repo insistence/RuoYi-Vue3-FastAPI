@@ -1,6 +1,6 @@
 from .backend import PluginBackendScaffoldTemplateBuilder
 from .builder import PluginScaffoldBuilder
-from .frontend import FrontendVersion, PluginFrontendScaffoldTemplateBuilder, PluginFrontendVersionResolver
+from .frontend import FrontendFramework, PluginFrontendFrameworkResolver, PluginFrontendScaffoldTemplateBuilder
 from .naming import PluginScaffoldNaming
 from .options import PluginScaffoldOptions, PluginScaffoldTemplateResolver
 from .payload import (
@@ -11,10 +11,10 @@ from .payload import (
 )
 
 __all__ = [
-    'FrontendVersion',
+    'FrontendFramework',
     'PluginBackendScaffoldTemplateBuilder',
+    'PluginFrontendFrameworkResolver',
     'PluginFrontendScaffoldTemplateBuilder',
-    'PluginFrontendVersionResolver',
     'PluginScaffoldBuilder',
     'PluginScaffoldConflictPayload',
     'PluginScaffoldNaming',

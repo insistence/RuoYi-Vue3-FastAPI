@@ -32,7 +32,7 @@ pytestmark = [
     pytest.mark.asyncio,
     pytest.mark.skipif(os.environ.get('RUOYI_PLUGIN_NETWORK_SMOKE') != '1', reason='显式启用插件网络验收'),
 ]
-FRONTEND = Path(__file__).resolve().parents[4] / 'ruoyi-fastapi-frontend'
+FRONTEND = Path(__file__).resolve().parents[4] / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
 PREFIX = '/gateway/apps/browser_test/'
 
 

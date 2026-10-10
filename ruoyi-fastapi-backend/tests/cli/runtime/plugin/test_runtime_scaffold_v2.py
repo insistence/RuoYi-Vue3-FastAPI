@@ -10,14 +10,16 @@ from types import SimpleNamespace
 
 import pytest
 
+from cli.runtime.plugin.service import CliPluginRuntimeService
 from plugins.core.discovery.scanner import PluginScanner
+from plugins.core.environment import PluginRuntimeEnvironmentService
 from plugins.core.manifest.schema import EXPLICIT_MANIFEST_VERSION
 from plugins.core.validation.structure import PluginStructureChecker
 
 from .conftest import build_runtime
 
 BACKEND_ROOT = Path(__file__).resolve().parents[4]
-FRONTEND_ROOT = BACKEND_ROOT.parent / 'ruoyi-fastapi-frontend'
+FRONTEND_ROOT = BACKEND_ROOT.parent / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
 PLUGIN_ID = 'invoice_ops_27'
 TEMPLATES = ('python-asgi', 'python-bundle', 'rust-asgi', 'rust-bundle')
 
@@ -87,7 +89,7 @@ def test_v2_templates_create_independent_projects_without_importing_or_installin
     assert plugin.manifest.id == PLUGIN_ID
     assert plugin.manifest.backend.asgi.mount_path == f'/apps/{PLUGIN_ID}'
     assert payload['sourceDir'] == source.as_posix()
-    assert payload['frontendVersion'] is None
+    assert payload['frontendFramework'] is None
     assert not (tmp_path / 'backend' / 'plugins').exists()
     assert f'plugins.{PLUGIN_ID}' not in sys.modules
     assert f'ruoyi_plugin_{PLUGIN_ID}' not in sys.modules
@@ -139,11 +141,46 @@ def test_bundle_templates_record_sdk_identity_and_source_hashes(tmp_path: Path, 
     assert sdk['bridgeVersion'] == 1
     assert sdk['capabilities'] == {'files': 1, 'streams': 1}
     assert sdk['hashAlgorithm'] == 'sha256-utf8-lf'
-    assert sdk['source'] == {'project': 'RuoYi-Vue3-FastAPI', 'directory': 'ruoyi-fastapi-frontend/src/utils'}
+    assert sdk['source'] == {'project': 'RuoYi-FastAPI', 'directory': 'ruoyi-fastapi-frontend/vue3/web/src/utils'}
     assert set(sdk['files']) == {'pluginBridge.js', 'pluginBridge.d.ts'}
     for name in ('pluginBridge.js', 'pluginBridge.d.ts'):
         content = (vendor / name).read_text(encoding='utf-8')
         assert sdk['files'][name] == hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
+def test_bundle_template_preserves_independent_host_framework_with_auto_option(tmp_path: Path) -> None:
+    """校验 v2 的 auto 选项沿用独立宿主框架生成 SDK 来源，而不触发显式选项限制。"""
+    frontend = tmp_path / 'independent-frontend'
+    source = frontend / 'src/utils'
+    source.mkdir(parents=True)
+    for name in ('pluginBridge.js', 'pluginBridge.d.ts', 'pluginBridge.sdk.json'):
+        (source / name).write_bytes((FRONTEND_ROOT / 'src/utils' / name).read_bytes())
+    runtime = CliPluginRuntimeService(
+        runtime_environment=PluginRuntimeEnvironmentService(
+            backend_root=tmp_path / 'backend', frontend_root=frontend, frontend_framework='custom_ui-1'
+        )
+    )
+
+    payload = runtime.create_plugin(PLUGIN_ID, template='python-bundle', dry_run=True)
+
+    assert payload['ok'] is True
+    assert payload['frontendFramework'] is None
+    metadata = next(item for item in payload['files'] if item['path'].endswith('/pluginBridge.sdk.json'))
+    assert json.loads(metadata['content'])['source']['directory'] == (
+        'ruoyi-fastapi-frontend/custom_ui-1/web/src/utils'
+    )
+
+
+def test_api_template_does_not_resolve_unknown_independent_host_framework(tmp_path: Path) -> None:
+    """校验仅 API 的 v2 模板不要求宿主前端文件或已知框架。"""
+    runtime = CliPluginRuntimeService(
+        runtime_environment=PluginRuntimeEnvironmentService(
+            backend_root=tmp_path / 'backend', frontend_root=tmp_path / 'missing-frontend'
+        )
+    )
+    payload = runtime.create_plugin(PLUGIN_ID, template='python-asgi', dry_run=True)
+    assert payload['ok'] is True
+    assert payload['frontendFramework'] is None
 
 
 def test_bundle_sdk_source_hashes_are_stable_across_crlf_checkout(tmp_path: Path) -> None:
@@ -153,6 +190,7 @@ def test_bundle_sdk_source_hashes_are_stable_across_crlf_checkout(tmp_path: Path
     frontend = tmp_path / 'frontend'
     sdk_source = frontend / 'src' / 'utils'
     sdk_source.mkdir(parents=True)
+    (frontend / 'package.json').write_text('{"dependencies":{"vue":"^3.5.26"}}', encoding='utf-8')
     for name in ('pluginBridge.js', 'pluginBridge.d.ts', 'pluginBridge.sdk.json'):
         content = (FRONTEND_ROOT / 'src' / 'utils' / name).read_text(encoding='utf-8')
         (sdk_source / name).write_bytes(content.replace('\n', '\r\n').encode('utf-8'))
@@ -256,7 +294,7 @@ def test_v2_python_templates_describe_explicit_release_files(tmp_path: Path, tem
     [
         ('python-asgi', {'backend': False}, '--frontend-only'),
         ('rust-bundle', {'frontend': False}, '--backend-only'),
-        ('python-bundle', {'frontend_version': 'vue2'}, '--frontend-version'),
+        ('python-bundle', {'frontend_framework': 'vue2'}, '--frontend-framework'),
     ],
 )
 def test_v2_templates_reject_incompatible_legacy_options(

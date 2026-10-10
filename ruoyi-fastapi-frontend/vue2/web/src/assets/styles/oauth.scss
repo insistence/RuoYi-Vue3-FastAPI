@@ -1,0 +1,182 @@
+// 认证中心共享颜色，独立于 Element Plus，沿用 Element UI 的默认主题。
+:root {
+  --oauth-color-primary: #409eff;
+  --oauth-color-success: #67c23a;
+  --oauth-color-warning: #e6a23c;
+  --oauth-color-danger: #f56c6c;
+  --oauth-color-warning-dark-2: #b88230;
+  --oauth-bg-color-page: #f5f7fa;
+  --oauth-bg-color-overlay: #ffffff;
+  --oauth-text-color-primary: #303133;
+  --oauth-text-color-regular: #606266;
+  --oauth-text-color-secondary: #909399;
+  --oauth-border-color: #dcdfe6;
+  --oauth-border-color-dark: #cdd0d6;
+  --oauth-border-color-light: #e4e7ed;
+  --oauth-border-color-lighter: #ebeef5;
+  --oauth-fill-color-dark: #ebedf0;
+  --oauth-fill-color-light: #f5f7fa;
+  --oauth-fill-color-lighter: #fafafa;
+  --oauth-border-radius-base: 4px;
+  --oauth-table-header-bg-color: var(--oauth-fill-color-light);
+  --oauth-color-primary-light-7: color-mix(
+    in srgb,
+    var(--oauth-color-primary) 30%,
+    var(--oauth-bg-color-overlay)
+  );
+  --oauth-color-primary-light-9: color-mix(
+    in srgb,
+    var(--oauth-color-primary) 10%,
+    var(--oauth-bg-color-overlay)
+  );
+  --oauth-color-success-light-7: color-mix(
+    in srgb,
+    var(--oauth-color-success) 30%,
+    var(--oauth-bg-color-overlay)
+  );
+  --oauth-color-success-light-9: color-mix(
+    in srgb,
+    var(--oauth-color-success) 10%,
+    var(--oauth-bg-color-overlay)
+  );
+  --oauth-color-warning-light-7: color-mix(
+    in srgb,
+    var(--oauth-color-warning) 30%,
+    var(--oauth-bg-color-overlay)
+  );
+  --oauth-color-warning-light-9: color-mix(
+    in srgb,
+    var(--oauth-color-warning) 10%,
+    var(--oauth-bg-color-overlay)
+  );
+  --oauth-color-danger-light-7: color-mix(
+    in srgb,
+    var(--oauth-color-danger) 30%,
+    var(--oauth-bg-color-overlay)
+  );
+  --oauth-color-danger-light-9: color-mix(
+    in srgb,
+    var(--oauth-color-danger) 10%,
+    var(--oauth-bg-color-overlay)
+  );
+}
+
+html.dark,
+html[data-theme='dark'] {
+  --oauth-bg-color-page: #141414;
+  --oauth-bg-color-overlay: #1d1e1f;
+  --oauth-text-color-primary: #e5eaf3;
+  --oauth-text-color-regular: #cfd3dc;
+  --oauth-text-color-secondary: #a3a6ad;
+  --oauth-border-color: #4c4d4f;
+  --oauth-border-color-dark: #58585b;
+  --oauth-border-color-light: #414243;
+  --oauth-border-color-lighter: #363637;
+  --oauth-fill-color-dark: #39393a;
+  --oauth-fill-color-light: #262727;
+  --oauth-fill-color-lighter: #202121;
+  --oauth-color-warning-dark-2: #eebe77;
+}
+
+.oauth-workspace,
+.oauth-overlay {
+  color: var(--oauth-text-color-regular);
+
+  .el-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+  }
+
+  .el-table th,
+  .el-table th.el-table__cell {
+    background: var(--oauth-table-header-bg-color);
+  }
+
+  .el-input__inner,
+  .el-textarea__inner,
+  .el-table,
+  .el-table tr,
+  .el-table__expanded-cell,
+  .el-descriptions__body {
+    color: var(--oauth-text-color-regular);
+    background-color: var(--oauth-bg-color-overlay);
+    border-color: var(--oauth-border-color);
+  }
+
+  .el-form-item__label,
+  .el-dialog__title,
+  .el-descriptions-item__label {
+    color: var(--oauth-text-color-regular);
+  }
+
+  .el-table td,
+  .el-table th.is-leaf,
+  .el-descriptions-item__cell {
+    border-color: var(--oauth-border-color-lighter);
+  }
+
+  .el-table--enable-row-hover .el-table__body tr:hover > td {
+    background-color: var(--oauth-fill-color-light);
+  }
+
+  .el-descriptions-item__label.is-bordered-label {
+    background: var(--oauth-fill-color-light);
+  }
+
+  .el-tabs__item {
+    color: var(--oauth-text-color-regular);
+  }
+
+  .el-tabs__item:hover,
+  .el-tabs__item.is-active {
+    color: var(--oauth-color-primary);
+  }
+
+  .el-tabs__nav-wrap::after {
+    background-color: var(--oauth-border-color-light);
+  }
+
+  .el-input .el-input__count-inner,
+  .el-textarea .el-input__count,
+  .el-button--default,
+  .el-input-number__increase,
+  .el-input-number__decrease {
+    color: var(--oauth-text-color-secondary);
+    background-color: var(--oauth-bg-color-overlay);
+    border-color: var(--oauth-border-color);
+  }
+
+  .el-radio.is-bordered {
+    border-color: var(--oauth-border-color);
+  }
+
+  .el-radio.is-bordered.is-checked {
+    border-color: var(--oauth-color-primary);
+  }
+
+  .oauth-button-danger {
+    color: var(--oauth-color-danger);
+  }
+  .oauth-button-warning {
+    color: var(--oauth-color-warning);
+  }
+  .oauth-button-success {
+    color: var(--oauth-color-success);
+  }
+}
+
+.oauth-overlay {
+  background: var(--oauth-bg-color-overlay);
+
+  &.el-drawer .el-drawer__body {
+    padding: 0 24px 24px;
+  }
+}
+
+@media (max-width: 640px) {
+  .oauth-overlay.el-drawer .el-drawer__body {
+    padding: 0 14px 14px;
+  }
+}

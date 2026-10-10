@@ -11,11 +11,19 @@ from uuid import uuid4
 
 import yaml
 
+from plugins.core.frontend import (
+    PluginFrontendFrameworkResolver,
+    resolve_frontend_framework_request,
+    select_frontend_root,
+    validate_frontend_framework,
+)
+
 SDK_FILES = ('pluginBridge.js', 'pluginBridge.d.ts')
 SDK_METADATA = 'pluginBridge.sdk.json'
 VENDOR_FILES = (*SDK_FILES, SDK_METADATA)
 HASH_ALGORITHM = 'sha256-utf8-lf'
-SDK_SOURCE = {'project': 'RuoYi-Vue3-FastAPI', 'directory': 'ruoyi-fastapi-frontend/src/utils'}
+SDK_PROJECT = 'RuoYi-FastAPI'
+SDK_SOURCE = {'project': SDK_PROJECT, 'directory': 'ruoyi-fastapi-frontend/vue3/web/src/utils'}
 METADATA_FIELDS = {'schemaVersion', 'sdkVersion', 'bridgeVersion', 'capabilities'}
 SCHEMA_VERSION = 1
 MANIFEST_VERSION = 2
@@ -24,14 +32,16 @@ MANIFEST_VERSION = 2
 class PluginBridgeSdk:
     """离线检查和更新独立 bundle 工程中的桥接 SDK 副本。"""
 
-    def __init__(self, frontend_root: Path) -> None:
+    def __init__(self, frontend_root: Path, frontend_framework: str = 'auto') -> None:
         """
         保存用于读取当前宿主 SDK 的前端目录，不初始化宿主运行环境。
 
-        :param frontend_root: 宿主前端工程根目录
+        :param frontend_root: 宿主前端工程根目录或包含框架分类的聚合目录
+        :param frontend_framework: SDK 来源宿主的框架标识，auto 表示自动识别
         :return: None
         """
-        self.frontend_root = Path(frontend_root)
+        self.frontend_root = select_frontend_root(frontend_root, frontend_framework)
+        self.frontend_framework = resolve_frontend_framework_request(self.frontend_root, frontend_framework)
 
     def build_vendor_files(self) -> dict[str, str]:
         """
@@ -48,9 +58,14 @@ class PluginBridgeSdk:
             contents[name] = self._text(path.read_bytes())
         metadata = self._metadata(contents[SDK_METADATA], vendor=False)
         self._validate_exports(contents, metadata)
+        self._safe_path(self.frontend_root / 'package.json')
+        frontend_framework = PluginFrontendFrameworkResolver.resolve(self.frontend_root, self.frontend_framework)
         metadata.update(
             hashAlgorithm=HASH_ALGORITHM,
-            source=dict(SDK_SOURCE),
+            source={
+                'project': SDK_PROJECT,
+                'directory': f'ruoyi-fastapi-frontend/{frontend_framework}/web/src/utils',
+            },
             files={name: self._hash(contents[name]) for name in SDK_FILES},
         )
         contents[SDK_METADATA] = json.dumps(metadata, ensure_ascii=False, indent=2) + '\n'
@@ -234,8 +249,9 @@ class PluginBridgeSdk:
             raise ValueError('桥接 SDK 的 capabilities 无效')
         if vendor:
             hashes = metadata['files']
-            if metadata['hashAlgorithm'] != HASH_ALGORITHM or metadata['source'] != SDK_SOURCE:
-                raise ValueError('桥接 SDK 的摘要算法或来源记录无效')
+            if metadata['hashAlgorithm'] != HASH_ALGORITHM:
+                raise ValueError('桥接 SDK 的摘要算法无效')
+            PluginBridgeSdk._validate_source(metadata['source'])
             if (
                 not isinstance(hashes, dict)
                 or set(hashes) != set(SDK_FILES)
@@ -245,6 +261,26 @@ class PluginBridgeSdk:
             ):
                 raise ValueError('桥接 SDK 文件摘要记录无效')
         return metadata
+
+    @staticmethod
+    def _validate_source(source: Any) -> None:
+        """
+        校验来源记录使用当前项目名和规范的框架工程路径。
+
+        :param source: SDK 副本中的来源记录
+        :return: None
+        """
+        if not isinstance(source, dict) or set(source) != {'project', 'directory'} or source['project'] != SDK_PROJECT:
+            raise ValueError('桥接 SDK 的来源记录无效')
+        directory = source['directory']
+        match = (
+            re.fullmatch(r'ruoyi-fastapi-frontend/([^/]+)/web/src/utils', directory)
+            if isinstance(directory, str)
+            else None
+        )
+        if match is None:
+            raise ValueError('桥接 SDK 的来源目录无效')
+        validate_frontend_framework(match.group(1))
 
     @staticmethod
     def _wire_versions(content: str) -> list[str]:

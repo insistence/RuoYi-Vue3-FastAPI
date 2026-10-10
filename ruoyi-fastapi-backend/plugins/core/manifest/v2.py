@@ -231,7 +231,7 @@ class PluginManifestV2(PluginManifest):
             raise ValueError('bundle 交付必须声明 frontend.bundle')
         if self.frontend.delivery.build_required:
             raise ValueError('bundle 不参与宿主构建，buildRequired 必须为 false')
-        if self.dependencies.npm or self.dependencies.npm_dev:
+        if self.dependencies.has_frontend_dependencies:
             raise ValueError('bundle 的 npm 构建依赖由插件独立管理，不能安装到宿主')
 
     def _validate_menu_components(self) -> None:

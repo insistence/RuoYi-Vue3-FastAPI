@@ -96,7 +96,7 @@ def test_bundle_does_not_request_host_build_or_npm() -> None:
     assert capability.frontend_runtime_manageable  # bundle 无需重建宿主前端。
     assert not capability.backend_runtime_manageable  # 保持生产变更门禁。
     invalid = deepcopy(payload)
-    invalid['dependencies'] = {'npm': ['vue>=3.0.0']}
+    invalid['dependencies'] = {'frontend': {'vue3': {'npm': ['vue>=3.0.0']}}}
     with pytest.raises(ValueError, match='独立管理'):
         PluginManifestFactory.create(invalid)
 

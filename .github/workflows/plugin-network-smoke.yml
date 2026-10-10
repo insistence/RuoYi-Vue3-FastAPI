@@ -14,7 +14,7 @@ on:
       - 'ruoyi-fastapi-backend/tests/**'
       - 'ruoyi-fastapi-backend/requirements.txt'
       - 'ruoyi-fastapi-backend/pyproject.toml'
-      - 'ruoyi-fastapi-frontend/**'
+      - 'ruoyi-fastapi-frontend/vue3/web/**'
       - '.github/workflows/plugin-network-smoke.yml'
   workflow_dispatch:
 
@@ -44,14 +44,14 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: ruoyi-fastapi-frontend/package.json
+          cache-dependency-path: ruoyi-fastapi-frontend/vue3/web/package.json
       - name: Install host and browser test dependencies
         run: python -m pip install -r requirements.txt pytest pytest-asyncio aiosqlite playwright
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
       - name: Install frontend dependencies
         # This repository does not commit npm lockfiles, so npm ci is not available.
-        run: npm --prefix ../ruoyi-fastapi-frontend install --no-audit --no-fund --package-lock=false
+        run: npm --prefix ../ruoyi-fastapi-frontend/vue3/web install --no-audit --no-fund --package-lock=false
       - name: Verify HTTPS proxy, iframe sessions and long connections
         run: python -m pytest tests/plugins/integration/test_network_smoke.py -v --junitxml=target/plugin-network-smoke/results.xml
       - name: Upload browser trace, screenshots and proxy log

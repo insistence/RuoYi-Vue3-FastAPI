@@ -88,6 +88,7 @@ class PluginRuntimeService:
         resolved_dependency_checker = dependency_checker or PluginDependencyChecker(
             npm_inspector=NpmDependencyInspector(frontend_root=resolved_environment.get_frontend_dir()),
             frontend_mode=resolved_environment.get_frontend_mode(),
+            runtime_environment=resolved_environment,
         )
         gateway_overrides = gateways or PluginRuntimeGatewayOverrides()
         self._replace_dependencies(
@@ -159,6 +160,7 @@ class PluginRuntimeService:
                     frontend_root=self.dependencies.runtime_environment.get_frontend_dir(),
                 ),
                 frontend_mode=self.dependencies.runtime_environment.get_frontend_mode(),
+                runtime_environment=self.dependencies.runtime_environment,
             )
         )
 

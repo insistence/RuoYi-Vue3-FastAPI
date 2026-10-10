@@ -1,6 +1,6 @@
 # 更新日志
 
-## RuoYi-Vue3-FastAPI v1.10.0
+## RuoYi-FastAPI v1.10.0
 
 ### 项目依赖
 
@@ -8,68 +8,68 @@
 
 ### 新增功能
 
-1. 新增ApiCache接口缓存装饰器和ApiCacheEvict接口缓存失效装饰器 ([#97](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/97))。
-2. 新增接口限流装饰器 ([#99](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/99))。
-3. 新增传输加密功能 ([#100](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/100))。
-4. 新增日志脱敏功能 ([#101](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/101))。
-5. 新增cli系统 ([#103](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/103))。
-6. 新增文件管理功能 ([#111](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/111))。
-7. 新增插件系统 ([#112](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/112))。
-8. 新增自动生成jwt密钥 ([#116](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/116))。
-9. 新增锁定屏幕功能 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-10. 字典类型列表新增抽屉效果详细信息 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-11. 添加持久化标签页开关功能 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-12. 支持表格列显隐状态记忆 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-13. 代码生成支持表单布局选项 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-14. 新增树分割组件TreePanel ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-15. 新增Excel导入组件ExcelImportDialog ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-16. 用户列表新增抽屉效果详细信息 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-17. 新增标签页样式chrome风格 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-18. 新增菜单路由地址和名称的校验规则 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-19. 首页新增通知公告消息提醒 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-20. 定时任务详情补充执行时间字段 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-21. 部门管理支持批量保存排序 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-22. 菜单管理支持批量保存排序 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-23. 菜单管理列表新增类型显示 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-24. 新增代码生成详情页功能 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-25. 通知公告新增详细显示 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-26. 通知公告新增阅读用户列表 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-27. 用户密码支持自定义配置规则 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
+1. 新增ApiCache接口缓存装饰器和ApiCacheEvict接口缓存失效装饰器 ([#97](https://github.com/insistence/RuoYi-FastAPI/pull/97))。
+2. 新增接口限流装饰器 ([#99](https://github.com/insistence/RuoYi-FastAPI/pull/99))。
+3. 新增传输加密功能 ([#100](https://github.com/insistence/RuoYi-FastAPI/pull/100))。
+4. 新增日志脱敏功能 ([#101](https://github.com/insistence/RuoYi-FastAPI/pull/101))。
+5. 新增cli系统 ([#103](https://github.com/insistence/RuoYi-FastAPI/pull/103))。
+6. 新增文件管理功能 ([#111](https://github.com/insistence/RuoYi-FastAPI/pull/111))。
+7. 新增插件系统 ([#112](https://github.com/insistence/RuoYi-FastAPI/pull/112))。
+8. 新增自动生成jwt密钥 ([#116](https://github.com/insistence/RuoYi-FastAPI/pull/116))。
+9. 新增锁定屏幕功能 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+10. 字典类型列表新增抽屉效果详细信息 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+11. 添加持久化标签页开关功能 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+12. 支持表格列显隐状态记忆 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+13. 代码生成支持表单布局选项 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+14. 新增树分割组件TreePanel ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+15. 新增Excel导入组件ExcelImportDialog ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+16. 用户列表新增抽屉效果详细信息 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+17. 新增标签页样式chrome风格 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+18. 新增菜单路由地址和名称的校验规则 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+19. 首页新增通知公告消息提醒 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+20. 定时任务详情补充执行时间字段 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+21. 部门管理支持批量保存排序 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+22. 菜单管理支持批量保存排序 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+23. 菜单管理列表新增类型显示 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+24. 新增代码生成详情页功能 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+25. 通知公告新增详细显示 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+26. 通知公告新增阅读用户列表 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+27. 用户密码支持自定义配置规则 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
 
 ### BUG修复
 
-1. 修复日志输出格式问题 ([#104](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/104))。
-2. 修复文件服务安全性问题 ([#111](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/111))。
-3. 修复windows下应用启动日志异常的问题 ([#113](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/113))。
-4. 修复tui卡顿的问题 ([#114](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/114))。
-5. 修复E2E测试失败的问题 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
+1. 修复日志输出格式问题 ([#104](https://github.com/insistence/RuoYi-FastAPI/pull/104))。
+2. 修复文件服务安全性问题 ([#111](https://github.com/insistence/RuoYi-FastAPI/pull/111))。
+3. 修复windows下应用启动日志异常的问题 ([#113](https://github.com/insistence/RuoYi-FastAPI/pull/113))。
+4. 修复tui卡顿的问题 ([#114](https://github.com/insistence/RuoYi-FastAPI/pull/114))。
+5. 修复E2E测试失败的问题 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
 
 ### 代码优化
 
-1. 补充演示模式限制路由 ([#115](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/115))。
-2. 优化字典类型属性提醒说明 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-3. 优化顶部导航更多菜单路由截取 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-4. 优化RightToolbar搜索栏切换动画 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-5. 优化操作日志详细页面 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-7. 优化页签功能&支持全屏按钮操作 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-8. 优化tag全屏为页签内区域 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-9. 菜单搜索支持文本高亮&数量提示 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-10. 优化页签显示 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-11. 优化菜单主题风格 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-12. 黑暗模式下全屏不需要设置背景 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-13. 暗黑浅色主题优化 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-14. 优化快速点击页签刷新出现404问题 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-15. 代码生成修改拖拽时显示手指样式 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-16. 优化登录页暗黑模式下样式 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-17. 优化白名单支持对通配符路径匹配 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-18. 优化定时任务详情页展示 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-19. 优化点击任务名称查看详细 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-20. 更换router4过期方法next ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-21. 优化暗黑模式下主题样式 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-22. 优化暗黑模式详情样式 ([#117](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/117))。
-23. 优化jwt解析异常处理机制 ([#118](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/118))。
+1. 补充演示模式限制路由 ([#115](https://github.com/insistence/RuoYi-FastAPI/pull/115))。
+2. 优化字典类型属性提醒说明 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+3. 优化顶部导航更多菜单路由截取 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+4. 优化RightToolbar搜索栏切换动画 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+5. 优化操作日志详细页面 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+7. 优化页签功能&支持全屏按钮操作 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+8. 优化tag全屏为页签内区域 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+9. 菜单搜索支持文本高亮&数量提示 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+10. 优化页签显示 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+11. 优化菜单主题风格 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+12. 黑暗模式下全屏不需要设置背景 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+13. 暗黑浅色主题优化 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+14. 优化快速点击页签刷新出现404问题 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+15. 代码生成修改拖拽时显示手指样式 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+16. 优化登录页暗黑模式下样式 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+17. 优化白名单支持对通配符路径匹配 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+18. 优化定时任务详情页展示 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+19. 优化点击任务名称查看详细 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+20. 更换router4过期方法next ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+21. 优化暗黑模式下主题样式 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+22. 优化暗黑模式详情样式 ([#117](https://github.com/insistence/RuoYi-FastAPI/pull/117))。
+23. 优化jwt解析异常处理机制 ([#118](https://github.com/insistence/RuoYi-FastAPI/pull/118))。
 
-## RuoYi-Vue3-FastAPI v1.9.0
+## RuoYi-FastAPI v1.9.0
 
 ### 项目依赖
 
@@ -77,52 +77,52 @@
 
 ### 新增功能
 
-1. 新增AI管理模块 ([#69](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/69))。
-2. 新增移动端模块 ([#73](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/73))。
-3. 新增多worker运行支持 ([#76](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/76))。
-4. 应用新增演示模式 ([#78](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/78))。
+1. 新增AI管理模块 ([#69](https://github.com/insistence/RuoYi-FastAPI/pull/69))。
+2. 新增移动端模块 ([#73](https://github.com/insistence/RuoYi-FastAPI/pull/73))。
+3. 新增多worker运行支持 ([#76](https://github.com/insistence/RuoYi-FastAPI/pull/76))。
+4. 应用新增演示模式 ([#78](https://github.com/insistence/RuoYi-FastAPI/pull/78))。
 
 ### BUG修复
 
-1. 修复代码生成controller模板删除接口query_db参数异常的问题 ([#63](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/63))。
-2. 修复登录接口response_model声明错误 ([#71](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/71))。
-3. 修复无法直接通过后端地址访问API文档的问题 ([#74](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/74))。
-4. 修复create_app重复执行的问题 ([#84](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/84))。
+1. 修复代码生成controller模板删除接口query_db参数异常的问题 ([#63](https://github.com/insistence/RuoYi-FastAPI/pull/63))。
+2. 修复登录接口response_model声明错误 ([#71](https://github.com/insistence/RuoYi-FastAPI/pull/71))。
+3. 修复无法直接通过后端地址访问API文档的问题 ([#74](https://github.com/insistence/RuoYi-FastAPI/pull/74))。
+4. 修复create_app重复执行的问题 ([#84](https://github.com/insistence/RuoYi-FastAPI/pull/84))。
 
 ### 代码重构
 
-1. 移除对python3.9的支持 ([#67](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/67))。
+1. 移除对python3.9的支持 ([#67](https://github.com/insistence/RuoYi-FastAPI/pull/67))。
 
 ### 代码优化
 
-1. 优化alembic处理表模型逻辑，避免无关表影响 ([#68](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/68))。
-2. 优化代码生成后端模板 ([#72](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/72))。
-3. 自动注册路由出错时抛出异常以便于调试 ([#79](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/79))。
+1. 优化alembic处理表模型逻辑，避免无关表影响 ([#68](https://github.com/insistence/RuoYi-FastAPI/pull/68))。
+2. 优化代码生成后端模板 ([#72](https://github.com/insistence/RuoYi-FastAPI/pull/72))。
+3. 自动注册路由出错时抛出异常以便于调试 ([#79](https://github.com/insistence/RuoYi-FastAPI/pull/79))。
 4. 优化部分页面字段tooltip说明 (#80)。
-5. 优化项目启动速度 ([#82](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/82))。
-6. 优化暗黑模式切换效果 ([#83](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/83))。
-7. 优化热重载模式或单worker下scheduler的任务状态同步机制 ([#85](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/85))。
-8. 优化防重提交间隔时间可自定义 ([#87](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/87))。
-9. 优化验证码计算结果为非负数 ([#88](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/88))。
-10. 优化ci测试稳定性 ([#90](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/90))。
+5. 优化项目启动速度 ([#82](https://github.com/insistence/RuoYi-FastAPI/pull/82))。
+6. 优化暗黑模式切换效果 ([#83](https://github.com/insistence/RuoYi-FastAPI/pull/83))。
+7. 优化热重载模式或单worker下scheduler的任务状态同步机制 ([#85](https://github.com/insistence/RuoYi-FastAPI/pull/85))。
+8. 优化防重提交间隔时间可自定义 ([#87](https://github.com/insistence/RuoYi-FastAPI/pull/87))。
+9. 优化验证码计算结果为非负数 ([#88](https://github.com/insistence/RuoYi-FastAPI/pull/88))。
+10. 优化ci测试稳定性 ([#90](https://github.com/insistence/RuoYi-FastAPI/pull/90))。
 
-## RuoYi-Vue3-FastAPI v1.8.1
+## RuoYi-FastAPI v1.8.1
 
 ### 新增功能
 
-1. 新增E2E测试 ([#57](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/57))。
+1. 新增E2E测试 ([#57](https://github.com/insistence/RuoYi-FastAPI/pull/57))。
 
 ### BUG修复
 
-1. 修复DictTag组件渲染异常的问题 ([#59](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/59))。
+1. 修复DictTag组件渲染异常的问题 ([#59](https://github.com/insistence/RuoYi-FastAPI/pull/59))。
 
 ### 代码优化
 
-1. 优化数据权限依赖 ([#55](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/55))。
-2. 动态导入定时任务函数，移除eval ([#56](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/56))。
-3. 优化pg版本的docker compose配置文件 ([#61](https://github.com/insistence/RuoYi-Vue3-FastAPI/pull/61))。
+1. 优化数据权限依赖 ([#55](https://github.com/insistence/RuoYi-FastAPI/pull/55))。
+2. 动态导入定时任务函数，移除eval ([#56](https://github.com/insistence/RuoYi-FastAPI/pull/56))。
+3. 优化pg版本的docker compose配置文件 ([#61](https://github.com/insistence/RuoYi-FastAPI/pull/61))。
 
-## RuoYi-Vue3-FastAPI v1.8.0
+## RuoYi-FastAPI v1.8.0
 
 ### 项目依赖
 
@@ -143,8 +143,8 @@
 
 ### BUG修复
 
-1. 修复单账号登录模式下强退功能失效的问题 [#52](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/52)。
-2. 确保ApschedulerJobs字段类型与apscheduler默认创建的表字段类型一致 [#53](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/53)。
+1. 修复单账号登录模式下强退功能失效的问题 [#52](https://github.com/insistence/RuoYi-FastAPI/issues/52)。
+2. 确保ApschedulerJobs字段类型与apscheduler默认创建的表字段类型一致 [#53](https://github.com/insistence/RuoYi-FastAPI/issues/53)。
 3. 修复磁盘存在异常时服务监控无法正常运行的问题。
 4. 移除代码生成表业务表外键，修复无法删除的问题。
 5. 修复固定头部时出现的导航栏偏移问题。
@@ -175,7 +175,7 @@
 14. 优化字典组件值宽松匹配。
 15. 默认固定头部。
 
-## RuoYi-Vue3-FastAPI v1.7.1
+## RuoYi-FastAPI v1.7.1
 
 ### 项目依赖
 
@@ -184,13 +184,13 @@
 ### BUG修复
 
 1. 修复代码生成controller模板编辑接口异常生成字段的问题。
-2. 移除passlib直接使用bcrypt修复密码校验异常的问题 [#48](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/48) [#49](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/49)。
+2. 移除passlib直接使用bcrypt修复密码校验异常的问题 [#48](https://github.com/insistence/RuoYi-FastAPI/issues/48) [#49](https://github.com/insistence/RuoYi-FastAPI/issues/49)。
 
 ### 代码优化
 
 1. 代码生成do模板补充表描述。
 
-## RuoYi-Vue3-FastAPI v1.7.0
+## RuoYi-FastAPI v1.7.0
 
 ### 项目依赖
 
@@ -221,7 +221,7 @@
 
 ### BUG修复
 
-1. 修复logout接口未按照app_same_time_login配置项动态判断的问题 [#IBZZ1S](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/IBZZ1S)。
+1. 修复logout接口未按照app_same_time_login配置项动态判断的问题 [#IBZZ1S](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/IBZZ1S)。
 2. 修复上传组件被多次引用拖动仅对第一个有效的问题。
 
 ### 代码优化
@@ -241,7 +241,7 @@
 2. 调整do与sql使其相互适配以支持alembic。
 3. 富文本复制粘贴图片上传至url。
 
-## RuoYi-Vue3-FastAPI v1.6.2
+## RuoYi-FastAPI v1.6.2
 
 ### 新增功能
 
@@ -250,20 +250,20 @@
 
 ### BUG修复
 
-1. 修复日志管理时间查询报错 [#27](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/27)。
-2. 修复定时任务状态暂停时执行单次任务会触发cron表达式的问题 [#31](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/31)。
+1. 修复日志管理时间查询报错 [#27](https://github.com/insistence/RuoYi-FastAPI/issues/27)。
+2. 修复定时任务状态暂停时执行单次任务会触发cron表达式的问题 [#31](https://github.com/insistence/RuoYi-FastAPI/issues/31)。
 3. 修复修改字典类型时获取dict_code异常的问题。
 4. 修复修改字典类型时字典数据更新时间异常的问题。
-5. 修复代码生成模板时间查询问题 [#28](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/28)。
+5. 修复代码生成模板时间查询问题 [#28](https://github.com/insistence/RuoYi-FastAPI/issues/28)。
 6. 修复用户导出缺失部门名称的问题。
 
 ### 代码优化
 
 1. 优化代码生成新增和编辑字段显示和渲染。
 2. pagination更换成flex布局。
-3. 优化代码生成vue模板 [#23](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/23)。
+3. 优化代码生成vue模板 [#23](https://github.com/insistence/RuoYi-FastAPI/issues/23)。
 
-## RuoYi-Vue3-FastAPI v1.6.1
+## RuoYi-FastAPI v1.6.1
 
 ### 项目依赖
 
@@ -282,7 +282,7 @@ pip install sqlglot[rs]==26.6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 3. 引入泛型修复as_query和as_form装饰模型文档丢失的问题。
 4. 修复代码生成主子表vo模板可能缺失NotBlank的问题。
 
-## RuoYi-Vue3-FastAPI v1.6.0
+## RuoYi-FastAPI v1.6.0
 
 ### 项目依赖
 
@@ -304,7 +304,7 @@ pip install sqlglot[rs]==26.6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 1. 修复默认关闭Tags-Views时，内链页面打不开。
 2. 修复删除当前登录用户拦截失效的问题。
 3. 修复定时任务目标字符串规则校验不全的问题。
-4. 修复执行单次任务时会覆盖已启用任务的问题 [#IBEKD2](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/IBEKD2)。
+4. 修复执行单次任务时会覆盖已启用任务的问题 [#IBEKD2](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/IBEKD2)。
 5. 修复个人中心特殊字符密码修改失败问题。
 
 ### 代码优化
@@ -317,7 +317,7 @@ pip install sqlglot[rs]==26.6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 6. 优化TopNav内链菜单点击没有高亮。
 7. ResponseUtil补充完整参数。
 
-## RuoYi-Vue3-FastAPI v1.5.1
+## RuoYi-FastAPI v1.5.1
 
 ### 新增功能
 
@@ -329,7 +329,7 @@ pip install sqlglot[rs]==26.6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 2. 校检文件名是否包含特殊字符。
 3. 移除已弃用的log_decorator装饰器。
 
-## RuoYi-Vue3-FastAPI v1.5.0
+## RuoYi-FastAPI v1.5.0
 
 ### 新增功能
 
@@ -337,7 +337,7 @@ pip install sqlglot[rs]==26.6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 ### BUG修复
 
-1. 修复DictTag组件控制台抛异常的问题 [#IAYSVZ](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/IAYSVZ)。
+1. 修复DictTag组件控制台抛异常的问题 [#IAYSVZ](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/IAYSVZ)。
 2. 修复登录日志导出文件名称错误的问题。
 
 ### 代码回滚
@@ -351,7 +351,7 @@ pip install sqlglot[rs]==26.6.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 3. 优化参数设置页面。
 4. 优化上传图片带域名时不增加前缀。
 
-## RuoYi-Vue3-FastAPI v1.4.0
+## RuoYi-FastAPI v1.4.0
 
 ### 项目依赖
 
@@ -375,7 +375,7 @@ pip install fastapi[all]==0.115.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 1. 优化前端登录请求方法。
 
-## RuoYi-Vue3-FastAPI v1.3.3
+## RuoYi-FastAPI v1.3.3
 
 ### 项目依赖
 
@@ -392,7 +392,7 @@ pip install fastapi[all]==0.115.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 1. 优化在线用户模块前后端字段描述一致。
 2. 日志装饰器异常处理增加logger打印日志。
 
-## RuoYi-Vue3-FastAPI v1.3.2
+## RuoYi-FastAPI v1.3.2
 
 ### 新增功能
 
@@ -400,14 +400,14 @@ pip install fastapi[all]==0.115.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 ### BUG修复
 
-1. 修复分页函数计算has_next错误的问题 [#10](https://github.com/insistence/RuoYi-Vue3-FastAPI/issues/10)。
+1. 修复分页函数计算has_next错误的问题 [#10](https://github.com/insistence/RuoYi-FastAPI/issues/10)。
 2. 修复定时任务监听函数中事件没有job_id报错的问题。
 
 ### 代码优化
 
 1. 优化添加中间件函数注释。
 
-## RuoYi-Vue3-FastAPI v1.3.1
+## RuoYi-FastAPI v1.3.1
 
 ### BUG修复
 
@@ -417,7 +417,7 @@ pip install fastapi[all]==0.115.0 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 1. 补充定时任务违规字符串。
 
-## RuoYi-Vue3-FastAPI v1.3.0
+## RuoYi-FastAPI v1.3.0
 
 ### 项目依赖
 
@@ -459,14 +459,14 @@ ALTER TABLE sys_menu ADD COLUMN route_name varchar(50) DEFAULT '';
 3. 各模块`vo`层使用`Field`声明字段。
 4. 优化API文档字段描述显示。
 
-## RuoYi-Vue3-FastAPI v1.2.2
+## RuoYi-FastAPI v1.2.2
 
 ### BUG修复
 
 1. 修复删除定时任务时未移除调度中任务的问题。
 2. 修复菜单生成路由时组件条件判断错误的问题。
 
-## RuoYi-Vue3-FastAPI v1.2.1
+## RuoYi-FastAPI v1.2.1
 
 ### BUG修复
 
@@ -477,7 +477,7 @@ ALTER TABLE sys_menu ADD COLUMN route_name varchar(50) DEFAULT '';
 
 1. 修改代理localhost为127.0.0.1以适配部分设备解析localhost异常的问题。
 
-## RuoYi-Vue3-FastAPI v1.2.0
+## RuoYi-FastAPI v1.2.0
 
 ### 重要说明
 
@@ -505,7 +505,7 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 1. 修复用户管理模块重置用户密码时会异常重置用户岗位和角色的问题。
 2. 修复清空定时任务日志异常的问题。
 
-## RuoYi-Vue3-FastAPI v1.1.3
+## RuoYi-FastAPI v1.1.3
 
 ### 新增功能
 
@@ -516,7 +516,7 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 1. 修复通知公告列表查询前后端字段不一致的问题。
 2. 修复个人中心修改基本资料后端异常的问题。
 
-## RuoYi-Vue3-FastAPI v1.1.2
+## RuoYi-FastAPI v1.1.2
 
 ### 新增功能
 
@@ -530,17 +530,17 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 
 1. 使用@lru_cache缓存ip归属区域查询结果，避免重复调用ip归属区域查询接口以优化性能。
 
-## RuoYi-Vue3-FastAPI v1.1.1
+## RuoYi-FastAPI v1.1.1
 
 ### BUG修复
 
-1. 修复编辑定时任务时更新的信息未同步至scheduler的问题 [#I9EK56](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I9EK56)。
-2. 修复编辑角色数据权限时后端异常的问题 [#I9ENQN](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I9ENQN)。
+1. 修复编辑定时任务时更新的信息未同步至scheduler的问题 [#I9EK56](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/I9EK56)。
+2. 修复编辑角色数据权限时后端异常的问题 [#I9ENQN](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/I9ENQN)。
 3. 修复菜单配置路由参数不生效的问题。
 4. 修复获取路由信息时菜单排序不生效的问题。
 5. 修复添加菜单时是否外链和是否缓存回显异常的问题。
 
-## RuoYi-Vue3-FastAPI v1.1.0
+## RuoYi-FastAPI v1.1.0
 
 ### 新增功能
 
@@ -550,10 +550,10 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 
 ### BUG修复
 
-1. 修复token本身过期时退出登录接口异常的问题 [#I9CBWT](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I9CBWT)。
-2. 修复系统版本号或浏览器版本号无法获取时登录异常的问题 [#I9CYNM](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I9CYNM)。
+1. 修复token本身过期时退出登录接口异常的问题 [#I9CBWT](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/I9CBWT)。
+2. 修复系统版本号或浏览器版本号无法获取时登录异常的问题 [#I9CYNM](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/I9CYNM)。
 
-## RuoYi-Vue3-FastAPI v1.0.3
+## RuoYi-FastAPI v1.0.3
 
 ### 新增功能
 
@@ -561,10 +561,10 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 
 ### BUG修复
 
-1. 修复外链菜单无法打开的问题 [#I95KBK](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I95KBK)。
-2. 修复添加和编辑菜单页面中是否缓存和是否外链字段回显异常的问题 [#I95KBK](https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/issues/I95KBK)。
+1. 修复外链菜单无法打开的问题 [#I95KBK](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/I95KBK)。
+2. 修复添加和编辑菜单页面中是否缓存和是否外链字段回显异常的问题 [#I95KBK](https://gitee.com/insistence2022/RuoYi-FastAPI/issues/I95KBK)。
 
-## RuoYi-Vue3-FastAPI v1.0.2
+## RuoYi-FastAPI v1.0.2
 
 ### 新增功能
 
@@ -579,7 +579,7 @@ pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple。
 
 1. 调整参数设置、部门管理、字典管理、定时任务、日志管理、角色管理、菜单管理模块部分接口权限标识。
 
-## RuoYi-Vue3-FastAPI v1.0.1
+## RuoYi-FastAPI v1.0.1
 
 ### 项目依赖
 
@@ -595,9 +595,9 @@ pip install fastapi[all]==0.109.1 -i https://mirrors.aliyun.com/pypi/simple/
 
 1. 日志管理模块新增字段排序查询。
 
-## RuoYi-Vue3-FastAPI v1.0.0
+## RuoYi-FastAPI v1.0.0
 
-RuoYi-Vue3-FastAPI第一个版本发布啦！
+RuoYi-FastAPI第一个版本发布啦！
 此版本功能如下：
 1. 用户管理：用户是系统操作者，该功能主要完成系统用户配置。
 2. 角色管理：角色菜单权限分配。

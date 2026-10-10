@@ -69,6 +69,13 @@ jobs:
 
   web-app:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        framework: [vue2, vue3]
+    env:
+      FRONTEND_FRAMEWORK: ${{ matrix.framework }}
+      NODE_OPTIONS: --openssl-legacy-provider
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
@@ -76,31 +83,37 @@ jobs:
           node-version: '22'
           cache: npm
           # Lockfiles are ignored by this repository; cache by the committed manifest.
-          cache-dependency-path: ruoyi-fastapi-frontend/package.json
+          cache-dependency-path: ruoyi-fastapi-frontend/${{ matrix.framework }}/web/package.json
       - uses: pnpm/action-setup@v5
+        if: matrix.framework == 'vue3'
         with:
-          package_json_file: ruoyi-fastapi-app/package.json
+          package_json_file: ruoyi-fastapi-frontend/${{ matrix.framework }}/mobile/package.json
       - name: Install Web dependencies
-        working-directory: ruoyi-fastapi-frontend
+        working-directory: ruoyi-fastapi-frontend/${{ matrix.framework }}/web
         run: npm install --no-package-lock
-      - name: Install App dependencies
-        working-directory: ruoyi-fastapi-app
+      - name: Install Vue 2 App dependencies
+        if: matrix.framework == 'vue2'
+        working-directory: ruoyi-fastapi-frontend/vue2/mobile
+        run: npx --yes yarn@1.22.22 install --non-interactive
+      - name: Install Vue 3 App dependencies
+        if: matrix.framework == 'vue3'
+        working-directory: ruoyi-fastapi-frontend/${{ matrix.framework }}/mobile
         run: pnpm install --no-frozen-lockfile
       - name: Run time contracts in three host timezones
-        run: node ruoyi-fastapi-test/time-contract/run-host-timezones.mjs
+        run: node ruoyi-fastapi-test/time-contract/run-host-timezones.mjs ${{ matrix.framework }}
       - name: Build Web targets
-        working-directory: ruoyi-fastapi-frontend
+        working-directory: ruoyi-fastapi-frontend/${{ matrix.framework }}/web
         run: |
           npm run build:prod
           npm run build:docker
       - name: Build App targets
-        working-directory: ruoyi-fastapi-app
+        working-directory: ruoyi-fastapi-frontend/${{ matrix.framework }}/mobile
         run: |
-          pnpm build:h5
-          pnpm build:mp-weixin
+          npm run build:h5
+          npm run build:mp-weixin
       - name: Validate all Compose configurations
         run: |
-          docker compose -f docker-compose.my.yml config --quiet
-          docker compose -f docker-compose.pg.yml config --quiet
-          docker compose -f ruoyi-fastapi-test/docker-compose.test.my.yml config --quiet
-          docker compose -f ruoyi-fastapi-test/docker-compose.test.pg.yml config --quiet
+          docker compose --env-file docker.env -f docker-compose.my.yml config --quiet
+          docker compose --env-file docker.env -f docker-compose.pg.yml config --quiet
+          docker compose --env-file ruoyi-fastapi-test/docker.env -f ruoyi-fastapi-test/docker-compose.test.my.yml config --quiet
+          docker compose --env-file ruoyi-fastapi-test/docker.env -f ruoyi-fastapi-test/docker-compose.test.pg.yml config --quiet

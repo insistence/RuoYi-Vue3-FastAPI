@@ -27,7 +27,7 @@ export default {
     alias: {
       '@ruoyi/plugin-bridge': fileURLToPath(
         new URL(
-          '../../../../../../ruoyi-fastapi-frontend/src/utils/pluginBridge.js',
+          '../../../../../../ruoyi-fastapi-frontend/vue3/web/src/utils/pluginBridge.js',
           import.meta.url
         )
       ),

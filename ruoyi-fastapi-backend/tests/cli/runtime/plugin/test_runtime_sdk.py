@@ -26,6 +26,7 @@ def write_source(
     """
     directory = frontend / 'src' / 'utils'
     directory.mkdir(parents=True, exist_ok=True)
+    (frontend / 'package.json').write_text('{"dependencies":{"vue":"^3.5.26"}}', encoding='utf-8')
     (directory / SDK_FILES[0]).write_text(
         f"export const PLUGIN_BRIDGE_SDK_VERSION = '{version}'\nexport const PLUGIN_BRIDGE_VERSION = {wire}\n",
         encoding='utf-8',
@@ -119,6 +120,56 @@ def test_build_vendor_records_normalized_hashes_and_versions(tmp_path: Path) -> 
         path = project / 'web' / 'vendor' / name
         path.write_bytes(path.read_bytes().replace(b'\n', b'\r\n'))
     assert sdk.check(project)['status'] == 'current'
+
+
+@pytest.mark.parametrize('frontend_framework', ['vue2', 'vue3', 'react', 'custom_ui-1'])
+def test_sdk_workspace_records_selected_source(tmp_path: Path, frontend_framework: str) -> None:
+    """校验 SDK 来源记录使用当前项目名及所选的 Web 工程。"""
+    sdk = write_source(tmp_path / 'ruoyi-fastapi-frontend' / frontend_framework / 'web')
+    metadata = json.loads(sdk.build_vendor_files()[SDK_METADATA])
+    assert metadata['source'] == {
+        'project': 'RuoYi-FastAPI',
+        'directory': f'ruoyi-fastapi-frontend/{frontend_framework}/web/src/utils',
+    }
+    project = write_project(tmp_path / 'project', sdk)
+    assert sdk.check(project)['status'] == 'current'
+
+
+def test_sdk_preserves_independent_host_framework_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """校验离线 SDK 在独立工程中保留环境框架提示，标准目录保留自身身份。"""
+    monkeypatch.setenv('RUOYI_PLUGIN_FRONTEND_FRAMEWORK', 'custom_ui-1')
+    sdk = write_source(tmp_path / 'independent-frontend')
+    metadata = json.loads(sdk.build_vendor_files()[SDK_METADATA])
+    assert metadata['source']['directory'] == 'ruoyi-fastapi-frontend/custom_ui-1/web/src/utils'
+    standard_sdk = write_source(tmp_path / 'ruoyi-fastapi-frontend/react/web')
+    standard_metadata = json.loads(standard_sdk.build_vendor_files()[SDK_METADATA])
+    assert standard_metadata['source']['directory'] == 'ruoyi-fastapi-frontend/react/web/src/utils'
+
+
+@pytest.mark.parametrize(
+    'source',
+    [
+        {'project': 'RuoYi-Vue3-FastAPI', 'directory': 'ruoyi-fastapi-frontend/vue3/web/src/utils'},
+        {'project': 'RuoYi-FastAPI', 'directory': 'ruoyi-fastapi-frontend/../web/src/utils'},
+        {'project': 'RuoYi-FastAPI', 'directory': 'ruoyi-fastapi-frontend/auto/web/src/utils'},
+        {'project': 'RuoYi-FastAPI', 'directory': 'ruoyi-fastapi-frontend/React/web/src/utils'},
+        {'project': 'RuoYi-FastAPI', 'directory': 'ruoyi-fastapi-frontend/react\\outside/web/src/utils'},
+        {'project': 'RuoYi-FastAPI', 'directory': 'ruoyi-fastapi-frontend/react/web/src/utils/extra'},
+    ],
+)
+def test_sdk_rejects_invalid_vendor_source(tmp_path: Path, source: dict[str, str]) -> None:
+    """校验旧项目名和非规范框架目录不能作为有效 SDK 来源。"""
+    sdk = write_source(tmp_path / 'frontend')
+    project = write_project(tmp_path / 'project', sdk)
+    metadata_path = project / 'web/vendor' / SDK_METADATA
+    metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+    metadata['source'] = source
+    metadata_path.write_text(json.dumps(metadata), encoding='utf-8')
+
+    report = sdk.check(project)
+
+    assert not report['ok']
+    assert report['status'] == 'invalid'
 
 
 @pytest.mark.parametrize('target', ['pluginBridge.js', 'pluginBridge.d.ts', 'pluginBridge.sdk.json'])

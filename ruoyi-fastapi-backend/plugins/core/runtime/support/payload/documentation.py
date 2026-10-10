@@ -174,28 +174,26 @@ class PluginDocumentationBuilder:
     @staticmethod
     def _build_dependency_section(discovered_plugin: DiscoveredPlugin) -> list[str]:
         """
-        构建依赖文档段落。
+        构建依赖文档段落，按前端框架分别展示依赖分类。
 
         :param discovered_plugin: 已发现插件
         :return: Markdown 行列表
         """
         dependencies = discovered_plugin.manifest.dependencies
         lines = ['## 依赖', '']
-        if not dependencies.python and not dependencies.npm and not dependencies.npm_dev and not dependencies.plugins:
+        if not dependencies.python and not dependencies.has_frontend_dependencies and not dependencies.plugins:
             return [*lines, '无依赖声明。', '']
 
         lines.append('### Python')
         lines.extend(f'- `{item}`' for item in dependencies.python)
         if not dependencies.python:
             lines.append('- 无')
-        lines.extend(['', '### NPM'])
-        lines.extend(f'- `{item}`' for item in dependencies.npm)
-        if not dependencies.npm:
-            lines.append('- 无')
-        lines.extend(['', '### NPM 开发依赖'])
-        lines.extend(f'- `{item}`' for item in dependencies.npm_dev)
-        if not dependencies.npm_dev:
-            lines.append('- 无')
+        for framework, profile in dependencies.frontend.items():
+            lines.extend(['', f'### {framework} 宿主依赖'])
+            lines.extend(f'- npm: `{item}`' for item in profile.npm)
+            lines.extend(f'- npmDev: `{item}`' for item in profile.npm_dev)
+            if not profile.npm and not profile.npm_dev:
+                lines.append('- 无')
         lines.extend(['', '### 插件'])
         lines.extend(
             f'- `{item.id}` {item.version or ""} {item.description or ""}'.rstrip() for item in dependencies.plugins

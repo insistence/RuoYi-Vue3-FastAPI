@@ -95,8 +95,7 @@ permissions:
 
 dependencies:
   python: []
-  npm: []
-  npmDev: []
+  frontend: {{}}
   plugins: []
 {config}
 """

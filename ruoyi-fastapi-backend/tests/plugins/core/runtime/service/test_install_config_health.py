@@ -679,16 +679,20 @@ backend:
 dependencies:
   python:
     - missing-python
-  npm:
-    - missing-npm>=1.2.3
-  npmDev:
-    - missing-dev-npm==4.5.6
+  frontend:
+    vue3:
+      npm:
+        - missing-npm>=1.2.3
+      npmDev:
+        - missing-dev-npm==4.5.6
 """,
     )
     create_controller_dir(plugin_root)
     frontend_root = Path(PluginRuntimeEnvironmentService(backend_root=backend_root).get_frontend_dir())
-    frontend_root.mkdir()
-    (frontend_root / 'package.json').write_text('{"dependencies": {}, "devDependencies": {}}\n', encoding='utf-8')
+    frontend_root.mkdir(parents=True)
+    (frontend_root / 'package.json').write_text(
+        '{"dependencies": {"vue": "^3.5.26"}, "devDependencies": {}}\n', encoding='utf-8'
+    )
     gateway = FakePluginRuntimeGateway()
     expected_plan_count = 3
     runtime = build_runtime_with_gateway(backend_root, gateway)
@@ -712,7 +716,7 @@ dependencies:
     ]
     assert gateway.commands == []
     package_json = json.loads((frontend_root / 'package.json').read_text(encoding='utf-8'))
-    assert package_json['dependencies'] == {}
+    assert package_json['dependencies'] == {'vue': '^3.5.26'}
     assert package_json['devDependencies'] == {}
     assert FakePluginService.upsert_called is False
     assert FakePluginService.mark_installed_called is False

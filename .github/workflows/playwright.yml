@@ -43,15 +43,15 @@ jobs:
       - name: Start services with docker-compose
         run: |
           cd ruoyi-fastapi-test
-          docker compose -f docker-compose.test.my.yml up -d --build
+          docker compose --env-file docker.env -f docker-compose.test.my.yml up -d --build
 
       - name: Wait for services to be ready
         run: |
           cd ruoyi-fastapi-test
           # Wait for backend to be running
-          timeout 180 bash -c 'until docker compose -f docker-compose.test.my.yml ps ruoyi-backend-my | grep -q "Up"; do sleep 5; done'
+          timeout 180 bash -c 'until docker compose --env-file docker.env -f docker-compose.test.my.yml ps ruoyi-backend-my | grep -q "Up"; do sleep 5; done'
           # Wait for frontend to be running
-          timeout 120 bash -c 'until docker compose -f docker-compose.test.my.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
+          timeout 120 bash -c 'until docker compose --env-file docker.env -f docker-compose.test.my.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
           # Additional wait for services to be fully ready and listening on ports
           sleep 30
           # Check that backend is actually responding on the API endpoint
@@ -82,7 +82,7 @@ jobs:
         if: always()
         run: |
           cd ruoyi-fastapi-test
-          docker compose -f docker-compose.test.my.yml down
+          docker compose --env-file docker.env -f docker-compose.test.my.yml down
 
       - name: Restore original Dockerfile.my
         if: always()
@@ -126,15 +126,15 @@ jobs:
       - name: Start services with docker-compose
         run: |
           cd ruoyi-fastapi-test
-          docker compose -f docker-compose.test.pg.yml up -d --build
+          docker compose --env-file docker.env -f docker-compose.test.pg.yml up -d --build
 
       - name: Wait for services to be ready
         run: |
           cd ruoyi-fastapi-test
           # Wait for backend to be running
-          timeout 180 bash -c 'until docker compose -f docker-compose.test.pg.yml ps ruoyi-backend-pg | grep -q "Up"; do sleep 5; done'
+          timeout 180 bash -c 'until docker compose --env-file docker.env -f docker-compose.test.pg.yml ps ruoyi-backend-pg | grep -q "Up"; do sleep 5; done'
           # Wait for frontend to be running
-          timeout 120 bash -c 'until docker compose -f docker-compose.test.pg.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
+          timeout 120 bash -c 'until docker compose --env-file docker.env -f docker-compose.test.pg.yml ps ruoyi-frontend | grep -q "Up"; do sleep 5; done'
           # Additional wait for services to be fully ready and listening on ports
           sleep 30
           # Check that backend is actually responding on the API endpoint
@@ -165,7 +165,7 @@ jobs:
         if: always()
         run: |
           cd ruoyi-fastapi-test
-          docker compose -f docker-compose.test.pg.yml down
+          docker compose --env-file docker.env -f docker-compose.test.pg.yml down
 
       - name: Restore original Dockerfile.pg
         if: always()

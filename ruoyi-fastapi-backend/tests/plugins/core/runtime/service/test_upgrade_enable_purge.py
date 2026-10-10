@@ -663,7 +663,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
 """,
     )
     create_controller_dir(plugin_root)
@@ -698,7 +698,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
 """,
     )
     create_controller_dir(plugin_root)
@@ -734,7 +734,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
 """,
     )
     create_controller_dir(plugin_root)
@@ -847,7 +847,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
 """,
     )
     write_manifest(
@@ -862,7 +862,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
   plugins:
     - base
 """,
@@ -902,7 +902,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
 """,
     )
     write_manifest(
@@ -917,7 +917,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
   plugins:
     - base
 """,
@@ -957,7 +957,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
 """,
     )
     create_controller_dir(plugin_root)
@@ -990,7 +990,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
   plugins:
     - missing
 """,
@@ -1020,7 +1020,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
   plugins:
     - base
 """,
@@ -1053,7 +1053,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
   plugins:
     - base
 """,
@@ -1144,7 +1144,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
 """,
     )
     create_controller_dir(plugin_root)
@@ -1175,7 +1175,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
 """,
     )
     write_manifest(
@@ -1190,7 +1190,7 @@ frontend:
   menus: []
 dependencies:
   python: []
-  npm: []
+  frontend: {}
   plugins:
     - base
 """,

@@ -1,0 +1,12 @@
+const isH5 = process.env.UNI_PLATFORM === "h5";
+const isApp = process.env.UNI_PLATFORM === "app-plus";
+
+const WeappTailwindcssDisabled = isH5 || isApp;
+const isMp = !isH5 && !isApp;
+
+module.exports = {
+  isH5,
+  isApp,
+  isMp,
+  WeappTailwindcssDisabled,
+};
