@@ -45,6 +45,7 @@ def run_builder(source: Path, output: Path) -> subprocess.CompletedProcess[str]:
         text=True,
         encoding='utf-8',
         check=False,
+        timeout=60,
     )
 
 
@@ -365,6 +366,7 @@ def test_generated_python_release_passes_structure_and_generated_contract_tests(
         text=True,
         encoding='utf-8',
         check=False,
+        timeout=120,
     )
     assert tested.returncode == 0, tested.stdout + tested.stderr
     again = run_builder(source, output)

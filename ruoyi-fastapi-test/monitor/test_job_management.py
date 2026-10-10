@@ -6,10 +6,13 @@ from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
-from playwright.async_api import Locator, async_playwright, expect
+from playwright.async_api import Locator, expect
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class JobManagementTest(BasePageTest):
@@ -186,15 +189,11 @@ class JobManagementTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_job_management_page() -> None:
+async def test_job_management_page(browser_harness: BrowserHarness) -> None:
     """测试定时任务管理页面功能。"""
-    async with async_playwright() as playwright:
-        test_instance = JobManagementTest()
-        await test_instance.setup(playwright)
-        try:
-            await test_instance.test_job_crud_operations()
-        finally:
-            try:
-                await test_instance.cleanup_job()
-            finally:
-                await test_instance.teardown()
+    test_instance = JobManagementTest()
+    await test_instance.setup(browser_harness)
+    try:
+        await test_instance.test_job_crud_operations()
+    finally:
+        await test_instance.cleanup_job()

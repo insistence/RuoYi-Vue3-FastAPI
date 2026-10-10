@@ -1,119 +1,28 @@
 import pytest
-from playwright.async_api import async_playwright
+from playwright.async_api import expect
 
-from common.config import Config
-from common.login_helper import LoginHelper
+from common.browser_harness import BrowserHarness
 
-
-@pytest.mark.asyncio
-async def test_dashboard_page() -> None:
-    """测试仪表盘页面"""
-    # 首先登录获取token
-    helper = LoginHelper()
-    token = helper.login(username='admin', password='admin123')
-    assert token is not None, '登录应该成功'
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
-        context = await browser.new_context()
-        # 设置认证token
-        await context.add_cookies(
-            [
-                {
-                    'name': 'Admin-Token',
-                    'value': token,
-                    'domain': 'localhost',
-                    'path': '/',
-                    'httpOnly': False,
-                    'secure': False,
-                }
-            ]
-        )
-        page = await context.new_page()
-
-        # 访问仪表盘页面
-        await page.goto(Config.frontend_url + '/index')
-
-        # 检查页面是否包含仪表盘相关元素
-        await page.wait_for_selector('div:has-text("首页")', timeout=10000)
-        title = await page.inner_text('div:has-text("首页")')
-        assert '首页' in title
-
-        await context.close()
-        await browser.close()
+pytestmark = [pytest.mark.e2e, pytest.mark.smoke]
 
 
-@pytest.mark.asyncio
-async def test_druid_page() -> None:
-    """测试数据监控页面"""
-    # 首先登录获取token
-    helper = LoginHelper()
-    token = helper.login(username='admin', password='admin123')
-    assert token is not None, '登录应该成功'
-
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
-        context = await browser.new_context()
-        # 设置认证token
-        await context.add_cookies(
-            [
-                {
-                    'name': 'Admin-Token',
-                    'value': token,
-                    'domain': 'localhost',
-                    'path': '/',
-                    'httpOnly': False,
-                    'secure': False,
-                }
-            ]
-        )
-        page = await context.new_page()
-
-        # 访问数据库监控页面
-        await page.goto(Config.frontend_url + '/monitor/druid')
-
-        # 检查页面是否包含缓存监控相关元素
-        await page.wait_for_selector('div:has-text("数据监控")', timeout=10000)
-        title = await page.inner_text('div:has-text("数据监控")')
-        assert '数据监控' in title
-
-        await context.close()
-        await browser.close()
+async def test_dashboard_page(browser_harness: BrowserHarness) -> None:
+    """验证首页组件渲染完成。"""
+    page = await browser_harness.new_page(authenticated=True)
+    await page.goto('/index')
+    await expect(page.locator('.app-main')).to_be_visible()
+    await expect(page.locator('.tags-view-item.active')).to_contain_text('首页')
 
 
-@pytest.mark.asyncio
-async def test_build_page() -> None:
-    """测试表单构建页面"""
-    # 首先登录获取token
-    helper = LoginHelper()
-    token = helper.login(username='admin', password='admin123')
-    assert token is not None, '登录应该成功'
+async def test_druid_page(browser_harness: BrowserHarness) -> None:
+    """验证数据监控页面主体。"""
+    page = await browser_harness.new_page(authenticated=True)
+    await page.goto('/monitor/druid')
+    await expect(page.locator('.app-main')).to_contain_text('我是数据监控')
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True, channel=Config.browser_channel)
-        context = await browser.new_context()
-        # 设置认证token
-        await context.add_cookies(
-            [
-                {
-                    'name': 'Admin-Token',
-                    'value': token,
-                    'domain': 'localhost',
-                    'path': '/',
-                    'httpOnly': False,
-                    'secure': False,
-                }
-            ]
-        )
-        page = await context.new_page()
 
-        # 访问数据库监控页面
-        await page.goto(Config.frontend_url + '/tool/build')
-
-        # 检查页面是否包含缓存监控相关元素
-        await page.wait_for_selector('div:has-text("Form Generator")', timeout=10000)
-        title = await page.inner_text('div:has-text("Form Generator")')
-        assert '表单构建' in title
-
-        await context.close()
-        await browser.close()
+async def test_build_page(browser_harness: BrowserHarness) -> None:
+    """验证表单构建器主体，而非仅匹配菜单标题。"""
+    page = await browser_harness.new_page(authenticated=True)
+    await page.goto('/tool/build')
+    await expect(page.locator('.app-main')).to_contain_text('Form Generator')

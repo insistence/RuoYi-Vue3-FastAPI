@@ -11,6 +11,7 @@ from typer.testing import CliRunner
 from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, SUCCESS
 from cli.groups.plugin.commands.sdk import register_sdk_commands
 
+pytestmark = pytest.mark.contract
 BACKEND = Path(__file__).resolve().parents[3]
 FRONTEND = BACKEND.parent / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
 
@@ -27,26 +28,14 @@ def sdk_app() -> typer.Typer:
 
 
 @pytest.fixture
-def project(tmp_path: Path) -> Path:
+def project(untracked_bundle_project: Path) -> Path:
     """
     创建未跟踪 SDK 的旧 bundle 工程，避免读取业务插件。
 
-    :param tmp_path: 隔离测试目录
+    :param untracked_bundle_project: 共用的隔离 bundle 工程
     :return: 工程根目录
     """
-    root = tmp_path / 'example'
-    vendor = root / 'web' / 'vendor'
-    vendor.mkdir(parents=True)
-    (root / 'plugin.yaml').write_text(
-        'manifestVersion: 2\nid: example\nname: Example\nversion: 1.0.0\n'
-        'backend:\n  module: plugins.example\n  entrypoint: plugins.example:create_plugin\n  integration: asgi\n'
-        'frontend:\n  delivery:\n    type: bundle\n',
-        encoding='utf-8',
-    )
-    (root / '__init__.py').write_text('raise RuntimeError("must never import this project")\n', encoding='utf-8')
-    for name in ('pluginBridge.js', 'pluginBridge.d.ts'):
-        (vendor / name).write_text('old untracked SDK\n', encoding='utf-8')
-    return root
+    return untracked_bundle_project
 
 
 def invoke_sdk(operation: str, project: Path, *options: str) -> tuple[int, dict]:

@@ -8,6 +8,8 @@ from cli.exit_codes import ARGUMENT_ERROR, SUCCESS
 from cli.groups.plugin.commands.developer import register_developer_commands
 from cli.groups.plugin.options import PluginCreateCommandOptions
 
+pytestmark = pytest.mark.contract
+
 
 @pytest.mark.parametrize('template', ['python-asgi', 'python-bundle', 'rust-asgi', 'rust-bundle'])
 def test_create_cli_forwards_v2_template_without_changing_default_options(template: str) -> None:

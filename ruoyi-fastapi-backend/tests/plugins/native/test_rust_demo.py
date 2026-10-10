@@ -35,7 +35,10 @@ from plugins.core.sdk.version import HOST_API_VERSION
 from plugins.core.validation.structure import PluginStructureChecker
 
 PLUGIN_DIRECTORY = os.environ.get('RUOYI_NATIVE_PLUGIN_DIR')
-pytestmark = pytest.mark.skipif(not PLUGIN_DIRECTORY, reason='需先构建 Rust wheel 并设置 RUOYI_NATIVE_PLUGIN_DIR')
+pytestmark = [
+    pytest.mark.native,
+    pytest.mark.skipif(not PLUGIN_DIRECTORY, reason='需先构建 Rust wheel 并设置 RUOYI_NATIVE_PLUGIN_DIR'),
+]
 
 
 @pytest.fixture(scope='module')

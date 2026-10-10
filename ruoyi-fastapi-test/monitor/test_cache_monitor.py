@@ -1,8 +1,10 @@
 import pytest
-from playwright.async_api import async_playwright
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class CacheMonitorTest(BasePageTest):
@@ -37,12 +39,8 @@ class CacheMonitorTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_cache_monitor_page() -> None:
+async def test_cache_monitor_page(browser_harness: BrowserHarness) -> None:
     """测试缓存监控页面功能"""
-    async with async_playwright() as p:
-        test_instance = CacheMonitorTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_cache_monitor()
-        finally:
-            await test_instance.teardown()
+    test_instance = CacheMonitorTest()
+    await test_instance.setup(browser_harness)
+    await test_instance.test_cache_monitor()

@@ -4,7 +4,10 @@
   "type": "module",
   "packageManager": "pnpm@10.28.1",
   "scripts": {
-    "test:time": "node --test tests/time*.test.js",
+    "test:time": "npm run test:contract",
+    "test:unit": "node --experimental-vm-modules --test tests/behavior.test.mjs",
+    "test:contract": "node --test tests/time*.test.js",
+    "test": "npm run test:unit && npm run test:contract",
     "dev": "uni -p mp-weixin",
     "build": "npm run build:mp-weixin",
     "dev:app": "uni -p app",

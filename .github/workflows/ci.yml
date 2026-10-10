@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+  schedule:
+    - cron: '21 18 * * *'
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run the full compatibility and end-to-end matrix
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  plan:
+    name: Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.plan.outputs.backend }}
+      frontend: ${{ steps.plan.outputs.frontend }}
+      integration: ${{ steps.plan.outputs.integration }}
+      e2e: ${{ steps.plan.outputs.e2e }}
+      native: ${{ steps.plan.outputs.native }}
+      full: ${{ steps.plan.outputs.full }}
+      frontend_matrix: ${{ steps.plan.outputs.frontend_matrix }}
+      e2e_matrix: ${{ steps.plan.outputs.e2e_matrix }}
+      network_frameworks: ${{ steps.plan.outputs.network_frameworks }}
+      database: ${{ steps.plan.outputs.database }}
+      release: ${{ steps.plan.outputs.release }}
+      plan_json: ${{ steps.plan.outputs.plan_json }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: plan
+        run: python .github/scripts/ci_plan.py plan
+
+  quality:
+    name: Quality
+    needs: plan
+    uses: ./.github/workflows/ci-quality.yml
+
+  backend:
+    name: Backend
+    needs: plan
+    if: needs.plan.outputs.backend == 'true'
+    uses: ./.github/workflows/ci-backend.yml
+
+  frontend:
+    name: Frontend
+    needs: plan
+    if: needs.plan.outputs.frontend == 'true'
+    uses: ./.github/workflows/ci-frontend.yml
+    with:
+      matrix_json: ${{ needs.plan.outputs.frontend_matrix }}
+      full: ${{ needs.plan.outputs.full == 'true' }}
+
+  integration:
+    name: Integration
+    needs: plan
+    if: needs.plan.outputs.integration == 'true'
+    uses: ./.github/workflows/ci-integration.yml
+    with:
+      database: ${{ needs.plan.outputs.database == 'true' }}
+      release: ${{ needs.plan.outputs.release == 'true' }}
+      network_frameworks: ${{ needs.plan.outputs.network_frameworks }}
+      full: ${{ needs.plan.outputs.full == 'true' }}
+
+  e2e:
+    name: E2E
+    needs: plan
+    if: needs.plan.outputs.e2e == 'true'
+    uses: ./.github/workflows/ci-e2e.yml
+    with:
+      matrix_json: ${{ needs.plan.outputs.e2e_matrix }}
+      full: ${{ needs.plan.outputs.full == 'true' }}
+
+  native:
+    name: Native
+    needs: plan
+    if: needs.plan.outputs.native == 'true'
+    uses: ./.github/workflows/ci-native.yml
+
+  result:
+    name: Result
+    if: always()
+    needs: [plan, quality, backend, frontend, integration, e2e, native]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: Require every selected category to succeed
+        env:
+          PLAN_JSON: ${{ needs.plan.outputs.plan_json }}
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: python .github/scripts/ci_plan.py gate

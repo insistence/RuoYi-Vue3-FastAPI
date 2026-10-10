@@ -1,10 +1,12 @@
 import time
 
 import pytest
-from playwright.async_api import async_playwright
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class UserManagementTest(BasePageTest):
@@ -32,11 +34,7 @@ class UserManagementTest(BasePageTest):
         await dialog.get_by_role('textbox', name='用户昵称').fill(nick_name)
 
         # 归属部门
-        # 使用 label 定位父级 form-item，再点击内部的 wrapper
-        await dialog.locator('div.el-form-item').filter(has_text='归属部门').locator('.el-select__wrapper').click()
-        # 选择 "集团总公司" (根节点)
-        # 使用 .el-popper 定位下拉框中的内容
-        await self.page.locator('.el-popper:visible').get_by_text('集团总公司').click()
+        await self.select_department(dialog, '归属部门', '集团总公司')
 
         await dialog.get_by_role('textbox', name='用户名称').fill(user_name)
         # 手机号码在搜索框也有，所以必须限定在 dialog 内
@@ -159,12 +157,8 @@ class UserManagementTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_user_management_page() -> None:
+async def test_user_management_page(browser_harness: BrowserHarness) -> None:
     """测试用户管理页面功能"""
-    async with async_playwright() as p:
-        test_instance = UserManagementTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_user_crud_operations()
-        finally:
-            await test_instance.teardown()
+    test_instance = UserManagementTest()
+    await test_instance.setup(browser_harness)
+    await test_instance.test_user_crud_operations()

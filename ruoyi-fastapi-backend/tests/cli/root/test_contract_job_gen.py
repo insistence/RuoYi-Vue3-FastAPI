@@ -1,8 +1,11 @@
 import subprocess
 from collections.abc import Callable
 
+import pytest
+
 from cli.exit_codes import ARGUMENT_ERROR, DATABASE_ERROR, GUARD_REJECTED, RUNTIME_ERROR, SUCCESS
 
+pytestmark = pytest.mark.contract
 GEN_TEST_TABLE_NAME = 'demo_table'
 GEN_CREATE_SQL = 'CREATE TABLE demo_cli_test (id bigint);'
 MISSING_JOB_ID = 999999999

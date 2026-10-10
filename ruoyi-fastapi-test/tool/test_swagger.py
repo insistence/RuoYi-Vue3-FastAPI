@@ -1,8 +1,11 @@
 import pytest
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import expect
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class SwaggerTest(BasePageTest):
@@ -29,12 +32,8 @@ class SwaggerTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_swagger_page() -> None:
+async def test_swagger_page(browser_harness: BrowserHarness) -> None:
     """测试系统接口页面功能"""
-    async with async_playwright() as p:
-        test_instance = SwaggerTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.check_swagger_interface()
-        finally:
-            await test_instance.teardown()
+    test_instance = SwaggerTest()
+    await test_instance.setup(browser_harness)
+    await test_instance.check_swagger_interface()

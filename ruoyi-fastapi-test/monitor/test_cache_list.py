@@ -1,8 +1,11 @@
 import pytest
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import expect
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class CacheListTest(BasePageTest):
@@ -70,12 +73,8 @@ class CacheListTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_cache_list_page() -> None:
+async def test_cache_list_page(browser_harness: BrowserHarness) -> None:
     """测试缓存列表页面功能"""
-    async with async_playwright() as p:
-        test_instance = CacheListTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_cache_list()
-        finally:
-            await test_instance.teardown()
+    test_instance = CacheListTest()
+    await test_instance.setup(browser_harness)
+    await test_instance.test_cache_list()

@@ -3,10 +3,13 @@ from http import HTTPStatus
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import expect
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class GenTableTest(BasePageTest):
@@ -235,12 +238,8 @@ class GenTableTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_gen_table_page() -> None:
+async def test_gen_table_page(browser_harness: BrowserHarness) -> None:
     """测试代码生成页面功能"""
-    async with async_playwright() as p:
-        test_instance = GenTableTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_gen_code_flow()
-        finally:
-            await test_instance.teardown()
+    test_instance = GenTableTest()
+    await test_instance.setup(browser_harness)
+    await test_instance.test_gen_code_flow()

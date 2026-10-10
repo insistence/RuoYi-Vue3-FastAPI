@@ -48,7 +48,11 @@
     "upload:build": "weapp upload -p dist/build/mp-weixin -v 1.0.0 -d \"release version\"",
     "postinstall": "node scripts/patch-uni-webpack.cjs && weapp-tw patch",
     "up:uni-app": "npx @dcloudio/uvm@latest",
-    "test:time": "node --test tests/time.test.mjs tests/time-polyfill.test.mjs tests/time-bundle.test.cjs"
+    "test:time": "npm run test:contract && npm run test:bundle",
+    "test:unit": "node --experimental-vm-modules --test tests/behavior.test.mjs",
+    "test:contract": "node --test tests/time.test.mjs tests/time-polyfill.test.mjs",
+    "test:bundle": "node --test tests/time-bundle.test.cjs",
+    "test": "npm run test:unit && npm run test:time"
   },
   "dependencies": {
     "@dcloudio/uni-app": "2.0.2-4080720251210002",

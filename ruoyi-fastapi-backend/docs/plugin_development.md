@@ -1766,17 +1766,17 @@ npm --prefix ../ruoyi-fastapi-frontend/vue3/web run test:plugin
 
 ### 17.4 CI 覆盖
 
-仓库的原生插件工作流配置 Windows/Linux、Python 3.10、3.11、3.12、3.13 构建测试矩阵，覆盖 v1/v2 脚手架、SDK 溯源与离线更新命令、原生扩展以及签名制品与维护发布回归。
+统一入口为 [`ci.yml`](../../.github/workflows/ci.yml)，完整分类和本地命令见[测试说明](../../ruoyi-fastapi-test/README.md)。[`ci-backend.yml`](../../.github/workflows/ci-backend.yml) 承担 v1/v2 脚手架、SDK 溯源、离线更新及 Windows CLI/路径回归；[`ci-native.yml`](../../.github/workflows/ci-native.yml) 保留 Windows/Linux × Python 3.10–3.13 的真实原生制品测试，Rust fmt/clippy 单独运行一次。
 
-发布集成工作流在 Python 3.10、3.11、3.12、3.13 上使用临时 MySQL、PostgreSQL 和 Redis 服务验证多 worker 发布行为。工作流配置不代表已经执行成功；发布前应核对对应提交的实际 CI 结果，并完成目标平台的部署验收。
+[`ci-integration.yml`](../../.github/workflows/ci-integration.yml) 使用临时 MySQL、PostgreSQL 和 Redis 服务验证多 worker 发布行为，PR 使用 Python 3.12，完整运行覆盖 Python 3.10–3.13。工作流配置不代表已经执行成功；发布前应核对对应提交的实际 CI 结果，并完成目标平台的部署验收。
 
 `scripts/plugin_release_integration.py` 还检查双 worker 首次发布、升级和代码回滚后的固定目标收敛，无 worker 时单次断言不收敛，旧目标代际被拒绝、单 worker 故障立即失败，以及报告过期、缺员和遗留陈旧记录下的等待结果。足够的新 worker 全部就绪后，遗留陈旧记录不应造成永久等待；失败结果保留退出码和固定原因供流水线判断。脚本还针对两种数据库启动独立的完整 CLI 进程，验证标准输出可整体解析为一个 JSON 对象，并核对未就绪时退出 `50`、就绪后退出 `0`。
 
 该工作流还实际构建 `task_demo` 的 bundle，并通过 `scripts/plugin_task_integration.py` 验证 Python 受控目录打包、签名、导入、维护准备、目标选择、旧结构数据保留以及当前业务 CRUD/读写分权。旧版本是仅承载 001 迁移的测试夹具；当前版本从真实签名制品加载。业务 HTTP 验收使用已认证上下文和 ASGI 适配器，不代替浏览器登录验收。运行真实发布集成脚本前须先按任务示例 README 构建 `web/dist`；本地 SQLite 交付回归使用最小 HTML 夹具，单独验证维护链路。
 
-[`plugin-frontend.yml`](../../.github/workflows/plugin-frontend.yml) 在 Node.js 22 上按前端框架矩阵分别进入 `ruoyi-fastapi-frontend/<framework>/web` 执行 `npm run test:plugin`，当前矩阵包含 `vue2`、`vue3`；相关源码、测试、SDK、构建配置及依赖变更会触发检查。当前两个 Web 工程不提交 npm 锁文件，因此使用 `npm install --package-lock=false`，依赖解析仍遵循各自 `package.json` 的版本范围。
+[`ci-frontend.yml`](../../.github/workflows/ci-frontend.yml) 在 Node.js 22 上按框架和 Web/Mobile 工程执行 `test:unit`、三时区 `test:contract` 及各目标构建；Web 单元入口包含插件、认证和任务测试，覆盖 `vue2`、`vue3`。当前两个 Web 工程不提交 npm 锁文件，因此使用 `npm install --package-lock=false`，依赖解析仍遵循各自 `package.json` 的版本范围。
 
-[`plugin-network-smoke.yml`](../../.github/workflows/plugin-network-smoke.yml) 在 Linux、Python 3.12、Node.js 22 与 Chromium 上执行真实网络 smoke。链路为宿主 Vue `PluginFrame` → iframe SDK → 临时 HTTPS Vite 代理 → Uvicorn → 生产插件会话与门禁，使用 `/gateway` 部署前缀。覆盖未登录拒绝、限定路径的 Secure/HttpOnly/SameSite Cookie、JSON POST、CSRF/Origin 拒绝、SSE 增量接收与取消后游标恢复、SSE/WebSocket 在权限及主会话撤销后的关闭，以及 runtime drain 后连接和 lifespan 回收。工作流保留截图、Playwright trace、代理日志与 JUnit 结果。
+`ci-integration.yml` 的 network 任务在 Linux、Python 3.12、Node.js 22 与 Chromium 上分别执行 Vue2/Vue3 真实网络 smoke。链路为宿主 `PluginFrame` → iframe SDK → 临时 HTTPS 代理 → Uvicorn → 生产插件会话与门禁，使用 `/gateway` 部署前缀。覆盖未登录拒绝、限定路径的 Secure/HttpOnly/SameSite Cookie、JSON POST、CSRF/Origin 拒绝、SSE 增量接收与取消后游标恢复、SSE/WebSocket 在权限及主会话撤销后的关闭，以及 runtime drain 后连接和 lifespan 回收。工作流保留截图、Playwright trace、代理日志与 JUnit 结果。
 
 本地复现（在后端目录执行，三个平台通用）：
 
@@ -1787,6 +1787,6 @@ npm --prefix ../ruoyi-fastapi-frontend/vue3/web install --no-audit --no-fund --p
 python -c "import os,pytest; os.environ['RUOYI_PLUGIN_NETWORK_SMOKE']='1'; raise SystemExit(pytest.main(['tests/plugins/integration/test_network_smoke.py','-q']))"
 ```
 
-常规 pytest 不设置 `RUOYI_PLUGIN_NETWORK_SMOKE=1` 时跳过此项，不要求安装浏览器。显式启用后，缺少浏览器或 Node 依赖会直接失败。可通过 `RUOYI_SMOKE_BROWSER_EXECUTABLE` 指定已有 Chromium 浏览器，通过 `RUOYI_SMOKE_OUTPUT` 指定诊断目录；默认输出在后端 `target/plugin-network-smoke/`。测试仅绑定 loopback 随机端口，临时证书不加入系统信任库，结束时回收浏览器和服务。
+常规 Backend 分类使用 marker 排除此项；单独运行但不设置 `RUOYI_PLUGIN_NETWORK_SMOKE=1` 时跳过，不要求安装浏览器。显式启用后，缺少浏览器或 Node 依赖会直接失败。设置 `RUOYI_PLUGIN_FRONTEND_FRAMEWORK=vue2` 可验证 Vue2（先安装对应 Web 依赖并设置 `NODE_OPTIONS=--openssl-legacy-provider`），默认是 Vue3。可通过 `RUOYI_SMOKE_BROWSER_EXECUTABLE` 指定已有 Chromium 浏览器，通过 `RUOYI_SMOKE_OUTPUT` 指定诊断目录；默认输出在后端 `target/plugin-network-smoke/<framework>/`。测试仅绑定 loopback 随机端口，临时证书不加入系统信任库，结束时回收浏览器和服务。
 
 该 smoke 的账号查询、数据库会话、插件启用状态和 Redis 使用隔离夹具，传输加密为 off；它验证真实网络上的生产会话协议，不覆盖真实账号登录、Redis 故障、required 加密、生产证书信任或进程信号触发的停机。runtime drain 之后才让 Uvicorn 正常退出，SIGTERM、完整宿主 lifespan 及目标部署代理仍按 17.2 节另行验收。

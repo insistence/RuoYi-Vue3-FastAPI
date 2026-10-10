@@ -1,10 +1,12 @@
 from datetime import datetime
 
 import pytest
-from playwright.async_api import async_playwright
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class MenuManagementTest(BasePageTest):
@@ -134,12 +136,8 @@ class MenuManagementTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_menu_management_page() -> None:
+async def test_menu_management_page(browser_harness: BrowserHarness) -> None:
     """测试菜单管理页面功能"""
-    async with async_playwright() as p:
-        test_instance = MenuManagementTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_menu_crud_operations()
-        finally:
-            await test_instance.teardown()
+    test_instance = MenuManagementTest()
+    await test_instance.setup(browser_harness)
+    await test_instance.test_menu_crud_operations()

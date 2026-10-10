@@ -2,8 +2,11 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from cli.exit_codes import DATABASE_ERROR, GUARD_REJECTED, REDIS_ERROR, RUNTIME_ERROR, SUCCESS
 
+pytestmark = pytest.mark.contract
 DB_HISTORY_TEST_LIMIT = 5
 
 

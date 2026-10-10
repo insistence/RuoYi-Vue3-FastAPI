@@ -1,6 +1,6 @@
-playwright
-pytest
-pytest-asyncio
-pytest-playwright
-requests
-ruff
+playwright==1.62.0
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-playwright==0.8.0
+requests==2.34.2
+ruff==0.16.1

@@ -30,10 +30,18 @@ if os.environ.get('RUOYI_PLUGIN_NETWORK_SMOKE') == '1':
 
 pytestmark = [
     pytest.mark.asyncio,
+    pytest.mark.browser,
     pytest.mark.skipif(os.environ.get('RUOYI_PLUGIN_NETWORK_SMOKE') != '1', reason='显式启用插件网络验收'),
 ]
-FRONTEND = Path(__file__).resolve().parents[4] / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
 PREFIX = '/gateway/apps/browser_test/'
+
+
+def frontend_root() -> Path:
+    """选择本次验收的真实 Web 工程，明确拒绝尚无对应宿主的框架。"""
+    framework = os.environ.get('RUOYI_PLUGIN_FRONTEND_FRAMEWORK', 'vue3').strip().lower()
+    if framework not in {'vue2', 'vue3'}:
+        raise ValueError('插件网络验收仅支持 RUOYI_PLUGIN_FRONTEND_FRAMEWORK=vue2 或 vue3')
+    return Path(__file__).resolve().parents[4] / 'ruoyi-fastapi-frontend' / framework / 'web'
 
 
 async def wait_until(predicate: Callable[[], bool], timeout: float = 15) -> None:
@@ -93,7 +101,7 @@ def prepare_network_host(fixture: SimpleNamespace) -> None:
     register_event_routes(loaded.lifespan.app, permission='browser_test:view', interval=1.0)
     bundle = fixture.plugin.backend_path / 'web' / 'dist'
     shutil.copyfile(Path(__file__).with_name('network_bundle.html'), bundle / 'index.html')
-    shutil.copyfile(FRONTEND / 'src/utils/pluginBridge.js', bundle / 'assets/bridge.js')
+    shutil.copyfile(frontend_root() / 'src/utils/pluginBridge.js', bundle / 'assets/bridge.js')
 
     @loaded.lifespan.app.websocket('/ws/events')
     async def events(websocket: WebSocket) -> None:
@@ -156,14 +164,20 @@ def prepare_network_host(fixture: SimpleNamespace) -> None:
 @asynccontextmanager
 async def network_servers(fixture: SimpleNamespace, directory: Path, output: Path) -> AsyncIterator[str]:
     """
-    启动真实 Uvicorn socket 与 TLS Vite 子进程，并在失败时一并回收。
+    启动真实 Uvicorn socket 与对应 Vue 框架的 TLS 代理，并在失败时一并回收。
 
     :param fixture: 隔离宿主应用
     :param directory: 证书及就绪文件目录
     :param output: 诊断日志目录
     :return: 代理 HTTPS 来源地址
     """
+    frontend = frontend_root()
     cert_path, key_path = certificate_files(directory)
+    node_environment = os.environ.copy()
+    if frontend.parent.name == 'vue2':
+        options = node_environment.get('NODE_OPTIONS', '')
+        if '--openssl-legacy-provider' not in options.split():
+            node_environment['NODE_OPTIONS'] = (options + ' --openssl-legacy-provider').strip()
     server = uvicorn.Server(
         uvicorn.Config(
             fixture.app,
@@ -178,7 +192,7 @@ async def network_servers(fixture: SimpleNamespace, directory: Path, output: Pat
         )
     )
     # 本场景验证 runtime drain 后 Uvicorn 正常退出，不发送进程信号。
-    with socket.socket() as listener, (output / 'vite.log').open('w', encoding='utf-8') as log:
+    with socket.socket() as listener, (output / 'frontend.log').open('w', encoding='utf-8') as log:
         listener.bind(('127.0.0.1', 0))
         listener.listen()
         serving = asyncio.create_task(server.serve(sockets=[listener]))
@@ -186,22 +200,26 @@ async def network_servers(fixture: SimpleNamespace, directory: Path, output: Pat
         try:
             await wait_until(lambda: server.started or serving.done())
             assert server.started, 'Uvicorn 未能启动'
-            ready = directory / 'vite-ready.json'
+            ready = directory / 'frontend-ready.json'
             process = await asyncio.create_subprocess_exec(
                 shutil.which('node') or 'node',
-                str(FRONTEND / 'tests/plugins/network-smoke/server.mjs'),
+                str(frontend / 'tests/plugins/network-smoke/server.mjs'),
                 f'http://127.0.0.1:{listener.getsockname()[1]}',
                 str(cert_path),
                 str(key_path),
                 str(ready),
-                cwd=FRONTEND,
+                cwd=frontend,
+                env=node_environment,
                 stdin=subprocess.PIPE,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0,
             )
-            await wait_until(lambda: ready.exists() or process.returncode is not None, timeout=60)
-            assert ready.exists(), f'Vite 启动失败，见 {output / "vite.log"}'
+            await wait_until(
+                lambda: ready.exists() or process.returncode is not None,
+                timeout=180 if frontend.parent.name == 'vue2' else 60,
+            )
+            assert ready.exists(), f'前端代理启动失败，见 {output / "frontend.log"}'
             yield f'https://127.0.0.1:{json.loads(ready.read_text())["port"]}'
         finally:
             try:
@@ -218,7 +236,7 @@ async def network_servers(fixture: SimpleNamespace, directory: Path, output: Pat
                             except TimeoutError:
                                 process.kill()
                                 await asyncio.wait_for(process.wait(), timeout=5)
-                        assert process.returncode == 0, 'Vite 代理未正常退出'
+                        assert process.returncode == 0, '前端代理未正常退出'
 
 
 async def open_socket(page: Any, origin: str) -> None:
@@ -406,7 +424,8 @@ async def verify_browser(fixture: SimpleNamespace, origin: str, output: Path) ->
 
 async def test_plugin_network_smoke(browser: SimpleNamespace, tmp_path: Path) -> None:  # noqa: F811
     """通过真实 TLS 代理与 Vue 页面验收插件网络协议，测试数据全程隔离。"""
-    output = await asyncio.to_thread(Path(os.environ.get('RUOYI_SMOKE_OUTPUT', 'target/plugin-network-smoke')).resolve)
+    default_output = f'target/plugin-network-smoke/{frontend_root().parent.name}'
+    output = await asyncio.to_thread(Path(os.environ.get('RUOYI_SMOKE_OUTPUT', default_output)).resolve)
     output.mkdir(parents=True, exist_ok=True)
     prepare_network_host(browser)
     async with network_servers(browser, tmp_path, output) as origin:

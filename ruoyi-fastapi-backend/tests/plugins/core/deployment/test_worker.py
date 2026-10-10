@@ -569,6 +569,7 @@ async def test_restarted_process_loads_upgrade_then_rollback_without_downgrading
 
 
 @pytest.mark.asyncio
+@pytest.mark.native
 @pytest.mark.skipif(not os.environ.get('RUOYI_NATIVE_PLUGIN_DIR'), reason='需要预先构建的真实 Rust 制品')
 async def test_signed_native_artifact_loads_from_store_in_clean_process(deployment: SimpleNamespace) -> None:
     """验证干净进程从不可变存储实际加载签名原生制品。"""

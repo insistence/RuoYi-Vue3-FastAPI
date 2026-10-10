@@ -10,11 +10,8 @@
     <a href="https://github.com/insistence/RuoYi-FastAPI">
         <img alt="Github" src="https://img.shields.io/github/stars/insistence/RuoYi-FastAPI?style=social">
     </a>
-    <a href="https://github.com/insistence/RuoYi-FastAPI/actions?query=branch%3Amaster+event%3Apush+workflow%3A%22%22Playwright+Tests%22%22">
-        <img alt="Playwright Tests" src="https://github.com/insistence/RuoYi-FastAPI/workflows/Playwright Tests/badge.svg">
-    </a>
-    <a href="https://github.com/insistence/RuoYi-FastAPI/actions?query=branch%3Amaster+event%3Apush+workflow%3A%22%22Ruff+Check%22%22">
-        <img alt="Ruff Check" src="https://github.com/insistence/RuoYi-FastAPI/workflows/Ruff Check/badge.svg">
+    <a href="https://github.com/insistence/RuoYi-FastAPI/actions/workflows/ci.yml">
+        <img alt="CI" src="https://github.com/insistence/RuoYi-FastAPI/actions/workflows/ci.yml/badge.svg?branch=master">
     </a>
     <a href="https://gitee.com/insistence2022/RuoYi-FastAPI">
         <img alt="project version" src="https://img.shields.io/badge/version-1.10.0-brightgreen.svg">

@@ -24,8 +24,9 @@ list.forEach((item) => {
   uni.addInterceptor(item, {
     invoke(to) {
       if (getToken()) {
-        if (to.url === loginPage) {
+        if (to.url.split("?")[0] === loginPage) {
           uni.reLaunch({ url: "/" });
+          return false;
         }
         return true;
       } else {

@@ -16,7 +16,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test:auth-center": "node --test tests/auth-center/*.test.cjs",
-    "test": "npm run test:auth-center && npm run test:plugin && npm run test:job"
+    "test:unit": "npm run test:auth-center && npm run test:plugin && npm run test:job",
+    "test:contract": "npm run test:time",
+    "test": "npm run test:unit && npm run test:contract"
   },
   "keywords": [
     "vue",

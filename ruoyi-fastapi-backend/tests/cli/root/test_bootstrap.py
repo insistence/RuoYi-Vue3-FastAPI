@@ -4,6 +4,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+pytestmark = pytest.mark.contract
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 
 
@@ -31,6 +34,7 @@ print(json.dumps({
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -78,6 +82,7 @@ print(json.dumps({
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -143,6 +148,7 @@ print(json.dumps({
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
     assert completed.returncode == 0, completed.stderr
@@ -204,6 +210,7 @@ print(json.dumps({
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
     assert completed.returncode == 0, completed.stderr

@@ -1,8 +1,11 @@
 import pytest
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import expect
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class ServerMonitorTest(BasePageTest):
@@ -34,12 +37,8 @@ class ServerMonitorTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_server_monitor_page() -> None:
+async def test_server_monitor_page(browser_harness: BrowserHarness) -> None:
     """测试服务监控页面功能"""
-    async with async_playwright() as p:
-        test_instance = ServerMonitorTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_server_monitor()
-        finally:
-            await test_instance.teardown()
+    test_instance = ServerMonitorTest()
+    await test_instance.setup(browser_harness)
+    await test_instance.test_server_monitor()

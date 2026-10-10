@@ -13,6 +13,12 @@ ruoyi = "cli.main:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "browser: requires a real browser and the frontend network test host",
+    "native: requires a prebuilt native plugin artifact",
+    "integration: requires explicitly enabled external database or cache services",
+    "contract: validates public CLI arguments, output, or cold-process behavior",
+]
 
 [tool.setuptools.packages.find]
 include = ["cli*"]

@@ -2,7 +2,11 @@ import subprocess
 from collections.abc import Callable
 from pathlib import Path
 
+import pytest
+
 from cli.exit_codes import SUCCESS
+
+pytestmark = pytest.mark.contract
 
 
 def test_root_help_shows_commands_without_completion_options(

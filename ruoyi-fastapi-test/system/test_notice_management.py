@@ -1,11 +1,13 @@
-import re
 import time
 
 import pytest
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import expect
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class NoticeManagementTest(BasePageTest):
@@ -32,8 +34,7 @@ class NoticeManagementTest(BasePageTest):
         await dialog.get_by_role('textbox', name='公告标题').fill(notice_title)
 
         # 选择公告类型
-        # 根据codegen脚本，点击下拉框触发器
-        await self.page.locator('div').filter(has_text=re.compile(r'^请选择$')).nth(4).click()
+        await dialog.locator('.el-form-item').filter(has_text='公告类型').locator('.el-select').click()
         # 选择对应类型选项，1为通知，2为公告
         if notice_type == 1:
             await self.page.get_by_role('option', name='通知').click()
@@ -157,12 +158,8 @@ class NoticeManagementTest(BasePageTest):
 
 
 @pytest.mark.asyncio
-async def test_notice_management_page() -> None:
+async def test_notice_management_page(browser_harness: BrowserHarness) -> None:
     """测试通知公告页面功能"""
-    async with async_playwright() as p:
-        test_instance = NoticeManagementTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_notice_crud_operations()
-        finally:
-            await test_instance.teardown()
+    test_instance = NoticeManagementTest()
+    await test_instance.setup(browser_harness)
+    await test_instance.test_notice_crud_operations()

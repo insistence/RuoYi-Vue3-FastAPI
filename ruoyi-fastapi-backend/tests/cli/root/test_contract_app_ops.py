@@ -5,9 +5,12 @@ from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
 
+import pytest
+
 from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, SUCCESS
 from cli.runtime.plugin.scaffold import PluginFrontendFrameworkResolver
 
+pytestmark = pytest.mark.contract
 FRONTEND_ROOT = Path(__file__).resolve().parents[4] / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
 
 
