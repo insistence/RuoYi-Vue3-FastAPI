@@ -4,14 +4,40 @@ import asyncio
 import hashlib
 import json
 import re
+from http import HTTPStatus
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from common.config import Config
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from playwright.async_api import APIRequestContext, Browser, BrowserContext, Page, Playwright
+    from playwright.async_api import APIRequestContext, APIResponse, Browser, BrowserContext, Page, Playwright, Response
+
+_API_TIMEOUT_MS = 15000
+_LOGIN_MAX_ATTEMPTS = 3
+_LOGIN_MAX_WAIT_SECONDS = 60
+
+
+async def _wait_for_login_retry(response: APIResponse | Response, attempt: int, waited: int) -> int:
+    """API 与表单登录共用同一等待预算，仅使用后端实际返回的秒数。"""
+    assert attempt + 1 < _LOGIN_MAX_ATTEMPTS, '登录 HTTP 429：已达到最大尝试次数'
+    retry_after = response.headers.get('retry-after', '').strip()
+    assert retry_after.isascii() and retry_after.isdecimal(), f'登录 HTTP 429：Retry-After 无效：{retry_after!r}'
+    delay = int(retry_after)
+    assert delay <= _LOGIN_MAX_WAIT_SECONDS - waited, '登录 HTTP 429：Retry-After 超出累计等待上限'
+    await asyncio.sleep(delay)
+    return waited + delay
+
+
+async def _login_token(response: APIResponse | Response) -> str:
+    """非限流错误必须失败，成功响应必须携带有效令牌。"""
+    assert response.ok, f'登录 HTTP 状态异常：{response.status}'
+    payload = await response.json()
+    token = payload.get('token') or (payload.get('data') or {}).get('token')
+    assert token, f'登录未返回令牌：{payload.get("msg", "未知错误")}'
+    return token
 
 
 def artifact_directory(root: Path, node_id: str) -> Path:
@@ -38,22 +64,44 @@ class BrowserHarness:
         context = await self.playwright.request.new_context(
             base_url=Config.backend_url,
             extra_http_headers={'Authorization': f'Bearer {token}'} if token else {},
-            timeout=15000,
+            timeout=_API_TIMEOUT_MS,
         )
         self.api_contexts.append(context)
         return context
 
     async def login(self) -> str:
-        """通过测试环境登录，当前用例内复用令牌。"""
+        """用例内复用令牌；429 最多重试两次，总等待不超过 60 秒。"""
         if self.token:
             return self.token
         api = await self.api_context()
-        response = await api.post('/login', form={'username': 'admin', 'password': 'admin123'})
-        assert response.ok, f'登录 HTTP 状态异常：{response.status}'
-        payload = await response.json()
-        self.token = payload.get('token') or (payload.get('data') or {}).get('token')
-        assert self.token, f'登录未返回令牌：{payload.get("msg", "未知错误")}'
+        waited = 0
+        # 每次请求仍受 15 秒超时限制，三次请求加累计等待最多 105 秒。
+        for attempt in range(_LOGIN_MAX_ATTEMPTS):
+            response = await api.post('/login', form={'username': 'admin', 'password': 'admin123'})
+            if response.status != HTTPStatus.TOO_MANY_REQUESTS:
+                break
+            waited = await _wait_for_login_retry(response, attempt, waited)
+        self.token = await _login_token(response)
         return self.token
+
+    async def login_through_page(self, page: Page, username: str = 'admin', password: str = 'admin123') -> str:
+        """真实填写并提交登录表单，仅对 429 有界重试，不替换夹具的管理员令牌。"""
+        await page.get_by_placeholder('账号').fill(username)
+        await page.get_by_placeholder('密码').fill(password)
+        waited = 0
+        for attempt in range(_LOGIN_MAX_ATTEMPTS):
+            async with page.expect_response(
+                lambda response: response.request.method == 'POST' and urlparse(response.url).path.endswith('/login'),
+                timeout=_API_TIMEOUT_MS,
+            ) as pending:
+                await page.get_by_role('button', name=re.compile(r'登\s*录')).click(timeout=_API_TIMEOUT_MS)
+            response = await pending.value
+            if response.status != HTTPStatus.TOO_MANY_REQUESTS:
+                break
+            waited = await _wait_for_login_retry(response, attempt, waited)
+        token = await _login_token(response)
+        await page.wait_for_url('**/index', timeout=30000)
+        return token
 
     async def new_context(self, *, token: str | None = None, **options) -> BrowserContext:
         """每次调用均创建隔离上下文，不继承前一用例 Cookie 或本地存储。"""

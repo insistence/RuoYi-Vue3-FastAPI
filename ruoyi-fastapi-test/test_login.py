@@ -38,10 +38,7 @@ async def test_login_flow_with_playwright(browser_harness: BrowserHarness) -> No
     """通过表单登录，验证登录成功后的首页。"""
     page = await browser_harness.new_page()
     await page.goto('/login')
-    await page.get_by_placeholder('账号').fill('admin')
-    await page.get_by_placeholder('密码').fill('admin123')
-    await page.get_by_role('button', name=re.compile(r'登\s*录')).click()
-    await page.wait_for_url('**/index')
+    await browser_harness.login_through_page(page)
     await expect(page.locator('.app-main')).to_be_visible()
 
 

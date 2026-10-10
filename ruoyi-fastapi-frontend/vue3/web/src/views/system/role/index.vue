@@ -194,6 +194,7 @@
           <el-tooltip
             content="修改"
             placement="top"
+            :disabled="!pageActive || open || openDataScope"
             v-if="scope.row.roleId !== 1"
           >
             <el-button
@@ -207,6 +208,7 @@
           <el-tooltip
             content="删除"
             placement="top"
+            :disabled="!pageActive || open || openDataScope"
             v-if="scope.row.roleId !== 1"
           >
             <el-button
@@ -220,6 +222,7 @@
           <el-tooltip
             content="数据权限"
             placement="top"
+            :disabled="!pageActive || open || openDataScope"
             v-if="scope.row.roleId !== 1"
           >
             <el-button
@@ -233,6 +236,7 @@
           <el-tooltip
             content="分配用户"
             placement="top"
+            :disabled="!pageActive || open || openDataScope"
             v-if="scope.row.roleId !== 1"
           >
             <el-button
@@ -462,6 +466,7 @@ const { proxy } = getCurrentInstance()
 const { sys_normal_disable } = proxy.useDict('sys_normal_disable')
 
 const roleList = ref([])
+const pageActive = ref(true)
 const open = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
@@ -480,6 +485,14 @@ const deptOptions = ref([])
 const openDataScope = ref(false)
 const menuRef = ref(null)
 const deptRef = ref(null)
+
+// 缓存页离开或打开表单时关闭行操作提示，避免传送到 body 的浮层遮挡下一页。
+onActivated(() => {
+  pageActive.value = true
+})
+onDeactivated(() => {
+  pageActive.value = false
+})
 
 /** 数据范围选项*/
 const dataScopeOptions = ref([

@@ -26,8 +26,11 @@ class BasePageTest:
         """兼容 Element Plus 树选择器与 Vue2 的 vue-treeselect。"""
         field = dialog.locator('.el-form-item').filter(has_text=label)
         await field.locator('.el-select__wrapper, .vue-treeselect__control').click()
-        menu = self.page.locator('.el-popper:visible, .vue-treeselect__menu-container:visible')
-        await menu.get_by_text(department, exact=True).click()
+        choices = self.page.locator(
+            '.el-select-dropdown:visible .el-tree-node__content .el-select-dropdown__item, '
+            '.vue-treeselect__menu .vue-treeselect__label:visible'
+        )
+        await choices.filter(has_text=re.compile(rf'^\s*{re.escape(department)}(?:\s*\(\d+\))?\s*$')).click()
 
     async def wait_for_page_title(self, title_text: str, timeout: int = 10000) -> None:
         """等待页面标题出现"""

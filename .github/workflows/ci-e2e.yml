@@ -3,9 +3,6 @@ name: CI / E2E
 on:
   workflow_call:
     inputs:
-      full:
-        type: boolean
-        default: false
       matrix_json:
         type: string
         required: true
@@ -86,14 +83,10 @@ jobs:
           docker compose up --detach --no-build --wait --wait-timeout 240
           echo "TEST_FRONTEND_URL=http://$(docker compose port ruoyi-frontend 80)" >> "$GITHUB_ENV"
           echo "TEST_BACKEND_URL=http://$(docker compose port ruoyi-backend-${{ steps.database.outputs.suffix }} 9099)" >> "$GITHUB_ENV"
-      - name: Run core smoke checks or full CRUD suite
+      - name: Run all application pages and functional E2E checks
         working-directory: ruoyi-fastapi-test
-        env:
-          FULL: ${{ inputs.full }}
         run: |
-          marker='e2e and smoke'
-          if [ "$FULL" = true ]; then marker='e2e'; fi
-          python -m pytest -m "$marker" -v --junitxml=target/e2e/junit.xml
+          python -m pytest -m e2e -v --durations=20 --junitxml=target/e2e/junit.xml
           python ../.github/scripts/check_test_report.py target/e2e/junit.xml
       - name: Collect service diagnostics
         if: always()

@@ -84,7 +84,6 @@ jobs:
     uses: ./.github/workflows/ci-e2e.yml
     with:
       matrix_json: ${{ needs.plan.outputs.e2e_matrix }}
-      full: ${{ needs.plan.outputs.full == 'true' }}
 
   native:
     name: Native
