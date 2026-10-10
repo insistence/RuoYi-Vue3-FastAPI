@@ -1,246 +1,164 @@
+import asyncio
 import re
 from http import HTTPStatus
-from urllib.parse import parse_qs, urlparse
+from pathlib import Path
+from urllib.parse import urlparse
+from uuid import uuid4
+from zipfile import ZipFile
 
 import pytest
-from playwright.async_api import async_playwright, expect
+from playwright.async_api import Locator, expect
 
 from common.base_page_test import BasePageTest
+from common.browser_harness import BrowserHarness
 from common.config import Config
+
+pytestmark = pytest.mark.e2e
 
 
 class GenTableTest(BasePageTest):
-    """代码生成业务测试"""
+    """只操作本用例导入的生成配置，验证编辑、代码预览及下载。"""
 
-    async def test_gen_code_flow(self) -> None:
-        """测试代码生成全流程：导入 -> 编辑 -> 预览 -> 删除"""
-        table_name = 'sys_post'
+    table_id: int | None = None
+    table_name: str = ''
+    table_comment: str = ''
 
-        # 1. 导航到代码生成页面
-        await self.navigate_to_gen_page()
+    def table_row(self) -> Locator:
+        return self.page.locator('.app-container:visible > .el-table .el-table__body-wrapper tbody tr').filter(
+            has=self.page.get_by_text(self.table_name, exact=True)
+        )
 
-        # 确保环境清理 (如果存在 sys_post 则先删除)
-        await self.ensure_table_not_exists(table_name)
+    async def search_table(self) -> dict:
+        """等待搜索接口与表格完成，避免初始响应覆盖查询结果。"""
+        form = self.page.locator('form').first
+        await form.locator('.el-form-item').filter(has_text='表名称').locator('input').fill(self.table_name)
+        async with self.page.expect_response(
+            lambda response: urlparse(response.url).path.endswith('/tool/gen/list')
+        ) as pending:
+            await form.get_by_role('button', name=re.compile(r'搜索$')).click()
+        payload = await (await pending.value).json()
+        assert payload['code'] == HTTPStatus.OK, payload
+        await expect(self.page.locator('.el-table .el-loading-mask:visible')).to_have_count(0)
+        return payload
 
-        # 2. 导入表
-        await self.import_table(table_name)
-
-        # 3. 编辑表
-        await self.edit_table(table_name, '测试生成')
-
-        # 4. 预览代码
-        await self.preview_code(table_name)
-        await self.page.wait_for_timeout(1000)
-
-        # 5. 删除表 (清理环境)
-        await self.delete_table(table_name)
-
-    async def navigate_to_gen_page(self) -> None:
-        """导航到代码生成页面"""
-        await self.goto_page(Config.frontend_url + '/tool/gen')
-        await self.wait_for_selector('.app-container')
-
-    async def ensure_table_not_exists(self, table_name: str) -> None:
-        """确保表不存在 (如果存在则删除)"""
-        await self.delete_table(table_name, verify=False)
-
-    async def search_table(self, table_name: str) -> None:
-        """搜索表"""
-        # 确保在主搜索表单中搜索
-        search_form = self.page.locator('.el-form').first
-        await search_form.get_by_role('textbox', name='表名称').fill(table_name)
-        await search_form.get_by_role('button', name='搜索').click()
-        # 等待加载
-        loading = self.page.locator('.el-loading-mask')
-        if await loading.count() > 0:
-            await expect(loading.first).to_be_hidden(timeout=10000)
-        await self.page.wait_for_timeout(300)
-
-    async def import_table(self, table_name: str) -> None:
-        """导入表"""
-        # 初始列表响应可能晚于搜索响应，先等待初始数据渲染，避免覆盖搜索结果。
+    async def import_table(self) -> None:
+        """从未导入的真实表中选择一张，不删除任何既有生成配置。"""
         async with self.page.expect_response(
             lambda response: urlparse(response.url).path.endswith('/tool/gen/db/list')
-        ) as initial_response:
-            await self.page.get_by_role('button', name='导入').click()
-        response = await initial_response.value
-        assert response.status == HTTPStatus.OK
-        initial_data = await response.json()
-        assert initial_data['code'] == HTTPStatus.OK, initial_data
+        ) as pending:
+            await self.page.get_by_role('button', name=re.compile(r'导入$')).click()
+        payload = await (await pending.value).json()
+        assert payload['code'] == HTTPStatus.OK and payload['rows'], payload
+        self.table_name = payload['rows'][0]['tableName']
         dialog = self.page.get_by_role('dialog', name='导入表', exact=True)
-        await expect(dialog.locator('tbody tr')).to_have_count(len(initial_data['rows']))
-
-        # 等待本次搜索响应及表格更新后再选择目标表。
-        await dialog.get_by_placeholder('请输入表名称').fill(table_name)
+        row = dialog.locator('tbody tr').filter(has=self.page.get_by_text(self.table_name, exact=True))
+        await row.locator('.el-checkbox').click()
+        await expect(row.locator('.el-checkbox')).to_have_class(re.compile('is-checked'))
         async with self.page.expect_response(
             lambda response: (
-                urlparse(response.url).path.endswith('/tool/gen/db/list')
-                and parse_qs(urlparse(response.url).query).get('tableName') == [table_name]
+                response.request.method == 'POST' and urlparse(response.url).path.endswith('/tool/gen/importTable')
             )
-        ) as search_response:
-            await dialog.get_by_role('button', name='搜索').click()
-        response = await search_response.value
-        assert response.status == HTTPStatus.OK
-        search_data = await response.json()
-        assert search_data['code'] == HTTPStatus.OK, search_data
-        await expect(dialog.locator('tbody tr')).to_have_count(len(search_data['rows']))
-        await dialog.locator(f"tr:has-text('{table_name}')").wait_for()
+        ) as pending:
+            await dialog.get_by_role('button', name=re.compile(r'确\s*定$')).click()
+        result = await (await pending.value).json()
+        assert result['code'] == HTTPStatus.OK, result
+        await expect(dialog).to_be_hidden()
+        listed = await self.search_table()
+        assert len(listed['rows']) == 1, listed
+        self.table_id = listed['rows'][0]['tableId']
+        await expect(self.table_row()).to_have_count(1)
 
-        # 选中行
-        row = dialog.locator('tr').filter(has=self.page.get_by_text(table_name, exact=True))
-
-        # 点击复选框
-        checkbox = row.locator('.el-checkbox')
-        await checkbox.click()
-
-        # 验证已选中
-        # Element Plus checkbox 选中时，最外层 label.el-checkbox 会有 is-checked 类
-        await expect(checkbox).to_have_class(re.compile(r'is-checked'))
-
-        await self.page.wait_for_timeout(500)
-
-        await dialog.get_by_role('button', name='确 定').click()
-
-        # 检查是否有"请选择要导入的表"错误
-        try:
-            await expect(self.page.get_by_text('请选择要导入的表')).to_be_visible(timeout=2000)
-            print("ERROR: Selection failed, '请选择要导入的表' appeared.")
-        except AssertionError:
-            pass
-
-        # 等待一会，让弹窗自动关闭
-        await self.page.wait_for_timeout(5000)
-
-        # 如果弹窗还在，尝试关闭它以免阻塞后续操作
-        if await dialog.is_visible():
-            print('WARNING: Import dialog still visible after timeout. Forcing close.')
-            # Check for error messages
-            if await self.page.locator('.el-message--error').count() > 0:
-                msg = await self.page.locator('.el-message--error').all_inner_texts()
-                print(f'ERROR MESSAGE: {msg}')
-
-            # 点击取消关闭弹窗
-            await dialog.get_by_role('button', name='取 消').click()
-            await expect(dialog).to_be_hidden()
-
-            # 手动刷新列表
-            await self.page.get_by_role('button', name='搜索').click()
-
-        # 验证导入成功 (搜索并在列表中看到)
-        # 使用 .app-container 限定在主页面表格，避免匹配到弹窗中的隐藏行
-        await self.search_table(table_name)
-        row = self.page.locator('.app-container .el-table__body-wrapper tbody tr').filter(
-            has=self.page.get_by_text(table_name, exact=True)
+    async def edit_table(self) -> None:
+        """修改实际生成配置，并重新读取确认服务端持久化结果。"""
+        await self.table_row().locator('td').last.get_by_role('button').nth(1).click()
+        await self.page.wait_for_url(f'**/tool/gen-edit/index/{self.table_id}**')
+        self.table_comment = f'生成验收{uuid4().hex[:8]}'
+        await self.page.get_by_role('tab', name='基本信息', exact=True).click()
+        await (
+            self.page.locator('.el-form-item:visible')
+            .filter(has_text='表描述')
+            .locator('input')
+            .fill(self.table_comment)
         )
-        for _i in range(5):
-            try:
-                await expect(row.first).to_be_visible(timeout=3000)
-                break
-            except AssertionError:
-                await self.search_table(table_name)
-        await expect(row.first).to_be_visible(timeout=5000)
+        async with self.page.expect_response(
+            lambda response: response.request.method == 'PUT' and urlparse(response.url).path.endswith('/tool/gen')
+        ) as pending:
+            await self.page.get_by_role('button', name=re.compile(r'提交$')).click()
+        result = await (await pending.value).json()
+        assert result['code'] == HTTPStatus.OK, result
+        await self.page.wait_for_url(re.compile(r'/tool/gen(?:\?.*)?$'))
+        listed = await self.search_table()
+        assert listed['rows'][0]['tableComment'] == self.table_comment
+        await expect(self.table_row()).to_contain_text(self.table_comment)
 
-    async def edit_table(self, table_name: str, remark: str) -> None:
-        """编辑表"""
-        await self.search_table(table_name)
-        row = self.page.locator(f"tbody tr:has-text('{table_name}')")
-
-        # 点击编辑 (操作列第2个按钮，索引1)
-        # 按钮顺序: 预览, 编辑, 删除, 同步, 生成
-        await row.locator('button').nth(1).click()
-
-        # 等待编辑页面 (tab页)
-        await self.page.wait_for_selector("div[role='tablist']")
-
-        # 修改基本信息 -> 表描述
-        # 确保在基本信息 Tab
-        await self.page.get_by_text('基本信息').click()
-        await self.page.get_by_role('textbox', name='表描述').fill(remark)
-
-        # 提交
-        await self.page.get_by_role('button', name='提交').click()
-
-        # 验证回到列表
-        await self.wait_for_selector('.app-container')
-        # 验证描述已更新
-        await self.search_table(table_name)
-        await self.wait_for_selector(f"tbody tr:has-text('{remark}')")
-
-    async def preview_code(self, table_name: str) -> None:
-        """预览代码"""
-        await self.search_table(table_name)
-        row = self.page.locator(f"tbody tr:has-text('{table_name}')")
-
-        # 点击预览 (操作列第1个按钮，索引0)
-        await row.locator('button').nth(0).click()
-
-        # 等待预览弹窗
-        dialog = self.page.locator("div[role='dialog'][aria-label='代码预览']")
-        await dialog.wait_for()
-
-        # 验证存在代码内容
-        # pre 可能有多个（多tab），只检查可见的
-        await dialog.locator('pre:visible').first.wait_for()
-        content = await dialog.locator('pre:visible').first.text_content()
-        assert 'class' in content or 'import' in content or 'package' in content
-
-        # 关闭预览 (点击右上角关闭按钮)
+    async def preview_and_download(self) -> None:
+        """核对预览接口、可见 Python 代码和实际下载 ZIP 的内容。"""
+        async with self.page.expect_response(
+            lambda response: urlparse(response.url).path.endswith(f'/tool/gen/preview/{self.table_id}')
+        ) as pending:
+            await self.table_row().locator('td').last.get_by_role('button').nth(0).click()
+        payload = await (await pending.value).json()
+        assert payload['code'] == HTTPStatus.OK, payload
+        code = payload['data']
+        assert any(name.endswith('do.py.jinja2') for name in code), code.keys()
+        assert any(self.table_comment in source for source in code.values())
+        dialog = self.page.get_by_role('dialog', name='代码预览', exact=True)
+        await expect(dialog.locator('pre:visible').first).to_contain_text('class')
+        await expect(dialog.locator('pre:visible').first).to_contain_text(self.table_comment)
         await dialog.locator('.el-dialog__headerbtn').click()
+        async with self.page.expect_download() as pending:
+            await self.table_row().locator('td').last.get_by_role('button').nth(4).click()
+        download = await pending.value
+        assert download.suggested_filename.endswith('.zip')
+        zip_path = Path(await download.path())
 
-    async def delete_table(self, table_name: str, verify: bool = True) -> None:
-        """删除表 (支持删除多条重复数据)"""
-        # 循环删除直到不存在
-        for _i in range(5):
-            await self.search_table(table_name)
-            # 使用 strict matching
-            # 限制在 .app-container .el-table__body-wrapper 以避免固定列导致的重复 以及 避免匹配到弹窗中的行
-            row = self.page.locator('.app-container .el-table__body-wrapper tbody tr').filter(
-                has=self.page.get_by_text(table_name, exact=True)
+        def read_generated_code() -> tuple[list[str], str]:
+            with ZipFile(zip_path) as archive:
+                names = archive.namelist()
+                return names, '\n'.join(archive.read(name).decode('utf-8') for name in names if name.endswith('.py'))
+
+        names, generated = await asyncio.to_thread(read_generated_code)
+        assert any(name.endswith('.vue') for name in names), names
+        assert any(name.endswith('.py') for name in names), names
+        assert self.table_comment in generated and self.table_name in generated
+
+    async def delete_table(self) -> None:
+        """通过界面移除刚创建的元数据，并确认实际业务表仍存在。"""
+        await self.table_row().locator('td').last.get_by_role('button').nth(2).click()
+        async with self.page.expect_response(
+            lambda response: (
+                response.request.method == 'DELETE'
+                and urlparse(response.url).path.endswith(f'/tool/gen/{self.table_id}')
             )
+        ) as pending:
+            await self.page.get_by_role('button', name=re.compile(r'确定$')).click()
+        assert (await (await pending.value).json())['code'] == HTTPStatus.OK
+        self.table_id = None
+        await self.search_table()
+        await expect(self.table_row()).to_have_count(0)
+        api = await self.harness.api_context(self.token)
+        available = await api.get('/tool/gen/db/list', params={'tableName': self.table_name})
+        assert any(row['tableName'] == self.table_name for row in (await available.json())['rows'])
 
-            count = await row.count()
-
-            if count == 0:
-                break
-
-            # 针对第一行操作
-            # 使用 force=True 确保点击，防止遮挡
-            btns = row.first.locator('button')
-            await btns.nth(2).click(force=True)
-
-            # 处理确认弹窗
-            await self.page.get_by_role('button', name='确定').click()
-
-            # 等待删除成功提示
-            # 使用 specific selector 避免匹配到代码预览中的文本
-            await expect(self.page.locator('.el-message__content').filter(has_text='删除成功')).to_be_visible(
-                timeout=5000
-            )
-
-            # 等待提示消失，防止干扰下一次操作
-            await expect(self.page.locator('.el-message__content').filter(has_text='删除成功')).to_be_hidden(
-                timeout=5000
-            )
-
-        if verify:
-            # 验证删除成功
-            # 重新搜索验证不存在
-            await self.search_table(table_name)
-            # 使用 strict matching
-            row = self.page.locator('.app-container .el-table__body-wrapper tbody tr').filter(
-                has=self.page.get_by_text(table_name, exact=True)
-            )
-            # 期望找不到或者 count为0
-            await expect(row).to_have_count(0)
+    async def cleanup(self) -> None:
+        """失败时仍只清理由本次导入取得 ID 的元数据。"""
+        if self.table_id is not None:
+            api = await self.harness.api_context(self.token)
+            response = await api.delete(f'/tool/gen/{self.table_id}')
+            assert (await response.json())['code'] == HTTPStatus.OK
 
 
 @pytest.mark.asyncio
-async def test_gen_table_page() -> None:
-    """测试代码生成页面功能"""
-    async with async_playwright() as p:
-        test_instance = GenTableTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_gen_code_flow()
-        finally:
-            await test_instance.teardown()
+async def test_gen_table_page(browser_harness: BrowserHarness) -> None:
+    """测试真实数据库表的导入、编辑、预览、下载与删除。"""
+    test = GenTableTest()
+    await test.setup(browser_harness)
+    try:
+        async with test.page.expect_response(lambda response: urlparse(response.url).path.endswith('/tool/gen/list')):
+            await test.page.goto(Config.frontend_url + '/tool/gen')
+        await test.import_table()
+        await test.edit_table()
+        await test.preview_and_download()
+        await test.delete_table()
+    finally:
+        await test.cleanup()

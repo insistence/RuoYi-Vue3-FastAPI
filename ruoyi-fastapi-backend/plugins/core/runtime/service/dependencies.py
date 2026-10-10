@@ -241,7 +241,9 @@ class PluginDependencyUseCase:
             frontend_root=Path(self.dependencies.runtime_environment.get_frontend_dir())
         ).build_plan(dependency_result)
         resolved_policy_config = policy_config or DependencyInstallPolicyConfig.from_environment()
-        policy_decision = DependencyInstallPolicyEvaluator(resolved_policy_config).evaluate(
+        policy_decision = DependencyInstallPolicyEvaluator(
+            resolved_policy_config, runtime_environment=self.dependencies.runtime_environment
+        ).evaluate(
             install_plan,
             confirmed=confirmed,
         )
@@ -345,7 +347,9 @@ class PluginDependencyUseCase:
             frontend_root=Path(self.dependencies.runtime_environment.get_frontend_dir())
         ).build_plan(dependency_result)
         resolved_policy_config = policy_config or DependencyInstallPolicyConfig.from_environment()
-        policy_decision = DependencyInstallPolicyEvaluator(resolved_policy_config).evaluate(
+        policy_decision = DependencyInstallPolicyEvaluator(
+            resolved_policy_config, runtime_environment=self.dependencies.runtime_environment
+        ).evaluate(
             install_plan,
             confirmed=confirmed,
         )

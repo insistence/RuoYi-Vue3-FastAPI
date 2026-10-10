@@ -994,9 +994,11 @@ class PluginService:
         """
         根据发现结果和数据库状态构建插件信息模型。
 
+        前端依赖摘要使用当前宿主前端框架的分类，并保留各框架分类供详情展示。
+
         :param discovered_plugin: 已发现插件对象
         :param backend_root: 后端插件根目录
-        :param frontend_root: 前端插件根目录
+        :param frontend_root: 当前宿主前端插件根目录，其父目录为前端工程根目录
         :param existing_plugin: 数据库中已有插件对象
         :return: 插件信息模型
         """
@@ -1015,6 +1017,14 @@ class PluginService:
             status = current_status
         frontend_path = frontend_root / manifest.frontend.plugin_id if frontend_root else None
         frontend_menus = PluginMenuTree.flatten(manifest.frontend.menus)
+        frontend_framework = (
+            PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_framework(
+                frontend_root.parent if frontend_root else Path(PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_dir())
+            )
+            if manifest.dependencies.frontend
+            else None
+        )
+        frontend_dependencies = manifest.dependencies.resolve_frontend(frontend_framework or 'vue3')
 
         return PluginModel(
             pluginId=manifest.id,
@@ -1054,8 +1064,19 @@ class PluginService:
             config=[config_item.model_dump(by_alias=True) for config_item in manifest.config.items],
             dependencies={
                 'python': manifest.dependencies.python,
-                'npm': manifest.dependencies.npm,
-                'npmDev': manifest.dependencies.npm_dev,
+                'npm': frontend_dependencies.npm,
+                'npmDev': frontend_dependencies.npm_dev,
+                **(
+                    {
+                        'frontendFramework': frontend_framework,
+                        'frontendProfiles': {
+                            framework: profile.model_dump(by_alias=True)
+                            for framework, profile in manifest.dependencies.frontend.items()
+                        },
+                    }
+                    if frontend_framework
+                    else {}
+                ),
             },
             pluginDependencies=[dependency.model_dump(by_alias=True) for dependency in manifest.dependencies.plugins],
         )

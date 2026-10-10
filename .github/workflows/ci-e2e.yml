@@ -1,0 +1,111 @@
+name: CI / E2E
+
+on:
+  workflow_call:
+    inputs:
+      matrix_json:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: ${{ matrix.framework }} / ${{ matrix.database }} / Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.matrix_json) }}
+    env:
+      COMPOSE_PROJECT_NAME: ruoyi-ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+      COMPOSE_FILE: ${{ github.workspace }}/ruoyi-fastapi-test/target/e2e/compose.json
+      FRONTEND_FRAMEWORK: ${{ matrix.framework }}
+      E2E_OUTPUT_DIR: ${{ github.workspace }}/ruoyi-fastapi-test/target/e2e/browser
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ruoyi-fastapi-test/requirements.txt
+      - name: Install test runner and Chromium
+        run: |
+          python -m pip install -r ruoyi-fastapi-test/requirements.txt
+          python -m playwright install --with-deps chromium
+      - name: Verify reusable browser and isolated contexts
+        working-directory: ruoyi-fastapi-test
+        run: |
+          python -m pytest -m harness -q --junitxml=target/e2e/harness.xml
+          python ../.github/scripts/check_test_report.py target/e2e/harness.xml
+      - name: Generate isolated Compose project
+        run: |
+          python ruoyi-fastapi-test/prepare_e2e_compose.py \
+            --database '${{ matrix.database }}' --framework '${{ matrix.framework }}' \
+            --python-version '${{ matrix.python }}' --project "$COMPOSE_PROJECT_NAME" \
+            --output "$COMPOSE_FILE"
+          docker compose config --quiet
+      - uses: docker/setup-buildx-action@v3
+      - name: Build frontend with reusable layers
+        uses: docker/build-push-action@v6
+        with:
+          context: ruoyi-fastapi-frontend/${{ matrix.framework }}/web
+          file: ruoyi-fastapi-frontend/${{ matrix.framework }}/web/Dockerfile
+          load: true
+          tags: ${{ env.COMPOSE_PROJECT_NAME }}-ruoyi-frontend:ci
+          cache-from: type=gha,scope=e2e-frontend-${{ matrix.framework }}
+          cache-to: type=gha,scope=e2e-frontend-${{ matrix.framework }},mode=max
+      - name: Select database Dockerfile
+        id: database
+        env:
+          DATABASE: ${{ matrix.database }}
+        run: |
+          if [ "$DATABASE" = mysql ]; then
+            echo 'suffix=my' >> "$GITHUB_OUTPUT"
+          else
+            echo 'suffix=pg' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build backend with reusable layers
+        uses: docker/build-push-action@v6
+        with:
+          context: ruoyi-fastapi-backend
+          file: ruoyi-fastapi-backend/Dockerfile.${{ steps.database.outputs.suffix }}
+          load: true
+          tags: ${{ env.COMPOSE_PROJECT_NAME }}-ruoyi-backend-${{ steps.database.outputs.suffix }}:ci
+          build-args: |
+            PYTHON_VERSION=${{ matrix.python }}
+            PIP_INDEX_URL=https://pypi.org/simple
+          cache-from: type=gha,scope=e2e-backend-${{ matrix.database }}-py${{ matrix.python }}
+          cache-to: type=gha,scope=e2e-backend-${{ matrix.database }}-py${{ matrix.python }},mode=max
+      - name: Wait for healthy database, API and frontend proxy
+        run: |
+          docker compose up --detach --no-build --wait --wait-timeout 240
+          echo "TEST_FRONTEND_URL=http://$(docker compose port ruoyi-frontend 80)" >> "$GITHUB_ENV"
+          echo "TEST_BACKEND_URL=http://$(docker compose port ruoyi-backend-${{ steps.database.outputs.suffix }} 9099)" >> "$GITHUB_ENV"
+      - name: Run all application pages and functional E2E checks
+        working-directory: ruoyi-fastapi-test
+        run: |
+          python -m pytest -m e2e -v --durations=20 --junitxml=target/e2e/junit.xml
+          python ../.github/scripts/check_test_report.py target/e2e/junit.xml
+      - name: Collect service diagnostics
+        if: always()
+        run: |
+          mkdir -p ruoyi-fastapi-test/target/e2e
+          if [ -f "$COMPOSE_FILE" ]; then
+            docker compose ps --all > ruoyi-fastapi-test/target/e2e/services.txt 2>&1 || true
+            docker compose logs --no-color --timestamps > ruoyi-fastapi-test/target/e2e/services.log 2>&1 || true
+          fi
+      - name: Remove only this test project's containers and data
+        if: always()
+        run: |
+          if [ -f "$COMPOSE_FILE" ]; then
+            docker compose down --volumes --remove-orphans --timeout 20
+          fi
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: e2e-${{ matrix.framework }}-${{ matrix.database }}-py${{ matrix.python }}
+          path: ruoyi-fastapi-test/target/e2e
+          retention-days: 7
+          if-no-files-found: warn

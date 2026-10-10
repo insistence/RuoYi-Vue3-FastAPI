@@ -1,0 +1,21 @@
+{
+  "folders": [
+    {
+      "name": "vue3-web",
+      "path": ".",
+    },
+  ],
+  "settings": {
+    "prettier.requireConfig": true,
+    "[vue][javascript][javascriptreact][typescript][typescriptreact][json][jsonc][html][css][scss][less][markdown][yaml]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode",
+      "editor.formatOnSave": true,
+      "editor.detectIndentation": false,
+      "editor.insertSpaces": true,
+      "editor.tabSize": 2,
+    },
+  },
+  "extensions": {
+    "recommendations": ["Vue.volar", "esbenp.prettier-vscode", "EditorConfig.EditorConfig"],
+  },
+}

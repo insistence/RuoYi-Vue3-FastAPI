@@ -1,0 +1,54 @@
+name: CI / Quality
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Code and CI contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: .github/requirements.txt
+      - run: python -m pip install -r .github/requirements.txt
+      - name: Python lint and format
+        run: |
+          ruff check ruoyi-fastapi-backend ruoyi-fastapi-test .github/scripts .github/tests
+          ruff format --check ruoyi-fastapi-backend ruoyi-fastapi-test .github/scripts .github/tests
+      - name: Test CI routing, failure gates and deployment contracts
+        run: python -m pytest .github/tests -q --junitxml=target/ci/quality.xml
+      - name: Validate every Compose framework selection
+        run: python .github/scripts/check_compose.py
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: '1.7.12'
+        run: |
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --location --retry 3 "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}" --output "${RUNNER_TEMP}/${archive}"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  ${RUNNER_TEMP}/${archive}" | sha256sum --check
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ruoyi-fastapi-frontend/*/web/package.json
+      - name: Check Web formatting with the existing project configurations
+        run: |
+          for framework in vue2 vue3; do
+            (cd "ruoyi-fastapi-frontend/$framework/web" && npx --yes prettier@3.6.2 --check .)
+          done
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quality-reports
+          path: target/ci/
+          retention-days: 7

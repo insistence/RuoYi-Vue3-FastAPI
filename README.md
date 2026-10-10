@@ -1,28 +1,25 @@
 <h1 align="center">
-    <img alt="logo" src="./ruoyi-fastapi-frontend/src/assets/logo/logo.png">
+    <img alt="logo" src="./ruoyi-fastapi-frontend/vue3/web/src/assets/logo/logo.png">
 </h1>
-<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">RuoYi-Vue3-FastAPI</h1>
-<h4 align="center">基于RuoYi-Vue3+FastAPI前后端分离的快速开发框架</h4>
+<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">RuoYi-FastAPI</h1>
+<h4 align="center">基于 FastAPI 的前后端分离快速开发框架</h4>
 <p align="center">
-    <a href="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/stargazers">
-        <img alt="Gitee" src="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/badge/star.svg?theme=dark">
+    <a href="https://gitee.com/insistence2022/RuoYi-FastAPI/stargazers">
+        <img alt="Gitee" src="https://gitee.com/insistence2022/RuoYi-FastAPI/badge/star.svg?theme=dark">
     </a>
-    <a href="https://github.com/insistence/RuoYi-Vue3-FastAPI">
-        <img alt="Github" src="https://img.shields.io/github/stars/insistence/RuoYi-Vue3-FastAPI?style=social">
+    <a href="https://github.com/insistence/RuoYi-FastAPI">
+        <img alt="Github" src="https://img.shields.io/github/stars/insistence/RuoYi-FastAPI?style=social">
     </a>
-    <a href="https://github.com/insistence/RuoYi-Vue3-FastAPI/actions?query=branch%3Amaster+event%3Apush+workflow%3A%22%22Playwright+Tests%22%22">
-        <img alt="Playwright Tests" src="https://github.com/insistence/RuoYi-Vue3-FastAPI/workflows/Playwright Tests/badge.svg">
+    <a href="https://github.com/insistence/RuoYi-FastAPI/actions/workflows/ci.yml">
+        <img alt="CI" src="https://github.com/insistence/RuoYi-FastAPI/actions/workflows/ci.yml/badge.svg?branch=master">
     </a>
-    <a href="https://github.com/insistence/RuoYi-Vue3-FastAPI/actions?query=branch%3Amaster+event%3Apush+workflow%3A%22%22Ruff+Check%22%22">
-        <img alt="Ruff Check" src="https://github.com/insistence/RuoYi-Vue3-FastAPI/workflows/Ruff Check/badge.svg">
-    </a>
-    <a href="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI">
+    <a href="https://gitee.com/insistence2022/RuoYi-FastAPI">
         <img alt="project version" src="https://img.shields.io/badge/version-1.10.0-brightgreen.svg">
     </a>
     <a href="https://github.com/astral-sh/ruff">
         <img alt="Ruff" src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json">
     </a>
-    <a href="https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI/blob/master/LICENSE">
+    <a href="https://gitee.com/insistence2022/RuoYi-FastAPI/blob/master/LICENSE">
         <img alt="LICENSE" src="https://img.shields.io/github/license/mashape/apistatus.svg">
     </a>
     <img alt="node version" src="https://img.shields.io/badge/node-≥18-blue">
@@ -33,16 +30,13 @@
 
 ## 平台简介
 
-RuoYi-Vue3-FastAPI是一套全部开源的快速开发平台，毫无保留给个人及企业免费使用。
+RuoYi-FastAPI是一套全部开源的快速开发平台，毫无保留给个人及企业免费使用。
 
-* 前端采用Vue3、Element Plus，基于<u>[RuoYi-Vue3](https://github.com/yangzongzhuan/RuoYi-Vue3)</u>前端项目修改。
-* 移动端采用uni-app、Vue3、Vite，内置tailwindcss，基于<u>[RuoYi-App](https://github.com/yangzongzhuan/RuoYi-App)</u>项目修改。
+* Web 前端提供 Vue2 + Element UI 和 Vue3 + Element Plus 两套工程，分别基于<u>[RuoYi-Vue](https://github.com/yangzongzhuan/RuoYi-Vue)</u>和<u>[RuoYi-Vue3](https://github.com/yangzongzhuan/RuoYi-Vue3)</u>修改。
+* 移动端提供 uni-app 的 Vue2、Vue3 两套工程，内置 tailwindcss，基于<u>[RuoYi-App](https://github.com/yangzongzhuan/RuoYi-App)</u>项目修改。
 * 后端采用FastAPI、sqlalchemy、MySQL（PostgreSQL）、Redis、OAuth2 & Jwt。
 * 权限认证使用OAuth2 & Jwt，支持多终端认证系统。
 * 支持加载动态权限菜单，多方式轻松权限控制。
-* Vue2版本：
-  * Gitte仓库地址：<https://gitee.com/insistence2022/RuoYi-Vue-FastAPI>
-  * GitHub仓库地址：<https://github.com/insistence/RuoYi-Vue-FastAPI>
 * 纯Python版本：
   * Gitte仓库地址：<https://gitee.com/insistence2022/dash-fastapi-admin>
   * GitHub仓库地址：<https://github.com/insistence/Dash-FastAPI-Admin>
@@ -200,6 +194,23 @@ RuoYi-Vue3-FastAPI是一套全部开源的快速开发平台，毫无保留给�
 
 ## 项目开发及发布相关
 
+### 工程目录
+
+前端目录约定为 `ruoyi-fastapi-frontend/<framework>/{web,mobile}`，其中 `<framework>` 是前端框架标识，当前为 `vue2`、`vue3`。
+
+```text
+RuoYi-FastAPI/
+├── ruoyi-fastapi-backend/       # 共用 FastAPI 后端
+├── ruoyi-fastapi-frontend/
+│   ├── vue2/
+│   │   ├── web/                # Vue2 + Element UI
+│   │   └── mobile/             # uni-app + Vue2
+│   └── vue3/
+│       ├── web/                # Vue3 + Element Plus + Vite
+│       └── mobile/             # uni-app + Vue3 + Vite
+└── ruoyi-fastapi-test/          # 端到端与跨工程契约测试
+```
+
 ### 传输层加解密配置说明
 
 后端密钥配置与轮换说明：[ruoyi-fastapi-backend/docs/transport_crypto_config.md](./ruoyi-fastapi-backend/docs/transport_crypto_config.md)
@@ -208,17 +219,18 @@ RuoYi-Vue3-FastAPI是一套全部开源的快速开发平台，毫无保留给�
 
 ```bash
 # 克隆项目
-git clone https://gitee.com/insistence2022/RuoYi-Vue3-FastAPI.git
+git clone https://gitee.com/insistence2022/RuoYi-FastAPI.git
 
 # 进入项目根目录
-cd RuoYi-Vue3-FastAPI
+cd RuoYi-FastAPI
 ```
 
-#### 前端
+#### Web 前端
 
 ```bash
-# 进入前端目录
-cd ruoyi-fastapi-frontend
+# 从仓库根目录进入 Vue3 Web 工程
+cd ruoyi-fastapi-frontend/vue3/web
+# 使用 Vue2 时改为：cd ruoyi-fastapi-frontend/vue2/web
 
 # 安装依赖
 npm install 或 yarn --registry=https://registry.npmmirror.com
@@ -230,11 +242,15 @@ npm install --registry=https://registry.npmmirror.com
 npm run dev 或 yarn dev
 ```
 
-#### 移动端
+两个 Web 工程默认都使用 `80` 端口，开发代理均指向同一个 `9099` 后端。同时运行时，请分别配置不同的前端端口。
+
+Vue2 Web 使用 Vue CLI 4 / webpack 4，在 Node.js 18 及以上启动或构建前，需要设置 `NODE_OPTIONS=--openssl-legacy-provider`：PowerShell 执行 `$env:NODE_OPTIONS = '--openssl-legacy-provider'`，Bash 执行 `export NODE_OPTIONS=--openssl-legacy-provider`。Docker 和构建 CI 已配置此选项。
+
+#### Vue3 移动端
 
 ```bash
-# 进入移动端目录
-cd ruoyi-fastapi-app
+# 从仓库根目录进入移动端工程
+cd ruoyi-fastapi-frontend/vue3/mobile
 
 # 安装依赖
 npm install -g pnpm
@@ -247,7 +263,21 @@ pnpm dev:h5
 pnpm dev:mp-weixin
 ```
 
-移动端详细文档请参考：[ruoyi-fastapi-app/README.md](./ruoyi-fastapi-app/README.md)
+#### Vue2 移动端
+
+```bash
+# 从仓库根目录进入移动端工程
+cd ruoyi-fastapi-frontend/vue2/mobile
+yarn install
+
+# 启动 H5
+yarn dev:h5
+
+# 启动微信小程序
+yarn dev:mp-weixin
+```
+
+移动端详细文档请参考：[Vue3 移动端](./ruoyi-fastapi-frontend/vue3/mobile/README.md)、[Vue2 移动端](./ruoyi-fastapi-frontend/vue2/mobile/README.md)。
 
 #### 后端
 
@@ -289,7 +319,9 @@ ruoyi app run --env=dev
 
 ### 发布
 
-#### 前端
+#### Web 前端
+
+先进入要发布的 `ruoyi-fastapi-frontend/vue2/web` 或 `ruoyi-fastapi-frontend/vue3/web` 工程，再运行：
 
 ```bash
 # 构建测试环境
@@ -313,16 +345,18 @@ ruoyi app run --env=prod
 
 > ⚠️ **警告：** 默认未做数据持久化配置，请注意数据备份或自行配置持久化
 
+Compose 通过前端框架标识选择 Web 工程。仓库根目录的 `docker.env` 默认设置 `FRONTEND_FRAMEWORK=vue3`，当前可选值为 `vue2`、`vue3`；改为 `vue2` 可切换到 Vue2 Web。执行下方命令时，通过 `--env-file docker.env` 显式加载配置。该变量同时选择 `ruoyi-fastapi-frontend/<framework>/web` 构建目录与对应的 nginx 配置，并通过 `RUOYI_PLUGIN_FRONTEND_FRAMEWORK` 传入后端，使插件依赖检查和安装使用相同框架分类。各框架共用后端服务与数据库配置；本次部署只构建所选 Web 工程，不会构建移动端。
+
 #### MySQL版本
 
 ```bash
-docker compose -f docker-compose.my.yml up -d --build
+docker compose --env-file docker.env -f docker-compose.my.yml up -d --build
 ```
 
 #### PostgreSQL版本
 
 ```bash
-docker compose -f docker-compose.pg.yml up -d --build
+docker compose --env-file docker.env -f docker-compose.pg.yml up -d --build
 ```
 
 ## 交流与赞助

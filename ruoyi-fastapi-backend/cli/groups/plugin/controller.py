@@ -661,7 +661,7 @@ class PluginCommandController:
             job=not options.no_job,
             config=not options.no_config,
             test=not options.no_test,
-            frontend_version=options.frontend_version,
+            frontend_framework=options.frontend_framework,
             dry_run=options.dry_run,
         )
         self.execution_service.complete_payload_with_text(

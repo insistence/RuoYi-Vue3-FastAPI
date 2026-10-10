@@ -4,6 +4,7 @@ from subprocess import CompletedProcess
 
 from cli.runtime.plugin.service import CliPluginRuntimeService
 from plugins.core.environment import PluginRuntimeEnvironmentService
+from plugins.core.frontend import PluginFrontendFrameworkResolver
 from plugins.core.validation.dependencies import (
     NpmDependencyInspector,
     PluginDependencyChecker,
@@ -36,6 +37,10 @@ class FakeRuntimeEnvironment:
     def get_frontend_dir(self) -> str:
         """获取前端项目根目录。"""
         return str(self.frontend_dir)
+
+    def get_frontend_framework(self, frontend_root: Path | None = None) -> str:
+        """获取指定测试前端工程的框架标识。"""
+        return PluginFrontendFrameworkResolver.resolve(frontend_root or self.frontend_dir)
 
     def get_frontend_plugins_dir(self) -> str:
         """获取前端插件根目录。"""

@@ -20,6 +20,7 @@ from cli.exit_codes import ARGUMENT_ERROR, GUARD_REJECTED
 from cli.groups.plugin.artifact_controller import PluginArtifactCommandController
 from cli.groups.plugin.commands.artifact import register_artifact_commands
 
+pytestmark = pytest.mark.contract
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 DIGEST = 'a' * 64
 GENERATION = 'b' * 32
@@ -257,7 +258,7 @@ def test_help_keeps_config_crypto_database_and_plugin_code_unloaded(help_argumen
         f'print(json.dumps({{"exit":r.exit_code,"loaded":{{name:name in sys.modules for name in {observed!r}}}}}))'
     )
     result = subprocess.run(
-        [sys.executable, '-c', script], cwd=BACKEND_ROOT, capture_output=True, text=True, check=True
+        [sys.executable, '-c', script], cwd=BACKEND_ROOT, capture_output=True, text=True, check=True, timeout=30
     )
     payload = json.loads(result.stdout)
     assert payload['exit'] == 0

@@ -1,48 +1,46 @@
-import pytest
-from playwright.async_api import async_playwright
+from http import HTTPStatus
+from urllib.parse import urlparse
 
-from common.base_page_test import BasePageTest
+import pytest
+from playwright.async_api import expect
+
+from common.browser_harness import BrowserHarness
 from common.config import Config
 
-
-class CacheMonitorTest(BasePageTest):
-    """缓存监控测试类"""
-
-    async def test_cache_monitor(self) -> None:
-        """测试缓存监控页面"""
-        await self.page.goto(Config.frontend_url + '/monitor/cache')
-        await self.page.wait_for_load_state('networkidle')
-
-        # 验证基本信息
-        await self.page.wait_for_selector('text=基本信息')
-        await self.page.wait_for_selector('text=Redis版本')
-        await self.page.wait_for_selector('text=运行模式')
-
-        # 验证命令统计
-        await self.page.wait_for_selector('text=命令统计')
-
-        # 验证内存信息
-        await self.page.wait_for_selector('text=内存信息')
-
-        # 验证端口为 6379
-        port_row = self.page.locator('tr', has_text='端口')
-        try:
-            await port_row.wait_for(timeout=5000)
-            text = await port_row.text_content()
-            assert '6379' in text, f"Expected port '6379' in row, but got: {text}"
-        except Exception:
-            print("Warning: '端口' row not found, checking page content")
-            content = await self.page.content()
-            assert '6379' in content, "Port '6379' not found in page content"
+pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.asyncio
-async def test_cache_monitor_page() -> None:
-    """测试缓存监控页面功能"""
-    async with async_playwright() as p:
-        test_instance = CacheMonitorTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_cache_monitor()
-        finally:
-            await test_instance.teardown()
+async def test_cache_monitor_page(browser_harness: BrowserHarness) -> None:
+    """核对实际 Redis 指标和图表，不假定本机使用默认端口。"""
+    page = await browser_harness.new_page(authenticated=True)
+    async with page.expect_response(
+        lambda response: (
+            urlparse(response.url).path.endswith('/monitor/cache')
+            and response.request.resource_type in {'xhr', 'fetch'}
+        )
+    ) as pending:
+        await page.goto(Config.frontend_url + '/monitor/cache')
+    response = await pending.value
+    assert response.status == HTTPStatus.OK
+    payload = await response.json()
+    assert payload['code'] == HTTPStatus.OK, payload
+    data = payload['data']
+    info = data['info']
+    metrics = {
+        'Redis版本': info['redis_version'],
+        '运行模式': '单机' if info['redis_mode'] == 'standalone' else '集群',
+        '端口': info['tcp_port'],
+        '客户端数': info['connected_clients'],
+        '运行时间(天)': info['uptime_in_days'],
+        '使用内存': info['used_memory_human'],
+        '内存配置': info['maxmemory_human'],
+        'RDB是否成功': info['rdb_last_bgsave_status'],
+        'Key数量': data['dbSize'],
+    }
+    for label, value in metrics.items():
+        cell = page.get_by_text(label, exact=True).locator('xpath=ancestor::td/following-sibling::td[1]')
+        await expect(cell).to_have_text(str(value))
+    for heading in ('命令统计', '内存信息'):
+        card = page.locator('.el-card').filter(has=page.get_by_text(heading, exact=True))
+        await expect(card.locator('canvas').first).to_be_visible()

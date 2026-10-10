@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from importlib.resources import files
 from pathlib import Path
 from typing import Any
@@ -15,19 +16,26 @@ class PluginV2ScaffoldBuilder:
     独立 v2 插件源码工程模板构建器。
     """
 
-    def __init__(self, backend_root: Path, frontend_root: Path) -> None:
+    def __init__(
+        self,
+        backend_root: Path,
+        frontend_root: Path,
+        frontend_framework_resolver: Callable[[Path], str] | None = None,
+    ) -> None:
         """
         初始化独立 v2 工程模板构建器。
 
         :param backend_root: 宿主后端项目根目录
         :param frontend_root: 宿主前端项目根目录，用于读取桥接 SDK
+        :param frontend_framework_resolver: 宿主框架解析函数，仅 bundle 复制 SDK 时调用
         :return: None
         """
         self.backend_root = backend_root
         self.frontend_root = frontend_root
+        self.frontend_framework_resolver = frontend_framework_resolver
 
     def build_plan(
-        self, plugin_id: str, *, template: str, backend: bool, frontend: bool, test: bool, frontend_version: str
+        self, plugin_id: str, *, template: str, backend: bool, frontend: bool, test: bool, frontend_framework: str
     ) -> dict[str, Any]:
         """
         生成独立源码工程的文件计划，不安装、启用或导入插件。
@@ -37,7 +45,7 @@ class PluginV2ScaffoldBuilder:
         :param backend: 是否创建后端工程
         :param frontend: 是否创建前端工程
         :param test: 是否生成本地合约测试
-        :param frontend_version: 旧版前端选项，v2 模板仅接受 auto
+        :param frontend_framework: 宿主前端框架选项，v2 模板仅接受 auto
         :return: 包含生成文件、目标目录与冲突信息的计划
         """
         native = template.startswith('rust-')
@@ -46,8 +54,8 @@ class PluginV2ScaffoldBuilder:
             raise ValueError('v2 ASGI 模板需要后端，不能使用 --frontend-only')
         if bundle and not frontend:
             raise ValueError('bundle 模板不能使用 --backend-only；仅 API 请使用 python-asgi 或 rust-asgi')
-        if frontend_version != 'auto':
-            raise ValueError('v2 模板不使用 --frontend-version；独立 bundle 与宿主 Vue 版本无关')
+        if frontend_framework != 'auto':
+            raise ValueError('v2 模板的 --frontend-framework 仅接受 auto；独立 bundle 与宿主前端框架无关')
 
         root = self.backend_root / 'plugin-projects' / plugin_id
         replacements = {
@@ -86,9 +94,16 @@ class PluginV2ScaffoldBuilder:
         if test:
             entries.append((root / 'tests' / 'test_plugin.py', self._render('test_plugin.py', replacements)))
         if bundle:
+            host_framework = (
+                self.frontend_framework_resolver(self.frontend_root)
+                if self.frontend_framework_resolver is not None
+                else 'auto'
+            )
             entries.extend(
                 (root / 'web' / 'vendor' / sdk_name, content)
-                for sdk_name, content in PluginBridgeSdk(self.frontend_root).build_vendor_files().items()
+                for sdk_name, content in PluginBridgeSdk(self.frontend_root, frontend_framework=host_framework)
+                .build_vendor_files()
+                .items()
             )
             entries.extend(
                 (root / 'web' / name, self._render(f'web/{name.removeprefix("src/")}', replacements))
@@ -115,7 +130,7 @@ class PluginV2ScaffoldBuilder:
             test=test,
             backend_test=test,
             frontend_test=False,
-            frontend_version=None,
+            frontend_framework=None,
             target_dirs=[str(root)],
             files=entries,
             conflicts=[str(root)] if root.exists() else [],

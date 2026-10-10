@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
+from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from common.context import RequestContext
 from config.database import Base
 from exceptions.exception import OidcInteractionException
 from module_identity.dao.oauth_audit_dao import OAuthAuditDao
@@ -154,7 +157,6 @@ async def test_audit_admin_reads_project_safe_models_and_export(monkeypatch: pyt
 
     monkeypatch.setattr(OAuthAuditDao, 'list_admin_page', list_admin_page)
     monkeypatch.setattr(OAuthAuditDao, 'count_admin', count_admin)
-    monkeypatch.setattr('module_identity.service.audit_service.export_list2excel', lambda values: b'xlsx')
     query = AuditPageQueryModel(page_num=2, page_size=_ADMIN_PAGE_SIZE, client_id='client-1')
 
     rows, total = await AuditService.list_admin_page(SimpleNamespace(), query)
@@ -163,9 +165,47 @@ async def test_audit_admin_reads_project_safe_models_and_export(monkeypatch: pyt
     assert total == _ADMIN_TOTAL
     assert rows[0]['auditId'] == _ADMIN_EVENT_ID
     assert 'detail' not in rows[0]
-    assert exported == b'xlsx'
+    workbook = load_workbook(BytesIO(exported))
+    headers, values = list(workbook.active.values)
+    assert dict(zip(headers, values, strict=True))['auditId'] == _ADMIN_EVENT_ID
+    assert 'detail' not in headers
     assert calls[0]['offset'] == _ADMIN_PAGE_SIZE and calls[0]['limit'] == _ADMIN_PAGE_SIZE
     assert calls[1]['offset'] == 0 and calls[1]['limit'] == _EXPORT_LIMIT
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('timezone_name', 'expected_time'),
+    [
+        ('Asia/Shanghai', datetime(2026, 8, 28, 18, 30, 0, 123000)),
+        ('America/New_York', datetime(2026, 8, 28, 6, 30, 0, 123000)),
+    ],
+)
+async def test_audit_export_serializes_stored_utc_in_request_timezone(
+    audit_session: AsyncSession, timezone_name: str, expected_time: datetime
+) -> None:
+    """真实查询和 Excel 写入链路必须转换 UTC 时刻并注明导出时区。"""
+    event = await AuditService.record(
+        audit_session,
+        'export_timezone',
+        'success',
+        create_time=datetime(2026, 8, 28, 10, 30, 0, 123000, tzinfo=timezone.utc),
+        detail={'private_note': 'not-for-export', 'access_token': 'hidden'},
+    )
+    await audit_session.commit()
+    token = RequestContext.set_current_timezone(timezone_name)
+    try:
+        exported = await AuditService.export_admin(audit_session, AuditPageQueryModel(event_type='export_timezone'))
+    finally:
+        RequestContext.reset_current_timezone(token)
+    workbook = load_workbook(BytesIO(exported))
+    headers, values = list(workbook.active.values)
+    exported_row = dict(zip(headers, values, strict=True))
+    assert exported_row['auditId'] == event.event_id
+    assert exported_row[f'createTime ({timezone_name})'] == expected_time
+    assert 'detail' not in headers
+    assert 'not-for-export' not in values
+    assert 'hidden' not in values
 
 
 @pytest.mark.asyncio

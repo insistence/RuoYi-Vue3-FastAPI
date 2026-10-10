@@ -26,7 +26,7 @@ frontend:
 """,
     )
     (plugin_root / 'controller').mkdir()
-    (project_root / 'ruoyi-fastapi-frontend' / 'plugins' / 'demo' / 'views').mkdir(parents=True)
+    (project_root / 'ruoyi-fastapi-frontend' / 'vue3' / 'web' / 'plugins' / 'demo' / 'views').mkdir(parents=True)
 
     payload = build_runtime(backend_root).check_plugin('demo')
 

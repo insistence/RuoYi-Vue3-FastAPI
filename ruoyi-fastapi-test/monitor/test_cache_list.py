@@ -1,81 +1,64 @@
-import pytest
-from playwright.async_api import async_playwright, expect
+from http import HTTPStatus
+from urllib.parse import urlparse
+from uuid import uuid4
 
-from common.base_page_test import BasePageTest
+import pytest
+from playwright.async_api import expect
+
+from common.browser_harness import BrowserHarness
 from common.config import Config
 
-
-class CacheListTest(BasePageTest):
-    """缓存列表测试类"""
-
-    async def test_cache_list(self) -> None:
-        """测试缓存列表页面"""
-        await self.page.goto(Config.frontend_url + '/monitor/cacheList')
-        await self.page.wait_for_load_state('networkidle')
-
-        # 1. 缓存列表 - 点击 sys_config
-        await self.page.wait_for_selector('text=缓存列表')
-
-        # 等待 sys_config 出现并点击
-        sys_config_row = self.page.locator('.el-card', has_text='缓存列表').locator('tr', has_text='sys_config')
-        await sys_config_row.wait_for()
-        await sys_config_row.click()
-
-        # 2. 键名列表 - 点击 sys.account.captchaEnabled
-        await self.page.wait_for_selector('text=键名列表')
-
-        # 等待 sys.account.captchaEnabled 出现并点击
-        captcha_row = self.page.locator('.el-card', has_text='键名列表').locator(
-            'tr', has_text='sys.account.captchaEnabled'
-        )
-        await captcha_row.wait_for()
-        await captcha_row.click()
-
-        # 3. 验证缓存内容为 false
-        await self.page.wait_for_selector('text=缓存内容')
-
-        # 等待数据加载
-        await self.page.wait_for_timeout(2000)
-
-        # 获取内容
-        # 缓存内容显示在一个 textarea 中
-        content_area = self.page.locator('div.el-form-item', has_text='缓存内容:').locator('textarea')
-
-        # 也可以尝试直接获取 .el-form-item__content 的文本，如果 textarea 不可交互
-        if await content_area.count() > 0:
-            # 尝试等待内容不为空
-            try:
-                await expect(content_area).not_to_be_empty(timeout=5000)
-            except TimeoutError:
-                pass
-
-            value = await content_area.input_value()
-            print(f'Cache content value: {value}')
-
-            # 如果为空，可能需要重新点击一下
-            if not value:
-                print('Value is empty, trying to click key again')
-                await captcha_row.click()
-                await self.page.wait_for_timeout(2000)
-                value = await content_area.input_value()
-                print(f'Cache content value after retry: {value}')
-
-            assert 'false' in value.lower(), f"Expected 'false' in cache content, got: {value}"
-        else:
-            # 如果不是 textarea，尝试获取文本
-            content_div = self.page.locator('div.el-form-item', has_text='缓存内容:').locator('.el-form-item__content')
-            value = await content_div.text_content()
-            print(f'Cache content text: {value}')
-            assert 'false' in value.lower(), f"Expected 'false' in cache content, got: {value}"
+pytestmark = pytest.mark.e2e
 
 
 @pytest.mark.asyncio
-async def test_cache_list_page() -> None:
-    """测试缓存列表页面功能"""
-    async with async_playwright() as p:
-        test_instance = CacheListTest()
-        await test_instance.setup(p)
-        try:
-            await test_instance.test_cache_list()
-        finally:
-            await test_instance.teardown()
+async def test_cache_list_page(browser_harness: BrowserHarness) -> None:
+    """新增专用参数，查看缓存值并只清除此用例的键。"""
+    token = await browser_harness.login()
+    api = await browser_harness.api_context(token)
+    key = f'e2e.cache.{uuid4().hex[:12]}'
+    value = f'缓存测试-{uuid4().hex}'
+    created = await api.post(
+        '/system/config',
+        data={'configName': key, 'configKey': key, 'configValue': value, 'configType': 'N'},
+    )
+    assert (await created.json())['code'] == HTTPStatus.OK
+    config_id = None
+    try:
+        listed = await api.get('/system/config/list', params={'configKey': key})
+        configs = (await listed.json())['rows']
+        assert len(configs) == 1
+        config_id = configs[0]['configId']
+        page = await browser_harness.new_page(authenticated=True)
+        await page.goto(Config.frontend_url + '/monitor/cacheList')
+        names = page.locator('.el-card').filter(has=page.get_by_text('缓存列表', exact=True))
+        await names.locator('tbody tr').filter(has_text='sys_config').click()
+        keys = page.locator('.el-card').filter(has=page.get_by_text('键名列表', exact=True))
+        row = keys.locator('tbody tr').filter(has=page.get_by_text(key, exact=True))
+        async with page.expect_response(
+            lambda response: '/monitor/cache/getValue/' in urlparse(response.url).path
+        ) as pending:
+            await row.click()
+        payload = await (await pending.value).json()
+        assert payload['code'] == HTTPStatus.OK, payload
+        assert payload['data']['cacheValue'] == value
+        await expect(page.locator('.el-form-item').filter(has_text='缓存内容:').locator('textarea')).to_have_value(
+            value
+        )
+        async with page.expect_response(
+            lambda response: (
+                response.request.method == 'DELETE' and '/monitor/cache/clearCacheKey/' in urlparse(response.url).path
+            )
+        ) as pending:
+            await row.get_by_role('button').click()
+        assert (await (await pending.value).json())['code'] == HTTPStatus.OK
+        await expect(row).to_have_count(0)
+        cached = await api.get('/monitor/cache/getKeys/sys_config:')
+        assert f'sys_config:{key}' not in (await cached.json())['data']
+        async with page.expect_response(lambda response: '/monitor/cache/getKeys/' in urlparse(response.url).path):
+            await keys.locator('.el-card__header').get_by_role('button').click()
+        await expect(row).to_have_count(0)
+    finally:
+        if config_id is not None:
+            deleted = await api.delete(f'/system/config/{config_id}')
+            assert (await deleted.json())['code'] == HTTPStatus.OK

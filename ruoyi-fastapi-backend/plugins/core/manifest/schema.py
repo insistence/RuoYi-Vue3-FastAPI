@@ -5,6 +5,7 @@ from typing import Any, Literal
 from packaging.requirements import InvalidRequirement
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
+from plugins.core.frontend import validate_frontend_framework
 from plugins.core.manifest.menu_tree import PluginMenuTree
 from plugins.core.types import PluginConfigValue
 from plugins.core.utils import PLUGIN_ID_PATTERN_TEXT, validate_plugin_id_value
@@ -314,17 +315,67 @@ class PluginDependencyManifest(BaseModel):
         return value
 
 
+class FrontendDependencyManifest(BaseModel):
+    """
+    指定前端框架的宿主前端依赖声明。
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra='forbid')
+
+    npm: list[str] = Field(default_factory=list, description='前端 npm 依赖声明')
+    npm_dev: list[str] = Field(default_factory=list, alias='npmDev', description='前端 npm 开发依赖声明')
+
+
 class DependencyManifest(BaseModel):
     """
     插件依赖声明。
+
+    前端依赖按宿主前端框架在 frontend 中分类声明，各分类独立维护完整依赖列表。
     """
 
     model_config = ConfigDict(populate_by_name=True, extra='forbid')
 
     python: list[str] = Field(default_factory=list, description='Python 依赖声明')
-    npm: list[str] = Field(default_factory=list, description='前端 npm 依赖声明')
-    npm_dev: list[str] = Field(default_factory=list, alias='npmDev', description='前端 npm 开发依赖声明')
+    frontend: dict[str, FrontendDependencyManifest] = Field(
+        default_factory=dict, description='按宿主前端框架分类的完整前端依赖'
+    )
     plugins: list[PluginDependencyManifest] = Field(default_factory=list, description='插件间依赖声明')
+
+    @field_validator('frontend')
+    @classmethod
+    def validate_frontend_frameworks(
+        cls, value: dict[str, FrontendDependencyManifest]
+    ) -> dict[str, FrontendDependencyManifest]:
+        """
+        校验前端依赖分类使用安全的小写框架标识。
+
+        :param value: 按宿主前端框架分类的依赖声明
+        :return: 校验后的前端依赖分类
+        """
+        for framework in value:
+            validate_frontend_framework(framework)
+        return value
+
+    @property
+    def has_frontend_dependencies(self) -> bool:
+        """
+        判断是否为任一前端框架声明宿主前端依赖。
+
+        :return: 是否存在前端依赖声明
+        """
+        return any(item.npm or item.npm_dev for item in self.frontend.values())
+
+    def resolve_frontend(self, frontend_framework: str) -> FrontendDependencyManifest:
+        """
+        获取指定前端框架的前端依赖声明副本。
+
+        返回独立副本，避免调用方修改原始清单；未声明的分类返回空依赖声明。
+
+        :param frontend_framework: 宿主前端框架标识，例如 vue2、vue3、react
+        :return: 指定前端框架的前端依赖声明副本
+        """
+        profile = self.frontend.get(validate_frontend_framework(frontend_framework))
+        return profile.model_copy(deep=True) if profile is not None else FrontendDependencyManifest()
 
     @field_validator('python')
     @classmethod
@@ -1111,7 +1162,7 @@ class PluginManifest(BaseModel):
 
         :return: None
         """
-        has_frontend_resources = bool(self.frontend.menus or self.dependencies.npm or self.dependencies.npm_dev)
+        has_frontend_resources = bool(self.frontend.menus or self.dependencies.has_frontend_dependencies)
         if has_frontend_resources and self.frontend.delivery.type == 'none':
             self.frontend.delivery.type = 'source'
         if self.frontend.delivery.type == 'source':

@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import timedelta
 from pathlib import Path
@@ -48,23 +47,33 @@ async def test_two_processes_atomically_enforce_logical_job_limit(runtime: Runti
         assert sorted(row.status for row in rows) == ['rejected', 'running']
 
 
-async def wait_for_process_file(path: Path) -> dict:
+async def wait_for_process_file(path: Path, executor: TimedProcessPoolExecutor, timeout: float = 45) -> dict:
     """
     等待真实进程进入业务函数
 
     :param path: 进程启动标记文件路径
+    :param executor: 提供超时诊断的真实进程执行器
+    :param timeout: 冷启动最长等待秒数，不作为业务执行耗时断言
     :return: 进程启动信息
     """
-
-    def wait() -> dict:
-        deadline = time.monotonic() + 15
-        while not path.exists():
-            if time.monotonic() > deadline:
-                raise TimeoutError('process did not enter the task')
-            time.sleep(0.02)
-        return json.loads(path.read_text(encoding='utf-8'))
-
-    return await asyncio.to_thread(wait)
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    last_error = None
+    while loop.time() < deadline:
+        try:
+            return json.loads(await asyncio.to_thread(path.read_text, encoding='utf-8'))
+        except (FileNotFoundError, json.JSONDecodeError) as exc:
+            last_error = type(exc).__name__
+        await asyncio.sleep(0.02)
+    processes = getattr(executor._pool, '_processes', None) or {}
+    states = [
+        {'pid': process.pid, 'alive': process.is_alive(), 'exitcode': process.exitcode}
+        for process in processes.values()
+    ]
+    raise TimeoutError(
+        f'process did not enter the task within {timeout}s; marker={path}; '
+        f'processes={states}; broken={getattr(executor._pool, "_broken", None)}; last_read={last_error}'
+    )
 
 
 @pytest.mark.asyncio
@@ -75,14 +84,12 @@ async def test_running_process_blocks_new_executor_and_can_finish_after_delete(
 ) -> None:
     started, release = tmp_path / 'started.json', tmp_path / 'release'
     monkeypatch.setattr(task_module, 'runtime_process', held_process_job, raising=False)
-    runtime.scheduler.add_executor(
-        TimedProcessPoolExecutor(
-            1,
-            manage_executions=True,
-            pool_kwargs={'initializer': init_execution_process, 'initargs': (str(runtime.engine.url),)},
-        ),
-        alias='processpool',
+    executor = TimedProcessPoolExecutor(
+        1,
+        manage_executions=True,
+        pool_kwargs={'initializer': init_execution_process, 'initargs': (str(runtime.engine.url),)},
     )
+    runtime.scheduler.add_executor(executor, alias='processpool')
     job = await runtime.save(
         job_info(
             invokeTarget='module_task.scheduler_test.runtime_process',
@@ -95,7 +102,7 @@ async def test_running_process_blocks_new_executor_and_can_finish_after_delete(
     execution_id = response.result['executionId']
     runtime.scheduler.resume()
     try:
-        assert (await wait_for_process_file(started))['pid'] != os.getpid()
+        assert (await wait_for_process_file(started, executor))['pid'] != os.getpid()
         assert (await runtime.execution(execution_id))['status'] == 'running'
         async with runtime.sessions() as db:
             await JobService.edit_job_services(

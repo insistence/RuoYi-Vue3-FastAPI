@@ -3,19 +3,23 @@ from pathlib import Path
 from typing import Literal
 
 from config.env import AppConfig
+from plugins.core.frontend import (
+    PluginFrontendFrameworkResolver,
+    resolve_frontend_framework_request,
+    resolve_frontend_root,
+)
 
 PluginFrontendMode = Literal['dev', 'built']
 PluginBackendRuntimeMode = Literal['dev', 'service', 'maintenance']
 
 BACKEND_ROOT_ENV_NAMES = ('RUOYI_PLUGIN_BACKEND_ROOT', 'RUOYI_BACKEND_ROOT')
-FRONTEND_ROOT_ENV_NAMES = ('RUOYI_PLUGIN_FRONTEND_ROOT', 'RUOYI_FRONTEND_ROOT')
 
 
 class PluginRuntimeEnvironmentService:
     """
     插件运行时环境服务。
 
-    为插件运行时提供后端目录和 Python 可执行文件等路径信息。
+    为插件运行时提供前后端工程目录、Python 可执行文件和运行模式。
     """
 
     def __init__(
@@ -23,17 +27,20 @@ class PluginRuntimeEnvironmentService:
         backend_root: Path | str | None = None,
         frontend_root: Path | str | None = None,
         python_executable: str | None = None,
+        frontend_framework: str = 'auto',
     ) -> None:
         """
         初始化插件运行时环境服务。
 
         :param backend_root: 后端项目根目录
-        :param frontend_root: 前端项目根目录
+        :param frontend_root: 前端项目根目录或统一前端目录
         :param python_executable: Python 可执行文件路径
+        :param frontend_framework: 前端框架标识，auto 使用环境变量，未配置时默认 vue3
         :return: None
         """
         self.backend_root = self._resolve_backend_root(backend_root)
-        self.frontend_root = self._resolve_frontend_root(self.backend_root, frontend_root)
+        self.frontend_root = resolve_frontend_root(self.backend_root, frontend_root, frontend_framework)
+        self.frontend_framework = resolve_frontend_framework_request(self.frontend_root, frontend_framework)
         self.python_executable = python_executable or 'python'
         self.frontend_mode = self._get_frontend_mode()
         self.backend_runtime_mode = self._get_backend_runtime_mode()
@@ -54,27 +61,6 @@ class PluginRuntimeEnvironmentService:
         return Path(__file__).resolve().parents[2]
 
     @staticmethod
-    def _resolve_frontend_root(backend_root: Path, frontend_root: Path | str | None) -> Path:
-        """
-        解析前端项目根目录。
-
-        解析顺序为：显式参数、环境变量、后端同级目录中的前端工程、按后端目录名推断。
-
-        :param backend_root: 后端项目根目录
-        :param frontend_root: 显式传入的前端项目根目录
-        :return: 前端项目根目录
-        """
-        if frontend_root:
-            return Path(frontend_root).resolve()
-        configured_frontend_root = PluginRuntimeEnvironmentService._first_env_path(FRONTEND_ROOT_ENV_NAMES)
-        if configured_frontend_root:
-            return configured_frontend_root.resolve()
-        sibling_frontend_root = PluginRuntimeEnvironmentService._find_sibling_frontend_root(backend_root)
-        if sibling_frontend_root:
-            return sibling_frontend_root.resolve()
-        return backend_root.parent / PluginRuntimeEnvironmentService._infer_frontend_dir_name(backend_root.name)
-
-    @staticmethod
     def _first_env_path(env_names: tuple[str, ...]) -> Path | None:
         """
         读取第一个已配置的目录环境变量。
@@ -87,41 +73,6 @@ class PluginRuntimeEnvironmentService:
             if value:
                 return Path(value)
         return None
-
-    @staticmethod
-    def _find_sibling_frontend_root(backend_root: Path) -> Path | None:
-        """
-        从后端同级目录中寻找前端工程。
-
-        :param backend_root: 后端项目根目录
-        :return: 前端项目根目录，未找到时返回 None
-        """
-        parent = backend_root.parent
-        if not parent.is_dir():
-            return None
-        candidates = [
-            path
-            for path in parent.iterdir()
-            if path.is_dir()
-            and path != backend_root
-            and (path / 'package.json').is_file()
-            and (path / 'plugins').is_dir()
-        ]
-        if not candidates:
-            return None
-        return sorted(candidates)[0]
-
-    @staticmethod
-    def _infer_frontend_dir_name(backend_dir_name: str) -> str:
-        """
-        根据后端目录名推断前端目录名。
-
-        :param backend_dir_name: 后端目录名
-        :return: 推断出的前端目录名
-        """
-        if 'backend' in backend_dir_name:
-            return backend_dir_name.replace('backend', 'frontend', 1)
-        return 'frontend'
 
     @staticmethod
     def _get_frontend_mode() -> PluginFrontendMode:
@@ -168,6 +119,20 @@ class PluginRuntimeEnvironmentService:
         :return: 前端项目根目录绝对路径
         """
         return str(self.frontend_root)
+
+    def get_frontend_framework(self, frontend_root: Path | str | None = None) -> str:
+        """
+        获取指定前端工程的框架标识，保留当前工程的显式选择。
+
+        其他工程按自身目录和依赖解析，不沿用当前工程的框架标识。
+        仅在需要前端依赖时解析，避免后端独立运行时要求存在前端文件。
+
+        :param frontend_root: 前端工程根目录，未指定时使用当前工程
+        :return: 前端框架标识
+        """
+        root = Path(os.path.abspath(frontend_root)) if frontend_root is not None else self.frontend_root
+        framework = self.frontend_framework if root == self.frontend_root else 'auto'
+        return PluginFrontendFrameworkResolver.resolve(root, framework)
 
     def get_frontend_plugins_dir(self) -> str:
         """

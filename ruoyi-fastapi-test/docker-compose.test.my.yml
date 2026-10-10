@@ -2,7 +2,7 @@ services:
   # 前端服务
   ruoyi-frontend:
     build:
-      context: ../ruoyi-fastapi-frontend
+      context: ../ruoyi-fastapi-frontend/${FRONTEND_FRAMEWORK:-vue3}/web
       dockerfile: Dockerfile
     image: ruoyi-frontend:latest
     container_name: ruoyi-frontend-test
@@ -11,7 +11,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ../ruoyi-fastapi-frontend/bin/nginx.dockermy.conf:/etc/nginx/conf.d/default.conf
+      - ../ruoyi-fastapi-frontend/${FRONTEND_FRAMEWORK:-vue3}/web/bin/nginx.dockermy.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - ruoyi-backend-my
     networks:
@@ -28,6 +28,7 @@ services:
       - "9099:9099"
     environment:
       TZ: UTC
+      RUOYI_PLUGIN_FRONTEND_FRAMEWORK: ${FRONTEND_FRAMEWORK:-vue3}
       TRANSPORT_CRYPTO_ENABLED: "false"
       TRANSPORT_CRYPTO_MODE: "off"
     depends_on:

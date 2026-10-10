@@ -8,6 +8,7 @@ from typing import Any
 import yaml
 
 from cli.exit_codes import RUNTIME_ERROR, SUCCESS
+from plugins.core.frontend import PluginFrontendFrameworkResolver
 from plugins.core.utils import validate_plugin_id_value
 from utils.time_util import TimezoneUtil
 
@@ -223,6 +224,7 @@ class PluginDependencyLockfileTemplate:
     :param npm_dev: npmDev 依赖锁定项
     :param artifact_count: 已从离线制品反填的依赖项数量
     :param warnings: 生成过程告警
+    :param frontend_framework: 锁定的宿主前端框架，无前端依赖分类时为 None
     """
 
     plugin_id: str
@@ -233,6 +235,7 @@ class PluginDependencyLockfileTemplate:
     npm_dev: list[dict[str, object]]
     artifact_count: int = 0
     warnings: list[str] = field(default_factory=list)
+    frontend_framework: str | None = None
 
     @property
     def entry_count(self) -> int:
@@ -256,6 +259,7 @@ class PluginDependencyLockfileTemplate:
             'python': self.python,
             'npm': self.npm,
             'npmDev': self.npm_dev,
+            **({'frontendFramework': self.frontend_framework} if self.frontend_framework else {}),
         }
 
     def to_yaml(self) -> str:
@@ -275,16 +279,36 @@ class PluginDependencyLockfileTemplateBuilder:
     """
 
     @classmethod
-    def build(cls, manifest: Any, *, offline_dir: Path | str | None = None) -> PluginDependencyLockfileTemplate:
+    def build(
+        cls,
+        manifest: Any,
+        *,
+        offline_dir: Path | str | None = None,
+        frontend_root: Path | str | None = None,
+        frontend_framework: str = 'auto',
+    ) -> PluginDependencyLockfileTemplate:
         """
         根据插件 manifest 构建锁文件模板。
 
         :param manifest: 插件 manifest
         :param offline_dir: 离线制品根目录
+        :param frontend_root: 宿主前端工程根目录，未指定时使用插件运行时目录
+        :param frontend_framework: 宿主显式框架选择，auto 时从运行时环境与工程目录解析
         :return: 锁文件模板
         """
         generated_at = TimezoneUtil.format_rfc3339(TimezoneUtil.utc_now())
         dependencies = manifest.dependencies
+        resolved_frontend_framework = None
+        if dependencies.frontend:
+            from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT  # noqa: PLC0415
+
+            frontend_root = frontend_root or PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_dir()
+            resolved_frontend_framework = (
+                PLUGIN_RUNTIME_ENVIRONMENT.get_frontend_framework(frontend_root)
+                if frontend_framework == 'auto'
+                else PluginFrontendFrameworkResolver.resolve(Path(frontend_root), frontend_framework)
+            )
+        frontend_dependencies = dependencies.resolve_frontend(resolved_frontend_framework or 'vue3')
         artifact_resolver = PluginDependencyOfflineArtifactResolver(offline_dir)
         warnings: list[str] = []
         artifact_count = 0
@@ -297,7 +321,7 @@ class PluginDependencyLockfileTemplateBuilder:
             artifact_count += 1 if entry.get('resolvedVersion') else 0
             if artifact_warning:
                 warnings.append(artifact_warning)
-        for requirement in dependencies.npm:
+        for requirement in frontend_dependencies.npm:
             entry, artifact_warning = cls._build_npm_entry(
                 requirement,
                 kind='npm',
@@ -307,7 +331,7 @@ class PluginDependencyLockfileTemplateBuilder:
             artifact_count += 1 if entry.get('resolvedVersion') else 0
             if artifact_warning:
                 warnings.append(artifact_warning)
-        for requirement in dependencies.npm_dev:
+        for requirement in frontend_dependencies.npm_dev:
             entry, artifact_warning = cls._build_npm_entry(
                 requirement,
                 kind='npmDev',
@@ -326,6 +350,7 @@ class PluginDependencyLockfileTemplateBuilder:
             npm_dev=npm_dev_entries,
             artifact_count=artifact_count,
             warnings=warnings,
+            frontend_framework=resolved_frontend_framework,
         )
 
     @staticmethod

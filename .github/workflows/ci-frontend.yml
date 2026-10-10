@@ -1,0 +1,116 @@
+name: CI / Frontend
+
+on:
+  workflow_call:
+    inputs:
+      matrix_json:
+        description: 'JSON matrix with framework and target entries under include'
+        required: true
+        type: string
+      full:
+        description: 'Reserved for callers requesting the full project matrix'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: ${{ matrix.framework }} / ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.matrix_json) }}
+    env:
+      NODE_OPTIONS: ${{ matrix.framework == 'vue2' && '--openssl-legacy-provider' || '' }}
+    defaults:
+      run:
+        working-directory: ruoyi-fastapi-frontend/${{ matrix.framework }}/${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install the Vue 2 Mobile package manager
+        if: matrix.framework == 'vue2' && matrix.target == 'mobile'
+        run: npm install --global yarn@1.22.22
+      - uses: pnpm/action-setup@v5
+        if: matrix.framework == 'vue3' && matrix.target == 'mobile'
+        with:
+          package_json_file: ruoyi-fastapi-frontend/vue3/mobile/package.json
+      - name: Locate the package cache
+        id: package-cache
+        env:
+          FRAMEWORK: ${{ matrix.framework }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          if [ "$TARGET" = web ]; then
+            echo "path=$(npm config get cache)" >> "$GITHUB_OUTPUT"
+          elif [ "$FRAMEWORK" = vue2 ]; then
+            echo "path=$(yarn cache dir --silent)" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/cache@v5
+        with:
+          path: ${{ steps.package-cache.outputs.path }}
+          # Lockfiles are intentionally not tracked in these projects.
+          key: ${{ runner.os }}-node22-${{ matrix.framework }}-${{ matrix.target }}-${{ hashFiles(format('ruoyi-fastapi-frontend/{0}/{1}/package.json', matrix.framework, matrix.target)) }}
+          restore-keys: |
+            ${{ runner.os }}-node22-${{ matrix.framework }}-${{ matrix.target }}-
+      - name: Install Web dependencies
+        if: matrix.target == 'web'
+        run: npm install --no-audit --no-fund --package-lock=false
+      - name: Install Vue 2 Mobile dependencies
+        if: matrix.framework == 'vue2' && matrix.target == 'mobile'
+        run: yarn install --non-interactive
+      - name: Install Vue 3 Mobile dependencies
+        if: matrix.framework == 'vue3' && matrix.target == 'mobile'
+        run: pnpm install --no-frozen-lockfile
+      - name: Run unit and component behavior tests
+        run: npm run test:unit
+      - name: Verify time contracts in three host timezones
+        run: |
+          for zone in UTC Asia/Shanghai America/New_York; do
+            TZ="$zone" npm run test:contract
+          done
+      - name: Verify the Vue 2 Mobile browser bundle without native Intl
+        if: matrix.framework == 'vue2' && matrix.target == 'mobile'
+        run: npm run test:bundle
+      - name: Build Web production and Docker targets
+        if: matrix.target == 'web'
+        run: |
+          npm run build:prod
+          npm run build:docker
+      - name: Build Mobile H5
+        if: matrix.target == 'mobile'
+        run: npm run build:h5
+      - uses: actions/setup-python@v6
+        if: matrix.target == 'mobile'
+        with:
+          python-version: '3.12'
+      - name: Install the Mobile smoke browser
+        if: matrix.target == 'mobile'
+        run: |
+          python -m pip install playwright==1.62.0
+          python -m playwright install --with-deps chromium
+      - name: Verify Mobile H5 login and profile
+        if: matrix.target == 'mobile'
+        working-directory: .
+        run: python .github/scripts/mobile_smoke.py --framework ${{ matrix.framework }}
+      - name: Build Mobile WeChat target
+        if: matrix.target == 'mobile'
+        run: npm run build:mp-weixin
+      - name: Upload frontend diagnostics
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: frontend-${{ matrix.framework }}-${{ matrix.target }}
+          path: |
+            target/ci/mobile-smoke/${{ matrix.framework }}/
+            ruoyi-fastapi-frontend/${{ matrix.framework }}/${{ matrix.target }}/test-results/
+          if-no-files-found: ignore
+          retention-days: 7

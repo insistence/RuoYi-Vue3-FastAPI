@@ -10,6 +10,8 @@ import yaml
 from packaging.requirements import InvalidRequirement
 from pydantic import ValidationError
 
+from plugins.core.environment import PLUGIN_RUNTIME_ENVIRONMENT, PluginRuntimeEnvironmentService
+from plugins.core.frontend import validate_frontend_framework
 from plugins.core.validation.dependencies import (
     DependencyInstallPlan,
     DependencyInstallPlanItem,
@@ -465,10 +467,15 @@ class DependencyLockEntry:
 class DependencyLockfile:
     """
     插件依赖锁文件。
+
+    :param path: 锁文件路径
+    :param entries: 按依赖类型和包名索引的锁定依赖
+    :param frontend_framework: 锁文件对应的宿主前端框架，未声明时不检查框架
     """
 
     path: Path
     entries: dict[tuple[DependencyKind, str], DependencyLockEntry]
+    frontend_framework: str | None = None
 
     @classmethod
     def load(cls, path: Path | str | None) -> 'DependencyLockfile | None':
@@ -477,6 +484,7 @@ class DependencyLockfile:
 
         :param path: 锁文件路径
         :return: 锁文件对象，缺失时返回 None
+        :raises ValueError: 锁文件使用旧框架字段或包含无效的前端框架标识
         """
         if path is None:
             return None
@@ -484,6 +492,15 @@ class DependencyLockfile:
         if not lockfile_path.is_file():
             return None
         data = yaml.safe_load(lockfile_path.read_text(encoding='utf-8')) or {}
+        if not isinstance(data, dict):
+            raise ValueError('依赖锁文件顶层必须是对象')
+        if 'frontendVersion' in data:
+            raise ValueError('依赖锁文件 frontendVersion 已移除，请迁移为 frontendFramework 或重新生成锁文件')
+        frontend_framework = None
+        if 'frontendFramework' in data:
+            if not isinstance(data['frontendFramework'], str):
+                raise ValueError('依赖锁文件 frontendFramework 必须是小写框架标识')
+            frontend_framework = validate_frontend_framework(data['frontendFramework'])
         entries: dict[tuple[DependencyKind, str], DependencyLockEntry] = {}
         for kind in ('python', 'npm', 'npmDev'):
             for raw_entry in data.get(kind, []) or []:
@@ -502,7 +519,7 @@ class DependencyLockfile:
                 )
                 entries[(kind, normalize_dependency_name(kind, name))] = entry
 
-        return cls(path=lockfile_path, entries=entries)
+        return cls(path=lockfile_path, entries=entries, frontend_framework=frontend_framework)
 
     def get_entry(self, item: DependencyInstallPlanItem) -> DependencyLockEntry | None:
         """
@@ -728,14 +745,21 @@ class DependencyInstallPolicyEvaluator:
     插件依赖安装策略判定器。
     """
 
-    def __init__(self, config: DependencyInstallPolicyConfig | None = None) -> None:
+    def __init__(
+        self,
+        config: DependencyInstallPolicyConfig | None = None,
+        *,
+        runtime_environment: PluginRuntimeEnvironmentService | None = None,
+    ) -> None:
         """
         初始化策略判定器。
 
         :param config: 策略配置
+        :param runtime_environment: 保留当前宿主显式框架选择的运行时环境
         :return: None
         """
         self.config = config or DependencyInstallPolicyConfig.from_environment()
+        self.runtime_environment = runtime_environment or PLUGIN_RUNTIME_ENVIRONMENT
 
     def evaluate(
         self, install_plan: DependencyInstallPlan, *, confirmed: bool = False
@@ -977,16 +1001,16 @@ class DependencyInstallPolicyEvaluator:
             return True
         return version_satisfies_range(lock_entry.resolved_version, required_version)
 
-    @staticmethod
     def _build_lockfile_extra_reasons(
+        self,
         lockfile: DependencyLockfile | None,
         install_plan: DependencyInstallPlan,
     ) -> list[str]:
         """
-        构建锁文件额外安装项阻断原因。
+        构建锁文件宿主框架及额外依赖的阻断原因。
 
         :param lockfile: 锁文件
-        :param install_plan: 安装计划
+        :param install_plan: 安装计划，包含前端依赖的目标工作目录
         :return: 阻断原因
         """
         if lockfile is None:
@@ -996,6 +1020,18 @@ class DependencyInstallPolicyEvaluator:
             for item in install_plan.items
         }
         reasons = []
+        if lockfile.frontend_framework:
+            frontend_roots = {item.workdir for item in install_plan.items if item.kind in {'npm', 'npmDev'}}
+            for frontend_root in sorted(frontend_roots):
+                try:
+                    frontend_framework = self.runtime_environment.get_frontend_framework(Path(frontend_root))
+                except ValueError as exc:
+                    reasons.append(str(exc))
+                    continue
+                if frontend_framework != lockfile.frontend_framework:
+                    reasons.append(
+                        f'锁文件前端框架不匹配：lock={lockfile.frontend_framework} host={frontend_framework}'
+                    )
         for entry in lockfile.entries.values():
             key = (entry.kind, normalize_dependency_name(entry.kind, entry.name), entry.requirement)
             if key not in plan_keys:

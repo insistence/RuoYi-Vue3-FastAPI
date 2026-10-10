@@ -1,0 +1,30 @@
+# Keep the HTML entry DOCTYPE and formatting manually maintained.
+/public/index.html
+/public/html/ie.html
+/public/styles/theme-chalk/index.css
+
+# Dependencies, build output and caches
+node_modules/
+dist/
+coverage/
+.cache/
+.vite/
+
+# Test output
+tests/**/coverage/
+tests/e2e/reports/
+playwright-report/
+test-results/
+
+# Package-manager output and generated declarations
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+auto-imports.d.ts
+components.d.ts
+
+# Generated or external assets
+**/*.min.js
+**/*.min.css
+**/*.svg
+**/*.map

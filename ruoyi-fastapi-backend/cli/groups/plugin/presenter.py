@@ -556,7 +556,7 @@ class PluginCommandPresenter:
             f'template: {payload.get("template", "-")}',
             f'backend: {str(payload.get("backend", False)).lower()}',
             f'frontend: {str(payload.get("frontend", False)).lower()}',
-            f'frontend_version: {payload.get("frontendVersion") or "-"}',
+            f'frontend_framework: {payload.get("frontendFramework") or "-"}',
             f'migration: {str(payload.get("migration", False)).lower()}',
             f'seed: {str(payload.get("seed", False)).lower()}',
             f'job: {str(payload.get("job", False)).lower()}',

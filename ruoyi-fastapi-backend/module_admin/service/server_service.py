@@ -80,25 +80,64 @@ class ServerService:
         )
 
         # 磁盘信息
-        io = psutil.disk_partitions()
-        sys_files = []
-        for i in io:
-            try:
-                o = psutil.disk_usage(i.device)
-                disk_data = SysFiles(
-                    dirName=i.device,
-                    sysTypeName=i.fstype,
-                    typeName='本地固定磁盘（' + i.mountpoint.replace('\\', '') + '）',
-                    total=bytes2human(o.total),
-                    used=bytes2human(o.used),
-                    free=bytes2human(o.free),
-                    usage=f'{psutil.disk_usage(i.device).percent}%',
-                )
-                sys_files.append(disk_data)
-            except Exception:  # noqa: PERF203
-                # 忽略所有异常，跳过有问题的磁盘
-                continue
+        sys_files = ServerService._get_disk_info()
 
         result = ServerMonitorModel(cpu=cpu, mem=mem, sys=sys, py=py, sysFiles=sys_files)
 
         return result
+
+    @classmethod
+    def _get_disk_info(cls) -> list[SysFiles]:
+        """
+        获取可访问的磁盘信息
+
+        :return: 磁盘信息列表
+        """
+        sys_files = []
+        for partition in psutil.disk_partitions():
+            disk_info = cls._read_disk_info(partition.device, partition.mountpoint, partition.fstype)
+            if disk_info is not None:
+                sys_files.append(disk_info)
+        if sys_files:
+            return sys_files
+
+        # 默认分区列表会过滤overlay等容器文件系统，无可读分区时补充根文件系统
+        root_path = os.path.abspath(os.sep)
+        # 仅匹配根目录，避免展示proc、sysfs等虚拟挂载
+        root_partition = next(
+            (partition for partition in psutil.disk_partitions(all=True) if partition.mountpoint == root_path),
+            None,
+        )
+        disk_info = cls._read_disk_info(
+            root_partition.device if root_partition else root_path,
+            root_path,
+            root_partition.fstype if root_partition else '',
+        )
+
+        return [disk_info] if disk_info is not None else []
+
+    @staticmethod
+    def _read_disk_info(device: str, mountpoint: str, filesystem: str) -> SysFiles | None:
+        """
+        读取指定磁盘的容量信息
+
+        :param device: 磁盘设备名称
+        :param mountpoint: 磁盘挂载路径
+        :param filesystem: 文件系统类型
+        :return: 磁盘容量信息，挂载路径不可访问时返回None
+        """
+        try:
+            disk_usage = psutil.disk_usage(mountpoint)
+        except OSError:
+            # 跳过不存在或无权访问的挂载路径
+            return None
+
+        return SysFiles(
+            dirName=device,
+            sysTypeName=filesystem,
+            typeName='本地固定磁盘（' + mountpoint.replace('\\', '') + '）',
+            total=bytes2human(disk_usage.total),
+            used=bytes2human(disk_usage.used),
+            free=bytes2human(disk_usage.free),
+            usage=f'{disk_usage.percent}%',
+        )

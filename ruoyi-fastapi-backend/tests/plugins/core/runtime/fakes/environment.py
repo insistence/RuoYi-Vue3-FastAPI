@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 
 from plugins.core.environment import PluginRuntimeEnvironmentService
+from plugins.core.frontend import PluginFrontendFrameworkResolver
 
 
 class FakeRuntimeEnvironment:
@@ -29,6 +30,11 @@ class FakeRuntimeEnvironment:
     def get_frontend_dir(self) -> str:
         """获取前端项目根目录。"""
         return str(self.frontend_dir)
+
+    def get_frontend_framework(self, frontend_root: Path | str | None = None) -> str:
+        """获取测试用前端工程的框架标识。"""
+        root = Path(frontend_root) if frontend_root is not None else self.frontend_dir
+        return PluginFrontendFrameworkResolver.resolve(root)
 
     def get_frontend_plugins_dir(self) -> str:
         """获取前端插件根目录。"""

@@ -1,0 +1,2 @@
+# CI 脚本和测试与后端使用相同的 Python 风格。
+extend = "../ruoyi-fastapi-backend/ruff.toml"

@@ -116,8 +116,7 @@ class PluginRuntimeCapabilityResolver:
         manifest = discovered_plugin.manifest
         has_frontend_resources = bool(
             manifest.frontend.menus
-            or manifest.dependencies.npm
-            or manifest.dependencies.npm_dev
+            or manifest.dependencies.has_frontend_dependencies
             or manifest.frontend.delivery.type == 'bundle'
         )
         frontend_build_required = manifest.frontend.delivery.type != 'bundle' and (

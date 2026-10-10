@@ -1,52 +1,36 @@
 import re
 
-from playwright.async_api._context_manager import PlaywrightContextManager
+from playwright.async_api import Locator
 
-from common.config import Config
-from common.login_helper import LoginHelper
+from common.browser_harness import BrowserHarness
 
 
 class BasePageTest:
-    browser = None
+    harness = None
     context = None
     page = None
     token = None
 
-    async def setup(self, playwright: PlaywrightContextManager) -> None:
-        """初始化浏览器和登录"""
-        # 首先登录获取token
-        helper = LoginHelper()
-        self.token = helper.login(username='admin', password='admin123')
-        assert self.token is not None, '登录应该成功'
-
-        # 启动浏览器
-        self.browser = await playwright.chromium.launch(headless=True, channel=Config.browser_channel)
-        self.context = await self.browser.new_context()
-        # 设置认证token
-        await self.context.add_cookies(
-            [
-                {
-                    'name': 'Admin-Token',
-                    'value': self.token,
-                    'domain': 'localhost',
-                    'path': '/',
-                    'httpOnly': False,
-                    'secure': False,
-                }
-            ]
-        )
+    async def setup(self, harness: BrowserHarness) -> None:
+        """创建独立上下文，浏览器和诊断资源由会话 fixture 管理。"""
+        self.harness = harness
+        self.token = await harness.login()
+        self.context = await harness.new_context(token=self.token)
         self.page = await self.context.new_page()
-
-    async def teardown(self) -> None:
-        """清理资源"""
-        if self.context:
-            await self.context.close()
-        if self.browser:
-            await self.browser.close()
 
     async def goto_page(self, url: str) -> None:
         """访问指定页面"""
         await self.page.goto(url)
+
+    async def select_department(self, dialog: Locator, label: str, department: str) -> None:
+        """兼容 Element Plus 树选择器与 Vue2 的 vue-treeselect。"""
+        field = dialog.locator('.el-form-item').filter(has_text=label)
+        await field.locator('.el-select__wrapper, .vue-treeselect__control').click()
+        choices = self.page.locator(
+            '.el-select-dropdown:visible .el-tree-node__content .el-select-dropdown__item, '
+            '.vue-treeselect__menu .vue-treeselect__label:visible'
+        )
+        await choices.filter(has_text=re.compile(rf'^\s*{re.escape(department)}(?:\s*\(\d+\))?\s*$')).click()
 
     async def wait_for_page_title(self, title_text: str, timeout: int = 10000) -> None:
         """等待页面标题出现"""

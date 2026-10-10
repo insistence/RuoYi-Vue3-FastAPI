@@ -5,10 +5,13 @@ from collections.abc import Callable
 from pathlib import Path
 from textwrap import dedent
 
-from cli.exit_codes import DEPENDENCY_ERROR, SUCCESS
-from cli.runtime.plugin.scaffold import PluginFrontendVersionResolver
+import pytest
 
-FRONTEND_ROOT = Path(__file__).resolve().parents[4] / 'ruoyi-fastapi-frontend'
+from cli.exit_codes import ARGUMENT_ERROR, DEPENDENCY_ERROR, SUCCESS
+from cli.runtime.plugin.scaffold import PluginFrontendFrameworkResolver
+
+pytestmark = pytest.mark.contract
+FRONTEND_ROOT = Path(__file__).resolve().parents[4] / 'ruoyi-fastapi-frontend' / 'vue3' / 'web'
 
 
 def test_app_config_json_output_is_pure_json(
@@ -469,7 +472,7 @@ def test_plugin_create_dry_run_json_output_has_stable_contract(
     assert payload['dryRun'] is True
     assert payload['backend'] is True
     assert payload['frontend'] is True
-    assert payload['frontendVersion'] == PluginFrontendVersionResolver.resolve(FRONTEND_ROOT)
+    assert payload['frontendFramework'] == PluginFrontendFrameworkResolver.resolve(FRONTEND_ROOT)
     assert payload['migration'] is True
     assert payload['seed'] is True
     assert payload['job'] is True
@@ -508,7 +511,7 @@ def test_plugin_create_optional_parts_json_output_has_stable_contract(
     assert payload['config'] is False
 
 
-def test_plugin_create_frontend_version_override_json_output_has_stable_contract(
+def test_plugin_create_frontend_framework_override_json_output_has_stable_contract(
     run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
     parse_json_stdout: Callable[[subprocess.CompletedProcess[str]], dict],
 ) -> None:
@@ -518,7 +521,7 @@ def test_plugin_create_frontend_version_override_json_output_has_stable_contract
         'contract_vue2',
         '--dry-run',
         '--frontend-only',
-        '--frontend-version=vue2',
+        '--frontend-framework=vue2',
         '--env=dev',
         '--output=json',
     )
@@ -527,8 +530,36 @@ def test_plugin_create_frontend_version_override_json_output_has_stable_contract
     view_payload = next(file for file in payload['files'] if str(file['path']).endswith('/views/index.vue'))
     assert completed.returncode == SUCCESS
     assert payload['ok'] is True
-    assert payload['frontendVersion'] == 'vue2'
+    assert payload['frontendFramework'] == 'vue2'
+    assert FRONTEND_ROOT.parents[1] / 'vue2/web/plugins/contract_vue2' in [Path(path) for path in payload['targetDirs']]
     assert 'slot="header"' in view_payload['content']
+
+
+def test_plugin_create_rejects_framework_outside_fixed_choices(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+) -> None:
+    """校验根命令在参数解析阶段拒绝不属于固定选项的 React 框架。"""
+    completed = run_cli_command(
+        'plugin',
+        'create',
+        'contract_react',
+        '--dry-run',
+        '--frontend-only',
+        '--frontend-framework=react',
+        '--env=dev',
+        '--output=json',
+    )
+    assert completed.returncode == ARGUMENT_ERROR
+    assert 'Invalid value' in completed.stderr
+    assert 'react' in completed.stderr
+
+
+def test_plugin_create_rejects_removed_frontend_version_option(
+    run_cli_command: Callable[..., subprocess.CompletedProcess[str]],
+) -> None:
+    """校验创建命令不再接受已移除的前端版本选项。"""
+    completed = run_cli_command('plugin', 'create', 'contract_old_option', '--dry-run', '--frontend-version=vue3')
+    assert completed.returncode != SUCCESS
 
 
 def test_plugin_install_dry_run_json_output_has_stable_contract(

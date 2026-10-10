@@ -1,12 +1,14 @@
-FROM python:3.10
+ARG PYTHON_VERSION=3.10
+FROM python:${PYTHON_VERSION}
 ENV TZ=UTC
 WORKDIR /app
+ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 复制源代码
 COPY . .
 
 # 安装依赖
-RUN pip install --no-cache-dir -r requirements-pg.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+RUN pip install --no-cache-dir -r requirements-pg.txt -i ${PIP_INDEX_URL}
 
 # 暴露端口
 EXPOSE 9099
