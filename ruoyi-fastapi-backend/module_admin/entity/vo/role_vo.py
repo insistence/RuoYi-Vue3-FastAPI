@@ -69,10 +69,15 @@ class RoleModel(BaseModel):
     def get_role_sort(self) -> int | None:
         return self.role_sort
 
+    @Size(field_name='remark', min_length=0, max_length=500, message='备注长度不能超过500个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_role_name()
         self.get_role_key()
         self.get_role_sort()
+        self.get_remark()
 
 
 class RoleMenuModel(BaseModel):

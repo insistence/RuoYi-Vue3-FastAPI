@@ -98,11 +98,16 @@ class UserModel(BaseModel):
     def get_phonenumber(self) -> str | None:
         return self.phonenumber
 
+    @Size(field_name='remark', min_length=0, max_length=500, message='备注长度不能超过500个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_user_name()
         self.get_nick_name()
         self.get_email()
         self.get_phonenumber()
+        self.get_remark()
 
 
 class UserRowModel(UserModel):

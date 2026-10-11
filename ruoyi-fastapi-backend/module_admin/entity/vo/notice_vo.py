@@ -32,8 +32,13 @@ class NoticeModel(BaseModel):
     def get_notice_title(self) -> str | None:
         return self.notice_title
 
+    @Size(field_name='remark', min_length=0, max_length=255, message='备注长度不能超过255个字符')
+    def get_remark(self) -> str | None:
+        return self.remark
+
     def validate_fields(self) -> None:
         self.get_notice_title()
+        self.get_remark()
 
 
 class NoticeQueryModel(DateRangeQueryMixin, NoticeModel):
